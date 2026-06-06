@@ -3,6 +3,7 @@ from typing import Optional
 from .models import SystemState, Event, EventType
 from .mqtt_client import MqttClientManager
 
+
 class StateManager:
     def __init__(self, mqtt_client: MqttClientManager):
         self._state = SystemState()
@@ -58,15 +59,16 @@ class StateManager:
         state_changed = False
 
         if event.type == EventType.INITIAL_STATE_LOADED:
-            self._state.hardware_live_mode = False
+            self._state.hardware.live_mode = False
             state_changed = True
 
         elif event.type == EventType.TEMP_UPDATED:
             new_temp = event.payload.get("value")
-            if new_temp is not None and new_temp != self._state.sauna_temp:
-                self._state.sauna_temp = new_temp
+            # Nested dot notation applied here
+            if new_temp is not None and new_temp != self._state.sauna.current_temp:
+                self._state.sauna.current_temp = new_temp
                 state_changed = True
-        
+
         else:
             print(f"⚠️ Unhandled event type: {event.type.value}")
 

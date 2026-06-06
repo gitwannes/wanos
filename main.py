@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -20,31 +21,43 @@ mqtt_manager = MqttClientManager(
 # 3. Initialize the State Manager
 state_manager = StateManager(mqtt_client=mqtt_manager)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manages startup and shutdown sequences safely."""
     await mqtt_manager.start()
     await state_manager.start()
-    
-    # Kickoff initial event
+
+    # Start the Lab Mode background tasks
+    sensor_task = asyncio.create_task(mock_temperature_sensor(state_manager))
+
     state_manager.dispatch(Event(type=EventType.INITIAL_STATE_LOADED))
-    
+
     yield
-    
-    # Shutdown
+
+    # Shutdown sequence
+    sensor_task.cancel()
+    try:
+        await sensor_task
+    except asyncio.CancelledError:
+        pass
+
     await state_manager.stop()
     await mqtt_manager.stop()
 
 # Initialize FastAPI
-app = FastAPI(lifespan=lifespan, title="WISC Backend API")
+app = FastAPI(lifespan=lifespan, title="Wanos Backend API")
+
 
 class DummyTempRequest(BaseModel):
     temp: float
+
 
 @app.get("/api/state")
 async def get_state():
     """Fetch the current state snapshot via HTTP."""
     return state_manager.get_state_snapshot()
+
 
 @app.post("/api/test/temp")
 async def inject_dummy_temp(request: DummyTempRequest):

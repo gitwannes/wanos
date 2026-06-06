@@ -34,11 +34,30 @@ class EventType(str, Enum):
     LIGHTING_STATE_CHANGED = "LIGHTING_STATE_CHANGED"
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
 
+# --- Nested Sub-States ---
+
+class HardwareState(BaseModel):
+    live_mode: bool = False
+    door_open: bool = False
+    safety_pin_active: bool = False
+
+class SaunaState(BaseModel):
+    active: bool = False
+    current_temp: Optional[float] = None
+    target_temp: float = 80.0
+    modulation_pwm: int = 0  # 0 to 100%
+
+class LightingState(BaseModel):
+    bathroom_light_on: bool = False
+    relax_room_light_on: bool = False
+
+# --- Master Vault ---
+
 class SystemState(BaseModel):
     """The strictly typed, single source of truth for the system."""
-    hardware_live_mode: bool = False
-    sauna_temp: Optional[float] = None
-    sauna_active: bool = False
+    hardware: HardwareState = Field(default_factory=HardwareState)
+    sauna: SaunaState = Field(default_factory=SaunaState)
+    lighting: LightingState = Field(default_factory=LightingState)
 
 class Event(BaseModel):
     """The strict schema for all events entering the State Manager queue."""
