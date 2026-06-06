@@ -1,5 +1,5 @@
 ================================================================================
-WISC ARCHITECTURE 101: HOW PHASE 1 WORKS
+WANOS ARCHITECTURE 101: HOW PHASE 1 WORKS
 ================================================================================
 
 Welcome to modern Python backend development. What we just built is a robust, 
@@ -25,8 +25,6 @@ listening for API requests, temperature changes, or UI clicks.
 --------------------------------------------------------------------------------
 2. THE BOUNCER: Pydantic (core/models.py & core/config.py)
 --------------------------------------------------------------------------------
-
-
 Python is a "dynamically typed" language. This means you can create a variable 
 `temp = 85`, and two lines later do `temp = "eighty"`, and Python won't stop you. 
 When dealing with physical hardware that can catch fire, this flexibility is 
@@ -46,8 +44,6 @@ Pydantic is a data validation library that acts as a strict bouncer for your dat
 --------------------------------------------------------------------------------
 3. THE VAULT: The State Manager & asyncio.Queue (core/state_manager.py)
 --------------------------------------------------------------------------------
-
-
 In the legacy Kivy architecture, the state was just a massive dictionary (`wp`). 
 The timer loop, the physical GPIO pins, the MQTT client, and the UI were all 
 reading and changing that dictionary at the exact same time. This causes "race 
@@ -104,12 +100,63 @@ INFO:     Waiting for application startup.
    sets `hardware_live_mode` to `False`, and asks Pydantic for a JSON snapshot.
 7. The State Manager hands the snapshot to `mqtt_client.py`, which publishes it.
 8. The system goes to sleep, waiting for the next event!
+
+--------------------------------------------------------------------------------
+6. WANOS CRASH COURSE: CODING STYLE & TWEAKING
+--------------------------------------------------------------------------------
+Transitioning from a classic synchronous loop to an asynchronous, event-driven 
+architecture requires a shift in mindset. Here is how to live, breathe, and tweak 
+the Wanos codebase.
+
+6.1 Adding Variables (The Russian Doll Strategy & Dot Notation)
+In legacy code, state was a flat dictionary (`wp['door_open'] = True`). In Wanos, 
+we use strictly typed nested models to prevent the state from becoming a junk drawer.
+
+* Define it first: To track a new variable, you must declare it in `core/models.py`. 
+  Instead of a flat list, nest it logically. E.g., add `door_open: bool = False` 
+  inside a `HardwareState` model, which sits inside `SystemState`.
+* Dot Notation: Access and update it cleanly via dots, not brackets.
+  GOOD: `self._state.hardware.door_open = True`
+  BAD:  `self._state['door_open'] = True`
+* Configuration variables work exactly the same way in `core/config.py`.
+
+6.2 How the System Polls (The Async Golden Rule)
+NEVER use `time.sleep()`. Because Wanos runs on a single async event loop, 
+`time.sleep(5)` will freeze the entire backend, dropping API requests and MQTT messages.
+
+* The Wanos Way: Use `await asyncio.sleep(5)`. This tells Python: "Pause this 
+  specific background task for 5 seconds, but run the rest of the app in the meantime."
+* Polling loops (like reading sensors) should run indefinitely in background tasks, 
+  read hardware, dispatch an Event, and then `await asyncio.sleep()` before looping.
+
+6.3 Tweaking Logic (The Router)
+In Wanos, logic doesn't live where the data is collected. If a sensor reads a 
+temperature, it just dispatches an Event to say "Hey, temp changed!" and its job is done.
+
+All decision-making and tweaking happens inside `core/state_manager.py` in the 
+`_handle_event` function. If you want the system to kill the heater when a door 
+opens, you intercept the `DOOR_CHANGED` event right there in the State Manager and 
+apply your business rules safely.
+
+6.4 Derived vs. Cached State (LCDs & Domoticz)
+* Derived State (LCD): Don't store `lcd_line_1 = "Sauna: 85°C"` in the state vault. 
+  The vault only holds raw facts (`sauna_temp = 85`). Background display workers 
+  read those facts and format the text for the physical screen dynamically.
+* Cached State (Domoticz): Wanos acts as a proxy. It listens to Domoticz, updates 
+  its own local cache (`self._state.lighting.bathroom_light_on`), and broadcasts 
+  that to the Vue frontend. The UI only ever talks to Wanos.
+
+6.5 Summary of the Wanos Mindset
+1. Think in Events: Don't call functions directly to change things. Create an 
+   Event and `dispatch()` it.
+2. Respect the Bouncer: Always tell Pydantic about new variables first.
+3. Never Block the Loop: `await asyncio.sleep()` is mandatory for delays.
+4. The State Manager is God: Only the State Manager is allowed to mutate 
+   `self._state`. Every other file is just an observer or a messenger.
+
+
 ================================================================================
-
-
-
-================================================================================
-WISC PHASE 1: BACKEND CORE SKELETON
+WANOS PHASE 1: BACKEND CORE SKELETON
 ================================================================================
 
 1. OVERVIEW
@@ -166,12 +213,19 @@ Below are the files required for Phase 1 and what each one does:
 
 3. HOW PHASE 1 WORKS (THE EVENT FLOW)
 -------------------------------------
+** running the app
+source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
 Step A: Startup
 When you run Uvicorn, `main.py` reads `config.yaml` and `.env`, instantiates the MQTT Client 
 and State Manager, and starts their background tasks. It fires a dummy 
 "INITIAL_STATE_LOADED" event to prime the system.
 
 Step B: Event Injection
+View the state: http://10.32.251.28:8000/api/state
+Fire a dummy hardware event: Open the Swagger UI at http://10.32.251.28:8000/docs, POST to /api/test/temp with JSON body {"temp": 85.5}.
+Observe: Look at the FastAPI terminal. You will see the event enter the queue, mutate the state safely, and broadcast to MQTT.
 You send an HTTP POST request to `http://0.0.0.0:8000/api/test/temp` with a JSON body 
 containing `{"temp": 85.5}`. `main.py` packages this into an `Event` object and calls 
 `state_manager.dispatch(event)`. The event crosses thread boundaries safely and is dropped into the Queue.

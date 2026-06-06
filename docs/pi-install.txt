@@ -145,23 +145,14 @@ pip install -r requirements.txt
 Create the blank directory tree so you are ready to start dropping in the code.
 mkdir -p core api hardware logic integrations
 touch main.py config.yaml recovery_state.json
-
-# Create .env for local secrets
-cat <<EOT >> .env
-MQTT_PASSWORD=l8dza_§RJepp
-AUTH_PIN=1234
-EOT
-
 touch core/__init__.py core/state_manager.py core/mqtt_client.py core/config.py core/logger.py core/utils.py
 touch api/__init__.py api/server.py api/auth.py api/routes.py
 touch hardware/__init__.py hardware/gpio_controller.py hardware/sensors.py hardware/lcd_display.py
 touch logic/__init__.py logic/sauna_pid.py logic/shower_tracker.py logic/timers.py
 touch integrations/__init__.py integrations/domoticz.py integrations/hue.py
 
-** running the app
-source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
-View the state: http://10.32.251.28:8000/api/state
-Fire a dummy hardware event: Open the Swagger UI at http://10.32.251.28:8000/docs, POST to /api/test/temp with JSON body {"temp": 85.5}.
-Observe: Look at the FastAPI terminal. You will see the event enter the queue, mutate the state safely, and broadcast to MQTT.
+** Create .env for local secrets
+cat <<EOT >> .env
+MQTT_PASSWORD=l8dza_§RJepp
+AUTH_PIN=1234
+EOT
