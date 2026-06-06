@@ -1,0 +1,8 @@
+mqtt:
+  broker_host: "localhost"
+  port: 1883
+  username: "st"
+
+sauna:
+  default_setpoint: 80
+  max_temp: 95

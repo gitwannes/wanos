@@ -1,0 +1,167 @@
+** first, Wannes-default config
+flash Raspberry Pi OS Lite (Legacy, 32-bit)
+	hostname wiscnew
+	username and password: wannes / xxx
+	configure wifi (country BE)
+	locale timezone Europe / Brussels & keyboard layout: Generic 105 -> Belgian
+	enable SSH
+
+# LCD handling
+Your DSI display, which connects to the dedicated ribbon cable port, is handled much more cleanly by the Raspberry Pi OS.
+All you need is the correct dtoverlay line in your /boot/config.txt file, which loads the built-in driver for the screen at boot time.
+before booting, change in /boot/config.txt
+	[all]
+	#dtoverlay=vc4-kms-v3d (use this for Pi >= 4)
+	#dtoverlay=vc4-fkms-v3d (use this for Pi < 4) (fake KMS)
+	#dtoverlay=waveshare-43dsi-5pt-touch
+	dtparam=audio=off
+# check
+# https://www.waveshare.com/wiki/4.3inch_DSI_LCD
+# DSI bookworm image: https://drive.google.com/file/d/1iSFRS1mg51q21Jspygy9PPorfrt8_n3t/view
+DSI power: /sys/class/backlight/10-0045/
+
+insert SDcard and boot
+get IP and connect remotely with SSH
+raspi-config localization options
+	locale / NL_BE.UTF-8 but keep EN_GB.UTF-8 as default
+sudo apt update && sudo apt full-upgrade
+passwd root -l
+source .bashrc
+sudo apt install -y vim batcat
+create ~/.vimrc
+	syntax on
+	colorscheme torte
+	set mouse=a
+create /home/wannes/.config/bat/config (check location with cat --config-file)
+	--paging=never
+	--style=plain
+change in /etc/skel/.bashrc & ~/.bashrc (& /root/.bashrc --> NOT)
+	alias ls='ls -lh --color=auto' (add -lh)
+	alias cat=batcat
+	alias lw='ls /var/log/wisc/* -t'
+in /etc/profile
+	RED='\033[0;31m'
+	GREEN='\033[0;32m'
+	YELLOW='\033[0;33m'
+	BLUE='\033[0;34m'
+	NC='\033[0m' # No Color (to reset)
+
+	export TMOUT=1200
+	echo -e "${GREEN}** active console sessions${YELLOW}"
+	w # ja, enkel de letter w
+	echo -e "${GREEN}** background jobs${YELLOW}"
+	jobs
+	echo -e "${GREEN}** active python jobs${YELLOW}"
+	pgrep -af python
+	echo -e "${NC}"
+source .profile
+in /etc/issue
+	(c) Wannes
+	\d \t
+	\4
+setup /etc/motd
+	motd.txt
+
+** configure mijn eigen Python-execution script
+in ~/wisc
+sudo chmod +x sp
+if needed: mkdir -p ~/.local/bin
+sudo ln -s $HOME/wisc/sp ~/.local/bin/sp #voor uitvoering zonder .sh
+source .profile to add ~/.local/bin to the $PATH
+increase sudo password timeout
+sudo visudo -f /etc/sudoers.d/wannes_sudo_policy
+	wannes ALL=(ALL) ALL
+	Defaults timestamp_timeout=30
+	wannes ALL=(root) NOPASSWD: /usr/local/bin/log2ram write
+	wannes ALL=(root) NOPASSWD: /home/wannes/wisc/blank_console.sh
+	wannes ALL=(root) NOPASSWD: /home/wannes/dispmanx_vnc/dispmanx_vncserver
+remove /etc/sudoers.d/010_pi-nopasswd
+
+** setup log2ram
+https://github.com/azlux/log2ram
+/etc/log2ram.conf
+	SIZE=1G
+sudo systemctl edit log2ram-daily.timer
+	[Timer]
+	OnCalendar=
+	OnCalendar=hourly
+reboot
+check with df -h
+add to ~/.profile
+	if [ -d "$HOME/wisc" ] ; then
+		PATH="$PATH:$HOME/wisc"
+	fi
+	sudo log2ram write >/dev/null 2>&1
+source .profile
+
+** Enable Hardware Interfaces (I²C & GPIO)
+Since the LCD screens and SSR controls are wired to this Pi, you must enable the necessary hardware buses.
+Open the Raspberry Pi configuration tool:
+sudo raspi-config
+	Navigate to Interface Options -> I2C and select Yes to enable the ARM I²C interface.
+Install I²C and modern GPIO tools:
+sudo apt install -y i2c-tools python3-libgpiod
+to test I²C Active: Run i2cdetect -y 1. You should see the grid and the address of your connected LCD (e.g., 27 or 26).
+
+
+** MQTT
+sudo apt install mosquitto mosquitto-clients
+place mosquitto-st.conf in /etc/mosquitto/conf.d/
+sudo mosquitto_passwd -c /etc/mosquitto/conf.d/st.pwd st
+	password = l8dza_§RJepp
+sudo systemctl enable mosquitto.service
+sudo systemctl restart mosquitto.service
+to test:
+mosquitto_sub -d -t wannestest -u st -P 'l8dza_§RJepp' -h localhost
+mosquitto_pub -d -t wannestest  -u st -P 'l8dza_§RJepp' -m "hellooo"
+MQTT WebSockets Active: Run this and verify Mosquitto is listening.
+sudo netstat -tlnp | grep 9001
+sudo netstat -tlnp | grep 1883
+
+** VNC (Deferred for now)
+# [Skipped per current scope]
+
+# for logging
+sudo mkdir /var/log/wisc
+sudo chown wannes:wannes /var/log/wisc
+
+** python Environment Setup
+sudo apt install -y python3-venv python3-pip
+mkdir ~/wisc_backend
+cd ~/wisc_backend
+python3 -m venv wisc_backend_venv
+source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
+
+** Install Project Dependencies
+# Upgrade pip first to prevent pyproject.toml / MarkupSafe build errors on older Debian versions
+python3 -m pip install --upgrade pip setuptools wheel
+
+Create the requirements file:
+nano requirements.txt
+pip install -r requirements.txt
+
+** Scaffold the Directory Structure
+--> noneed
+Create the blank directory tree so you are ready to start dropping in the code.
+mkdir -p core api hardware logic integrations
+touch main.py config.yaml recovery_state.json
+
+# Create .env for local secrets
+cat <<EOT >> .env
+MQTT_PASSWORD=l8dza_§RJepp
+AUTH_PIN=1234
+EOT
+
+touch core/__init__.py core/state_manager.py core/mqtt_client.py core/config.py core/logger.py core/utils.py
+touch api/__init__.py api/server.py api/auth.py api/routes.py
+touch hardware/__init__.py hardware/gpio_controller.py hardware/sensors.py hardware/lcd_display.py
+touch logic/__init__.py logic/sauna_pid.py logic/shower_tracker.py logic/timers.py
+touch integrations/__init__.py integrations/domoticz.py integrations/hue.py
+
+** running the app
+source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+View the state: http://10.32.251.28:8000/api/state
+Fire a dummy hardware event: Open the Swagger UI at http://10.32.251.28:8000/docs, POST to /api/test/temp with JSON body {"temp": 85.5}.
+Observe: Look at the FastAPI terminal. You will see the event enter the queue, mutate the state safely, and broadcast to MQTT.
