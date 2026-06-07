@@ -1,5 +1,6 @@
-# --- file: main.py ---
 import asyncio
+import json
+from fastapi import Response
 from contextlib import asynccontextmanager
 from typing import Union, Any, AsyncGenerator
 from fastapi import FastAPI
@@ -8,6 +9,7 @@ from core.models import Event, EventType
 from core.mqtt_client import MqttClientManager
 from core.state_manager import StateManager
 from core.config import load_config, AppConfig
+from core.logger import WanosLogger
 from hardware.sensors import mock_temperature_sensor
 
 # 1. Load and validate the configuration from YAML and .env
@@ -21,8 +23,9 @@ mqtt_manager: MqttClientManager = MqttClientManager(
     password=config.mqtt.password
 )
 
-# 3. Initialize the State Manager
-state_manager: StateManager = StateManager(mqtt_client=mqtt_manager)
+# 3. Initialize the Logger and State Manager
+wanos_logger: WanosLogger = WanosLogger(mqtt_client=mqtt_manager)
+state_manager: StateManager = StateManager(mqtt_client=mqtt_manager, logger=wanos_logger)
 
 
 @asynccontextmanager
@@ -77,3 +80,12 @@ async def inject_event(request: GenericEventRequest) -> dict[str, Union[str, Eve
     event: Event = Event(type=request.type, payload=request.payload)
     state_manager.dispatch(event)
     return {"status": "Event dispatched", "event": event}
+
+@app.get("/api/console")
+async def get_console_logs() -> Response:
+    """Fetch the rolling log history directly via HTTP (Pretty Printed)."""
+    data = {"logs": wanos_logger.get_recent_logs()}
+    # Format with 4 spaces of indentation
+    pretty_json = json.dumps(data, indent=4)
+    # Return it as a raw string so the browser respects the spaces
+    return Response(content=pretty_json, media_type="application/json")

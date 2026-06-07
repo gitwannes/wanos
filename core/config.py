@@ -17,6 +17,10 @@ class AuthConfig(BaseModel):
 class SaunaConfig(BaseModel):
     default_setpoint: int
     max_temp: int
+    # These values act as an immediate default upon instantiation, they will be overwritten from config.yaml
+    kp: float = 1.0
+    ki: float = 0.1
+    kd: float = 0.0
 
 class AppConfig(BaseModel):
     """The master configuration model that holds everything."""

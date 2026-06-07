@@ -1,8 +1,11 @@
 mqtt:
   broker_host: "localhost"
   port: 1883
-  username: "st"
+  username: "st"  # password in .env
 
 sauna:
   default_setpoint: 80
   max_temp: 95
+  kp: 3.0
+  ki: 0.01
+  kd: 0.0

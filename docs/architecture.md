@@ -1,7 +1,8 @@
 # WanOS Home Control System - Architecture Blueprint
 
-definitions:
+GIT: https://bitbucket.org/bitwannes/wanos
 
+## Definitions
 WanOS = Wannes OS = backend system
     This name will only be visible in the admin pages
 WISC = Wannes Incredible Sauna Control = part of the system that controls the sauna
@@ -57,7 +58,7 @@ When a user toggles a light, the UI shows a loading state until the backend conf
 * **Reboot Recovery:** On boot, the backend reads a `recovery_state.json` file to recover cumulative metrics and logs, pushing an `INITIAL_STATE_LOADED` event to safely resume operations.
 
 ## 5. Configuration, Authentication, & Access
-* **Separation of Concerns:** Configuration utilizes two parallel systems. A `.env` file securely holds sensitive keys (MQTT Passwords, PIN codes), while `config.yaml` controls structural properties (Ports, Heating Parameters). [cite: 44, 46]
+* **Separation of Concerns:** Configuration utilizes two parallel systems. A `.env` file securely holds sensitive keys (MQTT Passwords, PIN codes), while `config.yaml` controls structural properties (Ports, Heating Parameters).
 * **Remote Configuration:** Admins can edit structural YAML configuration directly from the Vue 3 frontend.
 * **Authentication:** A single shared PIN code limits unauthorized physical access while maintaining a fast UX.
 
@@ -145,3 +146,191 @@ To mitigate risk and ensure logical separation from hardware quirks, development
 * **Phase 5: Hardware Migration (The Physical World)**
   Map the physical GPIOs, transition the backend to the live Raspberry Pi, and finally migrate the LCD screens (direct I²C).
   Isolated to the end to clearly separate logic bugs from hardware threading/blocking issues.
+  
+## 11. MQTT Topics
+WanOS utilizes a strict topic structure for broadcasting data and receiving commands.
+
+* **`wisc/system/state`**
+  * **Direction:** Outbound (Backend -> Frontend/Clients)
+  * **Payload:** Complete JSON dump of the nested `SystemState` Pydantic model.
+  * **Trigger:** Published any time a state mutation occurs within the `StateManager` consumer loop.
+* **`wisc/system/command`**
+  * **Direction:** Inbound (Clients -> Backend)
+  * **Payload:** JSON representing an `Event` (`{"type": "...", "payload": {...}}`).
+  * **Purpose:** Allows external tools (Home Assistant, scripts) to inject commands directly into the State Manager queue.
+* **`wisc/system/console/status`**
+  * **Direction:** Outbound
+  * **Payload:** JSON containing `timestamp`, `level` (INFO, SUCCESS, WARNING, ERROR), and `message`.
+  * **Purpose:** High-level, user-facing events (e.g., "Sauna activated"). Used by the main frontend dashboard for live updates.
+* **`wisc/system/console/debug`**
+  * **Direction:** Outbound
+  * **Payload:** JSON containing `timestamp`, `level` (DEBUG), and `message`.
+  * **Purpose:** Internal engine monologue (e.g., event processing, queue routing) used strictly for developer troubleshooting and background monitoring.
+* **`wisc/system/health`**
+  * **Direction:** Outbound
+  * **Payload:** JSON containing backend metrics (e.g., CPU temp, active async tasks, queue depth).
+  * **Purpose:** Broadcasted periodically by a heartbeat task to verify the engine is healthy and responsive.
+
+## 12. URLs & Endpoints
+The FastAPI server (running at `http://<backend-ip>:8000`) exposes the following primary routes.
+
+* **`/` (Root)**
+  * **Method:** GET
+  * **Purpose:** Will eventually serve the compiled Vue 3 frontend static assets.
+* **`/api/state`**
+  * **Method:** GET
+  * **Purpose:** Retrieves a safe, read-only JSON snapshot of the current `SystemState`. Used by the frontend immediately upon connection/reconnection to synchronize before relying on the MQTT stream.
+* **`/api/console`**
+  * **Method:** GET
+  * **Purpose:** Retrieves a pretty-printed JSON snapshot of the last 100 log events held in the backend's rolling memory buffer. Acts as the REST/HTTP alternative to the MQTT WebSocket stream for viewing system history.
+* **`/api/event`**
+  * **Method:** POST
+  * **Payload Structure:** `{"type": "EVENT_TYPE_STRING", "payload": {}}`
+  * **Purpose:** Universal endpoint to inject any system command into the internal `asyncio.Queue`. Allows UI actions to trigger backend logic.
+* **`/api/test/temp`**
+  * **Method:** POST
+  * **Payload Structure:** `{"temp": float}`
+  * **Purpose:** Dedicated development endpoint for injecting dummy temperature readings during Lab Mode testing.
+* **`/docs`**
+  * **Method:** GET
+  * **Purpose:** Auto-generated Swagger UI. Provides an interactive web interface to view, test, and validate all API endpoints.
+
+## 13. API Event Injection Reference (/api/event)
+The `/api/event` endpoint acts as the universal command receiver for WanOS. It accepts HTTP POST requests containing a JSON body mapped to the internal `EventType` schema. 
+
+Below is the complete catalogue of valid JSON payloads for every event in the Wanos architecture. These exact same JSON payloads can also be published to the `wisc/system/command` MQTT topic.
+
+### Sauna Events
+Commands and state updates for the main sauna logic.
+
+**Turn Sauna ON:**
+```json
+{ "type": "SAUNA_ON", "payload": {} }
+```
+
+**Turn Sauna OFF:**
+```json
+{ "type": "SAUNA_OFF", "payload": {} }
+```
+
+**Change Target Temperature:**
+```json
+{ "type": "SETPOINT_CHANGED", "payload": { "target": 85.0 } }
+```
+
+**Manually Override Heater Modulation (PWM):**
+```json
+{ "type": "MODULATION_UPDATED", "payload": { "pwm": 100.0 } }
+```
+
+**Notify Setpoint Reached:**
+```json
+{ "type": "SETPOINT_REACHED", "payload": {} }
+```
+
+**Trigger Sauna Hold (Maintain temp for X minutes):**
+```json
+{ "type": "SAUNA_HOLD", "payload": { "minutes": 60 } }
+```
+
+**Notify Sauna Timer Expired:**
+```json
+{ "type": "SAUNA_TIMER_EXPIRED", "payload": {} }
+```
+
+### Infrared (IR) Events
+Commands and state updates for the secondary IR heating logic.
+
+**Turn IR ON:**
+```json
+{ "type": "IR_ON", "payload": {} }
+```
+
+**Turn IR OFF:**
+```json
+{ "type": "IR_OFF", "payload": {} }
+```
+
+**Manually Override IR Modulation (PWM):**
+```json
+{ "type": "IR_MODULATION_UPDATED", "payload": { "pwm": 80.0 } }
+```
+
+**Notify IR Timer Expired:**
+```json
+{ "type": "IR_TIMER_EXPIRED", "payload": {} }
+```
+
+### Hardware & Sensor Events
+Used by hardware controllers (or Lab Mode) to update the system on physical environment changes.
+
+**Update Temperature:**
+```json
+{ "type": "TEMP_UPDATED", "payload": { "value": 45.5 } }
+```
+
+**Update Humidity:**
+```json
+{ "type": "HUMIDITY_UPDATED", "payload": { "value": 30.0 } }
+```
+
+**Register Water Flow Pulse (Shower tracking):**
+```json
+{ "type": "WATER_PULSE", "payload": { "liters": 1.0 } }
+```
+
+**Register Power Consumption Pulse (kWh tracking):**
+```json
+{ "type": "KWH_PULSE", "payload": { "kwh": 0.001 } }
+```
+
+**Update Door State:**
+```json
+{ "type": "DOOR_CHANGED", "payload": { "is_open": true } }
+```
+
+**Report Sensor Error:**
+```json
+{ "type": "SENSOR_ERROR", "payload": { "sensor": "DHT22", "error": "timeout" } }
+```
+
+### System Events
+Core system lifecycle commands.
+
+**Engine Boot Complete:**
+```json
+{ "type": "INITIAL_STATE_LOADED", "payload": {} }
+```
+
+**Trigger Graceful Shutdown:**
+```json
+{ "type": "BACKEND_SHUTDOWN", "payload": {} }
+```
+
+**Enable/Disable Hardware Live Mode:**
+```json
+{ "type": "HARDWARE_LIVE_MODE_CHANGED", "payload": { "live_mode": true } }
+```
+
+**Notify Config Updated:**
+```json
+{ "type": "CONFIG_UPDATED", "payload": {} }
+```
+
+### External Integrations
+Updates from the broader Wome ecosystem (Domoticz/Hue).
+
+**Update Hub State (Domoticz):**
+```json
+{ "type": "HUB_STATE_CHANGED", "payload": { "device_id": "12", "state": "ON" } }
+```
+
+**Update Lighting State (Hue):**
+```json
+{ "type": "LIGHTING_STATE_CHANGED", "payload": { "zone": "bathroom", "state": "OFF" } }
+```
+
+**Update External Weather:**
+```json
+{ "type": "EXTERNAL_WEATHER_UPDATED", "payload": { "temp": 15.0, "condition": "rain" } }
+```

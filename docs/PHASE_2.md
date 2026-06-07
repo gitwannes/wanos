@@ -65,8 +65,7 @@ Below are the files we will flesh out during this phase:
   Expand `SystemState` using the "Russian Doll" nesting strategy 
   to include `SaunaState` and `HardwareState`.
 * `core/state_manager.py`:
-  Update `_handle_event` to route the new business logic 
-  events correctly.
+  Update `_handle_event` to route the new business logic events correctly.
 * `main.py`:
   Import and start the new background tasks (`sensors.py`, 
   `sauna_controller.py`, `gpio_controller.py`) inside the FastAPI lifespan block.
@@ -91,3 +90,11 @@ on your screen:
    calculates a lower power requirement, dropping the modulation to 50%, then 20%. 
    `gpio_controller.py` mimics this by pulsing the simulated pins.
 ================================================================================
+
+{ "type": "SAUNA_ON", "payload": {} }
+{
+  "type": "MODULATION_UPDATED",
+  "payload": {
+    "pwm": 100.0
+  }
+}
