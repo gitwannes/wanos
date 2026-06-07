@@ -1,4 +1,14 @@
-# Sauna Control System - Web Architecture Blueprint
+# WanOS Home Control System - Architecture Blueprint
+
+definitions:
+
+WanOS = Wannes OS = backend system
+    This name will only be visible in the admin pages
+WISC = Wannes Incredible Sauna Control = part of the system that controls the sauna
+    The WISC logo will be visible on the sauna screen
+Wome = Wannes home = Home Control, interfaces with Domoticz, listens to temp&hum sensors, gets outside temperature, etc.
+    Logo or name placement to be defined.
+    In the future, this part will interface with (or be replaced by) HomeAssistant.
 
 ## 1. Topography & Hardware Overview
 The system operates on a private home network and consists of two primary Raspberry Pi nodes:

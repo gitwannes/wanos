@@ -217,7 +217,6 @@ Below are the files required for Phase 1 and what each one does:
 source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-Step A: Startup
 When you run Uvicorn, `main.py` reads `config.yaml` and `.env`, instantiates the MQTT Client 
 and State Manager, and starts their background tasks. It fires a dummy 
 "INITIAL_STATE_LOADED" event to prime the system.
