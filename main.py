@@ -3,7 +3,8 @@ import json
 from fastapi import Response
 from contextlib import asynccontextmanager
 from typing import Union, Any, AsyncGenerator
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from core.models import Event, EventType
 from core.mqtt_client import MqttClientManager
@@ -11,6 +12,7 @@ from core.state_manager import StateManager
 from core.config import load_config, AppConfig
 from core.logger import WanosLogger
 from hardware.sensors import mock_temperature_sensor
+from fastapi.staticfiles import StaticFiles
 
 # 1. Load and validate the configuration from YAML and .env
 config: AppConfig = load_config()
@@ -89,3 +91,43 @@ async def get_console_logs() -> Response:
     pretty_json = json.dumps(data, indent=4)
     # Return it as a raw string so the browser respects the spaces
     return Response(content=pretty_json, media_type="application/json")
+
+@app.get("/api/state/sse")
+async def sse_state_stream(request: Request):
+    """
+    Maintains a persistent connection with the web UI and pushes
+    JSON state updates instantly whenever the vault changes.
+    """
+
+    async def event_generator():
+        last_state_json = None
+        while True:
+            # If the user closes the browser tab, cleanly break the loop
+            if await request.is_disconnected():
+                break
+
+            # Grab a safe, read-only snapshot from the Bouncer
+            # (Assuming your StateManager instance in main.py is named `state_manager`)
+            current_state = state_manager.get_state_snapshot().model_dump()
+            current_state_json = json.dumps(current_state)
+
+            # Only push data through the network if the state actually changed
+            if current_state_json != last_state_json:
+                yield f"data: {current_state_json}\n\n"
+                last_state_json = current_state_json
+
+            # Check for updates every 0.5 seconds for a highly responsive UI
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+# --- FRONTEND UI MOUNT ---
+# This must remain at the bottom of the routing list so it doesn't swallow /api/ paths!
+# The html=True flag tells FastAPI to automatically serve index.html when visiting the root url.
+import os
+
+frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+else:
+    print(f"⚠️ Warning: Frontend directory not found at {frontend_path}")

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WISC System Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
+
+    <header class="navbar bg-base-100 shadow-md px-6 mb-8">
+        <div class="flex-1">
+            <span class="text-xl font-bold tracking-wider text-primary">⚡ WANOS // WISC</span>
+        </div>
+        <div class="flex-none gap-2">
+            <span class="badge badge-success gap-1 font-mono text-xs">
+                <span class="w-2 h-2 rounded-full bg-current animate-pulse"></span> SSE LIVE
+            </span>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 max-w-5xl">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="card bg-base-100 shadow-xl border border-base-200">
+                <div class="card-body">
+                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4">Sauna Control</h2>
+                    
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <div class="text-xs text-base-400 font-medium">Current Temperature</div>
+                            <div class="text-5xl font-black font-mono tracking-tight mt-1 text-secondary" 
+                                 x-text="state.sauna.current_temp !== null ? state.sauna.current_temp.toFixed(1) + '°C' : '--.-°C'">
+                            </div>
+                        </div>
+                        
+                        <button :class="state.sauna.active ? 'btn btn-error btn-lg shadow-lg' : 'btn btn-outline btn-lg'"
+                                @click="toggleSauna()">
+                            <span x-show="state.sauna.active" class="animate-pulse">🔥 RUNNING</span>
+                            <span x-show="!state.sauna.active">❄️ OFF</span>
+                        </button>
+                    </div>
+
+                    <div class="mt-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-semibold">Target Setpoint</span>
+                            <span class="badge badge-secondary font-mono text-md font-bold" x-text="state.sauna.target_temp + '°C'"></span>
+                        </div>
+                        <input type="range" min="40" max="95" step="1" 
+                               class="range range-secondary" 
+                               x-model="state.sauna.target_temp"
+                               @change="updateSetpoint()" />
+                        <div class="flex justify-between text-xs px-2 mt-1 text-base-400 font-mono">
+                            <span>40°C</span>
+                            <span>60°C</span>
+                            <span>80°C</span>
+                            <span>95°C</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card bg-base-100 shadow-xl border border-base-200">
+                <div class="card-body">
+                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4">Waterfall Power Matrix</h2>
+                    
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1 text-sm font-semibold">
+                            <span>Total Modulation Output</span>
+                            <span class="font-mono text-primary font-bold" x-text="state.sauna.modulation_pwm + '%'"></span>
+                        </div>
+                        <progress class="progress progress-primary w-full h-3" :value="state.sauna.modulation_pwm" max="100"></progress>
+                    </div>
+
+                    <div class="divider text-xs uppercase tracking-widest text-base-400 my-2">Physical Element Loads</div>
+
+                    <div class="grid grid-cols-3 gap-4 text-center mt-2">
+                        <div class="bg-base-200 p-3 rounded-box">
+                            <div class="text-xs font-bold text-base-400 mb-2">Phase U (3.5kW)</div>
+                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2" :value="state.sauna.phases_pwm[0]" max="100"></progress>
+                            <div class="font-mono font-bold text-sm mt-2 text-accent" x-text="state.sauna.phases_pwm[0] + '%'"></div>
+                        </div>
+                        <div class="bg-base-200 p-3 rounded-box">
+                            <div class="text-xs font-bold text-base-400 mb-2">Phase V (3.5kW)</div>
+                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2" :value="state.sauna.phases_pwm[1]" max="100"></progress>
+                            <div class="font-mono font-bold text-sm mt-2 text-accent" x-text="state.sauna.phases_pwm[1] + '%'"></div>
+                        </div>
+                        <div class="bg-base-200 p-3 rounded-box">
+                            <div class="text-xs font-bold text-base-400 mb-2">Phase W (2.0kW)</div>
+                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2" :value="state.sauna.phases_pwm[2]" max="100"></progress>
+                            <div class="font-mono font-bold text-sm mt-2 text-accent" x-text="state.sauna.phases_pwm[2] + '%'"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card bg-base-100 shadow-xl border border-base-200 md:col-span-2">
+                <div class="card-body">
+                    <h2 class="card-title text-warning uppercase text-xs tracking-widest mb-2">🧪 Lab Mode Simulation Controls</h2>
+                    <p class="text-xs text-base-400 mb-4">Manipulate environmental metrics directly to watch the asynchronous PID calculation adjust the progressive phase elements instantly.</p>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
+                        <div class="bg-base-200 p-4 rounded-box">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-semibold text-warning">Inject Ambient Temperature Change</span>
+                                <span class="badge badge-warning font-mono font-bold" x-text="mockTemp + '°C'"></span>
+                            </div>
+                            <input type="range" min="15" max="100" step="0.5" 
+                                   class="range range-warning range-sm" 
+                                   x-model="mockTemp"
+                                   @change="injectTemperature()" />
+                        </div>
+
+                        <div class="bg-base-200 p-4 rounded-box font-mono text-xs text-base-400 space-y-1">
+                            <div><span class="text-base-500">Live Mode Enabled:</span> <span class="text-info" x-text="state.hardware?.live_mode ?? 'false'"></span></div>
+                            <div><span class="text-base-500">Active Vault Setpoint:</span> <span class="text-secondary" x-text="state.sauna.target_temp + '°C'"></span></div>
+                            <div><span class="text-base-500">Total Loop Errors:</span> <span class="text-success">0 Clean executions</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

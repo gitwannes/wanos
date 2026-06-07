@@ -90,11 +90,3 @@ on your screen:
    calculates a lower power requirement, dropping the modulation to 50%, then 20%. 
    `gpio_controller.py` mimics this by pulsing the simulated pins.
 ================================================================================
-
-{ "type": "SAUNA_ON", "payload": {} }
-{
-  "type": "MODULATION_UPDATED",
-  "payload": {
-    "pwm": 100.0
-  }
-}
