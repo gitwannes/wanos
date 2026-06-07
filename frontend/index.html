@@ -21,42 +21,64 @@
         </div>
     </header>
 
-    <main class="container mx-auto px-4 max-w-5xl">
+    <main class="container mx-auto px-4 max-w-5xl pb-10">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
+
             <div class="card bg-base-100 shadow-xl border border-base-200">
                 <div class="card-body">
-                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4">Sauna Control</h2>
-                    
+                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2">Sauna Control</h2>
+
+                    <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-between mb-4 h-16">
+                        <div class="font-mono text-green-500 text-lg tracking-widest uppercase"
+                             x-text="state.sauna.lcd_text || 'WISC STANDBY'"></div>
+
+                        <div class="w-6 h-6 rounded-full border border-gray-600 transition-colors duration-500"
+                             :style="`background-color: ${state.sauna.light_color}; box-shadow: 0 0 15px ${state.sauna.light_color};`">
+                        </div>
+                    </div>
+
                     <div class="flex justify-between items-center mb-6">
                         <div>
-                            <div class="text-xs text-base-400 font-medium">Current Temperature</div>
-                            <div class="text-5xl font-black font-mono tracking-tight mt-1 text-secondary" 
-                                 x-text="state.sauna.current_temp !== null ? state.sauna.current_temp.toFixed(1) + '°C' : '--.-°C'">
+                            <div class="text-xs text-base-400 font-medium">Temperature & Humidity</div>
+                            <div class="text-4xl font-black font-mono tracking-tight mt-1 text-secondary">
+                                <span x-text="state.sauna.current_temp !== null ? state.sauna.current_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                <span class="text-2xl text-info ml-2" x-text="state.sauna.current_humidity !== null ? state.sauna.current_humidity.toFixed(0) + '%' : '--%'"></span>
                             </div>
                         </div>
-                        
+
                         <button :class="state.sauna.active ? 'btn btn-error btn-lg shadow-lg' : 'btn btn-outline btn-lg'"
+                                :disabled="!state.sauna.active && state.sauna.door_open"
                                 @click="toggleSauna()">
                             <span x-show="state.sauna.active" class="animate-pulse">🔥 RUNNING</span>
                             <span x-show="!state.sauna.active">❄️ OFF</span>
                         </button>
                     </div>
 
-                    <div class="mt-4">
+                    <div class="mt-2">
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-sm font-semibold">Target Setpoint</span>
-                            <span class="badge badge-secondary font-mono text-md font-bold" x-text="state.sauna.target_temp + '°C'"></span>
+                            <div class="flex gap-2 items-center">
+                                <button class="badge badge-outline text-xs uppercase"
+                                        @click="toggleHold()"
+                                        x-text="state.sauna.hold_mode"></button>
+                                <span class="badge badge-secondary font-mono text-md font-bold" x-text="state.sauna.target_temp + '°C'"></span>
+                            </div>
                         </div>
-                        <input type="range" min="40" max="95" step="1" 
-                               class="range range-secondary" 
+                        <input type="range" min="40" max="95" step="1"
+                               class="range range-secondary"
                                x-model="state.sauna.target_temp"
                                @change="updateSetpoint()" />
-                        <div class="flex justify-between text-xs px-2 mt-1 text-base-400 font-mono">
-                            <span>40°C</span>
-                            <span>60°C</span>
-                            <span>80°C</span>
-                            <span>95°C</span>
+                    </div>
+
+                    <div class="mt-6 bg-base-200 p-4 rounded-box" x-show="state.sauna.active">
+                        <div class="flex justify-between items-center text-xs font-mono mb-2">
+                            <span class="text-base-400">ELAPSED: <span class="text-white" x-text="elapsedText"></span></span>
+                            <span class="text-base-400">REMAINING: <span class="text-warning font-bold" x-text="remainingText"></span></span>
+                        </div>
+                        <progress class="progress progress-warning w-full h-2 mb-3" :value="progressPercent" max="100"></progress>
+                        <div class="flex justify-center gap-2">
+                            <button class="btn btn-xs btn-outline" @click="adjustTimer(-10)">-10 Mins</button>
+                            <button class="btn btn-xs btn-outline" @click="adjustTimer(10)">+10 Mins</button>
                         </div>
                     </div>
                 </div>
@@ -65,7 +87,7 @@
             <div class="card bg-base-100 shadow-xl border border-base-200">
                 <div class="card-body">
                     <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4">Waterfall Power Matrix</h2>
-                    
+
                     <div class="mb-4">
                         <div class="flex justify-between items-center mb-1 text-sm font-semibold">
                             <span>Total Modulation Output</span>
@@ -98,25 +120,38 @@
 
             <div class="card bg-base-100 shadow-xl border border-base-200 md:col-span-2">
                 <div class="card-body">
-                    <h2 class="card-title text-warning uppercase text-xs tracking-widest mb-2">🧪 Lab Mode Simulation Controls</h2>
-                    <p class="text-xs text-base-400 mb-4">Manipulate environmental metrics directly to watch the asynchronous PID calculation adjust the progressive phase elements instantly.</p>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
-                        <div class="bg-base-200 p-4 rounded-box">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-semibold text-warning">Inject Ambient Temperature Change</span>
-                                <span class="badge badge-warning font-mono font-bold" x-text="mockTemp + '°C'"></span>
+                    <h2 class="card-title text-warning uppercase text-xs tracking-widest mb-2">🧪 Lab Mode Hardware Overrides</h2>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 items-center mt-2">
+                        <div class="bg-base-200 p-4 rounded-box col-span-2">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-xs font-semibold text-warning">Inject Ambient Temp</span>
+                                <span class="badge badge-warning font-mono text-xs font-bold" x-text="mockTemp + '°C'"></span>
                             </div>
-                            <input type="range" min="15" max="100" step="0.5" 
-                                   class="range range-warning range-sm" 
-                                   x-model="mockTemp"
-                                   @change="injectTemperature()" />
+                            <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-4" x-model="mockTemp" @change="injectTemperature()" />
+
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-xs font-semibold text-info">Inject Ambient Humidity</span>
+                                <span class="badge badge-info font-mono text-xs font-bold" x-text="mockHum + '%'"></span>
+                            </div>
+                            <input type="range" min="10" max="100" step="1" class="range range-info range-xs" x-model="mockHum" @change="injectHumidity()" />
                         </div>
 
-                        <div class="bg-base-200 p-4 rounded-box font-mono text-xs text-base-400 space-y-1">
-                            <div><span class="text-base-500">Live Mode Enabled:</span> <span class="text-info" x-text="state.hardware?.live_mode ?? 'false'"></span></div>
-                            <div><span class="text-base-500">Active Vault Setpoint:</span> <span class="text-secondary" x-text="state.sauna.target_temp + '°C'"></span></div>
-                            <div><span class="text-base-500">Total Loop Errors:</span> <span class="text-success">0 Clean executions</span></div>
+                        <div class="bg-base-200 p-4 rounded-box space-y-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-base-400">Door Sensor</span>
+                                <input type="checkbox" class="toggle toggle-error" x-model="mockDoorOpen" @change="toggleDoor()" />
+                            </div>
+
+                            <div class="divider my-0"></div>
+
+                            <div>
+                                <div class="text-xs font-bold text-base-400 mb-1">Extraction Vent</div>
+                                <div class="font-mono text-xs">
+                                    <span :class="state.sauna.ventilation_state !== 'OFF' ? 'text-accent' : 'text-base-500'" x-text="state.sauna.ventilation_state"></span>
+                                    <span class="float-right text-base-500" x-show="state.sauna.ventilation_state !== 'OFF'" x-text="ventRemainingText"></span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -124,7 +159,6 @@
 
         </div>
     </main>
-
     <script src="app.js"></script>
 </body>
 </html>

@@ -4,8 +4,11 @@ mqtt:
   username: "st"  # password in .env
 
 sauna:
-  default_setpoint: 80
-  max_temp: 95
-  kp: 3.0
-  ki: 0.01
-  kd: 0.0
+  default_setpoint: 80     # Default temperature setpoint
+  max_temp: 95             # maximum setpoint that can be set in the UI
+  kp: 3.0                  # PID P
+  ki: 0.01                 # PID I
+  kd: 0.0                  # PID D
+  default_timer: 180       # Default sauna duration in minutes
+  vent_delay_mins: 10      # Cooldown wait time before starting the extraction fan
+  vent_run_mins: 160       # Duration the extraction fan runs

@@ -248,6 +248,8 @@ class StateManager:
 
                 # If the Brain calculated new math, drop a MODULATION_UPDATED event into the queue
                 if calc_result is not None:
+                    # Expecting calc_result to be a dict: {"pwm": float, "phases": list[float]}
+                    # If evaluate() returns a tuple, you would format it here before dispatching.
                     if isinstance(calc_result, tuple):
                         calc_result = {"pwm": calc_result[0], "phases": calc_result[1]}
 

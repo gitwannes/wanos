@@ -24,9 +24,9 @@ This project is a **100% clean-slate rewrite**.
 All new code adheres to modern best practices (SOLID principles, strict typing, modularity).
 * **Backend:** Python 3.11+ utilizing **FastAPI**.
 Enforces strict data validation via **Pydantic** models. Manages the core async event loop.
-* **Frontend:** **Vue 3 (Composition API)**.
+* **Frontend:** **Vue 3 (Composition API)** (with a Native HTML5/Tailwind Lab Mode UI during development).
 Component-based design allows the UI to be instantly adaptable. State is managed centrally via **Pinia**.
-* **Communication:** **MQTT over WebSockets** (using `MQTT.js` on the client side).
+* **Communication:** **MQTT over WebSockets** (using `MQTT.js` on the client side) and Server-Sent Events (SSE) for Lab Mode tracking.
 * **MQTT Broker:** **Eclipse Mosquitto**, hosted locally on the Backend Node, explicitly configured for WebSocket listeners.
 
 ## 3. Core Principles & Logic Separation
@@ -36,8 +36,9 @@ All mathematical operations, session tracking, and timers exist purely on the ba
 Hardware callbacks, MQTT listeners, and timers post *Events* to a central `asyncio.Queue`. A State Manager consumes this queue sequentially.
 State variables are strictly private attributes mutated only within this event consumer loop.
 All external reads go through typed getter methods or Pydantic snapshot models.
+* **Time as an Event:** The State Manager does not track time directly. A dedicated background clock module (`HardwareTimer`) fires `TIMER_TICK` events into the queue to progress state machines and count downs deterministically.
 * **Logic/Hardware Decoupling:** Business logic modules never write to hardware directly.
-They compute targets (e.g., 0-100% PWM) and post state updates.
+They compute targets (e.g., 0-100% PWM, LCD strings, Hex colors) and post state updates.
 Hardware controllers subscribe to these targets and perform physical actuation, making logic purely testable without hardware.
 * **Smart Home Intermediary:** The existing home automation hub (Domoticz) remains the single source of truth for Z-Wave light switches.
 The frontend only communicates with the backend, which proxies commands to the hub.
@@ -48,7 +49,7 @@ When a user toggles a light, the UI shows a loading state until the backend conf
 * **Asynchronous Hardware I/O:** Synchronous hardware calls (like LCD `sleep()` delays) are isolated in dedicated background threads fed by queues to prevent blocking the async event loop.
 
 ## 4. State Broadcasting & Disconnect Strategy
-* **Topic Routing:** State is broadcasted across distinct MQTT topics (e.g., `sauna/state`, `bathroom/state`).
+* **Topic Routing:** State is broadcasted across distinct MQTT topics (e.g., `sauna/state`, `bathroom/state`) and the `/api/state/sse` stream.
 * **Handling Disconnects (WiFi Drops & Broker Deaths):**
     * The frontend listens for WebSocket connection drops.
     * Upon disconnect, it disables all user inputs to prevent state mismatch and displays a "Reconnecting..." banner.
@@ -58,7 +59,7 @@ When a user toggles a light, the UI shows a loading state until the backend conf
 * **Reboot Recovery:** On boot, the backend reads a `recovery_state.json` file to recover cumulative metrics and logs, pushing an `INITIAL_STATE_LOADED` event to safely resume operations.
 
 ## 5. Configuration, Authentication, & Access
-* **Separation of Concerns:** Configuration utilizes two parallel systems. A `.env` file securely holds sensitive keys (MQTT Passwords, PIN codes), while `config.yaml` controls structural properties (Ports, Heating Parameters).
+* **Separation of Concerns:** Configuration utilizes two parallel systems. A `.env` file securely holds sensitive keys (MQTT Passwords, PIN codes), while `config.yaml` controls structural properties (Ports, Heating Parameters, Ventilation Timers, Session Defaults).
 * **Remote Configuration:** Admins can edit structural YAML configuration directly from the Vue 3 frontend.
 * **Authentication:** A single shared PIN code limits unauthorized physical access while maintaining a fast UX.
 
@@ -75,8 +76,10 @@ Initializes FastAPI, signal traps, and hardware threads.
 * `.env`: Secrets file (Excluded from Source Control).
 * `config.yaml`: The unified configuration file.
 * `recovery_state.json`: Local state recovery file.
+
 **core/** (System Foundation)
 * `state_manager.py`: Runs the central `asyncio.Queue`. Mutates protected state variables only within the consumer loop.
+* `models.py`: Pydantic models for strict state validation (`SystemState`, `SaunaState` containing environmental metrics like humidity, door state, light color, LCD text, and timers).
 * `mqtt_client.py`: Mosquitto connection and topic broadcaster.
 * `config.py`: Pydantic models for configuration validation.
 * `logger.py`: Modernized asynchronous logger.
@@ -88,6 +91,7 @@ Initializes FastAPI, signal traps, and hardware threads.
 * `routes.py`: Endpoints for initial state dumps and config updates.
 
 **hardware/** (Physical Layer - Lab Mode Ready)
+* `hardware_timer.py`: The system metronome. Fires `TIMER_TICK` events every minute.
 * `gpio_controller.py`: Manages SSRs, PWM, and pulses using safe async bridging.
 Subscribes to State Manager events to handle physical writes.
 * `sensors.py`: Temperature/Humidity polling. Sensor read failures post `SENSOR_ERROR` events.
@@ -95,7 +99,8 @@ The State Manager escalates persistent failures on critical sensors to a control
 * `lcd_display.py`: Threaded LCD queue consumer.
 
 **logic/** (Business Rules - Pure Python, No Hardware Imports)
-* `sauna_controller.py`: PID math, fire-order generation, and session limits.
+* `sauna_controller.py`: PID math, fire-order generation, waterfall distribution, and safety limits (door open lockouts, hold mode logic).
+* `auxiliary_controller.py`: Environmental state machine. Calculates Hue lighting color math, LCD text formatting, and ventilation staging based on timers.
 * `shower_tracker.py`: Cost calculation and shower log management.
 * `timers.py`: Timers are `asyncio.Task` wrappers that post expiry events (e.g., `SAUNA_TIMER_EXPIRED`) to the central queue on completion.
 They do not call logic functions directly.
@@ -108,6 +113,7 @@ They do not call logic functions directly.
 * **Hardware Actuation Lock:** `gpio_controller.py` must explicitly verify a global `hardware_live_mode` flag before asserting physical PWM signals.
 On boot, `hardware_live_mode` defaults to `False` regardless of `recovery_state.json` contents.
 The operator must explicitly re-enable live operation via the frontend after confirming the hardware state.
+* **Door Interlock:** The Bouncer actively rejects `SAUNA_ON` commands if `door_open == True` and bypasses the PID to drop heaters to 0% if the door opens mid-session.
 * **The Safety Heartbeat Pin:** A dedicated GPIO pin is pulled high as a physical heartbeat indicating the software is in control.
 This pin only goes high *after* the `INITIAL_STATE_LOADED` event is successfully processed.
 * **Clean Exit Sequence:** `main.py` registers handlers for `SIGINT` and `SIGTERM`.
@@ -115,10 +121,11 @@ If the process exits or crashes, a guaranteed teardown sequence pulls SSR pins L
 
 ## 9. Core Event Type Catalogue
 To enforce strict typing in the `asyncio.Queue`, all internal events must map to a predefined schema using an explicit `EventType` Enum.
-**Hardware Events:** `TEMP_UPDATED`, `HUMIDITY_UPDATED`, `WATER_PULSE`, `KWH_PULSE`, `DOOR_CHANGED`, `SENSOR_ERROR`
+
+**Hardware Events:** `TEMP_UPDATED`, `HUMIDITY_UPDATED`, `WATER_PULSE`, `KWH_PULSE`, `DOOR_CHANGED`, `SENSOR_ERROR`, `TIMER_TICK`
 
 **Sauna Events:**
-`SAUNA_ON`, `SAUNA_OFF`, `SETPOINT_CHANGED`, `MODULATION_UPDATED`, `SETPOINT_REACHED`, `SAUNA_HOLD`, `SAUNA_TIMER_EXPIRED`
+`SAUNA_ON`, `SAUNA_OFF`, `SETPOINT_CHANGED`, `MODULATION_UPDATED`, `SETPOINT_REACHED`, `SAUNA_HOLD`, `SAUNA_TIMER_EXPIRED`, `HOLD_TOGGLED`
 
 **IR Events:**
 `IR_ON`, `IR_OFF`, `IR_MODULATION_UPDATED`, `IR_TIMER_EXPIRED`
@@ -132,17 +139,16 @@ To enforce strict typing in the `asyncio.Queue`, all internal events must map to
 ## 10. Phased Implementation Roadmap
 To mitigate risk and ensure logical separation from hardware quirks, development will proceed in the following phases:
 
-* **Phase 1: Backend Core (The Skeleton)**
+* **Phase 1: Backend Core (COMPLETE)**
   FastAPI + MQTT + `state_manager` + Pydantic models.
   No frontend, no business logic, no GPIO changes. Verify it boots, processes a dummy event via the queue, and communicates out over MQTT.
-* **Phase 2: Lab Mode & Logic (The Brain)**
-  Implement the hardware abstraction layer and core business logic (`sauna_controller`, `shower_tracker`).
+* **Phase 2: Lab Mode & Logic (COMPLETE)**
+  Implement the hardware abstraction layer and core business logic (`sauna_controller`, `shower_tracker`). 3-Phase Waterfall PID Controller, Wear-Leveling, Frontend Lab Mode UI.
   Ensure mock sensors correctly trigger the PID loop and output state changes without physical hardware attached.
-* **Phase 3: Vue.js Frontend (The Face)**
-  Build the UI, connect to the mocked backend, test PIN authentication, and ensure the pessimistic update patterns (e.g., for Domoticz switches) function smoothly.
-* **Phase 4: External Integrations (The Network)**
-  Wire up `home_hub.py` (Domoticz) and `lighting.py` (Hue).
-  Test external network latency and API handling before adding physical hardware constraints.
+* **Phase 3: Environmental State Machine (ACTIVE)**
+  Door interlocks, Session Timers, Auxiliary Controller (Hue/LCD simulation), and Timer Ticks via a dedicated `HardwareTimer` module.
+* **Phase 4: Vue.js Frontend & External Integrations**
+  Build the production UI, connect to the backend, test PIN authentication, and ensure the pessimistic update patterns function smoothly. Wire up `home_hub.py` (Domoticz) and `lighting.py` (Hue).
 * **Phase 5: Hardware Migration (The Physical World)**
   Map the physical GPIOs, transition the backend to the live Raspberry Pi, and finally migrate the LCD screens (direct I²C).
   Isolated to the end to clearly separate logic bugs from hardware threading/blocking issues.
@@ -233,6 +239,11 @@ Commands and state updates for the main sauna logic.
 { "type": "SAUNA_HOLD", "payload": { "minutes": 60 } }
 ```
 
+**Toggle Hold Mode (Cycles autohold -> hold -> nohold):**
+```json
+{ "type": "HOLD_TOGGLED", "payload": {} }
+```
+
 **Notify Sauna Timer Expired:**
 ```json
 { "type": "SAUNA_TIMER_EXPIRED", "payload": {} }
@@ -292,6 +303,11 @@ Used by hardware controllers (or Lab Mode) to update the system on physical envi
 **Report Sensor Error:**
 ```json
 { "type": "SENSOR_ERROR", "payload": { "sensor": "DHT22", "error": "timeout" } }
+```
+
+**System Metronome Tick (One minute passed):**
+```json
+{ "type": "TIMER_TICK", "payload": {} }
 ```
 
 ### System Events

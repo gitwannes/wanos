@@ -1,7 +1,6 @@
 import time
 from itertools import permutations
-from typing import List, Tuple, Optional, Dict, Any
-from core.models import SaunaState
+from typing import List, Tuple, Optional, Dict
 
 
 class PID:
@@ -144,7 +143,7 @@ class SaunaController:
         phase_names = ["U", "V", "W"]
         return " -> ".join(phase_names[idx] for idx in fo)
 
-    def evaluate(self, state: SaunaState) -> Optional[Dict[str, Any]]:
+    def evaluate(self, active: bool, current_temp: float, target_temp: float) -> Optional[Dict[str, any]]:
         """
         Called by the State Manager when temps or targets change.
         Returns pure numeric state data if the modulation needs updating, or None if no change.
@@ -152,15 +151,19 @@ class SaunaController:
         # --- Safety & Hold Interlocks ---
         if state.door_open or state.hold_mode == "hold" or not state.active:
             # Safety override: instantly drop all power and bypass PID updates.
+            # Returning 0.0 total modulation, and 0.0 for U, V, and W phases.
+            return 0.0, [0.0, 0.0, 0.0]
+
+        current_temp = state.current_temp
+        target_temp = state.target_temp
+
+        if not active:
             if self.current_total_pwm != 0:
                 self.current_total_pwm = 0
                 self.current_phases = [0, 0, 0]
                 self.pid.reset()
                 return {"pwm": 0, "phases": [0, 0, 0]}
             return None
-
-        current_temp = state.current_temp
-        target_temp = state.target_temp
 
         self.pid.setpoint = target_temp
         calculated_pwm = self.pid.compute(current_input=current_temp)

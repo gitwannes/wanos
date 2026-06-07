@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Literal
 from enum import Enum
 
 class EventType(str, Enum):
@@ -41,13 +41,32 @@ class HardwareState(BaseModel):
     door_open: bool = False
     safety_pin_active: bool = False
 
+
 class SaunaState(BaseModel):
+    # --- Core Heater State ---
     active: bool = False
     current_temp: Optional[float] = None
     target_temp: float = 80.0  # Acts as an immediate default upon instantiation, will be overwritten from config.yaml
-    modulation_pwm: int = 0  # 0 to 100%
+    modulation_pwm: float = 0.0  # 0 to 100%
     # Track the 3 physical phases (U, V, W) for the waterfall distribution
-    phases_pwm: List[int] = Field(default_factory=lambda: [0, 0, 0])
+    phases_pwm: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
+
+    # --- Environment & Security (NEW) ---
+    current_humidity: Optional[float] = None
+    door_open: bool = False
+
+    # --- Session & Timers ---
+    hold_mode: Literal["autohold", "hold", "nohold"] = "autohold"
+    session_start_time: Optional[int] = None
+    session_end_time: Optional[int] = None
+
+    # --- Auxiliary Hardware  ---
+    light_color: str = "#FFD180"  # Defaults to Warm White
+    lcd_text: str = ""
+
+    # --- Ventilation State Machine (NEW) ---
+    ventilation_state: Literal["OFF", "WAITING", "RUNNING"] = "OFF"
+    ventilation_deadline: Optional[int] = None
 
 class LightingState(BaseModel):
     bathroom_light_on: bool = False
