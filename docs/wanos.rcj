@@ -1,0 +1,29 @@
+::
+:: WanOS Robocopy Job Configuration File
+::
+
+:: Source Directory
+/SD:C:\data\git\wanos\
+
+:: Destination Directory
+/DD:Z:\
+
+:: --- Copy Options ---
+/S                  :: Copy subdirectories, but do NOT delete anything at the destination
+/R:2                :: Number of Retries on failed files
+/W:5                :: Wait time between retries (in seconds)
+/V                  :: Verbose output (shows skipped files)
+/TS                 :: Include Source File Time Stamps in the log output
+/DCOPY:DAT			:: only copy directory Data
+/COPY:DAT			:: only copy file Data
+
+:: --- Exclude Directories
+/XD
+    .git
+	.idea
+    .venv
+	docs
+
+:: --- Exclude Files
+/XF
+    .gitignore

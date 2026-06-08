@@ -3,12 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WISC System Dashboard</title>
+    <title>WanOS/WISC System Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
+    <div x-show="!connected" style="display: none;"
+         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center transition-opacity duration-300">
+        <span class="loading loading-infinity w-16 text-primary mb-4"></span>
+        <h2 class="text-2xl font-black tracking-widest text-base-content">LINK LOST</h2>
+        <p class="text-base-500 mt-2 font-mono text-sm">ATTEMPTING TO REACH WANOS...</p>
+    </div>
 
     <header class="navbar bg-base-100 shadow-md px-6 mb-8">
         <div class="flex-1">
@@ -58,7 +64,8 @@
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-sm font-semibold">Target Setpoint</span>
                             <div class="flex gap-2 items-center">
-                                <button class="badge badge-outline text-xs uppercase"
+                                <button class="badge badge-outline text-xs uppercase disabled:opacity-50"
+                                        :disabled="!state.sauna.active"
                                         @click="toggleHold()"
                                         x-text="state.sauna.hold_mode"></button>
                                 <span class="badge badge-secondary font-mono text-md font-bold" x-text="state.sauna.target_temp + '°C'"></span>
@@ -91,28 +98,49 @@
                     <div class="mb-4">
                         <div class="flex justify-between items-center mb-1 text-sm font-semibold">
                             <span>Total Modulation Output</span>
-                            <span class="font-mono text-primary font-bold" x-text="state.sauna.modulation_pwm + '%'"></span>
+                            <span class="font-mono text-primary font-bold" x-text="(state.sauna.modulation_pwm || 0) + '%'"></span>
                         </div>
-                        <progress class="progress progress-primary w-full h-3" :value="state.sauna.modulation_pwm" max="100"></progress>
+                        <progress class="progress progress-primary w-full h-3"
+                          value="0"
+                          :value="state.sauna.modulation_pwm || 0"
+                          max="100">
+                        </progress>
                     </div>
 
                     <div class="divider text-xs uppercase tracking-widest text-base-400 my-2">Physical Element Loads</div>
 
                     <div class="grid grid-cols-3 gap-4 text-center mt-2">
                         <div class="bg-base-200 p-3 rounded-box">
-                            <div class="text-xs font-bold text-base-400 mb-2">Phase U (3.5kW)</div>
-                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2" :value="state.sauna.phases_pwm[0]" max="100"></progress>
-                            <div class="font-mono font-bold text-sm mt-2 text-accent" x-text="state.sauna.phases_pwm[0] + '%'"></div>
+                            <div class="text-xs font-bold text-base-400 mb-2">Phase U</div>
+                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2"
+                              value="0"
+                              :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0"
+                              max="100">
+                            </progress>
+                            <div class="font-mono font-bold text-sm mt-2 text-accent"
+                                 x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></div>
                         </div>
+
                         <div class="bg-base-200 p-3 rounded-box">
-                            <div class="text-xs font-bold text-base-400 mb-2">Phase V (3.5kW)</div>
-                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2" :value="state.sauna.phases_pwm[1]" max="100"></progress>
-                            <div class="font-mono font-bold text-sm mt-2 text-accent" x-text="state.sauna.phases_pwm[1] + '%'"></div>
+                            <div class="text-xs font-bold text-base-400 mb-2">Phase V</div>
+                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2"
+                              value="0"
+                              :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0"
+                              max="100">
+                            </progress>
+                            <div class="font-mono font-bold text-sm mt-2 text-accent"
+                                 x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></div>
                         </div>
+
                         <div class="bg-base-200 p-3 rounded-box">
-                            <div class="text-xs font-bold text-base-400 mb-2">Phase W (2.0kW)</div>
-                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2" :value="state.sauna.phases_pwm[2]" max="100"></progress>
-                            <div class="font-mono font-bold text-sm mt-2 text-accent" x-text="state.sauna.phases_pwm[2] + '%'"></div>
+                            <div class="text-xs font-bold text-base-400 mb-2">Phase W</div>
+                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2"
+                              value="0"
+                              :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0"
+                              max="100">
+                            </progress>
+                            <div class="font-mono font-bold text-sm mt-2 text-accent"
+                                 x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0) + '%'"></div>
                         </div>
                     </div>
                 </div>

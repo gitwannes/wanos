@@ -35,18 +35,17 @@ class PID:
 
     def compute(self, current_input: float) -> float:
         now = time.monotonic()
-
-        if self._last_time is None or self._last_input is None:
-            self._last_time = now
-            self._last_input = current_input
-            return 0.0
-
-        dt = now - self._last_time
-        if dt <= 0:
-            dt = 1e-16
-
         error = self.setpoint - current_input
-        d_input = current_input - self._last_input
+
+        # Check if this is the very first calculation tick
+        if self._last_time is None or self._last_input is None:
+            dt = 1e-16  # Tiny placeholder delta
+            d_input = 0.0  # No change in input yet
+        else:
+            dt = now - self._last_time
+            if dt <= 0:
+                dt = 1e-16
+            d_input = current_input - self._last_input
 
         # Thermal Anti-Windup Logic for High Thermal Mass
         if error <= 0:

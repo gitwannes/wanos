@@ -45,8 +45,9 @@ class AuxiliaryController:
             # might only need minute-by-minute updates to avoid rapid screen flashing.
             if state.session_end_time:
                 now = int(time.time())
-                remaining_mins = max(0, int((state.session_end_time - now) / 60))
-                state.lcd_text = f"REMAINING: {remaining_mins}M"
+                remaining_secs = max(0, state.session_end_time - now)
+                h, m = divmod(remaining_secs // 60, 60)
+                state.lcd_text = f"{h:02d}:{m:02d}"
             else:
                 state.lcd_text = "SAUNA ON"
 

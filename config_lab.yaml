@@ -1,0 +1,6 @@
+# --- file: config_lab.yaml ---
+# These values are injected on boot ONLY when hardware.live_mode is False.
+lab_seed:
+  temp: 20.0
+  humidity: 50.0
+  door_open: false

@@ -1,3 +1,15 @@
+** tools used
+- Notepad++
+- Everything
+- Super Finder XT
+- PyCharm
+- SmartGit
+- FileZilla
+- MQTT Explorer
+- SecureCRT
+- robocopy
+
+
 ** first, Wannes-default config
 flash Raspberry Pi OS Lite (Legacy, 32-bit)
 	hostname wiscnew
@@ -140,19 +152,9 @@ Create the requirements file:
 nano requirements.txt
 pip install -r requirements.txt
 
-** Scaffold the Directory Structure
---> noneed
-Create the blank directory tree so you are ready to start dropping in the code.
-mkdir -p core api hardware logic integrations
-touch main.py config.yaml recovery_state.json
-touch core/__init__.py core/state_manager.py core/mqtt_client.py core/config.py core/logger.py core/utils.py
-touch api/__init__.py api/server.py api/auth.py api/routes.py
-touch hardware/__init__.py hardware/gpio_controller.py hardware/sensors.py hardware/lcd_display.py
-touch logic/__init__.py logic/sauna_pid.py logic/shower_tracker.py logic/timers.py
-touch integrations/__init__.py integrations/domoticz.py integrations/hue.py
-
-** Create .env for local secrets
-cat <<EOT >> .env
-MQTT_PASSWORD=l8dza_§RJepp
-AUTH_PIN=1234
-EOT
+** setup SMB
+sudo apt update && sudo apt install samba -y
+sudo nano /etc/samba/smb.conf  # file in GIT
+sudo systemctl restart smbd
+# on Windows
+net use Z: "\\10.32.251.28\wanos_share" /user:wannes

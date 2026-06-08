@@ -1,18 +1,25 @@
 import asyncio
 import json
+import os
+import yaml
+import signal
 from fastapi import Response
 from contextlib import asynccontextmanager
 from typing import Union, Any, AsyncGenerator
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+# WanOS specific
 from core.models import Event, EventType
 from core.mqtt_client import MqttClientManager
 from core.state_manager import StateManager
 from core.config import load_config, AppConfig
 from core.logger import WanosLogger
-from hardware.sensors import mock_temperature_sensor
-from fastapi.staticfiles import StaticFiles
+from hardware.simulator import lab_mode_thermodynamics_loop
+
+# Create a global shutdown event kill switch
+shutdown_event = asyncio.Event()
 
 # 1. Load and validate the configuration from YAML and .env
 config: AppConfig = load_config()
@@ -33,41 +40,90 @@ state_manager: StateManager = StateManager(mqtt_client=mqtt_manager, logger=wano
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manages startup and shutdown sequences safely."""
+
+    # Intercept the exact CTRL-C signal to instantly drop the SSE stream
+    # BEFORE Uvicorn starts waiting for connections to close.
+    loop = asyncio.get_running_loop()
+    try:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            original_handler = signal.getsignal(sig)
+
+            def make_handler(orig=original_handler):
+                def custom_handler(signum, frame):
+                    # 1. Flip our kill switch to break the SSE loop instantly
+                    loop.call_soon_threadsafe(shutdown_event.set)
+                    # 2. Hand the signal back to Uvicorn so it can gracefully exit
+                    if callable(orig):
+                        orig(signum, frame)
+
+                return custom_handler
+
+            signal.signal(sig, make_handler())
+    except Exception:
+        pass  # Windows compatibility failsafe
+
     await mqtt_manager.start()
     await state_manager.start()
 
-    # Start the Lab Mode background tasks
-    sensor_task: asyncio.Task = asyncio.create_task(mock_temperature_sensor(state_manager))
-
-    # Prime the system state safely on boot
     state_manager.dispatch(Event(type=EventType.INITIAL_STATE_LOADED))
+
+    # --- LAB MODE SEEDING FROM YAML ---
+    current_state = state_manager.get_state_snapshot()
+    if not current_state.hardware.live_mode:
+        try:
+            config_path = os.path.join(os.path.dirname(__file__), "config_lab.yaml")
+            if os.path.exists(config_path):
+                with open(config_path, "r", encoding="utf-8") as file:
+                    raw_yaml = yaml.safe_load(file)
+
+                lab_data = {}
+                if isinstance(raw_yaml, dict):
+                    lab_data = raw_yaml.get("lab_seed", {})
+
+                seed_temp = lab_data.get("temp", 20.0) if isinstance(lab_data, dict) else 20.0
+                seed_hum = lab_data.get("humidity", 50.0) if isinstance(lab_data, dict) else 50.0
+                seed_door = lab_data.get("door_open", False) if isinstance(lab_data, dict) else False
+
+                state_manager.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"value": seed_temp}))
+                state_manager.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"value": seed_hum}))
+                state_manager.dispatch(Event(type=EventType.DOOR_CHANGED, payload={"is_open": seed_door}))
+
+                await wanos_logger.info("🧪 Lab Mode config loaded successfully.")
+            else:
+                await wanos_logger.warning("🧪 config_lab.yaml not found, skipping mock data injection.")
+        except Exception as e:
+            await wanos_logger.error(f"Failed to load config_lab.yaml: {e}")
+
+    # Start the external thermodynamics engine
+    physics_task = asyncio.create_task(lab_mode_thermodynamics_loop(state_manager))
 
     yield
 
-    # Shutdown sequence: Cancel background tasks and stop managers
-    sensor_task.cancel()
-    try:
-        await sensor_task
-    except asyncio.CancelledError:
-        pass
-
+    # Shutdown sequence
+    shutdown_event.set()   # Flip the kill switch to instantly terminate SSE connections, kept as a fallback
+    physics_task.cancel()  # Safely stop the external physics engine
     await state_manager.stop()
     await mqtt_manager.stop()
+
 
 # Initialize FastAPI
 app: FastAPI = FastAPI(lifespan=lifespan, title="WanOS Backend API")
 
+
 class DummyTempRequest(BaseModel):
     temp: float
+
 
 class GenericEventRequest(BaseModel):
     type: EventType
     payload: dict[str, Any] = {}
 
+
 @app.get("/api/state")
 async def get_state() -> dict[str, Any]:
     """Fetch the current state snapshot via HTTP."""
     return state_manager.get_state_snapshot().model_dump()
+
 
 @app.post("/api/test/temp")
 async def inject_dummy_temp(request: DummyTempRequest) -> dict[str, Union[str, Event]]:
@@ -76,6 +132,7 @@ async def inject_dummy_temp(request: DummyTempRequest) -> dict[str, Union[str, E
     state_manager.dispatch(event)
     return {"status": "Event dispatched to queue", "event": event}
 
+
 @app.post("/api/event")
 async def inject_event(request: GenericEventRequest) -> dict[str, Union[str, Event]]:
     """Universal endpoint to inject any system event."""
@@ -83,14 +140,14 @@ async def inject_event(request: GenericEventRequest) -> dict[str, Union[str, Eve
     state_manager.dispatch(event)
     return {"status": "Event dispatched", "event": event}
 
+
 @app.get("/api/console")
 async def get_console_logs() -> Response:
     """Fetch the rolling log history directly via HTTP (Pretty Printed)."""
     data = {"logs": wanos_logger.get_recent_logs()}
-    # Format with 4 spaces of indentation
     pretty_json = json.dumps(data, indent=4)
-    # Return it as a raw string so the browser respects the spaces
     return Response(content=pretty_json, media_type="application/json")
+
 
 @app.get("/api/state/sse")
 async def sse_state_stream(request: Request):
@@ -100,34 +157,37 @@ async def sse_state_stream(request: Request):
     """
 
     async def event_generator():
-        last_state_json = None
-        while True:
-            # If the user closes the browser tab, cleanly break the loop
-            if await request.is_disconnected():
-                break
+        try:
+            last_state_json = None
+            # Only loop while the server isn't shutting down
+            while not shutdown_event.is_set():
+                # If the user closes the browser tab, cleanly break the loop
+                if await request.is_disconnected():
+                    break
 
-            # Grab a safe, read-only snapshot from the Bouncer
-            # (Assuming your StateManager instance in main.py is named `state_manager`)
-            current_state = state_manager.get_state_snapshot().model_dump()
-            current_state_json = json.dumps(current_state)
+                # Grab a safe, read-only snapshot from the Bouncer
+                current_state = state_manager.get_state_snapshot().model_dump()
+                current_state_json = json.dumps(current_state)
 
-            # Only push data through the network if the state actually changed
-            if current_state_json != last_state_json:
-                yield f"data: {current_state_json}\n\n"
-                last_state_json = current_state_json
+                # Only push data through the network if the state actually changed
+                if current_state_json != last_state_json:
+                    yield f"data: {current_state_json}\n\n"
+                    last_state_json = current_state_json
 
-            # Check for updates every 0.5 seconds for a highly responsive UI
-            await asyncio.sleep(0.5)
+                await asyncio.sleep(0.5)
+
+        except asyncio.CancelledError:
+            # Uvicorn is shutting down. Catch the cancellation to prevent CTRL+C hanging.
+            pass
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+
 # --- FRONTEND UI MOUNT ---
 # This must remain at the bottom of the routing list so it doesn't swallow /api/ paths!
-# The html=True flag tells FastAPI to automatically serve index.html when visiting the root url.
-import os
-
 frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
 if os.path.exists(frontend_path):
+    # The html=True flag tells FastAPI to automatically serve index.html when visiting the root url.
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 else:
     print(f"⚠️ Warning: Frontend directory not found at {frontend_path}")

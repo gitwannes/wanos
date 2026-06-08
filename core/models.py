@@ -1,3 +1,4 @@
+# --- file: core/models.py ---
 from pydantic import BaseModel, Field
 from typing import Any, List, Optional, Literal
 from enum import Enum
@@ -19,6 +20,10 @@ class EventType(str, Enum):
     SETPOINT_REACHED = "SETPOINT_REACHED"
     SAUNA_HOLD = "SAUNA_HOLD"
     SAUNA_TIMER_EXPIRED = "SAUNA_TIMER_EXPIRED"
+    HOLD_TOGGLED = "HOLD_TOGGLED"
+    TIMER_ADJUSTED = "TIMER_ADJUSTED"
+    VENT_WAIT_EXPIRED = "VENT_WAIT_EXPIRED"
+    VENT_RUN_EXPIRED = "VENT_RUN_EXPIRED"
     # IR Events
     IR_ON = "IR_ON"
     IR_OFF = "IR_OFF"
@@ -38,22 +43,20 @@ class EventType(str, Enum):
 
 class HardwareState(BaseModel):
     live_mode: bool = False
-    door_open: bool = False
     safety_pin_active: bool = False
-
 
 class SaunaState(BaseModel):
     # --- Core Heater State ---
     active: bool = False
     current_temp: Optional[float] = None
-    target_temp: float = 80.0  # Acts as an immediate default upon instantiation, will be overwritten from config.yaml
-    modulation_pwm: float = 0.0  # 0 to 100%
+    target_temp: Optional[float] = None
+    modulation_pwm: float = 0.0    # Output: Explicitly OFF  --  0 to 100%
     # Track the 3 physical phases (U, V, W) for the waterfall distribution
     phases_pwm: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
 
-    # --- Environment & Security (NEW) ---
+    # --- Environment & Security ---
     current_humidity: Optional[float] = None
-    door_open: bool = False
+    door_open: Optional[bool] = None
 
     # --- Session & Timers ---
     hold_mode: Literal["autohold", "hold", "nohold"] = "autohold"
@@ -64,7 +67,7 @@ class SaunaState(BaseModel):
     light_color: str = "#FFD180"  # Defaults to Warm White
     lcd_text: str = ""
 
-    # --- Ventilation State Machine (NEW) ---
+    # --- Ventilation State Machine ---
     ventilation_state: Literal["OFF", "WAITING", "RUNNING"] = "OFF"
     ventilation_deadline: Optional[int] = None
 

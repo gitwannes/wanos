@@ -2,6 +2,7 @@
 
 function wanosApp() {
     return {
+        connected: false, // <--- Defaults to false to block UI on initial load
         // Local reactive proxy matching the SystemState model
         state: {
             sauna: {
@@ -32,7 +33,7 @@ function wanosApp() {
         elapsedText: "00:00:00",
         remainingText: "00:00:00",
         progressPercent: 0,
-        ventRemainingText: "00:00",
+        ventRemainingText: "00:00:00",
 
         init() {
             console.log("🚀 WISC Web Engine initializing...");
@@ -47,6 +48,7 @@ function wanosApp() {
 
             eventSource.onmessage = (event) => {
                 try {
+                    this.connected = true; // <--- Connection is alive, hide overlay!
                     this.state = JSON.parse(event.data);
 
                     // Sync mock sliders if they aren't actively being dragged
@@ -63,6 +65,7 @@ function wanosApp() {
             };
 
             eventSource.onerror = (err) => {
+                this.connected = false; // <--- Connection died, show overlay!
                 console.error("❌ SSE connection dropped. Re-linking in 3s...");
                 eventSource.close();
                 setTimeout(() => this.connectSSE(), 3000);
@@ -96,9 +99,9 @@ function wanosApp() {
             // 2. Process Ventilation Cooldown Timers
             if (this.state.sauna.ventilation_state !== "OFF" && this.state.sauna.ventilation_deadline) {
                 const vRemain = Math.max(0, this.state.sauna.ventilation_deadline - now);
-                this.ventRemainingText = this.formatTime(vRemain).substring(3); // Just MM:SS
+				this.ventRemainingText = this.formatTime(vRemain); // HH:MM:SS
             } else {
-                this.ventRemainingText = "00:00";
+                this.ventRemainingText = "00:00:00";
             }
         },
 
