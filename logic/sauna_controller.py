@@ -1,3 +1,4 @@
+# --- file: logic/sauna_controller.py ---
 import time
 from itertools import permutations
 from typing import List, Tuple, Optional, Dict, Any
@@ -33,8 +34,11 @@ class PID:
         self._last_time: Optional[float] = None
         self._last_input: Optional[float] = None
 
-    def compute(self, current_input: float) -> float:
-        now = time.monotonic()
+    def compute(self, current_input: float, current_time: float) -> float:
+        """
+        Computes the PID output based on an injected system timestamp.
+        Allows deterministic calculations across live deployment and simulation environments.
+        """
         error = self.setpoint - current_input
 
         # Check if this is the very first calculation tick
@@ -42,7 +46,7 @@ class PID:
             dt = 1e-16  # Tiny placeholder delta
             d_input = 0.0  # No change in input yet
         else:
-            dt = now - self._last_time
+            dt = current_time - self._last_time
             if dt <= 0:
                 dt = 1e-16
             d_input = current_input - self._last_input
@@ -79,7 +83,7 @@ class PID:
 
         # State tracking updates
         self._last_input = current_input
-        self._last_time = now
+        self._last_time = current_time
 
         return output
 
@@ -161,8 +165,11 @@ class SaunaController:
         current_temp = state.current_temp
         target_temp = state.target_temp
 
+        # Inject real unix timestamp context into calculations
+        now_ts = time.time()
+
         self.pid.setpoint = target_temp
-        calculated_pwm = self.pid.compute(current_input=current_temp)
+        calculated_pwm = self.pid.compute(current_input=current_temp, current_time=now_ts)
 
         new_total_pwm = int(round(calculated_pwm))
 

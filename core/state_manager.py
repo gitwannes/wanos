@@ -7,9 +7,13 @@ from .models import SystemState, Event, EventType
 from .mqtt_client import MqttClientManager
 from .logger import WanosLogger
 from .config import load_config
-from logic.sauna_controller import SaunaController
-from logic.timers import TimerManager
-from logic.auxiliary_controller import AuxiliaryController
+
+try:
+    import lgpio
+
+    LGPIO_AVAILABLE = True
+except ImportError:
+    LGPIO_AVAILABLE = False
 
 
 class StateManager:
@@ -20,257 +24,360 @@ class StateManager:
         self.mqtt_client: MqttClientManager = mqtt_client
         self.logger: WanosLogger = logger
 
-        # 1. Load and save configuration so it can be accessed by the timers
+        # Load centralized configuration profiles
         self._config = load_config()
         self._state.sauna.target_temp = float(self._config.sauna.default_setpoint)
+        self._state.lab_seed = self._config.lab_seed
 
-        # 2. Boot the Brain and Timers
+        # Open hardware safety channel chip context if available
+        self._gpio_chip = None
+        if LGPIO_AVAILABLE:
+            try:
+                self._gpio_chip = lgpio.gpiochip_open(0)
+                lgpio.gpio_claim_output(self._gpio_chip, self._config.pins.safety_gpio)
+            except Exception as e:
+                print(f"[Hardware Init Error] Safety Pin unavailable: {e}")
+
+        # Boot business controllers
+        from logic.sauna_controller import SaunaController
         self.sauna_logic = SaunaController(
             initial_target_temp=self._state.sauna.target_temp,
             kp=self._config.sauna.kp,
             ki=self._config.sauna.ki,
             kd=self._config.sauna.kd
         )
-        # Pass our custom dispatch wrapper so the TimerManager can inject events
+        from logic.timers import TimerManager
         self._timer_manager = TimerManager(dispatch_callback=self._dispatch_from_timer)
 
     async def start(self) -> None:
-        """Starts the background event consumer loop."""
         self._worker_task = asyncio.create_task(self._process_events())
         await self.logger.success("State Manager worker started.")
 
     async def stop(self) -> None:
-        """Cancels the consumer loop gracefully."""
+        self._set_hardware_safety_gate(False)
         if self._worker_task:
             self._worker_task.cancel()
             try:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
+        if self._gpio_chip and LGPIO_AVAILABLE:
+            lgpio.gpiochip_close(self._gpio_chip)
         await self.logger.warning("State Manager worker stopped.")
 
     def dispatch(self, event: Event) -> None:
-        """
-        The ONLY way to influence state.
-        Thread-safe: Safely bridges calls from hardware threads to the main async loop.
-        """
         try:
             loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
             loop.call_soon_threadsafe(self._queue.put_nowait, event)
         except RuntimeError:
-            # Fallback if called outside an active event loop
             self._queue.put_nowait(event)
 
     async def _dispatch_from_timer(self, event_type_str: str, payload: dict) -> None:
-        """Helper to convert string events from TimerManager into Event objects."""
         try:
             e_type = EventType(event_type_str)
             self.dispatch(Event(type=e_type, payload=payload))
         except ValueError:
-            await self.logger.error(f"Timer tried to dispatch unknown event type: {event_type_str}")
+            await self.logger.error(f"Timer dispatch error: {event_type_str}")
 
     def get_state_snapshot(self) -> SystemState:
-        """Returns a safe, read-only deep copy of the current state."""
         return self._state.model_copy(deep=True)
 
+    def _set_hardware_safety_gate(self, state: bool):
+        self._state.hardware.safety_pin_active = state
+        if self._gpio_chip and LGPIO_AVAILABLE:
+            try:
+                val = 1 if state else 0
+                lgpio.gpio_write(self._gpio_chip, self._config.pins.safety_gpio, val)
+            except Exception as e:
+                print(f"[Safety Relay Error] Write failed: {e}")
+
+    def _recalculate_sauna_metrics(self) -> bool:
+        env = self._state.environment
+        changed = False
+        if env.sauna_high_temp is not None and env.sauna_low_temp is not None:
+            raw_temp = (env.sauna_high_temp + env.sauna_low_temp) / 2
+            calc_temp = round(raw_temp * 2) / 2
+            if calc_temp != env.sauna_calc_temp:
+                env.sauna_calc_temp = calc_temp
+                self._state.sauna.current_temp = calc_temp
+                changed = True
+        if env.sauna_high_hum is not None and env.sauna_low_hum is not None:
+            raw_hum = (env.sauna_high_hum + (env.sauna_low_hum * 4)) / 5
+            calc_hum = round(raw_hum)
+            if calc_hum != env.sauna_calc_hum:
+                env.sauna_calc_hum = calc_hum
+                self._state.sauna.current_humidity = calc_hum
+                changed = True
+        return changed
+
+    def _update_lcd_text(self) -> None:
+        """Authentic LCD Virtual Terminal Matrix Renderer with True Degree Symbols."""
+        sauna = self._state.sauna
+
+        if sauna.active:
+            temp_display = f"{int(sauna.current_temp)}°C" if sauna.current_temp is not None else "--°C"
+            if sauna.door_open:
+                sauna.lcd_text = f"CLOSE DOOR | {temp_display}"
+            elif sauna.hold_mode == "hold":
+                sauna.lcd_text = f"SAUNA HOLD | {temp_display}"
+            else:
+                sauna.lcd_text = f"SAUNA ON | {temp_display} ({sauna.modulation_pwm}%)"
+            return
+
+        if sauna.ventilation_state == "RUNNING":
+            sauna.lcd_text = "VENT RUNNING"
+        elif sauna.ventilation_state == "WAITING":
+            sauna.lcd_text = "VENT WAITING"
+        else:
+            sauna.lcd_text = ""
+
     async def _process_events(self) -> None:
-        """The sequential event loop. Completely eliminates race conditions."""
+        """
+        Processes inbound application infrastructure events sequentially.
+        Implements an outbound network batch debouncer to prevent dashboard flickering storms.
+        """
+        pending_broadcast = False
         while True:
             event: Event = await self._queue.get()
             try:
-                await self._handle_event(event)
+                # Track mutations across the evaluation loop execution turn
+                changed = await self._handle_event(event)
+                if changed:
+                    pending_broadcast = True
             except Exception as e:
                 await self.logger.error(f"Error handling event {event.type.value}: {e}")
             finally:
                 self._queue.task_done()
 
-    async def _handle_event(self, event: Event) -> None:
-        """Business logic router. Mutates the private state and triggers broadcasts."""
-        # Extract values cleanly to avoid missing-attribute errors
+            # ⚡ BATCH DEBOUNCE GATEWAY ⚡
+            # Only serialize and broadcast data when the incoming queue settles completely!
+            if pending_broadcast and self._queue.empty():
+                snapshot = self.get_state_snapshot().model_dump()
+                await self.mqtt_client.publish("wisc/system/state", snapshot)
+                pending_broadcast = False
+
+    async def _handle_event(self, event: Event) -> bool:
         event_name = event.type.value if hasattr(event.type, 'value') else str(event.type)
         payload = event.payload or {}
-
-        await self.logger.debug(f"Processing Event: {event_name} | {payload}")
         state_changed: bool = False
+
+        # --- LIVE TERMINAL LOGGING INJECTION GATEWAY ---
+        is_routine_sensory = event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED"]
+        is_manual_ui_action = payload.get("ui_override", False)
+
+        if not is_routine_sensory or is_manual_ui_action:
+            print(f"📥 [StateManager] Event Received: {event_name.ljust(22)} | Payload: {payload}")
+            await self.logger.info(f"User Action Processed: {event_name}")
 
         if event_name == "INITIAL_STATE_LOADED":
             self._state.hardware.live_mode = False
+            self._set_hardware_safety_gate(False)
             state_changed = True
 
-        elif event_name == "TEMP_UPDATED":
-            new_temp: Optional[float] = payload.get("value")
-            if new_temp is not None and new_temp != self._state.sauna.current_temp:
-                self._state.sauna.current_temp = new_temp
-                state_changed = True
+        elif event_name == "HARDWARE_LIVE_MODE_CHANGED":
+            self._state.hardware.live_mode = payload.get("live", False)
+            self._set_hardware_safety_gate(self._state.hardware.live_mode)
+            state_changed = True
 
         # --------------------------------------------------------
-        # CORE SAUNA COMMANDS
+        # PHYSICAL PULSE MAPPING
+        # --------------------------------------------------------
+        elif event_name == "WATER_PULSE":
+            wtype = payload.get("fluid", "cold")
+            if wtype == "cold":
+                self._state.metrics.water_cold_liters += (1.0 / 396.0)
+            else:
+                self._state.metrics.water_hot_liters += (1.0 / 396.0)
+
+            if self._state.metrics.douche_active:
+                self._state.metrics.douche_water_liters += 1
+            state_changed = True
+
+        elif event_name == "KWH_PULSE":
+            self._state.metrics.kwh_wh_ticks += 1
+            state_changed = True
+
+        # --------------------------------------------------------
+        # MULTI-ZONE TEMPERATURE & HUMIDITY ROUTING
+        # --------------------------------------------------------
+        elif event_name == "TEMP_UPDATED":
+            sensor_id = payload.get("sensor_id", "sauna_high")
+            val = payload.get("value")
+            env = self._state.environment
+            if sensor_id == "sauna_high":
+                env.sauna_high_temp = val
+            elif sensor_id == "sauna_low":
+                env.sauna_low_temp = val
+            elif sensor_id == "bathroom":
+                env.bathroom_temp = val
+            elif sensor_id == "cinema":
+                env.cinema_temp = val
+            elif sensor_id == "outside":
+                env.outside_temp = val
+
+            if sensor_id in ["sauna_high", "sauna_low"]:
+                if self._recalculate_sauna_metrics() or is_manual_ui_action:
+                    state_changed = True
+            else:
+                state_changed = True
+
+        elif event_name == "HUMIDITY_UPDATED":
+            sensor_id = payload.get("sensor_id", "sauna_high")
+            val = payload.get("value")
+            env = self._state.environment
+            if sensor_id == "sauna_high":
+                env.sauna_high_hum = val
+            elif sensor_id == "sauna_low":
+                env.sauna_low_hum = val
+            elif sensor_id == "bathroom":
+                env.bathroom_hum = val
+            elif sensor_id == "cinema":
+                env.cinema_hum = val
+            elif sensor_id == "outside":
+                env.outside_hum = val
+
+            if sensor_id in ["sauna_high", "sauna_low"]:
+                if self._recalculate_sauna_metrics() or is_manual_ui_action:
+                    state_changed = True
+            else:
+                state_changed = True
+
+        elif event_name == "SENSOR_ERROR":
+            sid = payload.get("sensor", "unknown")
+            if sid not in self._state.hardware.sensor_errors:
+                self._state.hardware.sensor_errors.append(sid)
+                state_changed = True
+            if sid in ["sauna_high", "sauna_low"] and self._state.sauna.active:
+                await self.logger.critical(f"Critical sensor failure on {sid}. Emergency stopping heater elements.")
+                self.dispatch(Event(type=EventType.SAUNA_OFF))
+
+        # --------------------------------------------------------
+        # CORE CONTROLLER MODULE ROUTERS
         # --------------------------------------------------------
         elif event_name == "SAUNA_ON":
-            # Door Interlock Guard
             if self._state.sauna.door_open:
                 await self.logger.warning("Bouncer rejected SAUNA_ON: Door is open.")
                 return
-
             self._state.sauna.active = True
-
-            # Absolute Timers
+            self._state.sauna.hold_mode = "autohold"
             now = int(time.time())
             self._state.sauna.session_start_time = now
-            self._state.sauna.session_end_time = now + (self._config.sauna.default_timer * 60)
-
-            # Schedule the expiration event
-            self._timer_manager.schedule(
-                timer_id="sauna_main",
-                deadline=self._state.sauna.session_end_time,
-                event_type="SAUNA_TIMER_EXPIRED"
-            )
-
-            # Clear any active ventilation tasks
-            self._timer_manager.cancel("vent_wait")
-            self._timer_manager.cancel("vent_run")
-            self._state.sauna.ventilation_state = "OFF"
-            self._state.sauna.ventilation_deadline = None
+            self._state.sauna.session_end_time = now + (self._config.sauna.default_timer_mins * 60)
+            self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time, "SAUNA_TIMER_EXPIRED")
             state_changed = True
 
         elif event_name == "SAUNA_OFF":
             self._state.sauna.active = False
-            self._state.sauna.modulation_pwm = 0.0
-            self._state.sauna.phases_pwm = [0.0, 0.0, 0.0]
-            self._state.sauna.session_start_time = None
-            self._state.sauna.session_end_time = None
-
+            self._state.sauna.modulation_pwm = 0
+            self._state.sauna.phases_pwm = [0, 0, 0]
             self._timer_manager.cancel("sauna_main")
 
-            # Trigger Ventilation Stage 1 (Waiting)
             self._state.sauna.ventilation_state = "WAITING"
             self._state.sauna.ventilation_deadline = int(time.time()) + (self._config.sauna.vent_delay_mins * 60)
-            self._timer_manager.schedule(
-                timer_id="vent_wait",
-                deadline=self._state.sauna.ventilation_deadline,
-                event_type="VENT_WAIT_EXPIRED"
-            )
+            self._timer_manager.schedule("vent_wait", self._state.sauna.ventilation_deadline, "VENT_WAIT_EXPIRED")
             state_changed = True
 
-        # --------------------------------------------------------
-        # ENVIRONMENT & SECURITY EVENTS
-        # --------------------------------------------------------
-        elif event_name == "DOOR_CHANGED":
-            self._state.sauna.door_open = payload.get("is_open", False)
-            if self._state.sauna.door_open and self._state.sauna.active:
-                await self.logger.warning("Safety Interlock Tripped: Door opened during active session.")
-            state_changed = True
-
-        elif event_name == "HOLD_TOGGLED":
-            # Cycle through the 3 states
-            current = self._state.sauna.hold_mode
-            if current == "autohold":
-                self._state.sauna.hold_mode = "hold"
-            elif current == "hold":
-                self._state.sauna.hold_mode = "nohold"
-            else:
-                self._state.sauna.hold_mode = "autohold"
-            state_changed = True
-
-        elif event_name == "HUMIDITY_UPDATED":
-            self._state.sauna.current_humidity = payload.get("value")
-            state_changed = True
-
-        # --------------------------------------------------------
-        # ABSOLUTE TIMER EVENTS
-        # --------------------------------------------------------
         elif event_name == "TIMER_ADJUSTED":
+            minutes_to_add = payload.get("minutes", 0)
             if self._state.sauna.active and self._state.sauna.session_end_time:
-                minutes_to_add = payload.get("minutes", 0)
                 self._state.sauna.session_end_time += (minutes_to_add * 60)
-                # Reschedule the active timer with the new deadline
-                self._timer_manager.schedule(
-                    timer_id="sauna_main",
-                    deadline=self._state.sauna.session_end_time,
-                    event_type="SAUNA_TIMER_EXPIRED"
-                )
+                self._timer_manager.cancel("sauna_main")
+                self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time, "SAUNA_TIMER_EXPIRED")
                 state_changed = True
 
+        elif event_name == "HOLD_TOGGLED":
+            current_mode = self._state.sauna.hold_mode
+            if current_mode == "autohold":
+                self._state.sauna.hold_mode = "nohold"
+            elif current_mode == "hold":
+                self._state.sauna.hold_mode = "nohold"
+            else:
+                self._state.sauna.hold_mode = "hold"
+            state_changed = True
+
         elif event_name == "SAUNA_TIMER_EXPIRED":
-            await self.logger.info("Session timer expired. Shutting down sauna.")
-            # Safely route back through the standard shutdown sequence
-            self.dispatch(Event(type=EventType.SAUNA_OFF, payload={}))
+            print("🚨 [StateManager] Sauna session limit countdown reached 0.")
+            self.dispatch(Event(type=EventType.SAUNA_OFF))
+
+        elif event_name == "IR_ON":
+            self._state.ir.active = True
+            now = int(time.time())
+            self._state.ir.session_start_time = now
+            self._state.ir.session_end_time = now + (self._config.ir.max_time_mins * 60)
+            self._state.ir.modulation_pwm = 100
+            self._state.ir.frequency = self._config.sauna.pwm_freq
+            self._timer_manager.schedule("ir_main", self._state.ir.session_end_time, "IR_TIMER_EXPIRED")
+            state_changed = True
+
+        elif event_name == "IR_OFF":
+            self._state.ir.active = False
+            self._state.ir.modulation_pwm = 0
+            self._timer_manager.cancel("ir_main")
+            state_changed = True
+
+        elif event_name == "IR_TIMER_EXPIRED":
+            self.dispatch(Event(type=EventType.IR_OFF))
+
+        elif event_name == "DOOR_CHANGED":
+            target_door = payload.get("sensor_id", "sauna")
+            is_open = payload.get("is_open", False)
+            if target_door == "sauna":
+                self._state.sauna.door_open = is_open
+            state_changed = True
+
+        elif event_name == "HUB_STATE_CHANGED":
+            device = payload.get("device_id")
+            is_on = payload.get("state") == "ON"
+            if device == "bathroom_ventilator":
+                self._state.environment.bathroom_vent_on = is_on
+                state_changed = True
 
         elif event_name == "VENT_WAIT_EXPIRED":
-            await self.logger.info("Ventilation wait period over. Starting extraction fan.")
             self._state.sauna.ventilation_state = "RUNNING"
+            self._state.environment.sauna_extraction_vent_on = True
             self._state.sauna.ventilation_deadline = int(time.time()) + (self._config.sauna.vent_run_mins * 60)
-            self._timer_manager.schedule(
-                timer_id="vent_run",
-                deadline=self._state.sauna.ventilation_deadline,
-                event_type="VENT_RUN_EXPIRED"
-            )
+            self._timer_manager.schedule("vent_run", self._state.sauna.ventilation_deadline, "VENT_RUN_EXPIRED")
             state_changed = True
 
         elif event_name == "VENT_RUN_EXPIRED":
-            await self.logger.info("Ventilation cycle complete. Shutting fan off.")
             self._state.sauna.ventilation_state = "OFF"
+            self._state.environment.sauna_extraction_vent_on = False
             self._state.sauna.ventilation_deadline = None
             state_changed = True
 
-        # --------------------------------------------------------
-        # SETPOINT & MODULATION
-        # --------------------------------------------------------
         elif event_name == "SETPOINT_CHANGED":
-            new_target: Optional[float] = payload.get("target")
-            if new_target is not None and new_target != self._state.sauna.target_temp:
+            new_target = payload.get("target")
+            if new_target is not None:
                 self._state.sauna.target_temp = new_target
                 state_changed = True
-                await self.logger.info(f"🎯 Setpoint changed to {new_target}°C")
 
         elif event_name == "MODULATION_UPDATED":
-            raw_pwm = payload.get("pwm")
-            raw_phases = payload.get("phases", [0, 0, 0])
-            if raw_pwm is not None:
-                new_pwm: int = int(round(float(raw_pwm)))
-                if new_pwm != self._state.sauna.modulation_pwm or raw_phases != self._state.sauna.phases_pwm:
-                    self._state.sauna.modulation_pwm = new_pwm
-                    self._state.sauna.phases_pwm = raw_phases
-                    state_changed = True
-                    await self.logger.info(
-                        f"⚡ Heater power: {new_pwm}% | Phases: U:{raw_phases[0]}%, V:{raw_phases[1]}%, W:{raw_phases[2]}%")
-        else:
-            await self.logger.warning(f"Unhandled event type: {event_name}")
-
-        # --------------------------------------------------------
-        # THE BRAIN TRIGGER (Heater Logic)
-        # --------------------------------------------------------
-        # If any variables change that affect heating, ask the Brain to evaluate
-        if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "DOOR_CHANGED", "HOLD_TOGGLED"]:
-            if self._state.sauna.current_temp is not None:
-                # Pass the full state model so the Brain can evaluate door/hold safety interlocks
-                calc_result = self.sauna_logic.evaluate(self._state.sauna)
-
-                # If the Brain calculated new math, drop a MODULATION_UPDATED event into the queue
-                if calc_result is not None:
-                    if isinstance(calc_result, tuple):
-                        calc_result = {"pwm": calc_result[0], "phases": calc_result[1]}
-
-                    self.dispatch(Event(
-                        type=EventType.MODULATION_UPDATED,
-                        payload=calc_result
-                    ))
-
-        # --------------------------------------------------------
-        # THE AUXILIARY TRIGGER (Lights & LCD)
-        # --------------------------------------------------------
-        # Evaluate auxiliary environmental variables (Lights, LCD text)
-        new_state = AuxiliaryController.evaluate(self._state.sauna)
-
-        # Check if the Auxiliary Controller actually changed anything visual
-        if (new_state.light_color != self._state.sauna.light_color or
-                new_state.lcd_text != self._state.sauna.lcd_text):
+            self._state.sauna.modulation_pwm = payload.get("pwm", 0)
+            self._state.sauna.phases_pwm = payload.get("phases", [0, 0, 0])
             state_changed = True
 
-        self._state.sauna = new_state
+        # Process PID loop math calculations dynamically
+        if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "DOOR_CHANGED"]:
+            if self._state.sauna.current_temp is not None and self._state.sauna.active:
 
-        # --- MQTT / SSE BROADCAST ---
-        if state_changed:
-            snapshot: dict[str, Any] = self.get_state_snapshot().model_dump()
-            await self.logger.debug("Broadcasting State Update.")
-            await self.mqtt_client.publish("wisc/system/state", snapshot)
+                # AUTOMATIC STEPPING INTERRUPT:
+                if self._state.sauna.current_temp >= self._state.sauna.target_temp:
+                    if self._state.sauna.hold_mode == "autohold":
+                        self._state.sauna.hold_mode = "hold"
+                        print("🎯 [StateManager] Setpoint met! System automatically dropped load: autohold -> hold")
+                        state_changed = True
+
+                calc_result = self.sauna_logic.evaluate(self._state.sauna)
+                if calc_result:
+                    self._state.sauna.modulation_pwm = calc_result.get("pwm", 0)
+                    self._state.sauna.phases_pwm = calc_result.get("phases", [0, 0, 0])
+                    state_changed = True
+
+        # --- DEFENSIVE RE-RENDER CHECKPOINT ---
+        old_lcd_text = self._state.sauna.lcd_text
+        self._update_lcd_text()
+        if self._state.sauna.lcd_text != old_lcd_text:
+            state_changed = True
+
+        # Return the local evaluation metric instead of issuing intermediate publishes
+        return state_changed

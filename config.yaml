@@ -1,14 +1,27 @@
+# --- file: config.yaml ---
+# Runtime System Parameters - Modifiable via Web UI
+
 mqtt:
   broker_host: "localhost"
   port: 1883
-  username: "st"           # password in .env
+  username: "st"
 
-sauna:
-  default_setpoint: 80     # Default temperature setpoint
-  max_temp: 95             # maximum setpoint that can be set in the UI
-  kp: 3.0                  # PID P
-  ki: 0.01                 # PID I
-  kd: 0.0                  # PID D
-  default_timer: 180       # Default sauna duration in minutes
-  vent_delay_mins: 1       # Cooldown wait time before starting the extraction fan - will be 10 min
-  vent_run_mins: 160       # Duration the extraction fan runs
+domoticz:
+  broker_host: "10.32.251.181"
+  port: 1883
+  username: "st0001"
+
+sauna_runtime:
+  default_setpoint: 70
+  max_temp: 95              # maximum configurable setpoing
+  default_timer_mins: 70
+  vent_delay_mins: 10
+  vent_run_mins: 160
+  pwm_freq: 5
+  kp: 12.0
+  ki: 0.0
+  kd: 0.0
+
+ir_runtime:
+  min_time_mins: 5
+  max_time_mins: 20

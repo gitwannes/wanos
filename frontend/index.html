@@ -3,184 +3,336 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WanOS/WISC System Dashboard</title>
+    <title>WanOS Ecosystem Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
-    <div x-show="!connected" style="display: none;"
+
+    <div x-show="!connected"
          class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center transition-opacity duration-300">
-        <span class="loading loading-infinity w-16 text-primary mb-4"></span>
-        <h2 class="text-2xl font-black tracking-widest text-base-content">LINK LOST</h2>
-        <p class="text-base-500 mt-2 font-mono text-sm">ATTEMPTING TO REACH WANOS...</p>
+         <span class="loading loading-infinity w-16 text-error mb-4"></span>
+        <h2 class="text-2xl font-black tracking-widest text-base-content">LINK INTERRUPTED</h2>
+        <p class="text-error mt-2 font-mono text-sm">RE-ESTABLISHING PERSISTENT CONNECTION STREAM OVER WANOS...</p>
     </div>
 
-    <header class="navbar bg-base-100 shadow-md px-6 mb-8">
+    <header class="navbar bg-base-100 shadow-md px-6 mb-8 flex-wrap gap-4">
         <div class="flex-1">
-            <span class="text-xl font-bold tracking-wider text-primary">⚡ WANOS // WISC</span>
+            <span class="text-xl font-black tracking-wider text-primary">⚡ WANOS // ECOSYSTEM DASHBOARD</span>
         </div>
-        <div class="flex-none gap-2">
-            <span class="badge badge-success gap-1 font-mono text-xs">
-                <span class="w-2 h-2 rounded-full bg-current animate-pulse"></span> SSE LIVE
+        <div class="flex-none gap-3">
+            <button class="btn btn-xs btn-outline font-mono"
+                    :class="state.hardware.live_mode ? 'btn-success' : 'btn-warning'"
+                    @click="toggleHardwareMode()"
+                    x-text="state.hardware.live_mode ? '⚙️ LIVE MODE ACTIVE' : '🔬 LAB EMULATION MODE'"></button>
+            <span class="badge badge-success gap-1 font-mono text-xs p-3">
+                <span class="w-2 h-2 rounded-full bg-current animate-pulse"></span> SSE FEED STREAMING
             </span>
         </div>
     </header>
 
-    <main class="container mx-auto px-4 max-w-5xl pb-10">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <main class="container mx-auto px-4 max-w-6xl pb-10">
 
-            <div class="card bg-base-100 shadow-xl border border-base-200">
-                <div class="card-body">
-                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2">Sauna Control</h2>
-
-                    <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-between mb-4 h-16">
-                        <div class="font-mono text-green-500 text-lg tracking-widest uppercase"
-                             x-text="state.sauna.lcd_text || 'WISC STANDBY'"></div>
-
-                        <div class="w-6 h-6 rounded-full border border-gray-600 transition-colors duration-500"
-                             :style="`background-color: ${state.sauna.light_color}; box-shadow: 0 0 15px ${state.sauna.light_color};`">
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-center mb-6">
-                        <div>
-                            <div class="text-xs text-base-400 font-medium">Temperature & Humidity</div>
-                            <div class="text-4xl font-black font-mono tracking-tight mt-1 text-secondary">
-                                <span x-text="state.sauna.current_temp !== null ? state.sauna.current_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                <span class="text-2xl text-info ml-2" x-text="state.sauna.current_humidity !== null ? state.sauna.current_humidity.toFixed(0) + '%' : '--%'"></span>
-                            </div>
-                        </div>
-
-                        <button :class="state.sauna.active ? 'btn btn-error btn-lg shadow-lg' : 'btn btn-outline btn-lg'"
-                                :disabled="!state.sauna.active && state.sauna.door_open"
-                                @click="toggleSauna()">
-                            <span x-show="state.sauna.active" class="animate-pulse">🔥 RUNNING</span>
-                            <span x-show="!state.sauna.active">❄️ OFF</span>
-                        </button>
-                    </div>
-
-                    <div class="mt-2">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm font-semibold">Target Setpoint</span>
-                            <div class="flex gap-2 items-center">
-                                <button class="badge badge-outline text-xs uppercase disabled:opacity-50"
-                                        :disabled="!state.sauna.active"
-                                        @click="toggleHold()"
-                                        x-text="state.sauna.hold_mode"></button>
-                                <span class="badge badge-secondary font-mono text-md font-bold" x-text="state.sauna.target_temp + '°C'"></span>
-                            </div>
-                        </div>
-                        <input type="range" min="40" max="95" step="1"
-                               class="range range-secondary"
-                               x-model="state.sauna.target_temp"
-                               @change="updateSetpoint()" />
-                    </div>
-
-                    <div class="mt-6 bg-base-200 p-4 rounded-box" x-show="state.sauna.active">
-                        <div class="flex justify-between items-center text-xs font-mono mb-2">
-                            <span class="text-base-400">ELAPSED: <span class="text-white" x-text="elapsedText"></span></span>
-                            <span class="text-base-400">REMAINING: <span class="text-warning font-bold" x-text="remainingText"></span></span>
-                        </div>
-                        <progress class="progress progress-warning w-full h-2 mb-3" :value="progressPercent" max="100"></progress>
-                        <div class="flex justify-center gap-2">
-                            <button class="btn btn-xs btn-outline" @click="adjustTimer(-10)">-10 Mins</button>
-                            <button class="btn btn-xs btn-outline" @click="adjustTimer(10)">+10 Mins</button>
-                        </div>
-                    </div>
+        <template x-if="state.hardware.sensor_errors && state.hardware.sensor_errors.length > 0">
+            <div class="alert alert-error shadow-lg mb-6 border-2 border-red-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11l2 2m0 0l2-2m-2 2v-4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div class="font-mono text-sm">
+                    <span class="font-bold uppercase">Hardware Bus Exception Dropped!</span> Faults logged on peripheral interfaces:
+                    <span class="badge badge-neutral mx-1 text-red-400 font-bold" x-text="state.hardware.sensor_errors.join(', ')"></span>
                 </div>
             </div>
+        </template>
 
-            <div class="card bg-base-100 shadow-xl border border-base-200">
-                <div class="card-body">
-                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4">Waterfall Power Matrix</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                    <div class="mb-4">
-                        <div class="flex justify-between items-center mb-1 text-sm font-semibold">
-                            <span>Total Modulation Output</span>
-                            <span class="font-mono text-primary font-bold" x-text="(state.sauna.modulation_pwm || 0) + '%'"></span>
-                        </div>
-                        <progress class="progress progress-primary w-full h-3"
-                          value="0"
-                          :value="state.sauna.modulation_pwm || 0"
-                          max="100">
-                        </progress>
-                    </div>
+            <div class="space-y-6 lg:col-span-2">
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2">Sauna Commander</h2>
 
-                    <div class="divider text-xs uppercase tracking-widest text-base-400 my-2">Physical Element Loads</div>
-
-                    <div class="grid grid-cols-3 gap-4 text-center mt-2">
-                        <div class="bg-base-200 p-3 rounded-box">
-                            <div class="text-xs font-bold text-base-400 mb-2">Phase U</div>
-                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2"
-                              value="0"
-                              :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0"
-                              max="100">
-                            </progress>
-                            <div class="font-mono font-bold text-sm mt-2 text-accent"
-                                 x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></div>
-                        </div>
-
-                        <div class="bg-base-200 p-3 rounded-box">
-                            <div class="text-xs font-bold text-base-400 mb-2">Phase V</div>
-                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2"
-                              value="0"
-                              :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0"
-                              max="100">
-                            </progress>
-                            <div class="font-mono font-bold text-sm mt-2 text-accent"
-                                 x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></div>
-                        </div>
-
-                        <div class="bg-base-200 p-3 rounded-box">
-                            <div class="text-xs font-bold text-base-400 mb-2">Phase W</div>
-                            <progress class="progress progress-accent w-full transform -rotate-90 origin-center my-4 h-2"
-                              value="0"
-                              :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0"
-                              max="100">
-                            </progress>
-                            <div class="font-mono font-bold text-sm mt-2 text-accent"
-                                 x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0) + '%'"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card bg-base-100 shadow-xl border border-base-200 md:col-span-2">
-                <div class="card-body">
-                    <h2 class="card-title text-warning uppercase text-xs tracking-widest mb-2">🧪 Lab Mode Hardware Overrides</h2>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 items-center mt-2">
-                        <div class="bg-base-200 p-4 rounded-box col-span-2">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-xs font-semibold text-warning">Inject Ambient Temp</span>
-                                <span class="badge badge-warning font-mono text-xs font-bold" x-text="mockTemp + '°C'"></span>
+                        <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-between mb-4 h-16 shadow-inner">
+                            <div class="font-mono text-green-500 text-md tracking-widest uppercase"
+                                 x-text="state.sauna.lcd_text || 'WISC CORE STANDBY'"></div>
+                            <div class="w-6 h-6 rounded-full border border-gray-700 transition-all duration-500 shadow"
+                                 :style="`background-color: ${state.sauna.light_color}; box-shadow: 0 0 15px ${state.sauna.light_color};`">
                             </div>
-                            <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-4" x-model="mockTemp" @change="injectTemperature()" />
-
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-xs font-semibold text-info">Inject Ambient Humidity</span>
-                                <span class="badge badge-info font-mono text-xs font-bold" x-text="mockHum + '%'"></span>
-                            </div>
-                            <input type="range" min="10" max="100" step="1" class="range range-info range-xs" x-model="mockHum" @change="injectHumidity()" />
                         </div>
 
-                        <div class="bg-base-200 p-4 rounded-box space-y-4">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-bold text-base-400">Door Sensor</span>
-                                <input type="checkbox" class="toggle toggle-error" x-model="mockDoorOpen" @change="toggleDoor()" />
-                            </div>
-
-                            <div class="divider my-0"></div>
-
+                        <div class="flex justify-between items-center mb-6">
                             <div>
-                                <div class="text-xs font-bold text-base-400 mb-1">Extraction Vent</div>
-                                <div class="font-mono text-xs">
-                                    <span :class="state.sauna.ventilation_state !== 'OFF' ? 'text-accent' : 'text-base-500'" x-text="state.sauna.ventilation_state"></span>
-                                    <span class="float-right text-base-500" x-show="state.sauna.ventilation_state !== 'OFF'" x-text="ventRemainingText"></span>
+                                <div class="text-xs text-base-400 font-bold uppercase tracking-wider">Current Atmosphere</div>
+                                <div class="text-5xl font-black font-mono tracking-tight mt-1 text-secondary flex items-baseline">
+                                    <span x-text="state.sauna.current_temp !== null ? state.sauna.current_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-2xl text-info ml-3 font-semibold" x-text="state.sauna.current_humidity !== null ? state.sauna.current_humidity.toFixed(0) + '%' : '--%'"></span>
+                                </div>
+                            </div>
+
+                            <button :class="state.sauna.active ? 'btn btn-error btn-lg shadow-lg px-8' : 'btn btn-outline btn-lg px-8'"
+                                    :disabled="!state.sauna.active && state.sauna.door_open"
+                                    @click="toggleSauna()">
+                                <span x-show="state.sauna.active" class="animate-pulse">🔥 Sauna is ON</span>
+                                <span x-show="!state.sauna.active">❄️ Sauna is OFF</span>
+                            </button>
+                        </div>
+
+                        <div class="mt-2">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-semibold tracking-wide">Setpoint</span>
+                                <div class="flex gap-2 items-center">
+                                    <button class="btn btn-sm font-mono font-black text-xs tracking-wider transition-all duration-200 shadow-sm border"
+                                            :class="!state.sauna.active ? 'bg-base-200 text-gray-500 border-gray-700 cursor-not-allowed opacity-40' :
+                                                    (state.sauna.hold_mode === 'hold' ? 'bg-amber-500 text-neutral-900 border-amber-500 hover:bg-amber-600 hover:border-amber-600' :
+                                                    (state.sauna.hold_mode === 'autohold' ? 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600' :
+                                                    'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700'))"
+                                            :disabled="!state.sauna.active"
+                                            @click="toggleHold()"
+                                            x-text="!state.sauna.active ? '--' : state.sauna.hold_mode.toUpperCase()">
+                                    </button>
+                                    <span class="badge badge-secondary font-mono text-md font-bold p-3" x-text="(state.sauna.target_temp !== null ? state.sauna.target_temp : '--') + '°C'"></span>
+                                </div>
+                            </div>
+                            <input type="range" min="40" max="95" step="1"
+                                   class="range range-secondary"
+                                   :disabled="state.sauna.target_temp === null"
+                                   x-model="state.sauna.target_temp"
+                                   @change="updateSetpoint()" />
+                        </div>
+
+                        <div class="mt-6 bg-base-200 p-4 rounded-box border border-base-300" x-show="state.sauna.active">
+                            <div class="flex justify-between items-center text-xs font-mono mb-2">
+                                <span class="text-base-400">Sauna Running Time: <span class="text-white font-bold" x-text="elapsedText"></span></span>
+                                <span class="text-base-400">Sauna Timer: <span class="text-warning font-black animate-pulse" x-text="remainingText"></span></span>
+                            </div>
+                            <progress class="progress progress-warning w-full h-2 mb-3" :value="progressPercent" max="100"></progress>
+                            <div class="flex justify-center gap-2">
+                                <button class="btn btn-xs btn-outline rounded" @click="adjustTimer(-10)">-10 MINS</button>
+                                <button class="btn btn-xs btn-outline rounded" @click="adjustTimer(10)">+10 MINS</button>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 pt-6 border-t border-base-300/40">
+                            <div class="flex justify-between items-baseline mb-4">
+                                <h3 class="text-base-400 uppercase text-xs tracking-widest font-bold">Heater Elements Output</h3>
+                                <div class="text-xs font-mono text-base-400">
+                                    FIREORDER: <span class="badge badge-neutral font-black text-accent tracking-widest text-[11px] px-2 py-2"
+                                           x-text="!state.sauna.active ? '--' : (state.sauna.modulation_pwm > 65 ? 'UVW' : 'WVU')"></span>
+                                </div>
+                            </div>
+
+                            <div class="mb-4 bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="flex justify-between items-center mb-1 text-sm font-bold">
+                                    <span>Total Modulation Output</span>
+                                    <span class="font-mono text-primary text-md" x-text="(state.sauna.modulation_pwm || 0) + '%'"></span>
+                                </div>
+                                <progress class="progress progress-primary w-full h-3" :value="state.sauna.modulation_pwm || 0" max="100"></progress>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 text-center">
+                                <div class="bg-base-200 p-4 rounded-box border border-base-300 shadow-inner">
+                                    <div class="text-xs font-black text-base-400 uppercase mb-2">Phase U</div>
+                                    <div class="font-mono font-black text-xl text-accent my-2" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></div>
+                                    <progress class="progress progress-accent w-full h-2" :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0" max="100"></progress>
+                                </div>
+                                <div class="bg-base-200 p-4 rounded-box border border-base-300 shadow-inner">
+                                    <div class="text-xs font-black text-base-400 uppercase mb-2">Phase V</div>
+                                    <div class="font-mono font-black text-xl text-accent my-2" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></div>
+                                    <progress class="progress progress-accent w-full h-2" :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0" max="100"></progress>
+                                </div>
+                                <div class="bg-base-200 p-4 rounded-box border border-base-300 shadow-inner">
+                                    <div class="text-xs font-black text-base-400 uppercase mb-2">Phase W</div>
+                                    <div class="font-mono font-black text-xl text-accent my-2" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0) + '%'"></div>
+                                    <progress class="progress progress-accent w-full h-2" :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0" max="100"></progress>
                                 </div>
                             </div>
                         </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">Sensor Matrix</h2>
+
+                        <div class="space-y-3 font-mono text-sm">
+                            <div class="flex justify-between items-center p-2.5 bg-base-200 rounded-box border border-base-300">
+                                <span class="font-bold text-xs uppercase tracking-wider text-base-400">🛁 Bathroom</span>
+                                <div class="text-right">
+                                    <span class="text-white font-bold" x-text="state.environment.bathroom_temp !== null ? state.environment.bathroom_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-info ml-1 text-xs" x-text="state.environment.bathroom_hum !== null ? state.environment.bathroom_hum + '%' : '--%'"></span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center p-2.5 bg-base-200 rounded-box border border-base-300">
+                                <span class="font-bold text-xs uppercase tracking-wider text-base-400">🎬 Cinema</span>
+                                <div class="text-right">
+                                    <span class="text-white font-bold" x-text="state.environment.cinema_temp !== null ? state.environment.cinema_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-info ml-1 text-xs" x-text="state.environment.cinema_hum !== null ? state.environment.cinema_hum + '%' : '--%'"></span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center p-2.5 bg-base-200 rounded-box border border-base-300">
+                                <span class="font-bold text-xs uppercase tracking-wider text-base-400">🌍 Outside</span>
+                                <div class="text-right">
+                                    <span class="text-white font-bold" x-text="state.environment.outside_temp !== null ? state.environment.outside_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-info ml-1 text-xs" x-text="state.environment.outside_hum !== null ? state.environment.outside_hum + '%' : '--%'"></span>
+                                </div>
+                            </div>
+                            <div class="p-3 bg-base-200 rounded-box border border-base-300 space-y-1.5 text-xs">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-1 mb-1">Individual Sauna Sensors</div>
+                                <div class="flex justify-between">
+                                    <span class="text-base-400">Sauna Ceiling (High):</span>
+                                    <span class="text-orange-400 font-bold" x-text="state.environment.sauna_high_temp !== null ? state.environment.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-base-400">Sauna Bench (Low):</span>
+                                    <span class="text-amber-500 font-bold" x-text="state.environment.sauna_low_temp !== null ? state.environment.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2">Infrared Radiant Controls</h2>
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div>
+                                <div class="text-xs font-bold text-base-400 uppercase">Emitter Target Status</div>
+                                <div class="font-mono text-sm mt-0.5" :class="state.ir.active ? 'text-error font-bold' : 'text-base-500'">
+                                    <span x-text="state.ir.active ? '⚡ ENGAGED' : '❄️ IR OFF'"></span>
+                                    <span class="ml-1 text-white text-xs" x-show="state.ir.active" x-text="'[' + irRemainingText + ']'"></span>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm" :class="state.ir.active ? 'btn-error shadow' : 'btn-outline'" @click="toggleIR()">
+                                <span x-text="state.ir.active ? 'DISENGAGE' : 'LAUNCH IR'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">Bathroom Water</h2>
+
+                        <div class="grid grid-cols-2 gap-4 font-mono text-xs">
+                            <div class="bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Cold</div>
+                                <div class="text-lg font-black text-white" x-text="state.metrics.water_cold_liters.toFixed(1) + ' L'"></div>
+                            </div>
+                            <div class="bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Hot</div>
+                                <div class="text-lg font-black text-error" x-text="state.metrics.water_hot_liters.toFixed(1) + ' L'"></div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 bg-neutral p-3 rounded-box border border-base-300 text-xs font-mono" x-show="state.metrics.douche_active || state.metrics.douche_water_liters > 0">
+                            <div class="font-bold text-accent uppercase tracking-wider mb-1.5 flex justify-between items-center">
+                                <span><span>🚿</span> Live Douche Tracker</span>
+                                <span class="badge badge-xs badge-accent animate-pulse" x-show="state.metrics.douche_active">ACTIVE RUN</span>
+                            </div>
+                            <div class="flex justify-between text-base-400">
+                                <span>Session Time Duration:</span>
+                                <span class="text-white font-bold" x-text="doucheElapsedText"></span>
+                            </div>
+                            <div class="flex justify-between text-base-400 mt-1">
+                                <span>Volumetric Consumed Water:</span>
+                                <span class="text-white font-bold" x-text="state.metrics.douche_water_liters + ' Liters'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">Energy</h2>
+                        <div class="bg-base-200 p-4 rounded-box border border-base-300 flex justify-between items-center font-mono text-xs">
+                            <div>
+                                <div class="text-[10px] uppercase font-bold text-base-400">Total Power Consumed</div>
+                                <div class="text-2xl font-black text-primary mt-1" x-text="(state.metrics.kwh_wh_ticks / 1000.0).toFixed(3) + ' kWh'"></div>
+                            </div>
+                            <span class="badge badge-neutral text-[10px] font-bold px-2.5 py-3" x-text="state.metrics.kwh_wh_ticks + ' Wh Ticks'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card bg-base-100 shadow-xl border border-base-200 col-span-1 lg:col-span-3 mt-4" x-show="!state.hardware.live_mode">
+                <div class="card-body">
+                    <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4">🧪 Lab Mode Simulation</h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                            <h3 class="text-xs font-bold text-orange-400 uppercase tracking-wider border-b border-base-300 pb-1">Sauna</h3>
+
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1">
+                                    <span class="text-gray-400 font-medium">Ceiling Probe (High)</span>
+                                    <span class="text-warning font-mono font-bold" x-text="labSaunaHighTemp !== null ? parseFloat(labSaunaHighTemp).toFixed(1) + '°C / ' + labSaunaHighHum + '%' : '--.-°C / --%'"></span>
+                                </div>
+                                <input type="range" min="15" max="110" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaHighTemp" @input="labSaunaHighTemp = $event.target.value" @change="injectLabMetric('TEMP_UPDATED', 'sauna_high', labSaunaHighTemp)" />
+                                <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaHighHum" @input="labSaunaHighHum = $event.target.value" @change="injectLabMetric('HUMIDITY_UPDATED', 'sauna_high', labSaunaHighHum)" />
+                            </div>
+
+                            <div class="pt-2 border-t border-dashed border-base-300">
+                                <div class="flex justify-between text-[11px] mb-1">
+                                    <span class="text-gray-400 font-medium">Bench Probe (Low)</span>
+                                    <span class="text-warning font-mono font-bold" x-text="labSaunaLowTemp !== null ? parseFloat(labSaunaLowTemp).toFixed(1) + '°C / ' + labSaunaLowHum + '%' : '--.-°C / --%'"></span>
+                                </div>
+                                <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaLowTemp" @input="labSaunaLowTemp = $event.target.value" @change="injectLabMetric('TEMP_UPDATED', 'sauna_low', labSaunaLowTemp)" />
+                                <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaLowHum" @input="labSaunaLowHum = $event.target.value" @change="injectLabMetric('HUMIDITY_UPDATED', 'sauna_low', labSaunaLowHum)" />
+                            </div>
+                        </div>
+
+                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                            <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Other Nodes</h3>
+
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1">
+                                    <span class="text-gray-400 font-medium">Bathroom</span>
+                                    <span class="text-accent font-mono font-bold" x-text="labBathroomTemp !== null ? parseFloat(labBathroomTemp).toFixed(1) + '°C / ' + labBathroomHum + '%' : '--.-°C / --%'"></span>
+                                </div>
+                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroomTemp" @input="labBathroomTemp = $event.target.value" @change="injectLabMetric('TEMP_UPDATED', 'bathroom', labBathroomTemp)" />
+                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroomHum" @input="labBathroomHum = $event.target.value" @change="injectLabMetric('HUMIDITY_UPDATED', 'bathroom', labBathroomHum)" />
+                            </div>
+
+                            <div class="pt-2 border-t border-dashed border-base-300">
+                                <div class="flex justify-between text-[11px] mb-1">
+                                    <span class="text-gray-400 font-medium">Cinema</span>
+                                    <span class="text-accent font-mono font-bold" x-text="labCinemaTemp !== null ? parseFloat(labCinemaTemp).toFixed(1) + '°C / ' + labCinemaHum + '%' : '--.-°C / --%'"></span>
+                                </div>
+                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labCinemaTemp" @input="labCinemaTemp = $event.target.value" @change="injectLabMetric('TEMP_UPDATED', 'cinema', labCinemaTemp)" />
+                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labCinemaHum" @input="labCinemaHum = $event.target.value" @change="injectLabMetric('HUMIDITY_UPDATED', 'cinema', labCinemaHum)" />
+                            </div>
+                        </div>
+
+                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4 flex flex-col justify-between">
+                            <div>
+                                <h3 class="text-xs font-bold text-info uppercase tracking-wider border-b border-base-300 pb-1 mb-3">Outside Atmosphere</h3>
+
+                                <div class="mb-3">
+                                    <div class="flex justify-between text-[11px] mb-1">
+                                        <span class="text-gray-400 font-medium">Outside</span>
+                                        <span class="text-info font-mono font-bold" x-text="labOutsideTemp !== null ? parseFloat(labOutsideTemp).toFixed(1) + '°C / ' + labOutsideHum + '%' : '--.-°C / --%'"></span>
+                                    </div>
+                                    <input type="range" min="-10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labOutsideTemp" @input="labOutsideTemp = $event.target.value" @change="injectLabMetric('TEMP_UPDATED', 'outside', labOutsideTemp)" />
+                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labOutsideHum" @input="labOutsideHum = $event.target.value" @change="injectLabMetric('HUMIDITY_UPDATED', 'outside', labOutsideHum)" />
+                                </div>
+                            </div>
+
+                            <div class="pt-2 border-t border-base-300 space-y-2.5">
+                                <div class="flex items-center justify-between text-xs font-mono">
+                                    <span class="text-gray-400 font-medium">Sauna Door:</span>
+                                    <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="labDoorSaunaOpen" @change="injectLabDoorChange()" />
+                                </div>
+                                <div class="flex justify-between items-center text-xs font-mono bg-neutral p-2 rounded-box border border-base-300 shadow-inner">
+                                    <span :class="state.sauna.ventilation_state !== 'OFF' ? 'text-accent font-bold animate-pulse' : 'text-gray-500'" x-text="'VENT: ' + state.sauna.ventilation_state"></span>
+                                    <span class="text-gray-400 font-black text-[11px]" x-show="state.sauna.ventilation_state !== 'OFF'" x-text="ventRemainingText"></span>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>

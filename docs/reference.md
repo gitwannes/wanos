@@ -16,22 +16,25 @@ This document serves as the master blueprint and reference guide for the directo
 * `__init__.py`: Package initializer.
 * `config.py`: Configuration mapping models used for system verification checks.
 * `logger.py`: Custom-tailored asynchronous system log engine.
-* `models.py`: House-wide Pydantic modules handling validation layer targets.
+* `models.py`: House-wide Pydantic modules handling validation layer targets. Defines distinct environmental targets (`outside`, `bathroom`, `cinema`, `sauna_high`, `sauna_low`).
 * `mqtt_client.py`: System broker interface and outbound state broadcaster.
-* `state_manager.py`: Runs the central system asynchronous event queue. Protects and limits state updates strictly within its single consumer loop execution context.
+* `state_manager.py`: Runs the central system asynchronous event queue. Protects and limits state updates strictly within its single consumer loop execution context. Intercepts discrete sauna sensor updates to calculate true `sauna_calc_temp` and `sauna_calc_hum`.
 
-**frontend/**
-* `app.js`: Vue application logic, store variables, and component definitions.
+**frontend/** * `app.js`: Vue application logic, store variables, and component definitions.
 * `index.html`: Main HTML entry point and UI layout structure.
 
-**hardware/**
-* `sensors.py`: Thread polling managers watching for physical environmental changes.
-* `simulator.py`: Implements mathematical thermal engines used to replicate system behavior when executing in isolated software Lab Mode environments.
+**hardware/** (Local Physical Interfaces)
+* `sensors.py`: Thread polling managers watching for local physical environmental changes (SHT11 arrays, GPIO pulses).
+* `simulator.py`: Implements mathematical thermal engines for Lab Mode. Simulates 24-hour outdoor sine waves, bathroom humidity decay, and complex sauna thermal stratification.
 
-**logic/**
+**logic/** (Core Business Rules)
 * `auxiliary_controller.py`: Manages ancillary operations including dynamic lighting logic and active step timelines.
 * `sauna_controller.py`: Tracks environmental steps, heater rotation algorithms, and multi-tier priority PID metrics.
 * `timers.py`: Simple wrappers feeding tracking alerts directly to the core state manager queue upon expiration loops.
+
+**integrations/** (Networked Physical Interfaces)
+* `home_hub.py`: Target integration connector interfacing directly with Domoticz environments (reads outdoor temps, commands bathroom and extraction vents).
+* `lighting.py`: Coordinates configuration updates directly to local color lighting environments (Hue Bridge).
 
 ---
 
@@ -122,19 +125,19 @@ The `/api/event` endpoint acts as the universal command receiver for WanOS. It a
 ```
 
 ### Hardware & Sensor Events
-**Update Temperature:**
+**Update Temperature (requires sensor_id target):**
 ```json
-{ "type": "TEMP_UPDATED", "payload": { "value": 45.5 } }
+{ "type": "TEMP_UPDATED", "payload": { "sensor_id": "sauna_high", "value": 82.5 } }
 ```
 
-**Update Humidity:**
+**Update Humidity (requires sensor_id target):**
 ```json
-{ "type": "HUMIDITY_UPDATED", "payload": { "value": 30.0 } }
+{ "type": "HUMIDITY_UPDATED", "payload": { "sensor_id": "bathroom", "value": 75.0 } }
 ```
 
 **Report Sensor Error:**
 ```json
-{ "type": "SENSOR_ERROR", "payload": { "sensor": "DHT22", "error": "timeout" } }
+{ "type": "SENSOR_ERROR", "payload": { "sensor": "sauna_high", "error": "timeout" } }
 ```
 
 **System Metronome Tick (One minute passed):**
@@ -156,4 +159,17 @@ The `/api/event` endpoint acts as the universal command receiver for WanOS. It a
 **Notify Config Updated:**
 ```json
 { "type": "CONFIG_UPDATED", "payload": {} }
+```
+
+### External Integrations
+Updates mapped from external hubs like Domoticz or Hue.
+
+**Update Hub State (Domoticz - e.g., Bathroom Ventilator):**
+```json
+{ "type": "HUB_STATE_CHANGED", "payload": { "device_id": "bathroom_ventilator", "state": "ON" } }
+```
+
+**Update Lighting State (Hue):**
+```json
+{ "type": "LIGHTING_STATE_CHANGED", "payload": { "zone": "sauna", "state": "OFF" } }
 ```

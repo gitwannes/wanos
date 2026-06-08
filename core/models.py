@@ -1,18 +1,20 @@
 # --- file: core/models.py ---
 from pydantic import BaseModel, Field
-from typing import Any, List, Optional, Literal
+from typing import Optional, Any, Dict, List
 from enum import Enum
 
+
 class EventType(str, Enum):
-    """Strict enumeration of all permitted system events."""
-    # Hardware Events
+    # Hardware & Sensor Events
     TEMP_UPDATED = "TEMP_UPDATED"
     HUMIDITY_UPDATED = "HUMIDITY_UPDATED"
     WATER_PULSE = "WATER_PULSE"
     KWH_PULSE = "KWH_PULSE"
     DOOR_CHANGED = "DOOR_CHANGED"
     SENSOR_ERROR = "SENSOR_ERROR"
-    # Sauna Events
+    TIMER_TICK = "TIMER_TICK"
+
+    # Sauna & Logic Events
     SAUNA_ON = "SAUNA_ON"
     SAUNA_OFF = "SAUNA_OFF"
     SETPOINT_CHANGED = "SETPOINT_CHANGED"
@@ -24,66 +26,99 @@ class EventType(str, Enum):
     TIMER_ADJUSTED = "TIMER_ADJUSTED"
     VENT_WAIT_EXPIRED = "VENT_WAIT_EXPIRED"
     VENT_RUN_EXPIRED = "VENT_RUN_EXPIRED"
+
     # IR Events
     IR_ON = "IR_ON"
     IR_OFF = "IR_OFF"
     IR_MODULATION_UPDATED = "IR_MODULATION_UPDATED"
     IR_TIMER_EXPIRED = "IR_TIMER_EXPIRED"
+
     # System Events
     INITIAL_STATE_LOADED = "INITIAL_STATE_LOADED"
     BACKEND_SHUTDOWN = "BACKEND_SHUTDOWN"
     HARDWARE_LIVE_MODE_CHANGED = "HARDWARE_LIVE_MODE_CHANGED"
     CONFIG_UPDATED = "CONFIG_UPDATED"
+
     # External Events
     HUB_STATE_CHANGED = "HUB_STATE_CHANGED"
     LIGHTING_STATE_CHANGED = "LIGHTING_STATE_CHANGED"
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
 
-# --- Nested Sub-States ---
+
+class Event(BaseModel):
+    type: EventType
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class EnvironmentState(BaseModel):
+    outside_temp: Optional[float] = None
+    outside_hum: Optional[int] = None
+
+    bathroom_temp: Optional[float] = None
+    bathroom_hum: Optional[int] = None
+    bathroom_vent_on: bool = False
+
+    cinema_temp: Optional[float] = None
+    cinema_hum: Optional[int] = None
+
+    sauna_high_temp: Optional[float] = None
+    sauna_high_hum: Optional[int] = None
+    sauna_low_temp: Optional[float] = None
+    sauna_low_hum: Optional[int] = None
+
+    sauna_calc_temp: Optional[float] = None
+    sauna_calc_hum: Optional[int] = None
+    sauna_extraction_vent_on: bool = False
+
+
+class SaunaState(BaseModel):
+    active: bool = False
+    target_temp: Optional[float] = None
+    current_temp: Optional[float] = None
+    current_humidity: Optional[int] = None
+    door_open: bool = False
+    hold_mode: str = "nohold"
+    modulation_pwm: int = 0
+    phases_pwm: List[int] = Field(default_factory=lambda: [0, 0, 0])
+    session_start_time: Optional[int] = None
+    session_end_time: Optional[int] = None
+    ventilation_state: str = "OFF"
+    ventilation_deadline: Optional[int] = None
+    light_color: str = "#FFD180"  # Warm White Baseline
+    lcd_text: str = ""
+
+
+class IRState(BaseModel):
+    active: bool = False
+    modulation_pwm: int = 0
+    frequency: int = 0
+    session_start_time: Optional[int] = None
+    session_end_time: Optional[int] = None
+
+
+class MetricsState(BaseModel):
+    water_cold_liters: float = 0.0
+    water_hot_liters: float = 0.0
+    kwh_wh_ticks: int = 0
+    douche_active: bool = False
+    douche_start_time: Optional[int] = None
+    douche_duration_secs: int = 0
+    douche_water_liters: int = 0
+
 
 class HardwareState(BaseModel):
     live_mode: bool = False
     safety_pin_active: bool = False
+    sensor_errors: List[str] = Field(default_factory=list)
 
-class SaunaState(BaseModel):
-    # --- Core Heater State ---
-    active: bool = False
-    current_temp: Optional[float] = None
-    target_temp: Optional[float] = None
-    modulation_pwm: float = 0.0    # Output: Explicitly OFF  --  0 to 100%
-    # Track the 3 physical phases (U, V, W) for the waterfall distribution
-    phases_pwm: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
-
-    # --- Environment & Security ---
-    current_humidity: Optional[float] = None
-    door_open: Optional[bool] = None
-
-    # --- Session & Timers ---
-    hold_mode: Literal["autohold", "hold", "nohold"] = "autohold"
-    session_start_time: Optional[int] = None
-    session_end_time: Optional[int] = None
-
-    # --- Auxiliary Hardware  ---
-    light_color: str = "#FFD180"  # Defaults to Warm White
-    lcd_text: str = ""
-
-    # --- Ventilation State Machine ---
-    ventilation_state: Literal["OFF", "WAITING", "RUNNING"] = "OFF"
-    ventilation_deadline: Optional[int] = None
-
-class LightingState(BaseModel):
-    bathroom_light_on: bool = False
-    relax_room_light_on: bool = False
-
-# --- Master Vault ---
 
 class SystemState(BaseModel):
-    """The strictly typed, single source of truth for the system."""
-    hardware: HardwareState = Field(default_factory=HardwareState)
+    environment: EnvironmentState = Field(default_factory=EnvironmentState)
     sauna: SaunaState = Field(default_factory=SaunaState)
-    lighting: LightingState = Field(default_factory=LightingState)
+    ir: IRState = Field(default_factory=IRState)
+    metrics: MetricsState = Field(default_factory=MetricsState)
+    hardware: HardwareState = Field(default_factory=HardwareState)
 
-class Event(BaseModel):
-    """The strict schema for all events entering the State Manager queue."""
-    type: EventType = Field(..., description="The explicitly typed event category")
-    payload: dict[str, Any] = Field(default_factory=dict)
+    # Allows the baseline validation rules parsed out of config_lab.yaml
+    # to be passed seamlessly down to the web UI without strict compilation loop blocks.
+    lab_seed: Optional[Any] = None

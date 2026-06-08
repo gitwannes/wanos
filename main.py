@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import yaml
 import signal
 from fastapi import Response
 from contextlib import asynccontextmanager
@@ -10,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
+
 # WanOS specific
 from core.models import Event, EventType
 from core.mqtt_client import MqttClientManager
@@ -39,10 +39,11 @@ state_manager: StateManager = StateManager(mqtt_client=mqtt_manager, logger=wano
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Manages startup and shutdown sequences safely."""
+    """Manages startup and shutdown sequences safely without silent deadlocks."""
+
+    print("⏳ [WanOS Boot] Initializing pre-boot sequence...")
 
     # Intercept the exact CTRL-C signal to instantly drop the SSE stream
-    # BEFORE Uvicorn starts waiting for connections to close.
     loop = asyncio.get_running_loop()
     try:
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -50,9 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
             def make_handler(orig=original_handler):
                 def custom_handler(signum, frame):
-                    # 1. Flip our kill switch to break the SSE loop instantly
                     loop.call_soon_threadsafe(shutdown_event.set)
-                    # 2. Hand the signal back to Uvicorn so it can gracefully exit
                     if callable(orig):
                         orig(signum, frame)
 
@@ -62,48 +61,46 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         pass  # Windows compatibility failsafe
 
-    await mqtt_manager.start()
-    await state_manager.start()
+    try:
+        # 1. Attempt connection to the local broker
+        print("⏳ [WanOS Boot] Connecting to local Mosquitto MQTT Broker ('localhost')...")
+        await mqtt_manager.start()
 
-    state_manager.dispatch(Event(type=EventType.INITIAL_STATE_LOADED))
+        # 2. Initialize the state bouncer
+        print("⏳ [WanOS Boot] Spinning up Centralized State Engine...")
+        await state_manager.start()
 
-    # --- LAB MODE SEEDING FROM YAML ---
-    current_state = state_manager.get_state_snapshot()
-    if not current_state.hardware.live_mode:
-        try:
-            config_path = os.path.join(os.path.dirname(__file__), "config_lab.yaml")
-            if os.path.exists(config_path):
-                with open(config_path, "r", encoding="utf-8") as file:
-                    raw_yaml = yaml.safe_load(file)
+        # 3. Seed initial state parameters
+        state_manager.dispatch(Event(type=EventType.INITIAL_STATE_LOADED))
+        print("🟢 [WanOS Boot] Core Managers active. Base state dispatched successfully.")
 
-                lab_data = {}
-                if isinstance(raw_yaml, dict):
-                    lab_data = raw_yaml.get("lab_seed", {})
+        # 4. Start the thermodynamics engine in the background
+        print("🧪 [WanOS Boot] Launching detached background Lab Mode Thermodynamics loop...")
+        physics_task = asyncio.create_task(lab_mode_thermodynamics_loop(state_manager))
 
-                seed_temp = lab_data.get("temp", 20.0) if isinstance(lab_data, dict) else 20.0
-                seed_hum = lab_data.get("humidity", 50.0) if isinstance(lab_data, dict) else 50.0
-                seed_door = lab_data.get("door_open", False) if isinstance(lab_data, dict) else False
+        print("🧪 [WanOS Boot] Lab Mode Physics Engine initialized.")
+        await wanos_logger.info("🧪 Lab Mode Physics Engine initialized.")
 
-                state_manager.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"value": seed_temp}))
-                state_manager.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"value": seed_hum}))
-                state_manager.dispatch(Event(type=EventType.DOOR_CHANGED, payload={"is_open": seed_door}))
+    except Exception as startup_err:
+        # Crash cleanly and print the exact error instead of locking up the terminal loop
+        print(f"\n💥 [CRITICAL BOOT FAIL] Core initialization collapsed: {startup_err}")
+        print("👉 Check that a local MQTT broker is running ('sudo systemctl status mosquitto')")
+        print("👉 Ensure both 'config.yaml' and 'hardware.yaml' exist in the project root.\n")
+        import os
+        os._exit(1)
 
-                await wanos_logger.info("🧪 Lab Mode config loaded successfully.")
-            else:
-                await wanos_logger.warning("🧪 config_lab.yaml not found, skipping mock data injection.")
-        except Exception as e:
-            await wanos_logger.error(f"Failed to load config_lab.yaml: {e}")
-
-    # Start the external thermodynamics engine
-    physics_task = asyncio.create_task(lab_mode_thermodynamics_loop(state_manager))
-
+    # --- THE GATEKEEPER ---
+    # Hands execution control over to Uvicorn to open ports and connect the web UI!
+    print("🚀 [WanOS Boot] Pre-boot checks passed. Opening network lines to HTTP/SSE web interface...")
     yield
 
     # Shutdown sequence
-    shutdown_event.set()   # Flip the kill switch to instantly terminate SSE connections, kept as a fallback
-    physics_task.cancel()  # Safely stop the external physics engine
+    print("🛑 [WanOS Shutdown] Tearing down background engines...")
+    shutdown_event.set()
+    physics_task.cancel()
     await state_manager.stop()
     await mqtt_manager.stop()
+    print("🛑 [WanOS Shutdown] Clean teardown complete. Goodbye.")
 
 
 # Initialize FastAPI

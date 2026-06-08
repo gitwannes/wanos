@@ -1,0 +1,29 @@
+# --- file: hardware.yaml ---
+# Physical Raspberry Pi Pin Deployments (Legacy settingsfix.wisc)
+pins:
+  safety_gpio: 4
+  kwh_pin: 12
+  ir_relais: 14
+  sauna_relais: [15, 17, 18] # Phases: U, V, W
+  water_cold: 6
+  water_hot: 5
+  door_sauna: 27
+  door_bathroom: 22
+
+sht11_sensors:
+  bathroom:
+    pin_d: 24
+    pin_c: 23
+    idx: 7436
+  cinema:
+    pin_d: 9
+    pin_c: 10
+    idx: 7448
+  sauna_high:
+    pin_d: 11
+    pin_c: 25
+    idx: 7449
+  sauna_low:
+    pin_d: 7
+    pin_c: 8
+    idx: 7450
