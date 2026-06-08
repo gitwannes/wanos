@@ -57,6 +57,7 @@ class EnvironmentState(BaseModel):
     bathroom_temp: Optional[float] = None
     bathroom_hum: Optional[int] = None
     bathroom_vent_on: bool = False
+    door_bathroom_open: bool = False
 
     cinema_temp: Optional[float] = None
     cinema_hum: Optional[int] = None

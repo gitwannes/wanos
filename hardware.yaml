@@ -1,5 +1,60 @@
 # --- file: hardware.yaml ---
-# Physical Raspberry Pi Pin Deployments (Legacy settingsfix.wisc)
+
+# Internal WanOS broker
+wanos:
+  mqtt:
+    broker_host: "localhost"
+    port: 1883
+    username: "st"
+
+# Domoticz system
+domoticz:
+  mqtt:
+    broker_host: "10.32.251.181"
+    port: 1883
+    username: "st0001"
+  idx:
+    bathroom_th:
+      id: 7436
+      type: "temphum"
+    outside_th:
+      id: 7448
+      type: "temphum"
+    cinema_th:
+      id: 7451
+      type: "temphum"
+    sauna_th:
+      id: 0
+      type: "temphum"
+    sauna_high_th:
+      id: 7449
+      type: "temphum"
+    sauna_low_th:
+      id: 7480
+      type: "temphum"
+    sauna:
+      id: 7550
+      type: "switch"
+    ir:
+      id: 7551
+      type: "switch"
+    sauna_extrvent:
+      id: 8577
+      type: "switch"
+    cinema_hue:
+      id: 7312
+      type: "switch"
+    sauna_hue:
+      id: 7561
+      type: "switch"
+    bathroom_extrvent:
+      id: 7558
+      type: "switch"
+    safety_ssr:
+      id: 8567
+      type: "switch"
+
+# Physical Raspberry Pi Pin Deployments
 pins:
   safety_gpio: 4
   kwh_pin: 12
@@ -14,16 +69,12 @@ sht11_sensors:
   bathroom:
     pin_d: 24
     pin_c: 23
-    idx: 7436
   cinema:
     pin_d: 9
     pin_c: 10
-    idx: 7448
   sauna_high:
     pin_d: 11
     pin_c: 25
-    idx: 7449
   sauna_low:
     pin_d: 7
     pin_c: 8
-    idx: 7450

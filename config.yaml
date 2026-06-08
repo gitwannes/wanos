@@ -1,16 +1,6 @@
 # --- file: config.yaml ---
 # Runtime System Parameters - Modifiable via Web UI
 
-mqtt:
-  broker_host: "localhost"
-  port: 1883
-  username: "st"
-
-domoticz:
-  broker_host: "10.32.251.181"
-  port: 1883
-  username: "st0001"
-
 sauna:
   default_setpoint: 80     # Default temperature setpoint
   max_temp: 95             # maximum setpoint that can be set in the UI
@@ -22,8 +12,11 @@ sauna:
   vent_run_mins: 160       # Duration the extraction fan runs
   timer_offset_temp: 7.0   # Frozen countdown: triggers when temp >= (Setpoint - Offset)
 
-  pwm_freq: 5              # for IR -- to check
-
 ir:
   min_time_mins: 5
   max_time_mins: 20
+  pwm_freq: 5              # to check - IR modulation needs to come from the old WISC
+
+bathroom:
+  vent_on_humidity: 80      # Auto-engage fan above this %
+  vent_off_humidity: 74     # Auto-disengage fan below this %

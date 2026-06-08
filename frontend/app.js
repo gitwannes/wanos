@@ -2,18 +2,27 @@
 
 function wanosApp() {
     return {
-        connected: false, // Prevents early UI interactions on load
+        connected: false,
 
-        // Local reactive proxy matching the core SystemState Pydantic model exactly
         state: {
+            // ⚡ NEW ADMIN SYSTEM BLOCK
+            system: {
+                wanos_mqtt_connected: false,
+                domoticz_mqtt_connected: false,
+                ip_address: "0.0.0.0",
+                os_uptime_formatted: "00:00:00",
+                app_uptime_formatted: "00:00:00"
+            },
             environment: {
                 outside_temp: null,
                 outside_hum: null,
                 bathroom_temp: null,
                 bathroom_hum: null,
                 bathroom_vent_on: false,
+                door_bathroom_open: false,
                 cinema_temp: null,
                 cinema_hum: null,
+                cinema_hue_on: false, // ⚡ NEW CINEMA HUE TRACKER
                 sauna_high_temp: null,
                 sauna_high_hum: null,
                 sauna_low_temp: null,
@@ -24,7 +33,7 @@ function wanosApp() {
             },
             sauna: {
                 active: false,
-                target_temp: 70, // Safe range-slider initialization baseline
+                target_temp: 70,
                 current_temp: null,
                 current_humidity: null,
                 door_open: false,
@@ -62,7 +71,6 @@ function wanosApp() {
             lab_seed: null
         },
 
-        // Explicit interactive models for Lab Mode override interfaces
         labSaunaHighTemp: null,
         labSaunaHighHum: null,
         labSaunaLowTemp: null,
@@ -74,8 +82,8 @@ function wanosApp() {
         labOutsideTemp: null,
         labOutsideHum: null,
         labDoorSaunaOpen: false,
+        labDoorBathroomOpen: false,
 
-        // Local UI Countdown String Tickers
         elapsedText: "00:00:00",
         remainingText: "00:00:00",
         progressPercent: 0,
@@ -86,7 +94,7 @@ function wanosApp() {
         init() {
             console.log("🚀 WanOS Web Controller initializing...");
             this.connectSSE();
-            setInterval(this.ticker.bind(this), 1000); // Start system clock tracking
+            setInterval(this.ticker.bind(this), 1000);
         },
 
         connectSSE() {
@@ -96,8 +104,6 @@ function wanosApp() {
                 try {
                     const parsedState = JSON.parse(event.data);
 
-                    // --- ANTI-FLICKER SANITIZATION GATEWAY ---
-                    // Map empty phase elements cleanly to 0% to protect the progress bars
                     if (!parsedState.sauna.phases_pwm) {
                         parsedState.sauna.phases_pwm = [0, 0, 0];
                     } else {
@@ -109,16 +115,18 @@ function wanosApp() {
                     if (!parsedState.hardware.sensor_errors) parsedState.hardware.sensor_errors = [];
 
                     parsedState.sauna.modulation_pwm = parsedState.sauna.modulation_pwm ?? 0;
+                    parsedState.environment.door_bathroom_open = parsedState.environment.door_bathroom_open ?? false;
+                    parsedState.environment.cinema_hue_on = parsedState.environment.cinema_hue_on ?? false;
 
-                    // Save values to active viewport memory
+                    // Safety mapping for the new system block before backend is updated
+                    parsedState.system = parsedState.system || this.state.system;
+
                     this.state = parsedState;
 
-                    // Sync lab mode sliders if the user isn't currently dragging one
                     if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
                         this.syncLabControls();
                     }
 
-                    // 🟢 Drop the network overlay mask only after the DOM is ready
                     this.connected = true;
 
                 } catch (err) {
@@ -127,7 +135,7 @@ function wanosApp() {
             };
 
             eventSource.onerror = (err) => {
-                this.connected = false; // Connection severed, raise loading screen instantly
+                this.connected = false;
                 console.error("❌ SSE stream broke. Re-linking context in 3s...");
                 eventSource.close();
                 setTimeout(() => this.connectSSE(), 3000);
@@ -137,18 +145,15 @@ function wanosApp() {
         ticker() {
             const now = Math.floor(Date.now() / 1000);
 
-            // Sauna Session Clocks
             if (this.state.sauna.active && this.state.sauna.session_start_time && this.state.sauna.session_end_time) {
                 const start = this.state.sauna.session_start_time;
                 const end = this.state.sauna.session_end_time;
 
                 if (end < 1000000000) {
-                    // ⏱️ TIMER IS FROZEN: Let running time tick up, hold Countdown fixed
                     this.elapsedText = this.formatTime(Math.max(0, now - start));
-                    this.remainingText = this.formatTime(end); // holds raw relative seconds
+                    this.remainingText = this.formatTime(end);
                     this.progressPercent = 0;
                 } else {
-                    // 🏁 TIMER IS LIVE: Execute standard operational timeline math
                     const elapsed = Math.max(0, now - start);
                     const remaining = Math.max(0, end - now);
                     const totalDuration = end - start;
@@ -163,9 +168,6 @@ function wanosApp() {
                 this.progressPercent = 0;
             }
 
-            // ... keep remaining ventilation/ir/douche ticker blocks exactly the same ...
-
-            // Cooldown Ventilation Clocks
             if (this.state.sauna.ventilation_state !== "OFF" && this.state.sauna.ventilation_deadline) {
                 const vRemain = Math.max(0, this.state.sauna.ventilation_deadline - now);
                 this.ventRemainingText = this.formatTime(vRemain);
@@ -173,7 +175,6 @@ function wanosApp() {
                 this.ventRemainingText = "00:00:00";
             }
 
-            // Infrared Timers
             if (this.state.ir.active && this.state.ir.session_end_time) {
                 const irRemain = Math.max(0, this.state.ir.session_end_time - now);
                 this.irRemainingText = this.formatTime(irRemain);
@@ -181,7 +182,6 @@ function wanosApp() {
                 this.irRemainingText = "00:00:00";
             }
 
-            // Douche Flow Trackers
             if (this.state.metrics.douche_active && this.state.metrics.douche_start_time) {
                 const dElapsed = Math.max(0, now - this.state.metrics.douche_start_time);
                 this.doucheElapsedText = this.formatTime(dElapsed);
@@ -206,6 +206,8 @@ function wanosApp() {
             if (!seed) return;
 
             this.labDoorSaunaOpen = this.state.sauna.door_open;
+            this.labDoorBathroomOpen = env.door_bathroom_open;
+
             this.labSaunaHighTemp = env.sauna_high_temp ?? seed.sauna_high_temp;
             this.labSaunaHighHum  = env.sauna_high_hum  ?? seed.sauna_high_hum;
             this.labSaunaLowTemp  = env.sauna_low_temp  ?? seed.sauna_low_temp;
@@ -266,13 +268,18 @@ function wanosApp() {
             this.dispatchEvent("HARDWARE_LIVE_MODE_CHANGED", { live: nextMode });
         },
 
-        injectLabDoorChange() {
-            this.dispatchEvent("DOOR_CHANGED", { sensor_id: "sauna", is_open: this.labDoorSaunaOpen });
+        injectLabDoorChange(doorName, isOpen) {
+            this.dispatchEvent("DOOR_CHANGED", { sensor_id: doorName, is_open: isOpen });
         },
 
         injectWaterPulse(fluidType) {
-            // Sends a batch of 396 pulses to satisfy a full 1 Liter volume step
             this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, ui_override: true });
+        },
+
+        // ⚡ NEW FRONTEND RELOAD HOOK
+        reloadFrontend() {
+            console.log("♻️ Administrator triggered UI reload...");
+            window.location.reload(true);
         }
     };
 }

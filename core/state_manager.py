@@ -232,6 +232,24 @@ class StateManager:
                 env.sauna_low_hum = val
             elif sensor_id == "bathroom":
                 env.bathroom_hum = val
+
+                # ⚡ AUTOMATED BATHROOM VENTILATOR HYSTERESIS LOOP ⚡
+                if env.bathroom_hum is not None:
+                    # Direct, configuration-pure Pydantic object lookup! No fallbacks.
+                    on_threshold = self._config.bathroom.vent_on_humidity
+                    off_threshold = self._config.bathroom.vent_off_humidity
+
+                    if env.bathroom_hum >= on_threshold and not env.bathroom_vent_on:
+                        env.bathroom_vent_on = True
+                        state_changed = True
+                        print(
+                            f"💨 [StateManager] Bathroom humidity ({env.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator.")
+                    elif env.bathroom_hum <= off_threshold and env.bathroom_vent_on:
+                        env.bathroom_vent_on = False
+                        state_changed = True
+                        print(
+                            f"💨 [StateManager] Bathroom humidity ({env.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator.")
+
             elif sensor_id == "cinema":
                 env.cinema_hum = val
             elif sensor_id == "outside":
@@ -288,13 +306,11 @@ class StateManager:
                 self._sauna_timer_duration_secs += (minutes_to_add * 60)
 
                 if self._sauna_timer_triggered:
-                    # Timer is ticking down; directly increment the absolute epoch target
                     self._state.sauna.session_end_time += (minutes_to_add * 60)
                     self._timer_manager.cancel("sauna_main")
                     self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time,
                                                  "SAUNA_TIMER_EXPIRED")
                 else:
-                    # Timer is frozen; update the relative duration target cleanly
                     self._state.sauna.session_end_time = self._sauna_timer_duration_secs
                 state_changed = True
 
@@ -318,7 +334,7 @@ class StateManager:
             self._state.ir.session_start_time = now
             self._state.ir.session_end_time = now + (self._config.ir.max_time_mins * 60)
             self._state.ir.modulation_pwm = 100
-            self._state.ir.frequency = self._config.sauna.pwm_freq
+            self._state.ir.frequency = self._config.ir.pwm_freq
             self._timer_manager.schedule("ir_main", self._state.ir.session_end_time, "IR_TIMER_EXPIRED")
             state_changed = True
 
@@ -332,10 +348,22 @@ class StateManager:
             self.dispatch(Event(type=EventType.IR_OFF))
 
         elif event_name == "DOOR_CHANGED":
-            target_door = payload.get("sensor_id", "sauna")
+            sensor_id = payload.get("sensor_id", "sauna")
             is_open = payload.get("is_open", False)
-            if target_door == "sauna":
+            if sensor_id == "sauna":
                 self._state.sauna.door_open = is_open
+
+                # Sauna safety interlock logic
+                if is_open and self._state.sauna.active:
+                    self._state.sauna.active = False
+                    self._state.sauna.modulation_pwm = 0
+                    self._state.sauna.phases_pwm = [0, 0, 0]
+                    self._state.sauna.ventilation_state = "OFF"
+                    asyncio.create_task(
+                        self.logger.warning("🚪 Sauna door opened while active! Emergency cutoff triggered."))
+
+            elif sensor_id == "bathroom":
+                self._state.environment.door_bathroom_open = is_open
             state_changed = True
 
         elif event_name == "HUB_STATE_CHANGED":
@@ -369,7 +397,7 @@ class StateManager:
             self._state.sauna.phases_pwm = payload.get("phases", [0, 0, 0])
             state_changed = True
 
-        # ⚡ FIXED OUT-OF-NESTING POSITION: Process PID calculations un-nested at root event level ⚡
+        # Process PID calculations dynamically un-nested at root event level
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "DOOR_CHANGED"]:
             if self._state.sauna.current_temp is not None and self._state.sauna.active:
 
@@ -383,7 +411,8 @@ class StateManager:
                         self._state.sauna.session_end_time = int(time.time()) + self._sauna_timer_duration_secs
                         self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time,
                                                      "SAUNA_TIMER_EXPIRED")
-                        print(f"⏱️ [StateManager] Heat threshold met ({self._state.sauna.current_temp}°C >= {threshold_temp}°C). Activating timer countdown!")
+                        print(
+                            f"⏱️ [StateManager] Heat threshold met ({self._state.sauna.current_temp}°C >= {threshold_temp}°C). Activating timer countdown!")
                         state_changed = True
                     else:
                         if self._state.sauna.session_end_time != self._sauna_timer_duration_secs:

@@ -32,10 +32,10 @@
         </div>
     </header>
 
-    <main class="container mx-auto px-4 max-w-6xl pb-10">
+    <main class="container mx-auto px-4 max-w-6xl pb-10 flex flex-col gap-6">
 
         <template x-if="state.hardware.sensor_errors && state.hardware.sensor_errors.length > 0">
-            <div class="alert alert-error shadow-lg mb-6 border-2 border-red-500">
+            <div class="alert alert-error shadow-lg border-2 border-red-500">
                 <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11l2 2m0 0l2-2m-2 2v-4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 <div class="font-mono text-sm">
                     <span class="font-bold uppercase">Hardware Bus Exception Dropped!</span> Faults logged on peripheral interfaces:
@@ -45,11 +45,16 @@
         </template>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            <div class="space-y-6 lg:col-span-2">
-                <div class="card bg-base-100 shadow-xl border border-base-200">
+            <div class="lg:col-span-2">
+                <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                     <div class="card-body">
-                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2">Sauna Commander</h2>
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2 flex justify-between items-center w-full">
+                            <span>Sauna Commander</span>
+                            <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"
+                                  :class="state.sauna.door_open ? 'badge-error animate-pulse' : 'badge-neutral text-base-500'">
+                                <span x-text="state.sauna.door_open ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
+                            </span>
+                        </h2>
 
                         <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-between mb-4 h-16 shadow-inner">
                             <div class="font-mono text-green-500 text-md tracking-widest uppercase"
@@ -106,7 +111,7 @@
                             </div>
                             <div class="w-full bg-neutral rounded-full h-2 mb-4 overflow-hidden border border-base-300 shadow-inner">
                                 <div class="bg-warning h-full transition-all duration-300 ease-out"
-                                     :style="`width: ${progressPercent}%` Marlborough"></div>
+                                     :style="`width: ${progressPercent}%`"></div>
                             </div>
                             <div class="flex justify-center gap-2">
                                 <button class="btn btn-xs btn-outline rounded" @click="adjustTimer(-10)">-10 MINS</button>
@@ -157,118 +162,136 @@
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </div>
 
-            <div class="space-y-6">
-                <div class="card bg-base-100 shadow-xl border border-base-200">
-                    <div class="card-body">
-                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">Sensor Matrix</h2>
-
-                        <div class="space-y-3 font-mono text-sm">
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 rounded-box border border-base-300">
-                                <span class="font-bold text-xs uppercase tracking-wider text-base-400">🛁 Bathroom</span>
-                                <div class="text-right">
-                                    <span class="text-white font-bold" x-text="state.environment.bathroom_temp !== null ? state.environment.bathroom_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-info ml-1 text-xs" x-text="state.environment.bathroom_hum !== null ? state.environment.bathroom_hum + '%' : '--%'"></span>
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 rounded-box border border-base-300">
-                                <span class="font-bold text-xs uppercase tracking-wider text-base-400">🎬 Cinema</span>
-                                <div class="text-right">
-                                    <span class="text-white font-bold" x-text="state.environment.cinema_temp !== null ? state.environment.cinema_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-info ml-1 text-xs" x-text="state.environment.cinema_hum !== null ? state.environment.cinema_hum + '%' : '--%'"></span>
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 rounded-box border border-base-300">
-                                <span class="font-bold text-xs uppercase tracking-wider text-base-400">🌍 Outside</span>
-                                <div class="text-right">
-                                    <span class="text-white font-bold" x-text="state.environment.outside_temp !== null ? state.environment.outside_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-info ml-1 text-xs" x-text="state.environment.outside_hum !== null ? state.environment.outside_hum + '%' : '--%'"></span>
-                                </div>
-                            </div>
-                            <div class="p-3 bg-base-200 rounded-box border border-base-300 space-y-1.5 text-xs">
-                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-1 mb-1">Individual Sauna Sensors</div>
-                                <div class="flex justify-between">
-                                    <span class="text-base-400">Sauna Ceiling (High):</span>
-                                    <span class="text-orange-400 font-bold" x-text="state.environment.sauna_high_temp !== null ? state.environment.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-base-400">Sauna Bench (Low):</span>
-                                    <span class="text-amber-500 font-bold" x-text="state.environment.sauna_low_temp !== null ? state.environment.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card bg-base-100 shadow-xl border border-base-200">
+            <div class="lg:col-span-1">
+                <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                     <div class="card-body">
                         <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2">Infrared Radiant Controls</h2>
-                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <div>
-                                <div class="text-xs font-bold text-base-400 uppercase">Emitter Target Status</div>
-                                <div class="font-mono text-sm mt-0.5" :class="state.ir.active ? 'text-error font-bold' : 'text-base-500'">
-                                    <span x-text="state.ir.active ? '⚡ ENGAGED' : '❄️ IR OFF'"></span>
-                                    <span class="ml-1 text-white text-xs" x-show="state.ir.active" x-text="'[' + irRemainingText + ']'"></span>
+                        <div class="flex flex-col gap-4">
+                            <div class="flex justify-between items-center bg-base-200 p-4 rounded-box border border-base-300">
+                                <div>
+                                    <div class="text-xs font-bold text-base-400 uppercase">Emitter Target Status</div>
+                                    <div class="font-mono text-sm mt-0.5" :class="state.ir.active ? 'text-error font-bold' : 'text-base-500'">
+                                        <span x-text="state.ir.active ? '⚡ ENGAGED' : '❄️ IR OFF'"></span>
+                                        <span class="ml-1 text-white text-xs" x-show="state.ir.active" x-text="'[' + irRemainingText + ']'"></span>
+                                    </div>
                                 </div>
-                            </div>
-                            <button class="btn btn-sm" :class="state.ir.active ? 'btn-error shadow' : 'btn-outline'" @click="toggleIR()">
-                                <span x-text="state.ir.active ? 'DISENGAGE' : 'LAUNCH IR'"></span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card bg-base-100 shadow-xl border border-base-200">
-                    <div class="card-body">
-                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">Bathroom Water</h2>
-
-                        <div class="grid grid-cols-2 gap-4 font-mono text-xs">
-                            <div class="bg-base-200 p-3 rounded-box border border-base-300">
-                                <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Cold</div>
-                                <div class="text-lg font-black text-white" x-text="state.metrics.water_cold_liters.toFixed(1) + ' L'"></div>
-                            </div>
-                            <div class="bg-base-200 p-3 rounded-box border border-base-300">
-                                <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Hot</div>
-                                <div class="text-lg font-black text-error" x-text="state.metrics.water_hot_liters.toFixed(1) + ' L'"></div>
-                            </div>
-                        </div>
-
-                        <div class="mt-4 bg-neutral p-3 rounded-box border border-base-300 text-xs font-mono" x-show="state.metrics.douche_active || state.metrics.douche_water_liters > 0">
-                            <div class="font-bold text-accent uppercase tracking-wider mb-1.5 flex justify-between items-center">
-                                <span><span>🚿</span> Live Douche Tracker</span>
-                                <span class="badge badge-xs badge-accent animate-pulse" x-show="state.metrics.douche_active">ACTIVE RUN</span>
-                            </div>
-                            <div class="flex justify-between text-base-400">
-                                <span>Session Time Duration:</span>
-                                <span class="text-white font-bold" x-text="doucheElapsedText"></span>
-                            </div>
-                            <div class="flex justify-between text-base-400 mt-1">
-                                <span>Volumetric Consumed Water:</span>
-                                <span class="text-white font-bold" x-text="state.metrics.douche_water_liters + ' Liters'"></span>
+                                <button class="btn btn-sm" :class="state.ir.active ? 'btn-error shadow' : 'btn-outline'" @click="toggleIR()">
+                                    <span x-text="state.ir.active ? 'DISENGAGE' : 'LAUNCH IR'"></span>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
+                <div class="card-body">
+                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">🎬 Cinema Lounge</h2>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
+                            <div class="text-right font-mono">
+                                <span class="text-white font-bold" x-text="state.environment.cinema_temp !== null ? state.environment.cinema_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                <span class="text-info ml-1 text-xs" x-text="state.environment.cinema_hum !== null ? state.environment.cinema_hum + '%' : '--%'"></span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <span class="text-xs font-bold text-base-400 uppercase">Hue Lighting</span>
+                            <span class="badge font-mono text-[10px] tracking-wider py-3" :class="state.environment.cinema_hue_on ? 'badge-warning animate-pulse text-neutral-900 font-bold' : 'badge-neutral text-gray-500'">
+                                <span x-text="state.environment.cinema_hue_on ? '💡 ILLUMINATED' : 'DARK'"></span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
+                <div class="card-body">
+                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3 flex justify-between items-center w-full">
+                        <span>Bathroom</span>
+                        <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"
+                              :class="state.environment.door_bathroom_open ? 'badge-warning' : 'badge-neutral text-base-500'">
+                            <span x-text="state.environment.door_bathroom_open ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
+                        </span>
+                    </h2>
+                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                        <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
+                        <div class="text-right font-mono">
+                            <span class="text-white font-bold" x-text="state.environment.bathroom_temp !== null ? state.environment.bathroom_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                            <span class="text-info ml-1 text-xs" x-text="state.environment.bathroom_hum !== null ? state.environment.bathroom_hum + '%' : '--%'"></span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                        <div class="text-xs font-bold text-base-400 uppercase">Extraction Fan Status</div>
+                        <div class="font-mono text-sm mt-0.5" :class="state.environment.bathroom_vent_on ? 'text-info font-bold animate-pulse' : 'text-base-500'">
+                            <span x-text="state.environment.bathroom_vent_on ? '💨 RUNNING' : 'OFF'"></span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 font-mono text-xs">
+                        <div class="bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Cold Water</div>
+                            <div class="text-lg font-black text-white" x-text="state.metrics.water_cold_liters.toFixed(1) + ' L'"></div>
+                        </div>
+                        <div class="bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Hot Water</div>
+                            <div class="text-lg font-black text-error" x-text="state.metrics.water_hot_liters.toFixed(1) + ' L'"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4 bg-neutral p-3 rounded-box border border-base-300 text-xs font-mono" x-show="state.metrics.douche_active || state.metrics.douche_water_liters > 0">
+                        <div class="font-bold text-accent uppercase tracking-wider mb-1.5 flex justify-between items-center">
+                            <span><span>🚿</span> Live Douche Tracker</span>
+                            <span class="badge badge-xs badge-accent animate-pulse" x-show="state.metrics.douche_active">ACTIVE RUN</span>
+                        </div>
+                        <div class="flex justify-between text-base-400">
+                            <span>Session Time:</span>
+                            <span class="text-white font-bold" x-text="doucheElapsedText"></span>
+                        </div>
+                        <div class="flex justify-between text-base-400 mt-1">
+                            <span>Water Usage:</span>
+                            <span class="text-white font-bold" x-text="state.metrics.douche_water_liters + ' L'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-6">
                 <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body p-4">
+                        <div class="flex justify-between items-center font-mono text-sm">
+                            <span class="font-bold text-xs uppercase tracking-wider text-base-400">🌍 Outside Atmosphere</span>
+                            <div class="text-right">
+                                <span class="text-white font-bold" x-text="state.environment.outside_temp !== null ? state.environment.outside_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                <span class="text-info ml-1 text-xs" x-text="state.environment.outside_hum !== null ? state.environment.outside_hum + '%' : '--%'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow-xl border border-base-200 flex-1">
                     <div class="card-body">
                         <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">Energy</h2>
                         <div class="bg-base-200 p-4 rounded-box border border-base-300 flex justify-between items-center font-mono text-xs">
                             <div>
                                 <div class="text-[10px] uppercase font-bold text-base-400">Total Power Consumed</div>
-                                <div class="text-2xl font-black text-primary mt-1" x-text="(state.metrics.kwh_wh_ticks / 1000.0).toFixed(3) + ' kWh'"></div>
+                                <div class="text-xl font-black text-primary mt-1" x-text="(state.metrics.kwh_wh_ticks / 1000.0).toFixed(3) + ' kWh'"></div>
                             </div>
-                            <span class="badge badge-neutral text-[10px] font-bold px-2.5 py-3" x-text="state.metrics.kwh_wh_ticks + ' Wh Ticks'"></span>
+                            <span class="badge badge-neutral text-[10px] font-bold px-2 py-2" x-text="state.metrics.kwh_wh_ticks + ' Wh'"></span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card bg-base-100 shadow-xl border border-base-200 col-span-1 lg:col-span-3 mt-4" x-show="!state.hardware.live_mode">
+        </div>
+
+        <div class="w-full" x-show="!state.hardware.live_mode">
+            <div class="card bg-base-100 shadow-xl border border-base-200">
                 <div class="card-body">
                     <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4">🧪 Lab Mode Simulation</h2>
 
@@ -335,7 +358,15 @@
                             <div class="pt-2 border-t border-base-300 space-y-2.5">
                                 <div class="flex items-center justify-between text-xs font-mono">
                                     <span class="text-gray-400 font-medium">Sauna Door:</span>
-                                    <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="labDoorSaunaOpen" @change="injectLabDoorChange()" />
+                                    <input type="checkbox" class="toggle toggle-error toggle-sm shadow"
+                                           x-model="labDoorSaunaOpen"
+                                           @change="injectLabDoorChange('sauna', labDoorSaunaOpen)" />
+                                </div>
+                                <div class="flex items-center justify-between text-xs font-mono">
+                                    <span class="text-gray-400 font-medium">Bathroom Door:</span>
+                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                           x-model="labDoorBathroomOpen"
+                                           @change="injectLabDoorChange('bathroom', labDoorBathroomOpen)" />
                                 </div>
                                 <div class="flex justify-between items-center text-xs font-mono bg-neutral p-2 rounded-box border border-base-300 shadow-inner">
                                     <span :class="state.sauna.ventilation_state !== 'OFF' ? 'text-accent font-bold animate-pulse' : 'text-gray-500'" x-text="'VENT: ' + state.sauna.ventilation_state"></span>
@@ -359,8 +390,61 @@
                     </div>
                 </div>
             </div>
-
         </div>
+
+        <div class="w-full">
+            <div class="card bg-base-100 shadow-xl border border-base-200">
+                <div class="card-body">
+                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4 flex justify-between items-center w-full border-b border-base-200 pb-2">
+                        <span>⚙️ System Administration</span>
+                        <button class="btn btn-xs btn-outline btn-error font-mono text-[10px]" @click="reloadFrontend()">♻️ RELOAD UI</button>
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                        <div class="space-y-2 font-mono text-xs flex flex-col justify-center">
+                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+                                <span class="text-base-400 uppercase font-bold">WanOS Broker</span>
+                                <span class="badge badge-xs py-2 px-2" :class="state.system.wanos_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.wanos_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
+                            </div>
+                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+                                <span class="text-base-400 uppercase font-bold">Domoticz Hub</span>
+                                <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 font-mono text-xs flex flex-col justify-center">
+                            <div class="flex justify-between items-center p-2 bg-base-200 border border-base-300 rounded-box">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">Host IP Address</span>
+                                <span class="text-info font-bold text-[11px]" x-text="state.system.ip_address || 'UNKNOWN'"></span>
+                            </div>
+                            <div class="flex justify-between items-center p-2 bg-base-200 border border-base-300 rounded-box">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">OS Uptime</span>
+                                <span class="text-white text-[11px]" x-text="state.system.os_uptime_formatted || '--'"></span>
+                            </div>
+                            <div class="flex justify-between items-center p-2 bg-base-200 border border-base-300 rounded-box">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">Engine Uptime</span>
+                                <span class="text-white text-[11px]" x-text="state.system.app_uptime_formatted || '--'"></span>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-base-200 rounded-box border border-base-300 space-y-1.5 text-xs font-mono shadow-inner h-full flex flex-col justify-center">
+                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-1 mb-2">Diagnostic: Sauna Probes</div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-base-400">Ceiling (High):</span>
+                                <span class="text-orange-400 font-bold" x-text="state.environment.sauna_high_temp !== null ? state.environment.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-base-400">Bench (Low):</span>
+                                <span class="text-amber-500 font-bold" x-text="state.environment.sauna_low_temp !== null ? state.environment.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
     <script src="app.js"></script>
 </body>

@@ -14,6 +14,40 @@ class MQTTConfig(BaseModel):
     password: Optional[str] = None
 
 
+class WanosConfig(BaseModel):
+    """Internal broker configuration block."""
+    mqtt: MQTTConfig
+
+
+class IdxMapping(BaseModel):
+    """Represents a single Domoticz virtual device with an ID and structural type."""
+    id: int
+    type: str
+
+
+class DomoticzIdxConfig(BaseModel):
+    """Strictly mapped virtual device dictionary for Domoticz telemetry routing."""
+    bathroom_th: IdxMapping
+    outside_th: IdxMapping
+    cinema_th: IdxMapping
+    sauna_th: IdxMapping
+    sauna_high_th: IdxMapping
+    sauna_low_th: IdxMapping
+    sauna: IdxMapping
+    ir: IdxMapping
+    sauna_extrvent: IdxMapping
+    cinema_hue: IdxMapping
+    sauna_hue: IdxMapping
+    bathroom_extrvent: IdxMapping
+    safety_ssr: IdxMapping
+
+
+class DomoticzConfig(BaseModel):
+    """Configuration mapping for the remote Domoticz broker and virtual devices."""
+    mqtt: MQTTConfig
+    idx: DomoticzIdxConfig
+
+
 class PinMappingConfig(BaseModel):
     safety_gpio: int
     kwh_pin: int
@@ -28,28 +62,32 @@ class PinMappingConfig(BaseModel):
 class SHT11SensorNode(BaseModel):
     pin_d: int
     pin_c: int
-    idx: int
 
 
 class SaunaRuntimeConfig(BaseModel):
     default_setpoint: int
     max_temp: int
-    default_timer: int
-    vent_delay_mins: int
-    vent_run_mins: int
-    pwm_freq: int
     kp: float
     ki: float
     kd: float
+    default_timer: int
+    vent_delay_mins: int
+    vent_run_mins: int
+    timer_offset_temp: float
 
 
 class IRRuntimeConfig(BaseModel):
     min_time_mins: int
     max_time_mins: int
+    pwm_freq: int
+
+
+class BathroomConfig(BaseModel):
+    vent_on_humidity: int
+    vent_off_humidity: int
 
 
 class LabSeedConfig(BaseModel):
-    """Strictly maps to config_lab.yaml. No fallbacks allowed."""
     sauna_high_temp: float
     sauna_low_temp: float
     sauna_high_hum: float
@@ -66,21 +104,18 @@ class LabSeedConfig(BaseModel):
 
 class AppConfig(BaseModel):
     """The unified master configuration model."""
-    mqtt: MQTTConfig
-    domoticz: MQTTConfig
+    wanos: WanosConfig
+    domoticz: DomoticzConfig
     auth: Dict[str, str]
     pins: PinMappingConfig
     sensors: Dict[str, SHT11SensorNode]
     sauna: SaunaRuntimeConfig
     ir: IRRuntimeConfig
+    bathroom: BathroomConfig
     lab_seed: Optional[LabSeedConfig] = None
 
 
 def load_config(config_path: str = "config.yaml") -> AppConfig:
-    """
-    Reads dynamic runtime config and static hardware mappings, injects secrets,
-    and returns a unified validation object.
-    """
     BASE_DIR = Path(__file__).resolve().parent.parent
     env_path = BASE_DIR / ".env"
     runtime_yaml_path = Path(config_path) if Path(config_path).is_absolute() else BASE_DIR / config_path
@@ -104,18 +139,19 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
 
     # 3. Consolidate payloads for unified validation assembly
     compiled_data = {
-        "mqtt": runtime_data["mqtt"],
-        "domoticz": runtime_data["domoticz"],
+        "wanos": hardware_data["wanos"],
+        "domoticz": hardware_data["domoticz"],
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},
         "pins": hardware_data["pins"],
         "sensors": hardware_data["sht11_sensors"],
         "sauna": runtime_data["sauna"],
-        "ir": runtime_data["ir"]
+        "ir": runtime_data["ir"],
+        "bathroom": runtime_data["bathroom"]
     }
 
-    # 4. Inject secrets
-    compiled_data["mqtt"]["password"] = os.getenv("MQTT_PASSWORD")
-    compiled_data["domoticz"]["password"] = os.getenv("DOMOTICZ_PASSWORD")
+    # 4. Inject secrets into the nested MQTT objects
+    compiled_data["wanos"]["mqtt"]["password"] = os.getenv("WANOS_MQTT_PASSWORD")
+    compiled_data["domoticz"]["mqtt"]["password"] = os.getenv("DOM_MQTT_PASSWORD")
 
     # 5. Extract Lab Seeding if present
     if lab_yaml_path.exists():
