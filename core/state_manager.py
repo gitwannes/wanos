@@ -29,6 +29,10 @@ class StateManager:
         self._state.sauna.target_temp = float(self._config.sauna.default_setpoint)
         self._state.lab_seed = self._config.lab_seed
 
+        # ⏱️ DELAYED TIMELINE TRACKING VARIABLES
+        self._sauna_timer_triggered = False
+        self._sauna_timer_duration_secs = 0
+
         # Open hardware safety channel chip context if available
         self._gpio_chip = None
         if LGPIO_AVAILABLE:
@@ -132,15 +136,11 @@ class StateManager:
             sauna.lcd_text = ""
 
     async def _process_events(self) -> None:
-        """
-        Processes inbound application infrastructure events sequentially.
-        Implements an outbound network batch debouncer to prevent dashboard flickering storms.
-        """
+        """Sequential event execution stream loop with outbound network batch debouncing."""
         pending_broadcast = False
         while True:
             event: Event = await self._queue.get()
             try:
-                # Track mutations across the evaluation loop execution turn
                 changed = await self._handle_event(event)
                 if changed:
                     pending_broadcast = True
@@ -149,8 +149,6 @@ class StateManager:
             finally:
                 self._queue.task_done()
 
-            # ⚡ BATCH DEBOUNCE GATEWAY ⚡
-            # Only serialize and broadcast data when the incoming queue settles completely!
             if pending_broadcast and self._queue.empty():
                 snapshot = self.get_state_snapshot().model_dump()
                 await self.mqtt_client.publish("wisc/system/state", snapshot)
@@ -162,7 +160,7 @@ class StateManager:
         state_changed: bool = False
 
         # --- LIVE TERMINAL LOGGING INJECTION GATEWAY ---
-        is_routine_sensory = event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED"]
+        is_routine_sensory = event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED", "KWH_PULSE", "WATER_PULSE"]
         is_manual_ui_action = payload.get("ui_override", False)
 
         if not is_routine_sensory or is_manual_ui_action:
@@ -184,13 +182,16 @@ class StateManager:
         # --------------------------------------------------------
         elif event_name == "WATER_PULSE":
             wtype = payload.get("fluid", "cold")
-            if wtype == "cold":
-                self._state.metrics.water_cold_liters += (1.0 / 396.0)
-            else:
-                self._state.metrics.water_hot_liters += (1.0 / 396.0)
+            count = payload.get("count", 1)
 
-            if self._state.metrics.douche_active:
-                self._state.metrics.douche_water_liters += 1
+            for _ in range(count):
+                if wtype == "cold":
+                    self._state.metrics.water_cold_liters += (1.0 / 396.0)
+                else:
+                    self._state.metrics.water_hot_liters += (1.0 / 396.0)
+
+                if self._state.metrics.douche_active:
+                    self._state.metrics.douche_water_liters += 1
             state_changed = True
 
         elif event_name == "KWH_PULSE":
@@ -260,10 +261,13 @@ class StateManager:
                 return
             self._state.sauna.active = True
             self._state.sauna.hold_mode = "autohold"
+
+            # Reset timeline flags and seed active session timing windows
             now = int(time.time())
             self._state.sauna.session_start_time = now
-            self._state.sauna.session_end_time = now + (self._config.sauna.default_timer_mins * 60)
-            self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time, "SAUNA_TIMER_EXPIRED")
+            self._sauna_timer_triggered = False
+            self._sauna_timer_duration_secs = self._config.sauna.default_timer * 60
+            self._state.sauna.session_end_time = self._sauna_timer_duration_secs
             state_changed = True
 
         elif event_name == "SAUNA_OFF":
@@ -271,6 +275,7 @@ class StateManager:
             self._state.sauna.modulation_pwm = 0
             self._state.sauna.phases_pwm = [0, 0, 0]
             self._timer_manager.cancel("sauna_main")
+            self._sauna_timer_triggered = False
 
             self._state.sauna.ventilation_state = "WAITING"
             self._state.sauna.ventilation_deadline = int(time.time()) + (self._config.sauna.vent_delay_mins * 60)
@@ -279,10 +284,18 @@ class StateManager:
 
         elif event_name == "TIMER_ADJUSTED":
             minutes_to_add = payload.get("minutes", 0)
-            if self._state.sauna.active and self._state.sauna.session_end_time:
-                self._state.sauna.session_end_time += (minutes_to_add * 60)
-                self._timer_manager.cancel("sauna_main")
-                self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time, "SAUNA_TIMER_EXPIRED")
+            if self._state.sauna.active:
+                self._sauna_timer_duration_secs += (minutes_to_add * 60)
+
+                if self._sauna_timer_triggered:
+                    # Timer is ticking down; directly increment the absolute epoch target
+                    self._state.sauna.session_end_time += (minutes_to_add * 60)
+                    self._timer_manager.cancel("sauna_main")
+                    self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time,
+                                                 "SAUNA_TIMER_EXPIRED")
+                else:
+                    # Timer is frozen; update the relative duration target cleanly
+                    self._state.sauna.session_end_time = self._sauna_timer_duration_secs
                 state_changed = True
 
         elif event_name == "HOLD_TOGGLED":
@@ -356,11 +369,28 @@ class StateManager:
             self._state.sauna.phases_pwm = payload.get("phases", [0, 0, 0])
             state_changed = True
 
-        # Process PID loop math calculations dynamically
+        # ⚡ FIXED OUT-OF-NESTING POSITION: Process PID calculations un-nested at root event level ⚡
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "DOOR_CHANGED"]:
             if self._state.sauna.current_temp is not None and self._state.sauna.active:
 
-                # AUTOMATIC STEPPING INTERRUPT:
+                # ⏱️ CONFIGURABLE TIMER COUNTDOWN EVALUATION GATEWAY
+                offset = getattr(self._config.sauna, "timer_offset_temp", 7.0)
+                threshold_temp = self._state.sauna.target_temp - offset
+
+                if not self._sauna_timer_triggered:
+                    if self._state.sauna.current_temp >= threshold_temp:
+                        self._sauna_timer_triggered = True
+                        self._state.sauna.session_end_time = int(time.time()) + self._sauna_timer_duration_secs
+                        self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time,
+                                                     "SAUNA_TIMER_EXPIRED")
+                        print(f"⏱️ [StateManager] Heat threshold met ({self._state.sauna.current_temp}°C >= {threshold_temp}°C). Activating timer countdown!")
+                        state_changed = True
+                    else:
+                        if self._state.sauna.session_end_time != self._sauna_timer_duration_secs:
+                            self._state.sauna.session_end_time = self._sauna_timer_duration_secs
+                            state_changed = True
+
+                # AUTOMATIC HOLD STEPPING INTERRUPT:
                 if self._state.sauna.current_temp >= self._state.sauna.target_temp:
                     if self._state.sauna.hold_mode == "autohold":
                         self._state.sauna.hold_mode = "hold"
@@ -379,5 +409,4 @@ class StateManager:
         if self._state.sauna.lcd_text != old_lcd_text:
             state_changed = True
 
-        # Return the local evaluation metric instead of issuing intermediate publishes
         return state_changed

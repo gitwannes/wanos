@@ -34,7 +34,7 @@ class SHT11SensorNode(BaseModel):
 class SaunaRuntimeConfig(BaseModel):
     default_setpoint: int
     max_temp: int
-    default_timer_mins: int
+    default_timer: int
     vent_delay_mins: int
     vent_run_mins: int
     pwm_freq: int
@@ -109,8 +109,8 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},
         "pins": hardware_data["pins"],
         "sensors": hardware_data["sht11_sensors"],
-        "sauna": runtime_data["sauna_runtime"],
-        "ir": runtime_data["ir_runtime"]
+        "sauna": runtime_data["sauna"],
+        "ir": runtime_data["ir"]
     }
 
     # 4. Inject secrets

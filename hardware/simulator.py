@@ -9,7 +9,7 @@ from core.config import load_config
 async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
     """
     Simulates realistic multi-zone thermodynamics when physical hardware is detached.
-    Dynamically responds to user dashboard slider overrides on every evaluation tick.
+    Dynamically responds to user dashboard slider overrides and accumulates energy power draw.
     """
     await asyncio.sleep(5.0)  # Give the server a few seconds to boot before starting
 
@@ -30,9 +30,13 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
     bathroom_hum = seed.bathroom_hum
     outside_tick = seed.outside_tick
 
-    # Track historical metrics to handle outside climate slider baseline shifts smoothly
+    # Local UI metric tracking anchors
     last_calculated_out_temp = None
     last_calculated_out_hum = None
+
+    # ⚡ VIRTUAL POWER INTAKE ACCUMULATOR ⚡
+    # Tracks real-time integration steps to generate synthetic Wh metrics
+    wh_accumulator = 0.0
 
     # 3. Push static baselines instantly (These don't drift in Lab Mode)
     state_mgr.dispatch(Event(type=EventType.DOOR_CHANGED, payload={"is_open": seed.door_open}))
@@ -78,6 +82,27 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
                 if int(state.environment.outside_hum) != int(last_calculated_out_hum):
                     # User moved the outside humidity slider! Re-adjust our base seed anchor
                     seed.outside_hum = state.environment.outside_hum - (20.0 * math.cos(outside_tick / 15.0))
+
+            # --------------------------------------------------------
+            # AUTOMATED ELECTRICAL POWER ACCRETION STEP
+            # --------------------------------------------------------
+            # Sauna Element Load: Scaling dynamically up to 9000W max total output
+            active_sauna_w = 9000.0 * (state.sauna.modulation_pwm / 100.0) if state.sauna.active else 0.0
+            # Infrared Array Load: Constant 3000W output profile when toggled active
+            active_ir_w = 3000.0 if state.ir.active else 0.0
+
+            # Formulate current consolidated load step integration parameter
+            total_active_load_w = active_sauna_w + active_ir_w
+            # Convert Watts over a 2.0 second time delta window slice into absolute Watt-hours (Wh)
+            accumulated_step_wh = total_active_load_w * (2.0 / 3600.0)
+            wh_accumulator += accumulated_step_wh
+
+            # Flush complete integer steps directly down into the StateManager pulse router
+            if wh_accumulator >= 1.0:
+                whole_ticks = int(wh_accumulator)
+                wh_accumulator -= whole_ticks
+                for _ in range(whole_ticks):
+                    state_mgr.dispatch(Event(type=EventType.KWH_PULSE))
 
             # --------------------------------------------------------
             # 1. OUTSIDE SIMULATOR (Sine wave over time)

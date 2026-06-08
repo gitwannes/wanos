@@ -104,7 +104,10 @@
                                 <span class="text-base-400">Sauna Running Time: <span class="text-white font-bold" x-text="elapsedText"></span></span>
                                 <span class="text-base-400">Sauna Timer: <span class="text-warning font-black animate-pulse" x-text="remainingText"></span></span>
                             </div>
-                            <progress class="progress progress-warning w-full h-2 mb-3" :value="progressPercent" max="100"></progress>
+                            <div class="w-full bg-neutral rounded-full h-2 mb-4 overflow-hidden border border-base-300 shadow-inner">
+                                <div class="bg-warning h-full transition-all duration-300 ease-out"
+                                     :style="`width: ${progressPercent}%` Marlborough"></div>
+                            </div>
                             <div class="flex justify-center gap-2">
                                 <button class="btn btn-xs btn-outline rounded" @click="adjustTimer(-10)">-10 MINS</button>
                                 <button class="btn btn-xs btn-outline rounded" @click="adjustTimer(10)">+10 MINS</button>
@@ -125,24 +128,32 @@
                                     <span>Total Modulation Output</span>
                                     <span class="font-mono text-primary text-md" x-text="(state.sauna.modulation_pwm || 0) + '%'"></span>
                                 </div>
-                                <progress class="progress progress-primary w-full h-3" :value="state.sauna.modulation_pwm || 0" max="100"></progress>
+                                <div class="w-full bg-base-300 rounded-full h-3 overflow-hidden">
+                                    <div class="bg-primary h-3 rounded-full transition-none" :style="'width:' + (state.sauna.modulation_pwm || 0) + '%'"></div>
+                                </div>
                             </div>
 
                             <div class="grid grid-cols-3 gap-4 text-center">
                                 <div class="bg-base-200 p-4 rounded-box border border-base-300 shadow-inner">
                                     <div class="text-xs font-black text-base-400 uppercase mb-2">Phase U</div>
                                     <div class="font-mono font-black text-xl text-accent my-2" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></div>
-                                    <progress class="progress progress-accent w-full h-2" :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0" max="100"></progress>
+                                    <div class="w-full bg-base-300 rounded-full h-2 overflow-hidden">
+                                        <div class="bg-accent h-2 rounded-full transition-none" :style="'width:' + ((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></div>
+                                    </div>
                                 </div>
                                 <div class="bg-base-200 p-4 rounded-box border border-base-300 shadow-inner">
                                     <div class="text-xs font-black text-base-400 uppercase mb-2">Phase V</div>
                                     <div class="font-mono font-black text-xl text-accent my-2" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></div>
-                                    <progress class="progress progress-accent w-full h-2" :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0" max="100"></progress>
+                                    <div class="w-full bg-base-300 rounded-full h-2 overflow-hidden">
+                                        <div class="bg-accent h-2 rounded-full transition-none" :style="'width:' + ((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></div>
+                                    </div>
                                 </div>
                                 <div class="bg-base-200 p-4 rounded-box border border-base-300 shadow-inner">
                                     <div class="text-xs font-black text-base-400 uppercase mb-2">Phase W</div>
                                     <div class="font-mono font-black text-xl text-accent my-2" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0) + '%'"></div>
-                                    <progress class="progress progress-accent w-full h-2" :value="(state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0" max="100"></progress>
+                                    <div class="w-full bg-base-300 rounded-full h-2 overflow-hidden">
+                                        <div class="bg-accent h-2 rounded-full transition-none" :style="'width:' + ((state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0) + '%'"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -311,7 +322,7 @@
                             <div>
                                 <h3 class="text-xs font-bold text-info uppercase tracking-wider border-b border-base-300 pb-1 mb-3">Outside Atmosphere</h3>
 
-                                <div class="mb-3">
+                                <div>
                                     <div class="flex justify-between text-[11px] mb-1">
                                         <span class="text-gray-400 font-medium">Outside</span>
                                         <span class="text-info font-mono font-bold" x-text="labOutsideTemp !== null ? parseFloat(labOutsideTemp).toFixed(1) + '°C / ' + labOutsideHum + '%' : '--.-°C / --%'"></span>
@@ -330,6 +341,18 @@
                                     <span :class="state.sauna.ventilation_state !== 'OFF' ? 'text-accent font-bold animate-pulse' : 'text-gray-500'" x-text="'VENT: ' + state.sauna.ventilation_state"></span>
                                     <span class="text-gray-400 font-black text-[11px]" x-show="state.sauna.ventilation_state !== 'OFF'" x-text="ventRemainingText"></span>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-3 col-span-1 md:col-span-2 lg:col-span-3">
+                            <h3 class="text-xs font-bold text-info uppercase tracking-wider border-b border-base-300 pb-1">Fluid Pulse Injectors</h3>
+                            <div class="flex gap-3">
+                                <button class="btn btn-outline btn-sm btn-info font-mono text-xs tracking-wide" @click="injectWaterPulse('cold')">
+                                    💧 Inject 1L Cold Water (396 Pulses)
+                                </button>
+                                <button class="btn btn-outline btn-sm btn-error font-mono text-xs tracking-wide" @click="injectWaterPulse('hot')">
+                                    🔥 Inject 1L Hot Water (396 Pulses)
+                                </button>
                             </div>
                         </div>
 

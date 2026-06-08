@@ -108,6 +108,8 @@ function wanosApp() {
 
                     if (!parsedState.hardware.sensor_errors) parsedState.hardware.sensor_errors = [];
 
+                    parsedState.sauna.modulation_pwm = parsedState.sauna.modulation_pwm ?? 0;
+
                     // Save values to active viewport memory
                     this.state = parsedState;
 
@@ -139,18 +141,29 @@ function wanosApp() {
             if (this.state.sauna.active && this.state.sauna.session_start_time && this.state.sauna.session_end_time) {
                 const start = this.state.sauna.session_start_time;
                 const end = this.state.sauna.session_end_time;
-                const elapsed = Math.max(0, now - start);
-                const remaining = Math.max(0, end - now);
-                const totalDuration = end - start;
 
-                this.elapsedText = this.formatTime(elapsed);
-                this.remainingText = this.formatTime(remaining);
-                this.progressPercent = totalDuration > 0 ? Math.min(100, (elapsed / totalDuration) * 100) : 0;
+                if (end < 1000000000) {
+                    // ⏱️ TIMER IS FROZEN: Let running time tick up, hold Countdown fixed
+                    this.elapsedText = this.formatTime(Math.max(0, now - start));
+                    this.remainingText = this.formatTime(end); // holds raw relative seconds
+                    this.progressPercent = 0;
+                } else {
+                    // 🏁 TIMER IS LIVE: Execute standard operational timeline math
+                    const elapsed = Math.max(0, now - start);
+                    const remaining = Math.max(0, end - now);
+                    const totalDuration = end - start;
+
+                    this.elapsedText = this.formatTime(elapsed);
+                    this.remainingText = this.formatTime(remaining);
+                    this.progressPercent = totalDuration > 0 ? Math.min(100, (elapsed / totalDuration) * 100) : 0;
+                }
             } else {
                 this.elapsedText = "00:00:00";
                 this.remainingText = "00:00:00";
                 this.progressPercent = 0;
             }
+
+            // ... keep remaining ventilation/ir/douche ticker blocks exactly the same ...
 
             // Cooldown Ventilation Clocks
             if (this.state.sauna.ventilation_state !== "OFF" && this.state.sauna.ventilation_deadline) {
@@ -255,6 +268,11 @@ function wanosApp() {
 
         injectLabDoorChange() {
             this.dispatchEvent("DOOR_CHANGED", { sensor_id: "sauna", is_open: this.labDoorSaunaOpen });
+        },
+
+        injectWaterPulse(fluidType) {
+            // Sends a batch of 396 pulses to satisfy a full 1 Liter volume step
+            this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, ui_override: true });
         }
-    }
+    };
 }
