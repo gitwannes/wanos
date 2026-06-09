@@ -25,27 +25,10 @@ class IdxMapping(BaseModel):
     type: str
 
 
-class DomoticzIdxConfig(BaseModel):
-    """Strictly mapped virtual device dictionary for Domoticz telemetry routing."""
-    bathroom_th: IdxMapping
-    outside_th: IdxMapping
-    cinema_th: IdxMapping
-    sauna_th: IdxMapping
-    sauna_high_th: IdxMapping
-    sauna_low_th: IdxMapping
-    sauna: IdxMapping
-    ir: IdxMapping
-    sauna_extrvent: IdxMapping
-    cinema_hue: IdxMapping
-    sauna_hue: IdxMapping
-    bathroom_extrvent: IdxMapping
-    safety_ssr: IdxMapping
-
-
 class DomoticzConfig(BaseModel):
     """Configuration mapping for the remote Domoticz broker and virtual devices."""
     mqtt: MQTTConfig
-    idx: DomoticzIdxConfig
+    idx: Dict[str, IdxMapping]
 
 
 class PinMappingConfig(BaseModel):

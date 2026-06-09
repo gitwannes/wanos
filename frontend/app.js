@@ -72,6 +72,7 @@ function wanosApp() {
                 sensor_errors: [],
                 lab_simulation_logs: []
             },
+            devices: {}, // Ensure UI tracks the generic peripheral payload dict
             lab_seed: null
         },
 
@@ -128,6 +129,7 @@ function wanosApp() {
 
                     // Safety mapping for the new system block before backend is updated
                     parsedState.system = parsedState.system || this.state.system;
+                    parsedState.devices = parsedState.devices || {}; // Ensure safe loading of generic sensors
 
                     this.state = parsedState;
 

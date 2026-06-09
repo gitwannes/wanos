@@ -21,7 +21,8 @@ class StateManager:
         self._state: SystemState = SystemState()
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
         self._worker_task: Optional[asyncio.Task] = None
-        self._state_listeners: list[Any] = []  # NEW: Observer callback registry list
+        self._telemetry_task: Optional[asyncio.Task] = None
+        self._state_listeners: list[Any] = []  # Observer callback registry list
         self.mqtt_client: MqttClientManager = mqtt_client
         self.domoticz_client: Optional[Any] = None  # Populated dynamically by home_hub bridge
         self.logger: WanosLogger = logger
@@ -161,15 +162,14 @@ class StateManager:
         state_changed: bool = False
 
         # --- LIVE TERMINAL LOGGING INJECTION GATEWAY ---
-        is_routine_sensory = event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED", "KWH_PULSE", "WATER_PULSE"]
+        is_routine_sensory = event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED", "KWH_PULSE", "WATER_PULSE",
+                                            "SYSTEM_METRICS_UPDATED"]
         is_manual_ui_action = payload.get("ui_override", False)
 
-        # --- file: core/state_manager.py ---
         if not is_routine_sensory or is_manual_ui_action:
             print(f"📥 [StateManager] Event Received: {event_name.ljust(22)} | Payload: {payload}")
             await self.logger.info(f"User Action Processed: {event_name}")
 
-        # ⚡ FIXED: Shifted 4 spaces left to break free from the user-action filter block
         # If it's a background simulator event, translate it to a string for the UI panel!
         if not self._state.hardware.live_mode and not is_manual_ui_action:
             log_msg = ""
@@ -258,43 +258,37 @@ class StateManager:
             state_changed = True
 
         # --------------------------------------------------------
-        # MULTI-ZONE TEMPERATURE & HUMIDITY ROUTING
+        # MULTI-ZONE TEMPERATURE & HUMIDITY ROUTING (SORTING OFFICE)
         # --------------------------------------------------------
         elif event_name == "TEMP_UPDATED":
-            sensor_id = payload.get("sensor_id", "sauna_high")
+            sensor_id = payload.get("sensor_id")
             val = payload.get("value")
             env = self._state.environment
-            if sensor_id == "sauna_high":
-                env.sauna_high_temp = val
-            elif sensor_id == "sauna_low":
-                env.sauna_low_temp = val
-            elif sensor_id == "bathroom":
-                env.bathroom_temp = val
-            elif sensor_id == "cinema":
-                env.cinema_temp = val
-            elif sensor_id == "outside":
-                env.outside_temp = val
 
-            if sensor_id in ["sauna_high", "sauna_low"]:
-                if self._recalculate_sauna_metrics() or is_manual_ui_action:
+            # 1. Core Engine Target: explicitly requested by internal math loop?
+            if hasattr(env, f"{sensor_id}_temp"):
+                setattr(env, f"{sensor_id}_temp", val)
+                if sensor_id in ["sauna_high", "sauna_low"]:
+                    if self._recalculate_sauna_metrics() or is_manual_ui_action:
+                        state_changed = True
+                else:
                     state_changed = True
+            # 2. Generic Peripheral Target: Store it safely for the UI
             else:
+                self._state.devices[f"{sensor_id}_temp"] = val
                 state_changed = True
 
         elif event_name == "HUMIDITY_UPDATED":
-            sensor_id = payload.get("sensor_id", "sauna_high")
+            sensor_id = payload.get("sensor_id")
             val = payload.get("value")
             env = self._state.environment
-            if sensor_id == "sauna_high":
-                env.sauna_high_hum = val
-            elif sensor_id == "sauna_low":
-                env.sauna_low_hum = val
-            elif sensor_id == "bathroom":
-                env.bathroom_hum = val
+
+            # 1. Core Engine Target
+            if hasattr(env, f"{sensor_id}_hum"):
+                setattr(env, f"{sensor_id}_hum", val)
 
                 # ⚡ AUTOMATED BATHROOM VENTILATOR HYSTERESIS LOOP ⚡
-                if env.bathroom_hum is not None:
-                    # Direct, configuration-pure Pydantic object lookup! No fallbacks.
+                if sensor_id == "bathroom" and env.bathroom_hum is not None:
                     on_threshold = self._config.bathroom.vent_on_humidity
                     off_threshold = self._config.bathroom.vent_off_humidity
 
@@ -303,8 +297,8 @@ class StateManager:
                         state_changed = True
                         msg = f"💨 Bathroom humidity ({env.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator."
                         print(f"[StateManager] {msg}")
-                        # Push the automated hysteresis event directly to the telemetry terminal list
                         if not self._state.hardware.live_mode:
+                            from datetime import datetime
                             ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                             self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
                     elif env.bathroom_hum <= off_threshold and env.bathroom_vent_on:
@@ -312,20 +306,19 @@ class StateManager:
                         state_changed = True
                         msg = f"💨 Bathroom humidity ({env.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator."
                         print(f"[StateManager] {msg}")
-                        # Push the automated hysteresis event directly to the telemetry terminal list
                         if not self._state.hardware.live_mode:
+                            from datetime import datetime
                             ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                             self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
 
-            elif sensor_id == "cinema":
-                env.cinema_hum = val
-            elif sensor_id == "outside":
-                env.outside_hum = val
-
-            if sensor_id in ["sauna_high", "sauna_low"]:
-                if self._recalculate_sauna_metrics() or is_manual_ui_action:
+                if sensor_id in ["sauna_high", "sauna_low"]:
+                    if self._recalculate_sauna_metrics() or is_manual_ui_action:
+                        state_changed = True
+                else:
                     state_changed = True
+            # 2. Generic Peripheral Target
             else:
+                self._state.devices[f"{sensor_id}_hum"] = val
                 state_changed = True
 
         elif event_name == "SENSOR_ERROR":
@@ -343,11 +336,9 @@ class StateManager:
         elif event_name == "SAUNA_ON":
             if self._state.sauna.door_open:
                 await self.logger.warning("Bouncer rejected SAUNA_ON: Door is open.")
-                return
+                return False
             self._state.sauna.active = True
             self._state.sauna.hold_mode = "autohold"
-
-            # Reset timeline flags and seed active session timing windows
             now = int(time.time())
             self._state.sauna.session_start_time = now
             self._sauna_timer_triggered = False
@@ -371,7 +362,6 @@ class StateManager:
             minutes_to_add = payload.get("minutes", 0)
             if self._state.sauna.active:
                 self._sauna_timer_duration_secs += (minutes_to_add * 60)
-
                 if self._sauna_timer_triggered:
                     self._state.sauna.session_end_time += (minutes_to_add * 60)
                     self._timer_manager.cancel("sauna_main")
@@ -428,17 +418,33 @@ class StateManager:
                     self._state.sauna.ventilation_state = "OFF"
                     asyncio.create_task(
                         self.logger.warning("🚪 Sauna door opened while active! Emergency cutoff triggered."))
-
             elif sensor_id == "bathroom":
                 self._state.environment.door_bathroom_open = is_open
             state_changed = True
 
         elif event_name == "HUB_STATE_CHANGED":
             device = payload.get("device_id")
-            is_on = payload.get("state") == "ON"
+            state_val = payload.get("state")  # "ON" or "OFF"
+            is_on = (state_val == "ON")
+
+            # 1. CORE ENGINE CHECK: Map explicit Domoticz names back to internal variables
             if device == "bathroom_ventilator":
                 self._state.environment.bathroom_vent_on = is_on
                 state_changed = True
+            elif device == "sauna_extrvent":
+                self._state.environment.sauna_extraction_vent_on = is_on
+                state_changed = True
+            elif device == "cinema_hue":
+                self._state.environment.cinema_hue_on = is_on
+                state_changed = True
+            elif device == "sauna_hue":
+                self._state.environment.sauna_hue_on = is_on
+                state_changed = True
+            else:
+                # 2. PERIPHERAL FALLBACK: Automatically catch unmapped Domoticz switches!
+                if self._state.devices.get(device) != state_val:
+                    self._state.devices[device] = state_val
+                    state_changed = True
 
         elif event_name == "LIGHTING_STATE_CHANGED":
             zone = payload.get("zone")
@@ -474,7 +480,6 @@ class StateManager:
             self._state.sauna.phases_pwm = payload.get("phases", [0, 0, 0])
             state_changed = True
 
-        # Process PID calculations dynamically un-nested at root event level
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "DOOR_CHANGED"]:
             if self._state.sauna.current_temp is not None and self._state.sauna.active:
 
@@ -519,22 +524,18 @@ class StateManager:
         # Delegate display and lighting logic cleanly to the pure business logic controller
         self._state.sauna = AuxiliaryController.evaluate(self._state.sauna)
 
-        # --- file: core/state_manager.py ---
         if not self._state.sauna.active:
             self._state.sauna.fireorder = "--"
         else:
             raw_order = self.sauna_logic.get_current_order_string()
             self._state.sauna.fireorder = raw_order.replace(" -> ", "")
 
-        # ⚡ FIXED: Broken out of the else block so state updates process when sauna is idle
         if (self._state.sauna.lcd_text != old_lcd_text or
                 self._state.sauna.light_color != old_light_color or
                 self._state.sauna.fireorder != old_fireorder):
             state_changed = True
 
         return state_changed
-
-        # ⚡ FIXED: Indentation shifted back to root class level (4 spaces)
 
     async def _system_telemetry_loop(self) -> None:
         """Background execution loop polling hardware diagnostics and connection channels."""
@@ -569,16 +570,18 @@ class StateManager:
         def _is_connected(client_mgr) -> bool:
             if not client_mgr:
                 return False
-            if hasattr(client_mgr, "is_connected"):
-                return client_mgr.is_connected() if callable(client_mgr.is_connected) else client_mgr.is_connected
-            if hasattr(client_mgr, "_client") and hasattr(client_mgr._client, "is_connected"):
-                return client_mgr._client.is_connected()
-            return True
+            # Check if the manager wrapper class has a valid, initialized aiomqtt Client object
+            if hasattr(client_mgr, "client") and client_mgr.client is not None:
+                # If your aiomqtt client version exposes an internal connection check:
+                if hasattr(client_mgr.client, "is_connected"):
+                    return client_mgr.client.is_connected()
+                # Safe fallback: if the client object is active and alive, count it as connected
+                return True
+            return False
 
         while True:
             try:
                 await asyncio.sleep(2.0)
-
                 metrics_payload = {
                     "wanos_connected": _is_connected(self.mqtt_client),
                     "domoticz_connected": _is_connected(self.domoticz_client),
@@ -586,9 +589,7 @@ class StateManager:
                     "os_uptime": _get_os_uptime(),
                     "app_uptime": _format_seconds(time.time() - self._start_time)
                 }
-
                 self.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))
-
             except asyncio.CancelledError:
                 break
             except Exception:

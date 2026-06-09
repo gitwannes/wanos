@@ -135,6 +135,9 @@ class SystemState(BaseModel):
     metrics: MetricsState = Field(default_factory=MetricsState)
     hardware: HardwareState = Field(default_factory=HardwareState)
 
+    # The generic "Peripheral Catch-all" dictionary for the Sorting Office
+    devices: Dict[str, Any] = Field(default_factory=dict)
+
     # Allows the baseline validation rules parsed out of config_lab.yaml
     # to be passed seamlessly down to the web UI without strict compilation loop blocks.
     lab_seed: Optional[Any] = None

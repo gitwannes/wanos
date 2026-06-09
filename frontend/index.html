@@ -270,8 +270,11 @@
                     </div>
                     <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
                         <div class="text-xs font-bold text-base-400 uppercase">Ventilator</div>
-                        <div class="font-mono text-sm mt-0.5" :class="state.environment.bathroom_vent_on ? 'text-info font-bold animate-pulse' : 'text-base-500'">
-                            <span x-text="state.environment.bathroom_vent_on ? '💨 RUNNING' : 'OFF'"></span>
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-sm mt-0.5" :class="state.environment.bathroom_vent_on ? 'text-info font-bold animate-pulse' : 'text-base-500'" x-text="state.environment.bathroom_vent_on ? '💨 RUNNING' : 'OFF'"></span>
+                            <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
+                                   :checked="state.environment.bathroom_vent_on"
+                                   @change="injectLabHubStateChange('bathroom_ventilator', $event.target.checked)" />
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4 font-mono text-xs">
@@ -388,12 +391,6 @@
                                            x-model="labDoorBathroomOpen"
                                            @change="injectLabDoorChange('bathroom', labDoorBathroomOpen)" />
                                 </div>
-                                <div class="flex items-center justify-between text-xs font-mono">
-                                    <span class="text-gray-400 font-medium">Ventilator:</span>
-                                    <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
-                                           x-model="labBathroomVentOn"
-                                           @change="injectLabHubStateChange('bathroom_ventilator', labBathroomVentOn)" />
-                                </div>
                             </div>
                             <div class="pt-2 border-t border-dashed border-base-300 space-y-2">
                                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Water Injectors</span>
@@ -459,12 +456,15 @@
                                 <span class="text-base-400 uppercase font-bold">WanOS Broker</span>
                                 <span class="badge badge-xs py-2 px-2" :class="state.system.wanos_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.wanos_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                             </div>
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+                        <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
                                 <span class="text-base-400 uppercase font-bold">Domoticz Hub</span>
                                 <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                             </div>
+                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+                                <span class="text-base-400 uppercase font-bold">Safety SSR Relay</span>
+                                <span class="badge badge-xs py-2 px-2" :class="state.devices.safety_ssr === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral'" x-text="state.devices.safety_ssr === 'ON' ? 'ENGAGED' : 'SAFE'"></span>
+                            </div>
                         </div>
-
                         <div class="space-y-2 font-mono text-xs flex flex-col justify-center">
                             <div class="flex justify-between items-center p-2 bg-base-200 border border-base-300 rounded-box">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">Host IP Address</span>
