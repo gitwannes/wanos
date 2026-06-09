@@ -301,13 +301,21 @@ class StateManager:
                     if env.bathroom_hum >= on_threshold and not env.bathroom_vent_on:
                         env.bathroom_vent_on = True
                         state_changed = True
-                        print(
-                            f"💨 [StateManager] Bathroom humidity ({env.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator.")
+                        msg = f"💨 Bathroom humidity ({env.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator."
+                        print(f"[StateManager] {msg}")
+                        # Push the automated hysteresis event directly to the telemetry terminal list
+                        if not self._state.hardware.live_mode:
+                            ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                            self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
                     elif env.bathroom_hum <= off_threshold and env.bathroom_vent_on:
                         env.bathroom_vent_on = False
                         state_changed = True
-                        print(
-                            f"💨 [StateManager] Bathroom humidity ({env.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator.")
+                        msg = f"💨 Bathroom humidity ({env.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator."
+                        print(f"[StateManager] {msg}")
+                        # Push the automated hysteresis event directly to the telemetry terminal list
+                        if not self._state.hardware.live_mode:
+                            ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                            self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
 
             elif sensor_id == "cinema":
                 env.cinema_hum = val

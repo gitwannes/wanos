@@ -64,3 +64,6 @@ coverage.xml
 *.swo
 .DS_Store
 Thumbs.db
+
+# 7.
+code-import/

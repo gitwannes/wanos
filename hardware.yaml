@@ -14,6 +14,16 @@ domoticz:
     port: 1883
     username: "st0001"
   idx:
+    bathroom_ventilator:
+      id: 7558
+      type: "switch"
+    safety_ssr:
+      id: 8567
+      type: "switch"
+    sauna_extrvent:
+      id: 8577
+      type: "switch"
+# these are virtual sensors in Domoticz
     bathroom_th:
       id: 7436
       type: "temphum"
@@ -38,20 +48,11 @@ domoticz:
     ir:
       id: 7551
       type: "switch"
-    sauna_extrvent:
-      id: 8577
-      type: "switch"
     cinema_hue:
       id: 7312
       type: "switch"
     sauna_hue:
       id: 7561
-      type: "switch"
-    bathroom_extrvent:
-      id: 7558
-      type: "switch"
-    safety_ssr:
-      id: 8567
       type: "switch"
 
 # Physical Raspberry Pi Pin Deployments

@@ -439,7 +439,6 @@
                                 <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labOutsideHum" @input="labOutsideHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'outside', labOutsideHum)" />
                             </div>
                         </div>
-
                     </div>
                 </div>
             </div>

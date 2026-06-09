@@ -29,7 +29,7 @@ class AuxiliaryController:
             state.light_color = AuxiliaryController._interpolate_color(
                 temp=current, 
                 min_temp=20.0,
-                max_temp=state.safe_max
+                max_temp=safe_max
             )
 
         # --------------------------------------------------------
