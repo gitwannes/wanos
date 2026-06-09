@@ -21,12 +21,18 @@ class StateManager:
         self._state: SystemState = SystemState()
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
         self._worker_task: Optional[asyncio.Task] = None
+        self._state_listeners: list[Any] = []  # NEW: Observer callback registry list
         self.mqtt_client: MqttClientManager = mqtt_client
         self.logger: WanosLogger = logger
 
         # Load centralized configuration profiles
         self._config = load_config()
+
+    def register_listener(self, callback: Any) -> None:
+        """Registers an async callback to be triggered instantly on state changes."""
+        self._state_listeners.append(callback)
         self._state.sauna.target_temp = float(self._config.sauna.default_setpoint)
+        self._state.sauna.max_temp = float(self._config.sauna.max_temp)
         self._state.lab_seed = self._config.lab_seed
 
         # ⏱️ DELAYED TIMELINE TRACKING VARIABLES
@@ -114,27 +120,6 @@ class StateManager:
                 changed = True
         return changed
 
-    def _update_lcd_text(self) -> None:
-        """Authentic LCD Virtual Terminal Matrix Renderer with True Degree Symbols."""
-        sauna = self._state.sauna
-
-        if sauna.active:
-            temp_display = f"{int(sauna.current_temp)}°C" if sauna.current_temp is not None else "--°C"
-            if sauna.door_open:
-                sauna.lcd_text = f"CLOSE DOOR | {temp_display}"
-            elif sauna.hold_mode == "hold":
-                sauna.lcd_text = f"SAUNA HOLD | {temp_display}"
-            else:
-                sauna.lcd_text = f"SAUNA ON | {temp_display} ({sauna.modulation_pwm}%)"
-            return
-
-        if sauna.ventilation_state == "RUNNING":
-            sauna.lcd_text = "VENT RUNNING"
-        elif sauna.ventilation_state == "WAITING":
-            sauna.lcd_text = "VENT WAITING"
-        else:
-            sauna.lcd_text = ""
-
     async def _process_events(self) -> None:
         """Sequential event execution stream loop with outbound network batch debouncing."""
         pending_broadcast = False
@@ -150,8 +135,18 @@ class StateManager:
                 self._queue.task_done()
 
             if pending_broadcast and self._queue.empty():
-                snapshot = self.get_state_snapshot().model_dump()
-                await self.mqtt_client.publish("wisc/system/state", snapshot)
+                snapshot_obj: SystemState = self.get_state_snapshot()
+
+                # 1. External Network Broadcast
+                await self.mqtt_client.publish("wisc/system/state", snapshot_obj.model_dump())
+
+                # 2. Internal Observer Push
+                for listener in self._state_listeners:
+                    try:
+                        await listener(snapshot_obj)
+                    except Exception as e:
+                        await self.logger.error(f"Error in state listener execution: {e}")
+
                 pending_broadcast = False
 
     async def _handle_event(self, event: Event) -> bool:
@@ -373,6 +368,16 @@ class StateManager:
                 self._state.environment.bathroom_vent_on = is_on
                 state_changed = True
 
+        elif event_name == "LIGHTING_STATE_CHANGED":
+            zone = payload.get("zone")
+            is_on = payload.get("state") == "ON"
+            if zone == "cinema":
+                self._state.environment.cinema_hue_on = is_on
+                state_changed = True
+            elif zone == "sauna":
+                self._state.environment.sauna_hue_on = is_on
+                state_changed = True
+
         elif event_name == "VENT_WAIT_EXPIRED":
             self._state.sauna.ventilation_state = "RUNNING"
             self._state.environment.sauna_extraction_vent_on = True
@@ -389,7 +394,7 @@ class StateManager:
         elif event_name == "SETPOINT_CHANGED":
             new_target = payload.get("target")
             if new_target is not None:
-                self._state.sauna.target_temp = new_target
+                self._state.sauna.target_temp = min(float(new_target), self._state.sauna.max_temp)
                 state_changed = True
 
         elif event_name == "MODULATION_UPDATED":
@@ -433,9 +438,26 @@ class StateManager:
                     state_changed = True
 
         # --- DEFENSIVE RE-RENDER CHECKPOINT ---
-        old_lcd_text = self._state.sauna.lcd_text
-        self._update_lcd_text()
-        if self._state.sauna.lcd_text != old_lcd_text:
+        from logic.auxiliary_controller import AuxiliaryController
+
+        old_lcd_text: str = self._state.sauna.lcd_text
+        old_light_color: str = self._state.sauna.light_color
+        old_fireorder: str = self._state.sauna.fireorder
+
+        # Delegate display and lighting logic cleanly to the pure business logic controller
+        self._state.sauna = AuxiliaryController.evaluate(self._state.sauna)
+
+        if not self._state.sauna.active:
+            self._state.sauna.fireorder = "--"
+        else:
+            # Query the sauna logic controller for today's wear-leveling permutation
+            raw_order = self.sauna_logic.get_current_order_string()
+            # Cleans "U -> V -> W" into "UVW" to fit neatly in your UI badge
+            self._state.sauna.fireorder = raw_order.replace(" -> ", "")
+
+        if (self._state.sauna.lcd_text != old_lcd_text or
+                self._state.sauna.light_color != old_light_color or
+                self._state.sauna.fireorder != old_fireorder):
             state_changed = True
 
         return state_changed

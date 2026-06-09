@@ -61,26 +61,29 @@ class EnvironmentState(BaseModel):
 
     cinema_temp: Optional[float] = None
     cinema_hum: Optional[int] = None
+    cinema_hue_on: bool = False
 
     sauna_high_temp: Optional[float] = None
     sauna_high_hum: Optional[int] = None
     sauna_low_temp: Optional[float] = None
     sauna_low_hum: Optional[int] = None
-
     sauna_calc_temp: Optional[float] = None
     sauna_calc_hum: Optional[int] = None
     sauna_extraction_vent_on: bool = False
+    sauna_hue_on: bool = False
 
 
 class SaunaState(BaseModel):
     active: bool = False
     target_temp: Optional[float] = None
     current_temp: Optional[float] = None
+    max_temp: Optional[float] = None
     current_humidity: Optional[int] = None
     door_open: bool = False
     hold_mode: str = "nohold"
     modulation_pwm: int = 0
     phases_pwm: List[int] = Field(default_factory=lambda: [0, 0, 0])
+    fireorder: str = "--"
     session_start_time: Optional[int] = None
     session_end_time: Optional[int] = None
     ventilation_state: str = "OFF"

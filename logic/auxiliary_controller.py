@@ -25,31 +25,33 @@ class AuxiliaryController:
             # Heating Mode: Dynamic Thermal Gradient (Blue -> Red)
             # We assume a starting blue floor of 20.0C up to the target_temp.
             current = state.current_temp if state.current_temp is not None else 20.0
+            safe_max = state.target_temp if state.target_temp is not None else 90.0
             state.light_color = AuxiliaryController._interpolate_color(
                 temp=current, 
-                min_temp=20.0, 
-                max_temp=state.target_temp
+                min_temp=20.0,
+                max_temp=state.safe_max
             )
 
         # --------------------------------------------------------
         # 2. EVALUATE LCD TEXT
         # --------------------------------------------------------
-        if not state.active:
-            state.lcd_text = ""
-            
-        elif state.door_open:
-            state.lcd_text = "PLEASE CLOSE DOOR"
-            
-        else:
-            # The UI handles exact 1-second ticking, but the physical LCD
-            # might only need minute-by-minute updates to avoid rapid screen flashing.
-            if state.session_end_time:
-                now = int(time.time())
-                remaining_secs = max(0, state.session_end_time - now)
-                h, m = divmod(remaining_secs // 60, 60)
-                state.lcd_text = f"{h:02d}:{m:02d}"
+        if state.active:
+            # Format the target string, defaulting if physical sensors are detached
+            temp_display: str = f"{int(state.current_temp)}°C" if state.current_temp is not None else "--°C"
+
+            if state.door_open:
+                state.lcd_text = f"CLOSE DOOR | {temp_display}"
+            elif state.hold_mode == "hold":
+                state.lcd_text = f"SAUNA HOLD | {temp_display}"
             else:
-                state.lcd_text = "SAUNA ON"
+                state.lcd_text = f"SAUNA ON | {temp_display} ({state.modulation_pwm}%)"
+
+        elif state.ventilation_state == "RUNNING":
+            state.lcd_text = "VENT RUNNING"
+        elif state.ventilation_state == "WAITING":
+            state.lcd_text = "VENT WAITING"
+        else:
+            state.lcd_text = ""
 
         return state
 

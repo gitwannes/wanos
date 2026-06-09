@@ -22,24 +22,27 @@ function wanosApp() {
                 door_bathroom_open: false,
                 cinema_temp: null,
                 cinema_hum: null,
-                cinema_hue_on: false, // ⚡ NEW CINEMA HUE TRACKER
+                cinema_hue_on: false,
                 sauna_high_temp: null,
                 sauna_high_hum: null,
                 sauna_low_temp: null,
                 sauna_low_hum: null,
                 sauna_calc_temp: null,
                 sauna_calc_hum: null,
-                sauna_extraction_vent_on: false
+                sauna_extraction_vent_on: false,
+                sauna_hue_on: false
             },
             sauna: {
                 active: false,
                 target_temp: 70,
                 current_temp: null,
+                max_temp: null,
                 current_humidity: null,
                 door_open: false,
                 hold_mode: "autohold",
                 modulation_pwm: 0,
                 phases_pwm: [0, 0, 0],
+                fireorder: "--",
                 session_start_time: null,
                 session_end_time: null,
                 ventilation_state: "OFF",
@@ -83,6 +86,9 @@ function wanosApp() {
         labOutsideHum: null,
         labDoorSaunaOpen: false,
         labDoorBathroomOpen: false,
+        labCinemaHueOn: false,
+        labSaunaHueOn: false,
+        labBathroomVentOn: false,
 
         elapsedText: "00:00:00",
         remainingText: "00:00:00",
@@ -117,6 +123,7 @@ function wanosApp() {
                     parsedState.sauna.modulation_pwm = parsedState.sauna.modulation_pwm ?? 0;
                     parsedState.environment.door_bathroom_open = parsedState.environment.door_bathroom_open ?? false;
                     parsedState.environment.cinema_hue_on = parsedState.environment.cinema_hue_on ?? false;
+                    parsedState.environment.sauna_hue_on = parsedState.environment.sauna_hue_on ?? false;
 
                     // Safety mapping for the new system block before backend is updated
                     parsedState.system = parsedState.system || this.state.system;
@@ -207,6 +214,9 @@ function wanosApp() {
 
             this.labDoorSaunaOpen = this.state.sauna.door_open;
             this.labDoorBathroomOpen = env.door_bathroom_open;
+            this.labCinemaHueOn = env.cinema_hue_on;
+            this.labSaunaHueOn = env.sauna_hue_on;
+            this.labBathroomVentOn = env.bathroom_vent_on;
 
             this.labSaunaHighTemp = env.sauna_high_temp ?? seed.sauna_high_temp;
             this.labSaunaHighHum  = env.sauna_high_hum  ?? seed.sauna_high_hum;
@@ -270,6 +280,14 @@ function wanosApp() {
 
         injectLabDoorChange(doorName, isOpen) {
             this.dispatchEvent("DOOR_CHANGED", { sensor_id: doorName, is_open: isOpen });
+        },
+
+        injectLabLightingChange(zoneName, isOn) {
+            this.dispatchEvent("LIGHTING_STATE_CHANGED", { zone: zoneName, state: isOn ? "ON" : "OFF" });
+        },
+
+        injectLabHubStateChange(deviceId, isOn) {
+            this.dispatchEvent("HUB_STATE_CHANGED", { device_id: deviceId, state: isOn ? "ON" : "OFF" });
         },
 
         injectWaterPulse(fluidType) {

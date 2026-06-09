@@ -7,21 +7,22 @@ This document serves as the master blueprint and reference guide for the directo
 **Root Directory (`C:\data\git\wanos\`)**
 * `.gitignore`: Specifies intentionally untracked files to ignore for source control.
 * `.env`: Secrets file holding sensitive infrastructure values (Excluded from Source Control).
-* `config.yaml`: The unified production system configuration file.
+* `hardware.yaml`: Static, layered mapping of physical GPIO pins, MQTT network architectures, and external node IDXs.
+* `config.yaml`: The unified production system configuration file (runtime logic properties).
 * `config_lab.yaml`: Mock architecture states used to initialize variables during Lab Mode.
-* `main.py`: The ASGI entry point. Initializes FastAPI, signal traps, and hardware threads.
+* `main.py`: The ASGI entry point. Initializes FastAPI, signal traps, external integrations, and hardware threads.
 * `requirements.txt`: Python package dependencies.
 
 **core/**
 * `__init__.py`: Package initializer.
-* `config.py`: Configuration mapping models used for system verification checks.
+* `config.py`: Strict Pydantic parsing schemas assembling `hardware.yaml` and `config.yaml` into a validated state.
 * `logger.py`: Custom-tailored asynchronous system log engine.
 * `models.py`: House-wide Pydantic modules handling validation layer targets. Defines distinct environmental targets (`outside`, `bathroom`, `cinema`, `sauna_high`, `sauna_low`).
-* `mqtt_client.py`: System broker interface and outbound state broadcaster.
-* `state_manager.py`: Runs the central system asynchronous event queue. Protects and limits state updates strictly within its single consumer loop execution context. Intercepts discrete sauna sensor updates to calculate true `sauna_calc_temp` and `sauna_calc_hum`.
+* `mqtt_client.py`: Async-native (`aiomqtt`) system broker wrapper supporting background stream subscriptions and publishing.
+* `state_manager.py`: Runs the central system asynchronous event queue. Protects and limits state updates strictly within its single consumer loop execution context.
 
-**frontend/** * `app.js`: Vue application logic, store variables, and component definitions.
-* `index.html`: Main HTML entry point and UI layout structure.
+**frontend/** * `app.js`: Alpine.js reactive store, SSE stream handlers, and timestamp metronome loops.
+* `index.html`: Main HTML entry point mapped to TailwindCSS + DaisyUI components.
 
 **hardware/** (Local Physical Interfaces)
 * `sensors.py`: Thread polling managers watching for local physical environmental changes (SHT11 arrays, GPIO pulses).
@@ -33,12 +34,13 @@ This document serves as the master blueprint and reference guide for the directo
 * `timers.py`: Simple wrappers feeding tracking alerts directly to the core state manager queue upon expiration loops.
 
 **integrations/** (Networked Physical Interfaces)
-* `home_hub.py`: Target integration connector interfacing directly with Domoticz environments (reads outdoor temps, commands bathroom and extraction vents).
+* `home_hub.py`: Target integration connector interfacing via a dedicated remote MQTT broker connection directly to Domoticz environments (reads outdoor temps, syncs bathroom and extraction vents).
 * `lighting.py`: Coordinates configuration updates directly to local color lighting environments (Hue Bridge).
 
 ---
 
 ## 2. MQTT Topics
+*(Note: WanOS utilizes two distinct MQTT Client Manager instances. One binds to the local `localhost` broker for UI operations, while the other binds to external hubs like Domoticz).*
 
 | Topic | Direction | Payload | Trigger/Purpose |
 | :--- | :--- | :--- | :--- |
@@ -55,7 +57,7 @@ The FastAPI server (running at `http://<backend-ip>:8000`) exposes the following
 
 | Endpoint | Method | Purpose | Payload Requirements |
 | :--- | :--- | :--- | :--- |
-| **`/`** | GET | Serves compiled frontend static assets | N/A |
+| **`/`** | GET | Serves compiled frontend static HTML assets | N/A |
 | **`/api/state`** | GET | Retrieves read-only JSON snapshot for instant sync | N/A |
 | **`/api/state/sse`** | GET | Primary persistent real-time UI data pipeline | N/A |
 | **`/api/console`** | GET | Retrieves JSON of last 100 log events | N/A |
@@ -133,6 +135,11 @@ The `/api/event` endpoint acts as the universal command receiver for WanOS. It a
 **Update Humidity (requires sensor_id target):**
 ```json
 { "type": "HUMIDITY_UPDATED", "payload": { "sensor_id": "bathroom", "value": 75.0 } }
+```
+
+**Trigger Magnetic Door Interlocks:**
+```json
+{ "type": "DOOR_CHANGED", "payload": { "sensor_id": "bathroom", "is_open": true } }
 ```
 
 **Report Sensor Error:**

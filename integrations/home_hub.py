@@ -1,8 +1,7 @@
-# --- file: integrations/home_hub.py ---
 import asyncio
 import json
 from typing import Any, Dict, Optional
-from core.models import Event, EventType
+from core.models import Event, EventType, SystemState
 from core.state_manager import StateManager
 
 
@@ -28,20 +27,14 @@ class DomoticzHomeHubBridge:
         self._last_known_extractor_state: Optional[bool] = None
         self._last_known_bathroom_vent_state: Optional[bool] = None
 
-        self._worker_task: Optional[asyncio.Task] = None
-
     async def start(self) -> None:
         await self.mqtt_client.subscribe(self._in_topic, self._parse_domoticz_inbound)
-        self._worker_task = asyncio.create_task(self._outbound_monitor_loop())
-        await self.logger.success("🏠 Domoticz HomeHub Bridge initialized and listening.")
+        # Register the targeted push listener instead of spawning a polling loop
+        self.state_manager.register_listener(self._on_state_changed)
+        await self.logger.success("🏠 Domoticz HomeHub Bridge initialized and listening (Push Mode).")
 
     async def stop(self) -> None:
-        if self._worker_task:
-            self._worker_task.cancel()
-            try:
-                await self._worker_task
-            except asyncio.CancelledError:
-                pass
+        # Worker task removed; shutdown sequence is now purely observational
         await self.logger.warning("🏠 Domoticz HomeHub Bridge stopped.")
 
     async def _parse_domoticz_inbound(self, topic: str, payload: str) -> None:
@@ -69,7 +62,13 @@ class DomoticzHomeHubBridge:
 
             elif idx == self.IDX_BATHROOM_VENT:
                 nvalue = data.get("nvalue", 0)
-                status_string = "ON" if nvalue > 0 else "OFF"
+                is_on: bool = (nvalue > 0)
+                status_string: str = "ON" if is_on else "OFF"
+
+                # CIRCUIT BREAKER: Lock this state into memory BEFORE dispatching.
+                # When the core eventually echoes the new state back to our _on_state_changed
+                # listener, it will see this matches and abort the outbound MQTT broadcast.
+                self._last_known_bathroom_vent_state = is_on
 
                 self.state_manager.dispatch(Event(
                     type=EventType.HUB_STATE_CHANGED,
@@ -81,39 +80,34 @@ class DomoticzHomeHubBridge:
         except Exception as e:
             await self.logger.error(f"Error handling Domoticz inbound translation: {e}")
 
-    async def _outbound_monitor_loop(self) -> None:
-        while True:
-            try:
-                await asyncio.sleep(2.0)
-                state = self.state_manager.get_state_snapshot()
+    async def _on_state_changed(self, state: SystemState) -> None:
+        """Triggered instantly by the StateManager when the system state mutates."""
+        try:
+            # --- SAUNA EXTRACTION FAN ---
+            current_extractor_target: bool = state.environment.sauna_extraction_vent_on
+            if current_extractor_target != self._last_known_extractor_state:
+                domoticz_command: Dict[str, Any] = {
+                    "command": "switchlight",
+                    "idx": self.IDX_SAUNA_EXTRACTOR,
+                    "switchcmd": "On" if current_extractor_target else "Off"
+                }
+                await self.mqtt_client.publish(self._out_topic, domoticz_command)
+                await self.logger.info(
+                    f"🏠 Domoticz Sync: Sauna Extractor -> {'ON' if current_extractor_target else 'OFF'}")
+                self._last_known_extractor_state = current_extractor_target
 
-                # --- SAUNA EXTRACTION FAN ---
-                current_extractor_target = state.environment.sauna_extraction_vent_on
-                if current_extractor_target != self._last_known_extractor_state:
-                    domoticz_command = {
-                        "command": "switchlight",
-                        "idx": self.IDX_SAUNA_EXTRACTOR,
-                        "switchcmd": "On" if current_extractor_target else "Off"
-                    }
-                    await self.mqtt_client.publish(self._out_topic, domoticz_command)
-                    await self.logger.info(
-                        f"🏠 Domoticz Sync: Sauna Extractor -> {'ON' if current_extractor_target else 'OFF'}")
-                    self._last_known_extractor_state = current_extractor_target
+            # --- BATHROOM FAN ---
+            current_bathroom_vent: bool = state.environment.bathroom_vent_on
+            if current_bathroom_vent != self._last_known_bathroom_vent_state:
+                domoticz_command = {
+                    "command": "switchlight",
+                    "idx": self.IDX_BATHROOM_VENT,
+                    "switchcmd": "On" if current_bathroom_vent else "Off"
+                }
+                await self.mqtt_client.publish(self._out_topic, domoticz_command)
+                await self.logger.info(
+                    f"🏠 Domoticz Sync: Bathroom Vent -> {'ON' if current_bathroom_vent else 'OFF'}")
+                self._last_known_bathroom_vent_state = current_bathroom_vent
 
-                # --- BATHROOM FAN ---
-                current_bathroom_vent = state.environment.bathroom_vent_on
-                if current_bathroom_vent != self._last_known_bathroom_vent_state:
-                    domoticz_command = {
-                        "command": "switchlight",
-                        "idx": self.IDX_BATHROOM_VENT,
-                        "switchcmd": "On" if current_bathroom_vent else "Off"
-                    }
-                    await self.mqtt_client.publish(self._out_topic, domoticz_command)
-                    await self.logger.info(
-                        f"🏠 Domoticz Sync: Bathroom Vent -> {'ON' if current_bathroom_vent else 'OFF'}")
-                    self._last_known_bathroom_vent_state = current_bathroom_vent
-
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                await self.logger.error(f"Error in Domoticz outbound command loops: {e}")
+        except Exception as e:
+            await self.logger.error(f"Error in Domoticz outbound push execution: {e}")

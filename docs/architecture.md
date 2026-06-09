@@ -18,9 +18,9 @@ The system operates on a private home network and consists of two primary Raspbe
 This project is a **100% clean-slate rewrite**. All new code adheres to modern best practices (SOLID principles, strict typing, modularity).
 
 * **Backend:** Python 3.11+ utilizing **FastAPI**. Enforces strict data validation via **Pydantic** models. Manages the core async event loop.
-* **Frontend:** **Vue 3 (Composition API)**. Component-based design allows the UI to be instantly adaptable. 
-* **Communication:** **Server-Sent Events (SSE)** for frontend real-time tracking, and **MQTT over WebSockets** for external clients/hardware.
-* **MQTT Broker:** **Eclipse Mosquitto**, hosted locally on the Backend Node, explicitly configured for WebSocket listeners.
+* **Frontend:** **Alpine.js**. A lightweight, reactive framework paired with **TailwindCSS** and **DaisyUI** allows the UI to be instantly adaptable without a heavy build step.
+* **Communication:** **Server-Sent Events (SSE)** for frontend real-time tracking, and **MQTT** for external clients/hardware.
+* **Dual MQTT Brokers:** The system utilizes a dual-client architecture. A local Mosquitto broker handles high-frequency internal UI data, while a dedicated secondary client bridges strictly to external smart home networks (e.g., Domoticz).
 
 ## 3. Core Principles & Logic Separation
 * **Thin Client Architecture:** The frontend holds zero business logic. All mathematical operations, session tracking, and timers exist purely on the backend.
@@ -33,22 +33,25 @@ This project is a **100% clean-slate rewrite**. All new code adheres to modern b
 * **Asynchronous Hardware I/O:** Synchronous hardware calls are isolated in dedicated background threads fed by queues to prevent blocking the async event loop.
 
 ## 4. State Broadcasting & Disconnect Strategy
-State is broadcasted across distinct MQTT topics (e.g., `sauna/state`) and the `/api/state/sse` stream. 
+State is broadcasted across distinct MQTT topics (e.g., `wisc/system/state`) and the `/api/state/sse` stream. 
 
-If the WebSocket/SSE connection drops, the frontend disables all user inputs to prevent state mismatch and displays a "Reconnecting..." banner. Upon reconnect, the frontend fires a REST/WebSocket intent to request a full state dump from the backend to instantly synchronize, bypassing reliance on potentially missed stream updates. On backend boot, the system reads a `recovery_state.json` file to recover cumulative metrics and pushes an `INITIAL_STATE_LOADED` event to safely resume.
+If the WebSocket/SSE connection drops, the frontend disables all user inputs to prevent state mismatch and displays a "Reconnecting..." banner. Upon reconnect, the frontend instantly synchronizes to the next SSE payload, bypassing reliance on potentially missed stream updates. On backend boot, the system reads a `recovery_state.json` file to recover cumulative metrics and pushes an `INITIAL_STATE_LOADED` event to safely resume.
 
 ## 5. Configuration, Authentication, & Access
-* **Separation of Concerns:** A `.env` file securely holds sensitive keys, while `config.yaml` controls structural properties. `config_lab.yaml` is used for injecting mock states during Lab Mode.
+* **Separation of Concerns:** - `.env`: Securely holds sensitive keys and passwords.
+  - `hardware.yaml`: Layered static definitions of physical/virtual node IDXs, MQTT targets, and GPIO pins.
+  - `config.yaml`: Controls dynamic structural and runtime properties (default setpoints, PIDs).
+  - `config_lab.yaml`: Injects mock states during Lab Mode.
 * **Remote Configuration:** Admins can edit structural YAML configuration directly from the frontend.
 * **Authentication:** A single shared PIN code limits unauthorized physical access while maintaining a fast UX.
 
-## 6. UI Structure (Vue 3 Component Tree)
-The UI is built modularly using grid/flexbox layouts. A central store manages all SSE/MQTT subscriptions. Vue components read reactive state strictly from the store and never subscribe to streams directly. A dedicated "Switches" view centralizes all smart home lighting controls.
+## 6. UI Structure (Alpine.js Component Tree)
+The UI is built modularly using CSS Grid and Flexbox layouts via Tailwind CSS. A central `wanosApp()` store manages all SSE/MQTT subscriptions. HTML views read reactive state strictly from the Alpine `x-data` object and inject changes via REST endpoints. 
 
 ## 7. Safety Mechanisms, Watchdogs & Graceful Shutdown
 * **Hardware Actuation Lock:** The GPIO controller must explicitly verify a global `hardware_live_mode` flag before asserting physical signals.
 * **Door Interlock:** The Bouncer actively rejects `SAUNA_ON` commands if the door is open and bypasses the PID to drop heaters to 0% if the door opens mid-session.
-* **Clean Exit Sequence:** The ASGI entry point registers handlers for `SIGINT` and `SIGTERM`. If the process exits or crashes, a guaranteed teardown sequence triggers to immediately shut off heating elements.
+* **Clean Exit Sequence:** The ASGI entry point registers handlers for `SIGINT` and `SIGTERM`. If the process exits or crashes, a guaranteed teardown sequence triggers to immediately shut off heating elements and disconnect MQTT streams.
 
 ## 8. Core Event Type Catalogue
 To enforce strict typing, all internal events must map to a predefined schema using an explicit `EventType` Enum. *(For full payload schemas, refer to `reference.md`)*
@@ -62,8 +65,8 @@ To mitigate risk and ensure logical separation from hardware quirks, development
 
 * **Phase 1: Backend Core (COMPLETE)** - FastAPI + MQTT + `state_manager` + Pydantic models.
 * **Phase 2: Lab Mode & Logic (COMPLETE)** - Hardware abstraction layer and core business logic (`sauna_controller`).
-* **Phase 3: Environmental State Machine (COMPLETE)** - Door interlocks, Session Timers, Auxiliary Controller, and Thermodynamics Lab Engine. 
-* **Phase 4: Vue Frontend & External Integrations (ACTIVE)** - Build the production UI, connect to the backend, test PIN authentication.
+* **Phase 3: Environmental State Machine & Integrations (COMPLETE)** - Door interlocks, Session Timers, Thermodynamics Lab Engine, Alpine.js layout overhaul, and the Domoticz network bridge.
+* **Phase 4: Administrative UI & Telemetry (ACTIVE)** - Build the System Administration panel, hook up live OS/App uptimes, IP metrics, and finalize external integration hooks.
 * **Phase 5: Hardware Migration (The Physical World)** - Map the physical GPIOs, transition the backend to the live Raspberry Pi, and finally migrate the LCD screens.
 
 ## 10. Technical Reference Guide
