@@ -158,9 +158,51 @@ class StateManager:
         is_routine_sensory = event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED", "KWH_PULSE", "WATER_PULSE"]
         is_manual_ui_action = payload.get("ui_override", False)
 
+        # --- file: core/state_manager.py ---
         if not is_routine_sensory or is_manual_ui_action:
             print(f"📥 [StateManager] Event Received: {event_name.ljust(22)} | Payload: {payload}")
             await self.logger.info(f"User Action Processed: {event_name}")
+
+        # ⚡ FIXED: Shifted 4 spaces left to break free from the user-action filter block
+        # If it's a background simulator event, translate it to a string for the UI panel!
+        if not self._state.hardware.live_mode and not is_manual_ui_action:
+            log_msg = ""
+            from datetime import datetime
+            ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]  # Generates HH:MM:SS.ms
+
+            if event_name == "TEMP_UPDATED":
+                sid = payload.get("sensor_id")
+                new_val = payload.get("value")
+                old_val = getattr(self._state.environment, f"{sid}_temp", None)
+                if old_val is not None:
+                    delta = round(float(new_val) - float(old_val), 1)
+                    if delta != 0.0:  # Only log if it actually shifted!
+                        sign = "+" if delta > 0 else ""
+                        log_msg = f"{ts}|🌡️ {sid} temp: {sign}{delta}°C -> {new_val:.1f}°C"
+                else:
+                    log_msg = f"{ts}|🌡️ {sid} temp: -> {new_val:.1f}°C"
+
+            elif event_name == "HUMIDITY_UPDATED":
+                sid = payload.get("sensor_id")
+                new_val = payload.get("value")
+                old_val = getattr(self._state.environment, f"{sid}_hum", None)
+                if old_val is not None:
+                    delta = int(new_val) - int(old_val)
+                    if delta != 0:  # Only log if it actually shifted!
+                        sign = "+" if delta > 0 else ""
+                        log_msg = f"{ts}|💧 {sid} humidity: {sign}{delta}% -> {new_val}%"
+                else:
+                    log_msg = f"{ts}|💧 {sid} humidity: -> {new_val}%"
+
+            elif event_name == "HUB_STATE_CHANGED":
+                dev = payload.get("device_id")
+                st = payload.get("state")
+                log_msg = f"{ts}|🔌 {dev}: -> {st}"
+
+            if log_msg:
+                self._state.hardware.lab_simulation_logs.insert(0, log_msg)
+                self._state.hardware.lab_simulation_logs = self._state.hardware.lab_simulation_logs[:50]
+                state_changed = True
 
         if event_name == "INITIAL_STATE_LOADED":
             self._state.hardware.live_mode = False
@@ -171,6 +213,14 @@ class StateManager:
             self._state.hardware.live_mode = payload.get("live", False)
             self._set_hardware_safety_gate(self._state.hardware.live_mode)
             state_changed = True
+
+        elif event_name == "LAB_SIMULATION_LOG":
+            msg = payload.get("message", "")
+            if msg:
+                # Insert at the top (index 0) so the newest logs are first, keep max 50
+                self._state.hardware.lab_simulation_logs.insert(0, msg)
+                self._state.hardware.lab_simulation_logs = self._state.hardware.lab_simulation_logs[:50]
+                state_changed = True
 
         # --------------------------------------------------------
         # PHYSICAL PULSE MAPPING

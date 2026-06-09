@@ -38,6 +38,7 @@ class EventType(str, Enum):
     BACKEND_SHUTDOWN = "BACKEND_SHUTDOWN"
     HARDWARE_LIVE_MODE_CHANGED = "HARDWARE_LIVE_MODE_CHANGED"
     CONFIG_UPDATED = "CONFIG_UPDATED"
+    LAB_SIMULATION_LOG = "LAB_SIMULATION_LOG"
 
     # External Events
     HUB_STATE_CHANGED = "HUB_STATE_CHANGED"
@@ -114,6 +115,7 @@ class HardwareState(BaseModel):
     live_mode: bool = False
     safety_pin_active: bool = False
     sensor_errors: List[str] = Field(default_factory=list)
+    lab_simulation_logs: List[str] = Field(default_factory=list)
 
 
 class SystemState(BaseModel):

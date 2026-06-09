@@ -69,7 +69,8 @@ function wanosApp() {
             hardware: {
                 live_mode: false,
                 safety_pin_active: false,
-                sensor_errors: []
+                sensor_errors: [],
+                lab_simulation_logs: []
             },
             lab_seed: null
         },
