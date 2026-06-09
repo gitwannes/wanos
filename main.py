@@ -112,8 +112,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     except Exception as startup_err:
         print(f"\n💥 [CRITICAL BOOT FAIL] Core initialization collapsed: {startup_err}")
-        print("👉 Check that a local MQTT broker is running ('sudo systemctl status mosquitto')")
-        print("👉 Ensure both 'config.yaml' and 'hardware.yaml' exist in the project root.\n")
+        # print("👉 Check that a local MQTT broker is running ('sudo systemctl status mosquitto')")
+        # print("👉 Ensure both 'config.yaml' and 'hardware.yaml' exist in the project root.\n")
         os._exit(1)
 
     print("🚀 [WanOS Boot] Pre-boot checks passed. Opening network lines to HTTP/SSE web interface...")

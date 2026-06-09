@@ -39,11 +39,20 @@ class EventType(str, Enum):
     HARDWARE_LIVE_MODE_CHANGED = "HARDWARE_LIVE_MODE_CHANGED"
     CONFIG_UPDATED = "CONFIG_UPDATED"
     LAB_SIMULATION_LOG = "LAB_SIMULATION_LOG"
+    SYSTEM_METRICS_UPDATED = "SYSTEM_METRICS_UPDATED"
 
     # External Events
     HUB_STATE_CHANGED = "HUB_STATE_CHANGED"
     LIGHTING_STATE_CHANGED = "LIGHTING_STATE_CHANGED"
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
+
+
+class SystemAdminState(BaseModel):
+    wanos_mqtt_connected: bool = False
+    domoticz_mqtt_connected: bool = False
+    ip_address: str = "0.0.0.0"
+    os_uptime_formatted: str = "00:00:00"
+    app_uptime_formatted: str = "00:00:00"
 
 
 class Event(BaseModel):
@@ -119,6 +128,7 @@ class HardwareState(BaseModel):
 
 
 class SystemState(BaseModel):
+    system: SystemAdminState = Field(default_factory=SystemAdminState)
     environment: EnvironmentState = Field(default_factory=EnvironmentState)
     sauna: SaunaState = Field(default_factory=SaunaState)
     ir: IRState = Field(default_factory=IRState)

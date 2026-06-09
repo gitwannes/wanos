@@ -11,6 +11,9 @@ class DomoticzHomeHubBridge:
                  domoticz_out_topic: str = "domoticz/in") -> None:
         self.state_manager = state_manager
 
+        # Link the client reference to the StateManager so the admin panel can check its live status
+        self.state_manager.domoticz_client = domoticz_mqtt_client
+
         # Uses the dedicated remote broker client
         self.mqtt_client = domoticz_mqtt_client
         self.logger = state_manager.logger

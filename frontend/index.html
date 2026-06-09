@@ -344,16 +344,16 @@
                                     <span class="text-gray-400 font-medium">Ceiling Probe (High)</span>
                                     <span class="text-warning font-mono font-bold" x-text="labSaunaHighTemp !== null ? parseFloat(labSaunaHighTemp).toFixed(1) + '°C / ' + labSaunaHighHum + '%' : '--.-°C / --%'"></span>
                                 </div>
-                                <input type="range" min="15" max="110" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaHighTemp" @input="labSaunaHighTemp = $event.target.value" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_high', labSaunaHighTemp)" />
-                                <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaHighHum" @input="labSaunaHighHum = $event.target.value" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_high', labSaunaHighHum)" />
+                                <input type="range" min="15" max="110" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaHighTemp" @input="labSaunaHighTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_high', labSaunaHighTemp)" />
+                                <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaHighHum" @input="labSaunaHighHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_high', labSaunaHighHum)" />
                             </div>
                             <div class="pt-2 border-t border-dashed border-base-300">
                                 <div class="flex justify-between text-[11px] mb-1">
                                     <span class="text-gray-400 font-medium">Bench Probe (Low)</span>
                                     <span class="text-warning font-mono font-bold" x-text="labSaunaLowTemp !== null ? parseFloat(labSaunaLowTemp).toFixed(1) + '°C / ' + labSaunaLowHum + '%' : '--.-°C / --%'"></span>
                                 </div>
-                                <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaLowTemp" @input="labSaunaLowTemp = $event.target.value" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_low', labSaunaLowTemp)" />
-                                <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaLowHum" @input="labSaunaLowHum = $event.target.value" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_low', labSaunaLowHum)" />
+                                <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaLowTemp" @input="labSaunaLowTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_low', labSaunaLowTemp)" />
+                                <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaLowHum" @input="labSaunaLowHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_low', labSaunaLowHum)" />
                             </div>
                             <div class="pt-2 border-t border-base-300 space-y-2.5">
                                 <div class="flex items-center justify-between text-xs font-mono">
@@ -378,8 +378,8 @@
                                     <span class="text-gray-400 font-medium">Atmosphere</span>
                                     <span class="text-accent font-mono font-bold" x-text="labBathroomTemp !== null ? parseFloat(labBathroomTemp).toFixed(1) + '°C / ' + labBathroomHum + '%' : '--.-°C / --%'"></span>
                                 </div>
-                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroomTemp" @input="labBathroomTemp = $event.target.value" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'bathroom', labBathroomTemp)" />
-                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroomHum" @input="labBathroomHum = $event.target.value" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'bathroom', labBathroomHum)" />
+                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroomTemp" @input="labBathroomTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'bathroom', labBathroomTemp)" />
+                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroomHum" @input="labBathroomHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'bathroom', labBathroomHum)" />
                             </div>
                             <div class="pt-2 border-t border-base-300 space-y-2.5">
                                 <div class="flex items-center justify-between text-xs font-mono">
@@ -409,18 +409,6 @@
                         </div>
 
                         <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                            <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Bathroom</h3>
-                            <div>
-                                <div class="flex justify-between text-[11px] mb-1">
-                                    <span class="text-gray-400 font-medium">Atmosphere</span>
-                                    <span class="text-accent font-mono font-bold" x-text="labBathroomTemp !== null ? parseFloat(labBathroomTemp).toFixed(1) + '°C / ' + labBathroomHum + '%' : '--.-°C / --%'"></span>
-                                </div>
-                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroomTemp" @input="labBathroomTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'bathroom', labBathroomTemp)" />
-                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroomHum" @input="labBathroomHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'bathroom', labBathroomHum)" />
-                            </div>
-                            <div class="pt-2 border-t border-base-300 space-y-2.5">
-
-                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
                             <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Cinema Lounge</h3>
                             <div>
                                 <div class="flex justify-between text-[11px] mb-1">
@@ -430,7 +418,28 @@
                                 <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labCinemaTemp" @input="labCinemaTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'cinema', labCinemaTemp)" />
                                 <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labCinemaHum" @input="labCinemaHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'cinema', labCinemaHum)" />
                             </div>
+                            <div class="pt-2 border-t border-base-300 space-y-2.5">
+                                <div class="flex items-center justify-between text-xs font-mono">
+                                    <span class="text-gray-400 font-medium">Cinema Hue:</span>
+                                    <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
+                                           x-model="labCinemaHueOn"
+                                           @change="injectLabLightingChange('cinema', labCinemaHueOn)" />
+                                </div>
+                            </div>
                         </div>
+
+                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                            <h3 class="text-xs font-bold text-info uppercase tracking-wider border-b border-base-300 pb-1">Outside Atmosphere</h3>
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1">
+                                    <span class="text-gray-400 font-medium">Outside</span>
+                                    <span class="text-info font-mono font-bold" x-text="labOutsideTemp !== null ? parseFloat(labOutsideTemp).toFixed(1) + '°C / ' + labOutsideHum + '%' : '--.-°C / --%'"></span>
+                                </div>
+                                <input type="range" min="-10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labOutsideTemp" @input="labOutsideTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'outside', labOutsideTemp)" />
+                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labOutsideHum" @input="labOutsideHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'outside', labOutsideHum)" />
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>

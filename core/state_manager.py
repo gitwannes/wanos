@@ -23,7 +23,10 @@ class StateManager:
         self._worker_task: Optional[asyncio.Task] = None
         self._state_listeners: list[Any] = []  # NEW: Observer callback registry list
         self.mqtt_client: MqttClientManager = mqtt_client
+        self.domoticz_client: Optional[Any] = None  # Populated dynamically by home_hub bridge
         self.logger: WanosLogger = logger
+
+        self._start_time = time.time()  # Track initialization timestamp for Engine Uptime calculation
 
         # Load centralized configuration profiles
         self._config = load_config()
@@ -61,14 +64,17 @@ class StateManager:
 
     async def start(self) -> None:
         self._worker_task = asyncio.create_task(self._process_events())
+        self._telemetry_task = asyncio.create_task(self._system_telemetry_loop())
         await self.logger.success("State Manager worker started.")
 
     async def stop(self) -> None:
         self._set_hardware_safety_gate(False)
+        if self._telemetry_task:
+            self._telemetry_task.cancel()
         if self._worker_task:
             self._worker_task.cancel()
             try:
-                await self._worker_task
+                await asyncio.gather(self._worker_task, self._telemetry_task, return_exceptions=True)
             except asyncio.CancelledError:
                 pass
         if self._gpio_chip and LGPIO_AVAILABLE:
@@ -207,6 +213,14 @@ class StateManager:
         if event_name == "INITIAL_STATE_LOADED":
             self._state.hardware.live_mode = False
             self._set_hardware_safety_gate(False)
+            state_changed = True
+
+        elif event_name == "SYSTEM_METRICS_UPDATED":
+            self._state.system.wanos_mqtt_connected = payload.get("wanos_connected", False)
+            self._state.system.domoticz_mqtt_connected = payload.get("domoticz_connected", False)
+            self._state.system.ip_address = payload.get("ip_address", "0.0.0.0")
+            self._state.system.os_uptime_formatted = payload.get("os_uptime", "00:00:00")
+            self._state.system.app_uptime_formatted = payload.get("app_uptime", "00:00:00")
             state_changed = True
 
         elif event_name == "HARDWARE_LIVE_MODE_CHANGED":
@@ -497,17 +511,77 @@ class StateManager:
         # Delegate display and lighting logic cleanly to the pure business logic controller
         self._state.sauna = AuxiliaryController.evaluate(self._state.sauna)
 
+        # --- file: core/state_manager.py ---
         if not self._state.sauna.active:
             self._state.sauna.fireorder = "--"
         else:
-            # Query the sauna logic controller for today's wear-leveling permutation
             raw_order = self.sauna_logic.get_current_order_string()
-            # Cleans "U -> V -> W" into "UVW" to fit neatly in your UI badge
             self._state.sauna.fireorder = raw_order.replace(" -> ", "")
 
+        # ⚡ FIXED: Broken out of the else block so state updates process when sauna is idle
         if (self._state.sauna.lcd_text != old_lcd_text or
                 self._state.sauna.light_color != old_light_color or
                 self._state.sauna.fireorder != old_fireorder):
             state_changed = True
 
         return state_changed
+
+        # ⚡ FIXED: Indentation shifted back to root class level (4 spaces)
+
+    async def _system_telemetry_loop(self) -> None:
+        """Background execution loop polling hardware diagnostics and connection channels."""
+        import socket
+
+        def _get_ip():
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+                s.close()
+                return ip
+            except Exception:
+                return "127.0.0.1"
+
+        def _format_seconds(seconds: float) -> str:
+            days = int(seconds // 86400)
+            hours = int((seconds % 86400) // 3600)
+            minutes = int((seconds % 3600) // 60)
+            secs = int(seconds % 60)
+            if days > 0:
+                return f"{days}d {hours:02d}:{minutes:02d}:{secs:02d}"
+            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+        def _get_os_uptime():
+            try:
+                with open('/proc/uptime', 'r') as f:
+                    return _format_seconds(float(f.readline().split()[0]))
+            except Exception:
+                return "Emulation Host"
+
+        def _is_connected(client_mgr) -> bool:
+            if not client_mgr:
+                return False
+            if hasattr(client_mgr, "is_connected"):
+                return client_mgr.is_connected() if callable(client_mgr.is_connected) else client_mgr.is_connected
+            if hasattr(client_mgr, "_client") and hasattr(client_mgr._client, "is_connected"):
+                return client_mgr._client.is_connected()
+            return True
+
+        while True:
+            try:
+                await asyncio.sleep(2.0)
+
+                metrics_payload = {
+                    "wanos_connected": _is_connected(self.mqtt_client),
+                    "domoticz_connected": _is_connected(self.domoticz_client),
+                    "ip_address": _get_ip(),
+                    "os_uptime": _get_os_uptime(),
+                    "app_uptime": _format_seconds(time.time() - self._start_time)
+                }
+
+                self.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))
+
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                pass
