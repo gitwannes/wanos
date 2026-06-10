@@ -1,7 +1,7 @@
 import datetime
 from collections import deque
 from typing import Dict, List
-from .mqtt_client import MqttClientManager
+from .mqtt_transport import MqttClientManager
 
 
 class WanosLogger:

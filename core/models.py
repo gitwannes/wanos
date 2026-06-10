@@ -66,12 +66,10 @@ class EnvironmentState(BaseModel):
 
     bathroom_temp: Optional[float] = None
     bathroom_hum: Optional[int] = None
-    bathroom_vent_on: bool = False
     door_bathroom_open: bool = False
 
     cinema_temp: Optional[float] = None
     cinema_hum: Optional[int] = None
-    cinema_hue_on: bool = False
 
     sauna_high_temp: Optional[float] = None
     sauna_high_hum: Optional[int] = None
@@ -79,8 +77,6 @@ class EnvironmentState(BaseModel):
     sauna_low_hum: Optional[int] = None
     sauna_calc_temp: Optional[float] = None
     sauna_calc_hum: Optional[int] = None
-    sauna_extraction_vent_on: bool = False
-    sauna_hue_on: bool = False
 
 
 class SaunaState(BaseModel):

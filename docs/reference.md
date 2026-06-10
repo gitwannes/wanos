@@ -44,11 +44,14 @@ This document serves as the master blueprint and reference guide for the directo
 
 | Topic | Direction | Payload | Trigger/Purpose |
 | :--- | :--- | :--- | :--- |
-| **`wisc/system/state`** | Outbound | Complete JSON dump of `SystemState` | Published on state mutation |
+| **`wisc/system/telemetry`** | Outbound | `os_uptime`, `app_uptime`, `ip_address`, `wanos_mqtt_connected`, `domoticz_mqtt_connected` | Periodic every 2–5 seconds from telemetry loop |
+| **`wisc/environment/sensors`** | Outbound | Raw temp and humidity readings keyed by sensor zone (`sauna_high`, `cinema`, `outside`, etc.) | Only on a real value change |
+| **`wisc/sauna/state`** | Outbound | `active`, `target_temp`, `current_temp`, `session_end_time`, `modulation_pwm`, `phases_pwm`, `hold_mode`, `ventilation_state` | On value change, or every 5-second heartbeat when sauna is active |
+| **`wisc/devices/switches`** | Outbound | Flat key-value snapshot of `state.devices` (hues, ventilators, SSR relays) | Only when a switch device toggles |
+| **`wisc/metrics/pulses`** | Outbound | `water_cold_liters` (rounded, 1 decimal), `water_hot_liters` (rounded, 1 decimal), `kwh_total_wh` | On a time interval (every 5–10 seconds); pulses accumulated internally, not emitted per-tick |
 | **`wisc/system/command`** | Inbound | JSON representing an `Event` | Inject commands into the queue |
 | **`wisc/system/console/status`** | Outbound | JSON containing `timestamp`, `level`, `message` | High-level user-facing events |
 | **`wisc/system/console/debug`** | Outbound | JSON containing `timestamp`, `level`, `message` | Internal developer engine monologue |
-| **`wisc/system/health`** | Outbound | JSON containing backend metrics | Heartbeat task verification |
 
 ---
 

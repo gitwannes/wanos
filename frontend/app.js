@@ -255,6 +255,10 @@ function wanosApp() {
         },
 
         toggleSauna() {
+            if (this.state.sauna.current_temp == null) {
+                console.warn("UI locked: Cannot start Sauna without valid temperature data.");
+                return;
+            }
             const action = this.state.sauna.active ? "SAUNA_OFF" : "SAUNA_ON";
             this.dispatchEvent(action);
         },
@@ -272,6 +276,10 @@ function wanosApp() {
         },
 
         toggleIR() {
+            if (this.state.sauna.current_temp == null) {
+                console.warn("UI locked: Cannot start IR without valid temperature data.");
+                return;
+            }
             const action = this.state.ir.active ? "IR_OFF" : "IR_ON";
             this.dispatchEvent(action);
         },

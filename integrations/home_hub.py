@@ -1,3 +1,4 @@
+# --- file: integrations/home_hub.py ---
 import asyncio
 import json
 from typing import Any, Dict
@@ -25,12 +26,59 @@ class DomoticzHomeHubBridge:
         self._last_known_states: Dict[str, Any] = {}
 
     async def start(self) -> None:
+        # 1. Start listening for incoming broadcasts first
         await self.mqtt_client.subscribe(self._in_topic, self._parse_domoticz_inbound)
         self.state_manager.register_listener(self._on_state_changed)
-        await self.logger.success("🏠 Domoticz HomeHub Bridge initialized (Dynamic Registry Mode).")
+
+        # 2. Trigger the pure MQTT cold-boot sync
+        await self._fetch_initial_states_mqtt()
+
+        await self.logger.success("🏠 Domoticz HomeHub Bridge initialized (Pure MQTT Mode).")
 
     async def stop(self) -> None:
         await self.logger.warning("🏠 Domoticz HomeHub Bridge stopped.")
+
+    async def _fetch_initial_states_mqtt(self) -> None:
+        """Fires MQTT commands to force Domoticz to broadcast current hardware states."""
+        """
+                ========================================================================
+                COLD-BOOT STATE POPULATION FLOW
+                ========================================================================
+                1. CONFIG INGESTION: Backend parses 'hardware.yaml' assets under the
+                   'domoticz: idx:' block on startup.
+                2. INDEX MAPPING: Generates 'self._name_to_idx' in memory to map text
+                   device names to hardware indices (e.g., {"sauna_high": 7449}).
+                3. STATE PROBING: Loops through valid indices and fires a standard
+                   {"command": "getdeviceinfo", "idx": idx} message over 'domoticz/in'.
+                4. THROTTLING: Enforces a 50ms sleep between payloads to avoid queue
+                   stuttering on the broker or hub.
+                5. PIPELINE REUSE: Domoticz responds by broadcasting frames back to
+                   'domoticz/out'. The bridge's live listener ('_parse_domoticz_inbound')
+                   naturally catches and handles them, avoiding duplicate parser logic.
+                6. SAFETY GATE: The core engine blocks dependent math/UI components
+                   until all critical async boot frames finish arriving.
+                ========================================================================
+                """
+        await self.logger.info("📡 Firing MQTT state requests for cold-boot sync...")
+        count = 0
+
+        for device_name, idx in self._name_to_idx.items():
+            # Skip invalid/dummy IDXs (like your sauna_dummy)
+            if idx <= 0:
+                continue
+
+            command_payload = {
+                "command": "getdeviceinfo",
+                "idx": idx
+            }
+            # Ask Domoticz to broadcast the status of this specific IDX
+            await self.mqtt_client.publish(self._out_topic, command_payload)
+            count += 1
+
+            # Tiny 50ms network buffer to prevent Mosquitto/Domoticz queue stuttering
+            await asyncio.sleep(0.05)
+
+        await self.logger.success(f"📡 Dispatched {count} state requests. Awaiting asynchronous echo...")
 
     async def _parse_domoticz_inbound(self, topic: str, payload: str) -> None:
         try:
@@ -50,6 +98,7 @@ class DomoticzHomeHubBridge:
             device_type = self.state_manager._config.domoticz.idx[device_name].type
 
             # The generic translator handles ALL devices automatically without explicit IDs
+            # This perfectly processes both natural live updates AND our boot-sync responses!
             if device_type == "temphum":
                 raw_temp = data.get("svalue1")
                 raw_hum = data.get("svalue2")
@@ -83,27 +132,16 @@ class DomoticzHomeHubBridge:
 
     async def _on_state_changed(self, state: SystemState) -> None:
         try:
-            # Dynamically sweep the entire UI registry for modifications
+            # 100% Generic Loop. No hardcoded names exist here anymore.
             for device_name, idx in self._name_to_idx.items():
                 device_type = self.state_manager._config.domoticz.idx[device_name].type
                 if device_type != "switch":
                     continue
 
-                # 1. Look for the state in explicitly mapped core properties (The Engine)
-                current_state = None
-                if device_name == "bathroom_ventilator":
-                    current_state = "ON" if state.environment.bathroom_vent_on else "OFF"
-                elif device_name == "sauna_extrvent":
-                    current_state = "ON" if state.environment.sauna_extraction_vent_on else "OFF"
-                elif device_name == "cinema_hue":
-                    current_state = "ON" if state.environment.cinema_hue_on else "OFF"
-                elif device_name == "sauna_hue":
-                    current_state = "ON" if state.environment.sauna_hue_on else "OFF"
-                else:
-                    # 2. Look for the state in the generic peripheral dictionary (The Dashboard)
-                    current_state = state.devices.get(device_name)
+                # Grab the state directly from the generic devices dictionary
+                current_state = state.devices.get(device_name)
 
-                # If it changed, broadcast it back out to Domoticz!
+                # If it changed, assemble the JSON and broadcast it back out to Domoticz
                 if current_state is not None and current_state != self._last_known_states.get(device_name):
                     domoticz_command = {
                         "command": "switchlight",

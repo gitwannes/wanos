@@ -1,4 +1,4 @@
-# --- file: core/mqtt_client.py ---
+# --- file: core/mqtt_transport.py ---
 import json
 import asyncio
 import aiomqtt

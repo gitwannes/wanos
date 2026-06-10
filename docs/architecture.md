@@ -33,9 +33,13 @@ This project is a **100% clean-slate rewrite**. All new code adheres to modern b
 * **Asynchronous Hardware I/O:** Synchronous hardware calls are isolated in dedicated background threads fed by queues to prevent blocking the async event loop.
 
 ## 4. State Broadcasting & Disconnect Strategy
-State is broadcasted across distinct MQTT topics (e.g., `wisc/system/state`) and the `/api/state/sse` stream. 
+State is broadcasted across **five domain-scoped MQTT topics** rather than a single monolithic dump. Each topic fires independently at its own cadence: `wisc/system/telemetry` (periodic), `wisc/environment/sensors` (on value change), `wisc/sauna/state` (on change + 5s heartbeat when active), `wisc/devices/switches` (on toggle), `wisc/metrics/pulses` (batched interval). A dedicated `mqtt_publisher.py` layer owns all topic names and routing logic. `mqtt_transport.py` (formerly `mqtt_client.py`) remains a pure transport with no WanOS domain knowledge.
 
-If the WebSocket/SSE connection drops, the frontend disables all user inputs to prevent state mismatch and displays a "Reconnecting..." banner. Upon reconnect, the frontend instantly synchronizes to the next SSE payload, bypassing reliance on potentially missed stream updates. On backend boot, the system reads a `recovery_state.json` file to recover cumulative metrics and pushes an `INITIAL_STATE_LOADED` event to safely resume.
+The `/api/state/sse` stream operates on a **delta model**. On first connect, the frontend calls `/api/state` to retrieve a full snapshot. The SSE stream then emits only the changed domain subtree per event (e.g., `{"domain": "sauna", "data": {...}}`), never the full state. The frontend merges partial updates into its reactive store by domain key.
+
+Pulse metrics (`WATER_PULSE`, `KWH_PULSE`) are accumulated internally and emitted as rounded liter/Wh values on a time interval. Raw tick counts are not exposed to the frontend.
+
+If the SSE connection drops, the frontend disables all user inputs to prevent state mismatch and displays a "Reconnecting..." banner. Upon reconnect, the frontend calls `/api/state` for a fresh full snapshot before resuming delta tracking. On backend boot, the system reads a `recovery_state.json` file to recover cumulative metrics and pushes an `INITIAL_STATE_LOADED` event to safely resume.
 
 ## 5. Configuration, Authentication, & Access
 * **Separation of Concerns:** - `.env`: Securely holds sensitive keys and passwords.

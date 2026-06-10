@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 # WanOS specific
 from core.models import Event, EventType
-from core.mqtt_client import MqttClientManager
+from core.mqtt_transport import MqttClientManager
 from core.state_manager import StateManager
 from core.config import load_config, AppConfig
 from core.logger import WanosLogger

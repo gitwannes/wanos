@@ -23,23 +23,22 @@ domoticz:
     sauna_extrvent:
       id: 8577
       type: "switch"
-# these are virtual sensors in Domoticz
-    bathroom_th:
+    bathroom:
       id: 7436
       type: "temphum"
-    outside_th:
+    outside:
       id: 7448
       type: "temphum"
-    cinema_th:
+    cinema:
       id: 7451
       type: "temphum"
-    sauna_th:
+    sauna_dummy:
       id: 0
       type: "temphum"
-    sauna_high_th:
+    sauna_high:
       id: 7449
       type: "temphum"
-    sauna_low_th:
+    sauna_low:
       id: 7480
       type: "temphum"
     sauna:

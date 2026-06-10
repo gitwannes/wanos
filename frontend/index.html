@@ -26,9 +26,6 @@
                     :class="state.hardware.live_mode ? 'btn-success' : 'btn-warning'"
                     @click="toggleHardwareMode()"
                     x-text="state.hardware.live_mode ? '⚙️ LIVE MODE ACTIVE' : '🔬 LAB EMULATION MODE'"></button>
-            <span class="badge badge-success gap-1 font-mono text-xs p-3">
-                <span class="w-2 h-2 rounded-full bg-current animate-pulse"></span> Backend Connection live streaming
-            </span>
         </div>
     </header>
 
@@ -113,7 +110,7 @@
                             </div>
 
                             <button :class="state.sauna.active ? 'btn btn-error btn-lg shadow-lg px-8' : 'btn btn-outline btn-lg px-8'"
-                                    :disabled="!state.sauna.active && state.sauna.door_open"
+                                    :disabled="(!state.sauna.active && state.sauna.door_open) || state.sauna.current_temp == null"
                                     @click="toggleSauna()">
                                 <span x-show="state.sauna.active" class="animate-pulse">🔥 Sauna is ON</span>
                                 <span x-show="!state.sauna.active">❄️ Sauna is OFF</span>
@@ -219,7 +216,10 @@
                                         <span class="ml-1 text-white text-xs" x-show="state.ir.active" x-text="'[' + irRemainingText + ']'"></span>
                                     </div>
                                 </div>
-                                <button class="btn btn-sm" :class="state.ir.active ? 'btn-error shadow' : 'btn-outline'" @click="toggleIR()">
+                                <button class="btn btn-sm"
+                                        :class="state.ir.active ? 'btn-error shadow' : 'btn-outline'"
+                                        :disabled="state.sauna.current_temp == null"
+                                        @click="toggleIR()">
                                     <span x-text="state.ir.active ? 'DISENGAGE' : 'LAUNCH IR'"></span>
                                 </button>
                             </div>

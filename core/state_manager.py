@@ -4,7 +4,7 @@ import time
 from typing import Optional, Any
 
 from .models import SystemState, Event, EventType
-from .mqtt_client import MqttClientManager
+from .mqtt_transport import MqttClientManager
 from .logger import WanosLogger
 from .config import load_config
 
@@ -292,8 +292,11 @@ class StateManager:
                     on_threshold = self._config.bathroom.vent_on_humidity
                     off_threshold = self._config.bathroom.vent_off_humidity
 
-                    if env.bathroom_hum >= on_threshold and not env.bathroom_vent_on:
-                        env.bathroom_vent_on = True
+                    # Engine relies entirely on the generic devices dictionary mapping
+                    current_vent_state = self._state.devices.get("bathroom_ventilator", "OFF")
+
+                    if env.bathroom_hum >= on_threshold and current_vent_state != "ON":
+                        self._state.devices["bathroom_ventilator"] = "ON"
                         state_changed = True
                         msg = f"💨 Bathroom humidity ({env.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator."
                         print(f"[StateManager] {msg}")
@@ -301,8 +304,8 @@ class StateManager:
                             from datetime import datetime
                             ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                             self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
-                    elif env.bathroom_hum <= off_threshold and env.bathroom_vent_on:
-                        env.bathroom_vent_on = False
+                    elif env.bathroom_hum <= off_threshold and current_vent_state == "ON":
+                        self._state.devices["bathroom_ventilator"] = "OFF"
                         state_changed = True
                         msg = f"💨 Bathroom humidity ({env.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator."
                         print(f"[StateManager] {msg}")
@@ -335,7 +338,10 @@ class StateManager:
         # --------------------------------------------------------
         elif event_name == "SAUNA_ON":
             if self._state.sauna.door_open:
-                await self.logger.warning("Bouncer rejected SAUNA_ON: Door is open.")
+                await self.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Door is open.")
+                return False
+            if self._state.sauna.current_temp is None:
+                await self.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Temperature data is currently missing (NULL).")
                 return False
             self._state.sauna.active = True
             self._state.sauna.hold_mode = "autohold"
@@ -386,6 +392,9 @@ class StateManager:
             self.dispatch(Event(type=EventType.SAUNA_OFF))
 
         elif event_name == "IR_ON":
+            if self._state.sauna.current_temp is None:
+                await self.logger.warning("🌡️ Bouncer rejected IR_ON: Temperature data is currently missing (NULL).")
+                return False
             self._state.ir.active = True
             now = int(time.time())
             self._state.ir.session_start_time = now
@@ -425,47 +434,30 @@ class StateManager:
         elif event_name == "HUB_STATE_CHANGED":
             device = payload.get("device_id")
             state_val = payload.get("state")  # "ON" or "OFF"
-            is_on = (state_val == "ON")
 
-            # 1. CORE ENGINE CHECK: Map explicit Domoticz names back to internal variables
-            if device == "bathroom_ventilator":
-                self._state.environment.bathroom_vent_on = is_on
+            # 100% Generic Assignment. Any inbound switch event goes straight to the dict.
+            if self._state.devices.get(device) != state_val:
+                self._state.devices[device] = state_val
                 state_changed = True
-            elif device == "sauna_extrvent":
-                self._state.environment.sauna_extraction_vent_on = is_on
-                state_changed = True
-            elif device == "cinema_hue":
-                self._state.environment.cinema_hue_on = is_on
-                state_changed = True
-            elif device == "sauna_hue":
-                self._state.environment.sauna_hue_on = is_on
-                state_changed = True
-            else:
-                # 2. PERIPHERAL FALLBACK: Automatically catch unmapped Domoticz switches!
-                if self._state.devices.get(device) != state_val:
-                    self._state.devices[device] = state_val
-                    state_changed = True
 
         elif event_name == "LIGHTING_STATE_CHANGED":
             zone = payload.get("zone")
-            is_on = payload.get("state") == "ON"
-            if zone == "cinema":
-                self._state.environment.cinema_hue_on = is_on
-                state_changed = True
-            elif zone == "sauna":
-                self._state.environment.sauna_hue_on = is_on
+            state_val = payload.get("state")  # "ON" or "OFF"
+            target_device = f"{zone}_hue"
+            if self._state.devices.get(target_device) != state_val:
+                self._state.devices[target_device] = state_val
                 state_changed = True
 
         elif event_name == "VENT_WAIT_EXPIRED":
             self._state.sauna.ventilation_state = "RUNNING"
-            self._state.environment.sauna_extraction_vent_on = True
+            self._state.devices["sauna_extrvent"] = "ON"
             self._state.sauna.ventilation_deadline = int(time.time()) + (self._config.sauna.vent_run_mins * 60)
             self._timer_manager.schedule("vent_run", self._state.sauna.ventilation_deadline, "VENT_RUN_EXPIRED")
             state_changed = True
 
         elif event_name == "VENT_RUN_EXPIRED":
             self._state.sauna.ventilation_state = "OFF"
-            self._state.environment.sauna_extraction_vent_on = False
+            self._state.devices["sauna_extrvent"] = "OFF"
             self._state.sauna.ventilation_deadline = None
             state_changed = True
 

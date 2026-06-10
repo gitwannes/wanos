@@ -6,7 +6,6 @@
 # (CRITICAL: Never commit the actual .env file containing the MQTT password or PIN)
 .env
 .env.*
-!.env.example
 
 # 2. Dynamic State & Logs
 # (These change constantly during runtime and shouldn't be version controlled)

@@ -5,7 +5,7 @@
 - PyCharm
 - SmartGit
 - FileZilla
-- MQTT Explorer
+- MQTTX
 - SecureCRT
 - robocopy
 
