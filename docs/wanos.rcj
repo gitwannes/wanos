@@ -7,8 +7,8 @@
 :: Source Directory
 /SD:C:\data\git\wanos\
 
-:: Destination Directory
-/DD:Z:\
+:: Destination Directory - moved to command line
+:: /DD:Z:\
 
 :: --- Copy Options ---
 ::/S                  :: Copy subdirectories, but do NOT delete anything at the destination
@@ -40,6 +40,7 @@
     .idea
     .venv
     docs
+	code-import
 :: On Pi
 	wisc_backend_venv
 	__pycache__
@@ -48,3 +49,4 @@
 /XF
     .gitignore
     * - Copy.py
+	*.zip

@@ -1,4 +1,6 @@
 @echo off
 echo ⚡ Syncing source files to WanOS Pi (Drive Z:\) ...
-robocopy /JOB:"wanos.rcj
+robocopy /JOB:"wanos.rcj" Z:\
+echo ⚡ Syncing source files to CodeFolder for upload to AI ...
+robocopy /JOB:"wanos.rcj" C:\data\git\wanos\code-import
 echo ⚡ Sync Complete!

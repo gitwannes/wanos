@@ -5,7 +5,6 @@ function wanosApp() {
         connected: false,
 
         state: {
-            // ⚡ NEW ADMIN SYSTEM BLOCK
             system: {
                 wanos_mqtt_connected: false,
                 domoticz_mqtt_connected: false,
@@ -58,8 +57,11 @@ function wanosApp() {
                 session_end_time: null
             },
             metrics: {
+                // Liters pre-rounded by the backend (1 decimal). No conversion needed here.
                 water_cold_liters: 0.0,
                 water_hot_liters: 0.0,
+                // Raw Wh tick counter kept in state for internal tracking.
+                // Divide by 1000 at display time to show kWh.
                 kwh_wh_ticks: 0,
                 douche_active: false,
                 douche_start_time: null,
@@ -72,7 +74,7 @@ function wanosApp() {
                 sensor_errors: [],
                 lab_simulation_logs: []
             },
-            devices: {}, // Ensure UI tracks the generic peripheral payload dict
+            devices: {}, // Generic peripheral payload dict (hues, ventilators, relays)
             lab_seed: null
         },
 
@@ -105,51 +107,106 @@ function wanosApp() {
             setInterval(this.ticker.bind(this), 1000);
         },
 
-        connectSSE() {
-            const eventSource = new EventSource("/api/state/sse");
+        async fetchFullSnapshot() {
+            // Fetches the complete state from /api/state and replaces the local store.
+            // Called on first connect and on every reconnect to guarantee full sync
+            // before delta updates resume.
+            try {
+                const res = await fetch("/api/state");
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const fullState = await res.json();
+                this._applyFullSnapshot(fullState);
+                console.log("✅ Full state snapshot loaded.");
+            } catch (err) {
+                console.error("⚠️ Failed to load full state snapshot:", err);
+            }
+        },
 
-            eventSource.onmessage = (event) => {
-                try {
-                    const parsedState = JSON.parse(event.data);
+        _applyFullSnapshot(fullState) {
+            // Defensive defaults for any fields that may be absent
+            if (!fullState.sauna.phases_pwm) {
+                fullState.sauna.phases_pwm = [0, 0, 0];
+            } else {
+                fullState.sauna.phases_pwm = fullState.sauna.phases_pwm.map(v =>
+                    (v === null || v === undefined || isNaN(v)) ? 0 : v
+                );
+            }
+            if (!fullState.hardware.sensor_errors) fullState.hardware.sensor_errors = [];
+            fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
+            fullState.environment.door_bathroom_open = fullState.environment.door_bathroom_open ?? false;
+            fullState.environment.cinema_hue_on = fullState.environment.cinema_hue_on ?? false;
+            fullState.environment.sauna_hue_on = fullState.environment.sauna_hue_on ?? false;
+            fullState.system = fullState.system || this.state.system;
+            fullState.devices = fullState.devices || {};
 
-                    if (!parsedState.sauna.phases_pwm) {
-                        parsedState.sauna.phases_pwm = [0, 0, 0];
-                    } else {
-                        parsedState.sauna.phases_pwm = parsedState.sauna.phases_pwm.map(v =>
-                            (v === null || v === undefined || isNaN(v)) ? 0 : v
-                        );
-                    }
+            this.state = fullState;
 
-                    if (!parsedState.hardware.sensor_errors) parsedState.hardware.sensor_errors = [];
+            if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
+                this.syncLabControls();
+            }
+        },
 
-                    parsedState.sauna.modulation_pwm = parsedState.sauna.modulation_pwm ?? 0;
-                    parsedState.environment.door_bathroom_open = parsedState.environment.door_bathroom_open ?? false;
-                    parsedState.environment.cinema_hue_on = parsedState.environment.cinema_hue_on ?? false;
-                    parsedState.environment.sauna_hue_on = parsedState.environment.sauna_hue_on ?? false;
-
-                    // Safety mapping for the new system block before backend is updated
-                    parsedState.system = parsedState.system || this.state.system;
-                    parsedState.devices = parsedState.devices || {}; // Ensure safe loading of generic sensors
-
-                    this.state = parsedState;
-
-                    if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
-                        this.syncLabControls();
-                    }
-
-                    this.connected = true;
-
-                } catch (err) {
-                    console.error("⚠️ Failed parsing network state update:", err);
+        _applyDomainDelta(domain, data) {
+            // Merges a single changed domain subtree into the reactive store.
+            // Per-domain defensive normalization mirrors _applyFullSnapshot.
+            if (domain === "sauna") {
+                if (data.phases_pwm) {
+                    data.phases_pwm = data.phases_pwm.map(v =>
+                        (v === null || v === undefined || isNaN(v)) ? 0 : v
+                    );
                 }
-            };
+                data.modulation_pwm = data.modulation_pwm ?? 0;
+            }
+            if (domain === "environment") {
+                data.door_bathroom_open = data.door_bathroom_open ?? false;
+                data.cinema_hue_on = data.cinema_hue_on ?? false;
+                data.sauna_hue_on = data.sauna_hue_on ?? false;
+            }
+            if (domain === "hardware") {
+                if (!data.sensor_errors) data.sensor_errors = [];
+            }
+            if (domain === "devices") {
+                // Merge device keys individually rather than replacing the whole object,
+                // so keys not present in this delta are preserved from prior state.
+                this.state.devices = Object.assign({}, this.state.devices, data);
+                return;
+            }
 
-            eventSource.onerror = (err) => {
-                this.connected = false;
-                console.error("❌ SSE stream broke. Re-linking context in 3s...");
-                eventSource.close();
-                setTimeout(() => this.connectSSE(), 3000);
-            };
+            this.state[domain] = Object.assign({}, this.state[domain], data);
+
+            // Re-sync lab controls whenever environment or sauna domain updates arrive
+            if ((domain === "environment" || domain === "sauna") &&
+                (!document.activeElement || !document.activeElement.classList.contains('lab-slider'))) {
+                this.syncLabControls();
+            }
+        },
+
+        connectSSE() {
+            // Fetch a full snapshot first, then open the delta stream.
+            // This guarantees the store is coherent before any partial updates arrive.
+            this.fetchFullSnapshot().then(() => {
+                const eventSource = new EventSource("/api/state/sse");
+
+                eventSource.onmessage = (event) => {
+                    try {
+                        // Each SSE message carries one changed domain subtree:
+                        // { "domain": "sauna", "data": { ... } }
+                        const msg = JSON.parse(event.data);
+                        this._applyDomainDelta(msg.domain, msg.data);
+                        this.connected = true;
+                    } catch (err) {
+                        console.error("⚠️ Failed parsing SSE delta update:", err);
+                    }
+                };
+
+                eventSource.onerror = (err) => {
+                    this.connected = false;
+                    console.error("❌ SSE stream broke. Re-linking context in 3s...");
+                    eventSource.close();
+                    // On reconnect, fetch a fresh full snapshot before resuming deltas
+                    setTimeout(() => this.connectSSE(), 3000);
+                };
+            });
         },
 
         ticker() {
@@ -160,10 +217,13 @@ function wanosApp() {
                 const end = this.state.sauna.session_end_time;
 
                 if (end < 1000000000) {
+                    // Timer not yet triggered: session_end_time holds raw duration seconds,
+                    // not an absolute Unix timestamp. Display as countdown without progress bar.
                     this.elapsedText = this.formatTime(Math.max(0, now - start));
                     this.remainingText = this.formatTime(end);
                     this.progressPercent = 0;
                 } else {
+                    // Timer triggered: session_end_time is an absolute Unix timestamp.
                     const elapsed = Math.max(0, now - start);
                     const remaining = Math.max(0, end - now);
                     const totalDuration = end - start;
@@ -302,6 +362,7 @@ function wanosApp() {
         },
 
         injectWaterPulse(fluidType) {
+            // Injects 396 pulses = exactly 1 liter for lab testing
             this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, ui_override: true });
         },
 

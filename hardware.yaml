@@ -39,7 +39,7 @@ domoticz:
       id: 7449
       type: "temphum"
     sauna_low:
-      id: 7480
+      id: 7450
       type: "temphum"
     sauna:
       id: 7550

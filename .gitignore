@@ -12,6 +12,7 @@
 recovery_state.json
 status.json
 *.log
+*.zip
 
 # 3. Virtual Environments
 # (Ignore your active python environments)

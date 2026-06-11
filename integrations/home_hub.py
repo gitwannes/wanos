@@ -100,14 +100,29 @@ class DomoticzHomeHubBridge:
             # The generic translator handles ALL devices automatically without explicit IDs
             # This perfectly processes both natural live updates AND our boot-sync responses!
             if device_type == "temphum":
-                raw_temp = data.get("svalue1")
-                raw_hum = data.get("svalue2")
-                if raw_temp is not None:
+                # Domoticz encapsulates combined Temp/Hum sensors via 'svalue1' or 'svalue'
+                # frequently formatted as a semicolon-separated string: "21.5;45;0" (Temp;Hum;Status)
+                svalue_str: str = str(data.get("svalue1", data.get("svalue", "")))
+
+                raw_temp: str | None = None
+                raw_hum: str | None = None
+
+                if ";" in svalue_str:
+                    parts: list[str] = svalue_str.split(";")
+                    raw_temp = parts[0]
+                    if len(parts) > 1:
+                        raw_hum = parts[1]
+                else:
+                    # Fallback for cleanly split values if Domoticz sends them natively
+                    raw_temp = data.get("svalue1")
+                    raw_hum = data.get("svalue2")
+
+                if raw_temp is not None and raw_temp != "":
                     self.state_manager.dispatch(Event(
                         type=EventType.TEMP_UPDATED,
                         payload={"sensor_id": device_name, "value": float(raw_temp)}
                     ))
-                if raw_hum is not None:
+                if raw_hum is not None and raw_hum != "":
                     self.state_manager.dispatch(Event(
                         type=EventType.HUMIDITY_UPDATED,
                         payload={"sensor_id": device_name, "value": int(float(raw_hum))}

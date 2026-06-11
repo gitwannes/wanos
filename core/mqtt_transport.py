@@ -1,4 +1,8 @@
 # --- file: core/mqtt_transport.py ---
+# Pure async MQTT transport layer. Manages the TCP socket, authentication,
+# reconnection, subscriptions, and raw message routing to registered callbacks.
+# This class has zero knowledge of WanOS domain concepts (states, events, topics).
+# Swap this file to change broker library without touching any business logic.
 import json
 import asyncio
 import aiomqtt
@@ -22,7 +26,7 @@ class MqttClientManager:
         self.client: Optional[aiomqtt.Client] = None
         self._exit_stack = AsyncExitStack()
 
-        # Routing table: matches MQTT topics to specific parsing functions
+        # Routing table: matches MQTT topics to specific async parsing functions
         self._callbacks: Dict[str, Callable[[str, str], Awaitable[None]]] = {}
         self._listen_task: Optional[asyncio.Task] = None
 
@@ -37,7 +41,7 @@ class MqttClientManager:
             await self._exit_stack.enter_async_context(self.client)
             print(f"✅ MQTT Connected to {self.broker_host}:{self.port}")
 
-            # If we reconnect, make sure we resubscribe to all active topics
+            # If we reconnect, resubscribe to all previously registered topics
             for topic in self._callbacks.keys():
                 await self.client.subscribe(topic)
 
@@ -49,7 +53,7 @@ class MqttClientManager:
             self.client = None
 
     async def stop(self):
-        # Gracefully shut down the background listening loop
+        # Gracefully shut down the background listening loop before closing the socket
         if self._listen_task:
             self._listen_task.cancel()
             try:
@@ -92,7 +96,7 @@ class MqttClientManager:
                 # Decode the raw byte payload into a usable UTF-8 string
                 payload = message.payload.decode('utf-8')
 
-                # If we have a bridge waiting for this topic, pass the data to it!
+                # Route the message to the registered callback for this topic
                 if topic in self._callbacks:
                     try:
                         await self._callbacks[topic](topic, payload)
@@ -100,7 +104,7 @@ class MqttClientManager:
                         print(f"⚠️ Error executing callback for topic {topic}: {cb_error}")
 
         except asyncio.CancelledError:
-            # Task was intentionally cancelled during a shutdown
+            # Task was intentionally cancelled during a clean shutdown
             pass
         except aiomqtt.MqttError as e:
             print(f"⚠️ MQTT Listen loop connection dropped: {e}")

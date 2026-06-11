@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 # WanOS specific
 from core.models import Event, EventType
 from core.mqtt_transport import MqttClientManager
+from core.mqtt_publisher import MqttPublisher
 from core.state_manager import StateManager
 from core.config import load_config, AppConfig
 from core.logger import WanosLogger
@@ -26,7 +27,7 @@ shutdown_event = asyncio.Event()
 # 1. Load and validate the configuration from YAML and .env
 config: AppConfig = load_config()
 
-# 2. Inject the config safely into the Local MQTT Manager
+# 2. Inject the config safely into the Local MQTT Transport (local Mosquitto broker)
 mqtt_manager: MqttClientManager = MqttClientManager(
     broker_host=config.wanos.mqtt.broker_host,
     port=config.wanos.mqtt.port,
@@ -34,7 +35,7 @@ mqtt_manager: MqttClientManager = MqttClientManager(
     password=config.wanos.mqtt.password
 )
 
-# 3. Create a dedicated Remote MQTT Manager for Domoticz
+# 3. Create a dedicated Remote MQTT Transport for Domoticz
 # ARCHITECTURE NOTE: This is the "Network Postman". Its ONLY job is handling the TCP
 # socket, authentication, and auto-reconnecting to the remote broker (10.32.251.181).
 # It knows absolutely nothing about Domoticz JSON formats or sauna states.
@@ -49,7 +50,14 @@ domoticz_mqtt_manager: MqttClientManager = MqttClientManager(
 wanos_logger: WanosLogger = WanosLogger(mqtt_client=mqtt_manager)
 state_manager: StateManager = StateManager(mqtt_client=mqtt_manager, logger=wanos_logger)
 
-# 5. Bind the integration Bridge
+# 5. Initialize the domain-scoped MQTT Publisher
+# ARCHITECTURE NOTE: This is the "WanOS Correspondent". It knows which domain maps to
+# which topic, at which cadence. It receives post-drain snapshots from StateManager
+# together with the set of changed domains, and routes each to the correct topic.
+# The Postman (mqtt_manager) delivers the packets; this layer decides what to write.
+mqtt_publisher: MqttPublisher = MqttPublisher(mqtt_client=mqtt_manager)
+
+# 6. Bind the integration Bridge
 # ARCHITECTURE NOTE: This is the "Bilingual Translator". It takes the raw network stream
 # from the Postman (domoticz_mqtt_manager) and translates specific 'idx' JSON payloads
 # into WanOS internal events. Keeping this completely separate from the network client
@@ -92,9 +100,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         print(f"⏳ [WanOS Boot] Connecting to Domoticz Broker ({config.domoticz.mqtt.broker_host})...")
         await domoticz_mqtt_manager.start()
 
-        # 2. Initialize the state engines
+        # 2. Initialize the state engine and wire up the publisher
         print("⏳ [WanOS Boot] Spinning up Centralized State Engine...")
         await state_manager.start()
+
+        # Inject the publisher reference so StateManager can forward pulse accumulation
+        # and the publisher receives post-drain snapshots with changed domain sets
+        state_manager.mqtt_publisher = mqtt_publisher
+        mqtt_publisher.start()
 
         # Start external bridges
         await domoticz_bridge.start()
@@ -123,6 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("🛑 [WanOS Shutdown] Tearing down background engines...")
     shutdown_event.set()
     physics_task.cancel()
+    mqtt_publisher.stop()
     await domoticz_bridge.stop()
     await state_manager.stop()
     await domoticz_mqtt_manager.stop()
@@ -145,6 +159,7 @@ class GenericEventRequest(BaseModel):
 
 @app.get("/api/state")
 async def get_state() -> dict[str, Any]:
+    """Returns a full state snapshot. Called by the frontend on initial connect and reconnect."""
     return state_manager.get_state_snapshot().model_dump()
 
 
@@ -171,18 +186,40 @@ async def get_console_logs() -> Response:
 
 @app.get("/api/state/sse")
 async def sse_state_stream(request: Request):
+    """
+    Delta SSE stream. Emits only changed domain subtrees after each event queue drain.
+    Payload format: {"domain": "<key>", "data": { ... }}
+    The frontend fetches /api/state on connect for the full snapshot, then
+    applies these partial updates by domain key as they arrive.
+    """
     async def event_generator():
+        # Track the last emitted snapshot per domain to suppress redundant pushes
+        last_domain_snapshots: dict[str, str] = {}
+
         try:
-            last_state_json = None
             while not shutdown_event.is_set():
                 if await request.is_disconnected():
                     break
-                current_state = state_manager.get_state_snapshot().model_dump()
-                current_state_json = json.dumps(current_state)
 
-                if current_state_json != last_state_json:
-                    yield f"data: {current_state_json}\n\n"
-                    last_state_json = current_state_json
+                current_state = state_manager.get_state_snapshot()
+
+                # Emit only domains whose serialized content has changed since last push
+                for domain in ["system", "environment", "sauna", "ir", "metrics", "hardware", "devices"]:
+                    domain_data = getattr(current_state, domain, None)
+                    if domain_data is None:
+                        continue
+
+                    # Serialize the domain subtree for diffing
+                    if hasattr(domain_data, "model_dump"):
+                        domain_json = json.dumps(domain_data.model_dump())
+                    else:
+                        domain_json = json.dumps(domain_data)
+
+                    if last_domain_snapshots.get(domain) != domain_json:
+                        payload = json.dumps({"domain": domain, "data": json.loads(domain_json)})
+                        yield f"data: {payload}\n\n"
+                        last_domain_snapshots[domain] = domain_json
+
                 await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             pass
