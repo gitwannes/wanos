@@ -268,6 +268,7 @@ class StateManager:
 
                 # Capture static Unix boot times once during host identification
                 if self._state.system.app_boot_unix is None and ip_addr != "0.0.0.0":
+                    import psutil
                     self._state.system.app_boot_unix = int(self._start_time)
                     self._state.system.os_boot_unix = int(psutil.boot_time())
 

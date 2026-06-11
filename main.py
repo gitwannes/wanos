@@ -186,9 +186,13 @@ async def sse_state_stream(request: Request):
     The frontend fetches /api/state on connect for the full snapshot, then
     applies these partial updates by domain key as they arrive.
     """
+
     async def event_generator():
         # Track the last emitted snapshot per domain to suppress redundant pushes
         last_domain_snapshots: dict[str, str] = {}
+
+        import time
+        last_ping_time = time.time()
 
         try:
             while not shutdown_event.is_set():
@@ -196,6 +200,7 @@ async def sse_state_stream(request: Request):
                     break
 
                 current_state = state_manager.get_state_snapshot()
+                data_sent = False
 
                 # Emit only domains whose serialized content has changed since last push
                 for domain in ["system", "environment", "sauna", "ir", "metrics", "hardware", "devices"]:
@@ -213,13 +218,24 @@ async def sse_state_stream(request: Request):
                         payload = json.dumps({"domain": domain, "data": json.loads(domain_json)})
                         yield f"data: {payload}\n\n"
                         last_domain_snapshots[domain] = domain_json
+                        data_sent = True
+
+                # 💓 INTUITIVE APP-LEVEL HEARTBEAT MONITOR
+                now = time.time()
+                if data_sent:
+                    # If live structural state updates went out, they double as our keep-alive
+                    last_ping_time = now
+                elif now - last_ping_time >= 5.0:
+                    # Pipe an explicit, silent data block if the channel remains quiet for 5 seconds
+                    ping_payload = json.dumps({"domain": "ping", "data": {}})
+                    yield f"data: {ping_payload}\n\n"
+                    last_ping_time = now
 
                 await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             pass
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-
 
 frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
 if os.path.exists(frontend_path):

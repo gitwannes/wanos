@@ -117,7 +117,7 @@ class LogMonitorApp(App):
                 log_widget.write(f"[bold green]✅ Connected to Local Broker ({cfg['host']})[/]")
 
                 # Listen to both Status and Debug streams
-                await client.subscribe("wisc/system/console/#")
+                await client.subscribe("wanos/console/#")
 
                 async for message in client.messages:
                     if self.paused: continue

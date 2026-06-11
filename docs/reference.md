@@ -8,36 +8,37 @@ This document serves as the master blueprint and reference guide for the directo
 
 **Root Directory (`C:\data\git\wanos\`)**
 * `.gitignore`: Specifies intentionally untracked files to ignore for source control.
-* `.env`: Secrets file holding sensitive infrastructure values (Excluded from Source Control).
+* `.env`: Secrets file holding sensitive infrastructure values (Shared PIN, MQTT broker passwords).
 * `hardware.yaml`: Static, layered mapping of physical GPIO pins, MQTT network architectures, and external node IDXs.
-* `config.yaml`: The unified production system configuration file (runtime logic properties).
-* `config_lab.yaml`: Mock architecture states used to initialize variables during Lab Mode.
-* `main.py`: The ASGI entry point. Initializes FastAPI, signal traps, external integrations, and hardware threads.
+* `config.yaml`: The unified production system configuration file (runtime limits, hysteresis boundaries, and PID terms).
+* `config_lab.yaml`: Mock architecture states used to seed lab baseline metrics during emulation mode.
+* `main.py`: The ASGI web entry point. Hosts the FastAPI app instance, lifespans, and the keep-alive ping SSE stream loops.
 * `requirements.txt`: Python package dependencies.
 
 **core/**
 * `__init__.py`: Package initializer.
-* `config.py`: Strict Pydantic parsing schemas assembling `hardware.yaml` and `config.yaml` into a validated state.
-* `logger.py`: Custom-tailored asynchronous system log engine.
-* `models.py`: House-wide Pydantic modules handling validation layer targets. Defines distinct environmental targets (`outside`, `bathroom`, `cinema`, `sauna_high`, `sauna_low`).
-* `mqtt_client.py`: Async-native (`aiomqtt`) system broker wrapper supporting background stream subscriptions and publishing.
-* `state_manager.py`: Runs the central system asynchronous event queue. Protects and limits state updates strictly within its single consumer loop execution context.
+* `config.py`: Strict Pydantic parsing schemas assembling the configuration files into a validated state.
+* `logger.py`: Centralized async middleware engine piping logs simultaneously to Loguru disk files and the local MQTT pipeline.
+* `models.py`: House-wide Pydantic data contract definitions representing the reactive multi-zone system states.
+* `mqtt_publisher.py`: The Event-Driven delta router. Translates snapshot mutations into domain-scoped MQTT packets.
+* `mqtt_transport.py`: Pure async transport layer managing the low-level TCP socket context and connection keep-alives.
+* `state_manager.py`: Runs the central system asynchronous event queue. Restricts all data mutations strictly to a single, safe worker thread.
 
-**frontend/** * `app.js`: Alpine.js reactive store, SSE stream handlers, and timestamp metronome loops.
-* `index.html`: Main HTML entry point mapped to TailwindCSS + DaisyUI components.
+**frontend/**
+* `app.js`: Alpine.js master reactive store controller. Manages HTTP handshakes, the sliding 10s SSE watchdog, and extended timestamp formatting uptime trackers.
+* `index.html`: Main HTML entry point bound directly to DaisyUI + Tailwind layouts.
 
 **hardware/** (Local Physical Interfaces)
 * `sensors.py`: Thread polling managers watching for local physical environmental changes (SHT11 arrays, GPIO pulses).
-* `simulator.py`: Implements mathematical thermal engines for Lab Mode. Simulates 24-hour outdoor sine waves, bathroom humidity decay, and complex sauna thermal stratification.
+* `simulator.py`: Implements mathematical thermal engines for Lab Mode (weather trends, bathroom ventilation decay, and sauna thermal stratification).
 
 **logic/** (Core Business Rules)
-* `auxiliary_controller.py`: Manages ancillary operations including dynamic lighting logic and active step timelines.
-* `sauna_controller.py`: Tracks environmental steps, heater rotation algorithms, and multi-tier priority PID metrics.
+* `auxiliary_controller.py`: Manages ancillary operations including dynamic lighting color mapping and active LCD display steps.
+* `sauna_controller.py`: Tracks environmental steps, phase element prioritization cascades, and multi-tier PID algorithms.
 * `timers.py`: Simple wrappers feeding tracking alerts directly to the core state manager queue upon expiration loops.
 
 **integrations/** (Networked Physical Interfaces)
-* `home_hub.py`: Target integration connector interfacing via a dedicated remote MQTT broker connection directly to Domoticz environments (reads outdoor temps, syncs bathroom and extraction vents).
-* `lighting.py`: Coordinates configuration updates directly to local color lighting environments (Hue Bridge).
+* `home_hub.py`: Target integration connector bridging raw external Domoticz state packets cleanly onto the internal WanOS bus.
 
 ---
 
@@ -49,25 +50,25 @@ Outgoing topics:
 `wanos/domsensors/raw`		Filtered, raw packets received from Domoticz
 `wanos/domsensors/parsed`	Human-readable format triggered ONLY on a real value/state change
 `wanos/wisc`				A full "baseline" snapshot upon start, then deltas.
-`wanos/metrics/pulses`		Cold & hot water: liters & energy: 0,1 kWh
-`wanos/console/status`
-`wanos/console/debug`
+`wanos/metrics/pulses`		Cold & hot water: liters & energy: 0.1 kWh
+`wanos/console/status`		Standard operational engine execution logs
+`wanos/console/debug`		High-frequency developmental logging chatter
 
 **TOPIC: `wanos/system`**
-* **Rules:** - Boot variables upon startup & heartbeat.
-  - Domoticz connection flag sent on change.
-  - Heartbeat ping sent every 60 seconds.
+* **Rules:** - Publishes static application and OS boot Unix timestamps upon startup.
+  - Broadcasts Domoticz link tracking statuses instantly on network change.
+  - Fires an implicit connection keep-alive heartbeat every 60 seconds.
 * **Payload Examples:**
-  - Boot: `{"app_boot_unix": 1718010000, "ip_address": "10.32.251.28"}`
-  - Change: `{"domoticz_mqtt_connected": false}`
-  - Heartbeat (60s): `{"wanos_mqtt_connected": true}`
+  - Startup Handshake: `{"app_boot_unix": 1781182950, "os_boot_unix": 1780822950, "ip_address": "10.32.251.28"}`
+  - Connection Flip: `{"domoticz_mqtt_connected": false}`
+  - Metronome Heartbeat: `{"wanos_mqtt_connected": true}`
 
 **TOPIC: `wanos/domsensors/raw`**
-* **Rules:** - Contains the exact, full JSON packet received from Domoticz.
-  - ONLY includes sensors verified against `hardware.yaml`.
-  - Passes through an early-gate filter: exact duplicates are silently dropped.
+* **Rules:** - Relays the exact, unedited JSON packet received from the remote Domoticz broker.
+  - Restricted to devices explicitly mapped inside `hardware.yaml`.
+  - Blocks duplicate sequential packets at an early gateway cache filter.
 * **Payload Example:**
- ```json
+  ```json
   {
     "idx": 7436,
     "svalue1": "20.5",
@@ -78,29 +79,53 @@ Outgoing topics:
 
 **TOPIC: `wanos/domsensors/parsed`**
 * **Rules:**
-  - Human-readable format triggered ONLY on a real value/state change.
+  - Evaluates internal state caches and logs human-readable delta transition strings *only* when a real value modification occurs.
 * **Payload Examples:**
   - `{"bathroom_temp": "20.4 -> 20.5"}`
-  - `{"outside_hum": "75 -> 76"}`
-  - `{"safety_ssr": "OFF -> ON"}`
+  - `{"sauna_extrvent": "OFF -> ON"}`
 
 **TOPIC: `wanos/wisc` (Core Sauna Engine)**
 * **Rules:**
-  - Temperature, humidity, and external vents are excluded from this payload.
-  - Sends a full "baseline" snapshot when the sauna is turned ON.
-  - Sends ONLY modified keys (deltas) whenever a value changes.
+  - Environmental multi-probe sensors and ventilation switches are completely excluded from this track.
+  - Pushes a full baseline control map the exact moment the sauna toggles `active = true`.
+  - Publishes precise partial dictionaries (deltas) on intermediate frames if values drift.
 * **Payload Examples:**
-  - Baseline: `{"active": true, "setpoint_temp": 80, "modulation_pwm": 0, "phases_pwm": [0,0,0], "fireorder": "--"}`
-  - Delta: `{"modulation_pwm": 80}`
-  - Delta: `{"setpoint_temp": 85}`
+  - Baseline Output: `{"active": true, "setpoint_temp": 80, "modulation_pwm": 0, "phases_pwm": [0,0,0], "fireorder": "UVW"}`
+  - Step Modulation: `{"modulation_pwm": 82, "phases_pwm": [46, 100, 100]}`
 
 **TOPIC: `wanos/metrics/pulses`**
 * **Rules:**
-  - Internal RAM calculates fractional floats.
-  - MQTT Payload is ONLY published when a whole integer threshold is crossed (1L or 0.1 kWh).
+  - The automation engine calculates raw fractional quantities in local RAM.
+  - Suppresses transmission until absolute whole integer step barriers are scaled (1 Liter for fluid sensors or 0.1 kWh / 100 Wh for energy monitors).
 * **Payload Examples:**
-  - `{"total_cold_liters": 154}`
-  - `{"total_kwh": 12.3}`
+  - Flow Meter: `{"total_cold_liters": 154}`
+  - Power Meter: `{"total_kwh": 12.3}`
+
+**TOPIC: `wanos/console/status`**
+* **Rules:**
+  - Subscribes directly to standard operational logger notifications.
+  - Pipes all standard business updates carrying severities of `INFO`, `SUCCESS`, `WARNING`, and `ERROR`.
+* **Payload Example:**
+  ```json
+  {
+    "timestamp": "2026-06-11 16:15:00",
+    "level": "SUCCESS",
+    "message": "Boot sequence complete. HTTP/SSE Web Interface online."
+  }
+  ```
+
+**TOPIC: `wanos/console/debug`**
+* **Rules:**
+  - Segregates high-frequency development chatter from standard notification streams to minimize local broker pipeline overhead.
+  - Captures inbound diagnostic confirmation packets, sensor parsing thresholds, and duplicate drop logs.
+* **Payload Example:**
+  ```json
+  {
+    "timestamp": "2026-06-11 13:50:53",
+    "level": "DEBUG",
+    "message": "[Domoticz] Node 'sauna_extrvent' (IDX 8577) sensor update received -> ON"
+  }
+  ```
 
 ---
 
@@ -110,12 +135,11 @@ The FastAPI server (running at `http://<backend-ip>:8000`) exposes the following
 | Endpoint | Method | Purpose | Payload Requirements |
 | :--- | :--- | :--- | :--- |
 | **`/`** | GET | Serves compiled frontend static HTML assets | N/A |
-| **`/api/state`** | GET | Retrieves read-only JSON snapshot for instant sync | N/A |
-| **`/api/state/sse`** | GET | Primary persistent real-time UI data pipeline | N/A |
-| **`/api/console`** | GET | Retrieves JSON of last 100 log events | N/A |
-| **`/api/event`** | POST | Universal endpoint to inject any command into queue | `{"type": "...", "payload": {}}` |
-| **`/api/test/temp`** | POST | Dedicated lab endpoint for injecting dummy temps | `{"temp": float}` |
-| **`/docs`** | GET | Auto-generated Swagger UI | N/A |
+| **`/api/state`** | GET | Retrieves read-only JSON snapshot for instant client bootstrapping | N/A |
+| **`/api/state/sse`** | GET | Primary persistent real-time data pipeline. Emits real-time domain deltas and maps a 5-second connection ping frame | N/A |
+| **`/api/event`** | POST | Universal command entry point to inject operations directly into queue | `{"type": "...", "payload": {}}` |
+| **`/api/test/temp`** | POST | Dedicated lab endpoint for forcing test environment temps | `{"temp": float}` |
+| **`/docs`** | GET | Auto-generated interactive Swagger UI API explorer | N/A |
 
 ---
 
@@ -248,4 +272,5 @@ Simulation engine initialized.
 [System] Internal Engine State validated and locked.
 [System] Internal Event Processed: SYSTEM_READY
 [System] Boot sequence complete. HTTP/SSE Web Interface online.
+```
 ```

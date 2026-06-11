@@ -180,11 +180,33 @@ function wanosApp() {
             this.fetchFullSnapshot().then(() => {
                 const eventSource = new EventSource("/api/state/sse");
 
+                // ⏱️ Sliding Watchdog Guardian Loop
+                const resetWatchdog = () => {
+                    if (this.sseWatchdog) clearTimeout(this.sseWatchdog);
+                    this.sseWatchdog = setTimeout(() => {
+                        console.warn("⚠️ Watchdog Timeout! No server signal detected for 10s. Forcing reconnect...");
+                        this.connected = false;
+                        eventSource.close();
+                        setTimeout(() => this.connectSSE(), 3000);
+                    }, 10000); // 2x the 5-second backend ping interval
+                };
+
+                // Arm watchdog immediately on link orchestration
+                resetWatchdog();
+
                 eventSource.onmessage = (event) => {
                     try {
-                        // Each SSE message carries one changed domain subtree:
-                        // { "domain": "sauna", "data": { ... } }
+                        // Any incoming data frame proves the underlying pipeline is alive
+                        resetWatchdog();
+
                         const msg = JSON.parse(event.data);
+
+                        // If it's a keep-alive frame, intercept and return early without altering UI metrics
+                        if (msg.domain === "ping") {
+                            this.connected = true;
+                            return;
+                        }
+
                         this._applyDomainDelta(msg.domain, msg.data);
                         this.connected = true;
                     } catch (err) {
@@ -193,6 +215,7 @@ function wanosApp() {
                 };
 
                 eventSource.onerror = (err) => {
+                    if (this.sseWatchdog) clearTimeout(this.sseWatchdog);
                     this.connected = false;
                     console.error("❌ SSE stream broke. Re-linking context in 3s...");
                     eventSource.close();
@@ -207,12 +230,10 @@ function wanosApp() {
 
             // ⏱️ Dynamic Uptime Live Generators
             if (this.state.system.os_boot_unix) {
-                const osDiff = Math.max(0, now - this.state.system.os_boot_unix);
-                this.state.system.os_uptime_formatted = this.formatTime(osDiff);
+                this.state.system.os_uptime_formatted = this.formatExtendedUptime(this.state.system.os_boot_unix, now);
             }
             if (this.state.system.app_boot_unix) {
-                const appDiff = Math.max(0, now - this.state.system.app_boot_unix);
-                this.state.system.app_uptime_formatted = this.formatTime(appDiff);
+                this.state.system.app_uptime_formatted = this.formatExtendedUptime(this.state.system.app_boot_unix, now);
             }
 
             if (this.state.sauna.active && this.state.sauna.session_start_time && this.state.sauna.session_end_time) {
@@ -270,6 +291,30 @@ function wanosApp() {
             const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             const s = (Math.floor(totalSeconds) % 60).toString().padStart(2, '0');
             return `${h}:${m}:${s}`;
+        },
+
+        formatExtendedUptime(bootUnix, now) {
+            const totalSeconds = Math.max(0, now - bootUnix);
+
+            // 1. Calculate duration component zero-padded to dd:HH:MM:ss
+            const d = Math.floor(totalSeconds / 86400).toString().padStart(2, '0');
+            const h = Math.floor((totalSeconds % 86400) / 3600).toString().padStart(2, '0');
+            const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+            const s = (Math.floor(totalSeconds) % 60).toString().padStart(2, '0');
+            const durationStr = `${d}d ${h}:${m}:${s}`;
+
+            // 2. Parse absolute historical boot timestamp (YYYY-MM-DD HH:mm:ss)
+            const dateObj = new Date(bootUnix * 1000);
+            const year = dateObj.getFullYear();
+            const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+            const date = dateObj.getDate().toString().padStart(2, '0');
+            const hours = dateObj.getHours().toString().padStart(2, '0');
+            const mins = dateObj.getMinutes().toString().padStart(2, '0');
+            const secs = dateObj.getSeconds().toString().padStart(2, '0');
+            const bootStr = `${year}-${month}-${date} ${hours}:${mins}:${secs}`;
+
+            // Combine into unified output format
+            return `${durationStr} (${bootStr})`;
         },
 
         syncLabControls() {
