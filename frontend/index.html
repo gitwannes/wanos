@@ -31,27 +31,6 @@
 
     <main class="container mx-auto px-4 max-w-[90rem] pb-10 flex flex-col xl:flex-row gap-6 items-start">
 
-        <div class="w-full xl:w-[28rem] shrink-0 sticky top-4 flex flex-col gap-4" x-show="!state.hardware.live_mode" style="display: none;">
-            <div class="card bg-base-100 shadow-xl border border-base-200 h-[80vh] flex flex-col">
-                <div class="card-body p-4 flex flex-col h-full overflow-hidden">
-                    <h2 class="card-title text-success uppercase text-[10px] tracking-widest border-b border-base-200 pb-2 mb-2 flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span> Automation Engine Telemetry
-                    </h2>
-                    <div class="flex-1 overflow-y-auto space-y-2.5 pr-2 font-mono text-[10.5px] text-gray-400">
-                        <div x-show="state.hardware.lab_simulation_logs.length === 0" class="italic opacity-50 text-center mt-10">
-                            Awaiting thermodynamic simulator events...
-                        </div>
-                        <template x-for="(log, index) in state.hardware.lab_simulation_logs" :key="index">
-                            <div class="border-b border-base-300/50 pb-2 leading-relaxed flex gap-3">
-                                <span class="text-base-500 font-bold select-none shrink-0" x-text="log.includes('|') ? log.split('|')[0] : ''"></span>
-                                <span class="text-gray-300" x-text="log.includes('|') ? log.split('|')[1] : log"></span>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div class="flex-1 w-full flex flex-col gap-6">
 
             <template x-if="state.hardware.sensor_errors && state.hardware.sensor_errors.length > 0">
@@ -84,19 +63,18 @@
                             </div>
                         </div>
 
-                        <div class="flex justify-between items-center bg-base-200 px-3 py-2 rounded-box border border-base-300 mb-5">
-                            <span class="text-[10px] font-bold text-base-400 uppercase tracking-wider">Ambient Hue Lighting</span>
-                            <span class="badge font-mono text-[10px] tracking-wider py-2"
-                                  :class="state.environment.sauna_hue_on ? 'badge-warning animate-pulse text-neutral-900 font-bold' : 'badge-neutral text-gray-500'">
-                                <span x-text="state.environment.sauna_hue_on ? '💡 ILLUMINATED' : 'DARK'"></span>
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <span class="text-xs font-bold text-base-400 uppercase">Hue Lighting</span>
+                            <span class="badge font-mono text-[10px] tracking-wider py-3" :class="state.devices.cinema_hue === 'ON' ? 'badge-warning animate-pulse text-neutral-900 font-bold' : 'badge-neutral text-gray-500'">
+                                <span x-text="state.devices.cinema_hue === 'ON' ? '💡 ILLUMINATED' : 'DARK'"></span>
                             </span>
                         </div>
 
                         <div class="flex justify-between items-center bg-base-200 px-3 py-2.5 rounded-box border border-base-300">
                             <span class="text-[10px] font-bold text-base-400 uppercase tracking-wider">Extraction Fan</span>
                             <span class="badge font-mono text-[10px] tracking-wider py-2"
-                                  :class="state.sauna.ventilation_state !== 'OFF' ? 'badge-info animate-pulse text-neutral-900 font-bold' : 'badge-neutral text-gray-500'">
-                                <span x-text="state.sauna.ventilation_state === 'OFF' ? 'OFF' : state.sauna.ventilation_state + ' [' + ventRemainingText + ']'"></span>
+                                  :class="(state.sauna.ventilation_state !== 'OFF' || state.devices.sauna_extrvent === 'ON') ? 'badge-info animate-pulse text-neutral-900 font-bold' : 'badge-neutral text-gray-500'">
+                                <span x-text="state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices.sauna_extrvent === 'ON' ? 'MANUAL ON' : 'OFF')"></span>
                             </span>
                         </div>
 
@@ -243,9 +221,9 @@
                             </div>
                         </div>
                         <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <span class="text-xs font-bold text-base-400 uppercase">Hue Lighting</span>
-                            <span class="badge font-mono text-[10px] tracking-wider py-3" :class="state.environment.cinema_hue_on ? 'badge-warning animate-pulse text-neutral-900 font-bold' : 'badge-neutral text-gray-500'">
-                                <span x-text="state.environment.cinema_hue_on ? '💡 ILLUMINATED' : 'DARK'"></span>
+                            <span class="text-xs font-bold text-base-400 uppercase">Ambient Hue Lighting</span>
+                            <span class="badge font-mono text-[10px] tracking-wider py-3" :class="state.devices.sauna_hue === 'ON' ? 'badge-warning animate-pulse text-neutral-900 font-bold' : 'badge-neutral text-gray-500'">
+                                <span x-text="state.devices.sauna_hue === 'ON' ? '💡 ILLUMINATED' : 'DARK'"></span>
                             </span>
                         </div>
                     </div>
@@ -271,13 +249,12 @@
                     <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
                         <div class="text-xs font-bold text-base-400 uppercase">Ventilator</div>
                         <div class="flex items-center gap-3">
-                            <span class="font-mono text-sm mt-0.5" :class="state.environment.bathroom_vent_on ? 'text-info font-bold animate-pulse' : 'text-base-500'" x-text="state.environment.bathroom_vent_on ? '💨 RUNNING' : 'OFF'"></span>
+                            <span class="font-mono text-sm mt-0.5" :class="state.devices.bathroom_ventilator === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500'" x-text="state.devices.bathroom_ventilator === 'ON' ? '💨 RUNNING' : 'OFF'"></span>
                             <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
-                                   :checked="state.environment.bathroom_vent_on"
+                                   :checked="state.devices.bathroom_ventilator === 'ON'"
                                    @change="injectLabHubStateChange('bathroom_ventilator', $event.target.checked)" />
                         </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4 font-mono text-xs">
+                    </div>                    <div class="grid grid-cols-2 gap-4 font-mono text-xs">
                         <div class="bg-base-200 p-3 rounded-box border border-base-300">
                             <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Cold Water</div>
                             <div class="text-lg font-black text-white" x-text="state.metrics.water_cold_liters.toFixed(1) + ' L'"></div>
@@ -368,8 +345,8 @@
                                 <div class="flex items-center justify-between text-xs font-mono">
                                     <span class="text-gray-400 font-medium">Sauna Hue:</span>
                                     <input type="checkbox" class="toggle toggle-secondary toggle-sm shadow"
-                                           x-model="labSaunaHueOn"
-                                           @change="injectLabLightingChange('sauna', labSaunaHueOn)" />
+                                           :checked="state.devices.sauna_hue === 'ON'"
+                                           @change="injectLabHubStateChange('sauna_hue', $event.target.checked)" />
                                 </div>
                             </div>
                         </div>
@@ -419,8 +396,8 @@
                                 <div class="flex items-center justify-between text-xs font-mono">
                                     <span class="text-gray-400 font-medium">Cinema Hue:</span>
                                     <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
-                                           x-model="labCinemaHueOn"
-                                           @change="injectLabLightingChange('cinema', labCinemaHueOn)" />
+                                           :checked="state.devices.cinema_hue === 'ON'"
+                                           @change="injectLabHubStateChange('cinema_hue', $event.target.checked)" />
                                 </div>
                             </div>
                         </div>
@@ -484,11 +461,17 @@
                             <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-1 mb-2">Diagnostic: Sauna Probes</div>
                             <div class="flex justify-between items-center mb-1">
                                 <span class="text-base-400">Ceiling (High):</span>
-                                <span class="text-orange-400 font-bold" x-text="state.environment.sauna_high_temp !== null ? state.environment.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                <div class="text-right">
+                                    <span class="text-orange-400 font-bold" x-text="state.environment.sauna_high_temp !== null ? state.environment.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-info ml-1 text-[10px]" x-text="state.environment.sauna_high_hum !== null ? state.environment.sauna_high_hum + '%' : '--%'"></span>
+                                </div>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-base-400">Bench (Low):</span>
-                                <span class="text-amber-500 font-bold" x-text="state.environment.sauna_low_temp !== null ? state.environment.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                <div class="text-right">
+                                    <span class="text-amber-500 font-bold" x-text="state.environment.sauna_low_temp !== null ? state.environment.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-info ml-1 text-[10px]" x-text="state.environment.sauna_low_hum !== null ? state.environment.sauna_low_hum + '%' : '--%'"></span>
+                                </div>
                             </div>
                         </div>
 

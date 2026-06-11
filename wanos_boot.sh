@@ -1,26 +1,28 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # wanos_boot.sh
-# before use: convert line endings to LF: sed -i 's/\r$//' wanos_boot.sh
 # Manage a development uvicorn process for "uvicorn main:app --host 0.0.0.0 --port 8000"
 # Commands:
-#   start           Start uvicorn in background (writes PID to $PID_FILE, logs to $LOG_FILE)
-#   status          Show whether uvicorn is running and which PID (if any)
-#   stop [force]    Attempt graceful shutdown (SIGINT) of the PID in $PID_FILE; use 'force' to kill -9
-#   log             Tail the console log: show last 20 lines then follow
-#
-# Use "sed -i 's/\r$//' wanos_boot.sh" to convert to Unix endings.
-# Paths use $HOME so the script works for the current user.
+#   start           Start uvicorn in background (logs to $LOG_FILE)
+#   status          Show whether uvicorn is running and which PID(s)
+#   stop [force]    Attempt graceful shutdown (SIGINT) of matching uvicorn PID(s); 'force' forces kill-9
+#   consolelog      Show last $TAIL_LINES lines of wanos.console.log and follow
+#   applog          Show last $TAIL_LINES lines of /var/log/wisc/wanos.log and follow
+#   reload          Attempt stop (no force); if stop succeeds, start; do not force-kill
 set -euo pipefail
 
 # -------------------------
 # Configuration
 # -------------------------
 VENV_DIR="$HOME/wisc_backend/wisc_backend_venv"
-APP_CMD="uvicorn main:app --host 0.0.0.0 --port 8000"
+
+# For info: manual launch: uvicorn main:app --host 0.0.0.0 --port 8000
+APP_CMD="$VENV_DIR/bin/python -u -m uvicorn"
+APP_ARGS="main:app --host 0.0.0.0 --port 8000"
+
 LOG_FILE="$HOME/wisc_backend/wanos.console.log"
-PID_FILE="$HOME/wisc_backend/wanos_uvicorn.pid"
+APP_LOG_FILE="/var/log/wisc/wanos.log"
 GRACE_PERIOD=10   # seconds to wait for graceful shutdown
-TAIL_LINES=20     # number of lines to show initially for 'log' command
+TAIL_LINES=20     # number of lines to show initially for 'consolelog' and 'applog'
 
 # -------------------------
 # Helpers
@@ -32,35 +34,35 @@ usage() {
 Usage: $0 <command> [args]
 
 Commands:
-  start           Start uvicorn in background (writes PID to $PID_FILE, logs to $LOG_FILE)
-  status          Show whether uvicorn is running and which PID (if any)
-  stop [force]    Attempt graceful shutdown (SIGINT) of the PID in $PID_FILE; 'force' forces kill -9
-  log             Show last $TAIL_LINES lines of the console log and follow (tail -n $TAIL_LINES -f)
+  start           Start uvicorn in background (logs to $LOG_FILE)
+  status          Show whether uvicorn is running and which PID(s)
+  stop [force]    Attempt graceful shutdown (SIGINT) of matching uvicorn PID(s); 'force' forces kill -9
+  consolelog      Show last $TAIL_LINES lines of $LOG_FILE and follow
+  applog          Show last $TAIL_LINES lines of $APP_LOG_FILE and follow
+  reload          Attempt stop (no force); if stop succeeds, start; do not force-kill
 
 Examples:
   $0 start
   $0 status
   $0 stop
   $0 stop force
-  $0 log
+  $0 consolelog
+  $0 applog
+  $0 reload
 EOF
   exit 2
 }
 
-# Return PID from pidfile if present and process exists, otherwise empty
-read_pidfile() {
-  if [ -f "$PID_FILE" ]; then
-    pid=$(cat "$PID_FILE" 2>/dev/null || true)
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      printf '%s' "$pid"
-      return 0
-    fi
+# Return space-separated list of live uvicorn PIDs (or empty)
+find_uvicorn_pids() {
+  pids=$(pgrep -f "uvicorn main:app" || true)
+  if [ -z "$pids" ]; then
+    printf ''
+  else
+    printf '%s' "$(echo "$pids" | tr '\n' ' ' | sed 's/ $//')"
   fi
-  printf ''
-  return 1
 }
 
-# Activate virtualenv in the current shell
 activate_venv() {
   if [ -f "$VENV_DIR/bin/activate" ]; then
     # shellcheck disable=SC1090
@@ -82,7 +84,6 @@ CMD="$1"
 shift || true
 
 DO_FORCE=false
-# Accept 'force' only as an argument to stop (plain token, no dashes)
 for arg in "$@"; do
   case "$arg" in
     force) DO_FORCE=true ;;
@@ -95,60 +96,42 @@ done
 # Status
 # -------------------------
 if [ "$CMD" = "status" ]; then
-  pid=$(read_pidfile || true)
-  if [ -n "$pid" ]; then
-    log "uvicorn appears to be running (PID: $pid). Log: $LOG_FILE"
-    ps -o pid,cmd -p "$pid" || true
+  pids=$(find_uvicorn_pids)
+  if [ -n "$pids" ]; then
+    log "uvicorn appears to be running (PID(s): $pids). Console log: $LOG_FILE"
+    ps -o pid,ppid,cmd -p $pids || true
     exit 0
-  else
-    pids=$(pgrep -f "uvicorn main:app" || true)
-    if [ -n "$pids" ]; then
-      log "uvicorn processes found (not matching pidfile): $pids"
-      ps -o pid,cmd -p $pids || true
-      exit 0
-    fi
-    log "No uvicorn process found."
-    exit 1
   fi
+  log "No uvicorn process found."
+  exit 1
 fi
 
 # -------------------------
-# Stop (graceful) flow
+# Stop (graceful) flow (no pidfile)
 # -------------------------
 if [ "$CMD" = "stop" ]; then
-  pid=$(read_pidfile || true)
-  if [ -z "$pid" ]; then
-    pids=$(pgrep -f "uvicorn main:app" || true)
-    if [ -z "$pids" ]; then
-      log "No uvicorn process found (no pidfile and no matching processes)."
-      exit 0
-    else
-      log "No valid pidfile, but found uvicorn processes: $pids"
-      pid="$pids"
-    fi
+  pids=$(find_uvicorn_pids)
+  if [ -z "$pids" ]; then
+    log "No uvicorn process found."
+    exit 0
   fi
 
-  log "Attempting graceful shutdown of PID(s): $pid"
-  # send SIGINT (same as Ctrl+C) for graceful shutdown
-  kill -INT $pid 2>/dev/null || true
+  log "Attempting graceful shutdown of PID(s): $pids"
+  kill -INT $pids 2>/dev/null || true
 
-  # wait up to GRACE_PERIOD seconds for processes to exit
   for i in $(seq 1 $GRACE_PERIOD); do
     sleep 1
-    still=$(for p in $pid; do kill -0 "$p" 2>/dev/null && printf '%s ' "$p"; done || true)
+    still=$(for p in $pids; do kill -0 "$p" 2>/dev/null && printf '%s ' "$p"; done || true)
     if [ -z "$still" ]; then
       log "Shutdown successful: no uvicorn processes remain."
-      [ -f "$PID_FILE" ] && rm -f "$PID_FILE"
       exit 0
     fi
     log "Waiting for processes to exit... ($i/$GRACE_PERIOD)"
   done
 
-  # graceful timed out
-  still=$(for p in $pid; do kill -0 "$p" 2>/dev/null && printf '%s ' "$p"; done || true)
+  still=$(for p in $pids; do kill -0 "$p" 2>/dev/null && printf '%s ' "$p"; done || true)
   if [ -z "$still" ]; then
     log "Shutdown completed in the final check."
-    [ -f "$PID_FILE" ] && rm -f "$PID_FILE"
     exit 0
   fi
 
@@ -162,7 +145,6 @@ if [ "$CMD" = "stop" ]; then
       exit 1
     else
       log "Force kill successful."
-      [ -f "$PID_FILE" ] && rm -f "$PID_FILE"
       exit 0
     fi
   else
@@ -172,61 +154,85 @@ if [ "$CMD" = "stop" ]; then
 fi
 
 # -------------------------
-# Start flow
+# Start flow (no pidfile)
 # -------------------------
 if [ "$CMD" = "start" ]; then
-  existing_pid=$(read_pidfile || true)
-  if [ -n "$existing_pid" ]; then
-    log "App already running (PID: $existing_pid). Doing nothing."
+  pids_now=$(find_uvicorn_pids)
+  if [ -n "$pids_now" ]; then
+    log "Found uvicorn process(es): $pids_now. Doing nothing."
     exit 0
   fi
 
-  pids=$(pgrep -f "uvicorn main:app" || true)
-  if [ -n "$pids" ]; then
-    log "Found uvicorn process(es) (no pidfile): $pids. Doing nothing."
-    exit 0
-  fi
-
-  log "Starting uvicorn in background. Log -> $LOG_FILE"
+  log "Starting uvicorn in background. Console log -> $LOG_FILE"
   activate_venv
 
   mkdir -p "$(dirname "$LOG_FILE")"
   touch "$LOG_FILE"
   chmod 644 "$LOG_FILE"
 
-  nohup $APP_CMD >> "$LOG_FILE" 2>&1 &
-  uvicorn_pid=$!
+  # Ensure unbuffered Python output and run under bash -lc so reloader and worker inherit redirection.
+  export PYTHONUNBUFFERED=1
+  # Use venv python directly so installed packages are available
+  nohup bash -lc "$APP_CMD $APP_ARGS --reload" >> "$LOG_FILE" 2>&1 &
+  starter_pid=$!
 
-  sleep 0.5
+  sleep 1
 
-  if kill -0 "$uvicorn_pid" 2>/dev/null; then
-    echo "$uvicorn_pid" > "$PID_FILE"
-    log "Started uvicorn (PID: $uvicorn_pid). PID written to $PID_FILE"
-    log "Tail the log with: $0 log (logfile in $LOG_FILE)"
+  uv_pids=$(find_uvicorn_pids)
+  if [ -n "$uv_pids" ]; then
+    log "Started uvicorn (detected PID(s): $uv_pids). Console log -> $LOG_FILE"
+    log "Tail the console log with: $0 consolelog"
     exit 0
+  fi
+
+  if kill -0 "$starter_pid" 2>/dev/null; then
+    log "Started uvicorn (starter PID: $starter_pid). Console log -> $LOG_FILE"
+    log "Tail the console log with: $0 consolelog"
+    exit 0
+  fi
+
+  log "Failed to start uvicorn. Check $LOG_FILE for errors."
+  exit 1
+fi
+
+# -------------------------
+# Reload: stop (no force) then start if stop succeeded
+# -------------------------
+if [ "$CMD" = "reload" ]; then
+  log "Reload requested: attempting graceful stop first (no force)."
+  # run stop without force
+  if "$0" stop; then
+    log "Stop succeeded; starting again."
+    "$0" start
+    exit $?
   else
-    found=$(pgrep -f "uvicorn main:app" || true)
-    if [ -n "$found" ]; then
-      echo "$found" > "$PID_FILE"
-      log "Started uvicorn (detected PID(s): $found). PID written to $PID_FILE"
-      exit 0
-    fi
-    log "Failed to start uvicorn. Check $LOG_FILE for errors."
+    log "Stop failed or timed out; reload aborted (will not force-kill)."
     exit 1
   fi
 fi
 
 # -------------------------
-# Log tailing
+# Console log tailing
 # -------------------------
-if [ "$CMD" = "log" ]; then
+if [ "$CMD" = "consolelog" ]; then
   if [ ! -f "$LOG_FILE" ]; then
-    log "Log file not found: $LOG_FILE"
+    log "Console log file not found: $LOG_FILE"
     exit 1
   fi
-  # Show last TAIL_LINES lines then follow
-  log "Tailing log ($LOG_FILE). Showing last $TAIL_LINES lines then following."
-  exec tail -n "$TAIL_LINES" -f "$LOG_FILE"
+  log "Tailing console log ($LOG_FILE). Showing last $TAIL_LINES lines then following."
+  exec tail -n "$TAIL_LINES" -F "$LOG_FILE"
+fi
+
+# -------------------------
+# App log tailing
+# -------------------------
+if [ "$CMD" = "applog" ]; then
+  if [ ! -f "$APP_LOG_FILE" ]; then
+    log "App log file not found: $APP_LOG_FILE"
+    exit 1
+  fi
+  log "Tailing app log ($APP_LOG_FILE). Showing last $TAIL_LINES lines then following."
+  exec tail -n "$TAIL_LINES" -F "$APP_LOG_FILE"
 fi
 
 # -------------------------

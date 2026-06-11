@@ -1,3 +1,5 @@
+# --- file: architecture.md ---
+
 # WanOS Home Control System - Architecture Blueprint
 
 GIT: https://bitbucket.org/bitwannes/wanos
@@ -33,13 +35,13 @@ This project is a **100% clean-slate rewrite**. All new code adheres to modern b
 * **Asynchronous Hardware I/O:** Synchronous hardware calls are isolated in dedicated background threads fed by queues to prevent blocking the async event loop.
 
 ## 4. State Broadcasting & Disconnect Strategy
-State is broadcasted across **five domain-scoped MQTT topics** rather than a single monolithic dump. Each topic fires independently at its own cadence: `wisc/system/telemetry` (periodic), `wisc/environment/sensors` (on value change), `wisc/sauna/state` (on change + 5s heartbeat when active), `wisc/devices/switches` (on toggle), `wisc/metrics/pulses` (batched interval). A dedicated `mqtt_publisher.py` layer owns all topic names and routing logic. `mqtt_transport.py` (formerly `mqtt_client.py`) remains a pure transport with no WanOS domain knowledge.
+State is broadcasted across **five domain-scoped MQTT topics** rather than a single monolithic dump. Each topic fires independently at its own cadence: `wanos/system` (boot timestamps, Domoticz connection state, 60s heartbeat), `wanos/domsensors/raw` (filtered, deduplicated inbound Domoticz frames), `wanos/domsensors/parsed` (human-readable "OLD -> NEW" deltas on real change), `wanos/wisc` (sauna core baseline on start, deltas during operation), and `wanos/metrics/pulses` (integer thresholds for water/kWh). A dedicated `mqtt_publisher.py` layer owns all topic names and routing logic. `mqtt_transport.py` (formerly `mqtt_client.py`) remains a pure transport with no WanOS domain knowledge.
 
 The `/api/state/sse` stream operates on a **delta model**. On first connect, the frontend calls `/api/state` to retrieve a full snapshot. The SSE stream then emits only the changed domain subtree per event (e.g., `{"domain": "sauna", "data": {...}}`), never the full state. The frontend merges partial updates into its reactive store by domain key.
 
-Pulse metrics (`WATER_PULSE`, `KWH_PULSE`) are accumulated internally and emitted as rounded liter/Wh values on a time interval. Raw tick counts are not exposed to the frontend.
+Pulse metrics (`WATER_PULSE`, `KWH_PULSE`) are accumulated internally and emitted as rounded integer values on the delta streams. Incoming duplicate raw sensor packets are explicitly filtered and dropped before hitting the state manager to prevent echo loops and network spam.
 
-If the SSE connection drops, the frontend disables all user inputs to prevent state mismatch and displays a "Reconnecting..." banner. Upon reconnect, the frontend calls `/api/state` for a fresh full snapshot before resuming delta tracking. On backend boot, the system reads a `recovery_state.json` file to recover cumulative metrics and pushes an `INITIAL_STATE_LOADED` event to safely resume.
+If the SSE connection drops, the frontend disables all user inputs to prevent state mismatch and displays a "Reconnecting..." banner. Upon reconnect, the frontend calls `/api/state` for a fresh full snapshot before resuming delta tracking. On backend boot, the system reads a `recovery_state.json` file to recover cumulative metrics and pushes a `SYSTEM_READY` event to safely resume.
 
 ## 5. Configuration, Authentication, & Access
 * **Separation of Concerns:** - `.env`: Securely holds sensitive keys and passwords.
@@ -62,7 +64,7 @@ To enforce strict typing, all internal events must map to a predefined schema us
 
 **Hardware Events:** `TEMP_UPDATED`, `HUMIDITY_UPDATED`, `WATER_PULSE`, `KWH_PULSE`, `DOOR_CHANGED`, `SENSOR_ERROR`, `TIMER_TICK`
 **Sauna Events:** `SAUNA_ON`, `SAUNA_OFF`, `SETPOINT_CHANGED`, `MODULATION_UPDATED`, `SETPOINT_REACHED`, `SAUNA_HOLD`, `SAUNA_TIMER_EXPIRED`, `HOLD_TOGGLED`, `TIMER_ADJUSTED`, `VENT_WAIT_EXPIRED`, `VENT_RUN_EXPIRED`
-**System Events:** `INITIAL_STATE_LOADED`, `BACKEND_SHUTDOWN`, `HARDWARE_LIVE_MODE_CHANGED`, `CONFIG_UPDATED`
+**System Events:** `SYSTEM_READY`, `BACKEND_SHUTDOWN`, `HARDWARE_LIVE_MODE_CHANGED`, `CONFIG_UPDATED`
 
 ## 9. Phased Implementation Roadmap
 To mitigate risk and ensure logical separation from hardware quirks, development will proceed in the following phases:

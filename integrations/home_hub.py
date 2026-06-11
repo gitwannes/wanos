@@ -4,6 +4,7 @@ import json
 from typing import Any, Dict
 from core.models import Event, EventType, SystemState
 from core.state_manager import StateManager
+from loguru import logger
 
 
 class DomoticzHomeHubBridge:
@@ -13,7 +14,6 @@ class DomoticzHomeHubBridge:
         self.state_manager = state_manager
         self.state_manager.domoticz_client = domoticz_mqtt_client
         self.mqtt_client = domoticz_mqtt_client
-        self.logger = state_manager.logger
         self._in_topic = domoticz_in_topic
         self._out_topic = domoticz_out_topic
 
@@ -25,6 +25,9 @@ class DomoticzHomeHubBridge:
         # Circuit breaker dictionary tracking the entire system's state history
         self._last_known_states: Dict[str, Any] = {}
 
+        # Early-gate cache to silently drop exact duplicate Domoticz broadcasts
+        self._raw_cache: Dict[int, Any] = {}
+
     async def start(self) -> None:
         # 1. Start listening for incoming broadcasts first
         await self.mqtt_client.subscribe(self._in_topic, self._parse_domoticz_inbound)
@@ -33,33 +36,13 @@ class DomoticzHomeHubBridge:
         # 2. Trigger the pure MQTT cold-boot sync
         await self._fetch_initial_states_mqtt()
 
-        await self.logger.success("🏠 Domoticz HomeHub Bridge initialized (Pure MQTT Mode).")
+        logger.success("[Domoticz] HomeHub Bridge initialized (Pure MQTT Mode).")
 
     async def stop(self) -> None:
-        await self.logger.warning("🏠 Domoticz HomeHub Bridge stopped.")
+        logger.warning("[Domoticz] HomeHub Bridge stopped.")
 
     async def _fetch_initial_states_mqtt(self) -> None:
         """Fires MQTT commands to force Domoticz to broadcast current hardware states."""
-        """
-                ========================================================================
-                COLD-BOOT STATE POPULATION FLOW
-                ========================================================================
-                1. CONFIG INGESTION: Backend parses 'hardware.yaml' assets under the
-                   'domoticz: idx:' block on startup.
-                2. INDEX MAPPING: Generates 'self._name_to_idx' in memory to map text
-                   device names to hardware indices (e.g., {"sauna_high": 7449}).
-                3. STATE PROBING: Loops through valid indices and fires a standard
-                   {"command": "getdeviceinfo", "idx": idx} message over 'domoticz/in'.
-                4. THROTTLING: Enforces a 50ms sleep between payloads to avoid queue
-                   stuttering on the broker or hub.
-                5. PIPELINE REUSE: Domoticz responds by broadcasting frames back to
-                   'domoticz/out'. The bridge's live listener ('_parse_domoticz_inbound')
-                   naturally catches and handles them, avoiding duplicate parser logic.
-                6. SAFETY GATE: The core engine blocks dependent math/UI components
-                   until all critical async boot frames finish arriving.
-                ========================================================================
-                """
-        await self.logger.info("📡 Firing MQTT state requests for cold-boot sync...")
         count = 0
 
         for device_name, idx in self._name_to_idx.items():
@@ -78,7 +61,8 @@ class DomoticzHomeHubBridge:
             # Tiny 50ms network buffer to prevent Mosquitto/Domoticz queue stuttering
             await asyncio.sleep(0.05)
 
-        await self.logger.success(f"📡 Dispatched {count} state requests. Awaiting asynchronous echo...")
+        logger.info(
+            f"Firing {count} MQTT state requests to Domoticz for cold-boot sync and awaiting asynchronous echo...")
 
     async def _parse_domoticz_inbound(self, topic: str, payload: str) -> None:
         try:
@@ -92,8 +76,22 @@ class DomoticzHomeHubBridge:
             if not device_name:
                 return  # Unregistered device, safely ignore
 
-            # Log only verified hardware snapshots into the Tier 2 console system history
-            await self.logger.debug(f"⚙️ [DOMOTICZ] Node '{device_name}' (IDX {idx}) pushed frame: {payload}")
+            # ⚡ EARLY GATE DUPLICATE FILTER ⚡
+            # Extract only the value fields Domoticz uses to broadcast states
+            nvalue = data.get("nvalue")
+            svalue1 = data.get("svalue1")
+            svalue2 = data.get("svalue2")
+            svalue = data.get("svalue")
+
+            cache_state = {"nvalue": nvalue, "svalue1": svalue1, "svalue2": svalue2, "svalue": svalue}
+
+            if self._raw_cache.get(idx) == cache_state:
+                return  # Exact duplicate value. Silently drop to prevent engine noise.
+
+            self._raw_cache[idx] = cache_state
+
+            # Forward the full, unedited JSON directly to the WanOS internal raw bus
+            await self.state_manager.mqtt_client.publish("wanos/domsensors/raw", data)
 
             device_type = self.state_manager._config.domoticz.idx[device_name].type
 
@@ -117,6 +115,16 @@ class DomoticzHomeHubBridge:
                     raw_temp = data.get("svalue1")
                     raw_hum = data.get("svalue2")
 
+                # Format a clean log string regardless of how Domoticz packed the payload
+                log_parts = []
+                if raw_temp is not None and raw_temp != "":
+                    log_parts.append(f"{raw_temp}°C")
+                if raw_hum is not None and raw_hum != "":
+                    log_parts.append(f"{raw_hum}%")
+
+                log_display = " / ".join(log_parts) if log_parts else "No Data"
+                logger.debug(f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor update received -> {log_display}")
+
                 if raw_temp is not None and raw_temp != "":
                     self.state_manager.dispatch(Event(
                         type=EventType.TEMP_UPDATED,
@@ -132,6 +140,14 @@ class DomoticzHomeHubBridge:
                 nvalue = data.get("nvalue", 0)
                 status_string = "ON" if nvalue > 0 else "OFF"
 
+                # If the parsed state is identical to our current memory, it's a redundant echo.
+                if self._last_known_states.get(device_name) == status_string:
+                    logger.debug(
+                        f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor update ignored (duplicate: already {status_string})")
+                    return
+
+                logger.debug(f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor update received -> {status_string}")
+
                 # Lock into local memory to prevent echo loops
                 self._last_known_states[device_name] = status_string
 
@@ -141,9 +157,9 @@ class DomoticzHomeHubBridge:
                 ))
 
         except ValueError as val_err:
-            await self.logger.error(f"Domoticz parser dropped invalid JSON: {val_err}")
+            logger.error(f"Domoticz parser dropped invalid JSON: {val_err}")
         except Exception as e:
-            await self.logger.error(f"Error handling Domoticz translation: {e}")
+            logger.error(f"Error handling Domoticz translation: {e}")
 
     async def _on_state_changed(self, state: SystemState) -> None:
         try:
@@ -164,8 +180,8 @@ class DomoticzHomeHubBridge:
                         "switchcmd": "On" if current_state == "ON" else "Off"
                     }
                     await self.mqtt_client.publish(self._out_topic, domoticz_command)
-                    await self.logger.info(f"🏠 Domoticz Sync: {device_name} -> {current_state}")
+                    logger.info(f"[Domoticz] Command Sent: {device_name} -> {current_state}")
                     self._last_known_states[device_name] = current_state
 
         except Exception as e:
-            await self.logger.error(f"Error in Domoticz outbound sync: {e}")
+            logger.error(f"Error in Domoticz outbound sync: {e}")

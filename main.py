@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 
 # WanOS specific
 from core.models import Event, EventType
@@ -23,6 +24,11 @@ from integrations.home_hub import DomoticzHomeHubBridge
 
 # Create a global shutdown event kill switch
 shutdown_event = asyncio.Event()
+
+# 0. Configure Centralized File Logger
+logger.remove()  # 🛑 Silences the default console output entirely
+custom_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}"
+logger.add("/var/log/wisc/wanos.log", rotation="5 MB", retention=3, format=custom_format)
 
 # 1. Load and validate the configuration from YAML and .env
 config: AppConfig = load_config()
@@ -72,7 +78,7 @@ domoticz_bridge: DomoticzHomeHubBridge = DomoticzHomeHubBridge(
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manages startup and shutdown sequences safely without silent deadlocks."""
 
-    print("⏳ [WanOS Boot] Initializing pre-boot sequence...")
+    logger.info("Initializing pre-boot sequence...")
 
     # Intercept the exact CTRL-C signal to instantly drop the SSE stream
     loop = asyncio.get_running_loop()
@@ -94,14 +100,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     try:
         # 1. Start Network Transports
-        print("⏳ [WanOS Boot] Connecting to local Mosquitto MQTT Broker ('localhost')...")
+        logger.info("Connecting to local Mosquitto MQTT Broker...")
         await mqtt_manager.start()
 
-        print(f"⏳ [WanOS Boot] Connecting to Domoticz Broker ({config.domoticz.mqtt.broker_host})...")
+        logger.info(f"Connecting to Domoticz Broker ({config.domoticz.mqtt.broker_host})...")
         await domoticz_mqtt_manager.start()
 
         # 2. Initialize the state engine and wire up the publisher
-        print("⏳ [WanOS Boot] Spinning up Centralized State Engine...")
         await state_manager.start()
 
         # Inject the publisher reference so StateManager can forward pulse accumulation
@@ -113,27 +118,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await domoticz_bridge.start()
 
         # 3. Seed initial state parameters
-        state_manager.dispatch(Event(type=EventType.INITIAL_STATE_LOADED))
-        print("🟢 [WanOS Boot] Core Managers active. Base state dispatched successfully.")
+        state_manager.dispatch(Event(type=EventType.SYSTEM_READY))
+        logger.info("Core systems online. Base state ready.")
 
         # 4. Start the thermodynamics engine in the background
-        print("🧪 [WanOS Boot] Launching detached background Lab Mode Thermodynamics loop...")
+        logger.info("Simulation engine booting...")
         physics_task = asyncio.create_task(lab_mode_thermodynamics_loop(state_manager))
 
-        print("🧪 [WanOS Boot] Lab Mode Physics Engine initialized.")
-        await wanos_logger.info("🧪 Lab Mode Physics Engine initialized.")
+        logger.info("Simulation engine initialized.")
 
     except Exception as startup_err:
-        print(f"\n💥 [CRITICAL BOOT FAIL] Core initialization collapsed: {startup_err}")
-        # print("👉 Check that a local MQTT broker is running ('sudo systemctl status mosquitto')")
-        # print("👉 Ensure both 'config.yaml' and 'hardware.yaml' exist in the project root.\n")
+        logger.error(f"Core initialization collapsed: {startup_err}")
         os._exit(1)
 
-    print("🚀 [WanOS Boot] Pre-boot checks passed. Opening network lines to HTTP/SSE web interface...")
+    logger.success("Boot sequence complete. HTTP/SSE Web Interface online.")
     yield
 
     # Shutdown sequence
-    print("🛑 [WanOS Shutdown] Tearing down background engines...")
+    logger.warning("Tearing down background engines...")
     shutdown_event.set()
     physics_task.cancel()
     mqtt_publisher.stop()
@@ -141,8 +143,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await state_manager.stop()
     await domoticz_mqtt_manager.stop()
     await mqtt_manager.stop()
-    print("🛑 [WanOS Shutdown] Clean teardown complete. Goodbye.")
-
+    logger.success("Clean teardown complete. Goodbye.")
 
 # Initialize FastAPI
 app: FastAPI = FastAPI(lifespan=lifespan, title="WanOS Backend API")
@@ -175,13 +176,6 @@ async def inject_event(request: GenericEventRequest) -> dict[str, Union[str, Eve
     event: Event = Event(type=request.type, payload=request.payload)
     state_manager.dispatch(event)
     return {"status": "Event dispatched", "event": event}
-
-
-@app.get("/api/console")
-async def get_console_logs() -> Response:
-    data = {"logs": wanos_logger.get_recent_logs()}
-    pretty_json = json.dumps(data, indent=4)
-    return Response(content=pretty_json, media_type="application/json")
 
 
 @app.get("/api/state/sse")
@@ -231,4 +225,4 @@ frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
 if os.path.exists(frontend_path):
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 else:
-    print(f"⚠️ Warning: Frontend directory not found at {frontend_path}")
+    logger.warning("⚠️ Warning: Frontend directory not found at {frontend_path}")

@@ -34,7 +34,7 @@ class EventType(str, Enum):
     IR_TIMER_EXPIRED = "IR_TIMER_EXPIRED"
 
     # System Events
-    INITIAL_STATE_LOADED = "INITIAL_STATE_LOADED"
+    SYSTEM_READY = "SYSTEM_READY"
     BACKEND_SHUTDOWN = "BACKEND_SHUTDOWN"
     HARDWARE_LIVE_MODE_CHANGED = "HARDWARE_LIVE_MODE_CHANGED"
     CONFIG_UPDATED = "CONFIG_UPDATED"
@@ -51,6 +51,8 @@ class SystemAdminState(BaseModel):
     wanos_mqtt_connected: bool = False
     domoticz_mqtt_connected: bool = False
     ip_address: str = "0.0.0.0"
+    os_boot_unix: Optional[int] = None
+    app_boot_unix: Optional[int] = None
     os_uptime_formatted: str = "00:00:00"
     app_uptime_formatted: str = "00:00:00"
 

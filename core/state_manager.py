@@ -2,6 +2,7 @@
 import asyncio
 import time
 from typing import Optional, Any, Set
+from loguru import logger
 
 from .models import SystemState, Event, EventType
 from .mqtt_transport import MqttClientManager
@@ -54,7 +55,7 @@ class StateManager:
                 self._gpio_chip = lgpio.gpiochip_open(0)
                 lgpio.gpio_claim_output(self._gpio_chip, self._config.pins.safety_gpio)
             except Exception as e:
-                print(f"[Hardware Init Error] Safety Pin unavailable: {e}")
+                logger.error(f"Hardware Init Error: Safety Pin unavailable - {e}")
 
         # Boot business controllers
         from logic.sauna_controller import SaunaController
@@ -110,7 +111,7 @@ class StateManager:
                 val = 1 if state else 0
                 lgpio.gpio_write(self._gpio_chip, self._config.pins.safety_gpio, val)
             except Exception as e:
-                print(f"[Safety Relay Error] Write failed: {e}")
+                logger.error(f"Safety Relay Error: Write failed - {e}")
 
     def _recalculate_sauna_metrics(self) -> bool:
         env = self._state.environment
@@ -187,16 +188,24 @@ class StateManager:
         changed_domains: Set[str] = set()
 
         # --- LIVE TERMINAL LOGGING INJECTION GATEWAY ---
-        is_routine_sensory = event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED", "KWH_PULSE", "WATER_PULSE",
-                                            "SYSTEM_METRICS_UPDATED"]
-        is_manual_ui_action = payload.get("ui_override", False)
+        is_manual_lab_action = payload.get("lab_override", False)
+        is_user_command = event_name in [
+            "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "MODULATION_UPDATED",
+            "SAUNA_HOLD", "HOLD_TOGGLED", "TIMER_ADJUSTED", "IR_ON", "IR_OFF"
+        ]
 
-        if not is_routine_sensory or is_manual_ui_action:
-            print(f"📥 [StateManager] Event Received: {event_name.ljust(22)} | Payload: {payload}")
+        if event_name == "SYSTEM_READY":
+            logger.info("Internal Engine State validated and locked.")
+            logger.info(f"Internal Event Processed: {event_name}")
+        elif is_user_command or is_manual_lab_action:
+            logger.info(f"Lab Action Received: {event_name} | Payload: {payload}")
             await self.logger.info(f"User Action Processed: {event_name}")
+        elif event_name == "HUB_STATE_CHANGED":
+            # Direct formatting as requested for clean hardware state updates
+            logger.debug(f"Event Received: {payload}")
 
         # If it's a background simulator event, translate it to a string for the UI panel!
-        if not self._state.hardware.live_mode and not is_manual_ui_action:
+        if not self._state.hardware.live_mode and not is_manual_lab_action:
             log_msg = ""
             from datetime import datetime
             ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]  # Generates HH:MM:SS.ms
@@ -236,20 +245,34 @@ class StateManager:
                 state_changed = True
                 changed_domains.add("hardware")
 
-        if event_name == "INITIAL_STATE_LOADED":
+        if event_name == "SYSTEM_READY":
             self._state.hardware.live_mode = False
             self._set_hardware_safety_gate(False)
             state_changed = True
             changed_domains.add("hardware")
 
         elif event_name == "SYSTEM_METRICS_UPDATED":
-            self._state.system.wanos_mqtt_connected = payload.get("wanos_connected", False)
-            self._state.system.domoticz_mqtt_connected = payload.get("domoticz_connected", False)
-            self._state.system.ip_address = payload.get("ip_address", "0.0.0.0")
-            self._state.system.os_uptime_formatted = payload.get("os_uptime", "00:00:00")
-            self._state.system.app_uptime_formatted = payload.get("app_uptime", "00:00:00")
-            state_changed = True
-            changed_domains.add("system")
+            wanos_conn = payload.get("wanos_connected", False)
+            dom_conn = payload.get("domoticz_connected", False)
+            ip_addr = payload.get("ip_address", "0.0.0.0")
+
+            # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
+            if (self._state.system.wanos_mqtt_connected != wanos_conn or
+                    self._state.system.domoticz_mqtt_connected != dom_conn or
+                    self._state.system.ip_address != ip_addr or
+                    self._state.system.app_boot_unix is None):
+
+                self._state.system.wanos_mqtt_connected = wanos_conn
+                self._state.system.domoticz_mqtt_connected = dom_conn
+                self._state.system.ip_address = ip_addr
+
+                # Capture static Unix boot times once during host identification
+                if self._state.system.app_boot_unix is None and ip_addr != "0.0.0.0":
+                    self._state.system.app_boot_unix = int(self._start_time)
+                    self._state.system.os_boot_unix = int(psutil.boot_time())
+
+                state_changed = True
+                changed_domains.add("system")
 
         elif event_name == "HARDWARE_LIVE_MODE_CHANGED":
             self._state.hardware.live_mode = payload.get("live", False)
@@ -317,7 +340,7 @@ class StateManager:
                 changed_domains.add("environment")
 
                 if sensor_id in ["sauna_high", "sauna_low"]:
-                    if self._recalculate_sauna_metrics() or is_manual_ui_action:
+                    if self._recalculate_sauna_metrics() or is_manual_lab_action:
                         changed_domains.add("sauna")
             # 2. Generic Peripheral Target: Store it safely for the UI
             else:
@@ -349,8 +372,8 @@ class StateManager:
                     if env.bathroom_hum >= on_threshold and current_vent_state != "ON":
                         self._state.devices["bathroom_ventilator"] = "ON"
                         changed_domains.add("devices")
-                        msg: str = f"💨 Bathroom humidity ({env.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator."
-                        print(f"[StateManager] {msg}")
+                        msg: str = f"Bathroom humidity ({env.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator."
+                        logger.info(msg)
                         if not self._state.hardware.live_mode:
                             from datetime import datetime
                             ts: str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -358,15 +381,15 @@ class StateManager:
                     elif env.bathroom_hum <= off_threshold and current_vent_state == "ON":
                         self._state.devices["bathroom_ventilator"] = "OFF"
                         changed_domains.add("devices")
-                        msg: str = f"💨 Bathroom humidity ({env.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator."
-                        print(f"[StateManager] {msg}")
+                        msg: str = f"Bathroom humidity ({env.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator."
+                        logger.info(msg)
                         if not self._state.hardware.live_mode:
                             from datetime import datetime
                             ts: str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                             self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
 
                 if sensor_id in ["sauna_high", "sauna_low"]:
-                    if self._recalculate_sauna_metrics() or is_manual_ui_action:
+                    if self._recalculate_sauna_metrics() or is_manual_lab_action:
                         changed_domains.add("sauna")
             # 2. Generic Peripheral Target
             else:
@@ -443,7 +466,7 @@ class StateManager:
             changed_domains.add("sauna")
 
         elif event_name == "SAUNA_TIMER_EXPIRED":
-            print("🚨 [StateManager] Sauna session limit countdown reached 0.")
+            logger.warning("Sauna session limit countdown reached 0.")
             self.dispatch(Event(type=EventType.SAUNA_OFF))
 
         elif event_name == "IR_ON":
@@ -552,8 +575,7 @@ class StateManager:
                         self._state.sauna.session_end_time = int(time.time()) + self._sauna_timer_duration_secs
                         self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time,
                                                      "SAUNA_TIMER_EXPIRED")
-                        print(
-                            f"⏱️ [StateManager] Heat threshold met ({self._state.sauna.current_temp}°C >= {threshold_temp}°C). Activating timer countdown!")
+                        logger.info(f"Heat threshold met ({self._state.sauna.current_temp}°C >= {threshold_temp}°C). Activating timer countdown!")
                         state_changed = True
                         changed_domains.add("sauna")
                     else:
@@ -566,7 +588,7 @@ class StateManager:
                 if self._state.sauna.current_temp >= self._state.sauna.target_temp:
                     if self._state.sauna.hold_mode == "autohold":
                         self._state.sauna.hold_mode = "hold"
-                        print("🎯 [StateManager] Setpoint met! System automatically dropped load: autohold -> hold")
+                        logger.info("Setpoint met! System automatically dropped load: autohold -> hold")
                         state_changed = True
                         changed_domains.add("sauna")
 
@@ -615,31 +637,12 @@ class StateManager:
             except Exception:
                 return "127.0.0.1"
 
-        def _format_seconds(seconds: float) -> str:
-            days = int(seconds // 86400)
-            hours = int((seconds % 86400) // 3600)
-            minutes = int((seconds % 3600) // 60)
-            secs = int(seconds % 60)
-            if days > 0:
-                return f"{days}d {hours:02d}:{minutes:02d}:{secs:02d}"
-            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-
-        def _get_os_uptime():
-            try:
-                with open('/proc/uptime', 'r') as f:
-                    return _format_seconds(float(f.readline().split()[0]))
-            except Exception:
-                return "Emulation Host"
-
         def _is_connected(client_mgr) -> bool:
             if not client_mgr:
                 return False
-            # Check if the manager wrapper class has a valid, initialized aiomqtt Client object
             if hasattr(client_mgr, "client") and client_mgr.client is not None:
-                # If your aiomqtt client version exposes an internal connection check:
                 if hasattr(client_mgr.client, "is_connected"):
                     return client_mgr.client.is_connected()
-                # Safe fallback: if the client object is active and alive, count it as connected
                 return True
             return False
 
@@ -649,9 +652,7 @@ class StateManager:
                 metrics_payload = {
                     "wanos_connected": _is_connected(self.mqtt_client),
                     "domoticz_connected": _is_connected(self.domoticz_client),
-                    "ip_address": _get_ip(),
-                    "os_uptime": _get_os_uptime(),
-                    "app_uptime": _format_seconds(time.time() - self._start_time)
+                    "ip_address": _get_ip()
                 }
                 self.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))
             except asyncio.CancelledError:

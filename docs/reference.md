@@ -1,3 +1,5 @@
+# --- file: reference.md ---
+
 # WanOS Codebase, API, and MQTT Reference
 
 This document serves as the master blueprint and reference guide for the directory layouts, inbound/outbound communications, API endpoints, and Event-Driven payload schemas for the WanOS ecosystem.
@@ -39,19 +41,66 @@ This document serves as the master blueprint and reference guide for the directo
 
 ---
 
-## 2. MQTT Topics
+## 2. MQTT Topic Architecture
 *(Note: WanOS utilizes two distinct MQTT Client Manager instances. One binds to the local `localhost` broker for UI operations, while the other binds to external hubs like Domoticz).*
 
-| Topic | Direction | Payload | Trigger/Purpose |
-| :--- | :--- | :--- | :--- |
-| **`wisc/system/telemetry`** | Outbound | `os_uptime`, `app_uptime`, `ip_address`, `wanos_mqtt_connected`, `domoticz_mqtt_connected` | Periodic every 2–5 seconds from telemetry loop |
-| **`wisc/environment/sensors`** | Outbound | Raw temp and humidity readings keyed by sensor zone (`sauna_high`, `cinema`, `outside`, etc.) | Only on a real value change |
-| **`wisc/sauna/state`** | Outbound | `active`, `target_temp`, `current_temp`, `session_end_time`, `modulation_pwm`, `phases_pwm`, `hold_mode`, `ventilation_state` | On value change, or every 5-second heartbeat when sauna is active |
-| **`wisc/devices/switches`** | Outbound | Flat key-value snapshot of `state.devices` (hues, ventilators, SSR relays) | Only when a switch device toggles |
-| **`wisc/metrics/pulses`** | Outbound | `water_cold_liters` (rounded, 1 decimal), `water_hot_liters` (rounded, 1 decimal), `kwh_total_wh` | On a time interval (every 5–10 seconds); pulses accumulated internally, not emitted per-tick |
-| **`wisc/system/command`** | Inbound | JSON representing an `Event` | Inject commands into the queue |
-| **`wisc/system/console/status`** | Outbound | JSON containing `timestamp`, `level`, `message` | High-level user-facing events |
-| **`wisc/system/console/debug`** | Outbound | JSON containing `timestamp`, `level`, `message` | Internal developer engine monologue |
+Outgoing topics:
+`wanos/system`				Boot variables upon startup, Domoticz status & heartbeat
+`wanos/domsensors/raw`		Filtered, raw packets received from Domoticz
+`wanos/domsensors/parsed`	Human-readable format triggered ONLY on a real value/state change
+`wanos/wisc`				A full "baseline" snapshot upon start, then deltas.
+`wanos/metrics/pulses`		Cold & hot water: liters & energy: 0,1 kWh
+`wanos/console/status`
+`wanos/console/debug`
+
+**TOPIC: `wanos/system`**
+* **Rules:** - Boot variables upon startup & heartbeat.
+  - Domoticz connection flag sent on change.
+  - Heartbeat ping sent every 60 seconds.
+* **Payload Examples:**
+  - Boot: `{"app_boot_unix": 1718010000, "ip_address": "10.32.251.28"}`
+  - Change: `{"domoticz_mqtt_connected": false}`
+  - Heartbeat (60s): `{"wanos_mqtt_connected": true}`
+
+**TOPIC: `wanos/domsensors/raw`**
+* **Rules:** - Contains the exact, full JSON packet received from Domoticz.
+  - ONLY includes sensors verified against `hardware.yaml`.
+  - Passes through an early-gate filter: exact duplicates are silently dropped.
+* **Payload Example:**
+ ```json
+  {
+    "idx": 7436,
+    "svalue1": "20.5",
+    "svalue2": "54",
+    "Battery": 255
+  }
+  ```
+
+**TOPIC: `wanos/domsensors/parsed`**
+* **Rules:**
+  - Human-readable format triggered ONLY on a real value/state change.
+* **Payload Examples:**
+  - `{"bathroom_temp": "20.4 -> 20.5"}`
+  - `{"outside_hum": "75 -> 76"}`
+  - `{"safety_ssr": "OFF -> ON"}`
+
+**TOPIC: `wanos/wisc` (Core Sauna Engine)**
+* **Rules:**
+  - Temperature, humidity, and external vents are excluded from this payload.
+  - Sends a full "baseline" snapshot when the sauna is turned ON.
+  - Sends ONLY modified keys (deltas) whenever a value changes.
+* **Payload Examples:**
+  - Baseline: `{"active": true, "setpoint_temp": 80, "modulation_pwm": 0, "phases_pwm": [0,0,0], "fireorder": "--"}`
+  - Delta: `{"modulation_pwm": 80}`
+  - Delta: `{"setpoint_temp": 85}`
+
+**TOPIC: `wanos/metrics/pulses`**
+* **Rules:**
+  - Internal RAM calculates fractional floats.
+  - MQTT Payload is ONLY published when a whole integer threshold is crossed (1L or 0.1 kWh).
+* **Payload Examples:**
+  - `{"total_cold_liters": 154}`
+  - `{"total_kwh": 12.3}`
 
 ---
 
@@ -71,7 +120,7 @@ The FastAPI server (running at `http://<backend-ip>:8000`) exposes the following
 ---
 
 ## 4. API Event Injection Reference (/api/event)
-The `/api/event` endpoint acts as the universal command receiver for WanOS. It accepts HTTP POST requests containing a JSON body mapped to the internal `EventType` schema. These exact same JSON payloads can also be published to the `wisc/system/command` MQTT topic.
+The `/api/event` endpoint acts as the universal command receiver for WanOS. It accepts HTTP POST requests containing a JSON body mapped to the internal `EventType` schema.
 
 ### Sauna & Timer Events
 **Turn Sauna ON:**
@@ -158,7 +207,7 @@ The `/api/event` endpoint acts as the universal command receiver for WanOS. It a
 ### System Events
 **Engine Boot Complete:**
 ```json
-{ "type": "INITIAL_STATE_LOADED", "payload": {} }
+{ "type": "SYSTEM_READY", "payload": {} }
 ```
 
 **Trigger Graceful Shutdown:**
@@ -182,4 +231,21 @@ Updates mapped from external hubs like Domoticz or Hue.
 **Update Lighting State (Hue):**
 ```json
 { "type": "LIGHTING_STATE_CHANGED", "payload": { "zone": "sauna", "state": "OFF" } }
+```
+
+---
+
+## 5. Engine Boot Sequence Logs
+The standard terminal output for a clean, cold boot of the WanOS engine:
+```text
+MQTT Connected to 10.32.251.181:1883
+Subscribed to topic: domoticz/out on 10.32.251.181
+Firing 12 MQTT state requests to Domoticz for cold-boot sync and awaiting asynchronous echo...
+State Manager worker started.
+Core systems online. Base state ready.
+Simulation engine booting...
+Simulation engine initialized.
+[System] Internal Engine State validated and locked.
+[System] Internal Event Processed: SYSTEM_READY
+[System] Boot sequence complete. HTTP/SSE Web Interface online.
 ```

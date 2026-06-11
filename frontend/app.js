@@ -9,6 +9,8 @@ function wanosApp() {
                 wanos_mqtt_connected: false,
                 domoticz_mqtt_connected: false,
                 ip_address: "0.0.0.0",
+                os_boot_unix: null,
+                app_boot_unix: null,
                 os_uptime_formatted: "00:00:00",
                 app_uptime_formatted: "00:00:00"
             },
@@ -17,19 +19,15 @@ function wanosApp() {
                 outside_hum: null,
                 bathroom_temp: null,
                 bathroom_hum: null,
-                bathroom_vent_on: false,
                 door_bathroom_open: false,
                 cinema_temp: null,
                 cinema_hum: null,
-                cinema_hue_on: false,
                 sauna_high_temp: null,
                 sauna_high_hum: null,
                 sauna_low_temp: null,
                 sauna_low_hum: null,
                 sauna_calc_temp: null,
                 sauna_calc_hum: null,
-                sauna_extraction_vent_on: false,
-                sauna_hue_on: false
             },
             sauna: {
                 active: false,
@@ -71,8 +69,7 @@ function wanosApp() {
             hardware: {
                 live_mode: false,
                 safety_pin_active: false,
-                sensor_errors: [],
-                lab_simulation_logs: []
+                sensor_errors: []
             },
             devices: {}, // Generic peripheral payload dict (hues, ventilators, relays)
             lab_seed: null
@@ -134,8 +131,6 @@ function wanosApp() {
             if (!fullState.hardware.sensor_errors) fullState.hardware.sensor_errors = [];
             fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
             fullState.environment.door_bathroom_open = fullState.environment.door_bathroom_open ?? false;
-            fullState.environment.cinema_hue_on = fullState.environment.cinema_hue_on ?? false;
-            fullState.environment.sauna_hue_on = fullState.environment.sauna_hue_on ?? false;
             fullState.system = fullState.system || this.state.system;
             fullState.devices = fullState.devices || {};
 
@@ -159,8 +154,6 @@ function wanosApp() {
             }
             if (domain === "environment") {
                 data.door_bathroom_open = data.door_bathroom_open ?? false;
-                data.cinema_hue_on = data.cinema_hue_on ?? false;
-                data.sauna_hue_on = data.sauna_hue_on ?? false;
             }
             if (domain === "hardware") {
                 if (!data.sensor_errors) data.sensor_errors = [];
@@ -211,6 +204,16 @@ function wanosApp() {
 
         ticker() {
             const now = Math.floor(Date.now() / 1000);
+
+            // ⏱️ Dynamic Uptime Live Generators
+            if (this.state.system.os_boot_unix) {
+                const osDiff = Math.max(0, now - this.state.system.os_boot_unix);
+                this.state.system.os_uptime_formatted = this.formatTime(osDiff);
+            }
+            if (this.state.system.app_boot_unix) {
+                const appDiff = Math.max(0, now - this.state.system.app_boot_unix);
+                this.state.system.app_uptime_formatted = this.formatTime(appDiff);
+            }
 
             if (this.state.sauna.active && this.state.sauna.session_start_time && this.state.sauna.session_end_time) {
                 const start = this.state.sauna.session_start_time;
@@ -277,9 +280,9 @@ function wanosApp() {
 
             this.labDoorSaunaOpen = this.state.sauna.door_open;
             this.labDoorBathroomOpen = env.door_bathroom_open;
-            this.labCinemaHueOn = env.cinema_hue_on;
-            this.labSaunaHueOn = env.sauna_hue_on;
-            this.labBathroomVentOn = env.bathroom_vent_on;
+            this.labCinemaHueOn = this.state.devices.cinema_hue === 'ON';
+            this.labSaunaHueOn = this.state.devices.sauna_hue === 'ON';
+            this.labBathroomVentOn = this.state.devices.bathroom_ventilator === 'ON';
 
             this.labSaunaHighTemp = env.sauna_high_temp ?? seed.sauna_high_temp;
             this.labSaunaHighHum  = env.sauna_high_hum  ?? seed.sauna_high_hum;
@@ -309,7 +312,7 @@ function wanosApp() {
             const payload = {
                 sensor_id: sensorId,
                 value: eventType === "TEMP_UPDATED" ? parseFloat(targetValue) : parseInt(targetValue),
-                ui_override: true
+                lab_override: true
             };
             this.dispatchEvent(eventType, payload);
         },
@@ -353,17 +356,13 @@ function wanosApp() {
             this.dispatchEvent("DOOR_CHANGED", { sensor_id: doorName, is_open: isOpen });
         },
 
-        injectLabLightingChange(zoneName, isOn) {
-            this.dispatchEvent("LIGHTING_STATE_CHANGED", { zone: zoneName, state: isOn ? "ON" : "OFF" });
-        },
-
         injectLabHubStateChange(deviceId, isOn) {
             this.dispatchEvent("HUB_STATE_CHANGED", { device_id: deviceId, state: isOn ? "ON" : "OFF" });
         },
 
         injectWaterPulse(fluidType) {
             // Injects 396 pulses = exactly 1 liter for lab testing
-            this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, ui_override: true });
+            this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, lab_override: true });
         },
 
         // ⚡ NEW FRONTEND RELOAD HOOK

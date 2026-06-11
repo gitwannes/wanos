@@ -61,16 +61,20 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
             # --------------------------------------------------------
             # Read straight from the central state vault. If a human dragged a slider,
             # capture that manual adjustment instantly as our new physics baseline!
-            if state.environment.sauna_high_temp is not None:
+            if state.environment.sauna_high_temp is not None and round(sauna_high, 1) != round(
+                    state.environment.sauna_high_temp, 1):
                 sauna_high = state.environment.sauna_high_temp
-            if state.environment.sauna_low_temp is not None:
+            if state.environment.sauna_low_temp is not None and round(sauna_low, 1) != round(
+                    state.environment.sauna_low_temp, 1):
                 sauna_low = state.environment.sauna_low_temp
-            if state.environment.sauna_high_hum is not None:
-                sauna_high_hum = state.environment.sauna_high_hum
-            if state.environment.sauna_low_hum is not None:
-                sauna_low_hum = state.environment.sauna_low_hum
-            if state.environment.bathroom_hum is not None:
-                bathroom_hum = state.environment.bathroom_hum
+            if state.environment.sauna_high_hum is not None and int(
+                    sauna_high_hum) != state.environment.sauna_high_hum:
+                sauna_high_hum = float(state.environment.sauna_high_hum)
+            if state.environment.sauna_low_hum is not None and int(
+                    sauna_low_hum) != state.environment.sauna_low_hum:
+                sauna_low_hum = float(state.environment.sauna_low_hum)
+            if state.environment.bathroom_hum is not None and int(bathroom_hum) != state.environment.bathroom_hum:
+                bathroom_hum = float(state.environment.bathroom_hum)
 
             # Dynamic re-anchoring for outside atmosphere sliders
             if last_calculated_out_temp is not None and state.environment.outside_temp is not None:
@@ -126,7 +130,7 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
             # 2. BATHROOM SIMULATOR (Humidity decay)
             # --------------------------------------------------------
             # If vent is running, decay faster. Otherwise, decay slowly to the baseline
-            decay_rate = 1.0 if state.environment.bathroom_vent_on else 0.1
+            decay_rate = 1.0 if state.devices.get("bathroom_ventilator") == "ON" else 0.1
             if bathroom_hum > seed.bathroom_hum:
                 bathroom_hum = max(seed.bathroom_hum, bathroom_hum - decay_rate)
 

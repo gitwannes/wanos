@@ -8,6 +8,7 @@ import asyncio
 import aiomqtt
 from typing import Optional, Callable, Dict, Awaitable
 from contextlib import AsyncExitStack
+from loguru import logger
 
 
 class MqttClientManager:
@@ -39,7 +40,7 @@ class MqttClientManager:
         )
         try:
             await self._exit_stack.enter_async_context(self.client)
-            print(f"✅ MQTT Connected to {self.broker_host}:{self.port}")
+            logger.success(f"MQTT Connected to {self.broker_host}:{self.port}")
 
             # If we reconnect, resubscribe to all previously registered topics
             for topic in self._callbacks.keys():
@@ -49,7 +50,7 @@ class MqttClientManager:
             self._listen_task = asyncio.create_task(self._listen_loop())
 
         except Exception as e:
-            print(f"❌ MQTT Connect failed: {e}")
+            logger.error(f"MQTT Connect failed: {e}")
             self.client = None
 
     async def stop(self):
@@ -63,17 +64,17 @@ class MqttClientManager:
 
         await self._exit_stack.aclose()
         self.client = None
-        print(f"🛑 MQTT Disconnected ({self.broker_host}).")
+        logger.warning(f"MQTT Disconnected ({self.broker_host}).")
 
     async def publish(self, topic: str, payload: dict):
         if not self.client:
-            print(f"⚠️ MQTT publish skipped ({self.broker_host}): no connection.")
+            logger.warning(f"MQTT publish skipped ({self.broker_host}): no connection.")
             return
 
         try:
             await self.client.publish(topic, payload=json.dumps(payload))
         except aiomqtt.MqttError as e:
-            print(f"⚠️ MQTT Publish error: {e}")
+            logger.error(f"MQTT Publish error: {e}")
 
     async def subscribe(self, topic: str, callback: Callable[[str, str], Awaitable[None]]):
         """Registers a topic and maps it to an async callback function."""
@@ -81,9 +82,9 @@ class MqttClientManager:
         if self.client:
             try:
                 await self.client.subscribe(topic)
-                print(f"🎧 Subscribed to topic: {topic} on {self.broker_host}")
+                logger.info(f"Subscribed to topic: {topic} on {self.broker_host}")
             except aiomqtt.MqttError as e:
-                print(f"⚠️ MQTT Subscribe error on {topic}: {e}")
+                logger.error(f"MQTT Subscribe error on {topic}: {e}")
 
     async def _listen_loop(self):
         """Continuously pulls messages from the broker and routes them to the right callback."""
@@ -101,10 +102,10 @@ class MqttClientManager:
                     try:
                         await self._callbacks[topic](topic, payload)
                     except Exception as cb_error:
-                        print(f"⚠️ Error executing callback for topic {topic}: {cb_error}")
+                        logger.error(f"Error executing callback for topic {topic}: {cb_error}")
 
         except asyncio.CancelledError:
             # Task was intentionally cancelled during a clean shutdown
             pass
         except aiomqtt.MqttError as e:
-            print(f"⚠️ MQTT Listen loop connection dropped: {e}")
+            logger.warning(f"MQTT Listen loop connection dropped: {e}")

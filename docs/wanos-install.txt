@@ -1,3 +1,4 @@
+# --- file: wanos-install.txt ---
 ** tools used
 - Notepad++
 - Everything
@@ -115,7 +116,6 @@ Install I²C and modern GPIO tools:
 sudo apt install -y i2c-tools python3-libgpiod
 to test I²C Active: Run i2cdetect -y 1. You should see the grid and the address of your connected LCD (e.g., 27 or 26).
 
-
 ** MQTT
 sudo apt install mosquitto mosquitto-clients
 place mosquitto-st.conf in /etc/mosquitto/conf.d/
@@ -133,9 +133,10 @@ sudo netstat -tlnp | grep 1883
 ** VNC (Deferred for now)
 # [Skipped per current scope]
 
-# for logging
+** for logging
 sudo mkdir /var/log/wisc
 sudo chown wannes:wannes /var/log/wisc
+# Note: Loguru will automatically write its rotated system logs to /var/log/wisc/wanos.log
 
 ** python Environment Setup
 sudo apt install -y python3-venv python3-pip

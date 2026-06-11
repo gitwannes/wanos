@@ -47,6 +47,9 @@
 
 :: --- Exclude Files
 /XF
+:: On local
     .gitignore
     * - Copy.py
 	*.zip
+:: On Pi
+	wanos.console.log
