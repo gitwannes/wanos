@@ -1,4 +1,48 @@
 # --- file: hardware/simulator.py ---
+"""
+================================================================================
+WANOS LAB MODE THERMODYNAMICS SIMULATION PROFILE REFERENCE
+================================================================================
+
+1. CORE INFRASTRUCTURE POWER MONITORS (KWH_PULSE)
+--------------------------------------------------------------------------------
+* Handles synthetic electricity monitoring metrics by integrating active loads over 2-second integration window slices.
+* Simulates a dynamic resistive heater load for the main Sauna element scaling from 0W up to a maximum capacity of 9000W based on the current system modulation PWM.
+* Simulates a constant step load profile for the Infrared radiant panel array dropping a solid 3000W load while toggled active.
+* Accumulates integration steps internally into standard Watt-hours (Wh) and dispatches distinct integer KWH_PULSE event ticks down the StateManager pipeline whenever a whole Wh threshold is breached.
+
+2. OUTSIDE ATMOSPHERE DOMAIN (outside)
+--------------------------------------------------------------------------------
+* Generates continuous day/night weather fluctuations by driving a localized timeline ticker loop against macro parameter anchors configuration.
+* Models external ambient temperature patterns shifting up and down over time along a customized +/- 5.0°C sinusoidal weather wave cycle.
+* Models external ambient humidity shifts moving conversely along a +/- 20% cosinusoidal weather cycle.
+* Continually broadcasts macro ambient values down the human-readable network bus using specialized outside domain TEMP_UPDATED and HUMIDITY_UPDATED event keys.
+
+3. BATHROOM ATMOSPHERE MANAGEMENT (bathroom)
+--------------------------------------------------------------------------------
+* Models dynamic internal relative humidity environment extraction variables.
+* Evaluates active state dictionaries to track the operational toggle configuration of the virtual peripheral extractor fan hardware.
+* Forces an accelerated exponential ambient humidity extraction decay speed parameter index of 1.0 units per calculation frame while the ventilator relay reads ON.
+* Restricts dissipation speeds to a residual evaporation decay scale coefficient of 0.1 units per calculation frame when the extraction hardware relay reads OFF until moisture baselines hit baseline seed configuration metrics.
+* Regularly pushes adjusted humidity constraints back into centralized memory via localized bathroom token tracking keys.
+
+4. SAUNA THERMODYNAMIC ENGINES (sauna_high & sauna_low)
+--------------------------------------------------------------------------------
+* Models multi-tier thermal stratification layer metrics based on a defined baseline room tracking environment default of 20.0°C ambient room temperature.
+* Discharges high-mass thermal injection profiles splitting calculated energy gains evenly across separate tracking sensors (allocating 70% heat retention profiles directly into the ceiling probe zone and 30% down over the lower bench probe layer).
+* Models real-world ambient structural energy loss configurations calculating dissipation rates based on differences between local zone values and external constants (multiplying ceiling loss factor by 0.002 and lower bench loss factor by 0.001).
+* Executes emergency draft dumps checking magnetic mechanical sensor inputs; if the door reads open, the loop injects a massive override penalty factor dumping 1.0 units of thermal energy off the ceiling and 0.5 units off the lower bench layers.
+* Simulates relative moisture compression properties tracking dynamic moisture level reductions matching rapid heat ramps, while enabling a gradual moisture recovery rate tracking toward baseline metrics when elements power off.
+* Concurrently feeds distinct telemetry streams into the core queue processing split individual temp and humidity definitions for both the sauna_high and sauna_low physical sensor targets.
+
+5. CINEMA ROOM STATIONARY ENVIRONMENT (cinema)
+--------------------------------------------------------------------------------
+* Configures static environmental benchmarks ensuring that basic background target matrices stay perfectly flat without experiencing active drifts or decay vectors while running under local lab emulation frameworks.
+* Asserts fixed standalone startup baseline boundaries for room temperature matching exact configuration profile constants.
+* Asserts fixed standalone startup baseline boundaries for relative room humidity matching exact configuration profile constants.
+"""
+
+
 import asyncio
 import math
 from core.state_manager import StateManager
@@ -34,8 +78,11 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
     last_calculated_out_temp = None
     last_calculated_out_hum = None
 
+    # ⏱️ OUTSIDE SIMULATION TIMER
+    # 150 ticks * 2 seconds = 300 seconds (5 minutes). Set to 150 initially to trigger on first run.
+    outside_counter = 150
+
     # ⚡ VIRTUAL POWER INTAKE ACCUMULATOR ⚡
-    # Tracks real-time integration steps to generate synthetic Wh metrics
     wh_accumulator = 0.0
 
     # 3. Push static baselines instantly (These don't drift in Lab Mode)
@@ -79,13 +126,15 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
             # Dynamic re-anchoring for outside atmosphere sliders
             if last_calculated_out_temp is not None and state.environment.outside_temp is not None:
                 if round(state.environment.outside_temp, 1) != round(last_calculated_out_temp, 1):
-                    # User moved the outside temperature slider! Re-adjust our base seed anchor
+                    # User moved the outside temperature slider! Re-adjust base anchor and update tracking target
                     seed.outside_temp = state.environment.outside_temp - (5.0 * math.sin(outside_tick / 10.0))
+                    last_calculated_out_temp = state.environment.outside_temp
 
             if last_calculated_out_hum is not None and state.environment.outside_hum is not None:
                 if int(state.environment.outside_hum) != int(last_calculated_out_hum):
-                    # User moved the outside humidity slider! Re-adjust our base seed anchor
+                    # User moved the outside humidity slider! Re-adjust base anchor and update tracking target
                     seed.outside_hum = state.environment.outside_hum - (20.0 * math.cos(outside_tick / 15.0))
+                    last_calculated_out_hum = state.environment.outside_hum
 
             # --------------------------------------------------------
             # AUTOMATED ELECTRICAL POWER ACCRETION STEP
@@ -109,22 +158,27 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
                     state_mgr.dispatch(Event(type=EventType.KWH_PULSE))
 
             # --------------------------------------------------------
-            # 1. OUTSIDE SIMULATOR (Sine wave over time)
+            # 1. OUTSIDE SIMULATOR (Gated to run once every 5 minutes)
             # --------------------------------------------------------
-            outside_tick += 1
-            # Drifts up and down from the dynamic macro baseline anchor
-            current_out_temp = seed.outside_temp + (5.0 * math.sin(outside_tick / 10.0))
-            current_out_hum = seed.outside_hum + (20.0 * math.cos(outside_tick / 15.0))
+            outside_counter += 1
+            if outside_counter >= 150:
+                outside_counter = 0
+                outside_tick += 1
 
-            # Lock these values in memory so we can track manual variations on the next frame execution
-            last_calculated_out_temp = current_out_temp
-            last_calculated_out_hum = current_out_hum
+                # Drifts up and down from the dynamic macro baseline anchor
+                current_out_temp = seed.outside_temp + (5.0 * math.sin(outside_tick / 10.0))
+                current_out_hum = seed.outside_hum + (20.0 * math.cos(outside_tick / 15.0))
 
-            state_mgr.dispatch(
-                Event(type=EventType.TEMP_UPDATED,
-                      payload={"sensor_id": "outside", "value": round(current_out_temp, 1)}))
-            state_mgr.dispatch(
-                Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "outside", "value": int(current_out_hum)}))
+                # Lock these values in memory so we can track manual variations on the next frame execution
+                last_calculated_out_temp = current_out_temp
+                last_calculated_out_hum = current_out_hum
+
+                state_mgr.dispatch(
+                    Event(type=EventType.TEMP_UPDATED,
+                          payload={"sensor_id": "outside", "value": round(current_out_temp, 1)}))
+                state_mgr.dispatch(
+                    Event(type=EventType.HUMIDITY_UPDATED,
+                          payload={"sensor_id": "outside", "value": int(current_out_hum)}))
 
             # --------------------------------------------------------
             # 2. BATHROOM SIMULATOR (Humidity decay)
