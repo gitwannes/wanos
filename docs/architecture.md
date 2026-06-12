@@ -27,7 +27,7 @@ All new code adheres to modern best practices (SOLID principles, strict typing, 
 ## 3. Core Principles & Logic Separation
 * **Thin Client Architecture:** The frontend holds zero business logic. All mathematical operations, session tracking, and timers exist purely on the backend.
 * **Unidirectional Event Flow:** State is managed via an Event-Driven Architecture. Hardware callbacks, MQTT listeners, and timers post Events to a central queue. 
-* **Logic/Hardware Decoupling:** Business logic modules never write to hardware directly. They compute targets and post state updates. Actuators are strictly divided: `hardware/` modules manage local GPIO (heaters, local SHT11 sensors), while `integrations/` modules bridge out to network hubs like Domoticz and Hue (bathroom vents, external weather).
+* **Logic/Hardware Decoupling:** Business logic modules never write to hardware directly. They compute targets and post state updates. Actuators are strictly divided: `hardware/` modules manage local GPIO (heaters, local SHT11 sensors), while `integrations/` modules bridge out to network hubs like Domoticz and external APIs (bathroom vents, external weather via OWM REST API).
 * **Pessimistic UI:** The frontend employs a "pessimistic" update model. When a user toggles a light, the UI shows a loading/disabled state until the backend confirms the physical state change.
 * **Lab Mode:** The backend supports a fully mocked hardware layer. Thermodynamic engines simulate complex states (e.g., sauna thermal stratification, bathroom humidity decay, outside 24h temperature cycles) allowing the system to be run and tested on a standard PC.
 * **Thread-to-Async Bridging:** Threaded hardware interrupts cross into the FastAPI loop strictly via threadsafe methods.
@@ -45,15 +45,15 @@ The backend SSE loop evaluates data frames every 0.5 seconds; it suppresses tran
 Pulse metrics (`WATER_PULSE`, `KWH_PULSE`) are accumulated internally and emitted as rounded integer values on the delta streams. Incoming duplicate raw sensor packets are explicitly filtered and dropped before hitting the state manager to prevent echo loops and network spam.
 
 ## 5. Configuration, Authentication, & Access
-* **Separation of Concerns:** - `.env`: Securely holds sensitive keys and passwords.
+* **Separation of Concerns:** - `.env`: Securely holds sensitive keys, passwords, and external API tokens.
   - `hardware.yaml`: Layered static definitions of physical/virtual node IDXs, MQTT targets, and GPIO pins.
-  - `config.yaml`: Controls dynamic structural and runtime properties (default setpoints, PIDs).
+  - `config.yaml`: Controls dynamic structural and runtime properties (default setpoints, PIDs, and API polling intervals).
   - `config_lab.yaml`: Injects mock states during Lab Mode.
 * **Remote Configuration:** Admins can edit structural YAML configuration directly from the frontend.
 * **Authentication:** A single shared PIN code limits unauthorized physical access while maintaining a fast UX.
 
 ## 6. UI Structure (Alpine.js Component Tree)
-The UI is built modularly using CSS Grid and Flexbox layouts via Tailwind CSS. A central `wanosApp()` store manages all SSE/MQTT subscriptions. HTML views read reactive state strictly from the Alpine `x-data` object and inject changes via REST endpoints. The main layout snapping model spans to 100% display widths following the complete removal of the rolling in-memory logs panel.
+The UI is built modularly using CSS Grid and Flexbox layouts via Tailwind CSS. A central `wanosApp()` store manages all SSE/MQTT subscriptions. HTML views read reactive state strictly from the Alpine `x-data` object and inject changes via REST endpoints. The main layout snapping model spans to 100% display widths following the complete removal of the rolling in-memory logs panel. Global timestamp payloads (such as sunrise Unix times) are parsed entirely on the client side using native browser timezone formatting.
 
 ## 7. Safety Mechanisms, Watchdogs & Graceful Shutdown
 * **Hardware Actuation Lock:** The GPIO controller must explicitly verify a global `hardware_live_mode` flag before asserting physical signals.
@@ -67,6 +67,7 @@ To enforce strict typing, all internal events must map to a predefined schema us
 **Hardware Events:** `TEMP_UPDATED`, `HUMIDITY_UPDATED`, `WATER_PULSE`, `KWH_PULSE`, `DOOR_CHANGED`, `SENSOR_ERROR`, `TIMER_TICK`
 **Sauna Events:** `SAUNA_ON`, `SAUNA_OFF`, `SETPOINT_CHANGED`, `MODULATION_UPDATED`, `SETPOINT_REACHED`, `SAUNA_HOLD`, `SAUNA_TIMER_EXPIRED`, `HOLD_TOGGLED`, `TIMER_ADJUSTED`, `VENT_WAIT_EXPIRED`, `VENT_RUN_EXPIRED`
 **System Events:** `SYSTEM_READY`, `BACKEND_SHUTDOWN`, `HARDWARE_LIVE_MODE_CHANGED`, `CONFIG_UPDATED`, `SYSTEM_METRICS_UPDATED`
+**External/API Events:** `HUB_STATE_CHANGED`, `LIGHTING_STATE_CHANGED`, `EXTERNAL_WEATHER_UPDATED`
 
 ## 9. Phased Implementation Roadmap
 To mitigate risk and ensure logical separation from hardware quirks, development proceeds in the following phases:
@@ -74,11 +75,10 @@ To mitigate risk and ensure logical separation from hardware quirks, development
 * **Phase 1: Backend Core (COMPLETE)** - FastAPI + MQTT + `state_manager` + Pydantic models.
 * **Phase 2: Lab Mode & Logic (COMPLETE)** - Hardware abstraction layer and core business logic (`sauna_controller`).
 * **Phase 3: Environmental State Machine & Integrations (COMPLETE)** - Door interlocks, Session Timers, Thermodynamics Lab Engine, Alpine.js layout overhaul, and the Domoticz network bridge.
-* **Phase 4: Administrative UI & Telemetry (COMPLETE)** - Built the System Administration panel, shifted uptime calculations completely to client-side tickers, optimized web layouts to full width, and stabilized connection watchdog frameworks.
+* **Phase 4: Administrative UI, Telemetry & REST APIs (COMPLETE)** - Built the System Administration panel, shifted uptime calculations completely to client-side tickers, decoupled Domoticz weather in favor of an async OpenWeatherMap REST polling engine, optimized web layouts to full width, and stabilized connection watchdog frameworks.
 * **Phase 5: Hardware Migration (ACTIVE)** - Map the physical Raspberry Pi GPIOs, build live SHT11 hardware retry/failure loops, transition backend to physical node, and migrate LCD hardware screens.
 
 ## 10. Technical Reference Guide
 All implementation mapping blueprints—including **Codebase Directory Layouts**, **MQTT Topics**, **REST API URLs**, **SSE Endpoints**, and exact **API Event Injection JSON payloads**—have been centralized into a comprehensive system reference document.
 
 **👉 See `reference.md`**
-```

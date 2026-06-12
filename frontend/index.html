@@ -366,7 +366,7 @@
                 <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                     <div class="card-body p-4 flex flex-col justify-between">
                         <div>
-                            <div class="flex justify-between items-center font-mono text-sm mb-4">
+                            <div class="flex justify-between items-center font-mono text-sm mb-2">
                                 <span class="font-bold text-xs uppercase tracking-wider text-base-400">🌍 Outside Atmosphere</span>
                                 <div class="text-right">
                                     <span class="text-white font-bold" x-text="state.sensors.outside_temp !== null ? state.sensors.outside_temp.toFixed(1) + '°C' : '--.-°C'"></span>
@@ -374,8 +374,24 @@
                                 </div>
                             </div>
 
-                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                                <div class="text-xs font-bold text-base-400 uppercase">Gang Boven</div>
+                            <div class="flex flex-col gap-1 font-mono text-xs mb-4 text-base-400 border-b border-base-300 pb-3">
+                                <div class="flex justify-between items-center">
+                                    <span>🌅 Sunrise</span>
+                                    <div class="text-right">
+                                        <span class="text-white font-bold" x-text="formatUnixTime(state.sensors.sunrise_unix)"></span>
+                                        <span class="text-gray-500 ml-1" x-text="sunriseRelativeText"></span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span>🌇 Sunset</span>
+                                    <div class="text-right">
+                                        <span class="text-warning font-bold" x-text="formatUnixTime(state.sensors.sunset_unix)"></span>
+                                        <span class="text-gray-500 ml-1" x-text="sunsetRelativeText"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">                                <div class="text-xs font-bold text-base-400 uppercase">Gang Boven</div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-mono text-sm mt-0.5"
                                           :class="!state.system.domoticz_mqtt_connected || state.devices.gang_boven === null ? 'text-gray-500 italic text-xs' : (state.devices.gang_boven === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"

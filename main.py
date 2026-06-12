@@ -21,6 +21,7 @@ from core.config import load_config, AppConfig
 from core.logger import WanosLogger
 from hardware.simulator import lab_mode_thermodynamics_loop
 from integrations.home_hub import DomoticzHomeHubBridge
+from integrations.open_weather import weather_polling_loop
 
 # Create a global shutdown event kill switch
 shutdown_event = asyncio.Event()
@@ -124,8 +125,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 4. Start the thermodynamics engine in the background
         logger.info("Simulation engine booting...")
         physics_task = asyncio.create_task(lab_mode_thermodynamics_loop(state_manager))
-
         logger.info("Simulation engine initialized.")
+
+        # 5. Start the OWM polling loop
+        logger.info("OpenWeatherMap loop starting...")
+        weather_task = asyncio.create_task(weather_polling_loop(state_manager))
+        logger.info("OpenWeatherMap loop initialized.")
 
     except Exception as startup_err:
         logger.error(f"Core initialization collapsed: {startup_err}")
@@ -138,6 +143,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.warning("Tearing down background engines...")
     shutdown_event.set()
     physics_task.cancel()
+    weather_task.cancel()
     mqtt_publisher.stop()
     await domoticz_bridge.stop()
     await state_manager.stop()

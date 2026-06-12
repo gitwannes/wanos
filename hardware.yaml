@@ -71,9 +71,6 @@ domoticz:
     bathroom:
       id: 7436
       type: "temphum"
-    outside:
-      id: 7448
-      type: "temphum"
     cinema:
       id: 7451
       type: "temphum"

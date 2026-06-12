@@ -10,6 +10,7 @@
 - SecureCRT
 - Robocopy
 - Chrome
+- https://jsonformatter.org
 
 
 ** first, Wannes-default config

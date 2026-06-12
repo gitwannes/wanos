@@ -8,9 +8,9 @@ This document serves as the master blueprint and reference guide for the directo
 
 **Root Directory (`C:\data\git\wanos\`)**
 * `.gitignore`: Specifies intentionally untracked files to ignore for source control.
-* `.env`: Secrets file holding sensitive infrastructure values (Shared PIN, MQTT broker passwords).
+* `.env`: Secrets file holding sensitive infrastructure values (Shared PIN, MQTT passwords, and OWM API Keys).
 * `hardware.yaml`: Static, layered mapping of physical GPIO pins, MQTT network architectures, and external node IDXs.
-* `config.yaml`: The unified production system configuration file (runtime limits, hysteresis boundaries, and PID terms).
+* `config.yaml`: The unified production system configuration file (runtime limits, hysteresis boundaries, PID terms, and weather API settings).
 * `config_lab.yaml`: Mock architecture states used to seed lab baseline metrics during emulation mode.
 * `main.py`: The ASGI web entry point. Hosts the FastAPI app instance, lifespans, and the keep-alive ping SSE stream loops.
 * `requirements.txt`: Python package dependencies.
@@ -37,8 +37,9 @@ This document serves as the master blueprint and reference guide for the directo
 * `sauna_controller.py`: Tracks environmental steps, phase element prioritization cascades, and multi-tier PID algorithms.
 * `timers.py`: Simple wrappers feeding tracking alerts directly to the core state manager queue upon expiration loops.
 
-**integrations/** (Networked Physical Interfaces)
+**integrations/** (Networked Physical Interfaces & APIs)
 * `home_hub.py`: Target integration connector bridging raw external Domoticz state packets cleanly onto the internal WanOS bus.
+* `open_weather.py`: Asynchronous REST polling engine fetching real-time outside temperature, humidity, and UNIX sun cycles from OpenWeatherMap.
 
 ---
 
@@ -253,32 +254,19 @@ The `/api/event` endpoint acts as the universal command receiver for WanOS. It a
 ```
 
 ### External Integrations
-Updates mapped from external hubs like Domoticz or Hue.
+Updates mapped from external REST APIs or hubs like Domoticz and Hue.
 
 **Update Hub State (Domoticz - e.g., Bathroom Ventilator):**
 ```json
 { "type": "HUB_STATE_CHANGED", "payload": { "device_id": "bathroom_ventilator", "state": "ON" } }
 ```
 
+**Update External Weather (OpenWeatherMap):**
+```json
+{ "type": "EXTERNAL_WEATHER_UPDATED", "payload": { "sunrise": 1781234798, "sunset": 1781294237 } }
+```
+
 **Update Lighting State (Hue):**
 ```json
 { "type": "LIGHTING_STATE_CHANGED", "payload": { "zone": "sauna", "state": "OFF" } }
-```
-
----
-
-## 5. Engine Boot Sequence Logs
-The standard terminal output for a clean, cold boot of the WanOS engine:
-```text
-MQTT Connected to 10.32.251.181:1883
-Subscribed to topic: domoticz/out on 10.32.251.181
-Firing 12 MQTT state requests to Domoticz for cold-boot sync and awaiting asynchronous echo...
-State Manager worker started.
-Core systems online. Base state ready.
-Simulation engine booting...
-Simulation engine initialized.
-[System] Internal Engine State validated and locked.
-[System] Internal Event Processed: SYSTEM_READY
-[System] Boot sequence complete. HTTP/SSE Web Interface online.
-```
 ```

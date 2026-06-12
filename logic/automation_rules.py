@@ -36,14 +36,15 @@ class AutomationEngine:
         elif event_name == "HUB_STATE_CHANGED":
             device_id = payload.get("device_id")
             new_state = payload.get("state")  # "ON" or "OFF"
+            is_transition = payload.get("transitioned", False)
 
             # Rule 2A: PC (Master) overrides PC Aux (Slave)
-            if device_id == "pc":
+            if device_id == "pc" and is_transition:
                 follow_up_events.append(
                     Event(type=EventType.HUB_STATE_CHANGED, payload={"device_id": "pc_aux", "state": new_state}))
 
             # Rule 2B: PC Aux overrides Buro Schemer
-            elif device_id == "pc_aux":
+            elif device_id == "pc_aux" and is_transition:
                 follow_up_events.append(
                     Event(type=EventType.HUB_STATE_CHANGED, payload={"device_id": "buro_schemer", "state": new_state}))
 

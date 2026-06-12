@@ -7,6 +7,12 @@ from typing import Optional, Dict, List
 from dotenv import load_dotenv
 
 
+class WeatherConfig(BaseModel):
+    location: str
+    poll_interval_mins: int
+    api_key: Optional[str] = None
+
+
 class MQTTConfig(BaseModel):
     broker_host: str
     port: int
@@ -95,6 +101,7 @@ class AppConfig(BaseModel):
     sauna: SaunaRuntimeConfig
     ir: IRRuntimeConfig
     bathroom: BathroomConfig
+    weather: WeatherConfig
     lab_seed: Optional[LabSeedConfig] = None
 
 
@@ -133,12 +140,14 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "sensors": hardware_data["sht11_sensors"],
         "sauna": runtime_data["sauna"],
         "ir": runtime_data["ir"],
-        "bathroom": runtime_data["bathroom"]
+        "bathroom": runtime_data["bathroom"],
+        "weather": runtime_data["weather"]
     }
 
     # STRICT CHECK 2: Extract & validate required secret keys
     wanos_pass = os.getenv("WANOS_MQTT_PASSWORD")
     dom_pass = os.getenv("DOM_MQTT_PASSWORD")
+    compiled_data["weather"]["api_key"] = os.getenv("OWM_API_KEY")
 
     if not wanos_pass:
         raise ValueError("CRITICAL: Missing required environment variable 'WANOS_MQTT_PASSWORD' in .env")

@@ -258,6 +258,12 @@ class StateManager:
                 else:
                     log_msg = f"{ts}|💧 {sid} humidity: -> {new_val}%"
 
+            elif event_name == "EXTERNAL_WEATHER_UPDATED":
+                self._state.sensors.sunrise_unix = payload.get("sunrise")
+                self._state.sensors.sunset_unix = payload.get("sunset")
+                state_changed = True
+                changed_domains.add("sensors")
+
             elif event_name == "HUB_STATE_CHANGED":
                 dev = payload.get("device_id")
                 st = payload.get("state")
@@ -547,12 +553,17 @@ class StateManager:
         elif event_name == "HUB_STATE_CHANGED":
             device = payload.get("device_id")
             state_val = payload.get("state")  # "ON" or "OFF"
+            old_val = self._state.devices.get(device)
 
             # 100% Generic Assignment. Any inbound switch event goes straight to the dict.
-            if self._state.devices.get(device) != state_val:
+            if old_val != state_val:
                 self._state.devices[device] = state_val
                 state_changed = True
                 changed_domains.add("devices")
+
+                # Tag real user/hardware transitions to prevent boot-syncs & UI refreshes from cascading
+                if old_val is not None:
+                    payload["transitioned"] = True
 
         elif event_name == "LIGHTING_STATE_CHANGED":
             zone = payload.get("zone")

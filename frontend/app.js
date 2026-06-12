@@ -17,6 +17,8 @@ function wanosApp() {
             sensors: {
                 outside_temp: null,
                 outside_hum: null,
+                sunrise_unix: null,
+                sunset_unix: null,
                 bathroom_temp: null,
                 bathroom_hum: null,
                 cinema_temp: null,
@@ -34,7 +36,7 @@ function wanosApp() {
             },
             sauna: {
                 active: false,
-                target_temp: null, // PESSIMISTIC UI: Locks slider until backend pushes the config.yaml value
+                target_temp: null,
                 max_temp: null,
                 hold_mode: "autohold",
                 modulation_pwm: 0,
@@ -117,6 +119,9 @@ function wanosApp() {
 
         ventRemainingText: "00:00:00",
         doucheElapsedText: "00:00:00",
+
+        sunriseRelativeText: "",
+        sunsetRelativeText: "",
 
         init() {
             console.log("🚀 WanOS Web Controller initializing...");
@@ -308,6 +313,19 @@ function wanosApp() {
             } else {
                 this.doucheElapsedText = "00:00:00";
             }
+
+            // Sun Cycle Live Relative Trackers
+            if (this.state.sensors.sunrise_unix) {
+                this.sunriseRelativeText = this.getRelativeTime(this.state.sensors.sunrise_unix, now);
+            } else {
+                this.sunriseRelativeText = "";
+            }
+
+            if (this.state.sensors.sunset_unix) {
+                this.sunsetRelativeText = this.getRelativeTime(this.state.sensors.sunset_unix, now);
+            } else {
+                this.sunsetRelativeText = "";
+            }
         },
 
         formatTime(totalSeconds) {
@@ -426,6 +444,26 @@ function wanosApp() {
         injectWaterPulse(fluidType) {
             // Injects 396 pulses = exactly 1 liter for lab testing
             this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, lab_override: true });
+        },
+
+        // Parses global Unix timestamps automatically into your local browser timezone
+        formatUnixTime(unixTime) {
+            if (!unixTime) return "--:--:--";
+            const date = new Date(unixTime * 1000);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        },
+
+        // Calculates countdown/countup string relative to current time
+        getRelativeTime(targetUnix, nowUnix) {
+            const diff = targetUnix - nowUnix;
+            const absDiff = Math.abs(diff);
+            const timeStr = this.formatTime(absDiff);
+
+            if (diff > 0) {
+                return `(in ${timeStr})`; // Future time (Countdown)
+            } else {
+                return `(${timeStr} ago)`; // Past time (Countup)
+            }
         },
 
         // ⚡ NEW FRONTEND RELOAD HOOK

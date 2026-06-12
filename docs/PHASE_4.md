@@ -75,4 +75,12 @@ The split-screen terminal tool (`monitor.py`) was updated to align with the revi
 * **`SYSTEM_METRICS_UPDATED` (Pruned Optimization):** Now acts strictly as a network connectivity gateway, tracking local broker state and IP addresses. Pushes outbound system state deltas *only* if network links or IP targets experience a real change.
 * **`formatExtendedUptime(bootUnix, now)`:** Advanced client-side parser calculating zero-padded long duration components (`dd:HH:MM:ss`) coupled with local calendar translations `(YYYY-MM-DD HH:mm:ss)`.
 * **`reloadFrontend()`:** Administrative hard-reload hook bypass cache buffers to force a complete browser reload (`window.location.reload(true)`).
-```
+
+---
+
+## 8. OpenWeatherMap Decoupling & REST Integration
+To ensure long-term stability and standardize global metrics, the outside weather tracking was entirely decoupled from the Domoticz MQTT broadcast system.
+
+* **Hardware Decoupling:** The `outside` sensor node was pruned from `hardware.yaml`, rendering the Domoticz bridge blind to legacy weather broadcasts and eliminating network echo loops.
+* **Asynchronous Polling Engine:** Built `integrations/open_weather.py`, utilizing `aiohttp` to poll the OpenWeatherMap REST API at a configurable interval.
+* **Global Time Standardization:** Extracted `sunrise` and `sunset` as pure absolute UNIX timestamps. Passing global Unix integers down the SSE pipeline allows the frontend (`app.js`) to automatically cast them into localized timezone formats (e.g., `CEST`) using native JavaScript Date engines, eliminating the need for server-side timezone math.

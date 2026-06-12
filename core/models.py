@@ -69,6 +69,8 @@ class Event(BaseModel):
 class SensorsState(BaseModel):
     outside_temp: Optional[float] = None
     outside_hum: Optional[int] = None
+    sunrise_unix: Optional[int] = None
+    sunset_unix: Optional[int] = None
 
     bathroom_temp: Optional[float] = None
     bathroom_hum: Optional[int] = None

@@ -20,3 +20,7 @@ ir:
 bathroom:
   vent_on_humidity: 80      # Auto-engage fan above this %
   vent_off_humidity: 74     # Auto-disengage fan below this %
+
+weather:
+  location: "Borsbeek,BE"
+  poll_interval_mins: 30
