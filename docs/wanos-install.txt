@@ -6,9 +6,10 @@
 - PyCharm
 - SmartGit
 - FileZilla
-- MQTTX
+- MQTT Explorer
 - SecureCRT
-- robocopy
+- Robocopy
+- Chrome
 
 
 ** first, Wannes-default config
@@ -87,7 +88,6 @@ sudo visudo -f /etc/sudoers.d/wannes_sudo_policy
 	Defaults timestamp_timeout=30
 	wannes ALL=(root) NOPASSWD: /usr/local/bin/log2ram write
 	wannes ALL=(root) NOPASSWD: /home/wannes/wisc/blank_console.sh
-	wannes ALL=(root) NOPASSWD: /home/wannes/dispmanx_vnc/dispmanx_vncserver
 remove /etc/sudoers.d/010_pi-nopasswd
 
 ** setup log2ram
@@ -130,9 +130,6 @@ MQTT WebSockets Active: Run this and verify Mosquitto is listening.
 sudo netstat -tlnp | grep 9001
 sudo netstat -tlnp | grep 1883
 
-** VNC (Deferred for now)
-# [Skipped per current scope]
-
 ** for logging
 sudo mkdir /var/log/wisc
 sudo chown wannes:wannes /var/log/wisc
@@ -143,15 +140,17 @@ sudo apt install -y python3-venv python3-pip
 mkdir ~/wisc_backend
 cd ~/wisc_backend
 python3 -m venv wisc_backend_venv
-source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
 
 ** Install Project Dependencies
 # Upgrade pip first to prevent pyproject.toml / MarkupSafe build errors on older Debian versions
 python3 -m pip install --upgrade pip setuptools wheel
-
-Create the requirements file:
-nano requirements.txt
+Create the requirements file: requirements.txt
 pip install -r requirements.txt
+
+** run the app
+# source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
+# uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+./wanos_boot.sh start
 
 ** setup SMB
 sudo apt update && sudo apt install samba -y
@@ -159,3 +158,4 @@ sudo nano /etc/samba/smb.conf  # file in GIT
 sudo systemctl restart smbd
 # on Windows
 net use Z: "\\10.32.251.28\wanos_share" /user:wannes
+

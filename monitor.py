@@ -12,7 +12,21 @@ from textual.widgets import Header, Footer, RichLog, Static
 
 # 1. Load Configurations exactly like the main app
 def load_mqtt_configs():
+    # STRICT CHECK 1: Ensure .env file physically exists
+    if not os.path.exists(".env"):
+        raise FileNotFoundError("Environment configuration file not found: .env")
+
     load_dotenv()
+
+    # STRICT CHECK 2: Validate required secrets
+    wanos_pass = os.getenv("WANOS_MQTT_PASSWORD")
+    dom_pass = os.getenv("DOM_MQTT_PASSWORD")
+
+    if not wanos_pass:
+        raise ValueError("CRITICAL: Missing required environment variable 'WANOS_MQTT_PASSWORD' in .env")
+    if not dom_pass:
+        raise ValueError("CRITICAL: Missing required environment variable 'DOM_MQTT_PASSWORD' in .env")
+
     with open("hardware.yaml", "r") as f:
         hw = yaml.safe_load(f)
 
@@ -27,13 +41,13 @@ def load_mqtt_configs():
             "host": hw["wanos"]["mqtt"]["broker_host"],
             "port": hw["wanos"]["mqtt"].get("port", 1883),
             "user": hw["wanos"]["mqtt"].get("username"),
-            "pass": os.getenv("WANOS_MQTT_PASSWORD")
+            "pass": wanos_pass
         },
         "domoticz": {
             "host": hw["domoticz"]["mqtt"]["broker_host"],
             "port": hw["domoticz"]["mqtt"].get("port", 1883),
             "user": hw["domoticz"]["mqtt"].get("username"),
-            "pass": os.getenv("DOM_MQTT_PASSWORD"),
+            "pass": dom_pass,
             "valid_idxs": valid_idxs  # Pass the approved list down to the listener
         }
     }

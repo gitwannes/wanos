@@ -8,11 +8,15 @@ class EventType(str, Enum):
     # Hardware & Sensor Events
     TEMP_UPDATED = "TEMP_UPDATED"
     HUMIDITY_UPDATED = "HUMIDITY_UPDATED"
+    POWER_UPDATED = "POWER_UPDATED"
     WATER_PULSE = "WATER_PULSE"
     KWH_PULSE = "KWH_PULSE"
     DOOR_CHANGED = "DOOR_CHANGED"
     SENSOR_ERROR = "SENSOR_ERROR"
     TIMER_TICK = "TIMER_TICK"
+
+    # Macro & Scene Events
+    SCENE_VERDIEP_OFF = "SCENE_VERDIEP_OFF"
 
     # Sauna & Logic Events
     SAUNA_ON = "SAUNA_ON"
@@ -62,13 +66,12 @@ class Event(BaseModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
-class EnvironmentState(BaseModel):
+class SensorsState(BaseModel):
     outside_temp: Optional[float] = None
     outside_hum: Optional[int] = None
 
     bathroom_temp: Optional[float] = None
     bathroom_hum: Optional[int] = None
-    door_bathroom_open: bool = False
 
     cinema_temp: Optional[float] = None
     cinema_hum: Optional[int] = None
@@ -80,14 +83,17 @@ class EnvironmentState(BaseModel):
     sauna_calc_temp: Optional[float] = None
     sauna_calc_hum: Optional[int] = None
 
+    pc_power: Optional[float] = None
+
+    # Water metrics are analog sensor aggregations
+    water_cold_liters: float = 0.0
+    water_hot_liters: float = 0.0
+
 
 class SaunaState(BaseModel):
     active: bool = False
     target_temp: Optional[float] = None
-    current_temp: Optional[float] = None
     max_temp: Optional[float] = None
-    current_humidity: Optional[int] = None
-    door_open: bool = False
     hold_mode: str = "nohold"
     modulation_pwm: int = 0
     phases_pwm: List[int] = Field(default_factory=lambda: [0, 0, 0])
@@ -109,8 +115,6 @@ class IRState(BaseModel):
 
 
 class MetricsState(BaseModel):
-    water_cold_liters: float = 0.0
-    water_hot_liters: float = 0.0
     kwh_wh_ticks: int = 0
     douche_active: bool = False
     douche_start_time: Optional[int] = None
@@ -127,7 +131,7 @@ class HardwareState(BaseModel):
 
 class SystemState(BaseModel):
     system: SystemAdminState = Field(default_factory=SystemAdminState)
-    environment: EnvironmentState = Field(default_factory=EnvironmentState)
+    sensors: SensorsState = Field(default_factory=SensorsState)
     sauna: SaunaState = Field(default_factory=SaunaState)
     ir: IRState = Field(default_factory=IRState)
     metrics: MetricsState = Field(default_factory=MetricsState)

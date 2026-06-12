@@ -72,6 +72,10 @@ class DomoticzHomeHubBridge:
             if idx is None:
                 return
 
+            # --- DEBUG CODE ---
+            #if idx == 9:
+            #    logger.info(f"[DIAGNOSTIC] Raw frame hit bridge entrance for IDX 9: {payload}")
+
             device_name = self._idx_to_name.get(idx)
             if not device_name:
                 return  # Unregistered device, safely ignore
@@ -90,11 +94,19 @@ class DomoticzHomeHubBridge:
 
             self._raw_cache[idx] = cache_state
 
-            # Forward the full, unedited JSON directly to the WanOS internal raw bus
-            await self.state_manager.mqtt_client.publish("wanos/domsensors/raw", data)
+            # Forward only the requested fields in the exact order to the WanOS internal raw bus
+            filtered_raw_data = {
+                "idx": data.get("idx"),
+                "name": data.get("name", device_name),
+                "dtype": data.get("dtype"),
+                "nvalue": data.get("nvalue"),
+                "svalue": data.get("svalue"),
+                "svalue1": data.get("svalue1"),
+                "svalue2": data.get("svalue2")
+            }
+            await self.state_manager.mqtt_client.publish("wanos/domsensors/raw", filtered_raw_data)
 
             device_type = self.state_manager._config.domoticz.idx[device_name].type
-
             # The generic translator handles ALL devices automatically without explicit IDs
             # This perfectly processes both natural live updates AND our boot-sync responses!
             if device_type == "temphum":
@@ -155,6 +167,28 @@ class DomoticzHomeHubBridge:
                     type=EventType.HUB_STATE_CHANGED,
                     payload={"device_id": device_name, "state": status_string}
                 ))
+
+            elif device_type == "power":
+                try:
+                    # Domoticz sends Wattage as a string in the 'svalue1' field
+                    raw_svalue = data.get("svalue1", "0.0")
+                    wattage = float(raw_svalue)
+
+                    # --- DEBUG CODE ---
+                    # logger.info(f"[DIAGNOSTIC] Bridge successfully translated '{device_name}' -> {wattage} W")
+
+                    # Dispatch the new event to the WanOS State Manager
+                    event = Event(
+                        type=EventType.POWER_UPDATED,
+                        payload={
+                            "sensor_id": device_name,  # This will automatically be "pc_power" from the YAML
+                            "value": wattage
+                        }
+                    )
+                    self.state_manager.dispatch(event)
+
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Failed to parse power reading for {device_name}: {e}")
 
         except ValueError as val_err:
             logger.error(f"Domoticz parser dropped invalid JSON: {val_err}")

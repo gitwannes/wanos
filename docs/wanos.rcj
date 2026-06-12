@@ -48,6 +48,7 @@
 :: --- Exclude Files
 /XF
 :: On local
+	.env*
     .gitignore
     * - Copy.py
 	*.zip

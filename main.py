@@ -203,7 +203,7 @@ async def sse_state_stream(request: Request):
                 data_sent = False
 
                 # Emit only domains whose serialized content has changed since last push
-                for domain in ["system", "environment", "sauna", "ir", "metrics", "hardware", "devices"]:
+                for domain in ["system", "sensors", "sauna", "ir", "metrics", "hardware", "devices"]:
                     domain_data = getattr(current_state, domain, None)
                     if domain_data is None:
                         continue

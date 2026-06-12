@@ -2,6 +2,7 @@
 import time
 from core.models import SaunaState
 
+
 class AuxiliaryController:
     """
     Pure business logic for the environmental state machine.
@@ -9,25 +10,29 @@ class AuxiliaryController:
     """
 
     @staticmethod
-    def evaluate(state: SaunaState) -> SaunaState:
+    def evaluate(state: 'SystemState') -> 'SaunaState':
+        sauna = state.sauna
+        door_open = state.devices.get("door_sauna") == "OPEN"
+        current_temp = state.sensors.sauna_calc_temp
+
         # --------------------------------------------------------
         # 1. EVALUATE LIGHT COLOR (Hue Simulation)
         # --------------------------------------------------------
-        if state.door_open:
+        if door_open:
             # Safety Warning: Solid Green
-            state.light_color = "#00FF00"
-            
-        elif not state.active:
+            sauna.light_color = "#00FF00"
+
+        elif not sauna.active:
             # Standby Mode: Warm White
-            state.light_color = "#FFD180"
-            
+            sauna.light_color = "#FFD180"
+
         else:
             # Heating Mode: Dynamic Thermal Gradient (Blue -> Red)
             # We assume a starting blue floor of 20.0C up to the target_temp.
-            current = state.current_temp if state.current_temp is not None else 20.0
-            safe_max = state.target_temp if state.target_temp is not None else 90.0
-            state.light_color = AuxiliaryController._interpolate_color(
-                temp=current, 
+            current = current_temp if current_temp is not None else 20.0
+            safe_max = sauna.target_temp if sauna.target_temp is not None else 90.0
+            sauna.light_color = AuxiliaryController._interpolate_color(
+                temp=current,
                 min_temp=20.0,
                 max_temp=safe_max
             )
@@ -35,26 +40,25 @@ class AuxiliaryController:
         # --------------------------------------------------------
         # 2. EVALUATE LCD TEXT
         # --------------------------------------------------------
-        if state.active:
+        if sauna.active:
             # Format the target string, defaulting if physical sensors are detached
-            temp_display: str = f"{int(state.current_temp)}°C" if state.current_temp is not None else "--°C"
+            temp_display: str = f"{int(current_temp)}°C" if current_temp is not None else "--°C"
 
-            if state.door_open:
-                state.lcd_text = f"CLOSE DOOR | {temp_display}"
-            elif state.hold_mode == "hold":
-                state.lcd_text = f"SAUNA HOLD | {temp_display}"
+            if door_open:
+                sauna.lcd_text = f"CLOSE DOOR | {temp_display}"
+            elif sauna.hold_mode == "hold":
+                sauna.lcd_text = f"SAUNA HOLD | {temp_display}"
             else:
-                state.lcd_text = f"SAUNA ON | {temp_display} ({state.modulation_pwm}%)"
+                sauna.lcd_text = f"SAUNA ON | {temp_display} ({sauna.modulation_pwm}%)"
 
-        elif state.ventilation_state == "RUNNING":
-            state.lcd_text = "VENT RUNNING"
-        elif state.ventilation_state == "WAITING":
-            state.lcd_text = "VENT WAITING"
+        elif sauna.ventilation_state == "RUNNING":
+            sauna.lcd_text = "VENT RUNNING"
+        elif sauna.ventilation_state == "WAITING":
+            sauna.lcd_text = "VENT WAITING"
         else:
-            state.lcd_text = ""
+            sauna.lcd_text = ""
 
-        return state
-
+        return sauna
     @staticmethod
     def _interpolate_color(temp: float, min_temp: float, max_temp: float) -> str:
         """Calculates a hex color sliding from pure Blue to pure Red."""

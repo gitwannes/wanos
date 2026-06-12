@@ -105,6 +105,10 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     hardware_yaml_path = BASE_DIR / "hardware.yaml"
     lab_yaml_path = BASE_DIR / "config_lab.yaml"
 
+    # STRICT CHECK 1: Ensure .env file physically exists
+    if not env_path.exists():
+        raise FileNotFoundError(f"Environment configuration file not found: {env_path}")
+
     load_dotenv(dotenv_path=env_path)
 
     if not runtime_yaml_path.exists():
@@ -132,9 +136,18 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "bathroom": runtime_data["bathroom"]
     }
 
-    # 4. Inject secrets into the nested MQTT objects
-    compiled_data["wanos"]["mqtt"]["password"] = os.getenv("WANOS_MQTT_PASSWORD")
-    compiled_data["domoticz"]["mqtt"]["password"] = os.getenv("DOM_MQTT_PASSWORD")
+    # STRICT CHECK 2: Extract & validate required secret keys
+    wanos_pass = os.getenv("WANOS_MQTT_PASSWORD")
+    dom_pass = os.getenv("DOM_MQTT_PASSWORD")
+
+    if not wanos_pass:
+        raise ValueError("CRITICAL: Missing required environment variable 'WANOS_MQTT_PASSWORD' in .env")
+    if not dom_pass:
+        raise ValueError("CRITICAL: Missing required environment variable 'DOM_MQTT_PASSWORD' in .env")
+
+    # 4. Inject verified secrets into the nested MQTT objects
+    compiled_data["wanos"]["mqtt"]["password"] = wanos_pass
+    compiled_data["domoticz"]["mqtt"]["password"] = dom_pass
 
     # 5. Extract Lab Seeding if present
     if lab_yaml_path.exists():

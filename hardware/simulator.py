@@ -37,9 +37,9 @@ WANOS LAB MODE THERMODYNAMICS SIMULATION PROFILE REFERENCE
 
 5. CINEMA ROOM STATIONARY ENVIRONMENT (cinema)
 --------------------------------------------------------------------------------
-* Configures static environmental benchmarks ensuring that basic background target matrices stay perfectly flat without experiencing active drifts or decay vectors while running under local lab emulation frameworks.
-* Asserts fixed standalone startup baseline boundaries for room temperature matching exact configuration profile constants.
-* Asserts fixed standalone startup baseline boundaries for relative room humidity matching exact configuration profile constants.
+* Acts as a stable control environment for the simulation. Unlike the sauna or outside environments, the cinema room's climate metrics do not drift or decay over time.
+* Sets the initial room temperature and relative humidity at startup by reading the `cinema_temp` and `cinema_hum` constants directly from the dynamic lab configuration seed (`config_lab.yaml` via `config.lab_seed`).
+* Dispatches these static baseline values to the central state manager immediately upon boot. This prevents missing data (null values) in the UI dashboard and guarantees a reliable, flat reference point while running in lab emulation mode.
 """
 
 
@@ -108,33 +108,33 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
             # --------------------------------------------------------
             # Read straight from the central state vault. If a human dragged a slider,
             # capture that manual adjustment instantly as our new physics baseline!
-            if state.environment.sauna_high_temp is not None and round(sauna_high, 1) != round(
-                    state.environment.sauna_high_temp, 1):
-                sauna_high = state.environment.sauna_high_temp
-            if state.environment.sauna_low_temp is not None and round(sauna_low, 1) != round(
-                    state.environment.sauna_low_temp, 1):
-                sauna_low = state.environment.sauna_low_temp
-            if state.environment.sauna_high_hum is not None and int(
-                    sauna_high_hum) != state.environment.sauna_high_hum:
-                sauna_high_hum = float(state.environment.sauna_high_hum)
-            if state.environment.sauna_low_hum is not None and int(
-                    sauna_low_hum) != state.environment.sauna_low_hum:
-                sauna_low_hum = float(state.environment.sauna_low_hum)
-            if state.environment.bathroom_hum is not None and int(bathroom_hum) != state.environment.bathroom_hum:
-                bathroom_hum = float(state.environment.bathroom_hum)
+            if state.sensors.sauna_high_temp is not None and round(sauna_high, 1) != round(
+                    state.sensors.sauna_high_temp, 1):
+                sauna_high = state.sensors.sauna_high_temp
+            if state.sensors.sauna_low_temp is not None and round(sauna_low, 1) != round(
+                    state.sensors.sauna_low_temp, 1):
+                sauna_low = state.sensors.sauna_low_temp
+            if state.sensors.sauna_high_hum is not None and int(
+                    sauna_high_hum) != state.sensors.sauna_high_hum:
+                sauna_high_hum = float(state.sensors.sauna_high_hum)
+            if state.sensors.sauna_low_hum is not None and int(
+                    sauna_low_hum) != state.sensors.sauna_low_hum:
+                sauna_low_hum = float(state.sensors.sauna_low_hum)
+            if state.sensors.bathroom_hum is not None and int(bathroom_hum) != state.sensors.bathroom_hum:
+                bathroom_hum = float(state.sensors.bathroom_hum)
 
             # Dynamic re-anchoring for outside atmosphere sliders
-            if last_calculated_out_temp is not None and state.environment.outside_temp is not None:
-                if round(state.environment.outside_temp, 1) != round(last_calculated_out_temp, 1):
+            if last_calculated_out_temp is not None and state.sensors.outside_temp is not None:
+                if round(state.sensors.outside_temp, 1) != round(last_calculated_out_temp, 1):
                     # User moved the outside temperature slider! Re-adjust base anchor and update tracking target
-                    seed.outside_temp = state.environment.outside_temp - (5.0 * math.sin(outside_tick / 10.0))
-                    last_calculated_out_temp = state.environment.outside_temp
+                    seed.outside_temp = state.sensors.outside_temp - (5.0 * math.sin(outside_tick / 10.0))
+                    last_calculated_out_temp = state.sensors.outside_temp
 
-            if last_calculated_out_hum is not None and state.environment.outside_hum is not None:
-                if int(state.environment.outside_hum) != int(last_calculated_out_hum):
+            if last_calculated_out_hum is not None and state.sensors.outside_hum is not None:
+                if int(state.sensors.outside_hum) != int(last_calculated_out_hum):
                     # User moved the outside humidity slider! Re-adjust base anchor and update tracking target
-                    seed.outside_hum = state.environment.outside_hum - (20.0 * math.cos(outside_tick / 15.0))
-                    last_calculated_out_hum = state.environment.outside_hum
+                    seed.outside_hum = state.sensors.outside_hum - (20.0 * math.cos(outside_tick / 15.0))
+                    last_calculated_out_hum = state.sensors.outside_hum
 
             # --------------------------------------------------------
             # AUTOMATED ELECTRICAL POWER ACCRETION STEP
@@ -196,7 +196,7 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
             # --------------------------------------------------------
             AMBIENT = 20.0
             pwm = state.sauna.modulation_pwm
-            door_open = state.sauna.door_open
+            door_open = state.devices.get("door_sauna") == "OPEN"
 
             # 1. Heat injection
             heat_added = (pwm / 100.0) * 0.5

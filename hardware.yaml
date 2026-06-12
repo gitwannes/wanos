@@ -14,6 +14,7 @@ domoticz:
     port: 1883
     username: "st0001"
   idx:
+    # Domoticz driven
     bathroom_ventilator:
       id: 7558
       type: "switch"
@@ -23,6 +24,50 @@ domoticz:
     sauna_extrvent:
       id: 8577
       type: "switch"
+    sauna:
+      id: 7550
+      type: "switch"
+    sauna_zoutlamp:
+      id: 1500
+      type: "switch"
+    ir:
+      id: 7551
+      type: "switch"
+    cinema_main:
+      id: 283
+      type: "switch"
+    buro:
+      id: 282
+      type: "switch"
+    buro_schemer:
+      id: 140
+      type: "switch"
+    bathroom_main:
+      id: 141
+      type: "switch"
+    bathroom_wastafel:
+      id: 7555
+      type: "switch"
+    pc:
+      id: 8
+      type: "switch"
+    pc_aux:
+      id: 9618
+      type: "switch"
+    pc_power:
+      id: 9
+      type: "power"
+    gang_boven:
+      id: 169
+      type: "switch"
+    # Domoticz driven but matched by Hue
+    cinema_hue:
+      id: 7312
+      type: "switch"
+    sauna_hue:
+      id: 7561
+      type: "switch"
+    # WanOS SHT sensor driven
     bathroom:
       id: 7436
       type: "temphum"
@@ -41,18 +86,6 @@ domoticz:
     sauna_low:
       id: 7450
       type: "temphum"
-    sauna:
-      id: 7550
-      type: "switch"
-    ir:
-      id: 7551
-      type: "switch"
-    cinema_hue:
-      id: 7312
-      type: "switch"
-    sauna_hue:
-      id: 7561
-      type: "switch"
 
 # Physical Raspberry Pi Pin Deployments
 pins:

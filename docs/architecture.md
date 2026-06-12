@@ -5,39 +5,40 @@
 GIT: https://bitbucket.org/bitwannes/wanos
 
 ## Definitions
-WanOS = Wannes OS = backend system
-    This name will only be visible in the admin pages
-WISC = Wannes Incredible Sauna Control = part of the system that controls the sauna
-    The WISC logo will be visible on the sauna screen
-Wome = Wannes home = Home Control, interfaces with Domoticz, listens to temp&hum sensors, gets outside temperature, etc.
-    Logo or name placement to be defined.
-    In the future, this part will interface with (or be replaced by) HomeAssistant.
+WanOS = Wannes OS = backend system: interfaces with Domoticz, listens to temp&hum sensors, gets outside temperature, etc.
+WISC = Wannes Incredible Sauna Control = part of the system that controls the sauna & IR
+Logo or name placement to be defined.
 
 ## 1. Topography & Hardware Overview
-The system operates on a private home network and consists of two primary Raspberry Pi nodes. The **Backend Node** is connected via wired Ethernet for maximum stability. It acts as the brain of the system, handling all calculations, hardware I/O, and state management. The physical LCD displays are wired directly to this node. The **Frontend Node** (and other clients) connects over WiFi. These act strictly as "dumb" terminals, responsible only for rendering the UI and capturing user inputs.
+The system operates on a private home network and consists of two primary Raspberry Pi nodes. The **Backend Node** is connected via wired Ethernet for maximum stability. It acts as the brain of the system, handling all calculations, hardware I/O, and state management. The physical LCD displays are wired directly to this node.
+The **Frontend Node** (and other clients) connects over the network (WiFi or other). These act strictly as "dumb" terminals, responsible only for rendering the UI and capturing user inputs.
 
 ## 2. Greenfield Development Philosophy & Frameworks
-This project is a **100% clean-slate rewrite**. All new code adheres to modern best practices (SOLID principles, strict typing, modularity).
+This project is a 100% clean-slate rewrite.
+All new code adheres to modern best practices (SOLID principles, strict typing, modularity).
 
 * **Backend:** Python 3.11+ utilizing **FastAPI**. Enforces strict data validation via **Pydantic** models. Manages the core async event loop.
 * **Frontend:** **Alpine.js**. A lightweight, reactive framework paired with **TailwindCSS** and **DaisyUI** allows the UI to be instantly adaptable without a heavy build step.
 * **Communication:** **Server-Sent Events (SSE)** for frontend real-time tracking, and **MQTT** for external clients/hardware.
-* **Dual MQTT Brokers:** The system utilizes a dual-client architecture. A local Mosquitto broker handles internal diagnostic monitoring and telemetry tools, while a dedicated secondary client bridges strictly to external smart home networks (e.g., Domoticz).
+* **Dual MQTT Brokers:** The system utilizes a dual-client architecture.
+	A local Mosquitto broker handles internal diagnostic monitoring and telemetry tools.
+	While a dedicated secondary client bridges to Domoticz.
 
 ## 3. Core Principles & Logic Separation
 * **Thin Client Architecture:** The frontend holds zero business logic. All mathematical operations, session tracking, and timers exist purely on the backend.
 * **Unidirectional Event Flow:** State is managed via an Event-Driven Architecture. Hardware callbacks, MQTT listeners, and timers post Events to a central queue. 
-* **Time as an Event:** The State Manager does not track time directly. A dedicated background clock module fires `TIMER_TICK` events to progress state machines deterministically.
 * **Logic/Hardware Decoupling:** Business logic modules never write to hardware directly. They compute targets and post state updates. Actuators are strictly divided: `hardware/` modules manage local GPIO (heaters, local SHT11 sensors), while `integrations/` modules bridge out to network hubs like Domoticz and Hue (bathroom vents, external weather).
-* **Pessimistic UI:** The frontend employs a "pessimistic" update model. When a user toggles a light, the UI shows a loading state until the backend confirms the physical state change.
+* **Pessimistic UI:** The frontend employs a "pessimistic" update model. When a user toggles a light, the UI shows a loading/disabled state until the backend confirms the physical state change.
 * **Lab Mode:** The backend supports a fully mocked hardware layer. Thermodynamic engines simulate complex states (e.g., sauna thermal stratification, bathroom humidity decay, outside 24h temperature cycles) allowing the system to be run and tested on a standard PC.
 * **Thread-to-Async Bridging:** Threaded hardware interrupts cross into the FastAPI loop strictly via threadsafe methods.
 * **Asynchronous Hardware I/O:** Synchronous hardware calls are isolated in dedicated background threads fed by queues to prevent blocking the async event loop.
 
 ## 4. State Broadcasting & Disconnect Strategy
-State is broadcasted across **seven domain-scoped MQTT topics** rather than a single monolithic dump. Each topic fires independently at its own cadence: `wanos/system` (static boot variables, Domoticz connectivity flags, and heartbeats), `wanos/domsensors/raw` (filtered, raw inbound Domoticz frames), `wanos/domsensors/parsed` (human-readable transitions), `wanos/wisc` (sauna priorities and active PWM outputs), `wanos/metrics/pulses` (meter thresholds scaled), `wanos/console/status` (standard operation execution logs), and `wanos/console/debug` (diagnostic development logging chatter). A dedicated `mqtt_publisher.py` layer owns all topic routing logic.
+State is broadcasted across **seven domain-scoped MQTT topics** rather than a single monolithic dump. Each topic fires independently at its own cadence.
+Ref. reference.md ## 2. MQTT Topic Architecture
+Ref. reference.md ## 3. URLs & Endpoints
 
-The `/api/state/sse` stream operates on an optimized **delta model** backed by an application-level keep-alive architecture. On first connect, the frontend calls `/api/state` to retrieve a full snapshot (which includes the static server `os_boot_unix` and `app_boot_unix` parameters). The frontend uses these constants to process all uptime ticker metrics locally in browser memory via a custom `formatExtendedUptime` utility. 
+-*-*-*
 
 The backend SSE loop evaluates data frames every 0.5 seconds; it suppresses transmissions unless a state change occurs, or a 5-second silence barrier is reached—at which point it pipes a lightweight `{"domain": "ping"}` frame down the pipe. The frontend maintains an internal 10-second sliding watchdog. If the channel goes quiet (e.g., a dirty drop where a cable is pulled and no TCP FIN packet is broadcast), the watchdog clears active loops, forces connection termination, and flashes a blurred "LINK INTERRUPTED" modal.
 

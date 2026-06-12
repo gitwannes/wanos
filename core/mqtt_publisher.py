@@ -103,8 +103,8 @@ class MqttPublisher:
         if "system" in changed_domains:
             await self._publish_telemetry(snapshot)
 
-        if "environment" in changed_domains:
-            await self._publish_environment(snapshot)
+        if "sensors" in changed_domains:
+            await self._publish_sensors(snapshot)
 
         if "devices" in changed_domains:
             await self._publish_devices(snapshot)
@@ -155,9 +155,9 @@ class MqttPublisher:
 
             self._parsed_cache[key] = new_val
 
-    async def _publish_environment(self, snapshot: "SystemState") -> None:
-        """Feeds environmental targets through the parsed delta loop."""
-        for key, val in snapshot.environment.model_dump().items():
+    async def _publish_sensors(self, snapshot: "SystemState") -> None:
+        """Feeds analog sensors through the parsed delta loop."""
+        for key, val in snapshot.sensors.model_dump().items():
             await self._publish_parsed_delta(key, val)
 
     async def _publish_devices(self, snapshot: "SystemState") -> None:

@@ -53,6 +53,7 @@ Outgoing topics:
 `wanos/metrics/pulses`		Cold & hot water: liters & energy: 0.1 kWh
 `wanos/console/status`		Standard operational engine execution logs
 `wanos/console/debug`		High-frequency developmental logging chatter
+A dedicated `mqtt_publisher.py` layer owns all topic routing logic.
 
 **TOPIC: `wanos/system`**
 * **Rules:** - Publishes static application and OS boot Unix timestamps upon startup.
@@ -132,14 +133,21 @@ Outgoing topics:
 ## 3. URLs & Endpoints
 The FastAPI server (running at `http://<backend-ip>:8000`) exposes the following primary HTTP and stream routes.
 
-| Endpoint | Method | Purpose | Payload Requirements |
-| :--- | :--- | :--- | :--- |
-| **`/`** | GET | Serves compiled frontend static HTML assets | N/A |
-| **`/api/state`** | GET | Retrieves read-only JSON snapshot for instant client bootstrapping | N/A |
-| **`/api/state/sse`** | GET | Primary persistent real-time data pipeline. Emits real-time domain deltas and maps a 5-second connection ping frame | N/A |
-| **`/api/event`** | POST | Universal command entry point to inject operations directly into queue | `{"type": "...", "payload": {}}` |
-| **`/api/test/temp`** | POST | Dedicated lab endpoint for forcing test environment temps | `{"temp": float}` |
-| **`/docs`** | GET | Auto-generated interactive Swagger UI API explorer | N/A |
+**`/`**					| GET
+	Serves compiled frontend static HTML assets
+**`/api/state`**		| GET
+	Retrieves read-only JSON snapshot for instant client bootstrapping
+**`/api/state/sse`**	| GET
+	Primary persistent real-time data pipeline. Emits real-time domain deltas
+**`/docs`**				| GET
+	Auto-generated interactive Swagger UI API explorer
+**`/api/event`**		| POST
+	Universal command entry point to inject operations directly into queue.
+	On first connect, the frontend calls `/api/state` to retrieve a full snapshot.
+	`{"type": "...", "payload": {}}`
+**`/api/test/temp`**	| POST
+	Dedicated lab endpoint for forcing test environment temps
+	`{"temp": float}`
 
 ---
 

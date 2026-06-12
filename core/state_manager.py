@@ -43,7 +43,8 @@ class StateManager:
         self._state.sauna.target_temp = float(self._config.sauna.default_setpoint)
         self._state.sauna.max_temp = float(self._config.sauna.max_temp)
         self._state.lab_seed = self._config.lab_seed
-
+        self._state.devices["door_sauna"] = "CLOSED"
+        self._state.devices["door_bathroom"] = "CLOSED"
         # ⏱️ DELAYED TIMELINE TRACKING VARIABLES
         self._sauna_timer_triggered = False
         self._sauna_timer_duration_secs = 0
@@ -85,6 +86,7 @@ class StateManager:
                 pass
         if self._gpio_chip and LGPIO_AVAILABLE:
             lgpio.gpiochip_close(self._gpio_chip)
+
         await self.logger.warning("State Manager worker stopped.")
 
     def dispatch(self, event: Event) -> None:
@@ -114,21 +116,19 @@ class StateManager:
                 logger.error(f"Safety Relay Error: Write failed - {e}")
 
     def _recalculate_sauna_metrics(self) -> bool:
-        env = self._state.environment
+        sns = self._state.sensors
         changed = False
-        if env.sauna_high_temp is not None and env.sauna_low_temp is not None:
-            raw_temp = (env.sauna_high_temp + env.sauna_low_temp) / 2
+        if sns.sauna_high_temp is not None and sns.sauna_low_temp is not None:
+            raw_temp = (sns.sauna_high_temp + sns.sauna_low_temp) / 2
             calc_temp = round(raw_temp * 2) / 2
-            if calc_temp != env.sauna_calc_temp:
-                env.sauna_calc_temp = calc_temp
-                self._state.sauna.current_temp = calc_temp
+            if calc_temp != sns.sauna_calc_temp:
+                sns.sauna_calc_temp = calc_temp
                 changed = True
-        if env.sauna_high_hum is not None and env.sauna_low_hum is not None:
-            raw_hum = (env.sauna_high_hum + (env.sauna_low_hum * 4)) / 5
+        if sns.sauna_high_hum is not None and sns.sauna_low_hum is not None:
+            raw_hum = (sns.sauna_high_hum + (sns.sauna_low_hum * 4)) / 5
             calc_hum = round(raw_hum)
-            if calc_hum != env.sauna_calc_hum:
-                env.sauna_calc_hum = calc_hum
-                self._state.sauna.current_humidity = calc_hum
+            if calc_hum != sns.sauna_calc_hum:
+                sns.sauna_calc_hum = calc_hum
                 changed = True
         return changed
 
@@ -213,7 +213,7 @@ class StateManager:
             if event_name == "TEMP_UPDATED":
                 sid = payload.get("sensor_id")
                 new_val = payload.get("value")
-                old_val = getattr(self._state.environment, f"{sid}_temp", None)
+                old_val = getattr(self._state.sensors, f"{sid}_temp", None)
                 if old_val is not None:
                     delta = round(float(new_val) - float(old_val), 1)
                     if delta != 0.0:  # Only log if it actually shifted!
@@ -222,10 +222,34 @@ class StateManager:
                 else:
                     log_msg = f"{ts}|🌡️ {sid} temp: -> {new_val:.1f}°C"
 
+            elif event_name == "POWER_UPDATED":
+                sensor_id: str = payload.get("sensor_id", "")
+                val: float = payload.get("value", 0.0)
+                sns: Any = self._state.sensors
+
+                # --- START DEBUG CODE ---
+                #logger.warning(f"[DEBUG POWER] Raw Payload: {payload}")
+                #logger.warning(f"[DEBUG POWER] Extracted sensor_id: '{sensor_id}' | value: {val}")
+                #logger.warning(f"[DEBUG POWER] Does SensorsState have '{sensor_id}'? -> {hasattr(sns, sensor_id)}")
+                #if not hasattr(sns, sensor_id):
+                #    logger.warning(
+                #        f"[DEBUG POWER] Missing from models.py! Routing to state.devices['{sensor_id}'] instead.")
+                # --- END DEBUG CODE ---
+
+                # Matches the exact YAML key to the internal sensor dictionary (e.g., 'pc_power')
+                if hasattr(sns, sensor_id):
+                    setattr(sns, sensor_id, val)
+                    state_changed = True
+                    changed_domains.add("sensors")
+                else:
+                    self._state.devices[sensor_id] = val
+                    state_changed = True
+                    changed_domains.add("devices")
+
             elif event_name == "HUMIDITY_UPDATED":
                 sid = payload.get("sensor_id")
                 new_val = payload.get("value")
-                old_val = getattr(self._state.environment, f"{sid}_hum", None)
+                old_val = getattr(self._state.sensors, f"{sid}_hum", None)
                 if old_val is not None:
                     delta = int(new_val) - int(old_val)
                     if delta != 0:  # Only log if it actually shifted!
@@ -299,9 +323,9 @@ class StateManager:
 
             for _ in range(count):
                 if wtype == "cold":
-                    self._state.metrics.water_cold_liters += (1.0 / 396.0)
+                    self._state.sensors.water_cold_liters += (1.0 / 396.0)
                 else:
-                    self._state.metrics.water_hot_liters += (1.0 / 396.0)
+                    self._state.sensors.water_hot_liters += (1.0 / 396.0)
 
                 if self._state.metrics.douche_active:
                     self._state.metrics.douche_water_liters += 1
@@ -312,6 +336,7 @@ class StateManager:
                 self.mqtt_publisher.accumulate_water(wtype, count)
 
             state_changed = True
+            changed_domains.add("sensors")
             changed_domains.add("metrics")
 
         elif event_name == "KWH_PULSE":
@@ -330,19 +355,19 @@ class StateManager:
         elif event_name == "TEMP_UPDATED":
             sensor_id: str = payload.get("sensor_id", "")
             val: float = payload.get("value", 0.0)
-            env: Any = self._state.environment
+            sns: Any = self._state.sensors
 
             # 1. Core Engine Target: explicitly requested by internal math loop?
-            if hasattr(env, f"{sensor_id}_temp"):
-                setattr(env, f"{sensor_id}_temp", val)
+            if hasattr(sns, f"{sensor_id}_temp"):
+                setattr(sns, f"{sensor_id}_temp", val)
 
-                # Raw environment value updated, ensure frontend syncs via SSE
+                # Raw sensor value updated, ensure frontend syncs via SSE
                 state_changed = True
-                changed_domains.add("environment")
+                changed_domains.add("sensors")
 
                 if sensor_id in ["sauna_high", "sauna_low"]:
                     if self._recalculate_sauna_metrics() or is_manual_lab_action:
-                        changed_domains.add("sauna")
+                        changed_domains.add("sensors")
             # 2. Generic Peripheral Target: Store it safely for the UI
             else:
                 self._state.devices[f"{sensor_id}_temp"] = val
@@ -352,37 +377,37 @@ class StateManager:
         elif event_name == "HUMIDITY_UPDATED":
             sensor_id: str = payload.get("sensor_id", "")
             val: int = payload.get("value", 0)
-            env: Any = self._state.environment
+            sns: Any = self._state.sensors
 
             # 1. Core Engine Target
-            if hasattr(env, f"{sensor_id}_hum"):
-                setattr(env, f"{sensor_id}_hum", val)
+            if hasattr(sns, f"{sensor_id}_hum"):
+                setattr(sns, f"{sensor_id}_hum", val)
 
-                # Raw environment value updated, ensure frontend syncs via SSE
+                # Raw sensor value updated, ensure frontend syncs via SSE
                 state_changed = True
-                changed_domains.add("environment")
+                changed_domains.add("sensors")
 
                 # ⚡ AUTOMATED BATHROOM VENTILATOR HYSTERESIS LOOP ⚡
-                if sensor_id == "bathroom" and env.bathroom_hum is not None:
+                if sensor_id == "bathroom" and sns.bathroom_hum is not None:
                     on_threshold: int = self._config.bathroom.vent_on_humidity
                     off_threshold: int = self._config.bathroom.vent_off_humidity
 
                     # Engine relies entirely on the generic devices dictionary mapping
                     current_vent_state: str = self._state.devices.get("bathroom_ventilator", "OFF")
 
-                    if env.bathroom_hum >= on_threshold and current_vent_state != "ON":
+                    if sns.bathroom_hum >= on_threshold and current_vent_state != "ON":
                         self._state.devices["bathroom_ventilator"] = "ON"
                         changed_domains.add("devices")
-                        msg: str = f"Bathroom humidity ({env.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator."
+                        msg: str = f"Bathroom humidity ({sns.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator."
                         logger.info(msg)
                         if not self._state.hardware.live_mode:
                             from datetime import datetime
                             ts: str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
                             self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
-                    elif env.bathroom_hum <= off_threshold and current_vent_state == "ON":
+                    elif sns.bathroom_hum <= off_threshold and current_vent_state == "ON":
                         self._state.devices["bathroom_ventilator"] = "OFF"
                         changed_domains.add("devices")
-                        msg: str = f"Bathroom humidity ({env.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator."
+                        msg: str = f"Bathroom humidity ({sns.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator."
                         logger.info(msg)
                         if not self._state.hardware.live_mode:
                             from datetime import datetime
@@ -391,7 +416,7 @@ class StateManager:
 
                 if sensor_id in ["sauna_high", "sauna_low"]:
                     if self._recalculate_sauna_metrics() or is_manual_lab_action:
-                        changed_domains.add("sauna")
+                        changed_domains.add("sensors")
             # 2. Generic Peripheral Target
             else:
                 self._state.devices[f"{sensor_id}_hum"] = val
@@ -412,11 +437,13 @@ class StateManager:
         # CORE CONTROLLER MODULE ROUTERS
         # --------------------------------------------------------
         elif event_name == "SAUNA_ON":
-            if self._state.sauna.door_open:
+            door_open = self._state.devices.get("door_sauna") == "OPEN"
+            if door_open:
                 await self.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Door is open.")
                 return False, set()
-            if self._state.sauna.current_temp is None:
-                await self.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Temperature data is currently missing (NULL).")
+            if self._state.sensors.sauna_calc_temp is None:
+                await self.logger.warning(
+                    "🌡️ Bouncer rejected SAUNA_ON: Temperature data is currently missing (NULL).")
                 return False, set()
             self._state.sauna.active = True
             self._state.sauna.hold_mode = "autohold"
@@ -471,8 +498,9 @@ class StateManager:
             self.dispatch(Event(type=EventType.SAUNA_OFF))
 
         elif event_name == "IR_ON":
-            if self._state.sauna.current_temp is None:
-                await self.logger.warning("🌡️ Bouncer rejected IR_ON: Temperature data is currently missing (NULL).")
+            if self._state.sensors.sauna_calc_temp is None:
+                await self.logger.warning(
+                    "🌡️ Bouncer rejected IR_ON: Temperature data is currently missing (NULL).")
                 return False, set()
             self._state.ir.active = True
             now = int(time.time())
@@ -497,22 +525,24 @@ class StateManager:
         elif event_name == "DOOR_CHANGED":
             sensor_id = payload.get("sensor_id", "sauna")
             is_open = payload.get("is_open", False)
-            if sensor_id == "sauna":
-                self._state.sauna.door_open = is_open
+            device_key = f"door_{sensor_id}"
+            new_state = "OPEN" if is_open else "CLOSED"
 
-                # Sauna safety interlock logic
-                if is_open and self._state.sauna.active:
+            # Doors are switches, so they go directly to devices!
+            if self._state.devices.get(device_key) != new_state:
+                self._state.devices[device_key] = new_state
+                state_changed = True
+                changed_domains.add("devices")
+
+                # Sauna safety interlock logic evaluation
+                if sensor_id == "sauna" and is_open and self._state.sauna.active:
                     self._state.sauna.active = False
                     self._state.sauna.modulation_pwm = 0
                     self._state.sauna.phases_pwm = [0, 0, 0]
                     self._state.sauna.ventilation_state = "OFF"
+                    changed_domains.add("sauna")
                     asyncio.create_task(
                         self.logger.warning("🚪 Sauna door opened while active! Emergency cutoff triggered."))
-            elif sensor_id == "bathroom":
-                self._state.environment.door_bathroom_open = is_open
-                changed_domains.add("environment")
-            state_changed = True
-            changed_domains.add("sauna")
 
         elif event_name == "HUB_STATE_CHANGED":
             device = payload.get("device_id")
@@ -564,19 +594,21 @@ class StateManager:
             changed_domains.add("sauna")
 
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "DOOR_CHANGED"]:
-            if self._state.sauna.current_temp is not None and self._state.sauna.active:
+            current_temp = self._state.sensors.sauna_calc_temp
+            if current_temp is not None and self._state.sauna.active:
 
                 # ⏱️ CONFIGURABLE TIMER COUNTDOWN EVALUATION GATEWAY
                 offset = getattr(self._config.sauna, "timer_offset_temp", 7.0)
                 threshold_temp = self._state.sauna.target_temp - offset
 
                 if not self._sauna_timer_triggered:
-                    if self._state.sauna.current_temp >= threshold_temp:
+                    if current_temp >= threshold_temp:
                         self._sauna_timer_triggered = True
                         self._state.sauna.session_end_time = int(time.time()) + self._sauna_timer_duration_secs
                         self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time,
                                                      "SAUNA_TIMER_EXPIRED")
-                        logger.info(f"Heat threshold met ({self._state.sauna.current_temp}°C >= {threshold_temp}°C). Activating timer countdown!")
+                        logger.info(
+                            f"Heat threshold met ({current_temp}°C >= {threshold_temp}°C). Activating timer countdown!")
                         state_changed = True
                         changed_domains.add("sauna")
                     else:
@@ -586,14 +618,14 @@ class StateManager:
                             changed_domains.add("sauna")
 
                 # AUTOMATIC HOLD STEPPING INTERRUPT:
-                if self._state.sauna.current_temp >= self._state.sauna.target_temp:
+                if current_temp >= self._state.sauna.target_temp:
                     if self._state.sauna.hold_mode == "autohold":
                         self._state.sauna.hold_mode = "hold"
                         logger.info("Setpoint met! System automatically dropped load: autohold -> hold")
                         state_changed = True
                         changed_domains.add("sauna")
 
-                calc_result = self.sauna_logic.evaluate(self._state.sauna)
+                calc_result = self.sauna_logic.evaluate(self._state)
                 if calc_result:
                     self._state.sauna.modulation_pwm = calc_result.get("pwm", 0)
                     self._state.sauna.phases_pwm = calc_result.get("phases", [0, 0, 0])
@@ -602,13 +634,14 @@ class StateManager:
 
         # --- DEFENSIVE RE-RENDER CHECKPOINT ---
         from logic.auxiliary_controller import AuxiliaryController
+        from logic.automation_rules import AutomationEngine
 
         old_lcd_text: str = self._state.sauna.lcd_text
         old_light_color: str = self._state.sauna.light_color
         old_fireorder: str = self._state.sauna.fireorder
 
         # Delegate display and lighting logic cleanly to the pure business logic controller
-        self._state.sauna = AuxiliaryController.evaluate(self._state.sauna)
+        self._state.sauna = AuxiliaryController.evaluate(self._state)
 
         if not self._state.sauna.active:
             self._state.sauna.fireorder = "--"
@@ -621,6 +654,11 @@ class StateManager:
                 self._state.sauna.fireorder != old_fireorder):
             state_changed = True
             changed_domains.add("sauna")
+
+        # ⚡ AUTOMATION ENGINE HOOK ⚡
+        # Evaluates the current event and dispatches any automated downstream cascades or scenes.
+        for auto_event in AutomationEngine.evaluate(event, self._state):
+            self.dispatch(auto_event)
 
         return state_changed, changed_domains
 

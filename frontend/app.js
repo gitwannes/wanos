@@ -14,12 +14,11 @@ function wanosApp() {
                 os_uptime_formatted: "00:00:00",
                 app_uptime_formatted: "00:00:00"
             },
-            environment: {
+            sensors: {
                 outside_temp: null,
                 outside_hum: null,
                 bathroom_temp: null,
                 bathroom_hum: null,
-                door_bathroom_open: false,
                 cinema_temp: null,
                 cinema_hum: null,
                 sauna_high_temp: null,
@@ -28,14 +27,15 @@ function wanosApp() {
                 sauna_low_hum: null,
                 sauna_calc_temp: null,
                 sauna_calc_hum: null,
+                pc_power: null,
+                // Liters pre-rounded by the backend (1 decimal). No conversion needed here.
+                water_cold_liters: 0.0,
+                water_hot_liters: 0.0
             },
             sauna: {
                 active: false,
-                target_temp: 70,
-                current_temp: null,
+                target_temp: null, // PESSIMISTIC UI: Locks slider until backend pushes the config.yaml value
                 max_temp: null,
-                current_humidity: null,
-                door_open: false,
                 hold_mode: "autohold",
                 modulation_pwm: 0,
                 phases_pwm: [0, 0, 0],
@@ -55,9 +55,6 @@ function wanosApp() {
                 session_end_time: null
             },
             metrics: {
-                // Liters pre-rounded by the backend (1 decimal). No conversion needed here.
-                water_cold_liters: 0.0,
-                water_hot_liters: 0.0,
                 // Raw Wh tick counter kept in state for internal tracking.
                 // Divide by 1000 at display time to show kWh.
                 kwh_wh_ticks: 0,
@@ -68,12 +65,36 @@ function wanosApp() {
             },
             hardware: {
                 live_mode: false,
-                safety_pin_active: false,
+                safety_pin_active: false, // Hardwired GPIO. Instantly verified locally, safe to default false.
                 sensor_errors: []
             },
-            devices: {}, // Generic peripheral payload dict (hues, ventilators, relays)
+            // Generic peripheral payload dict (hues, ventilators, relays, lighting, doors).
+            // PESSIMISTIC UI ARCHITECTURE: All Domoticz-driven relays are initialized
+            // strictly to `null`. This keeps the UI buttons disabled and grayed out
+            // until the Python backend explicitly pushes their verified state.
+            devices: {
+                door_sauna: "CLOSED", // Local GPIO (Not Domoticz)
+                door_bathroom: "CLOSED", // Local GPIO
+                cinema_main: null,
+                cinema_buro: null,
+                buro_schemer: null,
+                cinema_hue: null,
+                sauna_hue: null,
+                sauna_zoutlamp: null,
+                bathroom_main: null,
+                bathroom_wastafel: null,
+                bathroom_ventilator: null,
+                sauna_extrvent: null,
+                safety_ssr: null,
+                pc: null,
+                pc_aux: null,
+                gang_boven: null
+            },
             lab_seed: null
         },
+
+        // Dedicated UI Toggle to lock/unlock manual manipulation of the physics simulator
+        labControlsEnabled: false,
 
         labSaunaHighTemp: null,
         labSaunaHighHum: null,
@@ -85,17 +106,16 @@ function wanosApp() {
         labCinemaHum: null,
         labOutsideTemp: null,
         labOutsideHum: null,
-        labDoorSaunaOpen: false,
-        labDoorBathroomOpen: false,
-        labCinemaHueOn: false,
-        labSaunaHueOn: false,
-        labBathroomVentOn: false,
 
-        elapsedText: "00:00:00",
-        remainingText: "00:00:00",
+        // Session Trackers cleanly split for multi-component use
+        saunaElapsedText: "00:00:00",
+        saunaRemainingText: "00:00:00",
         progressPercent: 0,
-        ventRemainingText: "00:00:00",
+
+        irElapsedText: "00:00:00",
         irRemainingText: "00:00:00",
+
+        ventRemainingText: "00:00:00",
         doucheElapsedText: "00:00:00",
 
         init() {
@@ -130,9 +150,9 @@ function wanosApp() {
             }
             if (!fullState.hardware.sensor_errors) fullState.hardware.sensor_errors = [];
             fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
-            fullState.environment.door_bathroom_open = fullState.environment.door_bathroom_open ?? false;
             fullState.system = fullState.system || this.state.system;
-            fullState.devices = fullState.devices || {};
+            // Merge retrieved devices with existing safe defaults so we don't drop initialized UI keys
+            fullState.devices = Object.assign({}, this.state.devices, fullState.devices || {});
 
             this.state = fullState;
 
@@ -143,7 +163,6 @@ function wanosApp() {
 
         _applyDomainDelta(domain, data) {
             // Merges a single changed domain subtree into the reactive store.
-            // Per-domain defensive normalization mirrors _applyFullSnapshot.
             if (domain === "sauna") {
                 if (data.phases_pwm) {
                     data.phases_pwm = data.phases_pwm.map(v =>
@@ -152,23 +171,23 @@ function wanosApp() {
                 }
                 data.modulation_pwm = data.modulation_pwm ?? 0;
             }
-            if (domain === "environment") {
-                data.door_bathroom_open = data.door_bathroom_open ?? false;
-            }
             if (domain === "hardware") {
                 if (!data.sensor_errors) data.sensor_errors = [];
             }
             if (domain === "devices") {
-                // Merge device keys individually rather than replacing the whole object,
-                // so keys not present in this delta are preserved from prior state.
+                // Merge device keys individually
                 this.state.devices = Object.assign({}, this.state.devices, data);
+                // ⚡ FIX: Sync lab controls when devices update so UI stays pinned
+                if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
+                    this.syncLabControls();
+                }
                 return;
             }
 
             this.state[domain] = Object.assign({}, this.state[domain], data);
 
-            // Re-sync lab controls whenever environment or sauna domain updates arrive
-            if ((domain === "environment" || domain === "sauna") &&
+            // Re-sync lab controls whenever sensors or sauna domain updates arrive
+            if ((domain === "sensors" || domain === "sauna") &&
                 (!document.activeElement || !document.activeElement.classList.contains('lab-slider'))) {
                 this.syncLabControls();
             }
@@ -236,6 +255,7 @@ function wanosApp() {
                 this.state.system.app_uptime_formatted = this.formatExtendedUptime(this.state.system.app_boot_unix, now);
             }
 
+            // Sauna Timeline Evaluation
             if (this.state.sauna.active && this.state.sauna.session_start_time && this.state.sauna.session_end_time) {
                 const start = this.state.sauna.session_start_time;
                 const end = this.state.sauna.session_end_time;
@@ -243,8 +263,8 @@ function wanosApp() {
                 if (end < 1000000000) {
                     // Timer not yet triggered: session_end_time holds raw duration seconds,
                     // not an absolute Unix timestamp. Display as countdown without progress bar.
-                    this.elapsedText = this.formatTime(Math.max(0, now - start));
-                    this.remainingText = this.formatTime(end);
+                    this.saunaElapsedText = this.formatTime(Math.max(0, now - start));
+                    this.saunaRemainingText = this.formatTime(end);
                     this.progressPercent = 0;
                 } else {
                     // Timer triggered: session_end_time is an absolute Unix timestamp.
@@ -252,14 +272,25 @@ function wanosApp() {
                     const remaining = Math.max(0, end - now);
                     const totalDuration = end - start;
 
-                    this.elapsedText = this.formatTime(elapsed);
-                    this.remainingText = this.formatTime(remaining);
+                    this.saunaElapsedText = this.formatTime(elapsed);
+                    this.saunaRemainingText = this.formatTime(remaining);
                     this.progressPercent = totalDuration > 0 ? Math.min(100, (elapsed / totalDuration) * 100) : 0;
                 }
             } else {
-                this.elapsedText = "00:00:00";
-                this.remainingText = "00:00:00";
+                this.saunaElapsedText = "00:00:00";
+                this.saunaRemainingText = "00:00:00";
                 this.progressPercent = 0;
+            }
+
+            // IR Timeline Evaluation
+            if (this.state.ir.active && this.state.ir.session_start_time && this.state.ir.session_end_time) {
+                const irElapsed = Math.max(0, now - this.state.ir.session_start_time);
+                const irRemain = Math.max(0, this.state.ir.session_end_time - now);
+                this.irElapsedText = this.formatTime(irElapsed);
+                this.irRemainingText = this.formatTime(irRemain);
+            } else {
+                this.irElapsedText = "00:00:00";
+                this.irRemainingText = "00:00:00";
             }
 
             if (this.state.sauna.ventilation_state !== "OFF" && this.state.sauna.ventilation_deadline) {
@@ -267,13 +298,6 @@ function wanosApp() {
                 this.ventRemainingText = this.formatTime(vRemain);
             } else {
                 this.ventRemainingText = "00:00:00";
-            }
-
-            if (this.state.ir.active && this.state.ir.session_end_time) {
-                const irRemain = Math.max(0, this.state.ir.session_end_time - now);
-                this.irRemainingText = this.formatTime(irRemain);
-            } else {
-                this.irRemainingText = "00:00:00";
             }
 
             if (this.state.metrics.douche_active && this.state.metrics.douche_start_time) {
@@ -318,27 +342,21 @@ function wanosApp() {
         },
 
         syncLabControls() {
-            const env = this.state.environment;
+            const sns = this.state.sensors;
             const seed = this.state.lab_seed;
 
             if (!seed) return;
 
-            this.labDoorSaunaOpen = this.state.sauna.door_open;
-            this.labDoorBathroomOpen = env.door_bathroom_open;
-            this.labCinemaHueOn = this.state.devices.cinema_hue === 'ON';
-            this.labSaunaHueOn = this.state.devices.sauna_hue === 'ON';
-            this.labBathroomVentOn = this.state.devices.bathroom_ventilator === 'ON';
-
-            this.labSaunaHighTemp = env.sauna_high_temp ?? seed.sauna_high_temp;
-            this.labSaunaHighHum  = env.sauna_high_hum  ?? seed.sauna_high_hum;
-            this.labSaunaLowTemp  = env.sauna_low_temp  ?? seed.sauna_low_temp;
-            this.labSaunaLowHum   = env.sauna_low_hum   ?? seed.sauna_low_hum;
-            this.labBathroomTemp  = env.bathroom_temp   ?? seed.bathroom_temp;
-            this.labBathroomHum   = env.bathroom_hum    ?? seed.bathroom_hum;
-            this.labCinemaTemp    = env.cinema_temp     ?? seed.cinema_temp;
-            this.labCinemaHum     = env.cinema_hum      ?? seed.cinema_hum;
-            this.labOutsideTemp   = env.outside_temp    ?? seed.outside_temp;
-            this.labOutsideHum    = env.outside_hum     ?? seed.outside_hum;
+            this.labSaunaHighTemp = sns.sauna_high_temp ?? seed.sauna_high_temp;
+            this.labSaunaHighHum  = sns.sauna_high_hum  ?? seed.sauna_high_hum;
+            this.labSaunaLowTemp  = sns.sauna_low_temp  ?? seed.sauna_low_temp;
+            this.labSaunaLowHum   = sns.sauna_low_hum   ?? seed.sauna_low_hum;
+            this.labBathroomTemp  = sns.bathroom_temp   ?? seed.bathroom_temp;
+            this.labBathroomHum   = sns.bathroom_hum    ?? seed.bathroom_hum;
+            this.labCinemaTemp    = sns.cinema_temp     ?? seed.cinema_temp;
+            this.labCinemaHum     = sns.cinema_hum      ?? seed.cinema_hum;
+            this.labOutsideTemp   = sns.outside_temp    ?? seed.outside_temp;
+            this.labOutsideHum    = sns.outside_hum     ?? seed.outside_hum;
         },
 
         async dispatchEvent(eventType, payload = {}) {
@@ -363,7 +381,7 @@ function wanosApp() {
         },
 
         toggleSauna() {
-            if (this.state.sauna.current_temp == null) {
+            if (this.state.sensors.sauna_calc_temp == null) {
                 console.warn("UI locked: Cannot start Sauna without valid temperature data.");
                 return;
             }
@@ -384,7 +402,7 @@ function wanosApp() {
         },
 
         toggleIR() {
-            if (this.state.sauna.current_temp == null) {
+            if (this.state.sensors.sauna_calc_temp == null) {
                 console.warn("UI locked: Cannot start IR without valid temperature data.");
                 return;
             }
