@@ -455,6 +455,31 @@ function wanosApp() {
             this.dispatchEvent("HUB_STATE_CHANGED", { device_id: deviceId, state: targetState });
         },
 
+        // 🛡️ PC Power Safety Interceptor
+        handlePCToggleClick(event) {
+            event.preventDefault(); // Universally stop the toggle from visually flipping
+            document.getElementById('pc_power_modal').showModal(); // Open DaisyUI modal
+        },
+
+        // Executed only if the user confirms the action in the modal
+        confirmPCPowerToggle() {
+            document.getElementById('pc_power_modal').close();
+            const isCurrentlyOn = this.state.devices.pc === 'ON';
+            // Send the opposite of the current state
+            this.injectLabHubStateChange('pc', !isCurrentlyOn);
+        },
+        // 🛡️ Hardware Bus Safety Interceptor
+        handleHardwareToggleClick(event) {
+            event.preventDefault(); // Stop the toggle from visually flipping
+            document.getElementById('hardware_mode_modal').showModal();
+        },
+
+        // Executed only if the user confirms the bus switch
+        confirmHardwareModeToggle() {
+            document.getElementById('hardware_mode_modal').close();
+            this.toggleHardwareMode(); // Executes your original toggle logic
+        },
+
         injectWaterPulse(fluidType) {
             // Injects 396 pulses = exactly 1 liter for lab testing
             this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, lab_override: true });
@@ -464,7 +489,7 @@ function wanosApp() {
         formatUnixTime(unixTime) {
             if (!unixTime) return "--:--:--";
             const date = new Date(unixTime * 1000);
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
         },
 
         // Calculates countdown/countup string relative to current time

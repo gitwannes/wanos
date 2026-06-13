@@ -84,14 +84,18 @@
                             </div>
                         </div>
 
-                        <div class="flex justify-between items-center bg-base-200 px-3 py-2.5 mt-4 rounded-box border border-base-300">
-                            <span class="text-[10px] font-bold text-base-400 uppercase tracking-wider">Extraction Fan</span>
-                            <span class="badge font-mono text-[10px] tracking-wider py-2"
-                                  :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null ? 'badge-neutral text-gray-500 italic' : ((state.sauna.ventilation_state !== 'OFF' || state.devices.sauna_extrvent === 'ON') ? 'badge-info animate-pulse text-neutral-900 font-bold' : 'badge-neutral text-gray-500')">
-                                <span x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_extrvent === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices.sauna_extrvent === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
-                            </span>
+                        <div class="flex justify-between items-center bg-base-200 p-3 mt-4 rounded-box border border-base-300">
+                            <div class="text-xs font-bold text-base-400 uppercase">Extraction Fan</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-[10px] tracking-wider mt-0.5"
+                                      :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null ? 'text-gray-500 italic text-xs' : ((state.sauna.ventilation_state !== 'OFF' || state.devices.sauna_extrvent === 'ON') ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_extrvent === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices.sauna_extrvent === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
+                                <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
+                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null"
+                                       :checked="state.devices.sauna_extrvent === 'ON'"
+                                       @change="injectLabHubStateChange('sauna_extrvent', $event.target.checked)" />
+                            </div>
                         </div>
-
                         <div class="flex justify-between items-center mt-6 mb-6">
                             <div>
                                 <div class="text-xs text-base-400 font-bold uppercase tracking-wider">Current Atmosphere</div>
@@ -135,7 +139,8 @@
                             </div>
                             <input type="range" min="40" :max="state.sauna.max_temp || 110" step="1"
                                    class="range range-secondary"
-                                   :disabled="state.sauna.target_temp === null"
+                                   :class="(!state.sauna.active || state.sauna.target_temp === null) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
+                                   :disabled="!state.sauna.active || state.sauna.target_temp === null"
                                    x-model="state.sauna.target_temp"
                                    @change="updateSetpoint()" />
                         </div>
@@ -373,21 +378,14 @@
                                 </div>
                             </div>
 
-                            <div class="flex flex-col gap-1 font-mono text-xs mb-4 text-base-400 border-b border-base-300 pb-3">
-                                <div class="flex justify-between items-center">
-                                    <span>🌅 Sunrise</span>
-                                    <div class="text-right">
-                                        <span class="text-white font-bold" x-text="formatUnixTime(state.sensors.sunrise_unix)"></span>
-                                        <span class="text-gray-500 ml-1" x-text="sunriseRelativeText"></span>
-                                    </div>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span>🌇 Sunset</span>
-                                    <div class="text-right">
-                                        <span class="text-warning font-bold" x-text="formatUnixTime(state.sensors.sunset_unix)"></span>
-                                        <span class="text-gray-500 ml-1" x-text="sunsetRelativeText"></span>
-                                    </div>
-                                </div>
+                            <div class="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1.5 font-mono text-xs mb-4 text-base-400 border-b border-base-300 pb-3 items-center w-full">
+                                <div class="text-left">🌅 Sunrise</div>
+                                <div class="text-right text-white font-bold tabular-nums" x-text="formatUnixTime(state.sensors.sunrise_unix)"></div>
+                                <div class="text-right text-gray-500 tabular-nums min-w-[95px]" x-text="sunriseRelativeText"></div>
+
+                                <div class="text-left">🌇 Sunset</div>
+                                <div class="text-right text-warning font-bold tabular-nums" x-text="formatUnixTime(state.sensors.sunset_unix)"></div>
+                                <div class="text-right text-gray-500 tabular-nums min-w-[95px]" x-text="sunsetRelativeText"></div>
                             </div>
 
                             <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">                                <div class="text-xs font-bold text-base-400 uppercase">Gang Boven</div>
@@ -536,29 +534,29 @@
                         <button class="btn btn-xs btn-outline btn-error font-mono text-[10px]" @click="reloadFrontend()">♻️ RELOAD UI</button>
                     </h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 w-full">
 
-                        <div class="space-y-2 font-mono text-xs flex flex-col justify-center">
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+                        <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold">WanOS Broker</span>
                                 <span class="badge badge-xs py-2 px-2" :class="state.system.wanos_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.wanos_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                             </div>
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold">Domoticz Hub</span>
                                 <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                             </div>
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold">Hardware Bus</span>
                                 <div class="flex items-center gap-2">
                                     <span class="font-bold text-[10px]" :class="state.hardware.live_mode ? 'text-success' : 'text-warning'" x-text="state.hardware.live_mode ? 'LIVE' : 'SIMULATION'"></span>
-                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow"
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
                                            :checked="state.hardware.live_mode"
-                                           @change="toggleHardwareMode()" />
-                                </div>
+                                           @click="handleHardwareToggleClick($event)" />                                </div>
                             </div>
                         </div>
-                        <div class="space-y-2 font-mono text-xs flex flex-col justify-center">
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+
+                        <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">PC Master Power</span>
                                 <div class="flex items-center gap-2">
                                     <span class="badge badge-xs py-2 px-2"
@@ -567,53 +565,61 @@
                                     <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
                                            :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc === null"
                                            :checked="state.devices.pc === 'ON'"
-                                           @change="injectLabHubStateChange('pc', $event.target.checked)" />                                </div>
+                                           @click="handlePCToggleClick($event)" />
+                                </div>
                             </div>
-                            <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">Safety SSR Relay</span>
                                 <span class="badge badge-xs py-2 px-2"
                                       :class="!state.system.domoticz_mqtt_connected || state.devices.safety_ssr === null ? 'badge-neutral text-gray-500 italic' : (state.devices.safety_ssr === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral')"
                                       x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.safety_ssr === null ? 'SYNCING' : (state.devices.safety_ssr === 'ON' ? 'ENGAGED' : 'SAFE'))"></span>
                             </div>
-                            <div class="flex justify-between items-center p-2 bg-base-200 border border-base-300 rounded-box">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">Engine Uptime</span>
-                                <span class="text-white text-[11px]" x-text="state.system.app_uptime_formatted || '--'"></span>
+
+                            <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                <div class="flex flex-col">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">OS Uptime</span>
+                                    <span class="text-white text-[10px] opacity-90" x-text="state.system.os_uptime_formatted || '--'"></span>
+                                </div>
+                                <div class="flex flex-col border-t border-base-300 pt-1.5">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Engine Uptime</span>
+                                    <span class="text-white text-[10px] opacity-90" x-text="state.system.app_uptime_formatted || '--'"></span>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="p-3 bg-base-200 rounded-box border border-base-300 space-y-1.5 text-xs font-mono shadow-inner h-full flex flex-col justify-center">
-                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-1 mb-2">Diagnostic: Sauna Probes</div>
-                            <div class="flex justify-between items-center mb-1">
+                        <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-center">
+                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-1">Diagnostic: Sauna Probes</div>
+                            <div class="flex justify-between items-center">
                                 <span class="text-base-400">Ceiling (High):</span>
                                 <div class="text-right">
-                                    <span class="text-orange-400 font-bold" x-text="state.sensors.sauna_high_temp !== null ? state.sensors.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-info ml-1 text-[10px]" x-text="state.sensors.sauna_high_hum !== null ? state.sensors.sauna_high_hum + '%' : '--%'"></span>
+                                    <span class="text-orange-400 font-bold text-sm" x-text="state.sensors.sauna_high_temp !== null ? state.sensors.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-info ml-1 text-xs" x-text="state.sensors.sauna_high_hum !== null ? state.sensors.sauna_high_hum + '%' : '--%'"></span>
                                 </div>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-base-400">Bench (Low):</span>
                                 <div class="text-right">
-                                    <span class="text-amber-500 font-bold" x-text="state.sensors.sauna_low_temp !== null ? state.sensors.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-info ml-1 text-[10px]" x-text="state.sensors.sauna_low_hum !== null ? state.sensors.sauna_low_hum + '%' : '--%'"></span>
+                                    <span class="text-amber-500 font-bold text-sm" x-text="state.sensors.sauna_low_temp !== null ? state.sensors.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-info ml-1 text-xs" x-text="state.sensors.sauna_low_hum !== null ? state.sensors.sauna_low_hum + '%' : '--%'"></span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="p-3 bg-base-200 rounded-box border border-base-300 space-y-1.5 text-xs font-mono shadow-inner h-full flex flex-col justify-center">
-                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-1 mb-2">Diagnostic: Heater Relays</div>
-                            <div class="flex justify-between items-center mb-1">
+                        <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-center">
+                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-1">Diagnostic: Heater Relays</div>
+                            <div class="flex justify-between items-center">
                                 <span class="text-base-400">Fireorder:</span>
                                 <div class="text-right">
                                     <span class="text-accent font-bold" x-text="state.sauna.fireorder"></span>
                                 </div>
                             </div>
-                            <div class="flex justify-between items-center mb-1">
+                            <div class="flex justify-between items-center">
                                 <span class="text-base-400">Phase U:</span>
                                 <div class="text-right">
                                     <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></span>
                                 </div>
                             </div>
-                            <div class="flex justify-between items-center mb-1">
+                            <div class="flex justify-between items-center">
                                 <span class="text-base-400">Phase V:</span>
                                 <div class="text-right">
                                     <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></span>
@@ -627,11 +633,81 @@
                             </div>
                         </div>
 
-                    </div>
-                </div>
+                    </div>                </div>
             </div>
         </div>
-        </div> </main>
+        </div>
+        <dialog id="pc_power_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm">
+            <div class="modal-box border bg-base-300 shadow-2xl"
+                 :class="state.devices.pc === 'ON' ? 'border-error' : 'border-success'">
+
+                <h3 class="font-bold text-lg flex items-center gap-2 uppercase tracking-widest"
+                    :class="state.devices.pc === 'ON' ? 'text-error' : 'text-success'">
+                    <span x-text="state.devices.pc === 'ON' ? '⚠️ Critical Power Cut' : '⚡ Power Startup'"></span>
+                </h3>
+
+                <p class="py-4 text-base-400 font-mono text-sm leading-relaxed">
+                    <span x-show="state.devices.pc === 'ON'">
+                        You are about to <span class="text-error font-bold">CUT</span> the master power to the PC. This will instantly kill any running processes and cascade the shutdown to the PC Aux relay.
+                    </span>
+
+                    <span x-show="state.devices.pc !== 'ON'">
+                        You are about to <span class="text-success font-bold">ENGAGE</span> the master power to the PC.
+                    </span>
+
+                    <br><br>
+                    <span class="text-white font-bold">Are you sure you want to proceed?</span>
+                </p>
+
+                <div class="modal-action">
+                    <form method="dialog">
+                        <button class="btn btn-outline btn-sm font-mono">Cancel</button>
+                    </form>
+                    <button class="btn btn-sm shadow-lg font-mono font-bold"
+                            :class="state.devices.pc === 'ON' ? 'btn-error text-neutral-900' : 'btn-success text-neutral-900'"
+                            @click="confirmPCPowerToggle()"
+                            x-text="state.devices.pc === 'ON' ? 'YES, TURN OFF' : 'YES, TURN ON'">
+                    </button>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+        <dialog id="hardware_mode_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm">
+            <div class="modal-box border border-warning bg-base-300 shadow-2xl">
+                <h3 class="font-bold text-lg text-warning flex items-center gap-2 uppercase tracking-widest">
+                    <span>⚠️</span> Hardware Bus Transition
+                </h3>
+                <p class="py-4 text-base-400 font-mono text-sm leading-relaxed">
+                    You are about to switch the core hardware event bus.
+                    <br><br>
+
+                    <span x-show="state.hardware.live_mode">
+                        You are switching from <span class="text-success font-bold">LIVE HARDWARE</span> to <span class="text-warning font-bold">SIMULATION</span>. The physical GPIO pins and physical SHT11 sensors will be detached, and the internal physics engine will take over.
+                    </span>
+
+                    <span x-show="!state.hardware.live_mode">
+                        You are switching from <span class="text-warning font-bold">SIMULATION</span> to <span class="text-success font-bold">LIVE HARDWARE</span>. The system will attempt to attach to the physical GPIO pins and physical SHT11 sensors. Ensure the hardware is actually connected!
+                    </span>
+
+                    <br><br>
+                    <span class="text-white font-bold">Are you absolutely sure you want to proceed?</span>
+                </p>
+                <div class="modal-action">
+                    <form method="dialog">
+                        <button class="btn btn-outline btn-sm font-mono">Cancel</button>
+                    </form>
+                    <button class="btn btn-warning btn-sm shadow-lg font-mono font-bold text-neutral-900" @click="confirmHardwareModeToggle()">
+                        YES, SWITCH BUS
+                    </button>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+    </main>
     <script src="app.js"></script>
 </body>
 </html>

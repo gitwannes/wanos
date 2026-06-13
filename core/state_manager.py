@@ -34,6 +34,9 @@ class StateManager:
 
         self._start_time = time.time()  # Track initialization timestamp for Engine Uptime calculation
 
+        # Track rolling data windows for moving averages
+        self._sensor_history: dict[str, list[float]] = {}
+
         # Load centralized configuration profiles
         self._config = load_config()
 
@@ -224,9 +227,9 @@ class StateManager:
 
             elif event_name == "POWER_UPDATED":
                 sensor_id: str = payload.get("sensor_id", "")
-                val: float = payload.get("value", 0.0)
+                raw_val: float = payload.get("value", 0.0)
                 sns: Any = self._state.sensors
-
+                
                 # --- START DEBUG CODE ---
                 #logger.warning(f"[DEBUG POWER] Raw Payload: {payload}")
                 #logger.warning(f"[DEBUG POWER] Extracted sensor_id: '{sensor_id}' | value: {val}")
@@ -236,13 +239,28 @@ class StateManager:
                 #        f"[DEBUG POWER] Missing from models.py! Routing to state.devices['{sensor_id}'] instead.")
                 # --- END DEBUG CODE ---
 
+
+                # --- 5-Point Moving Average Logic ---
+                if sensor_id not in self._sensor_history:
+                    self._sensor_history[sensor_id] = []
+
+                history = self._sensor_history[sensor_id]
+                history.append(raw_val)
+
+                # Keep only the last 5 datapoints
+                if len(history) > 5:
+                    history.pop(0)
+
+                # Calculate average and round to 1 decimal place
+                avg_val = round(sum(history) / len(history), 1)
+
                 # Matches the exact YAML key to the internal sensor dictionary (e.g., 'pc_power')
                 if hasattr(sns, sensor_id):
-                    setattr(sns, sensor_id, val)
+                    setattr(sns, sensor_id, avg_val)
                     state_changed = True
                     changed_domains.add("sensors")
                 else:
-                    self._state.devices[sensor_id] = val
+                    self._state.devices[sensor_id] = avg_val
                     state_changed = True
                     changed_domains.add("devices")
 
