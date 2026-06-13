@@ -438,7 +438,21 @@ function wanosApp() {
         },
 
         injectLabHubStateChange(deviceId, isOn) {
-            this.dispatchEvent("HUB_STATE_CHANGED", { device_id: deviceId, state: isOn ? "ON" : "OFF" });
+            // 🛡️ GHOST CLICK GUARD:
+            // If the backend is still syncing (null), block the browser from sending fake restoration clicks.
+            if (this.state.devices[deviceId] === null) {
+                console.warn(`[UI Guard] Blocked browser ghost click for ${deviceId}. System still syncing.`);
+                return;
+            }
+
+            const targetState = isOn ? "ON" : "OFF";
+
+            // Prevent echoing commands if the system is already in the requested state
+            if (this.state.devices[deviceId] === targetState) {
+                return;
+            }
+
+            this.dispatchEvent("HUB_STATE_CHANGED", { device_id: deviceId, state: targetState });
         },
 
         injectWaterPulse(fluidType) {

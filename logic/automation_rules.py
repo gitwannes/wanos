@@ -11,13 +11,19 @@ class AutomationEngine:
 
     @staticmethod
     def evaluate(event: Event, state: SystemState) -> list[Event]:
-        follow_up_events = []
-        event_name = event.type.value if hasattr(event.type, 'value') else str(event.type)
         payload = event.payload or {}
 
+        # 🛡️ THE GENERIC BOOT GUARD 🛡️
+        # If this is the absolute first time the system hears about a sensor/device,
+        # it is an initialization. Block ALL automations generically for any future sensor!
+        if payload.get("is_initialization", False):
+            return []
+
+        follow_up_events = []
+        event_name = event.type.value if hasattr(event.type, 'value') else str(event.type)
+
         # -----------------------------------------------------------------
-        # 1. SAUNA AUTOMATION: Bind Sauna Hue and Zoutlamp to Sauna state
-        # -----------------------------------------------------------------
+        # 1. SAUNA AUTOMATION: Bind Sauna Hue and Zoutlamp to Sauna state        # -----------------------------------------------------------------
         if event_name == "SAUNA_ON":
             follow_up_events.append(
                 Event(type=EventType.HUB_STATE_CHANGED, payload={"device_id": "sauna_hue", "state": "ON"}))

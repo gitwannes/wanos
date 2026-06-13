@@ -263,11 +263,10 @@
                                 <span class="font-mono text-sm mt-0.5"
                                       :class="!state.system.domoticz_mqtt_connected || state.devices.pc_aux === null ? 'text-gray-500 italic text-xs' : (state.devices.pc_aux === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
                                       x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc_aux === null ? 'SYNCING...' : (state.devices.pc_aux === 'ON' ? '⚡ ON' : 'OFF'))"></span>
-                                <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
+                                <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
                                        :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc_aux === null || state.devices.pc !== 'ON'"
                                        :checked="state.devices.pc_aux === 'ON'"
-                                       @change="injectLabHubStateChange('pc_aux', $event.target.checked)" />
-                            </div>
+                                       @change="injectLabHubStateChange('pc_aux', $event.target.checked)" />                            </div>
                         </div>
 
                         <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
@@ -565,11 +564,10 @@
                                     <span class="badge badge-xs py-2 px-2"
                                           :class="!state.system.domoticz_mqtt_connected || state.devices.pc === null ? 'badge-neutral text-gray-500 italic' : (state.devices.pc === 'ON' ? 'badge-success animate-pulse' : 'badge-neutral')"
                                           x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc === null ? 'SYNCING' : (state.devices.pc === 'ON' ? 'ON' : 'OFF'))"></span>
-                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow"
+                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
                                            :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc === null"
                                            :checked="state.devices.pc === 'ON'"
-                                           @change="injectLabHubStateChange('pc', $event.target.checked)" />
-                                </div>
+                                           @change="injectLabHubStateChange('pc', $event.target.checked)" />                                </div>
                             </div>
                             <div class="flex justify-between items-center p-2.5 bg-base-200 border border-base-300 rounded-box">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">Safety SSR Relay</span>

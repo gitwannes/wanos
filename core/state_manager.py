@@ -561,8 +561,11 @@ class StateManager:
                 state_changed = True
                 changed_domains.add("devices")
 
-                # Tag real user/hardware transitions to prevent boot-syncs & UI refreshes from cascading
-                if old_val is not None:
+                # 🛡️ THE GENERIC INITIALIZATION TAG 🛡️
+                # If old_val is None, this is the very first time we hear about this device.
+                if old_val is None:
+                    payload["is_initialization"] = True
+                else:
                     payload["transitioned"] = True
 
         elif event_name == "LIGHTING_STATE_CHANGED":

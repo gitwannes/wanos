@@ -66,7 +66,7 @@ To eliminate arbitrary RAM consumption and maximize the lifespan of the host SD 
 ## 6. Centralized Console Telemetry (`monitor.py`)
 The split-screen terminal tool (`monitor.py`) was updated to align with the revised top-level logging namespace.
 
-* **Subscription Routing Fix:** Shifted the background client subscription path from the legacy target topic over to the correct `wanos/console/#` wildcard wildcard hook.
+* **Subscription Routing Fix:** Shifted the background client subscription path from the legacy target topic over to the correct `wanos/console/#` wildcard hook.
 * **Dual-Channel Split:** The terminal seamlessly segregates system data into standard operational execution logs (`wanos/console/status`) and developmental diagnostic logging chatter (`wanos/console/debug`).
 
 ---
@@ -82,5 +82,13 @@ The split-screen terminal tool (`monitor.py`) was updated to align with the revi
 To ensure long-term stability and standardize global metrics, the outside weather tracking was entirely decoupled from the Domoticz MQTT broadcast system.
 
 * **Hardware Decoupling:** The `outside` sensor node was pruned from `hardware.yaml`, rendering the Domoticz bridge blind to legacy weather broadcasts and eliminating network echo loops.
-* **Asynchronous Polling Engine:** Built `integrations/open_weather.py`, utilizing `aiohttp` to poll the OpenWeatherMap REST API at a configurable interval.
-* **Global Time Standardization:** Extracted `sunrise` and `sunset` as pure absolute UNIX timestamps. Passing global Unix integers down the SSE pipeline allows the frontend (`app.js`) to automatically cast them into localized timezone formats (e.g., `CEST`) using native JavaScript Date engines, eliminating the need for server-side timezone math.
+* **Asynchronous Polling Engine:** Built `integrations/open_weather.py`, utilizing `aiohttp` to poll the OpenWeatherMap REST API at a configurable interval. Removed the `live_mode` blocking gate from the polling loop to ensure Sun Cycles are fetched immediately on engine boot.
+* **Global Time Standardization:** Extracted `sunrise` and `sunset` as pure absolute UNIX timestamps. Passing global Unix integers down the SSE pipeline allows the frontend (`app.js`) to automatically cast them into localized timezone formats (e.g., `CEST`) using native JavaScript Date engines alongside relative countup/countdown trackers.
+
+---
+
+## 9. State Synchronization & Ghost Echo Mitigation
+To bridge the gap between event-driven logic and startup synchronization, a tagging mechanism was implemented to prevent automation cascades from misfiring.
+
+* **Transition Tagging (`state_manager.py`):** When the backend syncs current hardware states on boot or frontend refresh, the generic `HUB_STATE_CHANGED` logic now evaluates the prior state. If the event is a genuine physical change, it attaches a `transitioned: True` tag to the payload.
+* **Filtered Cascades (`automation_rules.py`):** Master/Slave rules (like the PC overriding PC Aux) now strictly require the `is_transition` flag to fire. This entirely eliminates the "Ghost Echo" bug where silent system syncs inadvertently triggered hard overrides.
