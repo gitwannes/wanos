@@ -141,9 +141,9 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
             # --------------------------------------------------------
             # Sauna Element Load: Scaling dynamically up to 9000W max total output
             active_sauna_w = 9000.0 * (state.sauna.modulation_pwm / 100.0) if state.sauna.active else 0.0
-            # Infrared Array Load: Constant 3000W output profile when toggled active
-            active_ir_w = 3000.0 if state.ir.active else 0.0
-
+            # Infrared Array Load: Scaling dynamically up to 750W max based on UI slider
+            active_ir_w = 750.0 * (state.ir.modulation_pwm / 100.0) if state.ir.active else 0.0
+            
             # Formulate current consolidated load step integration parameter
             total_active_load_w = active_sauna_w + active_ir_w
             # Convert Watts over a 2.0 second time delta window slice into absolute Watt-hours (Wh)

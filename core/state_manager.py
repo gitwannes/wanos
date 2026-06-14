@@ -43,7 +43,7 @@ class StateManager:
     def register_listener(self, callback: Any) -> None:
         """Registers an async callback to be triggered on post-drain state snapshots."""
         self._state_listeners.append(callback)
-        self._state.sauna.target_temp = float(self._config.sauna.default_setpoint)
+        self._state.sauna.target_temp = float(self._config.sauna.default_sauna_setpoint)
         self._state.sauna.max_temp = float(self._config.sauna.max_temp)
         self._state.lab_seed = self._config.lab_seed
         self._state.devices["door_sauna"] = "CLOSED"
@@ -51,6 +51,10 @@ class StateManager:
         # ⏱️ DELAYED TIMELINE TRACKING VARIABLES
         self._sauna_timer_triggered = False
         self._sauna_timer_duration_secs = 0
+        # ⚡ Initialize IR Setpoint from config so it shows 75% on boot while OFF
+        self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
+        freq_map = {0: 0, 25: 25, 33: 33, 50: 50, 67: 33, 75: 25, 100: 5}
+        self._state.ir.frequency = freq_map.get(self._state.ir.modulation_pwm, self._config.ir.pwm_freq)
 
         # Open hardware safety channel chip context if available
         self._gpio_chip = None
@@ -193,8 +197,8 @@ class StateManager:
         # --- LIVE TERMINAL LOGGING INJECTION GATEWAY ---
         is_manual_lab_action = payload.get("lab_override", False)
         is_user_command = event_name in [
-            "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "MODULATION_UPDATED",
-            "SAUNA_HOLD", "HOLD_TOGGLED", "TIMER_ADJUSTED", "IR_ON", "IR_OFF"
+            "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "SAUNA_MODULATION_UPDATED",
+            "SAUNA_HOLD", "SAUNA_HOLD_TOGGLED", "SAUNA_TIMER_ADJUSTED", "IR_ON", "IR_OFF", "IR_MODULATION_UPDATED"
         ]
 
         if event_name == "SYSTEM_READY":
@@ -510,7 +514,7 @@ class StateManager:
             state_changed = True
             changed_domains.add("sauna")
 
-        elif event_name == "TIMER_ADJUSTED":
+        elif event_name == "SAUNA_TIMER_ADJUSTED":
             minutes_to_add = payload.get("minutes", 0)
             if self._state.sauna.active:
                 self._sauna_timer_duration_secs += (minutes_to_add * 60)
@@ -524,7 +528,7 @@ class StateManager:
                 state_changed = True
                 changed_domains.add("sauna")
 
-        elif event_name == "HOLD_TOGGLED":
+        elif event_name == "SAUNA_HOLD_TOGGLED":
             current_mode = self._state.sauna.hold_mode
             if current_mode == "autohold":
                 self._state.sauna.hold_mode = "nohold"
@@ -548,15 +552,14 @@ class StateManager:
             now = int(time.time())
             self._state.ir.session_start_time = now
             self._state.ir.session_end_time = now + (self._config.ir.max_time_mins * 60)
-            self._state.ir.modulation_pwm = 100
-            self._state.ir.frequency = self._config.ir.pwm_freq
+            # Note: modulation_pwm will automatically use the 75% default or whatever the user dragged it to last.
             self._timer_manager.schedule("ir_main", self._state.ir.session_end_time, "IR_TIMER_EXPIRED")
             state_changed = True
             changed_domains.add("ir")
 
         elif event_name == "IR_OFF":
             self._state.ir.active = False
-            self._state.ir.modulation_pwm = 0
+            # Note: The slider will stay locked visually at its last value (e.g. 75%)
             self._timer_manager.cancel("ir_main")
             state_changed = True
             changed_domains.add("ir")
@@ -630,20 +633,26 @@ class StateManager:
             changed_domains.add("sauna")
             changed_domains.add("devices")
 
-        elif event_name == "SETPOINT_CHANGED":
+        elif event_name == "SAUNA_SETPOINT_CHANGED":
             new_target = payload.get("target")
             if new_target is not None:
                 self._state.sauna.target_temp = min(float(new_target), self._state.sauna.max_temp)
                 state_changed = True
                 changed_domains.add("sauna")
 
-        elif event_name == "MODULATION_UPDATED":
+        elif event_name == "SAUNA_MODULATION_UPDATED":
             self._state.sauna.modulation_pwm = payload.get("pwm", 0)
             self._state.sauna.phases_pwm = payload.get("phases", [0, 0, 0])
             state_changed = True
             changed_domains.add("sauna")
 
-        if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SETPOINT_CHANGED", "DOOR_CHANGED"]:
+        elif event_name == "IR_MODULATION_UPDATED":
+            self._state.ir.modulation_pwm = payload.get("pwm", 0)
+            self._state.ir.frequency = payload.get("freq", 0)
+            state_changed = True
+            changed_domains.add("ir")
+
+        if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "DOOR_CHANGED"]:
             current_temp = self._state.sensors.sauna_calc_temp
             if current_temp is not None and self._state.sauna.active:
 

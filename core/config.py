@@ -54,7 +54,7 @@ class SHT11SensorNode(BaseModel):
 
 
 class SaunaRuntimeConfig(BaseModel):
-    default_setpoint: int
+    default_sauna_setpoint: int
     max_temp: int
     kp: float
     ki: float
@@ -69,6 +69,7 @@ class IRRuntimeConfig(BaseModel):
     min_time_mins: int
     max_time_mins: int
     pwm_freq: int
+    default_ir_modulation: int
 
 
 class BathroomConfig(BaseModel):

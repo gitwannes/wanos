@@ -2,7 +2,7 @@
 # Runtime System Parameters - Modifiable via Web UI
 
 sauna:
-  default_setpoint: 80     # Default temperature setpoint
+  default_sauna_setpoint: 80     # Default sauna temperature setpoint
   max_temp: 95             # maximum setpoint that can be set in the UI
   kp: 3.0                  # PID P
   ki: 0.01                 # PID I
@@ -13,6 +13,7 @@ sauna:
   timer_offset_temp: 7.0   # Frozen countdown: triggers when temp >= (Setpoint - Offset)
 
 ir:
+  default_ir_modulation: 75     # Default IR power modulation 75%
   min_time_mins: 5
   max_time_mins: 20
   pwm_freq: 5              # to check - IR modulation needs to come from the old WISC

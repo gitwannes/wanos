@@ -100,6 +100,20 @@ function wanosApp() {
         // Dedicated UI Toggle to lock/unlock manual manipulation of the physics simulator
         labControlsEnabled: false,
 
+        // ⚡ IR Snapping Matrix (Values & Legacy Frequencies)
+        // Solid State Relays (SSRs) must align with the 50Hz European AC grid (100 zero-crossings per second).
+        // Standard PWM causes severe light flickering. This array maps specific power percentages to exact zero-crossing frequencies:
+        // 0%   = 0Hz
+        // 25%  = 25Hz (1 zero-crossing ON, 3 OFF)
+        // 33%  = 33Hz (1 zero-crossing ON, 2 OFF)
+        // 50%  = 50Hz (1 zero-crossing ON, 1 OFF)
+        // 67%  = 33Hz (2 zero-crossings ON, 1 OFF)
+        // 75%  = 25Hz (3 zero-crossings ON, 1 OFF)
+        // 100% = 5Hz  (All ON - frequency technically irrelevant here, but 5Hz keeps lgpio stable)
+        irStepIndex: 5, // Defaults to index 6 (75%)
+        irStepValues: [0, 25, 33, 50, 67, 75, 100],
+        irStepFreqs: [0, 25, 33, 50, 33, 25, 5],
+
         labSaunaHighTemp: null,
         labSaunaHighHum: null,
         labSaunaLowTemp: null,
@@ -162,6 +176,7 @@ function wanosApp() {
             fullState.devices = Object.assign({}, this.state.devices, fullState.devices || {});
 
             this.state = fullState;
+            this.syncIRStepIndex();
 
             if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
                 this.syncLabControls();
@@ -192,6 +207,9 @@ function wanosApp() {
             }
 
             this.state[domain] = Object.assign({}, this.state[domain], data);
+
+            // Re-sync components whenever their domain updates arrive
+            if (domain === "ir") this.syncIRStepIndex();
 
             // Re-sync lab controls whenever sensors or sauna domain updates arrive
             if ((domain === "sensors" || domain === "sauna") &&
@@ -430,16 +448,35 @@ function wanosApp() {
             this.dispatchEvent(action);
         },
 
-        updateSetpoint() {
-            this.dispatchEvent("SETPOINT_CHANGED", { target: parseFloat(this.state.sauna.target_temp) });
+        updateSaunaSetpoint() {
+            this.dispatchEvent("SAUNA_SETPOINT_CHANGED", { target: parseFloat(this.state.sauna.target_temp) });
         },
 
-        toggleHold() {
-            this.dispatchEvent("HOLD_TOGGLED");
+        syncIRStepIndex() {
+            const pwm = this.state.ir.modulation_pwm;
+            const idx = this.irStepValues.indexOf(pwm);
+            if (idx !== -1) this.irStepIndex = idx;
         },
 
-        adjustTimer(minutesToAdd) {
-            this.dispatchEvent("TIMER_ADJUSTED", { minutes: minutesToAdd });
+        updateIRLocal() {
+            // Instantly updates the UI badge number while dragging the slider
+            this.state.ir.modulation_pwm = this.irStepValues[this.irStepIndex];
+        },
+
+        updateIRSetpoint() {
+            // Fires the final selected value and required frequency to the backend
+            const pwm = this.irStepValues[this.irStepIndex];
+            const freq = this.irStepFreqs[this.irStepIndex];
+            this.state.ir.modulation_pwm = pwm;
+            this.dispatchEvent("IR_MODULATION_UPDATED", { pwm: pwm, freq: freq });
+        },
+
+        toggleSaunaHold() {
+            this.dispatchEvent("SAUNA_HOLD_TOGGLED");
+        },
+
+        adjustSaunaTimer(minutesToAdd) {
+            this.dispatchEvent("SAUNA_TIMER_ADJUSTED", { minutes: minutesToAdd });
         },
 
         toggleIR() {

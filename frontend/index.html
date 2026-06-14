@@ -121,28 +121,51 @@
                             </div>
                         </div>
 
-                        <div class="mt-2">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-semibold tracking-wide">Setpoint</span>
-                                <div class="flex gap-2 items-center">
-                                    <button class="btn btn-sm font-mono font-black text-xs tracking-wider transition-all duration-200 shadow-sm border"
-                                            :class="!state.sauna.active ? 'bg-base-200 text-gray-500 border-gray-700 cursor-not-allowed opacity-40' :
-                                                    (state.sauna.hold_mode === 'hold' ? 'bg-amber-500 text-neutral-900 border-amber-500 hover:bg-amber-600 hover:border-amber-600' :
-                                                    (state.sauna.hold_mode === 'autohold' ? 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600' :
-                                                    'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700'))"
-                                            :disabled="!state.sauna.active"
-                                            @click="toggleHold()"
-                                            x-text="!state.sauna.active ? '--' : state.sauna.hold_mode.toUpperCase()">
-                                    </button>
-                                    <span class="badge badge-secondary font-mono text-md font-bold p-3" x-text="(state.sauna.target_temp !== null ? state.sauna.target_temp : '--') + '°C'"></span>
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                            <div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-semibold tracking-wide">Temp. Setpoint Sauna</span>
+                                    <div class="flex gap-2 items-center">
+                                        <button class="btn btn-sm font-mono font-black text-xs tracking-wider transition-all duration-200 shadow-sm border"
+                                                :class="!state.sauna.active ? 'bg-base-200 text-gray-500 border-gray-700 cursor-not-allowed opacity-40' :
+                                                        (state.sauna.hold_mode === 'hold' ? 'bg-amber-500 text-neutral-900 border-amber-500 hover:bg-amber-600 hover:border-amber-600' :
+                                                        (state.sauna.hold_mode === 'autohold' ? 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600' :
+                                                        'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700'))"
+                                                :disabled="!state.sauna.active"
+                                                @click="toggleHold()"
+                                                x-text="!state.sauna.active ? '--' : state.sauna.hold_mode.toUpperCase()">
+                                        </button>
+                                        <span class="badge badge-secondary font-mono text-md font-bold p-3" x-text="(state.sauna.target_temp !== null ? state.sauna.target_temp : '--') + '°C'"></span>
+                                    </div>
+                                </div>
+                                <input type="range" min="40" :max="state.sauna.max_temp || 110" step="1"
+                                       class="range range-secondary"
+                                       :class="(!state.sauna.active || state.sauna.target_temp === null) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
+                                       :disabled="!state.sauna.active || state.sauna.target_temp === null"
+                                       x-model="state.sauna.target_temp"
+                                       @change="updateSetpoint()" />
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-semibold tracking-wide">IR Modulation</span>
+                                    <div class="flex gap-2 items-center">
+                                        <span class="badge badge-error font-mono text-md font-bold p-3" x-text="state.ir.modulation_pwm + '%'"></span>
+                                    </div>
+                                </div>
+                                <input type="range" min="0" max="6" step="1"
+                                       class="range range-error"
+                                       :class="!state.ir.active ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
+                                       :disabled="!state.ir.active"
+                                       x-model.number="irStepIndex"
+                                       @input="updateIRLocal()"
+                                       @change="updateIRSetpoint()" />
+                                <div class="w-full flex justify-between text-[10px] px-1 mt-1 font-mono text-base-400 opacity-70">
+                                    <span>0</span><span>25</span><span>33</span><span>50</span><span>67</span><span>75</span><span>100</span>
                                 </div>
                             </div>
-                            <input type="range" min="40" :max="state.sauna.max_temp || 110" step="1"
-                                   class="range range-secondary"
-                                   :class="(!state.sauna.active || state.sauna.target_temp === null) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
-                                   :disabled="!state.sauna.active || state.sauna.target_temp === null"
-                                   x-model="state.sauna.target_temp"
-                                   @change="updateSetpoint()" />
+
                         </div>
 
                         <div class="mt-6 bg-base-200 p-4 rounded-box border border-base-300" x-show="state.sauna.active">
@@ -155,8 +178,8 @@
                                      :style="`width: ${progressPercent}%`"></div>
                             </div>
                             <div class="flex justify-center gap-2">
-                                <button class="btn btn-xs btn-outline rounded" @click="adjustTimer(-10)">-10 MINS</button>
-                                <button class="btn btn-xs btn-outline rounded" @click="adjustTimer(10)">+10 MINS</button>
+                                <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(-10)">-10 MINS</button>
+                                <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(10)">+10 MINS</button>
                             </div>
                         </div>
                         <div class="mt-6 pt-6 border-t border-base-300/40">
@@ -168,15 +191,6 @@
                                     </div>
                                     <div class="w-full bg-base-300 rounded-full h-3 overflow-hidden">
                                         <div class="bg-primary h-3 rounded-full transition-none" :style="'width:' + (state.sauna.modulation_pwm || 0) + '%'"></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="flex justify-between items-center mb-1 text-sm font-bold">
-                                        <span>IR Modulation</span>
-                                        <span class="font-mono text-error text-md" x-text="(state.ir.modulation_pwm || 0) + '%'"></span>
-                                    </div>
-                                    <div class="w-full bg-base-300 rounded-full h-3 overflow-hidden">
-                                        <div class="bg-error h-3 rounded-full transition-none" :style="'width:' + (state.ir.modulation_pwm || 0) + '%'"></div>
                                     </div>
                                 </div>
                             </div>
