@@ -10,31 +10,34 @@ This document serves as the master blueprint and reference guide for the directo
 * `.gitignore`: Specifies intentionally untracked files to ignore for source control.
 * `.env`: Secrets file holding sensitive infrastructure values (Shared PIN, MQTT passwords, and OWM API Keys).
 * `hardware.yaml`: Static, layered mapping of physical GPIO pins, MQTT network architectures, and external node IDXs.
-* `config.yaml`: The unified production system configuration file (runtime limits, hysteresis boundaries, PID terms, and weather API settings).
+* `config.yaml`: The unified production system configuration file (runtime limits, hysteresis boundaries, PID terms, weather API settings, and IR default values).
 * `config_lab.yaml`: Mock architecture states used to seed lab baseline metrics during emulation mode.
 * `main.py`: The ASGI web entry point. Hosts the FastAPI app instance, lifespans, and the keep-alive ping SSE stream loops.
 * `requirements.txt`: Python package dependencies.
+* `last_sessions.json`: (Warm Storage) State file restoring the last completed sauna and IR sessions upon boot.
+* `wanos_history.db`: (Cold Storage) SQLite database logging all historical session metrics for long-term analytics.
 
 **core/**
 * `__init__.py`: Package initializer.
 * `config.py`: Strict Pydantic parsing schemas assembling the configuration files into a validated state.
 * `logger.py`: Centralized async middleware engine piping logs simultaneously to Loguru disk files and the local MQTT pipeline.
-* `models.py`: House-wide Pydantic data contract definitions representing the reactive multi-zone system states.
+* `models.py`: House-wide Pydantic data contract definitions representing the reactive multi-zone system states, including history tracking arrays.
 * `mqtt_publisher.py`: The Event-Driven delta router. Translates snapshot mutations into domain-scoped MQTT packets.
 * `mqtt_transport.py`: Pure async transport layer managing the low-level TCP socket context and connection keep-alives.
-* `state_manager.py`: Runs the central system asynchronous event queue. Restricts all data mutations strictly to a single, safe worker thread.
+* `state_manager.py`: Runs the central system asynchronous event queue. Restricts all data mutations strictly to a single, safe worker thread. Handles rolling moving averages for noisy metrics.
 
 **frontend/**
-* `app.js`: Alpine.js master reactive store controller. Manages HTTP handshakes, the sliding 10s SSE watchdog, and extended timestamp formatting uptime trackers.
-* `index.html`: Main HTML entry point bound directly to DaisyUI + Tailwind layouts.
+* `app.js`: Alpine.js master reactive store controller. Manages HTTP handshakes, the sliding 10s SSE watchdog, extended timestamp formatting uptime trackers, and dynamic SVG sparkline math.
+* `index.html`: Main HTML entry point bound directly to DaisyUI + Tailwind layouts. Uses a 50/50 split grid for dual Setpoint controls.
 
 **hardware/** (Local Physical Interfaces)
 * `sensors.py`: Thread polling managers watching for local physical environmental changes (SHT11 arrays, GPIO pulses).
-* `simulator.py`: Implements mathematical thermal engines for Lab Mode (weather trends, bathroom ventilation decay, and sauna thermal stratification).
+* `simulator.py`: Implements mathematical thermal engines for Lab Mode (weather trends, bathroom ventilation decay, sauna thermal stratification, and dynamic IR/Sauna energy integrators).
 
 **logic/** (Core Business Rules)
 * `auxiliary_controller.py`: Manages ancillary operations including dynamic lighting color mapping and active LCD display steps.
 * `sauna_controller.py`: Tracks environmental steps, phase element prioritization cascades, and multi-tier PID algorithms.
+* `session_aggregator.py`: (Hot Storage) Telemetry engine actively computing time-weighted averages and tracking min/max bounds in RAM during live sessions.
 * `timers.py`: Simple wrappers feeding tracking alerts directly to the core state manager queue upon expiration loops.
 
 **integrations/** (Networked Physical Interfaces & APIs)
@@ -155,7 +158,7 @@ The FastAPI server (running at `http://<backend-ip>:8000`) exposes the following
 ## 4. API Event Injection Reference (/api/event)
 The `/api/event` endpoint acts as the universal command receiver for WanOS. It accepts HTTP POST requests containing a JSON body mapped to the internal `EventType` schema.
 
-### Sauna & Timer Events
+### Sauna & IR Logic Events
 **Turn Sauna ON:**
 ```json
 { "type": "SAUNA_ON", "payload": {} }
@@ -166,49 +169,44 @@ The `/api/event` endpoint acts as the universal command receiver for WanOS. It a
 { "type": "SAUNA_OFF", "payload": {} }
 ```
 
-**Change Target Temperature:**
+**Change Sauna Target Temperature:**
 ```json
-{ "type": "SETPOINT_CHANGED", "payload": { "target": 85.0 } }
+{ "type": "SAUNA_SETPOINT_CHANGED", "payload": { "target": 85.0 } }
 ```
 
-**Manually Override Heater Modulation (PWM):**
+**Manually Override Sauna Heater Modulation (PWM):**
 ```json
-{ "type": "MODULATION_UPDATED", "payload": { "pwm": 100.0 } }
+{ "type": "SAUNA_MODULATION_UPDATED", "payload": { "pwm": 100.0, "phases": [100, 100, 100] } }
 ```
 
 **Notify Setpoint Reached:**
 ```json
-{ "type": "SETPOINT_REACHED", "payload": {} }
-```
-
-**Trigger Sauna Hold (Maintain temp for X minutes):**
-```json
-{ "type": "SAUNA_HOLD", "payload": { "minutes": 60 } }
+{ "type": "SAUNA_SETPOINT_REACHED", "payload": {} }
 ```
 
 **Toggle Hold Mode (Cycles autohold -> hold -> nohold):**
 ```json
-{ "type": "HOLD_TOGGLED", "payload": {} }
+{ "type": "SAUNA_HOLD_TOGGLED", "payload": {} }
 ```
 
 **Adjust Main Session Timer:**
 ```json
-{ "type": "TIMER_ADJUSTED", "payload": { "minutes": 10 } }
+{ "type": "SAUNA_TIMER_ADJUSTED", "payload": { "minutes": 10 } }
 ```
 
-**Notify Sauna Timer Expired:**
+**Turn IR ON:**
 ```json
-{ "type": "SAUNA_TIMER_EXPIRED", "payload": {} }
+{ "type": "IR_ON", "payload": {} }
 ```
 
-**Notify Ventilation Wait Period Expired (Triggers Extractor Fan):**
+**Turn IR OFF:**
 ```json
-{ "type": "VENT_WAIT_EXPIRED", "payload": {} }
+{ "type": "IR_OFF", "payload": {} }
 ```
 
-**Notify Ventilation Run Period Expired (Shuts Off Extractor Fan):**
+**Update IR Modulation Setpoint (Uses math snapping frequencies):**
 ```json
-{ "type": "VENT_RUN_EXPIRED", "payload": {} }
+{ "type": "IR_MODULATION_UPDATED", "payload": { "pwm": 75, "freq": 25 } }
 ```
 
 ### Hardware & Sensor Events
@@ -224,17 +222,22 @@ The `/api/event` endpoint acts as the universal command receiver for WanOS. It a
 
 **Trigger Magnetic Door Interlocks:**
 ```json
-{ "type": "DOOR_CHANGED", "payload": { "sensor_id": "bathroom", "is_open": true } }
+{ "type": "DOOR_CHANGED", "payload": { "sensor_id": "sauna", "is_open": true } }
+```
+
+**Inject Power Reading (Triggers Moving Average):**
+```json
+{ "type": "POWER_UPDATED", "payload": { "sensor_id": "pc_power", "value": 155.4 } }
+```
+
+**Inject Fluid Pulse (Water):**
+```json
+{ "type": "WATER_PULSE", "payload": { "fluid": "cold", "count": 396 } }
 ```
 
 **Report Sensor Error:**
 ```json
 { "type": "SENSOR_ERROR", "payload": { "sensor": "sauna_high", "error": "timeout" } }
-```
-
-**System Metronome Tick (One minute passed):**
-```json
-{ "type": "TIMER_TICK", "payload": {} }
 ```
 
 ### System Events
@@ -243,22 +246,22 @@ The `/api/event` endpoint acts as the universal command receiver for WanOS. It a
 { "type": "SYSTEM_READY", "payload": {} }
 ```
 
-**Trigger Graceful Shutdown:**
+**Change Hardware Live Bus Target (Simulation vs Physical):**
 ```json
-{ "type": "BACKEND_SHUTDOWN", "payload": {} }
+{ "type": "HARDWARE_LIVE_MODE_CHANGED", "payload": { "live": true } }
 ```
 
-**Notify Config Updated:**
+**Write Manual Override Logs for Simulator:**
 ```json
-{ "type": "CONFIG_UPDATED", "payload": {} }
+{ "type": "LAB_SIMULATION_LOG", "payload": { "message": "Manual override triggered." } }
 ```
 
 ### External Integrations
 Updates mapped from external REST APIs or hubs like Domoticz and Hue.
 
-**Update Hub State (Domoticz - e.g., Bathroom Ventilator):**
+**Update Hub State (Domoticz - e.g., Bathroom Ventilator or PC Aux):**
 ```json
-{ "type": "HUB_STATE_CHANGED", "payload": { "device_id": "bathroom_ventilator", "state": "ON" } }
+{ "type": "HUB_STATE_CHANGED", "payload": { "device_id": "pc_aux", "state": "ON" } }
 ```
 
 **Update External Weather (OpenWeatherMap):**
