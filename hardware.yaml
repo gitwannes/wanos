@@ -57,6 +57,9 @@ domoticz:
     pc_power:
       id: 9
       type: "power"
+    pc_aux_power:
+      id: 9622
+      type: "power"
     gang_boven:
       id: 169
       type: "switch"

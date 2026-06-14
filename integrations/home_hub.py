@@ -181,7 +181,7 @@ class DomoticzHomeHubBridge:
                     event = Event(
                         type=EventType.POWER_UPDATED,
                         payload={
-                            "sensor_id": device_name,  # This will automatically be "pc_power" from the YAML
+                            "sensor_id": device_name,  # This will automatically be "pc_(aux_)power" from the YAML
                             "value": wattage
                         }
                     )

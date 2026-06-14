@@ -229,40 +229,58 @@ class StateManager:
                 sensor_id: str = payload.get("sensor_id", "")
                 raw_val: float = payload.get("value", 0.0)
                 sns: Any = self._state.sensors
-                
+                moving_avg = 10
+
                 # --- START DEBUG CODE ---
                 #logger.warning(f"[DEBUG POWER] Raw Payload: {payload}")
-                #logger.warning(f"[DEBUG POWER] Extracted sensor_id: '{sensor_id}' | value: {val}")
+                #logger.warning(f"[DEBUG POWER] Extracted sensor_id: '{sensor_id}' | raw value: {raw_val}")
                 #logger.warning(f"[DEBUG POWER] Does SensorsState have '{sensor_id}'? -> {hasattr(sns, sensor_id)}")
                 #if not hasattr(sns, sensor_id):
                 #    logger.warning(
                 #        f"[DEBUG POWER] Missing from models.py! Routing to state.devices['{sensor_id}'] instead.")
                 # --- END DEBUG CODE ---
 
-
-                # --- 5-Point Moving Average Logic ---
+                # --- Moving Average Logic ---
                 if sensor_id not in self._sensor_history:
                     self._sensor_history[sensor_id] = []
 
                 history = self._sensor_history[sensor_id]
                 history.append(raw_val)
 
-                # Keep only the last 5 datapoints
-                if len(history) > 5:
+                # 10 datapoints to absorb high-frequency firehoses
+                if len(history) > moving_avg:
                     history.pop(0)
 
                 # Calculate average and round to 1 decimal place
                 avg_val = round(sum(history) / len(history), 1)
 
-                # Matches the exact YAML key to the internal sensor dictionary (e.g., 'pc_power')
+                # --- DEBUG CODE ---
+                # logger.warning(f"[DEBUG POWER] {sensor_id} | raw value: {raw_val} | avg value: {avg_val} ({len(history)} values)")
+
+                # Matches the exact YAML key to the internal sensor dictionary
                 if hasattr(sns, sensor_id):
-                    setattr(sns, sensor_id, avg_val)
-                    state_changed = True
-                    changed_domains.add("sensors")
+                    # THROTTLE: Only update memory and push to UI if the smoothed average actually shifted
+                    if getattr(sns, sensor_id) != avg_val:
+                        setattr(sns, sensor_id, avg_val)
+
+                        if sensor_id == "pc_power":
+                            sns.pc_power_history.append(avg_val)
+                            # Keep the sparkline at (10) points
+                            if len(sns.pc_power_history) > moving_avg:
+                                sns.pc_power_history.pop(0)
+
+                        if sensor_id == "pc_aux_power":
+                            sns.pc_aux_power_history.append(avg_val)
+                            if len(sns.pc_aux_power_history) > moving_avg:
+                                sns.pc_aux_power_history.pop(0)
+
+                        state_changed = True
+                        changed_domains.add("sensors")
                 else:
-                    self._state.devices[sensor_id] = avg_val
-                    state_changed = True
-                    changed_domains.add("devices")
+                    if self._state.devices.get(sensor_id) != avg_val:
+                        self._state.devices[sensor_id] = avg_val
+                        state_changed = True
+                        changed_domains.add("devices")
 
             elif event_name == "HUMIDITY_UPDATED":
                 sid = payload.get("sensor_id")

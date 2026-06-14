@@ -30,6 +30,8 @@ function wanosApp() {
                 sauna_calc_temp: null,
                 sauna_calc_hum: null,
                 pc_power: null,
+                pc_power_history: [],
+                pc_aux_power_history: [],
                 // Liters pre-rounded by the backend (1 decimal). No conversion needed here.
                 water_cold_liters: 0.0,
                 water_hot_liters: 0.0
@@ -357,6 +359,27 @@ function wanosApp() {
 
             // Combine into unified output format
             return `${durationStr} (${bootStr})`;
+        },
+
+        // 📈 Dynamic Sparkline SVG Generator
+        getSparkline(data) {
+            if (!data || data.length < 2) return "";
+
+            const max = Math.max(...data);
+            const min = Math.min(...data);
+            const range = max - min;
+
+            const width = 100;  // Virtual SVG viewBox width
+            const height = 30;  // Virtual SVG viewBox height
+
+            const points = data.map((val, i) => {
+                const x = (i / (data.length - 1)) * width;
+                // If max and min are the same, draw a straight line across the middle
+                const y = range === 0 ? height / 2 : height - ((val - min) / range) * height;
+                return `${x},${y}`;
+            });
+
+            return points.join(" ");
         },
 
         syncLabControls() {

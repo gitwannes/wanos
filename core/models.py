@@ -86,6 +86,9 @@ class SensorsState(BaseModel):
     sauna_calc_hum: Optional[int] = None
 
     pc_power: Optional[float] = None
+    pc_power_history: List[float] = Field(default_factory=list)
+    pc_aux_power: Optional[float] = None
+    pc_aux_power_history: List[float] = Field(default_factory=list)
 
     # Water metrics are analog sensor aggregations
     water_cold_liters: float = 0.0

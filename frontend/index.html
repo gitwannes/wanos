@@ -274,13 +274,38 @@
                                        @change="injectLabHubStateChange('pc_aux', $event.target.checked)" />                            </div>
                         </div>
 
-                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <span class="text-xs font-bold text-base-400 uppercase">PC Power Draw</span>
-                            <div class="text-right font-mono">
-                                <span class="text-warning font-bold" x-text="state.sensors.pc_power !== null ? state.sensors.pc_power + ' W' : '-- W'"></span>
+                        <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="flex justify-between items-center w-full">
+                                <span class="text-xs font-bold text-base-400 uppercase">PC Power Draw</span>
+                                <div class="text-right font-mono">
+                                    <span class="text-warning font-bold" x-text="state.sensors.pc_power !== null ? state.sensors.pc_power + ' W' : '-- W'"></span>
+                                </div>
+                            </div>
+                            <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
+                                 x-show="state.sensors.pc_power_history && state.sensors.pc_power_history.length > 1">
+                                <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
+                                              :points="getSparkline(state.sensors.pc_power_history)"></polyline>
+                                </svg>
                             </div>
                         </div>
-                    </div>
+
+                        <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="flex justify-between items-center w-full">
+                                <span class="text-xs font-bold text-base-400 uppercase">PC aux Power Draw</span>
+                                <div class="text-right font-mono">
+                                    <span class="text-warning font-bold" x-text="state.sensors.pc_aux_power !== null ? state.sensors.pc_aux_power + ' W' : '-- W'"></span>
+                                </div>
+                            </div>
+                            <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
+                                 x-show="state.sensors.pc_aux_power_history && state.sensors.pc_aux_power_history.length > 1">
+                                <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
+                                              :points="getSparkline(state.sensors.pc_aux_power_history)"></polyline>
+                                </svg>
+                            </div>
+                        </div>
+                    .</div>
                 </div>
             </div>
 
