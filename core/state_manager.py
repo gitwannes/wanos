@@ -405,20 +405,22 @@ class StateManager:
 
             # 1. Core Engine Target: explicitly requested by internal math loop?
             if hasattr(sns, f"{sensor_id}_temp"):
-                setattr(sns, f"{sensor_id}_temp", val)
+                if getattr(sns, f"{sensor_id}_temp") != val:
+                    setattr(sns, f"{sensor_id}_temp", val)
 
-                # Raw sensor value updated, ensure frontend syncs via SSE
-                state_changed = True
-                changed_domains.add("sensors")
+                    # Raw sensor value updated, ensure frontend syncs via SSE
+                    state_changed = True
+                    changed_domains.add("sensors")
 
-                if sensor_id in ["sauna_high", "sauna_low"]:
-                    if self._recalculate_sauna_metrics() or is_manual_lab_action:
-                        changed_domains.add("sensors")
+                    if sensor_id in ["sauna_high", "sauna_low"]:
+                        if self._recalculate_sauna_metrics() or is_manual_lab_action:
+                            changed_domains.add("sensors")
             # 2. Generic Peripheral Target: Store it safely for the UI
             else:
-                self._state.devices[f"{sensor_id}_temp"] = val
-                state_changed = True
-                changed_domains.add("devices")
+                if self._state.devices.get(f"{sensor_id}_temp") != val:
+                    self._state.devices[f"{sensor_id}_temp"] = val
+                    state_changed = True
+                    changed_domains.add("devices")
 
         elif event_name == "HUMIDITY_UPDATED":
             sensor_id: str = payload.get("sensor_id", "")
@@ -427,12 +429,12 @@ class StateManager:
 
             # 1. Core Engine Target
             if hasattr(sns, f"{sensor_id}_hum"):
-                setattr(sns, f"{sensor_id}_hum", val)
+                if getattr(sns, f"{sensor_id}_hum") != val:
+                    setattr(sns, f"{sensor_id}_hum", val)
 
-                # Raw sensor value updated, ensure frontend syncs via SSE
-                state_changed = True
-                changed_domains.add("sensors")
-
+                    # Raw sensor value updated, ensure frontend syncs via SSE
+                    state_changed = True
+                    changed_domains.add("sensors")
                 # ⚡ AUTOMATED BATHROOM VENTILATOR HYSTERESIS LOOP ⚡
                 if sensor_id == "bathroom" and sns.bathroom_hum is not None:
                     on_threshold: int = self._config.bathroom.vent_on_humidity

@@ -37,6 +37,9 @@ async def physical_sensor_polling_loop(state_manager: StateManager) -> None:
 
     # Track consecutive failures per sensor (legacy maxpoltrieslev2 logic)
     error_counters = {0: 0, 1: 0, 2: 0, 3: 0}
+
+    # ⚡ EARLY GATE DUPLICATE FILTER ⚡
+    last_readings = {}
     MAX_RETRIES = 2
 
     while True:
@@ -55,15 +58,22 @@ async def physical_sensor_polling_loop(state_manager: StateManager) -> None:
                     final_temp = round(temp * 2) / 2 if (0 <= temp < 99) else round(temp)
                     final_hum = round(humidity)
 
-                    # Dispatch explicit events for this specific sensor target
-                    state_manager.dispatch(Event(
-                        type=EventType.TEMP_UPDATED,
-                        payload={"sensor_id": sensor_id, "value": final_temp}
-                    ))
-                    state_manager.dispatch(Event(
-                        type=EventType.HUMIDITY_UPDATED,
-                        payload={"sensor_id": sensor_id, "value": final_hum}
-                    ))
+                    # Check if the environment actually changed
+                    if last_readings.get(sensor_id) == (final_temp, final_hum):
+                        await state_manager.logger.debug(
+                            f"[SHT11] Node '{sensor_id}' update ignored (duplicate: already {final_temp}°C, {final_hum}%)")
+                    else:
+                        last_readings[sensor_id] = (final_temp, final_hum)
+
+                        # Dispatch explicit events for this specific sensor target
+                        state_manager.dispatch(Event(
+                            type=EventType.TEMP_UPDATED,
+                            payload={"sensor_id": sensor_id, "value": final_temp}
+                        ))
+                        state_manager.dispatch(Event(
+                            type=EventType.HUMIDITY_UPDATED,
+                            payload={"sensor_id": sensor_id, "value": final_hum}
+                        ))
 
                     # Reset error counter on success
                     error_counters[sensor_idx] = 0

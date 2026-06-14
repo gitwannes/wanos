@@ -17,6 +17,10 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
 
     await state_manager.logger.success(f"[OWM] polling initialized for {config.location}.")
 
+    # ⚡ EARLY GATE DUPLICATE FILTER ⚡
+    last_temp = None
+    last_hum = None
+
     async with aiohttp.ClientSession() as session:
         while True:
             try:
@@ -25,32 +29,39 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
                         data = await response.json()
 
                         # Extract 1: Temperature & Humidity
-                        temp = round(float(data['main']['temp']) * 2) / 2  # Round to nearest 0.5 like your old code
+                        temp = round(float(data['main']['temp']) * 2) / 2
                         hum = int(data['main']['humidity'])
 
                         # Extract 2: Sunrise & Sunset
                         sunrise = int(data['sys']['sunrise'])
                         sunset = int(data['sys']['sunset'])
 
-                        # Dispatch Temperature
-                        state_manager.dispatch(Event(
-                            type=EventType.TEMP_UPDATED,
-                            payload={"sensor_id": "outside", "value": temp}
-                        ))
+                        # Check if the weather actually changed
+                        if temp == last_temp and hum == last_hum:
+                            await state_manager.logger.debug(f"[OWM] Weather update ignored (duplicate: already {temp}°C, {hum}%)")
+                        else:
+                            last_temp = temp
+                            last_hum = hum
 
-                        # Dispatch Humidity
-                        state_manager.dispatch(Event(
-                            type=EventType.HUMIDITY_UPDATED,
-                            payload={"sensor_id": "outside", "value": hum}
-                        ))
+                            # Dispatch Temperature
+                            state_manager.dispatch(Event(
+                                type=EventType.TEMP_UPDATED,
+                                payload={"sensor_id": "outside", "value": temp}
+                            ))
 
-                        # Dispatch Sun Cycle
-                        state_manager.dispatch(Event(
-                            type=EventType.EXTERNAL_WEATHER_UPDATED,
-                            payload={"sunrise": sunrise, "sunset": sunset}
-                        ))
+                            # Dispatch Humidity
+                            state_manager.dispatch(Event(
+                                type=EventType.HUMIDITY_UPDATED,
+                                payload={"sensor_id": "outside", "value": hum}
+                            ))
 
-                        await state_manager.logger.debug(f"[OWM] Weather updated: {temp}°C, {hum}%")
+                            # Dispatch Sun Cycle
+                            state_manager.dispatch(Event(
+                                type=EventType.EXTERNAL_WEATHER_UPDATED,
+                                payload={"sunrise": sunrise, "sunset": sunset}
+                            ))
+
+                            await state_manager.logger.debug(f"[OWM] Weather updated: {temp}°C, {hum}%")
                     else:
                         await state_manager.logger.error(f"[OWM] HTTP Error {response.status}")
 
