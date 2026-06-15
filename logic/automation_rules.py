@@ -3,15 +3,22 @@ import datetime, time
 from core.models import Event, EventType, SystemState
 from core.config import load_config
 
-# Load configuration into memory once when the module boots
-_engine_config = load_config()
-
 
 class AutomationEngine:
     """
     Centralized Rule Engine for WanOS automations.
     Dynamically evaluates YAML-defined rules instead of using hardcoded cascading logic.
     """
+
+    # Cache the config so we don't parse the YAML file on every single event iteration
+    _config = None
+
+    @classmethod
+    def _get_config(cls):
+        if cls._config is None:
+            cls._config = load_config()
+        return cls._config
+
     @staticmethod
     def _log_execution(rule_name: str, target: str, new_state: str) -> None:
         """
@@ -54,6 +61,7 @@ class AutomationEngine:
     @staticmethod
     def evaluate(event: Event, state: SystemState) -> list[Event]:
         payload = event.payload or {}
+        config = AutomationEngine._get_config()
 
         # 🛡️ THE GENERIC BOOT GUARD 🛡️
         if payload.get("is_initialization", False):
@@ -68,7 +76,7 @@ class AutomationEngine:
         is_transition = payload.get("transitioned", False)
 
         # 1. DYNAMIC YAML AUTOMATIONS
-        for rule in _engine_config.automations:
+        for rule in config.automations:
             trigger_matched = False
 
             # Trigger Type A: Hardware State Transition
@@ -83,7 +91,7 @@ class AutomationEngine:
                     if rule.trigger.idx == event_idx and rule.trigger.state == new_state:
                         trigger_matched = True
 
-            # Trigger Type C: System Event (e.g., SAUNA_ON, SCENE_VERDIEP_OFF)
+            # Trigger Type C: System Event (e.g., SAUNA_ON, SCENE_VERDIEP1_OFF)
             elif rule.trigger.event:
                 if event_name == rule.trigger.event:
                     trigger_matched = True
@@ -127,5 +135,40 @@ class AutomationEngine:
                                 ))
                                 # Write to logfile
                                 AutomationEngine._log_execution(rule.name, f"IDX {action.idx}", action.state)
+
+        # -----------------------------------------------------------------
+        # HYSTERESIS LOOPS: Bathroom 1eV Ventilator Auto-ON/OFF
+        # -----------------------------------------------------------------
+        if event_name == "HUMIDITY_UPDATED":
+            sensor_id = payload.get("sensor_id")
+            if sensor_id == "bathroom1":
+                config = AutomationEngine._get_config()
+                val = payload.get("value", 0)
+
+                # Verify that config.bathroom1 exists before evaluating to prevent crashing
+                if hasattr(config, "bathroom1"):
+                    on_threshold = config.bathroom1.vent_on_humidity
+                    off_threshold = config.bathroom1.vent_off_humidity
+
+                    current_vent_state = state.devices.get("bathroom1_ventilator", "OFF")
+                    is_locked = state.devices.get("bathroom1_vent_locked", False)
+
+                    if val >= on_threshold and current_vent_state != "ON":
+                        # Humidity is high: Auto-engage ventilator
+                        follow_up_events.append(
+                            Event(type=EventType.HUB_STATE_CHANGED,
+                                  payload={"device_id": "bathroom1_ventilator", "state": "ON"})
+                        )
+                        AutomationEngine._log_execution("Bathroom 1eV Vent Auto-ON", "bathroom1_ventilator",
+                                                        "ON")
+                    elif val <= off_threshold and current_vent_state == "ON":
+                        # Humidity is low: Auto-disengage ventilator (BUT ONLY IF 5-MIN LOCK EXPIRED)
+                        if not is_locked:
+                            follow_up_events.append(
+                                Event(type=EventType.HUB_STATE_CHANGED,
+                                      payload={"device_id": "bathroom1_ventilator", "state": "OFF"})
+                            )
+                            AutomationEngine._log_execution("Bathroom 1eV Vent Auto-OFF",
+                                                            "bathroom1_ventilator", "OFF")
 
         return follow_up_events

@@ -34,8 +34,14 @@ class DomoticzHomeHubBridge:
         idxs = set()
         if hasattr(self.state_manager._config, "automations"):
             for rule in self.state_manager._config.automations:
+                # 1. Grab Trigger IDXs
                 if rule.trigger.idx:
                     idxs.add(rule.trigger.idx)
+                # 2. Grab Action IDXs
+                if rule.actions:
+                    for action in rule.actions:
+                        if action.idx:
+                            idxs.add(action.idx)
         return idxs
 
     async def start(self) -> None:

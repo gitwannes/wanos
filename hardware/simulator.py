@@ -71,7 +71,7 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
     sauna_low = seed.sauna_low_temp
     sauna_high_hum = seed.sauna_high_hum
     sauna_low_hum = seed.sauna_low_hum
-    bathroom_hum = seed.bathroom_hum
+    bathroom1_hum = seed.bathroom1_hum
     outside_tick = seed.outside_tick
 
     # Local UI metric tracking anchors
@@ -91,7 +91,7 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
     state_mgr.dispatch(
         Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "cinema", "value": int(seed.cinema_hum)}))
     state_mgr.dispatch(
-        Event(type=EventType.TEMP_UPDATED, payload={"sensor_id": "bathroom", "value": seed.bathroom_temp}))
+        Event(type=EventType.TEMP_UPDATED, payload={"sensor_id": "bathroom1", "value": seed.bathroom1_temp}))
 
     while True:
         try:
@@ -120,8 +120,8 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
             if state.sensors.sauna_low_hum is not None and int(
                     sauna_low_hum) != state.sensors.sauna_low_hum:
                 sauna_low_hum = float(state.sensors.sauna_low_hum)
-            if state.sensors.bathroom_hum is not None and int(bathroom_hum) != state.sensors.bathroom_hum:
-                bathroom_hum = float(state.sensors.bathroom_hum)
+            if state.sensors.bathroom1_hum is not None and int(bathroom1_hum) != state.sensors.bathroom1_hum:
+                bathroom1_hum = float(state.sensors.bathroom1_hum)
 
             # Dynamic re-anchoring for outside atmosphere sliders
             if last_calculated_out_temp is not None and state.sensors.outside_temp is not None:
@@ -181,15 +181,15 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
                           payload={"sensor_id": "outside", "value": int(current_out_hum)}))
 
             # --------------------------------------------------------
-            # 2. BATHROOM SIMULATOR (Humidity decay)
+            # 2. BATHROOM 1eV SIMULATOR (Humidity decay)
             # --------------------------------------------------------
             # If vent is running, decay faster. Otherwise, decay slowly to the baseline
-            decay_rate = 1.0 if state.devices.get("bathroom_ventilator") == "ON" else 0.1
-            if bathroom_hum > seed.bathroom_hum:
-                bathroom_hum = max(seed.bathroom_hum, bathroom_hum - decay_rate)
+            decay_rate = 1.0 if state.devices.get("bathroom1_ventilator") == "ON" else 0.1
+            if bathroom1_hum > seed.bathroom1_hum:
+                bathroom1_hum = max(seed.bathroom1_hum, bathroom1_hum - decay_rate)
 
             state_mgr.dispatch(
-                Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "bathroom", "value": int(bathroom_hum)}))
+                Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "bathroom1", "value": int(bathroom1_hum)}))
 
             # --------------------------------------------------------
             # 3. SAUNA THERMODYNAMICS (Thermal stratification)

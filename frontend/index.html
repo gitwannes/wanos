@@ -296,7 +296,7 @@
                                 </div>
                             </div>
                             <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
-                                 x-show="state.sensors.pc_power_history && state.sensors.pc_power_history.length > 1">
+                                 x-show="state.sensors.pc_power_history && state.sensors.pc_power_history.length > 1" x-cloak>
                                 <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
                                     <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
                                               :points="getSparkline(state.sensors.pc_power_history)"></polyline>
@@ -312,14 +312,14 @@
                                 </div>
                             </div>
                             <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
-                                 x-show="state.sensors.pc_aux_power_history && state.sensors.pc_aux_power_history.length > 1">
+                                 x-show="state.sensors.pc_aux_power_history && state.sensors.pc_aux_power_history.length > 1" x-cloak>
                                 <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
                                     <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
                                               :points="getSparkline(state.sensors.pc_aux_power_history)"></polyline>
                                 </svg>
                             </div>
                         </div>
-                    .</div>
+                    </div>
                 </div>
             </div>
 
@@ -335,20 +335,20 @@
                     <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
                         <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
                         <div class="text-right font-mono">
-                            <span class="text-white font-bold" x-text="state.sensors.bathroom_temp !== null ? state.sensors.bathroom_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                            <span class="text-info ml-1 text-xs" x-text="state.sensors.bathroom_hum !== null ? state.sensors.bathroom_hum + '%' : '--%'"></span>
+                            <span class="text-white font-bold" x-text="state.sensors.bathroom1_temp !== null ? state.sensors.bathroom1_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                            <span class="text-info ml-1 text-xs" x-text="state.sensors.bathroom1_hum !== null ? state.sensors.bathroom1_hum + '%' : '--%'"></span>
                         </div>
                     </div>
                     <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
                         <div class="text-xs font-bold text-base-400 uppercase">Ventilator</div>
                         <div class="flex items-center gap-3">
                             <span class="font-mono text-sm mt-0.5"
-                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom_ventilator === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom_ventilator === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
-                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom_ventilator === null ? 'SYNCING...' : (state.devices.bathroom_ventilator === 'ON' ? '💨 RUNNING' : 'OFF'))"></span>
+                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_ventilator === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_ventilator === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_ventilator === null ? 'SYNCING...' : (state.devices.bathroom1_ventilator === 'ON' ? '💨 RUNNING' : 'OFF'))"></span>
                             <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
-                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom_ventilator === null"
-                                   :checked="state.devices.bathroom_ventilator === 'ON'"
-                                   @change="injectLabHubStateChange('bathroom_ventilator', $event.target.checked)" />
+                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_ventilator === null"
+                                   :checked="state.devices.bathroom1_ventilator === 'ON'"
+                                   @change="injectLabHubStateChange('bathroom1_ventilator', $event.target.checked)" />
                         </div>
                     </div>
 
@@ -356,12 +356,12 @@
                         <div class="text-xs font-bold text-base-400 uppercase">Main Light</div>
                         <div class="flex items-center gap-3">
                             <span class="font-mono text-sm mt-0.5"
-                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom_main === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom_main === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom_main === null ? 'SYNCING...' : (state.devices.bathroom_main === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_main === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_main === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_main === null ? 'SYNCING...' : (state.devices.bathroom1_main === 'ON' ? '💡 ON' : 'OFF'))"></span>
                             <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom_main === null"
-                                   :checked="state.devices.bathroom_main === 'ON'"
-                                   @change="injectLabHubStateChange('bathroom_main', $event.target.checked)" />
+                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_main === null"
+                                   :checked="state.devices.bathroom1_main === 'ON'"
+                                   @change="injectLabHubStateChange('bathroom1_main', $event.target.checked)" />
                         </div>
                     </div>
 
@@ -369,12 +369,12 @@
                         <div class="text-xs font-bold text-base-400 uppercase">Wastafel Light</div>
                         <div class="flex items-center gap-3">
                             <span class="font-mono text-sm mt-0.5"
-                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom_wastafel === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom_wastafel === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom_wastafel === null ? 'SYNCING...' : (state.devices.bathroom_wastafel === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_wastafel === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_wastafel === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_wastafel === null ? 'SYNCING...' : (state.devices.bathroom1_wastafel === 'ON' ? '💡 ON' : 'OFF'))"></span>
                             <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom_wastafel === null"
-                                   :checked="state.devices.bathroom_wastafel === 'ON'"
-                                   @change="injectLabHubStateChange('bathroom_wastafel', $event.target.checked)" />
+                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_wastafel === null"
+                                   :checked="state.devices.bathroom1_wastafel === 'ON'"
+                                   @change="injectLabHubStateChange('bathroom1_wastafel', $event.target.checked)" />
                         </div>
                     </div>
 
@@ -427,7 +427,8 @@
                                 <div class="text-right text-gray-500 tabular-nums min-w-[95px]" x-text="sunsetRelativeText"></div>
                             </div>
 
-                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">                                <div class="text-xs font-bold text-base-400 uppercase">Gang Boven</div>
+                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-xs font-bold text-base-400 uppercase">Gang Boven</div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-mono text-sm mt-0.5"
                                           :class="!state.system.domoticz_mqtt_connected || state.devices.gang_boven === null ? 'text-gray-500 italic text-xs' : (state.devices.gang_boven === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
@@ -441,9 +442,24 @@
                         </div>
 
                         <button class="btn btn-error btn-outline btn-block mt-8 font-mono tracking-widest text-xs"
-                                @click="dispatchEvent('SCENE_VERDIEP_OFF')"
+                                @click="dispatchEvent('SCENE_GV_OFF')"
+                                :disabled="!state.system.domoticz_mqtt_connected">
+                            gv ALL OFF
+                        </button>
+                        <button class="btn btn-error btn-outline btn-block mt-8 font-mono tracking-widest text-xs"
+                                @click="dispatchEvent('SCENE_VERDIEP1_OFF')"
                                 :disabled="!state.system.domoticz_mqtt_connected">
                             1e verdiep ALL OFF
+                        </button>
+                        <button class="btn btn-error btn-outline btn-block mt-8 font-mono tracking-widest text-xs"
+                                @click="dispatchEvent('SCENE_VERDIEP2_OFF')"
+                                :disabled="!state.system.domoticz_mqtt_connected">
+                            2e verdiep ALL OFF
+                        </button>
+                        <button class="btn btn-error btn-outline btn-block mt-8 font-mono tracking-widest text-xs"
+                                @click="dispatchEvent('SCENE_ALL_OFF')"
+                                :disabled="!state.system.domoticz_mqtt_connected">
+                            ALL OFF
                         </button>
                     </div>
                 </div>
@@ -503,10 +519,10 @@
                             <div>
                                 <div class="flex justify-between text-[11px] mb-1">
                                     <span class="text-gray-400 font-medium">Atmosphere</span>
-                                    <span class="text-accent font-mono font-bold" x-text="labBathroomTemp !== null ? parseFloat(labBathroomTemp).toFixed(1) + '°C / ' + labBathroomHum + '%' : '--.-°C / --%'"></span>
+                                    <span class="text-accent font-mono font-bold" x-text="labBathroom1Temp !== null ? parseFloat(labBathroom1Temp).toFixed(1) + '°C / ' + labBathroom1Hum + '%' : '--.-°C / --%'"></span>
                                 </div>
-                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroomTemp" @input="labBathroomTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'bathroom', labBathroomTemp)" />
-                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroomHum" @input="labBathroomHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'bathroom', labBathroomHum)" />
+                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroom1Temp" @input="labBathroom1Temp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'bathroom1', labBathroom1Temp)" />
+                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroom1Hum" @input="labBathroom1Hum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'bathroom1', labBathroom1Hum)" />
                             </div>
                             <div class="pt-2 border-t border-base-300 space-y-2.5">
                                 <div class="flex items-center justify-between text-xs font-mono">

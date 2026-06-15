@@ -45,7 +45,7 @@ class PinMappingConfig(BaseModel):
     water_cold: int
     water_hot: int
     door_sauna: int
-    door_bathroom: int
+    door_bathroom1: int
 
 
 class SHT11SensorNode(BaseModel):
@@ -68,13 +68,13 @@ class SaunaRuntimeConfig(BaseModel):
 class IRRuntimeConfig(BaseModel):
     min_time_mins: int
     max_time_mins: int
-    pwm_freq: int
     default_ir_modulation: int
 
 
 class BathroomConfig(BaseModel):
     vent_on_humidity: int
     vent_off_humidity: int
+    vent_min_runtime_mins: int
 
 
 class LabSeedConfig(BaseModel):
@@ -83,8 +83,8 @@ class LabSeedConfig(BaseModel):
     sauna_high_hum: float
     sauna_low_hum: float
     door_open: bool
-    bathroom_temp: float
-    bathroom_hum: float
+    bathroom1_temp: float
+    bathroom1_hum: float
     cinema_temp: float
     cinema_hum: float
     outside_temp: float
@@ -124,7 +124,7 @@ class AppConfig(BaseModel):
     sensors: Dict[str, SHT11SensorNode]
     sauna: SaunaRuntimeConfig
     ir: IRRuntimeConfig
-    bathroom: BathroomConfig
+    bathroom1: BathroomConfig
     weather: WeatherConfig
     lab_seed: Optional[LabSeedConfig] = None
     automations: List[AutomationRuleConfig] = Field(default_factory=list)
@@ -165,7 +165,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "sensors": hardware_data["sht11_sensors"],
         "sauna": runtime_data["sauna"],
         "ir": runtime_data["ir"],
-        "bathroom": runtime_data["bathroom"],
+        "bathroom1": runtime_data["bathroom1"],
         "weather": runtime_data["weather"],
         "automations": runtime_data.get("automations", [])
     }

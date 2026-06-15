@@ -8,9 +8,9 @@ lab_seed:
   sauna_low_hum: 48.0
   door_open: false
 
-  # Bathroom
-  bathroom_temp: 22.5
-  bathroom_hum: 45.0
+  # Bathroom 1e
+  bathroom1_temp: 22.5
+  bathroom1_hum: 45.0
 
   # Cinema
   cinema_temp: 21.5

@@ -29,7 +29,7 @@ async def physical_sensor_polling_loop(state_manager: StateManager) -> None:
     # Mapped from legacy ws['fix']['sht11-sensors']
     # Format: { index: (Data_Pin, Clock_Pin, sensor_id_string) }
     SENSOR_MAP: Dict[int, tuple] = {
-        0: (11, 23, "bathroom"),
+        0: (11, 23, "bathroom1"),
         1: (15, 24, "cinema"),
         2: (16, 25, "sauna_high"),
         3: (18, 8, "sauna_low")

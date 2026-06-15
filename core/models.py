@@ -13,10 +13,10 @@ class EventType(str, Enum):
     KWH_PULSE = "KWH_PULSE"
     DOOR_CHANGED = "DOOR_CHANGED"
     SENSOR_ERROR = "SENSOR_ERROR"
-    TIMER_TICK = "TIMER_TICK"
+    BATH1_VENT_LOCK_EXPIRED = "BATH1_VENT_LOCK_EXPIRED"  # Fired when the bathroom vent minimum runtime ends
 
     # Macro & Scene Events
-    SCENE_VERDIEP_OFF = "SCENE_VERDIEP_OFF"
+    SCENE_VERDIEP1_OFF = "SCENE_VERDIEP1_OFF"
 
     # Sauna & Logic Events
     SAUNA_ON = "SAUNA_ON"
@@ -72,8 +72,8 @@ class SensorsState(BaseModel):
     sunrise_unix: Optional[int] = None
     sunset_unix: Optional[int] = None
 
-    bathroom_temp: Optional[float] = None
-    bathroom_hum: Optional[int] = None
+    bathroom1_temp: Optional[float] = None
+    bathroom1_hum: Optional[int] = None
 
     cinema_temp: Optional[float] = None
     cinema_hum: Optional[int] = None

@@ -15,9 +15,6 @@ domoticz:
     username: "st0001"
   idx:
     # Domoticz driven
-    bathroom_ventilator:
-      id: 7558
-      type: "switch"
     safety_ssr:
       id: 8567
       type: "switch"
@@ -42,11 +39,14 @@ domoticz:
     buro_schemer:
       id: 140
       type: "switch"
-    bathroom_main:
+    bathroom1_main:
       id: 141
       type: "switch"
-    bathroom_wastafel:
+    bathroom1_wastafel:
       id: 7555
+      type: "switch"
+    bathroom1_ventilator:
+      id: 7558
       type: "switch"
     pc:
       id: 8
@@ -60,6 +60,9 @@ domoticz:
     pc_aux_power:
       id: 9622
       type: "power"
+    gang_beneden:
+      id: 60
+      type: "switch"
     gang_boven:
       id: 169
       type: "switch"
@@ -71,7 +74,7 @@ domoticz:
       id: 7561
       type: "switch"
     # WanOS SHT sensor driven
-    bathroom:
+    bathroom1:
       id: 7436
       type: "temphum"
     cinema:
@@ -96,10 +99,10 @@ pins:
   water_cold: 6
   water_hot: 5
   door_sauna: 27
-  door_bathroom: 22
+  door_bathroom1: 22
 
 sht11_sensors:
-  bathroom:
+  bathroom1:
     pin_d: 24
     pin_c: 23
   cinema:

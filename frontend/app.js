@@ -19,8 +19,8 @@ function wanosApp() {
                 outside_hum: null,
                 sunrise_unix: null,
                 sunset_unix: null,
-                bathroom_temp: null,
-                bathroom_hum: null,
+                bathroom1_temp: null,
+                bathroom1_hum: null,
                 cinema_temp: null,
                 cinema_hum: null,
                 sauna_high_temp: null,
@@ -31,6 +31,7 @@ function wanosApp() {
                 sauna_calc_hum: null,
                 pc_power: null,
                 pc_power_history: [],
+                pc_aux_power: null,
                 pc_aux_power_history: [],
                 // Liters pre-rounded by the backend (1 decimal). No conversion needed here.
                 water_cold_liters: 0.0,
@@ -78,16 +79,16 @@ function wanosApp() {
             // until the Python backend explicitly pushes their verified state.
             devices: {
                 door_sauna: "CLOSED", // Local GPIO (Not Domoticz)
-                door_bathroom: "CLOSED", // Local GPIO
+                door_bathroom1: "CLOSED", // Local GPIO
                 cinema_main: null,
                 cinema_buro: null,
                 buro_schemer: null,
                 cinema_hue: null,
                 sauna_hue: null,
                 sauna_zoutlamp: null,
-                bathroom_main: null,
-                bathroom_wastafel: null,
-                bathroom_ventilator: null,
+                bathroom1_main: null,
+                bathroom1_wastafel: null,
+                bathroom1_ventilator: null,
                 sauna_extrvent: null,
                 safety_ssr: null,
                 pc: null,
@@ -118,8 +119,8 @@ function wanosApp() {
         labSaunaHighHum: null,
         labSaunaLowTemp: null,
         labSaunaLowHum: null,
-        labBathroomTemp: null,
-        labBathroomHum: null,
+        labBathroom1Temp: null,
+        labBathroom1Hum: null,
         labCinemaTemp: null,
         labCinemaHum: null,
         labOutsideTemp: null,
@@ -392,11 +393,17 @@ function wanosApp() {
 
             const points = data.map((val, i) => {
                 const x = (i / (data.length - 1)) * width;
-                // If max and min are the same, draw a straight line across the middle
-                const y = range === 0 ? height / 2 : height - ((val - min) / range) * height;
+                let y;
+
+                if (range === 0) {
+                    // If everything is exactly 0W, draw a flatline on the floor instead of the middle
+                    y = val === 0 ? height : height / 2;
+                } else {
+                    y = height - ((val - min) / range) * height;
+                }
+
                 return `${x},${y}`;
             });
-
             return points.join(" ");
         },
 
@@ -410,8 +417,8 @@ function wanosApp() {
             this.labSaunaHighHum  = sns.sauna_high_hum  ?? seed.sauna_high_hum;
             this.labSaunaLowTemp  = sns.sauna_low_temp  ?? seed.sauna_low_temp;
             this.labSaunaLowHum   = sns.sauna_low_hum   ?? seed.sauna_low_hum;
-            this.labBathroomTemp  = sns.bathroom_temp   ?? seed.bathroom_temp;
-            this.labBathroomHum   = sns.bathroom_hum    ?? seed.bathroom_hum;
+            this.labBathroom1Temp = sns.bathroom1_temp  ?? seed.bathroom1_temp;
+            this.labBathroom1Hum  = sns.bathroom1_hum   ?? seed.bathroom1_hum;
             this.labCinemaTemp    = sns.cinema_temp     ?? seed.cinema_temp;
             this.labCinemaHum     = sns.cinema_hum      ?? seed.cinema_hum;
             this.labOutsideTemp   = sns.outside_temp    ?? seed.outside_temp;

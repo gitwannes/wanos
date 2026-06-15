@@ -17,11 +17,11 @@ ir:
   default_ir_modulation: 75     # Default IR power modulation 75%
   min_time_mins: 5
   max_time_mins: 20
-  pwm_freq: 5              # to check - IR modulation needs to come from the old WISC
 
-bathroom:
+bathroom1:
   vent_on_humidity: 80      # Auto-engage fan above this %
   vent_off_humidity: 74     # Auto-disengage fan below this %
+  vent_min_runtime_mins: 5  # Minimum time the fan must run before auto-disengaging
 
 weather:
   location: "Borsbeek,BE"
@@ -67,6 +67,14 @@ automations:
       - device: "buro_schemer"
         state: "OFF"
 
+  - name: "garage OFF -> waskot OFF"
+    trigger:
+      idx: 100       # licht garage
+      state: "OFF"
+    actions:
+      - idx: 348       # licht waskot
+        state: "OFF"
+
 # --- SAUNA MACROS ---
   - name: "Sauna Lights ON"
     trigger:
@@ -87,9 +95,37 @@ automations:
         state: "OFF"
 
   # --- SCENES ---
+  - name: "Scene: gv ALL OFF"
+    trigger:
+      event: "SCENE_GV_OFF"
+    actions:
+      - device: "gang_beneden"
+        state: "OFF"
+      - idx: 52       # licht living
+        state: "OFF"
+      - idx: 53       # licht keuken
+        state: "OFF"
+      - idx: 411       # licht voorraad
+        state: "OFF"
+      - idx: 6060       # licht eetkamer
+        state: "OFF"
+      - idx: 157       # licht living schemer groot (RFX)
+        state: "OFF"
+      - idx: 158       # licht kerstboom (RFX)
+        state: "OFF"
+      - idx: 9645       # licht toilet
+        state: "OFF"
+      - idx: 100       # licht garage
+        state: "OFF"
+      #- idx: 348       # licht waskot - gaat uit als garage uit gaat
+      #  state: "OFF"
+      - idx: 7396       # licht tuin
+        state: "OFF"
+      #- idx: 9627       # licht kerstverlichting tuin
+      #  state: "OFF"
   - name: "Scene: 1e Verdiep ALL OFF"
     trigger:
-      event: "SCENE_VERDIEP_OFF"
+      event: "SCENE_VERDIEP1_OFF"
     actions:
       - device: "cinema_main"
         state: "OFF"
@@ -101,18 +137,52 @@ automations:
         state: "OFF"
       - device: "pc_aux"
         state: "OFF"
-      - device: "bathroom_main"
+      - device: "bathroom1_main"
         state: "OFF"
-      - device: "bathroom_wastafel"
+      - device: "bathroom1_wastafel"
         state: "OFF"
       - device: "gang_boven"
         state: "OFF"
+  - name: "Scene: 2e Verdiep ALL OFF"
+    trigger:
+      event: "SCENE_VERDIEP2_OFF"
+    actions:
+      - device: "gang_boven"
+        state: "OFF"
+      - idx: 170      # badk 2e groot --- check: 1625?
+        state: "OFF"
+      #- idx: 171      # badk 2e wastafel -- moet hier niet instaan: gaat uit als groot uitgaat
+      #  state: "OFF"
+      - idx: 1524     # slpk Dries
+        state: "OFF"
+      - idx: 6048     # slpk Liene
+        state: "OFF"
+      - idx: 6051     # berging
+        state: "OFF"
+      - idx: 6067     # slpk Wannes
+        state: "OFF"
+      - idx: 6070     # slpk Wannes nachtlichtjes
+        state: "OFF"
+      - idx: 7237     # slpk Dries Hue
+        state: "OFF"
+  - name: "Scene: GoCosy"
+    trigger:
+      event: "GO_COSY"
+    actions:
+      - idx: 52
+        state: "ON"
+      - idx: 157
+        state: "OFF"
+      - idx: 158
+        state: "OFF"
+      - idx: 7236
+        state: "OFF"
 
 # Using Raw Domoticz IDXs for sensors not used above
-  - name: "Slpk_Dries met zijn Hue"
+  - name: "Slpk_Dries"
     trigger:
       idx: 1524
       state: "ON"
     actions:
-      - idx: 7237
+      - idx: 7237 # Hue
         state: "ON"

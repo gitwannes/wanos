@@ -47,14 +47,17 @@ class StateManager:
         self._state.sauna.max_temp = float(self._config.sauna.max_temp)
         self._state.lab_seed = self._config.lab_seed
         self._state.devices["door_sauna"] = "CLOSED"
-        self._state.devices["door_bathroom"] = "CLOSED"
+        self._state.devices["door_bathroom1"] = "CLOSED"
+
+        # ⚡ Initialize IR Setpoint from config so it shows default on boot while OFF
+        self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
+        freq_map = {0: 0, 25: 25, 33: 33, 50: 50, 67: 33, 75: 25, 100: 5}
+        # If an invalid default (e.g. 42%) is placed in config.yaml, fallback safely to 0Hz
+        self._state.ir.frequency = freq_map.get(self._state.ir.modulation_pwm, 0)
+
         # ⏱️ DELAYED TIMELINE TRACKING VARIABLES
         self._sauna_timer_triggered = False
         self._sauna_timer_duration_secs = 0
-        # ⚡ Initialize IR Setpoint from config so it shows 75% on boot while OFF
-        self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
-        freq_map = {0: 0, 25: 25, 33: 33, 50: 50, 67: 33, 75: 25, 100: 5}
-        self._state.ir.frequency = freq_map.get(self._state.ir.modulation_pwm, self._config.ir.pwm_freq)
 
         # Open hardware safety channel chip context if available
         self._gpio_chip = None
@@ -207,9 +210,10 @@ class StateManager:
         elif is_user_command or is_manual_lab_action:
             logger.info(f"Lab Action Received: {event_name} | Payload: {payload}")
             await self.logger.info(f"User Action Processed: {event_name}")
-        elif event_name == "HUB_STATE_CHANGED":
-            # Direct formatting as requested for clean hardware state updates
-            logger.debug(f"Event Received: {payload}")
+        elif event_name != "SYSTEM_METRICS_UPDATED":
+            # Universal Catch-All: Logs EVERY inbound background event (Power, Weather, Sensors, Relays)
+            # while safely ignoring the 2-second internal network watchdog tick.
+            logger.debug(f"Event Received [{event_name}]: {payload}")
 
         # If it's a background simulator event, translate it to a string for the UI panel!
         if not self._state.hardware.live_mode and not is_manual_lab_action:
@@ -249,11 +253,16 @@ class StateManager:
                     self._sensor_history[sensor_id] = []
 
                 history = self._sensor_history[sensor_id]
-                history.append(raw_val)
 
-                # 10 datapoints to absorb high-frequency firehoses
-                if len(history) > moving_avg:
-                    history.pop(0)
+                if raw_val == 0.0:
+                    # ⚡ FIX: Smart Plug Silence
+                    # Instantly flush the math buffer so the average drops to 0 instantly
+                    history.clear()
+                    history.append(0.0)
+                else:
+                    history.append(raw_val)
+                    if len(history) > moving_avg:
+                        history.pop(0)
 
                 # Calculate average and round to 1 decimal place
                 avg_val = round(sum(history) / len(history), 1)
@@ -263,21 +272,31 @@ class StateManager:
 
                 # Matches the exact YAML key to the internal sensor dictionary
                 if hasattr(sns, sensor_id):
-                    # THROTTLE: Only update memory and push to UI if the smoothed average actually shifted
-                    if getattr(sns, sensor_id) != avg_val:
-                        setattr(sns, sensor_id, avg_val)
-
-                        if sensor_id == "pc_power":
+                    # ALWAYS update the history arrays so they fill up instantly
+                    if sensor_id == "pc_power":
+                        if avg_val == 0.0:
+                            sns.pc_power_history = [0.0] * moving_avg
+                        elif len(sns.pc_power_history) == 0:
+                            sns.pc_power_history = [avg_val] * moving_avg
+                        else:
                             sns.pc_power_history.append(avg_val)
-                            # Keep the sparkline at (10) points
                             if len(sns.pc_power_history) > moving_avg:
                                 sns.pc_power_history.pop(0)
 
-                        if sensor_id == "pc_aux_power":
+                    if sensor_id == "pc_aux_power":
+                        if avg_val == 0.0:
+                            sns.pc_aux_power_history = [0.0] * moving_avg
+                        elif len(sns.pc_aux_power_history) == 0:
+                            sns.pc_aux_power_history = [avg_val] * moving_avg
+                        else:
                             sns.pc_aux_power_history.append(avg_val)
                             if len(sns.pc_aux_power_history) > moving_avg:
                                 sns.pc_aux_power_history.pop(0)
 
+                    # THROTTLE: Only update memory and push to UI if the smoothed average actually shifted
+                    # Note: On the very first reading, getattr is None, which != avg_val, so it pushes the full array!
+                    if getattr(sns, sensor_id) != avg_val:
+                        setattr(sns, sensor_id, avg_val)
                         state_changed = True
                         changed_domains.add("sensors")
                 else:
@@ -435,32 +454,6 @@ class StateManager:
                     # Raw sensor value updated, ensure frontend syncs via SSE
                     state_changed = True
                     changed_domains.add("sensors")
-                # ⚡ AUTOMATED BATHROOM VENTILATOR HYSTERESIS LOOP ⚡
-                if sensor_id == "bathroom" and sns.bathroom_hum is not None:
-                    on_threshold: int = self._config.bathroom.vent_on_humidity
-                    off_threshold: int = self._config.bathroom.vent_off_humidity
-
-                    # Engine relies entirely on the generic devices dictionary mapping
-                    current_vent_state: str = self._state.devices.get("bathroom_ventilator", "OFF")
-
-                    if sns.bathroom_hum >= on_threshold and current_vent_state != "ON":
-                        self._state.devices["bathroom_ventilator"] = "ON"
-                        changed_domains.add("devices")
-                        msg: str = f"Bathroom humidity ({sns.bathroom_hum}%) >= ON threshold ({on_threshold}%). Auto-engaging ventilator."
-                        logger.info(msg)
-                        if not self._state.hardware.live_mode:
-                            from datetime import datetime
-                            ts: str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-                            self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
-                    elif sns.bathroom_hum <= off_threshold and current_vent_state == "ON":
-                        self._state.devices["bathroom_ventilator"] = "OFF"
-                        changed_domains.add("devices")
-                        msg: str = f"Bathroom humidity ({sns.bathroom_hum}%) <= OFF threshold ({off_threshold}%). Auto-disengaging ventilator."
-                        logger.info(msg)
-                        if not self._state.hardware.live_mode:
-                            from datetime import datetime
-                            ts: str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-                            self._state.hardware.lab_simulation_logs.insert(0, f"{ts}|{msg}")
 
                 if sensor_id in ["sauna_high", "sauna_low"]:
                     if self._recalculate_sauna_metrics() or is_manual_lab_action:
@@ -554,20 +547,29 @@ class StateManager:
             now = int(time.time())
             self._state.ir.session_start_time = now
             self._state.ir.session_end_time = now + (self._config.ir.max_time_mins * 60)
-            # Note: modulation_pwm will automatically use the 75% default or whatever the user dragged it to last.
+
+            # Note: We NO LONGER overwrite the modulation_pwm here!
+            # It will automatically use the default or whatever the user dragged it to last.
             self._timer_manager.schedule("ir_main", self._state.ir.session_end_time, "IR_TIMER_EXPIRED")
             state_changed = True
             changed_domains.add("ir")
 
         elif event_name == "IR_OFF":
             self._state.ir.active = False
-            # Note: The slider will stay locked visually at its last value (e.g. 75%)
+            # Note: We NO LONGER drop modulation_pwm to 0 here!
+            # The slider will stay locked visually at its last value
             self._timer_manager.cancel("ir_main")
             state_changed = True
             changed_domains.add("ir")
 
         elif event_name == "IR_TIMER_EXPIRED":
             self.dispatch(Event(type=EventType.IR_OFF))
+
+        elif event_name == "IR_MODULATION_UPDATED":
+            self._state.ir.modulation_pwm = payload.get("pwm", 0)
+            self._state.ir.frequency = payload.get("freq", 0)
+            state_changed = True
+            changed_domains.add("ir")
 
         elif event_name == "DOOR_CHANGED":
             sensor_id = payload.get("sensor_id", "sauna")
@@ -609,6 +611,35 @@ class StateManager:
                 else:
                     payload["transitioned"] = True
 
+                # ⚡ Artificially inject 0.0W to instantly flush power graphs when switches turn off
+                if state_val == "OFF":
+                    if device == "pc":
+                        self.dispatch(
+                            Event(type=EventType.POWER_UPDATED, payload={"sensor_id": "pc_power", "value": 0.0}))
+                    elif device == "pc_aux":
+                        self.dispatch(
+                            Event(type=EventType.POWER_UPDATED, payload={"sensor_id": "pc_aux_power", "value": 0.0}))
+
+                # ⚡ Bathroom 1e ventilator timer lock
+                # When the fan turns ON (either manually or via high humidity automation), we lock it for X minutes
+                if device == "bathroom1_ventilator" and state_val == "ON" and old_val != "ON":
+                    self._state.devices["bathroom1_vent_locked"] = True
+                    deadline = int(time.time()) + (self._config.bathroom1.vent_min_runtime_mins * 60)
+                    self._timer_manager.schedule("bath1_vent_lock", deadline, "BATH1_VENT_LOCK_EXPIRED")
+
+        elif event_name == "BATH1_VENT_LOCK_EXPIRED":
+            # The 5-minute minimum runtime has passed. Release the lock.
+            self._state.devices["bathroom1_vent_locked"] = False
+            state_changed = True
+            changed_domains.add("devices")
+
+            # Immediately force an artificial humidity update to evaluate if it should turn off NOW
+            if self._state.sensors.bathroom1_hum is not None:
+                self.dispatch(Event(
+                    type=EventType.HUMIDITY_UPDATED,
+                    payload={"sensor_id": "bathroom1", "value": self._state.sensors.bathroom1_hum}
+                ))
+
         elif event_name == "LIGHTING_STATE_CHANGED":
             zone = payload.get("zone")
             state_val = payload.get("state")  # "ON" or "OFF"
@@ -647,12 +678,6 @@ class StateManager:
             self._state.sauna.phases_pwm = payload.get("phases", [0, 0, 0])
             state_changed = True
             changed_domains.add("sauna")
-
-        elif event_name == "IR_MODULATION_UPDATED":
-            self._state.ir.modulation_pwm = payload.get("pwm", 0)
-            self._state.ir.frequency = payload.get("freq", 0)
-            state_changed = True
-            changed_domains.add("ir")
 
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "DOOR_CHANGED"]:
             current_temp = self._state.sensors.sauna_calc_temp
