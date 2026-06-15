@@ -2,8 +2,8 @@
 import os
 import yaml
 from pathlib import Path
-from pydantic import BaseModel
-from typing import Optional, Dict, List
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, List, Any
 from dotenv import load_dotenv
 
 
@@ -92,6 +92,29 @@ class LabSeedConfig(BaseModel):
     outside_tick: int
 
 
+# --- Automation Models ---
+class TriggerConfig(BaseModel):
+    device: Optional[str] = None  # If sensor is present in hardware.yaml
+    idx: Optional[int] = None     # Raw Domoticz IDXs
+    state: Optional[str] = None
+    event: Optional[str] = None
+
+class ConditionConfig(BaseModel):
+    type: str
+    condition_is: str = Field(alias="is")  # "is" is a Python keyword, so we alias it
+
+class ActionConfig(BaseModel):
+    device: Optional[str] = None
+    idx: Optional[int] = None     # Raw Domoticz IDXs
+    state: str
+
+class AutomationRuleConfig(BaseModel):
+    name: str
+    trigger: TriggerConfig
+    conditions: Optional[List[ConditionConfig]] = None
+    actions: List[ActionConfig]
+
+
 class AppConfig(BaseModel):
     """The unified master configuration model."""
     wanos: WanosConfig
@@ -104,6 +127,7 @@ class AppConfig(BaseModel):
     bathroom: BathroomConfig
     weather: WeatherConfig
     lab_seed: Optional[LabSeedConfig] = None
+    automations: List[AutomationRuleConfig] = Field(default_factory=list)
 
 
 def load_config(config_path: str = "config.yaml") -> AppConfig:
@@ -142,7 +166,8 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "sauna": runtime_data["sauna"],
         "ir": runtime_data["ir"],
         "bathroom": runtime_data["bathroom"],
-        "weather": runtime_data["weather"]
+        "weather": runtime_data["weather"],
+        "automations": runtime_data.get("automations", [])
     }
 
     # STRICT CHECK 2: Extract & validate required secret keys

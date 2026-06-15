@@ -28,6 +28,16 @@ class DomoticzHomeHubBridge:
         # Early-gate cache to silently drop exact duplicate Domoticz broadcasts
         self._raw_cache: Dict[int, Any] = {}
 
+    @property
+    def watched_idxs(self) -> set[int]:
+        """Dynamically scans the YAML config for any raw IDXs used in automations."""
+        idxs = set()
+        if hasattr(self.state_manager._config, "automations"):
+            for rule in self.state_manager._config.automations:
+                if rule.trigger.idx:
+                    idxs.add(rule.trigger.idx)
+        return idxs
+
     async def start(self) -> None:
         # 1. Start listening for incoming broadcasts first
         await self.mqtt_client.subscribe(self._in_topic, self._parse_domoticz_inbound)
@@ -45,11 +55,16 @@ class DomoticzHomeHubBridge:
         """Fires MQTT commands to force Domoticz to broadcast current hardware states."""
         count = 0
 
-        for device_name, idx in self._name_to_idx.items():
-            # Skip invalid/dummy IDXs (like your sauna_dummy)
-            if idx <= 0:
-                continue
+        # Combine mapped IDXs and raw YAML IDXs into a single unique set
+        all_idxs_to_fetch = set()
+        for idx in self._name_to_idx.values():
+            if idx > 0:
+                all_idxs_to_fetch.add(idx)
+        for idx in self.watched_idxs:
+            if idx > 0:
+                all_idxs_to_fetch.add(idx)
 
+        for idx in all_idxs_to_fetch:
             command_payload = {
                 "command": "getdeviceinfo",
                 "idx": idx
@@ -77,7 +92,8 @@ class DomoticzHomeHubBridge:
             #    logger.info(f"[DIAGNOSTIC] Raw frame hit bridge entrance for IDX 9: {payload}")
 
             device_name = self._idx_to_name.get(idx)
-            if not device_name:
+            # Only drop it if it's NOT in hardware.yaml AND NOT in our automation rules
+            if not device_name and idx not in self.watched_idxs:
                 return  # Unregistered device, safely ignore
 
             # ⚡ EARLY GATE DUPLICATE FILTER ⚡
@@ -104,9 +120,14 @@ class DomoticzHomeHubBridge:
                 "svalue1": data.get("svalue1"),
                 "svalue2": data.get("svalue2")
             }
+
             await self.state_manager.mqtt_client.publish("wanos/domsensors/raw", filtered_raw_data)
 
-            device_type = self.state_manager._config.domoticz.idx[device_name].type
+            # Safely extract device type, defaulting to unknown if it's an unmapped raw IDX
+            device_type = "unknown"
+            if device_name:
+                device_type = self.state_manager._config.domoticz.idx[device_name].type
+
             # The generic translator handles ALL devices automatically without explicit IDs
             # This perfectly processes both natural live updates AND our boot-sync responses!
             if device_type == "temphum":
@@ -148,24 +169,27 @@ class DomoticzHomeHubBridge:
                         payload={"sensor_id": device_name, "value": int(float(raw_hum))}
                     ))
 
-            elif device_type == "switch":
+            elif device_type == "switch" or idx in self.watched_idxs:
+                # or idx: If it's not a mapped device, we still process it if the automation engine needs it!
                 nvalue = data.get("nvalue", 0)
                 status_string = "ON" if nvalue > 0 else "OFF"
 
-                # If the parsed state is identical to our current memory, it's a redundant echo.
-                if self._last_known_states.get(device_name) == status_string:
-                    logger.debug(
-                        f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor update ignored (duplicate: already {status_string})")
+                # Wrap unmapped IDXs in our virtual string format
+                target_id = device_name if device_name else f"idx_{idx}"
+
+                if self._last_known_states.get(target_id) == status_string:
                     return
 
-                logger.debug(f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor update received -> {status_string}")
-
                 # Lock into local memory to prevent echo loops
-                self._last_known_states[device_name] = status_string
+                self._last_known_states[target_id] = status_string
 
                 self.state_manager.dispatch(Event(
                     type=EventType.HUB_STATE_CHANGED,
-                    payload={"device_id": device_name, "state": status_string}
+                    payload={
+                        "device_id": target_id,  # passes "sauna_hue" OR "idx_1524"
+                        "idx": idx,  # Always pass the raw integer
+                        "state": status_string
+                    }
                 ))
 
             elif device_type == "power":
@@ -197,7 +221,7 @@ class DomoticzHomeHubBridge:
 
     async def _on_state_changed(self, state: SystemState) -> None:
         try:
-            # 100% Generic Loop. No hardcoded names exist here anymore.
+            # 1. Mapped Semantic Devices (From hardware.yaml)
             for device_name, idx in self._name_to_idx.items():
                 device_type = self.state_manager._config.domoticz.idx[device_name].type
                 if device_type != "switch":
@@ -216,6 +240,17 @@ class DomoticzHomeHubBridge:
                     await self.mqtt_client.publish(self._out_topic, domoticz_command)
                     logger.info(f"[Domoticz] Command Sent: {device_name} -> {current_state}")
                     self._last_known_states[device_name] = current_state
+
+            # 2. Raw IDXs from Automations (e.g., "idx_1524")
+            for key, current_state in state.devices.items():
+                if key.startswith("idx_"):
+                    raw_idx = int(key.split("_")[1])
+                    if current_state is not None and current_state != self._last_known_states.get(key):
+                        domoticz_command = {"command": "switchlight", "idx": raw_idx,
+                                            "switchcmd": "On" if current_state == "ON" else "Off"}
+                        await self.mqtt_client.publish(self._out_topic, domoticz_command)
+                        logger.info(f"[Domoticz] Raw Command Sent: IDX {raw_idx} -> {current_state}")
+                        self._last_known_states[key] = current_state
 
         except Exception as e:
             logger.error(f"Error in Domoticz outbound sync: {e}")

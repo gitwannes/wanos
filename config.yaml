@@ -1,6 +1,7 @@
 # --- file: config.yaml ---
-# Runtime System Parameters - Modifiable via Web UI
 
+## Part 1: Runtime System Parameters - Modifiable via Web UI
+# Dictionaries (No Dashes): Used for describing a single, unique thing with named properties
 sauna:
   default_sauna_setpoint: 80     # Default sauna temperature setpoint
   max_temp: 95             # maximum setpoint that can be set in the UI
@@ -25,3 +26,93 @@ bathroom:
 weather:
   location: "Borsbeek,BE"
   poll_interval_mins: 30
+
+## Part 2: Automation rules
+# Lists (Dashes): Used for describing a collection of repeating things
+# (like a list of 10 Automation Rules, or a list of 3 Actions to take)
+automations:
+# --- HARDWARE TOGGLES ---
+  - name: "PC ON -> PC Aux ON"
+    trigger:
+      device: "pc"
+      state: "ON"
+    actions:
+      - device: "pc_aux"
+        state: "ON"
+
+  - name: "PC OFF -> PC Aux OFF"
+    trigger:
+      device: "pc"
+      state: "OFF"
+    actions:
+      - device: "pc_aux"
+        state: "OFF"
+
+  - name: "PC Aux ON -> Buro Schemer ON (Only if Dark)"
+    trigger:
+      device: "pc_aux"
+      state: "ON"
+    conditions:
+      - type: "time_of_day"
+        is: "dark"
+    actions:
+      - device: "buro_schemer"
+        state: "ON"
+
+  - name: "PC Aux OFF -> Buro Schemer OFF"
+    trigger:
+      device: "pc_aux"
+      state: "OFF"
+    actions:
+      - device: "buro_schemer"
+        state: "OFF"
+
+# --- SAUNA MACROS ---
+  - name: "Sauna Lights ON"
+    trigger:
+      event: "SAUNA_ON"
+    actions:
+      - device: "sauna_hue"
+        state: "ON"
+      - device: "sauna_zoutlamp"
+        state: "ON"
+
+  - name: "Sauna Lights OFF"
+    trigger:
+      event: "SAUNA_OFF"
+    actions:
+      - device: "sauna_hue"
+        state: "OFF"
+      - device: "sauna_zoutlamp"
+        state: "OFF"
+
+  # --- SCENES ---
+  - name: "Scene: 1e Verdiep ALL OFF"
+    trigger:
+      event: "SCENE_VERDIEP_OFF"
+    actions:
+      - device: "cinema_main"
+        state: "OFF"
+      - device: "cinema_hue"
+        state: "OFF"
+      - device: "buro"
+        state: "OFF"
+      - device: "buro_schemer"
+        state: "OFF"
+      - device: "pc_aux"
+        state: "OFF"
+      - device: "bathroom_main"
+        state: "OFF"
+      - device: "bathroom_wastafel"
+        state: "OFF"
+      - device: "gang_boven"
+        state: "OFF"
+
+# Using Raw Domoticz IDXs for sensors not used above
+  - name: "Slpk_Dries met zijn Hue"
+    trigger:
+      idx: 1524
+      state: "ON"
+    actions:
+      - idx: 7237
+        state: "ON"

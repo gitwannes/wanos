@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # wanos_boot.sh
 # Manage a development uvicorn process for "uvicorn main:app --host 0.0.0.0 --port 8000"
 # Commands:
@@ -7,6 +7,7 @@
 #   stop [force]    Attempt graceful shutdown (SIGINT) of matching uvicorn PID(s); 'force' forces kill-9
 #   consolelog      Show last $TAIL_LINES lines of wanos.console.log and follow
 #   applog          Show last $TAIL_LINES lines of /var/log/wisc/wanos.log and follow
+#   automationlog   Show last $TAIL_LINES lines of /var/log/wisc/wanos_automations.log and follow
 #   reload          Attempt stop (no force); if stop succeeds, start; do not force-kill
 set -euo pipefail
 
@@ -21,6 +22,7 @@ APP_ARGS="main:app --host 0.0.0.0 --port 8000"
 
 LOG_FILE="$HOME/wisc_backend/wanos.console.log"
 APP_LOG_FILE="/var/log/wisc/wanos.log"
+AUTOM_LOG_FILE="/var/log/wisc/wanos_automations.log"
 GRACE_PERIOD=10   # seconds to wait for graceful shutdown
 TAIL_LINES=20     # number of lines to show initially for 'consolelog' and 'applog'
 
@@ -39,6 +41,7 @@ Commands:
   stop [force]    Attempt graceful shutdown (SIGINT) of matching uvicorn PID(s); 'force' forces kill -9
   consolelog      Show last $TAIL_LINES lines of $LOG_FILE and follow
   applog          Show last $TAIL_LINES lines of $APP_LOG_FILE and follow
+  automationlog   Show last $TAIL_LINES lines of $AUTOM_LOG_FILE and follow
   reload          Attempt stop (no force); if stop succeeds, start; do not force-kill
 
 Examples:
@@ -48,6 +51,7 @@ Examples:
   $0 stop force
   $0 consolelog
   $0 applog
+  $0 automationlog
   $0 reload
 EOF
   exit 2
@@ -233,6 +237,18 @@ if [ "$CMD" = "applog" ]; then
   fi
   log "Tailing app log ($APP_LOG_FILE). Showing last $TAIL_LINES lines then following."
   exec tail -n "$TAIL_LINES" -F "$APP_LOG_FILE"
+fi
+
+# -------------------------
+# Automation log tailing
+# -------------------------
+if [ "$CMD" = "automationlog" ]; then
+  if [ ! -f "$AUTOM_LOG_FILE" ]; then
+    log "App log file not found: $AUTOM_LOG_FILE"
+    exit 1
+  fi
+  log "Tailing automation log ($AUTOM_LOG_FILE). Showing last $TAIL_LINES lines then following."
+  exec tail -n "$TAIL_LINES" -F "$AUTOM_LOG_FILE"
 fi
 
 # -------------------------

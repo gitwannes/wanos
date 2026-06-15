@@ -79,8 +79,11 @@ echo.
 
 echo --- Normalizing line endings for: "%SRC_FILE%"
 
+REM powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+REM  "if (Test-Path '%SRC_FILE%') { $t = Get-Content -Raw -Encoding UTF8 '%SRC_FILE%'; $n = $t -replace \"`r`n\",\"`n\"; if ($n -ne $t) { Set-Content -NoNewline -Encoding UTF8 -Value $n -Path '%SRC_FILE%'; Write-Host 'Converted: %SRC_FILE%'; } else { Write-Host 'Already LF: %SRC_FILE%'; } } else { Write-Host 'Not found: %SRC_FILE%'; }"
+
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "if (Test-Path '%SRC_FILE%') { $t = Get-Content -Raw -Encoding UTF8 '%SRC_FILE%'; $n = $t -replace \"`r`n\",\"`n\"; if ($n -ne $t) { Set-Content -NoNewline -Encoding UTF8 -Value $n -Path '%SRC_FILE%'; Write-Host 'Converted: %SRC_FILE%'; } else { Write-Host 'Already LF: %SRC_FILE%'; } } else { Write-Host 'Not found: %SRC_FILE%'; }"
+  "$path='%SRC_FILE%'; if (Test-Path $path) { $t = [System.IO.File]::ReadAllText($path); $n = $t -replace \"`r`n\",\"`n\"; $enc = New-Object System.Text.UTF8Encoding $false; [System.IO.File]::WriteAllText($path, $n, $enc); Write-Host 'Cleaned LF and stripped BOM:' $path; } else { Write-Host 'Not found:' $path; }"
 
 echo.
 echo --- Starting robocopy to Pi (Z:\) ...
