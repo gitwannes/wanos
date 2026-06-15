@@ -441,22 +441,22 @@
                             </div>
                         </div>
 
-                        <button class="btn btn-error btn-outline btn-block mt-8 font-mono tracking-widest text-xs"
+                        <button class="btn btn-error btn-outline btn-block mt-0 font-mono tracking-widest text-xs"
                                 @click="dispatchEvent('SCENE_GV_OFF')"
                                 :disabled="!state.system.domoticz_mqtt_connected">
                             gv ALL OFF
                         </button>
-                        <button class="btn btn-error btn-outline btn-block mt-8 font-mono tracking-widest text-xs"
+                        <button class="btn btn-error btn-outline btn-block mt-0 font-mono tracking-widest text-xs"
                                 @click="dispatchEvent('SCENE_VERDIEP1_OFF')"
                                 :disabled="!state.system.domoticz_mqtt_connected">
                             1e verdiep ALL OFF
                         </button>
-                        <button class="btn btn-error btn-outline btn-block mt-8 font-mono tracking-widest text-xs"
+                        <button class="btn btn-error btn-outline btn-block mt-0 font-mono tracking-widest text-xs"
                                 @click="dispatchEvent('SCENE_VERDIEP2_OFF')"
                                 :disabled="!state.system.domoticz_mqtt_connected">
                             2e verdiep ALL OFF
                         </button>
-                        <button class="btn btn-error btn-outline btn-block mt-8 font-mono tracking-widest text-xs"
+                        <button class="btn btn-error btn-outline btn-block mt-0 font-mono tracking-widest text-xs"
                                 @click="dispatchEvent('SCENE_ALL_OFF')"
                                 :disabled="!state.system.domoticz_mqtt_connected">
                             ALL OFF
@@ -467,14 +467,26 @@
 
         </div>
 
-        <div class="w-full" x-show="!state.hardware.live_mode">
+        <div class="w-full mt-6" :class="state.hardware.live_mode ? 'opacity-40 grayscale pointer-events-none' : ''">
             <div class="card bg-base-100 shadow-xl border border-base-200">
                 <div class="card-body">
-                    <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4 flex justify-between">
-                        <span>🧪 Lab Mode Simulation</span>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[10px] text-base-400">ENABLE LAB CONTROLS</span>
-                            <input type="checkbox" class="toggle toggle-warning toggle-sm shadow" x-model="labControlsEnabled" />
+                    <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4 flex justify-between items-center">
+                        <span class="whitespace-nowrap">🧪 Lab Mode Simulation</span>
+                        <div class="flex items-center gap-4 flex-wrap justify-end">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-base-400">ENABLE SIMULATIONS (physics engine)</span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="state.hardware.live_mode"
+                                       :checked="state.hardware.simulations_enabled"
+                                       @change="toggleSimulations()" />
+                            </div>
+                            <div class="flex items-center gap-2 border-l border-base-300 pl-4">
+                                <span class="text-[10px] text-base-400">ENABLE LAB CONTROLS</span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="state.hardware.live_mode"
+                                       x-model="labControlsEnabled"
+                                       @change="syncLabControls()" />
+                            </div>
                         </div>
                     </h2>
 
@@ -601,35 +613,11 @@
                                 <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                             </div>
                             <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold">Hardware Bus</span>
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.hardware.live_mode ? 'text-success' : 'text-warning'" x-text="state.hardware.live_mode ? 'LIVE' : 'SIMULATION'"></span>
-                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                           :checked="state.hardware.live_mode"
-                                           @click="handleHardwareToggleClick($event)" />                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col gap-3 font-mono text-xs w-full">
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">PC Master Power</span>
-                                <div class="flex items-center gap-2">
-                                    <span class="badge badge-xs py-2 px-2"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.pc === null ? 'badge-neutral text-gray-500 italic' : (state.devices.pc === 'ON' ? 'badge-success animate-pulse' : 'badge-neutral')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc === null ? 'SYNCING' : (state.devices.pc === 'ON' ? 'ON' : 'OFF'))"></span>
-                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc === null"
-                                           :checked="state.devices.pc === 'ON'"
-                                           @click="handlePCToggleClick($event)" />
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">Safety SSR Relay</span>
                                 <span class="badge badge-xs py-2 px-2"
                                       :class="!state.system.domoticz_mqtt_connected || state.devices.safety_ssr === null ? 'badge-neutral text-gray-500 italic' : (state.devices.safety_ssr === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral')"
                                       x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.safety_ssr === null ? 'SYNCING' : (state.devices.safety_ssr === 'ON' ? 'ENGAGED' : 'SAFE'))"></span>
                             </div>
-
                             <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
                                 <div class="flex flex-col">
                                     <span class="text-base-400 uppercase font-bold text-[10px]">OS Uptime</span>
@@ -642,8 +630,59 @@
                             </div>
                         </div>
 
-                        <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-center">
-                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-1">Diagnostic: Sauna Probes</div>
+                        <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">Hardware Bus</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-[10px]" :class="state.hardware.live_mode ? 'text-success' : 'text-warning'" x-text="state.hardware.live_mode ? 'LIVE' : 'SIMULATION'"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                           :checked="state.hardware.live_mode"
+                                           @click="handleHardwareToggleClick($event)" />
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">Domoticz MQTT</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-[10px]" :class="state.system.domoticz_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.domoticz_integration_enabled ? 'ACTIVE' : 'DOWN'"></span>
+                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                           :checked="state.system.domoticz_integration_enabled"
+                                           @change="toggleDomoticz()" />
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">OpenWeather API</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-[10px]" :class="state.system.owm_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.owm_integration_enabled ? 'ACTIVE' : 'DOWN'"></span>
+                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                           :checked="state.system.owm_integration_enabled"
+                                           @change="toggleOWM()" />
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">Automations Physics Engine</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-[10px]" :class="state.system.automations_enabled ? 'text-success' : 'text-warning'" x-text="state.system.automations_enabled ? 'ACTIVE' : 'DOWN'"></span>
+                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                           :checked="state.system.automations_enabled"
+                                           @change="toggleAutomations()" />
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">PC Master Power</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="badge badge-xs py-2 px-2"
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices.pc === null ? 'badge-neutral text-gray-500 italic' : (state.devices.pc === 'ON' ? 'badge-success animate-pulse' : 'badge-neutral')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc === null ? 'SYNCING' : (state.devices.pc === 'ON' ? 'ON' : 'OFF'))"></span>
+                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc === null"
+                                           :checked="state.devices.pc === 'ON'"
+                                           @click="handlePCToggleClick($event)" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-start">
+                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-1">Diagnostic: Sauna Probes & Heater Relays</div>
                             <div class="flex justify-between items-center">
                                 <span class="text-base-400">Ceiling (High):</span>
                                 <div class="text-right">
@@ -651,18 +690,15 @@
                                     <span class="text-info ml-1 text-xs" x-text="state.sensors.sauna_high_hum !== null ? state.sensors.sauna_high_hum + '%' : '--%'"></span>
                                 </div>
                             </div>
-                            <div class="flex justify-between items-center">
+                            <div class="flex justify-between items-center mb-1">
                                 <span class="text-base-400">Bench (Low):</span>
                                 <div class="text-right">
                                     <span class="text-amber-500 font-bold text-sm" x-text="state.sensors.sauna_low_temp !== null ? state.sensors.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
                                     <span class="text-info ml-1 text-xs" x-text="state.sensors.sauna_low_hum !== null ? state.sensors.sauna_low_hum + '%' : '--%'"></span>
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-center">
-                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-1">Diagnostic: Heater Relays</div>
-                            <div class="flex justify-between items-center">
+                            <div class="border-t border-base-300/50 pt-2 flex justify-between items-center">
                                 <span class="text-base-400">Fireorder:</span>
                                 <div class="text-right">
                                     <span class="text-accent font-bold" x-text="state.sauna.fireorder"></span>
@@ -687,8 +723,8 @@
                                 </div>
                             </div>
                         </div>
-
-                    </div>                </div>
+                    </div>
+                </div>
             </div>
         </div>
         </div>

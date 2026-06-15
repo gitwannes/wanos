@@ -45,7 +45,7 @@ class StateManager:
         self._state_listeners.append(callback)
         self._state.sauna.target_temp = float(self._config.sauna.default_sauna_setpoint)
         self._state.sauna.max_temp = float(self._config.sauna.max_temp)
-        self._state.lab_seed = self._config.lab_seed
+        self._state.boot_seed = self._config.boot_seed
         self._state.devices["door_sauna"] = "CLOSED"
         self._state.devices["door_bathroom1"] = "CLOSED"
 
@@ -199,6 +199,8 @@ class StateManager:
 
         # --- LIVE TERMINAL LOGGING INJECTION GATEWAY ---
         is_manual_lab_action = payload.get("lab_override", False)
+        is_boot_baseline_seed = payload.get("boot_seed", False)
+        is_simulation_action = payload.get("from_simulator", False)
         is_user_command = event_name in [
             "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "SAUNA_MODULATION_UPDATED",
             "SAUNA_HOLD", "SAUNA_HOLD_TOGGLED", "SAUNA_TIMER_ADJUSTED", "IR_ON", "IR_OFF", "IR_MODULATION_UPDATED"
@@ -207,134 +209,89 @@ class StateManager:
         if event_name == "SYSTEM_READY":
             logger.info("Internal Engine State validated and locked.")
             logger.info(f"Internal Event Processed: {event_name}")
-        elif is_user_command or is_manual_lab_action:
+        elif (is_user_command or is_manual_lab_action) and not is_simulation_action and not is_boot_baseline_seed:
             logger.info(f"Lab Action Received: {event_name} | Payload: {payload}")
             await self.logger.info(f"User Action Processed: {event_name}")
         elif event_name != "SYSTEM_METRICS_UPDATED":
-            # Universal Catch-All: Logs EVERY inbound background event (Power, Weather, Sensors, Relays)
-            # while safely ignoring the 2-second internal network watchdog tick.
-            logger.debug(f"Event Received [{event_name}]: {payload}")
+            # Captures background automation, external bridges, and simulated physics ticks
+            if not is_simulation_action and not is_boot_baseline_seed:
+                logger.d(f"Event Received [{event_name}]: {payload}")
+            else:
+                origin_tag = ""
+                if is_simulation_action:
+                    origin_tag = " [SIMULATION]"
+                elif is_boot_baseline_seed:
+                    origin_tag = " [BOOT_SEED]"
+                logger.debug(f"Event Received [{event_name}]{origin_tag}: {payload}")
 
-        # If it's a background simulator event, translate it to a string for the UI panel!
-        if not self._state.hardware.live_mode and not is_manual_lab_action:
-            log_msg = ""
-            from datetime import datetime
-            ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]  # Generates HH:MM:SS.ms
+        # --- HARDWARE TELEMETRY ROUTERS ---
+        if event_name == "POWER_UPDATED":
+            sensor_id: str = payload.get("sensor_id", "")
+            raw_val: float = payload.get("value", 0.0)
+            sns: Any = self._state.sensors
+            moving_avg = 10
 
-            if event_name == "TEMP_UPDATED":
-                sid = payload.get("sensor_id")
-                new_val = payload.get("value")
-                old_val = getattr(self._state.sensors, f"{sid}_temp", None)
-                if old_val is not None:
-                    delta = round(float(new_val) - float(old_val), 1)
-                    if delta != 0.0:  # Only log if it actually shifted!
-                        sign = "+" if delta > 0 else ""
-                        log_msg = f"{ts}|🌡️ {sid} temp: {sign}{delta}°C -> {new_val:.1f}°C"
-                else:
-                    log_msg = f"{ts}|🌡️ {sid} temp: -> {new_val:.1f}°C"
+            # Initialize tracking histories in RAM if absent
+            if sensor_id not in self._sensor_history:
+                self._sensor_history[sensor_id] = []
 
-            elif event_name == "POWER_UPDATED":
-                sensor_id: str = payload.get("sensor_id", "")
-                raw_val: float = payload.get("value", 0.0)
-                sns: Any = self._state.sensors
-                moving_avg = 10
+            history = self._sensor_history[sensor_id]
 
-                # --- START DEBUG CODE ---
-                #logger.warning(f"[DEBUG POWER] Raw Payload: {payload}")
-                #logger.warning(f"[DEBUG POWER] Extracted sensor_id: '{sensor_id}' | raw value: {raw_val}")
-                #logger.warning(f"[DEBUG POWER] Does SensorsState have '{sensor_id}'? -> {hasattr(sns, sensor_id)}")
-                #if not hasattr(sns, sensor_id):
-                #    logger.warning(
-                #        f"[DEBUG POWER] Missing from models.py! Routing to state.devices['{sensor_id}'] instead.")
-                # --- END DEBUG CODE ---
+            if raw_val == 0.0:
+                # Flush the math buffer so the moving average drops to zero instantly
+                history.clear()
+                history.append(0.0)
+            else:
+                history.append(raw_val)
+                if len(history) > moving_avg:
+                    history.pop(0)
 
-                # --- Moving Average Logic ---
-                if sensor_id not in self._sensor_history:
-                    self._sensor_history[sensor_id] = []
+            # Compute smoothed moving average aggregate
+            avg_val = round(sum(history) / len(history), 1)
 
-                history = self._sensor_history[sensor_id]
+            # Target validation branch mapping
+            if hasattr(sns, sensor_id):
+                # Pre-fill tracking frames instantly to render layout lines on initial power steps
+                if sensor_id == "pc_power":
+                    if avg_val == 0.0:
+                        sns.pc_power_history = [0.0] * moving_avg
+                    elif len(sns.pc_power_history) == 0:
+                        sns.pc_power_history = [avg_val] * moving_avg
+                    else:
+                        sns.pc_power_history.append(avg_val)
+                        if len(sns.pc_power_history) > moving_avg:
+                            sns.pc_power_history.pop(0)
 
-                if raw_val == 0.0:
-                    # ⚡ FIX: Smart Plug Silence
-                    # Instantly flush the math buffer so the average drops to 0 instantly
-                    history.clear()
-                    history.append(0.0)
-                else:
-                    history.append(raw_val)
-                    if len(history) > moving_avg:
-                        history.pop(0)
+                if sensor_id == "pc_aux_power":
+                    if avg_val == 0.0:
+                        sns.pc_aux_power_history = [0.0] * moving_avg
+                    elif len(sns.pc_aux_power_history) == 0:
+                        sns.pc_aux_power_history = [avg_val] * moving_avg
+                    else:
+                        sns.pc_aux_power_history.append(avg_val)
+                        if len(sns.pc_aux_power_history) > moving_avg:
+                            sns.pc_aux_power_history.pop(0)
 
-                # Calculate average and round to 1 decimal place
-                avg_val = round(sum(history) / len(history), 1)
+                # Throttle transmission: only emit snap updates when rounded median mathematically shifts
+                if getattr(sns, sensor_id) != avg_val:
+                    setattr(sns, sensor_id, avg_val)
+                    state_changed = True
+                    changed_domains.add("sensors")
+            else:
+                if self._state.devices.get(sensor_id) != avg_val:
+                    self._state.devices[sensor_id] = avg_val
+                    state_changed = True
+                    changed_domains.add("devices")
 
-                # --- DEBUG CODE ---
-                # logger.warning(f"[DEBUG POWER] {sensor_id} | raw value: {raw_val} | avg value: {avg_val} ({len(history)} values)")
+        elif event_name == "EXTERNAL_WEATHER_UPDATED":
+            # Map absolute sun cycles cleanly into state tracking arrays
+            self._state.sensors.sunrise_unix = payload.get("sunrise")
+            self._state.sensors.sunset_unix = payload.get("sunset")
+            state_changed = True
+            changed_domains.add("sensors")
 
-                # Matches the exact YAML key to the internal sensor dictionary
-                if hasattr(sns, sensor_id):
-                    # ALWAYS update the history arrays so they fill up instantly
-                    if sensor_id == "pc_power":
-                        if avg_val == 0.0:
-                            sns.pc_power_history = [0.0] * moving_avg
-                        elif len(sns.pc_power_history) == 0:
-                            sns.pc_power_history = [avg_val] * moving_avg
-                        else:
-                            sns.pc_power_history.append(avg_val)
-                            if len(sns.pc_power_history) > moving_avg:
-                                sns.pc_power_history.pop(0)
-
-                    if sensor_id == "pc_aux_power":
-                        if avg_val == 0.0:
-                            sns.pc_aux_power_history = [0.0] * moving_avg
-                        elif len(sns.pc_aux_power_history) == 0:
-                            sns.pc_aux_power_history = [avg_val] * moving_avg
-                        else:
-                            sns.pc_aux_power_history.append(avg_val)
-                            if len(sns.pc_aux_power_history) > moving_avg:
-                                sns.pc_aux_power_history.pop(0)
-
-                    # THROTTLE: Only update memory and push to UI if the smoothed average actually shifted
-                    # Note: On the very first reading, getattr is None, which != avg_val, so it pushes the full array!
-                    if getattr(sns, sensor_id) != avg_val:
-                        setattr(sns, sensor_id, avg_val)
-                        state_changed = True
-                        changed_domains.add("sensors")
-                else:
-                    if self._state.devices.get(sensor_id) != avg_val:
-                        self._state.devices[sensor_id] = avg_val
-                        state_changed = True
-                        changed_domains.add("devices")
-
-            elif event_name == "HUMIDITY_UPDATED":
-                sid = payload.get("sensor_id")
-                new_val = payload.get("value")
-                old_val = getattr(self._state.sensors, f"{sid}_hum", None)
-                if old_val is not None:
-                    delta = int(new_val) - int(old_val)
-                    if delta != 0:  # Only log if it actually shifted!
-                        sign = "+" if delta > 0 else ""
-                        log_msg = f"{ts}|💧 {sid} humidity: {sign}{delta}% -> {new_val}%"
-                else:
-                    log_msg = f"{ts}|💧 {sid} humidity: -> {new_val}%"
-
-            elif event_name == "EXTERNAL_WEATHER_UPDATED":
-                self._state.sensors.sunrise_unix = payload.get("sunrise")
-                self._state.sensors.sunset_unix = payload.get("sunset")
-                state_changed = True
-                changed_domains.add("sensors")
-
-            elif event_name == "HUB_STATE_CHANGED":
-                dev = payload.get("device_id")
-                st = payload.get("state")
-                log_msg = f"{ts}|🔌 {dev}: -> {st}"
-
-            if log_msg:
-                self._state.hardware.lab_simulation_logs.insert(0, log_msg)
-                self._state.hardware.lab_simulation_logs = self._state.hardware.lab_simulation_logs[:50]
-                state_changed = True
-                changed_domains.add("hardware")
-
-        if event_name == "SYSTEM_READY":
+        # --- SYSTEM STATE ROUTERS ---
+        elif event_name == "SYSTEM_READY":
             self._state.hardware.live_mode = False
             self._set_hardware_safety_gate(False)
             state_changed = True
@@ -370,14 +327,30 @@ class StateManager:
             state_changed = True
             changed_domains.add("hardware")
 
-        elif event_name == "LAB_SIMULATION_LOG":
-            msg = payload.get("message", "")
-            if msg:
-                # Insert at the top (index 0) so the newest logs are first, keep max 50
-                self._state.hardware.lab_simulation_logs.insert(0, msg)
-                self._state.hardware.lab_simulation_logs = self._state.hardware.lab_simulation_logs[:50]
-                state_changed = True
-                changed_domains.add("hardware")
+        elif event_name == "AUTOMATIONS_TOGGLED":
+            is_enabled = payload.get("enabled", True)
+            self._state.system.automations_enabled = is_enabled
+            state_changed = True
+            changed_domains.add("system")
+            # ⚡ Record the master state change directly in the dedicated automation log file
+            from logic.automation_rules import AutomationEngine
+            state_str = "ON" if is_enabled else "OFF"
+            AutomationEngine._log_execution("Master Toggle", "Automations Engine", state_str)
+
+        elif event_name == "DOMOTICZ_TOGGLED":
+            self._state.system.domoticz_integration_enabled = payload.get("enabled", False)
+            state_changed = True
+            changed_domains.add("system")
+
+        elif event_name == "OWM_TOGGLED":
+            self._state.system.owm_integration_enabled = payload.get("enabled", False)
+            state_changed = True
+            changed_domains.add("system")
+
+        elif event_name == "SIMULATIONS_TOGGLED":
+            self._state.hardware.simulations_enabled = payload.get("enabled", False)
+            state_changed = True
+            changed_domains.add("hardware")
 
         # --------------------------------------------------------
         # PHYSICAL PULSE MAPPING
@@ -478,8 +451,8 @@ class StateManager:
         # CORE CONTROLLER MODULE ROUTERS
         # --------------------------------------------------------
         elif event_name == "SAUNA_ON":
-            door_open = self._state.devices.get("door_sauna") == "OPEN"
-            if door_open:
+            door_sauna_open = self._state.devices.get("door_sauna") == "OPEN"
+            if door_sauna_open:
                 await self.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Door is open.")
                 return False, set()
             if self._state.sensors.sauna_calc_temp is None:
@@ -743,8 +716,11 @@ class StateManager:
 
         # ⚡ AUTOMATION ENGINE HOOK ⚡
         # Evaluates the current event and dispatches any automated downstream cascades or scenes.
-        for auto_event in AutomationEngine.evaluate(event, self._state):
-            self.dispatch(auto_event)
+        # Master Safety Gate: Run automations if the toggle is ON, or forcefully run them
+        # if Live Hardware is active (to ensure the real house never ignores rules).
+        if self._state.system.automations_enabled:
+            for auto_event in AutomationEngine.evaluate(event, self._state):
+                self.dispatch(auto_event)
 
         return state_changed, changed_domains
 

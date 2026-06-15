@@ -12,7 +12,10 @@ function wanosApp() {
                 os_boot_unix: null,
                 app_boot_unix: null,
                 os_uptime_formatted: "00:00:00",
-                app_uptime_formatted: "00:00:00"
+                app_uptime_formatted: "00:00:00",
+                automations_enabled: true, // Master switch for the logic engine
+                domoticz_integration_enabled: false, // ⚡ Switch to block/allow Domoticz messages
+                owm_integration_enabled: false // ⚡ Switch to block/allow OWM polling
             },
             sensors: {
                 outside_temp: null,
@@ -70,6 +73,7 @@ function wanosApp() {
             },
             hardware: {
                 live_mode: false,
+                simulations_enabled: false, // Master switch for the physics engine
                 safety_pin_active: false, // Hardwired GPIO. Instantly verified locally, safe to default false.
                 sensor_errors: []
             },
@@ -80,6 +84,7 @@ function wanosApp() {
             devices: {
                 door_sauna: "CLOSED", // Local GPIO (Not Domoticz)
                 door_bathroom1: "CLOSED", // Local GPIO
+                buro: null,
                 cinema_main: null,
                 cinema_buro: null,
                 buro_schemer: null,
@@ -172,16 +177,31 @@ function wanosApp() {
             }
             if (!fullState.hardware.sensor_errors) fullState.hardware.sensor_errors = [];
             fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
-            fullState.system = fullState.system || this.state.system;
-            // Merge retrieved devices with existing safe defaults so we don't drop initialized UI keys
-            fullState.devices = Object.assign({}, this.state.devices, fullState.devices || {});
 
-            this.state = fullState;
+            // Alpine Reactivity Preservation
+            // Never overwrite `this.state` directly, as it severs the reactivity proxy!
+            // Instead, gracefully merge the incoming snapshot into the existing tracked domains.
+            for (const domain of ["system", "sensors", "sauna", "ir", "metrics", "hardware"]) {
+                if (fullState[domain]) {
+                    this.state[domain] = Object.assign({}, this.state[domain], fullState[domain]);
+                }
+            }
+
+            // Merge retrieved devices with existing safe defaults so we don't drop initialized UI keys
+            this.state.devices = Object.assign({}, this.state.devices, fullState.devices || {});
+
+            if (fullState.lab_seed) {
+                this.state.lab_seed = fullState.lab_seed;
+            }
+
             this.syncIRStepIndex();
 
             if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
                 this.syncLabControls();
             }
+
+            // ⚡ Instantly drop the loading screen so the user sees the populated data
+            this.connected = true;
         },
 
         _applyDomainDelta(domain, data) {
@@ -498,6 +518,26 @@ function wanosApp() {
         toggleHardwareMode() {
             const nextMode = !this.state.hardware.live_mode;
             this.dispatchEvent("HARDWARE_LIVE_MODE_CHANGED", { live: nextMode });
+        },
+
+        toggleAutomations() {
+            const nextState = !this.state.system.automations_enabled;
+            this.dispatchEvent("AUTOMATIONS_TOGGLED", { enabled: nextState });
+        },
+
+        toggleDomoticz() {
+            const nextState = !this.state.system.domoticz_integration_enabled;
+            this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: nextState });
+        },
+
+        toggleOWM() {
+            const nextState = !this.state.system.owm_integration_enabled;
+            this.dispatchEvent("OWM_TOGGLED", { enabled: nextState });
+        },
+
+        toggleSimulations() {
+            const nextState = !this.state.hardware.simulations_enabled;
+            this.dispatchEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
         },
 
         injectLabDoorChange(doorName, isOpen) {

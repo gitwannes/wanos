@@ -152,10 +152,10 @@ class SaunaController:
         Called by the State Manager when temps or targets change.
         Returns pure numeric state data if the modulation needs updating, or None if no change.
         """
-        door_open = state.devices.get("door_sauna") == "OPEN"
+        door_sauna_open = state.devices.get("door_sauna") == "OPEN"
 
         # --- Safety & Hold Interlocks ---
-        if door_open or state.sauna.hold_mode == "hold" or not state.sauna.active:
+        if door_sauna_open or state.sauna.hold_mode == "hold" or not state.sauna.active:
             # Safety override: instantly drop all power and bypass PID updates.
             if self.current_total_pwm != 0:
                 self.current_total_pwm = 0

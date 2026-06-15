@@ -28,6 +28,10 @@ class DomoticzHomeHubBridge:
         # Early-gate cache to silently drop exact duplicate Domoticz broadcasts
         self._raw_cache: Dict[int, Any] = {}
 
+        # ⚡ Debounce properties to filter out rapid signal bouncing
+        self._debounce_tasks: Dict[int, asyncio.Task] = {}
+        self._debounce_delay: float = 0.3  # 300ms waiting room
+
     @property
     def watched_idxs(self) -> set[int]:
         """Dynamically scans the YAML config for any raw IDXs used in automations."""
@@ -49,8 +53,12 @@ class DomoticzHomeHubBridge:
         await self.mqtt_client.subscribe(self._in_topic, self._parse_domoticz_inbound)
         self.state_manager.register_listener(self._on_state_changed)
 
-        # 2. Trigger the pure MQTT cold-boot sync
-        await self._fetch_initial_states_mqtt()
+        # 2. Track internal toggle state to catch transitions
+        self._integration_enabled = self.state_manager._state.system.domoticz_integration_enabled
+
+        # 3. Only run cold-boot sync if the switch is ON at startup
+        if self._integration_enabled:
+            await self._fetch_initial_states_mqtt()
 
         logger.success("[Domoticz] HomeHub Bridge initialized (Pure MQTT Mode).")
 
@@ -59,7 +67,6 @@ class DomoticzHomeHubBridge:
 
     async def _fetch_initial_states_mqtt(self) -> None:
         """Fires MQTT commands to force Domoticz to broadcast current hardware states."""
-        count = 0
 
         # Combine mapped IDXs and raw YAML IDXs into a single unique set
         all_idxs_to_fetch = set()
@@ -70,6 +77,11 @@ class DomoticzHomeHubBridge:
             if idx > 0:
                 all_idxs_to_fetch.add(idx)
 
+        # Calculate the total count
+        count = len(all_idxs_to_fetch)
+        logger.info(
+            f"Firing {count} MQTT state requests to Domoticz for cold-boot sync and awaiting asynchronous echo...")
+
         for idx in all_idxs_to_fetch:
             command_payload = {
                 "command": "getdeviceinfo",
@@ -77,15 +89,15 @@ class DomoticzHomeHubBridge:
             }
             # Ask Domoticz to broadcast the status of this specific IDX
             await self.mqtt_client.publish(self._out_topic, command_payload)
-            count += 1
 
             # Tiny 50ms network buffer to prevent Mosquitto/Domoticz queue stuttering
             await asyncio.sleep(0.05)
 
-        logger.info(
-            f"Firing {count} MQTT state requests to Domoticz for cold-boot sync and awaiting asynchronous echo...")
-
     async def _parse_domoticz_inbound(self, topic: str, payload: str) -> None:
+        # ⚡ Master Lockout: Silently drop all incoming Domoticz messages if integration is disabled in the UI
+        if not self.state_manager._state.system.domoticz_integration_enabled:
+            return
+
         try:
             data: Dict[str, Any] = json.loads(payload)
             idx = data.get("idx")
@@ -227,6 +239,20 @@ class DomoticzHomeHubBridge:
 
     async def _on_state_changed(self, state: SystemState) -> None:
         try:
+            # --- EVALUATE MASTER TOGGLE TRANSITIONS ---
+            current_enabled = state.system.domoticz_integration_enabled
+            if current_enabled and not getattr(self, '_integration_enabled', False):
+                self._integration_enabled = True
+                logger.info("[Domoticz] Integration ENABLED via UI. Initiating network sync...")
+                asyncio.create_task(self._fetch_initial_states_mqtt())
+            elif not current_enabled and getattr(self, '_integration_enabled', False):
+                self._integration_enabled = False
+                logger.info("[Domoticz] Integration DISABLED via UI.")
+
+            # If the integration is locked out, do not push outbound commands
+            if not current_enabled:
+                return
+
             # 1. Mapped Semantic Devices (From hardware.yaml)
             for device_name, idx in self._name_to_idx.items():
                 device_type = self.state_manager._config.domoticz.idx[device_name].type

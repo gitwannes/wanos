@@ -12,13 +12,13 @@ class AuxiliaryController:
     @staticmethod
     def evaluate(state: 'SystemState') -> 'SaunaState':
         sauna = state.sauna
-        door_open = state.devices.get("door_sauna") == "OPEN"
+        door_sauna_open = state.devices.get("door_sauna") == "OPEN"
         current_temp = state.sensors.sauna_calc_temp
 
         # --------------------------------------------------------
         # 1. EVALUATE LIGHT COLOR (Hue Simulation)
         # --------------------------------------------------------
-        if door_open:
+        if door_sauna_open:
             # Safety Warning: Solid Green
             sauna.light_color = "#00FF00"
 

@@ -128,9 +128,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Simulation engine initialized.")
 
         # 5. Start the OWM polling loop
-        logger.info("OpenWeatherMap loop starting...")
+        logger.info("[OWM] loop starting...")
         weather_task = asyncio.create_task(weather_polling_loop(state_manager))
-        logger.info("OpenWeatherMap loop initialized.")
+        logger.info("[OWM] loop initialized.")
 
     except Exception as startup_err:
         logger.error(f"Core initialization collapsed: {startup_err}")

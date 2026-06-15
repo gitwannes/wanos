@@ -77,12 +77,12 @@ class BathroomConfig(BaseModel):
     vent_min_runtime_mins: int
 
 
-class LabSeedConfig(BaseModel):
+class BootSeedConfig(BaseModel):
     sauna_high_temp: float
     sauna_low_temp: float
     sauna_high_hum: float
     sauna_low_hum: float
-    door_open: bool
+    door_sauna_open: bool
     bathroom1_temp: float
     bathroom1_hum: float
     cinema_temp: float
@@ -126,7 +126,7 @@ class AppConfig(BaseModel):
     ir: IRRuntimeConfig
     bathroom1: BathroomConfig
     weather: WeatherConfig
-    lab_seed: Optional[LabSeedConfig] = None
+    boot_seed: Optional[BootSeedConfig] = None
     automations: List[AutomationRuleConfig] = Field(default_factory=list)
 
 
@@ -188,7 +188,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     if lab_yaml_path.exists():
         with open(lab_yaml_path, "r", encoding="utf-8") as lab_file:
             lab_data_raw = yaml.safe_load(lab_file)
-            if isinstance(lab_data_raw, dict) and "lab_seed" in lab_data_raw:
-                compiled_data["lab_seed"] = lab_data_raw["lab_seed"]
+            if isinstance(lab_data_raw, dict) and "boot_seed" in lab_data_raw:
+                compiled_data["boot_seed"] = lab_data_raw["boot_seed"]
 
     return AppConfig(**compiled_data)

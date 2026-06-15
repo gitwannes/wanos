@@ -40,10 +40,13 @@ class EventType(str, Enum):
     # System Events
     SYSTEM_READY = "SYSTEM_READY"
     BACKEND_SHUTDOWN = "BACKEND_SHUTDOWN"
-    HARDWARE_LIVE_MODE_CHANGED = "HARDWARE_LIVE_MODE_CHANGED"
+    HARDWARE_LIVE_MODE_CHANGED = "HARDWARE_LIVE_MODE_CHANGED"  # SHT sensors, Sauna & IR controls, LCD text
     CONFIG_UPDATED = "CONFIG_UPDATED"
-    LAB_SIMULATION_LOG = "LAB_SIMULATION_LOG"
     SYSTEM_METRICS_UPDATED = "SYSTEM_METRICS_UPDATED"
+    AUTOMATIONS_TOGGLED = "AUTOMATIONS_TOGGLED"  # Automation Rules
+    SIMULATIONS_TOGGLED = "SIMULATIONS_TOGGLED"  # Simulation Physics Engine
+    DOMOTICZ_TOGGLED = "DOMOTICZ_TOGGLED"  # Listen to Domoticz messages
+    OWM_TOGGLED = "OWM_TOGGLED"  # get OWM weather
 
     # External Events
     HUB_STATE_CHANGED = "HUB_STATE_CHANGED"
@@ -59,6 +62,9 @@ class SystemAdminState(BaseModel):
     app_boot_unix: Optional[int] = None
     os_uptime_formatted: str = "00:00:00"
     app_uptime_formatted: str = "00:00:00"
+    automations_enabled: bool = False  # Master switch for the logic engine
+    domoticz_integration_enabled: bool = False  # ⚡ Default OFF, controls whether we process Domoticz messages
+    owm_integration_enabled: bool = False  # ⚡ Default OFF, controls OpenWeatherMap polling
 
 
 class Event(BaseModel):
@@ -129,10 +135,9 @@ class MetricsState(BaseModel):
 
 class HardwareState(BaseModel):
     live_mode: bool = False
+    simulations_enabled: bool = False  # Master switch for thesimulation engine
     safety_pin_active: bool = False
     sensor_errors: List[str] = Field(default_factory=list)
-    lab_simulation_logs: List[str] = Field(default_factory=list)
-
 
 class SystemState(BaseModel):
     system: SystemAdminState = Field(default_factory=SystemAdminState)
@@ -147,4 +152,4 @@ class SystemState(BaseModel):
 
     # Allows the baseline validation rules parsed out of config_lab.yaml
     # to be passed seamlessly down to the web UI without strict compilation loop blocks.
-    lab_seed: Optional[Any] = None
+    boot_seed: Optional[Any] = None

@@ -38,7 +38,7 @@ WANOS LAB MODE THERMODYNAMICS SIMULATION PROFILE REFERENCE
 5. CINEMA ROOM STATIONARY ENVIRONMENT (cinema)
 --------------------------------------------------------------------------------
 * Acts as a stable control environment for the simulation. Unlike the sauna or outside environments, the cinema room's climate metrics do not drift or decay over time.
-* Sets the initial room temperature and relative humidity at startup by reading the `cinema_temp` and `cinema_hum` constants directly from the dynamic lab configuration seed (`config_lab.yaml` via `config.lab_seed`).
+* Sets the initial room temperature and relative humidity at startup by reading the `cinema_temp` and `cinema_hum` constants directly from the dynamic lab configuration seed (`config_lab.yaml` via `config.boot_seed`).
 * Dispatches these static baseline values to the central state manager immediately upon boot. This prevents missing data (null values) in the UI dashboard and guarantees a reliable, flat reference point while running in lab emulation mode.
 """
 
@@ -59,12 +59,14 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
 
     # 1. Load the dynamic lab configuration
     config = load_config()
-    seed = config.lab_seed
+    seed = config.boot_seed
 
     # SAFETY GUARD: If config_lab.yaml doesn't exist (e.g., in production), exit the simulator cleanly.
     if not seed:
-        await state_mgr.logger.warning("No lab_seed found in config. Halting thermodynamics simulator.")
+        await state_mgr.logger.warning("No boot_seed found in config. Halting thermodynamics simulator.")
         return
+
+    await state_mgr.logger.warning("boot_seed config initialized.")
 
     # 2. Seed baseline environmental states from config_lab.yaml
     sauna_high = seed.sauna_high_temp
@@ -85,13 +87,38 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
     # ⚡ VIRTUAL POWER INTAKE ACCUMULATOR ⚡
     wh_accumulator = 0.0
 
-    # 3. Push static baselines instantly (These don't drift in Lab Mode)
-    state_mgr.dispatch(Event(type=EventType.DOOR_CHANGED, payload={"is_open": seed.door_open}))
-    state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"sensor_id": "cinema", "value": seed.cinema_temp}))
-    state_mgr.dispatch(
-        Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "cinema", "value": int(seed.cinema_hum)}))
-    state_mgr.dispatch(
-        Event(type=EventType.TEMP_UPDATED, payload={"sensor_id": "bathroom1", "value": seed.bathroom1_temp}))
+    # 3. Push COMPLETE baselines instantly (Seed the entire UI for Lab Mode)
+    # Tagged strictly with 'boot_seed' to keep boot logs separate from active physics ticks
+    state_mgr.dispatch(Event(type=EventType.DOOR_CHANGED,
+                             payload={"sensor_id": "sauna", "is_open": seed.door_sauna_open, "boot_seed": True}))
+
+    # Cinema (Static in lab)
+    state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED,
+                             payload={"sensor_id": "cinema", "value": seed.cinema_temp, "boot_seed": True}))
+    state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED,
+                             payload={"sensor_id": "cinema", "value": int(seed.cinema_hum), "boot_seed": True}))
+
+    # Bathroom (Temp is static, Hum decays dynamically later if simulation is enabled)
+    state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED,
+                             payload={"sensor_id": "bathroom1", "value": seed.bathroom1_temp, "boot_seed": True}))
+    state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED,
+                             payload={"sensor_id": "bathroom1", "value": int(seed.bathroom1_hum), "boot_seed": True}))
+
+    # Outside Weather (Cycles dynamically later if simulation is enabled)
+    state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED,
+                             payload={"sensor_id": "outside", "value": seed.outside_temp, "boot_seed": True}))
+    state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED,
+                             payload={"sensor_id": "outside", "value": int(seed.outside_hum), "boot_seed": True}))
+
+    # Sauna Probes (Heats up dynamically later if simulation is enabled)
+    state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED,
+                             payload={"sensor_id": "sauna_high", "value": seed.sauna_high_temp, "boot_seed": True}))
+    state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED,
+                             payload={"sensor_id": "sauna_high", "value": int(seed.sauna_high_hum), "boot_seed": True}))
+    state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED,
+                             payload={"sensor_id": "sauna_low", "value": seed.sauna_low_temp, "boot_seed": True}))
+    state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED,
+                             payload={"sensor_id": "sauna_low", "value": int(seed.sauna_low_hum), "boot_seed": True}))
 
     while True:
         try:
@@ -99,8 +126,8 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
 
             state = state_mgr.get_state_snapshot()
 
-            # If we transition to live hardware, skip physics
-            if state.hardware.live_mode:
+            # If we transition to live hardware, or if the simulation engine is toggled off, skip physics entirely
+            if state.hardware.live_mode or not state.hardware.simulations_enabled:
                 continue
 
             # --------------------------------------------------------
@@ -175,10 +202,10 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
 
                 state_mgr.dispatch(
                     Event(type=EventType.TEMP_UPDATED,
-                          payload={"sensor_id": "outside", "value": round(current_out_temp, 1)}))
+                          payload={"sensor_id": "outside", "value": round(current_out_temp, 1), "from_simulator": True}))
                 state_mgr.dispatch(
                     Event(type=EventType.HUMIDITY_UPDATED,
-                          payload={"sensor_id": "outside", "value": int(current_out_hum)}))
+                          payload={"sensor_id": "outside", "value": int(current_out_hum), "from_simulator": True}))
 
             # --------------------------------------------------------
             # 2. BATHROOM 1eV SIMULATOR (Humidity decay)
@@ -189,14 +216,14 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
                 bathroom1_hum = max(seed.bathroom1_hum, bathroom1_hum - decay_rate)
 
             state_mgr.dispatch(
-                Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "bathroom1", "value": int(bathroom1_hum)}))
+                Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "bathroom1", "value": int(bathroom1_hum), "from_simulator": True}))
 
             # --------------------------------------------------------
             # 3. SAUNA THERMODYNAMICS (Thermal stratification)
             # --------------------------------------------------------
             AMBIENT = 20.0
             pwm = state.sauna.modulation_pwm
-            door_open = state.devices.get("door_sauna") == "OPEN"
+            door_sauna_open = state.devices.get("door_sauna") == "OPEN"
 
             # 1. Heat injection
             heat_added = (pwm / 100.0) * 0.5
@@ -208,7 +235,7 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
             heat_lost_low = temp_diff_low * 0.001
 
             # 3. Door open heat dump
-            if door_open:
+            if door_sauna_open:
                 heat_lost_high += 1.0
                 heat_lost_low += 0.5
 
@@ -229,14 +256,14 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager):
 
             # Inject physical sensor data; the StateManager handles standard calculations
             state_mgr.dispatch(
-                Event(type=EventType.TEMP_UPDATED, payload={"sensor_id": "sauna_high", "value": sauna_high}))
+                Event(type=EventType.TEMP_UPDATED, payload={"sensor_id": "sauna_high", "value": sauna_high, "from_simulator": True}))
             state_mgr.dispatch(
-                Event(type=EventType.TEMP_UPDATED, payload={"sensor_id": "sauna_low", "value": sauna_low}))
+                Event(type=EventType.TEMP_UPDATED, payload={"sensor_id": "sauna_low", "value": sauna_low, "from_simulator": True}))
             state_mgr.dispatch(
                 Event(type=EventType.HUMIDITY_UPDATED,
-                      payload={"sensor_id": "sauna_high", "value": int(sauna_high_hum)}))
+                      payload={"sensor_id": "sauna_high", "value": int(sauna_high_hum), "from_simulator": True}))
             state_mgr.dispatch(
-                Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "sauna_low", "value": int(sauna_low_hum)}))
+                Event(type=EventType.HUMIDITY_UPDATED, payload={"sensor_id": "sauna_low", "value": int(sauna_low_hum), "from_simulator": True}))
 
         except asyncio.CancelledError:
             break
