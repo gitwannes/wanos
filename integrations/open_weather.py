@@ -33,7 +33,8 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
 
             # Catch OFF -> ON transition
             if is_enabled and not last_enabled_state:
-                await state_manager.logger.info("[OWM] Integration ENABLED via UI. Fetching weather...")
+                await state_manager.logger.success("[OWM] Integration ENABLED via UI.")
+                await state_manager.logger.info("[OWM] Fetching weather...")
                 seconds_since_last_fetch = poll_seconds  # Force instant fetch execution
 
             # Catch ON -> OFF transition

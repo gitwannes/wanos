@@ -100,7 +100,7 @@ function wanosApp() {
                 pc_aux: null,
                 gang_boven: null
             },
-            lab_seed: null
+          boot_seed: null
         },
 
         // Dedicated UI Toggle to lock/unlock manual manipulation of the physics simulator
@@ -190,8 +190,8 @@ function wanosApp() {
             // Merge retrieved devices with existing safe defaults so we don't drop initialized UI keys
             this.state.devices = Object.assign({}, this.state.devices, fullState.devices || {});
 
-            if (fullState.lab_seed) {
-                this.state.lab_seed = fullState.lab_seed;
+            if (fullState.boot_seed) {
+                this.state.boot_seed = fullState.boot_seed;
             }
 
             this.syncIRStepIndex();
@@ -429,7 +429,7 @@ function wanosApp() {
 
         syncLabControls() {
             const sns = this.state.sensors;
-            const seed = this.state.lab_seed;
+            const seed = this.state.boot_seed;
 
             if (!seed) return;
 

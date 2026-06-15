@@ -105,10 +105,31 @@ class DomoticzHomeHubBridge:
             if idx is None:
                 return
 
-            # --- DEBUG CODE ---
-            #if idx == 9:
-            #    logger.info(f"[DIAGNOSTIC] Raw frame hit bridge entrance for IDX 9: {payload}")
+            # Cancel any pending debounce task for this specific IDX
+            if idx in self._debounce_tasks:
+                self._debounce_tasks[idx].cancel()
 
+            # Spawn a new delayed execution task (The "Waiting Room")
+            self._debounce_tasks[idx] = asyncio.create_task(self._process_debounced_payload(idx, data))
+
+        except ValueError as val_err:
+            logger.error(f"Domoticz parser dropped invalid JSON: {val_err}")
+        except Exception as e:
+            logger.error(f"Error handling Domoticz translation: {e}")
+
+    async def _process_debounced_payload(self, idx: int, data: Dict[str, Any]) -> None:
+        """Waits for the debounce window to clear, then processes the final resting state."""
+        try:
+            await asyncio.sleep(self._debounce_delay)
+        except asyncio.CancelledError:
+            # A newer message arrived for this IDX before the timer finished. Silently die.
+            return
+
+        # Clean up the task reference
+        if idx in self._debounce_tasks:
+            del self._debounce_tasks[idx]
+
+        try:
             device_name = self._idx_to_name.get(idx)
             # Only drop it if it's NOT in hardware.yaml AND NOT in our automation rules
             if not device_name and idx not in self.watched_idxs:
@@ -232,10 +253,8 @@ class DomoticzHomeHubBridge:
                 except (ValueError, TypeError) as e:
                     logger.error(f"Failed to parse power reading for {device_name}: {e}")
 
-        except ValueError as val_err:
-            logger.error(f"Domoticz parser dropped invalid JSON: {val_err}")
         except Exception as e:
-            logger.error(f"Error handling Domoticz translation: {e}")
+            logger.error(f"Error in debounced Domoticz translation: {e}")
 
     async def _on_state_changed(self, state: SystemState) -> None:
         try:
@@ -243,7 +262,8 @@ class DomoticzHomeHubBridge:
             current_enabled = state.system.domoticz_integration_enabled
             if current_enabled and not getattr(self, '_integration_enabled', False):
                 self._integration_enabled = True
-                logger.info("[Domoticz] Integration ENABLED via UI. Initiating network sync...")
+                logger.success("[Domoticz] Integration ENABLED via UI.")
+                logger.info("[Domoticz] Initiating network sync...")
                 asyncio.create_task(self._fetch_initial_states_mqtt())
             elif not current_enabled and getattr(self, '_integration_enabled', False):
                 self._integration_enabled = False

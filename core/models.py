@@ -60,8 +60,6 @@ class SystemAdminState(BaseModel):
     ip_address: str = "0.0.0.0"
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None
-    os_uptime_formatted: str = "00:00:00"
-    app_uptime_formatted: str = "00:00:00"
     automations_enabled: bool = False  # Master switch for the logic engine
     domoticz_integration_enabled: bool = False  # ⚡ Default OFF, controls whether we process Domoticz messages
     owm_integration_enabled: bool = False  # ⚡ Default OFF, controls OpenWeatherMap polling

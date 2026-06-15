@@ -215,7 +215,7 @@ class StateManager:
         elif event_name != "SYSTEM_METRICS_UPDATED":
             # Captures background automation, external bridges, and simulated physics ticks
             if not is_simulation_action and not is_boot_baseline_seed:
-                logger.d(f"Event Received [{event_name}]: {payload}")
+                logger.info(f"Event Received [{event_name}]: {payload}")
             else:
                 origin_tag = ""
                 if is_simulation_action:
