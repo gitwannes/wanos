@@ -3,7 +3,7 @@ import os
 import yaml
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Union
 from dotenv import load_dotenv
 
 
@@ -106,11 +106,12 @@ class ConditionConfig(BaseModel):
 class ActionConfig(BaseModel):
     device: Optional[str] = None
     idx: Optional[int] = None     # Raw Domoticz IDXs
-    state: str
+    state: Optional[str] = None
+    event: Optional[str] = None
 
 class AutomationRuleConfig(BaseModel):
     name: str
-    trigger: TriggerConfig
+    trigger: Union[TriggerConfig, List[TriggerConfig]]
     conditions: Optional[List[ConditionConfig]] = None
     actions: List[ActionConfig]
 

@@ -16,7 +16,10 @@ class EventType(str, Enum):
     BATH1_VENT_LOCK_EXPIRED = "BATH1_VENT_LOCK_EXPIRED"  # Fired when the bathroom vent minimum runtime ends
 
     # Macro & Scene Events
+    SCENE_GV_OFF = "SCENE_GV_OFF"
     SCENE_VERDIEP1_OFF = "SCENE_VERDIEP1_OFF"
+    SCENE_VERDIEP2_OFF = "SCENE_VERDIEP2_OFF"
+    SCENE_ALL_OFF = "SCENE_ALL_OFF"
 
     # Sauna & Logic Events
     SAUNA_ON = "SAUNA_ON"

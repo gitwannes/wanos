@@ -440,27 +440,36 @@
                                 </div>
                             </div>
                         </div>
-
-                        <button class="btn btn-error btn-outline btn-block mt-0 font-mono tracking-widest text-xs"
-                                @click="dispatchEvent('SCENE_GV_OFF')"
-                                :disabled="!state.system.domoticz_mqtt_connected">
-                            gv ALL OFF
-                        </button>
-                        <button class="btn btn-error btn-outline btn-block mt-0 font-mono tracking-widest text-xs"
-                                @click="dispatchEvent('SCENE_VERDIEP1_OFF')"
-                                :disabled="!state.system.domoticz_mqtt_connected">
-                            1e verdiep ALL OFF
-                        </button>
-                        <button class="btn btn-error btn-outline btn-block mt-0 font-mono tracking-widest text-xs"
-                                @click="dispatchEvent('SCENE_VERDIEP2_OFF')"
-                                :disabled="!state.system.domoticz_mqtt_connected">
-                            2e verdiep ALL OFF
-                        </button>
-                        <button class="btn btn-error btn-outline btn-block mt-0 font-mono tracking-widest text-xs"
-                                @click="dispatchEvent('SCENE_ALL_OFF')"
-                                :disabled="!state.system.domoticz_mqtt_connected">
-                            ALL OFF
-                        </button>
+                        <div class="grid grid-cols-2 gap-2 mt-2 w-full">
+                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                    @click="dispatchEvent('SCENE_GV_OFF')"
+                                    :disabled="!state.system.domoticz_mqtt_connected">
+                                gv All Off
+                            </button>
+                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                    @click="dispatchEvent('SCENE_VERDIEP1_OFF')"
+                                    :disabled="!state.system.domoticz_mqtt_connected">
+                                1e verdiep All Off
+                            </button>
+                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                    @click="dispatchEvent('SCENE_VERDIEP2_OFF')"
+                                    :disabled="!state.system.domoticz_mqtt_connected">
+                                2e verdiep All Off
+                            </button>
+                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                    @click="dispatchEvent('SCENE_ALL_OFF')"
+                                    :disabled="!state.system.domoticz_mqtt_connected">
+                                All Off
+                            </button>
+                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                    @click="dispatchEvent('SCENE_GOCOSY')"
+                                    :disabled="!state.system.domoticz_mqtt_connected">
+                                gv Go Cosy
+                            </button>
+                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1">
+                                .
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -659,7 +668,7 @@
                                 </div>
                             </div>
                             <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">Automations Physics Engine</span>
+                                <span class="text-base-400 uppercase font-bold text-[10px]">Automations Engine</span>
                                 <div class="flex items-center gap-2">
                                     <span class="font-bold text-[10px]" :class="state.system.automations_enabled ? 'text-success' : 'text-warning'" x-text="state.system.automations_enabled ? 'ACTIVE' : 'DOWN'"></span>
                                     <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"

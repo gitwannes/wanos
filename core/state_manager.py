@@ -302,6 +302,17 @@ class StateManager:
             dom_conn = payload.get("domoticz_connected", False)
             ip_addr = payload.get("ip_address", "0.0.0.0")
 
+            # ⚡ SAFETY TRIPWIRE: Automatically disable integration if connection drops
+            if not dom_conn and self._state.system.domoticz_integration_enabled:
+                self._state.system.domoticz_integration_enabled = False
+                state_changed = True
+                changed_domains.add("system")
+
+                # Push a high-priority error to the live MQTT console logs
+                asyncio.create_task(
+                    self.logger.error("🔌 Domoticz MQTT Connection lost! Integration has been safely disabled.")
+                )
+
             # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
             if (self._state.system.wanos_mqtt_connected != wanos_conn or
                     self._state.system.domoticz_mqtt_connected != dom_conn or

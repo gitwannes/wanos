@@ -38,9 +38,11 @@ class DomoticzHomeHubBridge:
         idxs = set()
         if hasattr(self.state_manager._config, "automations"):
             for rule in self.state_manager._config.automations:
-                # 1. Grab Trigger IDXs
-                if rule.trigger.idx:
-                    idxs.add(rule.trigger.idx)
+                # 1. Grab Trigger IDXs (Supports both single triggers and list-based OR triggers)
+                triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
+                for t in triggers:
+                    if t.idx:
+                        idxs.add(t.idx)
                 # 2. Grab Action IDXs
                 if rule.actions:
                     for action in rule.actions:

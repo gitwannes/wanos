@@ -2,6 +2,7 @@
 import datetime, time
 from core.models import Event, EventType, SystemState
 from core.config import load_config
+from loguru import logger  # ⚡ Added logger for troubleshooting
 
 
 class AutomationEngine:
@@ -79,25 +80,34 @@ class AutomationEngine:
         for rule in config.automations:
             trigger_matched = False
 
-            # Trigger Type A: Hardware State Transition
-            if rule.trigger.device and rule.trigger.state:
-                if event_name == "HUB_STATE_CHANGED" and is_transition:
-                    if rule.trigger.device == device_id and rule.trigger.state == new_state:
-                        trigger_matched = True
+            # ⚡ Normalize trigger to a list so we can loop through it (Supports both Single and Multiple Triggers)
+            triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
 
-            # Trigger Type B: Raw Domoticz IDX
-            elif rule.trigger.idx and rule.trigger.state:
-                if event_name == "HUB_STATE_CHANGED" and is_transition:
-                    if rule.trigger.idx == event_idx and rule.trigger.state == new_state:
-                        trigger_matched = True
+            for t in triggers:
+                # Trigger Type A: Hardware State Transition
+                if t.device and t.state:
+                    if event_name == "HUB_STATE_CHANGED" and is_transition:
+                        if t.device == device_id and t.state == new_state:
+                            trigger_matched = True
+                            break  # ⚡ Match found! Stop checking other triggers for this rule (OR condition)
 
-            # Trigger Type C: System Event (e.g., SAUNA_ON, SCENE_VERDIEP1_OFF)
-            elif rule.trigger.event:
-                if event_name == rule.trigger.event:
-                    trigger_matched = True
+                # Trigger Type B: Raw Domoticz IDX
+                elif t.idx and t.state:
+                    if event_name == "HUB_STATE_CHANGED" and is_transition:
+                        if t.idx == event_idx and t.state == new_state:
+                            trigger_matched = True
+                            break
+
+                # Trigger Type C: System Event (e.g., SAUNA_ON, SCENE_VERDIEP1_OFF)
+                elif t.event:
+                    rule_event_str = t.event.value if hasattr(t.event, 'value') else str(t.event)
+                    if event_name == rule_event_str:
+                        trigger_matched = True
+                        break
 
             # If the trigger matched, evaluate conditions and execute!
             if trigger_matched:
+                logger.debug(f"[X-RAY] -> TRIGGER MATCHED for rule: '{rule.name}'")
                 conditions_met = True
                 if rule.conditions:
                     for condition in rule.conditions:
@@ -105,36 +115,60 @@ class AutomationEngine:
                             is_dark = AutomationEngine._is_dark(state)
                             if condition.condition_is == "dark" and not is_dark:
                                 conditions_met = False
+                                logger.debug(f"[X-RAY] -> Condition FAILED (It is not dark)")
                             elif condition.condition_is == "light" and is_dark:
                                 conditions_met = False
+                                logger.debug(f"[X-RAY] -> Condition FAILED (It is not light)")
 
                 if conditions_met:
+                    logger.debug(f"[X-RAY] -> CONDITIONS MET for '{rule.name}'. Evaluating actions...")
                     for action in rule.actions:
+                        logger.debug(f"[X-RAY]    -> Pydantic parsed this action: {action}")
 
                         # --- Semantic Device ---
                         if action.device:
                             current_target_state = state.devices.get(action.device)
+                            logger.debug(
+                                f"[X-RAY]    -> Checking {action.device}: Current state is {current_target_state}, Target is {action.state}")
+
                             if current_target_state != action.state:
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
                                     payload={"device_id": action.device, "state": action.state}
                                 ))
-                                # Write to logfile
                                 AutomationEngine._log_execution(rule.name, action.device, action.state)
+                            #else:
+                                #logger.debug(f"[X-RAY]    -> Action SKIPPED (Already in target state): {action.device}")
 
                         # --- Raw IDX ---
                         elif action.idx:
-                            # Map to our virtual string ID so StateManager handles it gracefully
                             virtual_id = f"idx_{action.idx}"
                             current_target_state = state.devices.get(virtual_id)
+                            #logger.debug(
+                                #f"[X-RAY]    -> Checking {virtual_id}: Current state is {current_target_state}, Target is {action.state}")
 
                             if current_target_state != action.state:
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
                                     payload={"device_id": virtual_id, "idx": action.idx, "state": action.state}
                                 ))
-                                # Write to logfile
                                 AutomationEngine._log_execution(rule.name, f"IDX {action.idx}", action.state)
+                            #else:
+                                #logger.debug(f"[X-RAY]    -> Action SKIPPED (Already in target state): {virtual_id}")
+
+                        # --- Nested Event Chaining ---
+                        elif getattr(action, "event", None):
+                            logger.debug(f"[X-RAY]    -> Yielding internal event chain: {action.event}")
+                            try:
+                                evt_type = EventType[action.event]
+                                follow_up_events.append(Event(
+                                    type=evt_type,
+                                    payload={}
+                                ))
+                                AutomationEngine._log_execution(rule.name, "Internal Event", action.event)
+                            except KeyError:
+                                logger.error(
+                                    f"[AUTOMATION] Rule '{rule.name}' failed: '{action.event}' is not a valid EventType.")
 
         # -----------------------------------------------------------------
         # HYSTERESIS LOOPS: Bathroom 1eV Ventilator Auto-ON/OFF

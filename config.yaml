@@ -103,11 +103,15 @@ automations:
         state: "OFF"
       - idx: 52       # licht living
         state: "OFF"
+      - idx: 7236     # licht living Hue
+        state: "OFF"
       - idx: 53       # licht keuken
         state: "OFF"
       - idx: 411       # licht voorraad
         state: "OFF"
       - idx: 6060       # licht eetkamer
+        state: "OFF"
+      - idx: 6731       # licht eetkamer Hue
         state: "OFF"
       - idx: 157       # licht living schemer groot (RFX)
         state: "OFF"
@@ -165,9 +169,16 @@ automations:
         state: "OFF"
       - idx: 7237     # slpk Dries Hue
         state: "OFF"
+  - name: "Scene: ALL OFF"
+    trigger:
+      event: "SCENE_ALL_OFF"
+    actions:
+      - event: "SCENE_GV_OFF"
+      - event: "SCENE_VERDIEP1_OFF"
+      - event: "SCENE_VERDIEP2_OFF"
   - name: "Scene: GoCosy"
     trigger:
-      event: "GO_COSY"
+      event: "SCENE_GOCOSY"
     actions:
       - idx: 52
         state: "ON"
@@ -185,4 +196,26 @@ automations:
       state: "ON"
     actions:
       - idx: 7237 # Hue
+        state: "ON"
+  - name: "KeukenLivingEetk_EetkHue"
+    trigger:
+      - idx: 52   # Living
+        state: "ON"
+      - idx: 53   # Keuken
+        state: "ON"
+      - idx: 6060  # Eetkamer
+        state: "ON"
+    actions:
+      - idx: 6731 # Eetkamer Hue
+        state: "ON"
+  - name: "BuroCinema_cosy"
+    trigger:
+      - idx: 282  # Buro
+        state: "ON"
+      - idx: 283  # Cinema
+        state: "ON"
+    actions:
+      - idx: 139 # Cinema schemer klein
+        state: "ON"
+      - idx: 140 # Buro Hue
         state: "ON"
