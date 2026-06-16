@@ -137,6 +137,8 @@ class DomoticzHomeHubBridge:
             if not device_name and idx not in self.watched_idxs:
                 return  # Unregistered device, safely ignore
 
+            #logger.debug(f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor update received - processing...")
+
             # ⚡ EARLY GATE DUPLICATE FILTER ⚡
             # Extract only the value fields Domoticz uses to broadcast states
             nvalue = data.get("nvalue")
@@ -146,7 +148,12 @@ class DomoticzHomeHubBridge:
 
             cache_state = {"nvalue": nvalue, "svalue1": svalue1, "svalue2": svalue2, "svalue": svalue}
 
-            if self._raw_cache.get(idx) == cache_state:
+            # ⚡ PUSH BUTTON BYPASS: Momentary buttons send the exact same payload every time.
+            # We MUST bypass the cache filter for these, otherwise only the first press works!
+            switch_type = data.get("switchType", "")
+            is_push_button = switch_type.split(" ")[0] == "Push"
+
+            if not is_push_button and self._raw_cache.get(idx) == cache_state:
                 return  # Exact duplicate value. Silently drop to prevent engine noise.
 
             self._raw_cache[idx] = cache_state
@@ -218,7 +225,8 @@ class DomoticzHomeHubBridge:
                 # Wrap unmapped IDXs in our virtual string format
                 target_id = device_name if device_name else f"idx_{idx}"
 
-                if self._last_known_states.get(target_id) == status_string:
+                # ⚡ PUSH BUTTON BYPASS (Part 2): Always allow momentary buttons to dispatch!
+                if not is_push_button and self._last_known_states.get(target_id) == status_string:
                     return
 
                 # Lock into local memory to prevent echo loops
@@ -229,7 +237,8 @@ class DomoticzHomeHubBridge:
                     payload={
                         "device_id": target_id,  # passes "sauna_hue" OR "idx_1524"
                         "idx": idx,  # Always pass the raw integer
-                        "state": status_string
+                        "state": status_string,
+                        "is_push_button": is_push_button
                     }
                 ))
 
@@ -258,7 +267,8 @@ class DomoticzHomeHubBridge:
         except Exception as e:
             logger.error(f"Error in debounced Domoticz translation: {e}")
 
-    async def _on_state_changed(self, state: SystemState) -> None:
+    # ⚡ Update the signature to accept the causal events!
+    async def _on_state_changed(self, state: SystemState, events: list[Event] = None) -> None:
         try:
             # --- EVALUATE MASTER TOGGLE TRANSITIONS ---
             current_enabled = state.system.domoticz_integration_enabled
@@ -271,9 +281,15 @@ class DomoticzHomeHubBridge:
                 self._integration_enabled = False
                 logger.info("[Domoticz] Integration DISABLED via UI.")
 
-            # If the integration is locked out, do not push outbound commands
             if not current_enabled:
                 return
+
+            # ⚡ Extract devices that were flagged with a 'force' override in this batch
+            forced_devices = set()
+            if events:
+                for event in events:
+                    if event.type == EventType.HUB_STATE_CHANGED and event.payload.get("force"):
+                        forced_devices.add(event.payload.get("device_id"))
 
             # 1. Mapped Semantic Devices (From hardware.yaml)
             for device_name, idx in self._name_to_idx.items():
@@ -281,30 +297,46 @@ class DomoticzHomeHubBridge:
                 if device_type != "switch":
                     continue
 
-                # Grab the state directly from the generic devices dictionary
                 current_state = state.devices.get(device_name)
+                is_force = device_name in forced_devices
 
-                # If it changed, assemble the JSON and broadcast it back out to Domoticz
-                if current_state is not None and current_state != self._last_known_states.get(device_name):
+                # ⚡ Fire if state changed OR if a force flag was passed!
+                if current_state is not None and (
+                        current_state != self._last_known_states.get(device_name) or is_force):
                     domoticz_command = {
                         "command": "switchlight",
                         "idx": idx,
                         "switchcmd": "On" if current_state == "ON" else "Off"
                     }
                     await self.mqtt_client.publish(self._out_topic, domoticz_command)
-                    logger.info(f"[Domoticz] Command Sent: {device_name} -> {current_state}")
+
+                    if is_force:
+                        logger.warning(f"⚡ [FORCED OVERRIDE] Sent: {device_name} -> {current_state}")
+                    else:
+                        logger.info(f"[Domoticz] Command Sent: {device_name} -> {current_state}")
+
                     self._last_known_states[device_name] = current_state
 
             # 2. Raw IDXs from Automations (e.g., "idx_1524")
             for key, current_state in state.devices.items():
                 if key.startswith("idx_"):
                     raw_idx = int(key.split("_")[1])
-                    if current_state is not None and current_state != self._last_known_states.get(key):
+                    is_force = key in forced_devices
+
+                    # ⚡ Fire if state changed OR if a force flag was passed!
+                    if current_state is not None and (
+                            current_state != self._last_known_states.get(key) or is_force):
                         domoticz_command = {"command": "switchlight", "idx": raw_idx,
                                             "switchcmd": "On" if current_state == "ON" else "Off"}
                         await self.mqtt_client.publish(self._out_topic, domoticz_command)
-                        logger.info(f"[Domoticz] Raw Command Sent: IDX {raw_idx} -> {current_state}")
+
+                        if is_force:
+                            logger.warning(
+                                f"⚡ [FORCED OVERRIDE] Raw Command Sent: IDX {raw_idx} -> {current_state}")
+                        else:
+                            logger.info(f"[Domoticz] Raw Command Sent: IDX {raw_idx} -> {current_state}")
+
                         self._last_known_states[key] = current_state
 
         except Exception as e:
-            logger.error(f"Error in Domoticz outbound sync: {e}")
+            logger.error(f"Error processing outbound Domoticz commands: {e}")

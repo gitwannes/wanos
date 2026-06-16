@@ -31,7 +31,7 @@ weather:
 # Lists (Dashes): Used for describing a collection of repeating things
 # (like a list of 10 Automation Rules, or a list of 3 Actions to take)
 automations:
-# --- HARDWARE TOGGLES ---
+### --- HARDWARE TOGGLES ---
   - name: "PC ON -> PC Aux ON"
     trigger:
       device: "pc"
@@ -56,7 +56,7 @@ automations:
       - type: "time_of_day"
         is: "dark"
     actions:
-      - device: "buro_schemer"
+      - device: "buro_schemer"  # idx 140
         state: "ON"
 
   - name: "PC Aux OFF -> Buro Schemer OFF"
@@ -64,15 +64,7 @@ automations:
       device: "pc_aux"
       state: "OFF"
     actions:
-      - device: "buro_schemer"
-        state: "OFF"
-
-  - name: "garage OFF -> waskot OFF"
-    trigger:
-      idx: 100       # licht garage
-      state: "OFF"
-    actions:
-      - idx: 348       # licht waskot
+      - device: "buro_schemer"  # idx 140
         state: "OFF"
 
 # --- SAUNA MACROS ---
@@ -91,10 +83,16 @@ automations:
     actions:
       - device: "sauna_hue"
         state: "OFF"
+
+  - name: "Sauna Lights Off2"
+    trigger:
+      - device: "sauna_hue"
+        state: "OFF"
+    actions:
       - device: "sauna_zoutlamp"
         state: "OFF"
 
-  # --- SCENES ---
+### --- SCENES ---
   - name: "Scene: gv ALL OFF"
     trigger:
       event: "SCENE_GV_OFF"
@@ -113,9 +111,9 @@ automations:
         state: "OFF"
       - idx: 6731       # licht eetkamer Hue
         state: "OFF"
-      - idx: 157       # licht living schemer groot (RFX)
+      - idx: 157       # licht living schemer groot (via RFX3)
         state: "OFF"
-      - idx: 158       # licht kerstboom (RFX)
+      - idx: 158       # licht kerstboom (via RFX4)
         state: "OFF"
       - idx: 9645       # licht toilet
         state: "OFF"
@@ -135,15 +133,15 @@ automations:
         state: "OFF"
       - device: "cinema_hue"
         state: "OFF"
+      - idx: 139  # cinema_schemer
+        state: "OFF"
       - device: "buro"
         state: "OFF"
-      - device: "buro_schemer"
+      - device: "buro_schemer"  # idx 140 (via RFX2)
         state: "OFF"
       - device: "pc_aux"
         state: "OFF"
-      - device: "bathroom1_main"
-        state: "OFF"
-      - device: "bathroom1_wastafel"
+      - device: "bathroom1_main"  # badkamer wastafel: gaat uit als groot uitgaat, zie hieronder
         state: "OFF"
       - device: "gang_boven"
         state: "OFF"
@@ -153,10 +151,8 @@ automations:
     actions:
       - device: "gang_boven"
         state: "OFF"
-      - idx: 170      # badk 2e groot --- check: 1625?
+      - idx: 170  # badkamer wastafel: gaat uit als groot uitgaat, zie hieronder --- check: 1625?
         state: "OFF"
-      #- idx: 171      # badk 2e wastafel -- moet hier niet instaan: gaat uit als groot uitgaat
-      #  state: "OFF"
       - idx: 1524     # slpk Dries
         state: "OFF"
       - idx: 6048     # slpk Liene
@@ -189,7 +185,8 @@ automations:
       - idx: 7236
         state: "OFF"
 
-# Using Raw Domoticz IDXs for sensors not used above
+
+### Using Raw Domoticz IDXs for sensors not used above
   - name: "Slpk_Dries"
     trigger:
       idx: 1524
@@ -208,37 +205,159 @@ automations:
     actions:
       - idx: 6731 # Eetkamer Hue
         state: "ON"
-  - name: "BuroCinema_cosy"
+  - name: "BuroCinemaPC_cosy"
     trigger:
       - idx: 282  # Buro
         state: "ON"
       - idx: 283  # Cinema
         state: "ON"
-      - device: "pc_aux"  # 9618
-        state: "ON"
     actions:
       - idx: 139 # Cinema schemer klein
         state: "ON"
-      - idx: 140 # Buro Hue
+      - device: "buro_schemer"  # idx 140
         state: "ON"
   - name: "toilet_gv_ventilatie_on"
     trigger:
-      idx: 9648
-      state: "SYNC"  # toilet ventilatie knop
+      idx: 9648  # toilet ventilatie knop
+      state: "SYNC"
     actions:
-      - idx: 9612 # ventilatie motor
+      - idx: 1612 # ventilatie motor
         state: "SYNC"
-  - name: "RFX1_cinema_schemer"
+  - name: "garage_motion"
     trigger:
-      idx: 627  # RFX1
+      idx: 106  # garage motion
       state: "ON"
     actions:
-      - idx: 9612  # cinema_schemer
+      - idx: 100       # licht garage
         state: "ON"
-  - name: "RFX1_cinema_schemer"
+  - name: "achterdeur_waskot"
     trigger:
-      idx: 627  # RFX1
+      idx: 94  # achterdeur
       state: "ON"
     actions:
-      - idx: 9612  # cinema_schemer
+      - idx: 348       # licht waskot
         state: "ON"
+  - name: "badkamer_1e_off"
+    trigger:
+      idx: 141  # badkamer groot
+      state: "OFF"
+    actions:
+      - idx: 7555  # badkamer wastafel
+        state: "OFF"
+  - name: "badkamer_2e_off"
+    trigger:
+      idx: 170  # badkamer groot
+      state: "OFF"
+    actions:
+      - idx: 171  # badkamer wastafel
+        state: "OFF"
+  - name: "garage_waskot_OFF"
+    trigger:
+      idx: 100  # licht garage
+      state: "OFF"
+    actions:
+      - idx: 348  # licht waskot
+        state: "OFF"
+  - name: "gang_boven_berging_OFF"
+    trigger:
+      idx: 169  # gang boven
+      state: "OFF"
+    actions:
+      - idx: 6051  # berging
+        state: "OFF"
+
+
+### RFX
+  # RFX-ON  ON         -> virtual switch ON
+  # virtual switch ON  -> RFX-ON  ON             # is this needed?
+  # RFX-OFF ON         -> virtual switch OFF
+
+  # RFX1 controls cinema_schemer  idx 139 (virtual switch)
+  # RFX1 ON    idx 627
+  # RFX1 OFF   idx 628
+  - name: "RFX1_1"
+    trigger:
+      idx: 627
+      state: "ON"
+    actions:
+      - idx: 139
+        state: "ON"
+  - name: "RFX1_3"
+    trigger:
+      idx: 628
+      state: "ON"
+    actions:
+      - idx: 139
+        state: "OFF"
+
+  # RFX2 controls buro schemer    idx 140 (virtual switch)
+  # RFX2 ON    idx 270
+  # RFX2 OFF   idx 114
+  - name: "RFX2: ON-to-virtual"
+    trigger:
+      idx: 270
+      state: "ON"
+    actions:
+      - idx: 140
+        state: "ON"
+  - name: "RFX2: OFF-to-virtual"
+    trigger:
+      - idx: 114
+        state: "ON"
+    actions:
+      - idx: 140
+        state: "OFF"
+  - name: "RFX2: virtual-to-ON"
+    trigger:
+      idx: 140
+      state: "ON"
+    actions:
+      - idx: 270
+        state: "FORCE_ON"
+  - name: "RFX2: virtual-to-OFF"
+    trigger:
+      idx: 140
+      state: "OFF"
+    actions:
+      - idx: 114
+        state: "FORCE_ON"
+
+  # RFX3 controls living schemer  idx 157 (virtual switch)
+  # RFX3 ON    idx 630
+  # RFX3 OFF   idx 115
+  - name: "RFX3_1"
+    trigger:
+      idx: 630
+      state: "ON"
+    actions:
+      - idx: 157
+        state: "ON"
+  - name: "RFX3_3"
+    trigger:
+      - idx: 115
+        state: "ON"
+    actions:
+      - idx: 157
+        state: "OFF"
+
+  # RFX4 controls kerstboom       idx 158 (virtual switch)
+  # RFX4 ON    idx 631
+  # RFX4 OFF   idx 146
+  - name: "RFX4_1"
+    trigger:
+      idx: 631
+      state: "ON"
+    actions:
+      - idx: 158
+        state: "ON"
+  - name: "RFX4_3"
+    trigger:
+      - idx: 146
+        state: "ON"
+    actions:
+      - idx: 158
+        state: "OFF"
+
+  # RFX5 controls -unused-        idx 636 (virtual switch)
+  # RFX5 ON    idx 631
+  # RFX5 OFF   idx 147

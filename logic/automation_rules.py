@@ -87,14 +87,16 @@ class AutomationEngine:
                 # Trigger Type A: Hardware State Transition
                 if t.device and t.state:
                     if event_name == "HUB_STATE_CHANGED" and is_transition:
-                        if t.device == device_id and t.state == new_state:
+                        # ⚡ Wildcard SYNC checks or explicit state matching
+                        if t.device == device_id and (t.state == "SYNC" or t.state == new_state):
                             trigger_matched = True
                             break  # ⚡ Match found! Stop checking other triggers for this rule (OR condition)
 
                 # Trigger Type B: Raw Domoticz IDX
                 elif t.idx and t.state:
                     if event_name == "HUB_STATE_CHANGED" and is_transition:
-                        if t.idx == event_idx and t.state == new_state:
+                        # ⚡ Wildcard SYNC checks or explicit state matching
+                        if t.idx == event_idx and (t.state == "SYNC" or t.state == new_state):
                             trigger_matched = True
                             break
 
@@ -125,36 +127,62 @@ class AutomationEngine:
                     for action in rule.actions:
                         logger.debug(f"[X-RAY]    -> Pydantic parsed this action: {action}")
 
+                        # ⚡ Resolve target action state (Supports direct strings, SYNC matching, SYNCOPPOSITE inversion, and FORCE_ prefix)
+                        raw_action_state = action.state
+                        is_force = False
+                        if isinstance(raw_action_state, str) and raw_action_state.startswith("FORCE_"):
+                            is_force = True
+                            raw_action_state = raw_action_state.replace("FORCE_", "")
+
+                        if action.state == "SYNC":
+                            target_action_state = new_state
+                        elif action.state == "SYNCOPPOSITE":
+                            target_action_state = "OFF" if new_state == "ON" else "ON"
+                        else:
+                            target_action_state = raw_action_state
+
                         # --- Semantic Device ---
                         if action.device:
                             current_target_state = state.devices.get(action.device)
-                            logger.debug(
-                                f"[X-RAY]    -> Checking {action.device}: Current state is {current_target_state}, Target is {action.state}")
 
-                            if current_target_state != action.state:
+                            # ⚡ UNINITIALIZED STATE GUARD: Skip execution if the target device state is unknown (None)
+                            if current_target_state is None:
+                                logger.debug(
+                                    f"[X-RAY]    -> Action SKIPPED for {action.device}: Current state is None (Uninitialized)")
+                                continue
+
+                            logger.debug(
+                                f"[X-RAY]    -> Checking {action.device}: Current state is {current_target_state}, Target is {target_action_state} (Force: {is_force})")
+
+                            if current_target_state != target_action_state or is_force:
+                                logger.debug (f"[X-RAY]    -> {action.device} switching to {target_action_state}")
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
-                                    payload={"device_id": action.device, "state": action.state}
+                                    payload = {"device_id": action.device, "state": target_action_state, "force": is_force}
                                 ))
-                                AutomationEngine._log_execution(rule.name, action.device, action.state)
-                            #else:
-                                #logger.debug(f"[X-RAY]    -> Action SKIPPED (Already in target state): {action.device}")
+                                AutomationEngine._log_execution(rule.name, action.device,
+                                                                f"{target_action_state} (FORCED)" if is_force else target_action_state)
+                            else:
+                                logger.debug (f"[X-RAY]    -> {action.device} already {target_action_state}")
 
                         # --- Raw IDX ---
                         elif action.idx:
                             virtual_id = f"idx_{action.idx}"
                             current_target_state = state.devices.get(virtual_id)
-                            #logger.debug(
-                                #f"[X-RAY]    -> Checking {virtual_id}: Current state is {current_target_state}, Target is {action.state}")
 
-                            if current_target_state != action.state:
+                            logger.debug(
+                                f"[X-RAY]    -> Checking {virtual_id}: Current state is {current_target_state}, Target is {target_action_state} (Force: {is_force})")
+
+                            if current_target_state != target_action_state or is_force:
+                                logger.debug (f"[X-RAY]    -> {virtual_id} switching to {target_action_state}")
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
-                                    payload={"device_id": virtual_id, "idx": action.idx, "state": action.state}
+                                    payload = {"device_id": virtual_id, "idx": action.idx, "state": target_action_state, "force": is_force}
                                 ))
-                                AutomationEngine._log_execution(rule.name, f"IDX {action.idx}", action.state)
-                            #else:
-                                #logger.debug(f"[X-RAY]    -> Action SKIPPED (Already in target state): {virtual_id}")
+                                AutomationEngine._log_execution(rule.name, f"IDX {action.idx}",
+                                                                f"{target_action_state} (FORCED)" if is_force else target_action_state)
+                            else:
+                                logger.debug (f"[X-RAY]    -> {virtual_id} already {target_action_state}")
 
                         # --- Nested Event Chaining ---
                         elif getattr(action, "event", None):

@@ -145,12 +145,11 @@ class StateManager:
     async def _process_events(self) -> None:
         """
         Sequential event execution loop with outbound network batch debouncing.
-        Drains the queue fully before broadcasting, collecting the set of changed
-        domains across the batch so each publisher/listener knows exactly what changed.
+        Drains the queue fully before broadcasting.
         """
         pending_broadcast = False
-        # Accumulates which top-level state domains changed during the current drain batch
         changed_domains: Set[str] = set()
+        batch_events: list[Event] = []  # ⚡ Collect events that triggered changes
 
         while True:
             event: Event = await self._queue.get()
@@ -159,6 +158,7 @@ class StateManager:
                 if changed:
                     pending_broadcast = True
                     changed_domains.update(domains)
+                    batch_events.append(event)  # ⚡ Add causal event to batch
             except Exception as e:
                 await self.logger.error(f"Error handling event {event.type.value}: {e}")
             finally:
@@ -167,8 +167,6 @@ class StateManager:
             if pending_broadcast and self._queue.empty():
                 snapshot_obj: SystemState = self.get_state_snapshot()
 
-                # Notify the domain-scoped MQTT publisher with the changed domain set.
-                # The publisher routes each domain to its dedicated topic and cadence.
                 if self.mqtt_publisher:
                     try:
                         await self.mqtt_publisher.on_state_changed(snapshot_obj, changed_domains)
@@ -178,12 +176,14 @@ class StateManager:
                 # Notify all other registered state listeners (e.g., Domoticz bridge)
                 for listener in self._state_listeners:
                     try:
-                        await listener(snapshot_obj)
+                        # ⚡ Pass the batch_events so listeners know WHY the state changed!
+                        await listener(snapshot_obj, batch_events)
                     except Exception as e:
-                        await self.logger.error(f"Error in state listener execution: {e}")
+                        await self.logger.error(f"Error in state listener: {e}")
 
                 pending_broadcast = False
-                changed_domains = set()
+                changed_domains.clear()
+                batch_events.clear()  # ⚡ Clear the batch for the next round
 
     async def _handle_event(self, event: Event) -> tuple[bool, Set[str]]:
         """
@@ -214,15 +214,15 @@ class StateManager:
             await self.logger.info(f"User Action Processed: {event_name}")
         elif event_name != "SYSTEM_METRICS_UPDATED":
             # Captures background automation, external bridges, and simulated physics ticks
-            if not is_simulation_action and not is_boot_baseline_seed:
-                logger.info(f"Event Received [{event_name}]: {payload}")
-            else:
+            if is_simulation_action or is_boot_baseline_seed:
                 origin_tag = ""
                 if is_simulation_action:
                     origin_tag = " [SIMULATION]"
                 elif is_boot_baseline_seed:
                     origin_tag = " [BOOT_SEED]"
                 logger.debug(f"Event Received [{event_name}]{origin_tag}: {payload}")
+            elif event_name != "POWER_UPDATED":
+                logger.info(f"Event Received [{event_name}]: {payload}")
 
         # --- HARDWARE TELEMETRY ROUTERS ---
         if event_name == "POWER_UPDATED":
@@ -631,8 +631,12 @@ class StateManager:
             state_val = payload.get("state")  # "ON" or "OFF"
             old_val = self._state.devices.get(device)
 
-            # 100% Generic Assignment. Any inbound switch event goes straight to the dict.
-            if old_val != state_val:
+            # Grab the bypass flags!
+            is_push_button = payload.get("is_push_button", False)
+            is_force = payload.get("force", False)
+
+            # ⚡ ALWAYS process the event if it's a push button, a forced command, or if the state actually changed.
+            if old_val != state_val or is_push_button or is_force:
                 self._state.devices[device] = state_val
                 state_changed = True
                 changed_domains.add("devices")
