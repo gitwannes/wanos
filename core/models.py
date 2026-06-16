@@ -14,6 +14,8 @@ class EventType(str, Enum):
     DOOR_CHANGED = "DOOR_CHANGED"
     SENSOR_ERROR = "SENSOR_ERROR"
     BATH1_VENT_LOCK_EXPIRED = "BATH1_VENT_LOCK_EXPIRED"  # Fired when the bathroom vent minimum runtime ends
+    ALERT_DISMISSED = "ALERT_DISMISSED"  # General error message on top of the UI
+    TEST_ALERT_INJECTED = "TEST_ALERT_INJECTED"  # to test the teneral error message on top of the UI
 
     # Macro & Scene Events
     SCENE_GV_OFF = "SCENE_GV_OFF"
@@ -66,6 +68,7 @@ class SystemAdminState(BaseModel):
     automations_enabled: bool = False  # Master switch for the logic engine
     domoticz_integration_enabled: bool = False  # ⚡ Default OFF, controls whether we process Domoticz messages
     owm_integration_enabled: bool = False  # ⚡ Default OFF, controls OpenWeatherMap polling
+    system_alert_msgs: list[str] = Field(default_factory=list)  # A list to hold multiple stacked alert messages
 
 
 class Event(BaseModel):

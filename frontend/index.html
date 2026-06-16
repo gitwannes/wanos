@@ -38,6 +38,23 @@
         </template>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <div x-show="state.system.system_alert_msgs && state.system.system_alert_msgs.length > 0" x-cloak class="flex flex-col gap-2 mb-4 w-full">
+                <template x-for="msg in state.system.system_alert_msgs" :key="msg">
+                    <div class="alert alert-error shadow-lg py-2 rounded-box text-sm flex justify-between">
+                        <div class="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span x-text="msg" class="font-semibold"></span>
+                        </div>
+                        <button @click="dispatchEvent('ALERT_DISMISSED', { msg_text: msg })" class="btn btn-ghost btn-xs btn-circle">
+                            ✕
+                        </button>
+                    </div>
+                </template>
+            </div>
+
             <div class="lg:col-span-3">
                 <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                     <div class="card-body">
@@ -461,12 +478,12 @@
                                     :disabled="!state.system.domoticz_mqtt_connected">
                                 All Off
                             </button>
-                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                            <button class="btn btn-success btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
                                     @click="dispatchEvent('SCENE_GOCOSY')"
                                     :disabled="!state.system.domoticz_mqtt_connected">
                                 gv Go Cosy
                             </button>
-                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1">
+                            <button class="btn btn-success btn-outline btn-sm font-mono tracking-wider text-[10px] px-1">
                                 .
                             </button>
                         </div>
@@ -607,7 +624,10 @@
                 <div class="card-body">
                     <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4 flex justify-between items-center w-full border-b border-base-200 pb-2">
                         <span>⚙️ System Administration</span>
-                        <button class="btn btn-xs btn-outline btn-error font-mono text-[10px]" @click="reloadFrontend()">♻️ RELOAD UI</button>
+                        <div class="flex gap-2">
+                            <button class="btn btn-xs btn-outline btn-error font-mono text-[10px]" @click="reloadFrontend()">♻️ RELOAD UI</button>
+                            <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]" @click="injectTestAlert()">test UI alert box</button>
+                        </div>
                     </h2>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 w-full">

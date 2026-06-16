@@ -612,10 +612,18 @@ function wanosApp() {
             }
         },
 
-        // ⚡ NEW FRONTEND RELOAD HOOK
         reloadFrontend() {
             console.log("♻️ Administrator triggered UI reload...");
             window.location.reload(true);
+        },
+
+        injectTestAlert() {
+            // Generate a random number so we can stack multiple distinct errors
+            const randomId = Math.floor(Math.random() * 900) + 100;
+            const msg = `🧪 Simulated Error #${randomId} (Local Browser Injection)`;
+
+            // ⚡ Let the backend handle it so it remains the single source of truth!
+            this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: msg });
         }
     };
 }

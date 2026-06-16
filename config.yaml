@@ -214,8 +214,31 @@ automations:
         state: "ON"
       - idx: 283  # Cinema
         state: "ON"
+      - device: "pc_aux"  # 9618
+        state: "ON"
     actions:
       - idx: 139 # Cinema schemer klein
         state: "ON"
       - idx: 140 # Buro Hue
+        state: "ON"
+  - name: "toilet_gv_ventilatie_on"
+    trigger:
+      idx: 9648
+      state: "SYNC"  # toilet ventilatie knop
+    actions:
+      - idx: 9612 # ventilatie motor
+        state: "SYNC"
+  - name: "RFX1_cinema_schemer"
+    trigger:
+      idx: 627  # RFX1
+      state: "ON"
+    actions:
+      - idx: 9612  # cinema_schemer
+        state: "ON"
+  - name: "RFX1_cinema_schemer"
+    trigger:
+      idx: 627  # RFX1
+      state: "ON"
+    actions:
+      - idx: 9612  # cinema_schemer
         state: "ON"

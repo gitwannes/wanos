@@ -305,12 +305,18 @@ class StateManager:
             # ⚡ SAFETY TRIPWIRE: Automatically disable integration if connection drops
             if not dom_conn and self._state.system.domoticz_integration_enabled:
                 self._state.system.domoticz_integration_enabled = False
+
+                # Append the Domoticz error to the log, preventing duplicates
+                dom_err = "🔌 Domoticz MQTT Connection lost! Integration disabled."
+                if dom_err not in self._state.system.system_alert_msgs:
+                    self._state.system.system_alert_msgs.append(dom_err)
+
                 state_changed = True
                 changed_domains.add("system")
 
                 # Push a high-priority error to the live MQTT console logs
                 asyncio.create_task(
-                    self.logger.error("🔌 Domoticz MQTT Connection lost! Integration has been safely disabled.")
+                    self.logger.error(dom_err)
                 )
 
             # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
@@ -340,28 +346,71 @@ class StateManager:
 
         elif event_name == "AUTOMATIONS_TOGGLED":
             is_enabled = payload.get("enabled", True)
+            state_str = "ON" if is_enabled else "OFF"
+
             self._state.system.automations_enabled = is_enabled
             state_changed = True
             changed_domains.add("system")
+
+            # Push message to the UI msg panel
+            toggle_msg = f"Automations engine turned {state_str}"
+            if toggle_msg not in self._state.system.system_alert_msgs:
+                self._state.system.system_alert_msgs.append(toggle_msg)
+
             # ⚡ Record the master state change directly in the dedicated automation log file
             from logic.automation_rules import AutomationEngine
-            state_str = "ON" if is_enabled else "OFF"
             AutomationEngine._log_execution("Master Toggle", "Automations Engine", state_str)
 
         elif event_name == "DOMOTICZ_TOGGLED":
-            self._state.system.domoticz_integration_enabled = payload.get("enabled", False)
+            is_enabled = payload.get("enabled", False)
+            state_str = "ON" if is_enabled else "OFF"
+
+            self._state.system.domoticz_integration_enabled = is_enabled
             state_changed = True
             changed_domains.add("system")
 
+            # Push message to the UI msg panel
+            toggle_msg = f"Domoticz (in & outbound) polling turned {state_str}"
+            if toggle_msg not in self._state.system.system_alert_msgs:
+                self._state.system.system_alert_msgs.append(toggle_msg)
+
         elif event_name == "OWM_TOGGLED":
-            self._state.system.owm_integration_enabled = payload.get("enabled", False)
+            is_enabled = payload.get("enabled", False)
+            state_str = "ON" if is_enabled else "OFF"
+
+            # If error: append it to the log
+            error_msg = payload.get("error_msg")
+            if not is_enabled and error_msg:
+                if error_msg not in self._state.system.system_alert_msgs:
+                    self._state.system.system_alert_msgs.append(error_msg)
+
+            self._state.system.owm_integration_enabled = is_enabled
             state_changed = True
             changed_domains.add("system")
+
+            # Push message to the UI msg panel
+            toggle_msg = f"OWM Integration turned {state_str}"
+            if toggle_msg not in self._state.system.system_alert_msgs:
+                self._state.system.system_alert_msgs.append(toggle_msg)
 
         elif event_name == "SIMULATIONS_TOGGLED":
             self._state.hardware.simulations_enabled = payload.get("enabled", False)
             state_changed = True
             changed_domains.add("hardware")
+
+        elif event_name == "ALERT_DISMISSED":
+            msg_to_remove = payload.get("msg_text", "")
+            if msg_to_remove in self._state.system.system_alert_msgs:
+                self._state.system.system_alert_msgs.remove(msg_to_remove)
+                state_changed = True
+                changed_domains.add("system")
+
+        elif event_name == "TEST_ALERT_INJECTED":
+            errmsg_to_send = payload.get("msg_text", "")
+            if errmsg_to_send not in self._state.system.system_alert_msgs:
+                self._state.system.system_alert_msgs.append(errmsg_to_send)
+                state_changed = True
+                changed_domains.add("system")
 
         # --------------------------------------------------------
         # PHYSICAL PULSE MAPPING

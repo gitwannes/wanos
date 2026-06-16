@@ -95,21 +95,22 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
 
                 except asyncio.CancelledError:
                     break
+
                 except Exception as e:
-                    await state_manager.logger.error(f"[OWM] Connection failed: {e}")
+                    await state_manager.logger.error(f"Error fetching OpenWeatherMap data: {e}")
 
                     # ⚡ SAFETY TRIPWIRE: Automatically disable OWM integration on HTTP failure
-                    if self.state_manager._state.system.owm_integration_enabled:
-                        # 1. Fire the toggle event to turn the UI switch OFF
-                        from core.models import Event, EventType
-                        self.state_manager.dispatch(Event(
+                    if state_manager._state.system.owm_integration_enabled:
+                        owm_err = "🌩️ OpenWeatherMap HTTP Connection lost! Integration disabled."
+
+                        # 1. Fire the toggle event to turn the UI switch OFF *AND* pass the error string
+                        state_manager.dispatch(Event(
                             type=EventType.OWM_TOGGLED,
-                            payload={"enabled": False}
+                            payload={
+                                "enabled": False,
+                                "error_msg": owm_err
+                            }
                         ))
 
                         # 2. Push a high-priority error to the live MQTT console logs
-                        import asyncio
-                        asyncio.create_task(
-                            self.state_manager.logger.error(
-                                "🌩️ OpenWeatherMap HTTP Connection lost! Integration has been safely disabled.")
-                        )
+                        await state_manager.logger.error(owm_err)
