@@ -191,5 +191,37 @@ class AutomationEngine:
                                       payload={"idx": 7558, "state": "OFF"})
                             )
                             AutomationEngine._log_execution("Bathroom 1eV Vent Auto-OFF", "IDX 7558", "OFF")
+        # -----------------------------------------------------------------
+        # AUTO-OFF TIMERS: Lighting Configuration
+        # -----------------------------------------------------------------
+        if event_name == "HUB_STATE_CHANGED":
+            idx = payload.get("idx")
+            # Only track IDXs that are explicitly registered in the lighting YAML config
+            if idx is not None and hasattr(config, "lighting") and idx in config.lighting.managed_lights:
+                timer_id: str = f"light_auto_off_{idx}"
+
+                if new_state == "ON":
+                    # Look up specific delay, fallback to the global default
+                    delay_mins: int = config.lighting.auto_off_delays.get(idx, config.lighting.default_auto_off_minutes)
+                    deadline: int = int(time.time()) + delay_mins * 60
+
+                    follow_up_events.append(Event(
+                        type=EventType.TIMER_SCHEDULED,
+                        payload={
+                            "timer_id": timer_id,
+                            "deadline": deadline,
+                            "event_type": EventType.LIGHT_TIMER_EXPIRED.value,
+                            "event_payload": {"idx": idx}
+                        }
+                    ))
+                    logger.debug(f"[AUTOMATION] Scheduled auto-off for IDX {idx} in {delay_mins} min")
+
+                elif new_state == "OFF":
+                    # Instantly cancel any pending countdowns for this light
+                    follow_up_events.append(Event(
+                        type=EventType.TIMER_CANCELLED,
+                        payload={"timer_id": timer_id}
+                    ))
+                    logger.debug(f"[AUTOMATION] Cancelled auto-off timer for IDX {idx}")
 
         return follow_up_events

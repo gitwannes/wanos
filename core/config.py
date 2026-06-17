@@ -70,6 +70,11 @@ class BathroomConfig(BaseModel):
     vent_min_runtime_mins: int
 
 
+class LightingConfig(BaseModel):
+    default_auto_off_minutes: int
+    managed_lights: List[int]
+    auto_off_delays: Dict[int, int]
+
 
 # --- Automation Models ---
 class TriggerConfig(BaseModel):
@@ -107,6 +112,7 @@ class AppConfig(BaseModel):
     sauna: SaunaRuntimeConfig
     ir: IRRuntimeConfig
     bathroom1: BathroomConfig
+    lighting: LightingConfig
     weather: WeatherConfig
     boot_seed: Dict[Union[int, str], Any] = {}
     automations: List[AutomationRuleConfig] = Field(default_factory=list)
@@ -150,6 +156,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "sauna": runtime_data["sauna"],
         "ir": runtime_data["ir"],
         "bathroom1": runtime_data["bathroom1"],
+        "lighting": runtime_data.get("lighting", {}),
         "weather": runtime_data["weather"],
         "automations": runtime_data.get("automations", [])
     }

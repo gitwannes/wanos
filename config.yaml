@@ -78,6 +78,27 @@ bathroom1:
   vent_off_humidity: 74     # Auto-disengage fan below this %
   vent_min_runtime_mins: 5  # Minimum time the fan must run before auto-disengaging
 
+lighting:
+  default_auto_off_minutes: 300
+  # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
+  managed_lights: [52, 53, 60, 100, 139, 140, 141, 157, 169, 282, 283, 348, 411, 1524, 1622, 6051, 6060, 6067, 6070, 6731, 7236, 7237, 7312, 9645, 9648]
+  # Specific delay overrides in minutes
+  auto_off_delays:
+    100: 10
+    141: 120
+    169: 10
+    348: 5
+    411: 1
+    1524: 60
+    1622: 30
+    6051: 1
+    6060: 30
+    6067: 30
+    6070: 90
+    7237: 30
+    9645: 15
+    9648: 5
+
 weather:
   location: "Borsbeek,BE"
   poll_interval_mins: 30

@@ -58,6 +58,10 @@ class EventType(str, Enum):
     LIGHTING_STATE_CHANGED = "LIGHTING_STATE_CHANGED"
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
 
+# Timer & Generic Engine Events
+    TIMER_SCHEDULED = "TIMER_SCHEDULED"
+    TIMER_CANCELLED = "TIMER_CANCELLED"
+    LIGHT_TIMER_EXPIRED = "LIGHT_TIMER_EXPIRED"
 
 class SystemAdminState(BaseModel):
     wanos_mqtt_connected: bool = False

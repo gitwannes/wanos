@@ -437,6 +437,33 @@ class StateManager:
                 changed_domains.add("system")
 
         # --------------------------------------------------------
+        # GENERIC TIMER ROUTING
+        # --------------------------------------------------------
+        elif event_name == "TIMER_SCHEDULED":
+            timer_id: Optional[str] = payload.get("timer_id")
+            deadline: Optional[int] = payload.get("deadline")
+            tgt_event_type: Optional[str] = payload.get("event_type")
+            tgt_payload: dict[str, Any] = payload.get("event_payload", {})
+
+            if timer_id and deadline and tgt_event_type:
+                self._timer_manager.schedule(timer_id, deadline, tgt_event_type, tgt_payload)
+
+        elif event_name == "TIMER_CANCELLED":
+            timer_id: Optional[str] = payload.get("timer_id")
+            if timer_id:
+                self._timer_manager.cancel(timer_id)
+
+        elif event_name == "LIGHT_TIMER_EXPIRED":
+            idx: Optional[int] = payload.get("idx")
+            if idx is not None:
+                await self.logger.info(f"Auto-off timer expired for light IDX {idx}. Forcing OFF.")
+                # Force the specific IDX OFF by simulating a regular hub command
+                self.dispatch(Event(
+                    type=EventType.HUB_STATE_CHANGED,
+                    payload={"idx": idx, "state": "OFF", "force": True}
+                ))
+
+        # --------------------------------------------------------
         # PHYSICAL PULSE MAPPING
         # --------------------------------------------------------
         elif event_name == "WATER_PULSE":
