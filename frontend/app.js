@@ -100,8 +100,12 @@ function wanosApp() {
                 pc_aux: null,
                 gang_boven: null
             },
-          boot_seed: null
+            dashboard_map: {}, // ⚡ Store the backend mapping dictionary
+            boot_seed: null
         },
+
+        // ⚡ Memory cache used to lookup raw IDXs before emitting outbound HTTP actions
+        reverse_dashboard_map: {},
 
         // Dedicated UI Toggle to lock/unlock manual manipulation of the physics simulator
         labControlsEnabled: false,
@@ -187,8 +191,30 @@ function wanosApp() {
                 }
             }
 
-            // Merge retrieved devices with existing safe defaults so we don't drop initialized UI keys
-            this.state.devices = Object.assign({}, this.state.devices, fullState.devices || {});
+            // ⚡ BUILD THE REVERSE MAPPING DICTIONARY
+            if (fullState.dashboard_map) {
+                this.state.dashboard_map = fullState.dashboard_map;
+                this.reverse_dashboard_map = {};
+                for (const [idx, name] of Object.entries(fullState.dashboard_map)) {
+                    this.reverse_dashboard_map[name] = parseInt(idx, 10);
+                }
+            }
+
+            // ⚡ TRANSLATE INCOMING IDXs BACK TO SEMANTIC NAMES
+            // Iterate over the incoming devices dict, translate the integer IDXs to names using the map,
+            // and safely merge them so the UI remains blissfully ignorant of IDXs!
+            const translatedDevices = {};
+            if (fullState.devices) {
+                for (const [idx, stateVal] of Object.entries(fullState.devices)) {
+                    const semanticName = this.state.dashboard_map[idx];
+                    if (semanticName) {
+                        translatedDevices[semanticName] = stateVal;
+                    } else {
+                        translatedDevices[idx] = stateVal; // Failsafe
+                    }
+                }
+            }
+            this.state.devices = Object.assign({}, this.state.devices, translatedDevices);
 
             if (fullState.boot_seed) {
                 this.state.boot_seed = fullState.boot_seed;
@@ -218,8 +244,19 @@ function wanosApp() {
                 if (!data.sensor_errors) data.sensor_errors = [];
             }
             if (domain === "devices") {
+                // ⚡ TRANSLATE INCOMING IDXs BACK TO SEMANTIC NAMES
+                const translatedDevices = {};
+                for (const [idx, stateVal] of Object.entries(data)) {
+                    const semanticName = this.state.dashboard_map[idx];
+                    if (semanticName) {
+                        translatedDevices[semanticName] = stateVal;
+                    } else {
+                        translatedDevices[idx] = stateVal; // Failsafe
+                    }
+                }
+
                 // Merge device keys individually
-                this.state.devices = Object.assign({}, this.state.devices, data);
+                this.state.devices = Object.assign({}, this.state.devices, translatedDevices);
                 // ⚡ FIX: Sync lab controls when devices update so UI stays pinned
                 if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
                     this.syncLabControls();
@@ -260,6 +297,7 @@ function wanosApp() {
                 resetWatchdog();
 
                 eventSource.onmessage = (event) => {
+                    // This is where the data is received from the backend, main.py
                     try {
                         // Any incoming data frame proves the underlying pipeline is alive
                         resetWatchdog();
@@ -458,9 +496,16 @@ function wanosApp() {
         },
 
         injectLabMetric(eventType, sensorId, targetValue) {
+            // Reverse lookup: Translate semantic sensor string (e.g. 'sauna_high') to IDX (20001)
+            const idx = this.reverse_dashboard_map[sensorId];
+            if (!idx) {
+                console.warn(`[UI Guard] No mapped IDX found for sensor: ${sensorId}`);
+                return;
+            }
+
             const payload = {
-                sensor_id: sensorId,
-                value: eventType === "TEMP_UPDATED" ? parseFloat(targetValue) : parseInt(targetValue),
+                idx: parseInt(idx, 10),
+                value: eventType === "TEMP_UPDATED" ? parseFloat(targetValue) : parseInt(targetValue, 10),
                 lab_override: true
             };
             this.dispatchEvent(eventType, payload);
@@ -541,7 +586,15 @@ function wanosApp() {
         },
 
         injectLabDoorChange(doorName, isOpen) {
-            this.dispatchEvent("DOOR_CHANGED", { sensor_id: doorName, is_open: isOpen });
+            // Reverse lookup: Translate semantic door string (e.g. 'door_sauna') to IDX (10001)
+            const deviceId = "door_" + doorName;
+            const idx = this.reverse_dashboard_map[deviceId];
+            if (!idx) {
+                console.warn(`[UI Guard] No mapped IDX found for door: ${deviceId}`);
+                return;
+            }
+
+            this.dispatchEvent("DOOR_CHANGED", { idx: parseInt(idx, 10), is_open: isOpen });
         },
 
         injectLabHubStateChange(deviceId, isOn) {
@@ -559,7 +612,14 @@ function wanosApp() {
                 return;
             }
 
-            this.dispatchEvent("HUB_STATE_CHANGED", { device_id: deviceId, state: targetState });
+            // Reverse lookup: Translate semantic switch string (e.g. 'pc_aux') to IDX (9618)
+            const idx = this.reverse_dashboard_map[deviceId];
+            if (!idx) {
+                console.warn(`[UI Guard] No mapped IDX found for device: ${deviceId}`);
+                return;
+            }
+
+            this.dispatchEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
         },
 
         // 🛡️ PC Power Safety Interceptor
@@ -575,6 +635,7 @@ function wanosApp() {
             // Send the opposite of the current state
             this.injectLabHubStateChange('pc', !isCurrentlyOn);
         },
+
         // 🛡️ Hardware Bus Safety Interceptor
         handleHardwareToggleClick(event) {
             event.preventDefault(); // Stop the toggle from visually flipping
@@ -614,6 +675,7 @@ function wanosApp() {
 
         reloadFrontend() {
             console.log("♻️ Administrator triggered UI reload...");
+            // Force the browser to bypass its local cache and perform a hard, "end-to-end" refresh.
             window.location.reload(true);
         },
 

@@ -71,19 +71,19 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
                                 last_temp = temp
                                 last_hum = hum
 
-                                # Dispatch Temperature
+                                # Dispatch Temperature strictly using the 30001 Virtual IDX
                                 state_manager.dispatch(Event(
                                     type=EventType.TEMP_UPDATED,
-                                    payload={"sensor_id": "outside", "value": temp}
+                                    payload={"idx": 30001, "value": temp}
                                 ))
 
-                                # Dispatch Humidity
+                                # Dispatch Humidity strictly using the 30001 Virtual IDX
                                 state_manager.dispatch(Event(
                                     type=EventType.HUMIDITY_UPDATED,
-                                    payload={"sensor_id": "outside", "value": hum}
+                                    payload={"idx": 30001, "value": hum}
                                 ))
 
-                                # Dispatch Sun Cycle
+                                # Dispatch Sun Cycle (Specialized macro event updates both simultaneously)
                                 state_manager.dispatch(Event(
                                     type=EventType.EXTERNAL_WEATHER_UPDATED,
                                     payload={"sunrise": sunrise, "sunset": sunset}

@@ -3,7 +3,7 @@ import os
 import yaml
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Any
 from dotenv import load_dotenv
 
 
@@ -25,16 +25,9 @@ class WanosConfig(BaseModel):
     mqtt: MQTTConfig
 
 
-class IdxMapping(BaseModel):
-    """Represents a single Domoticz virtual device with an ID and structural type."""
-    id: int
-    type: str
-
-
 class DomoticzConfig(BaseModel):
-    """Configuration mapping for the remote Domoticz broker and virtual devices."""
+    """Configuration mapping for the remote Domoticz broker."""
     mqtt: MQTTConfig
-    idx: Dict[str, IdxMapping]
 
 
 class PinMappingConfig(BaseModel):
@@ -77,37 +70,24 @@ class BathroomConfig(BaseModel):
     vent_min_runtime_mins: int
 
 
-class BootSeedConfig(BaseModel):
-    sauna_high_temp: float
-    sauna_low_temp: float
-    sauna_high_hum: float
-    sauna_low_hum: float
-    door_sauna_open: bool
-    bathroom1_temp: float
-    bathroom1_hum: float
-    cinema_temp: float
-    cinema_hum: float
-    outside_temp: float
-    outside_hum: float
-    outside_tick: int
-
 
 # --- Automation Models ---
 class TriggerConfig(BaseModel):
-    device: Optional[str] = None  # If sensor is present in hardware.yaml
-    idx: Optional[int] = None     # Raw Domoticz IDXs
+    idx: Optional[int] = None
     state: Optional[str] = None
     event: Optional[str] = None
+
 
 class ConditionConfig(BaseModel):
     type: str
-    condition_is: str = Field(alias="is")  # "is" is a Python keyword, so we alias it
+    condition_is: str = Field(alias="is")
+
 
 class ActionConfig(BaseModel):
-    device: Optional[str] = None
-    idx: Optional[int] = None     # Raw Domoticz IDXs
+    idx: Optional[int] = None
     state: Optional[str] = None
     event: Optional[str] = None
+
 
 class AutomationRuleConfig(BaseModel):
     name: str
@@ -120,6 +100,7 @@ class AppConfig(BaseModel):
     """The unified master configuration model."""
     wanos: WanosConfig
     domoticz: DomoticzConfig
+    dashboard: Dict[int, str]
     auth: Dict[str, str]
     pins: PinMappingConfig
     sensors: Dict[str, SHT11SensorNode]
@@ -127,7 +108,7 @@ class AppConfig(BaseModel):
     ir: IRRuntimeConfig
     bathroom1: BathroomConfig
     weather: WeatherConfig
-    boot_seed: Optional[BootSeedConfig] = None
+    boot_seed: Dict[Union[int, str], Any] = {}
     automations: List[AutomationRuleConfig] = Field(default_factory=list)
 
 
@@ -159,8 +140,10 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
 
     # 3. Consolidate payloads for unified validation assembly
     compiled_data = {
-        "wanos": hardware_data["wanos"],
-        "domoticz": hardware_data["domoticz"],
+        # wanos and domoticz networks moved to runtime config (config.yaml)
+        "wanos": runtime_data["wanos"],
+        "domoticz": runtime_data["domoticz"],
+        "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},
         "pins": hardware_data["pins"],
         "sensors": hardware_data["sht11_sensors"],

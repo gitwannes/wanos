@@ -1,24 +1,33 @@
 # --- file: config_lab.yaml ---
-# These values are injected on boot
+# These values are injected on boot.
+# The simulator dynamically parses integer keys as IDXs!
 boot_seed:
-  # Sauna
-  sauna_high_temp: 21.0
-  sauna_low_temp: 20.0
-  sauna_high_hum: 45.0
-  sauna_low_hum: 48.0
-  door_sauna_open: true
-
-  # Bathroom 1e
-  bathroom1_temp: 22.5
-  bathroom1_hum: 45.0
-
-  # Cinema
-  cinema_temp: 21.5
-  cinema_hum: 50.0
-
-  # Outside (Baselines for the sine wave simulator)
-  outside_temp: 15.0
-  outside_hum: 60.0
+  # --- Metadata ---
   # outside_tick: Artificial time counter used by the Lab Mode simulator to generate a continuous day/night weather sine wave.
   # Changing this acts as a "time travel" dial to boot the simulation in a different phase of the day/night curve.
   outside_tick: 0
+
+  # Sauna Environment
+  20001: # sauna_high
+    temp: 21.0
+    hum: 45.0
+  20002: # sauna_low
+    temp: 20.0
+    hum: 48.0
+  10001: # door_sauna
+    is_open: true
+
+  # Bathroom 1e
+  20004: # bathroom1
+    temp: 22.5
+    hum: 45.0
+
+  # Cinema
+  20003: # cinema
+    temp: 21.5
+    hum: 50.0
+
+  # Outside (Baselines for the sine wave simulator)
+  30001: # outside
+    temp: 15.0
+    hum: 60.0

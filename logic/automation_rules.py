@@ -4,11 +4,10 @@ from core.models import Event, EventType, SystemState
 from core.config import load_config
 from loguru import logger  # ⚡ Added logger for troubleshooting
 
-
 class AutomationEngine:
     """
     Centralized Rule Engine for WanOS automations.
-    Dynamically evaluates YAML-defined rules instead of using hardcoded cascading logic.
+    Dynamically evaluates YAML-defined rules using strictly numeric IDXs.
     """
 
     # Cache the config so we don't parse the YAML file on every single event iteration
@@ -25,29 +24,20 @@ class AutomationEngine:
         """
         Temporary flat-file logger for executed automations.
         Will be replaced by MySQL integration in the future.
-        Matches the exact Loguru formatting from main.py.
         """
         try:
-            # Generate millisecond-precise timestamp: YYYY-MM-DD HH:mm:ss.SSS
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-
-            # Construct the message payload
             message = f"[AUTOMATION] '{rule_name}' -> Set {target} to {new_state}"
-
-            # Combine into the exact WanOS Loguru format (INFO is padded to 8 chars)
             log_line = f"{timestamp} | INFO     | {message}\n"
-
             with open("/var/log/wisc/wanos_automations.log", "a", encoding="utf-8") as f:
                 f.write(log_line)
         except Exception:
-            # Silently catch permission errors so the automation loop never crashes
             pass
 
     @staticmethod
     def _is_dark(state: SystemState) -> bool:
         """
         Helper function to resolve the 'is_dark' condition.
-        Uses OpenWeatherMap sunrise/sunset UNIX timestamps from the central state.
         """
         sunrise = state.sensors.sunrise_unix
         sunset = state.sensors.sunset_unix
@@ -56,7 +46,6 @@ class AutomationEngine:
             return False  # Failsafe: Default to 'daylight' if weather data hasn't synced
 
         now = int(time.time())
-        # It is dark if the current time is BEFORE today's sunrise, or AFTER today's sunset.
         return now < sunrise or now > sunset
 
     @staticmethod
@@ -71,7 +60,6 @@ class AutomationEngine:
         follow_up_events = []
         event_name = event.type.value if hasattr(event.type, 'value') else str(event.type)
 
-        device_id = payload.get("device_id")
         event_idx = payload.get("idx")
         new_state = payload.get("state")
         is_transition = payload.get("transitioned", False)
@@ -80,34 +68,25 @@ class AutomationEngine:
         for rule in config.automations:
             trigger_matched = False
 
-            # ⚡ Normalize trigger to a list so we can loop through it (Supports both Single and Multiple Triggers)
+            # ⚡ Normalize trigger to a list so we can loop through it
             triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
 
             for t in triggers:
-                # Trigger Type A: Hardware State Transition
-                if t.device and t.state:
+                # Trigger Type A: Raw Numeric IDX
+                if t.idx is not None and t.state:
                     if event_name == "HUB_STATE_CHANGED" and is_transition:
-                        # ⚡ Wildcard SYNC checks or explicit state matching
-                        if t.device == device_id and (t.state == "SYNC" or t.state == new_state):
-                            trigger_matched = True
-                            break  # ⚡ Match found! Stop checking other triggers for this rule (OR condition)
-
-                # Trigger Type B: Raw Domoticz IDX
-                elif t.idx and t.state:
-                    if event_name == "HUB_STATE_CHANGED" and is_transition:
-                        # ⚡ Wildcard SYNC checks or explicit state matching
                         if t.idx == event_idx and (t.state == "SYNC" or t.state == new_state):
                             trigger_matched = True
                             break
 
-                # Trigger Type C: System Event (e.g., SAUNA_ON, SCENE_VERDIEP1_OFF)
+                # Trigger Type B: System Event (e.g., SAUNA_ON, SCENE_VERDIEP1_OFF)
                 elif t.event:
                     rule_event_str = t.event.value if hasattr(t.event, 'value') else str(t.event)
                     if event_name == rule_event_str:
                         trigger_matched = True
                         break
 
-            # If the trigger matched, evaluate conditions and execute!
+            # If the trigger matched, evaluate conditions and execute
             if trigger_matched:
                 logger.debug(f"[X-RAY] -> TRIGGER MATCHED for rule: '{rule.name}'")
                 conditions_met = True
@@ -127,7 +106,7 @@ class AutomationEngine:
                     for action in rule.actions:
                         logger.debug(f"[X-RAY]    -> Pydantic parsed this action: {action}")
 
-                        # ⚡ Resolve target action state (Supports direct strings, SYNC matching, SYNCOPPOSITE inversion, and FORCE_ prefix)
+                        # ⚡ Resolve target action state
                         raw_action_state = action.state
                         is_force = False
                         if isinstance(raw_action_state, str) and raw_action_state.startswith("FORCE_"):
@@ -141,48 +120,28 @@ class AutomationEngine:
                         else:
                             target_action_state = raw_action_state
 
-                        # --- Semantic Device ---
-                        if action.device:
-                            current_target_state = state.devices.get(action.device)
+                        # --- Raw IDX Execution ---
+                        if action.idx is not None:
+                            current_target_state = state.devices.get(action.idx)
 
-                            # ⚡ UNINITIALIZED STATE GUARD: Skip execution if the target device state is unknown (None)
+                            # ⚡ UNINITIALIZED STATE GUARD
                             if current_target_state is None:
-                                logger.debug(
-                                    f"[X-RAY]    -> Action SKIPPED for {action.device}: Current state is None (Uninitialized)")
+                                logger.debug(f"[X-RAY]    -> Action SKIPPED for IDX {action.idx}: Current state is None")
                                 continue
 
                             logger.debug(
-                                f"[X-RAY]    -> Checking {action.device}: Current state is {current_target_state}, Target is {target_action_state} (Force: {is_force})")
+                                f"[X-RAY]    -> Checking IDX {action.idx}: Current state is {current_target_state}, Target is {target_action_state} (Force: {is_force})")
 
                             if current_target_state != target_action_state or is_force:
-                                logger.debug (f"[X-RAY]    -> {action.device} switching to {target_action_state}")
+                                logger.debug (f"[X-RAY]    -> IDX {action.idx} switching to {target_action_state}")
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
-                                    payload = {"device_id": action.device, "state": target_action_state, "force": is_force}
-                                ))
-                                AutomationEngine._log_execution(rule.name, action.device,
-                                                                f"{target_action_state} (FORCED)" if is_force else target_action_state)
-                            else:
-                                logger.debug (f"[X-RAY]    -> {action.device} already {target_action_state}")
-
-                        # --- Raw IDX ---
-                        elif action.idx:
-                            virtual_id = f"idx_{action.idx}"
-                            current_target_state = state.devices.get(virtual_id)
-
-                            logger.debug(
-                                f"[X-RAY]    -> Checking {virtual_id}: Current state is {current_target_state}, Target is {target_action_state} (Force: {is_force})")
-
-                            if current_target_state != target_action_state or is_force:
-                                logger.debug (f"[X-RAY]    -> {virtual_id} switching to {target_action_state}")
-                                follow_up_events.append(Event(
-                                    type=EventType.HUB_STATE_CHANGED,
-                                    payload = {"device_id": virtual_id, "idx": action.idx, "state": target_action_state, "force": is_force}
+                                    payload = {"idx": action.idx, "state": target_action_state, "force": is_force}
                                 ))
                                 AutomationEngine._log_execution(rule.name, f"IDX {action.idx}",
                                                                 f"{target_action_state} (FORCED)" if is_force else target_action_state)
                             else:
-                                logger.debug (f"[X-RAY]    -> {virtual_id} already {target_action_state}")
+                                logger.debug (f"[X-RAY]    -> IDX {action.idx} already {target_action_state}")
 
                         # --- Nested Event Chaining ---
                         elif getattr(action, "event", None):
@@ -201,36 +160,36 @@ class AutomationEngine:
         # -----------------------------------------------------------------
         # HYSTERESIS LOOPS: Bathroom 1eV Ventilator Auto-ON/OFF
         # -----------------------------------------------------------------
+        # The SHT temp/hum sensor was assigned virtual IDX 20004
+        # The extractor fan relay uses Domoticz IDX 7558
+        # The ventilator lock timer uses virtual internal IDX 90001
         if event_name == "HUMIDITY_UPDATED":
-            sensor_id = payload.get("sensor_id")
-            if sensor_id == "bathroom1":
+            idx = payload.get("idx")
+            if idx == 20004:
                 config = AutomationEngine._get_config()
                 val = payload.get("value", 0)
 
-                # Verify that config.bathroom1 exists before evaluating to prevent crashing
                 if hasattr(config, "bathroom1"):
                     on_threshold = config.bathroom1.vent_on_humidity
                     off_threshold = config.bathroom1.vent_off_humidity
 
-                    current_vent_state = state.devices.get("bathroom1_ventilator", "OFF")
-                    is_locked = state.devices.get("bathroom1_vent_locked", False)
+                    current_vent_state = state.devices.get(7558, "OFF")
+                    is_locked = state.devices.get(90001, False)
 
                     if val >= on_threshold and current_vent_state != "ON":
                         # Humidity is high: Auto-engage ventilator
                         follow_up_events.append(
                             Event(type=EventType.HUB_STATE_CHANGED,
-                                  payload={"device_id": "bathroom1_ventilator", "state": "ON"})
+                                  payload={"idx": 7558, "state": "ON"})
                         )
-                        AutomationEngine._log_execution("Bathroom 1eV Vent Auto-ON", "bathroom1_ventilator",
-                                                        "ON")
+                        AutomationEngine._log_execution("Bathroom 1eV Vent Auto-ON", "IDX 7558", "ON")
                     elif val <= off_threshold and current_vent_state == "ON":
-                        # Humidity is low: Auto-disengage ventilator (BUT ONLY IF 5-MIN LOCK EXPIRED)
+                        # Humidity is low: Auto-disengage ventilator (IF 5-MIN LOCK EXPIRED)
                         if not is_locked:
                             follow_up_events.append(
                                 Event(type=EventType.HUB_STATE_CHANGED,
-                                      payload={"device_id": "bathroom1_ventilator", "state": "OFF"})
+                                      payload={"idx": 7558, "state": "OFF"})
                             )
-                            AutomationEngine._log_execution("Bathroom 1eV Vent Auto-OFF",
-                                                            "bathroom1_ventilator", "OFF")
+                            AutomationEngine._log_execution("Bathroom 1eV Vent Auto-OFF", "IDX 7558", "OFF")
 
         return follow_up_events

@@ -35,10 +35,21 @@ class StateManager:
         self._start_time = time.time()  # Track initialization timestamp for Engine Uptime calculation
 
         # Track rolling data windows for moving averages
-        self._sensor_history: dict[str, list[float]] = {}
+        # Modified to expect integer IDXs as dictionary keys
+        self._sensor_history: dict[int, list[float]] = {}
 
         # Load centralized configuration profiles
         self._config = load_config()
+
+        # Transfer the parsed dictionary from the static config
+        # into the live SystemState so it gets sent to app.js during the initial /api/state fetch!
+        self._state.dashboard_map = self._config.dashboard
+
+        # ⚡ STALE CACHE PURGE: Pre-fill the state dictionary with explicit None values
+        # for every mapped dashboard device. This forces the frontend to overwrite its
+        # stale UI cache with 'null', triggering the "SYNCING..." visual state upon reconnect!
+        for idx in self._state.dashboard_map.keys():
+            self._state.devices[idx] = None
 
     def register_listener(self, callback: Any) -> None:
         """Registers an async callback to be triggered on post-drain state snapshots."""
@@ -46,8 +57,11 @@ class StateManager:
         self._state.sauna.target_temp = float(self._config.sauna.default_sauna_setpoint)
         self._state.sauna.max_temp = float(self._config.sauna.max_temp)
         self._state.boot_seed = self._config.boot_seed
-        self._state.devices["door_sauna"] = "CLOSED"
-        self._state.devices["door_bathroom1"] = "CLOSED"
+
+        # Initialize physical Pi doors with their virtual IDXs
+        # 10001 = door_sauna, 10002 = door_bathroom1
+        #self._state.devices[10001] = "OPEN"
+        #self._state.devices[10002] = "OPEN"
 
         # ⚡ Initialize IR Setpoint from config so it shows default on boot while OFF
         self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
@@ -116,7 +130,7 @@ class StateManager:
     def get_state_snapshot(self) -> SystemState:
         return self._state.model_copy(deep=True)
 
-    def _set_hardware_safety_gate(self, state: bool):
+    def _set_hardware_safety_gate(self, state: bool) -> None:
         self._state.hardware.safety_pin_active = state
         if self._gpio_chip and LGPIO_AVAILABLE:
             try:
@@ -126,6 +140,12 @@ class StateManager:
                 logger.error(f"Safety Relay Error: Write failed - {e}")
 
     def _recalculate_sauna_metrics(self) -> bool:
+        """
+        Mathematical calculation combining the two physical SHT11 temperature probes
+        (Ceiling probe via virtual IDX 20001 and Bench probe via virtual IDX 20002)
+        into a single smoothed virtual metric (sauna_calc_temp).
+        Note for Programmers: This calculated metric is what actually drives the PID heating logic!
+        """
         sns = self._state.sensors
         changed = False
         if sns.sauna_high_temp is not None and sns.sauna_low_temp is not None:
@@ -226,16 +246,17 @@ class StateManager:
 
         # --- HARDWARE TELEMETRY ROUTERS ---
         if event_name == "POWER_UPDATED":
-            sensor_id: str = payload.get("sensor_id", "")
+            idx: int = payload.get("idx")
             raw_val: float = payload.get("value", 0.0)
             sns: Any = self._state.sensors
             moving_avg = 10
 
             # Initialize tracking histories in RAM if absent
-            if sensor_id not in self._sensor_history:
-                self._sensor_history[sensor_id] = []
+            # Using the raw integer IDXs for the moving average buffer keys
+            if idx not in self._sensor_history:
+                self._sensor_history[idx] = []
 
-            history = self._sensor_history[sensor_id]
+            history = self._sensor_history[idx]
 
             if raw_val == 0.0:
                 # Flush the math buffer so the moving average drops to zero instantly
@@ -249,37 +270,40 @@ class StateManager:
             # Compute smoothed moving average aggregate
             avg_val = round(sum(history) / len(history), 1)
 
-            # Target validation branch mapping
-            if hasattr(sns, sensor_id):
-                # Pre-fill tracking frames instantly to render layout lines on initial power steps
-                if sensor_id == "pc_power":
-                    if avg_val == 0.0:
-                        sns.pc_power_history = [0.0] * moving_avg
-                    elif len(sns.pc_power_history) == 0:
-                        sns.pc_power_history = [avg_val] * moving_avg
-                    else:
-                        sns.pc_power_history.append(avg_val)
-                        if len(sns.pc_power_history) > moving_avg:
-                            sns.pc_power_history.pop(0)
+            # Route explicitly mapped core IDXs to their semantic SensorsState variables
+            # 9 = pc_power, 9622 = pc_aux_power
+            if idx == 9:
+                if avg_val == 0.0:
+                    sns.pc_power_history = [0.0] * moving_avg
+                elif len(sns.pc_power_history) == 0:
+                    sns.pc_power_history = [avg_val] * moving_avg
+                else:
+                    sns.pc_power_history.append(avg_val)
+                    if len(sns.pc_power_history) > moving_avg:
+                        sns.pc_power_history.pop(0)
 
-                if sensor_id == "pc_aux_power":
-                    if avg_val == 0.0:
-                        sns.pc_aux_power_history = [0.0] * moving_avg
-                    elif len(sns.pc_aux_power_history) == 0:
-                        sns.pc_aux_power_history = [avg_val] * moving_avg
-                    else:
-                        sns.pc_aux_power_history.append(avg_val)
-                        if len(sns.pc_aux_power_history) > moving_avg:
-                            sns.pc_aux_power_history.pop(0)
+                if sns.pc_power != avg_val:
+                    sns.pc_power = avg_val
+                    state_changed = True
+                    changed_domains.add("sensors")
 
-                # Throttle transmission: only emit snap updates when rounded median mathematically shifts
-                if getattr(sns, sensor_id) != avg_val:
-                    setattr(sns, sensor_id, avg_val)
+            elif idx == 9622:
+                if avg_val == 0.0:
+                    sns.pc_aux_power_history = [0.0] * moving_avg
+                elif len(sns.pc_aux_power_history) == 0:
+                    sns.pc_aux_power_history = [avg_val] * moving_avg
+                else:
+                    sns.pc_aux_power_history.append(avg_val)
+                    if len(sns.pc_aux_power_history) > moving_avg:
+                        sns.pc_aux_power_history.pop(0)
+
+                if sns.pc_aux_power != avg_val:
+                    sns.pc_aux_power = avg_val
                     state_changed = True
                     changed_domains.add("sensors")
             else:
-                if self._state.devices.get(sensor_id) != avg_val:
-                    self._state.devices[sensor_id] = avg_val
+                if self._state.devices.get(idx) != avg_val:
+                    self._state.devices[idx] = avg_val
                     state_changed = True
                     changed_domains.add("devices")
 
@@ -451,67 +475,111 @@ class StateManager:
         # MULTI-ZONE TEMPERATURE & HUMIDITY ROUTING (SORTING OFFICE)
         # --------------------------------------------------------
         elif event_name == "TEMP_UPDATED":
-            sensor_id: str = payload.get("sensor_id", "")
+            idx: int = payload.get("idx")
             val: float = payload.get("value", 0.0)
             sns: Any = self._state.sensors
 
-            # 1. Core Engine Target: explicitly requested by internal math loop?
-            if hasattr(sns, f"{sensor_id}_temp"):
-                if getattr(sns, f"{sensor_id}_temp") != val:
-                    setattr(sns, f"{sensor_id}_temp", val)
-
-                    # Raw sensor value updated, ensure frontend syncs via SSE
+            # --- CORE ENGINE TARGET ROUTING ---
+            # We explicitly map virtual hardware IDXs to their semantic internal variables.
+            # Note for programmers: IDX 20001 (Sauna Ceiling Probe) and IDX 20002 (Sauna Bench Probe)
+            # are 2 independent physical SHT11 temperature probes that get mathematically
+            # calculated into ONE combined metric (`sauna_calc_temp`) in _recalculate_sauna_metrics().
+            if idx == 20001:
+                if sns.sauna_high_temp != val:
+                    sns.sauna_high_temp = val
                     state_changed = True
                     changed_domains.add("sensors")
-
-                    if sensor_id in ["sauna_high", "sauna_low"]:
-                        if self._recalculate_sauna_metrics() or is_manual_lab_action:
-                            changed_domains.add("sensors")
-            # 2. Generic Peripheral Target: Store it safely for the UI
+                    if self._recalculate_sauna_metrics() or is_manual_lab_action:
+                        changed_domains.add("sensors")
+            elif idx == 20002:
+                if sns.sauna_low_temp != val:
+                    sns.sauna_low_temp = val
+                    state_changed = True
+                    changed_domains.add("sensors")
+                    if self._recalculate_sauna_metrics() or is_manual_lab_action:
+                        changed_domains.add("sensors")
+            elif idx == 20003:  # Cinema Probe
+                if sns.cinema_temp != val:
+                    sns.cinema_temp = val
+                    state_changed = True
+                    changed_domains.add("sensors")
+            elif idx == 20004:  # Bathroom1 Probe
+                if sns.bathroom1_temp != val:
+                    sns.bathroom1_temp = val
+                    state_changed = True
+                    changed_domains.add("sensors")
+            elif idx == 30001:  # OWM Outside Temp
+                if sns.outside_temp != val:
+                    sns.outside_temp = val
+                    state_changed = True
+                    changed_domains.add("sensors")
             else:
-                if self._state.devices.get(f"{sensor_id}_temp") != val:
-                    self._state.devices[f"{sensor_id}_temp"] = val
+                # Generic Peripheral Target: Store it safely by integer IDX for the UI
+                if self._state.devices.get(idx) != val:
+                    self._state.devices[idx] = val
                     state_changed = True
                     changed_domains.add("devices")
 
         elif event_name == "HUMIDITY_UPDATED":
-            sensor_id: str = payload.get("sensor_id", "")
+            idx: int = payload.get("idx")
             val: int = payload.get("value", 0)
             sns: Any = self._state.sensors
 
-            # 1. Core Engine Target
-            if hasattr(sns, f"{sensor_id}_hum"):
-                if getattr(sns, f"{sensor_id}_hum") != val:
-                    setattr(sns, f"{sensor_id}_hum", val)
-
-                    # Raw sensor value updated, ensure frontend syncs via SSE
+            # --- CORE ENGINE TARGET ROUTING ---
+            # Note for programmers: IDX 20001 and IDX 20002 are mathematically
+            # calculated into the single `sauna_calc_hum` metric.
+            if idx == 20001:
+                if sns.sauna_high_hum != val:
+                    sns.sauna_high_hum = val
                     state_changed = True
                     changed_domains.add("sensors")
-
-                if sensor_id in ["sauna_high", "sauna_low"]:
                     if self._recalculate_sauna_metrics() or is_manual_lab_action:
                         changed_domains.add("sensors")
-            # 2. Generic Peripheral Target
+            elif idx == 20002:
+                if sns.sauna_low_hum != val:
+                    sns.sauna_low_hum = val
+                    state_changed = True
+                    changed_domains.add("sensors")
+                    if self._recalculate_sauna_metrics() or is_manual_lab_action:
+                        changed_domains.add("sensors")
+            elif idx == 20003:  # Cinema Probe
+                if sns.cinema_hum != val:
+                    sns.cinema_hum = val
+                    state_changed = True
+                    changed_domains.add("sensors")
+            elif idx == 20004:  # Bathroom1 Probe
+                if sns.bathroom1_hum != val:
+                    sns.bathroom1_hum = val
+                    state_changed = True
+                    changed_domains.add("sensors")
+            elif idx == 30001:  # OWM Outside Hum
+                if sns.outside_hum != val:
+                    sns.outside_hum = val
+                    state_changed = True
+                    changed_domains.add("sensors")
             else:
-                self._state.devices[f"{sensor_id}_hum"] = val
-                state_changed = True
-                changed_domains.add("devices")
+                # Generic Peripheral Target: Store it safely by integer IDX for the UI
+                if self._state.devices.get(idx) != val:
+                    self._state.devices[idx] = val
+                    state_changed = True
+                    changed_domains.add("devices")
 
         elif event_name == "SENSOR_ERROR":
-            sid = payload.get("sensor", "unknown")
-            if sid not in self._state.hardware.sensor_errors:
-                self._state.hardware.sensor_errors.append(sid)
+            idx = payload.get("idx")
+            if idx not in self._state.hardware.sensor_errors:
+                self._state.hardware.sensor_errors.append(idx)
                 state_changed = True
                 changed_domains.add("hardware")
-            if sid in ["sauna_high", "sauna_low"] and self._state.sauna.active:
-                await self.logger.critical(f"Critical sensor failure on {sid}. Emergency stopping heater elements.")
+            # 20001 & 20002 = Sauna SHT Probes
+            if idx in [20001, 20002] and self._state.sauna.active:
+                await self.logger.critical(f"Critical sensor failure on IDX {idx}. Emergency stopping heater elements.")
                 self.dispatch(Event(type=EventType.SAUNA_OFF))
 
         # --------------------------------------------------------
         # CORE CONTROLLER MODULE ROUTERS
         # --------------------------------------------------------
         elif event_name == "SAUNA_ON":
-            door_sauna_open = self._state.devices.get("door_sauna") == "OPEN"
+            door_sauna_open = self._state.devices.get(10001) == "OPEN"  # 10001 = door_sauna
             if door_sauna_open:
                 await self.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Door is open.")
                 return False, set()
@@ -605,19 +673,19 @@ class StateManager:
             changed_domains.add("ir")
 
         elif event_name == "DOOR_CHANGED":
-            sensor_id = payload.get("sensor_id", "sauna")
+            idx = payload.get("idx")
             is_open = payload.get("is_open", False)
-            device_key = f"door_{sensor_id}"
             new_state = "OPEN" if is_open else "CLOSED"
 
-            # Doors are switches, so they go directly to devices!
-            if self._state.devices.get(device_key) != new_state:
-                self._state.devices[device_key] = new_state
+            # Doors are switches, so they go directly to devices using their integer IDX!
+            if self._state.devices.get(idx) != new_state:
+                self._state.devices[idx] = new_state
                 state_changed = True
                 changed_domains.add("devices")
 
                 # Sauna safety interlock logic evaluation
-                if sensor_id == "sauna" and is_open and self._state.sauna.active:
+                # IDX 10001 is the Sauna Door
+                if idx == 10001 and is_open and self._state.sauna.active:
                     self._state.sauna.active = False
                     self._state.sauna.modulation_pwm = 0
                     self._state.sauna.phases_pwm = [0, 0, 0]
@@ -627,9 +695,9 @@ class StateManager:
                         self.logger.warning("🚪 Sauna door opened while active! Emergency cutoff triggered."))
 
         elif event_name == "HUB_STATE_CHANGED":
-            device = payload.get("device_id")
+            idx = payload.get("idx")
             state_val = payload.get("state")  # "ON" or "OFF"
-            old_val = self._state.devices.get(device)
+            old_val = self._state.devices.get(idx)
 
             # Grab the bypass flags!
             is_push_button = payload.get("is_push_button", False)
@@ -637,7 +705,7 @@ class StateManager:
 
             # ⚡ ALWAYS process the event if it's a push button, a forced command, or if the state actually changed.
             if old_val != state_val or is_push_button or is_force:
-                self._state.devices[device] = state_val
+                self._state.devices[idx] = state_val
                 state_changed = True
                 changed_domains.add("devices")
 
@@ -650,23 +718,25 @@ class StateManager:
 
                 # ⚡ Artificially inject 0.0W to instantly flush power graphs when switches turn off
                 if state_val == "OFF":
-                    if device == "pc":
+                    if idx == 8:  # pc
                         self.dispatch(
-                            Event(type=EventType.POWER_UPDATED, payload={"sensor_id": "pc_power", "value": 0.0}))
-                    elif device == "pc_aux":
+                            Event(type=EventType.POWER_UPDATED, payload={"idx": 9, "value": 0.0}))  # 9 = pc_power
+                    elif idx == 9618:  # pc_aux
                         self.dispatch(
-                            Event(type=EventType.POWER_UPDATED, payload={"sensor_id": "pc_aux_power", "value": 0.0}))
+                            Event(type=EventType.POWER_UPDATED,
+                                  payload={"idx": 9622, "value": 0.0}))  # 9622 = pc_aux_power
 
                 # ⚡ Bathroom 1e ventilator timer lock
-                # When the fan turns ON (either manually or via high humidity automation), we lock it for X minutes
-                if device == "bathroom1_ventilator" and state_val == "ON" and old_val != "ON":
-                    self._state.devices["bathroom1_vent_locked"] = True
+                # 7558 is the Domoticz extraction fan raw IDX
+                if idx == 7558 and state_val == "ON" and old_val != "ON":
+                    # 90001 is the internal virtual lock IDX
+                    self._state.devices[90001] = True
                     deadline = int(time.time()) + (self._config.bathroom1.vent_min_runtime_mins * 60)
                     self._timer_manager.schedule("bath1_vent_lock", deadline, "BATH1_VENT_LOCK_EXPIRED")
 
         elif event_name == "BATH1_VENT_LOCK_EXPIRED":
-            # The 5-minute minimum runtime has passed. Release the lock.
-            self._state.devices["bathroom1_vent_locked"] = False
+            # The 5-minute minimum runtime has passed. Release the internal lock.
+            self._state.devices[90001] = False
             state_changed = True
             changed_domains.add("devices")
 
@@ -674,21 +744,20 @@ class StateManager:
             if self._state.sensors.bathroom1_hum is not None:
                 self.dispatch(Event(
                     type=EventType.HUMIDITY_UPDATED,
-                    payload={"sensor_id": "bathroom1", "value": self._state.sensors.bathroom1_hum}
+                    payload={"idx": 20004, "value": self._state.sensors.bathroom1_hum}  # 20004 = bathroom1_hum
                 ))
 
         elif event_name == "LIGHTING_STATE_CHANGED":
-            zone = payload.get("zone")
+            idx = payload.get("idx")
             state_val = payload.get("state")  # "ON" or "OFF"
-            target_device = f"{zone}_hue"
-            if self._state.devices.get(target_device) != state_val:
-                self._state.devices[target_device] = state_val
+            if self._state.devices.get(idx) != state_val:
+                self._state.devices[idx] = state_val
                 state_changed = True
                 changed_domains.add("devices")
 
         elif event_name == "VENT_WAIT_EXPIRED":
             self._state.sauna.ventilation_state = "RUNNING"
-            self._state.devices["sauna_extrvent"] = "ON"
+            self._state.devices[8577] = "ON"  # 8577 = sauna_extrvent
             self._state.sauna.ventilation_deadline = int(time.time()) + (self._config.sauna.vent_run_mins * 60)
             self._timer_manager.schedule("vent_run", self._state.sauna.ventilation_deadline, "VENT_RUN_EXPIRED")
             state_changed = True
@@ -697,7 +766,7 @@ class StateManager:
 
         elif event_name == "VENT_RUN_EXPIRED":
             self._state.sauna.ventilation_state = "OFF"
-            self._state.devices["sauna_extrvent"] = "OFF"
+            self._state.devices[8577] = "OFF"  # 8577 = sauna_extrvent
             self._state.sauna.ventilation_deadline = None
             state_changed = True
             changed_domains.add("sauna")

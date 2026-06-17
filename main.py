@@ -221,6 +221,7 @@ async def sse_state_stream(request: Request):
                         domain_json = json.dumps(domain_data)
 
                     if last_domain_snapshots.get(domain) != domain_json:
+                        # This is where the data is sent to the frontend, app.js
                         payload = json.dumps({"domain": domain, "data": json.loads(domain_json)})
                         yield f"data: {payload}\n\n"
                         last_domain_snapshots[domain] = domain_json

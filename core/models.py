@@ -143,6 +143,7 @@ class HardwareState(BaseModel):
     safety_pin_active: bool = False
     sensor_errors: List[str] = Field(default_factory=list)
 
+
 class SystemState(BaseModel):
     system: SystemAdminState = Field(default_factory=SystemAdminState)
     sensors: SensorsState = Field(default_factory=SensorsState)
@@ -152,7 +153,11 @@ class SystemState(BaseModel):
     hardware: HardwareState = Field(default_factory=HardwareState)
 
     # The generic "Peripheral Catch-all" dictionary for the Sorting Office
-    devices: Dict[str, Any] = Field(default_factory=dict)
+    devices: Dict[int, Any] = Field(default_factory=dict)
+
+    # Dictionary loaded from config.yaml to map numeric IDXs back to semantic names for the UI.
+    # The frontend parses this on boot.
+    dashboard_map: Dict[int, str] = Field(default_factory=dict)
 
     # Allows the baseline validation rules parsed out of config_lab.yaml
     # to be passed seamlessly down to the web UI without strict compilation loop blocks.

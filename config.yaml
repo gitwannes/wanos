@@ -1,5 +1,60 @@
 # --- file: config.yaml ---
 
+# --- file: config.yaml ---
+
+# Internal WanOS broker network configuration
+wanos:
+  mqtt:
+    broker_host: "localhost"
+    port: 1883
+    username: "st"
+
+# Domoticz broker network configuration
+domoticz:
+  mqtt:
+    broker_host: "10.32.251.181"
+    port: 1883
+    username: "st0001"
+
+# The Dashboard Dictionary
+# Maps raw numeric IDXs to semantic names exclusively for the frontend UI.
+dashboard:
+# --- Domoticz Hardware (Real IDXs) ---
+  8567: "safety_ssr"
+  8577: "sauna_extrvent"
+  7550: "sauna"
+  1500: "sauna_zoutlamp"
+  7551: "ir"
+  283: "cinema_main"
+  282: "buro"
+  140: "buro_schemer"
+  141: "bathroom1_main"
+  7555: "bathroom1_wastafel"
+  7558: "bathroom1_ventilator"
+  8: "pc"
+  9618: "pc_aux"
+  9: "pc_power"
+  9622: "pc_aux_power"
+  60: "gang_beneden"
+  169: "gang_boven"
+  7312: "cinema_hue"
+  7561: "sauna_hue"
+
+  # --- Physical Pi Hardware GPIOs (Virtual IDXs) ---
+  10001: "door_sauna"
+  10002: "door_bathroom1"
+
+  # --- Physical Pi Hardware SHT sensors (Virtual IDXs) ---
+  20001: "sauna_high"
+  20002: "sauna_low"
+  20003: "cinema"
+  20004: "bathroom1"
+
+  # --- OpenWeatherMap sensors (Virtual IDXs) ---
+  30001: "outside"
+  30002: "sunrise"
+  30003: "sunset"
+
 ## Part 1: Runtime System Parameters - Modifiable via Web UI
 # Dictionaries (No Dashes): Used for describing a single, unique thing with named properties
 sauna:
@@ -34,37 +89,37 @@ automations:
 ### --- HARDWARE TOGGLES ---
   - name: "PC ON -> PC Aux ON"
     trigger:
-      device: "pc"
+      idx: 8
       state: "ON"
     actions:
-      - device: "pc_aux"
+      - idx: 9618
         state: "ON"
 
   - name: "PC OFF -> PC Aux OFF"
     trigger:
-      device: "pc"
+      idx: 8
       state: "OFF"
     actions:
-      - device: "pc_aux"
+      - idx: 9618
         state: "OFF"
 
   - name: "PC Aux ON -> Buro Schemer ON (Only if Dark)"
     trigger:
-      device: "pc_aux"
+      idx: 9618
       state: "ON"
     conditions:
       - type: "time_of_day"
         is: "dark"
     actions:
-      - device: "buro_schemer"  # idx 140
+      - idx: 140
         state: "ON"
 
   - name: "PC Aux OFF -> Buro Schemer OFF"
     trigger:
-      device: "pc_aux"
+      idx: 9618
       state: "OFF"
     actions:
-      - device: "buro_schemer"  # idx 140
+      - idx: 140
         state: "OFF"
 
 # --- SAUNA MACROS ---
@@ -72,24 +127,24 @@ automations:
     trigger:
       event: "SAUNA_ON"
     actions:
-      - device: "sauna_hue"
+      - idx: 7561  # sauna_hue
         state: "ON"
-      - device: "sauna_zoutlamp"
+      - idx: 1500  # sauna_zoutlamp
         state: "ON"
 
   - name: "Sauna Lights OFF"
     trigger:
       event: "SAUNA_OFF"
     actions:
-      - device: "sauna_hue"
+      - idx: 7561
         state: "OFF"
 
   - name: "Sauna Lights Off2"
     trigger:
-      - device: "sauna_hue"
+      - idx: 7561
         state: "OFF"
     actions:
-      - device: "sauna_zoutlamp"
+      - idx: 1500
         state: "OFF"
 
 ### --- SCENES ---
@@ -97,7 +152,7 @@ automations:
     trigger:
       event: "SCENE_GV_OFF"
     actions:
-      - device: "gang_beneden"
+      - idx: 60       # gang beneden
         state: "OFF"
       - idx: 52       # licht living
         state: "OFF"
@@ -119,39 +174,37 @@ automations:
         state: "OFF"
       - idx: 100       # licht garage
         state: "OFF"
-      #- idx: 348       # licht waskot - gaat uit als garage uit gaat
-      #  state: "OFF"
       - idx: 7396       # licht tuin
         state: "OFF"
-      #- idx: 9627       # licht kerstverlichting tuin
-      #  state: "OFF"
+
   - name: "Scene: 1e Verdiep ALL OFF"
     trigger:
       event: "SCENE_VERDIEP1_OFF"
     actions:
-      - device: "cinema_main"
+      - idx: 283  # cinema_main
         state: "OFF"
-      - device: "cinema_hue"
+      - idx: 7312  # cinema_hue
         state: "OFF"
       - idx: 139  # cinema_schemer
         state: "OFF"
-      - device: "buro"
+      - idx: 282  # buro
         state: "OFF"
-      - device: "buro_schemer"  # idx 140 (via RFX2)
+      - idx: 140  # buro_schemer
         state: "OFF"
-      - device: "pc_aux"
+      - idx: 9618  # pc_aux
         state: "OFF"
-      - device: "bathroom1_main"  # badkamer wastafel: gaat uit als groot uitgaat, zie hieronder
+      - idx: 141  # bathroom1_main
         state: "OFF"
-      - device: "gang_boven"
+      - idx: 169  # gang_boven
         state: "OFF"
+
   - name: "Scene: 2e Verdiep ALL OFF"
     trigger:
       event: "SCENE_VERDIEP2_OFF"
     actions:
-      - device: "gang_boven"
+      - idx: 169  # gang_boven
         state: "OFF"
-      - idx: 170  # badkamer wastafel: gaat uit als groot uitgaat, zie hieronder --- check: 1625?
+      - idx: 170  # badkamer groot
         state: "OFF"
       - idx: 1524     # slpk Dries
         state: "OFF"
@@ -165,6 +218,7 @@ automations:
         state: "OFF"
       - idx: 7237     # slpk Dries Hue
         state: "OFF"
+
   - name: "Scene: ALL OFF"
     trigger:
       event: "SCENE_ALL_OFF"
@@ -172,6 +226,7 @@ automations:
       - event: "SCENE_GV_OFF"
       - event: "SCENE_VERDIEP1_OFF"
       - event: "SCENE_VERDIEP2_OFF"
+
   - name: "Scene: GoCosy"
     trigger:
       event: "SCENE_GOCOSY"
@@ -184,7 +239,6 @@ automations:
         state: "OFF"
       - idx: 7236
         state: "OFF"
-
 
 ### Using Raw Domoticz IDXs for sensors not used above
   - name: "Slpk_Dries"
@@ -214,7 +268,7 @@ automations:
     actions:
       - idx: 139 # Cinema schemer klein
         state: "ON"
-      - device: "buro_schemer"  # idx 140
+      - idx: 140 # Buro schemer
         state: "ON"
   - name: "toilet_gv_ventilatie_on"
     trigger:
@@ -244,9 +298,16 @@ automations:
     actions:
       - idx: 7555  # badkamer wastafel
         state: "OFF"
+  - name: "badkamer_2e_SyncBinnenBuiten"
+    trigger:
+      idx: 170  # badkamer groot buiten
+      state: "SYNC"
+    actions:
+      - idx: 1625  # badkamer groot binnen
+        state: "SYNC"
   - name: "badkamer_2e_off"
     trigger:
-      idx: 170  # badkamer groot
+      idx: 170  # badkamer groot buiten
       state: "OFF"
     actions:
       - idx: 171  # badkamer wastafel
@@ -266,7 +327,6 @@ automations:
       - idx: 6051  # berging
         state: "OFF"
 
-
 ### RFX
   # RFX-ON  ON         -> virtual switch ON
   # virtual switch ON  -> RFX-ON  ON             # is this needed?
@@ -278,10 +338,17 @@ automations:
   - name: "RFX1_1"
     trigger:
       idx: 627
-      state: "ON"
+      state: "SYNC"
     actions:
       - idx: 139
-        state: "ON"
+        state: "SYNC"
+  - name: "RFX1_2"
+    trigger:
+      idx: 139
+      state: "SYNC"
+    actions:
+      - idx: 627
+        state: "SYNC"
   - name: "RFX1_3"
     trigger:
       idx: 628
@@ -328,10 +395,17 @@ automations:
   - name: "RFX3_1"
     trigger:
       idx: 630
-      state: "ON"
+      state: "SYNC"
     actions:
       - idx: 157
-        state: "ON"
+        state: "SYNC"
+  - name: "RFX3_2"
+    trigger:
+      - idx: 157
+        state: "SYNC"
+    actions:
+      - idx: 630
+        state: "SYNC"
   - name: "RFX3_3"
     trigger:
       - idx: 115
@@ -346,10 +420,17 @@ automations:
   - name: "RFX4_1"
     trigger:
       idx: 631
-      state: "ON"
+      state: "SYNC"
     actions:
       - idx: 158
-        state: "ON"
+        state: "SYNC"
+  - name: "RFX4_2"
+    trigger:
+      - idx: 158
+        state: "SYNC"
+    actions:
+      - idx: 631
+        state: "SYNC"
   - name: "RFX4_3"
     trigger:
       - idx: 146
