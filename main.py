@@ -18,7 +18,7 @@ from core.mqtt_transport import MqttClientManager
 from core.mqtt_publisher import MqttPublisher
 from core.state_manager import StateManager
 from core.config import load_config, AppConfig
-from core.logger import WanosLogger
+from core.logger import setup_wanos_logging, WanosLogger
 from hardware.simulator import lab_mode_thermodynamics_loop
 from integrations.home_hub import DomoticzHomeHubBridge
 from integrations.open_weather import weather_polling_loop
@@ -28,8 +28,8 @@ shutdown_event = asyncio.Event()
 
 # 0. Configure Centralized File Logger
 logger.remove()  # 🛑 Silences the default console output entirely
-custom_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}"
-logger.add("/var/log/wisc/wanos.log", rotation="5 MB", retention=3, format=custom_format)
+# 0. Initialize WanOS custom Logging
+setup_wanos_logging()
 
 # 1. Load and validate the configuration from YAML and .env
 config: AppConfig = load_config()

@@ -1,17 +1,17 @@
 # --- file: integrations/home_hub.py ---
 import asyncio
 import json
-from typing import Any # , Dict
+from typing import Any
 from core.models import Event, EventType, SystemState
 from core.state_manager import StateManager
-from loguru import logger
+from core.logger import WanosComponent
 
 
-class DomoticzHomeHubBridge:
+class DomoticzHomeHubBridge(WanosComponent):
     def __init__(self, state_manager: StateManager, domoticz_mqtt_client: Any,
                  domoticz_in_topic: str = "domoticz/out",
                  domoticz_out_topic: str = "domoticz/in") -> None:
-        self.state_manager = state_manager
+        super().__init__(state_manager)  # Initialize component (sets self.state_manager and self.logger)
         self.state_manager.domoticz_client = domoticz_mqtt_client
         self.mqtt_client = domoticz_mqtt_client
         self._in_topic = domoticz_in_topic
@@ -65,17 +65,17 @@ class DomoticzHomeHubBridge:
         if self._integration_enabled:
             await self._fetch_initial_states_mqtt()
 
-        logger.success("[Domoticz] HomeHub Bridge initialized (Pure MQTT IDX Mode).")
+        await self.logger.success("[Domoticz] HomeHub Bridge initialized (Pure MQTT IDX Mode).")
 
     async def stop(self) -> None:
-        logger.warning("[Domoticz] HomeHub Bridge stopped.")
+        await self.logger.warning("[Domoticz] HomeHub Bridge stopped.")
 
     async def _fetch_initial_states_mqtt(self) -> None:
         """Fires MQTT commands to force Domoticz to broadcast current hardware states."""
         all_idxs_to_fetch = self.watched_idxs
 
         count = len(all_idxs_to_fetch)
-        logger.info(
+        await self.logger.info(
             f"Firing {count} MQTT state requests to Domoticz for cold-boot sync and awaiting asynchronous echo...")
 
         for idx in all_idxs_to_fetch:
@@ -110,9 +110,9 @@ class DomoticzHomeHubBridge:
             self._debounce_tasks[idx] = asyncio.create_task(self._process_debounced_payload(idx, data))
 
         except ValueError as val_err:
-            logger.error(f"Domoticz parser dropped invalid JSON: {val_err}")
+            await self.logger.error(f"Domoticz parser dropped invalid JSON: {val_err}")
         except Exception as e:
-            logger.error(f"Error handling Domoticz translation: {e}")
+            await self.logger.error(f"Error handling Domoticz translation: {e}")
 
     async def _process_debounced_payload(self, idx: int, data: dict[str, Any]) -> None:
         """Waits for the debounce window to clear, then processes the final resting state."""
@@ -196,6 +196,8 @@ class DomoticzHomeHubBridge:
                     ))
 
                 log_display = " / ".join(log_parts) if log_parts else "No Data"
+                await self.logger.debug(
+                    f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor ({dtype}) update received -> {log_display}")
 
             # 2. Power Sensors
             elif "Usage" in dtype or "Watt" in dtype or "Power" in dtype:
@@ -208,7 +210,7 @@ class DomoticzHomeHubBridge:
                         payload={"idx": idx, "value": wattage}
                     ))
                 except (ValueError, TypeError) as e:
-                    logger.error(f"Failed to parse power reading for IDX {idx}: {e}")
+                    await self.logger.error(f"Failed to parse power reading for IDX {idx}: {e}")
 
             # 3. Switches and Relays
             else:
@@ -230,11 +232,11 @@ class DomoticzHomeHubBridge:
                     }
                 ))
 
-            logger.debug(
-                f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor ({dtype}) update received -> {log_display}")
+                await self.logger.debug(
+                    f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor ({dtype}) update received -> {log_display}")
 
         except Exception as e:
-            logger.error(f"Error in debounced Domoticz translation: {e}")
+            await self.logger.error(f"Error in debounced Domoticz translation: {e}")
 
     async def _on_state_changed(self, state: SystemState, events: list[Event] = None) -> None:
         try:
@@ -242,12 +244,12 @@ class DomoticzHomeHubBridge:
             current_enabled = state.system.domoticz_integration_enabled
             if current_enabled and not getattr(self, '_integration_enabled', False):
                 self._integration_enabled = True
-                logger.success("[Domoticz] Integration ENABLED via UI.")
-                logger.info("[Domoticz] Initiating network sync...")
+                await self.logger.success("[Domoticz] Integration ENABLED via UI.")
+                await self.logger.info("[Domoticz] Initiating network sync...")
                 asyncio.create_task(self._fetch_initial_states_mqtt())
             elif not current_enabled and getattr(self, '_integration_enabled', False):
                 self._integration_enabled = False
-                logger.info("[Domoticz] Integration DISABLED via UI.")
+                await self.logger.info("[Domoticz] Integration DISABLED via UI.")
 
             if not current_enabled:
                 return
@@ -274,11 +276,11 @@ class DomoticzHomeHubBridge:
                         await self.mqtt_client.publish(self._out_topic, domoticz_command)
 
                         if is_force:
-                            logger.warning(f"⚡ [FORCED OVERRIDE] Command Sent: IDX {idx} -> {current_state}")
+                            await self.logger.warning(f"⚡ [FORCED OVERRIDE] Command Sent: IDX {idx} -> {current_state}")
                         else:
-                            logger.info(f"[Domoticz] Command Sent: IDX {idx} -> {current_state}")
+                            await self.logger.info(f"[Domoticz] Command Sent: IDX {idx} -> {current_state}")
 
                         self._last_known_states[idx] = current_state
 
         except Exception as e:
-            logger.error(f"Error processing outbound Domoticz commands: {e}")
+            await self.logger.error(f"Error processing outbound Domoticz commands: {e}")

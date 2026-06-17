@@ -1,9 +1,17 @@
 # --- file: core/logger.py ---
 import datetime
-from typing import Dict
+import os
+from typing import Dict, TYPE_CHECKING
 from loguru import logger as sys_logger
 from .mqtt_transport import MqttClientManager
+if TYPE_CHECKING:
+    from .state_manager import StateManager
 
+class WanosComponent:
+    """Base class for all system components to ensure state/logger access."""
+    def __init__(self, state_manager: 'StateManager') -> None:
+        self.state_manager = state_manager
+        self.logger = state_manager.logger
 
 class WanosLogger:
     """
@@ -57,3 +65,35 @@ class WanosLogger:
 
     async def error(self, message: str) -> None:
         await self._log("ERROR", message)
+
+
+def setup_wanos_logging():
+    """Initializes the multi-sink logging strategy for WanOS."""
+    # 1. Clean the environment
+    sys_logger.remove()
+
+    custom_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}"
+    log_dir = "/var/log/wisc"
+
+    # Ensure directory exists
+    os.makedirs(log_dir, exist_ok=True)
+
+    # 2. Sink for INFO and above
+    sys_logger.add(
+        f"{log_dir}/wanos.log",
+        rotation="5 MB",
+        retention=3,
+        format=custom_format,
+        level="INFO",
+        filter=lambda record: record["level"].name != "DEBUG"
+    )
+
+    # 3. Sink specifically for DEBUG
+    sys_logger.add(
+        f"{log_dir}/wanos_debug.log",
+        rotation="5 MB",
+        retention=3,
+        format=custom_format,
+        level="DEBUG",
+        filter=lambda record: record["level"].name == "DEBUG"
+    )

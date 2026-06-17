@@ -281,6 +281,9 @@ automations:
     trigger:
       idx: 106  # garage motion
       state: "ON"
+    conditions:
+      - type: "time_of_day"
+        is: "dark"
     actions:
       - idx: 100       # licht garage
         state: "ON"
