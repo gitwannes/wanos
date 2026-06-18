@@ -1,6 +1,8 @@
 # --- file: core/state_manager.py ---
 import asyncio
 import time
+import re
+from datetime import datetime
 from typing import Optional, Any, Set
 from loguru import logger
 
@@ -57,11 +59,6 @@ class StateManager:
         self._state.sauna.target_temp = float(self._config.sauna.default_sauna_setpoint)
         self._state.sauna.max_temp = float(self._config.sauna.max_temp)
         self._state.boot_seed = self._config.boot_seed
-
-        # Initialize physical Pi doors with their virtual IDXs
-        # 10001 = door_sauna, 10002 = door_bathroom1
-        #self._state.devices[10001] = "OPEN"
-        #self._state.devices[10002] = "OPEN"
 
         # ⚡ Initialize IR Setpoint from config so it shows default on boot while OFF
         self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
@@ -205,6 +202,52 @@ class StateManager:
                 changed_domains.clear()
                 batch_events.clear()  # ⚡ Clear the batch for the next round
 
+    def _push_alert(self, *msgs: Optional[str], domain: str = "system") -> tuple[bool, Set[str]]:
+        """
+        Safely timestamps and deduplicates UI alerts.
+        If the exact base message already exists, increments a (x) counter at the end, preserving the original timestamp.
+        Returns (state_changed, changed_domains) so callers can merge into their own.
+        """
+        changed = False
+        domains: Set[str] = set()
+
+        for base_msg in msgs:
+            if not base_msg:
+                continue
+
+            msg_handled = False
+
+            # 1. Prevent spam & increment counter: Check if base message is already active
+            for i, existing_msg in enumerate(self._state.system.system_alert_msgs):
+                if base_msg in existing_msg:
+                    # Look for an existing " (x)" pattern at the end of the string
+                    match = re.search(r' \((\d+)\)$', existing_msg)
+                    if match:
+                        count = int(match.group(1)) + 1
+                        # Strip the old count and append the new one
+                        new_msg = existing_msg[:match.start()] + f" ({count})"
+                    else:
+                        # Second occurrence, start at (2)
+                        new_msg = existing_msg + " (2)"
+
+                    # Update it in place to keep the original timestamp intact
+                    self._state.system.system_alert_msgs[i] = new_msg
+                    changed = True
+                    domains.add(domain)
+                    msg_handled = True
+                    break
+
+            # 2. Brand new message: Prepend time (e.g. [14:05:09])
+            if not msg_handled:
+                timestamp: str = datetime.now().strftime("%/d/%b %H:%M:%S")
+                timestamp: str = datetime.now().strftime("%-d/%b %H:%M:%S")
+                full_msg = f"[{timestamp}] {base_msg}"
+                self._state.system.system_alert_msgs.append(full_msg)
+                changed = True
+                domains.add(domain)
+
+        return changed, domains
+
     async def _handle_event(self, event: Event) -> tuple[bool, Set[str]]:
         """
         Processes a single event and mutates internal state.
@@ -326,26 +369,33 @@ class StateManager:
             dom_conn = payload.get("domoticz_connected", False)
             ip_addr = payload.get("ip_address", "0.0.0.0")
 
-            # ⚡ SAFETY TRIPWIRE: Automatically disable integration if connection drops
-            if not dom_conn and self._state.system.domoticz_integration_enabled:
-                self._state.system.domoticz_integration_enabled = False
+            prev_wanos = self._state.system.wanos_mqtt_connected
+            prev_dom = self._state.system.domoticz_mqtt_connected
 
-                # Append the Domoticz error to the log, preventing duplicates
-                dom_err = "🔌 Domoticz MQTT Connection lost! Integration disabled."
-                if dom_err not in self._state.system.system_alert_msgs:
-                    self._state.system.system_alert_msgs.append(dom_err)
+            # --- UI CONNECTION TRANSITION ALERTS ---
+            # 1. Local WanOS Broker
+            if prev_wanos and not wanos_conn:
+                ch, dom = self._push_alert("🔴 CRITICAL: Local MQTT Broker offline")
+                state_changed |= ch  # state_changed |= ch is shorthand for state_changed = state_changed or ch
+                changed_domains |= dom
+            elif not prev_wanos and wanos_conn and self._state.system.app_boot_unix is not None:
+                ch, dom = self._push_alert("🟢 SUCCESS: Local MQTT Broker back online")
+                state_changed |= ch
+                changed_domains |= dom
 
-                state_changed = True
-                changed_domains.add("system")
-
-                # Push a high-priority error to the live MQTT console logs
-                asyncio.create_task(
-                    self.logger.error(dom_err)
-                )
+            # 2. Domoticz Broker
+            if prev_dom and not dom_conn:
+                ch, dom = self._push_alert("🔴 CRITICAL: Domoticz MQTT Broker Connection down")
+                state_changed |= ch
+                changed_domains |= dom
+            elif not prev_dom and dom_conn and self._state.system.app_boot_unix is not None:
+                ch, dom = self._push_alert("🟢 SUCCESS: Domoticz MQTT Broker Connection back online")
+                state_changed |= ch
+                changed_domains |= dom
 
             # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
-            if (self._state.system.wanos_mqtt_connected != wanos_conn or
-                    self._state.system.domoticz_mqtt_connected != dom_conn or
+            if (prev_wanos != wanos_conn or
+                    prev_dom != dom_conn or
                     self._state.system.ip_address != ip_addr or
                     self._state.system.app_boot_unix is None):
 
@@ -371,38 +421,31 @@ class StateManager:
         elif event_name == "AUTOMATIONS_TOGGLED":
             is_enabled = payload.get("enabled", True)
             state_str = "ON" if is_enabled else "OFF"
-
             self._state.system.automations_enabled = is_enabled
             state_changed = True
             changed_domains.add("system")
 
-            # Push message to the UI msg panel
-            toggle_msg = f"Automations engine turned {state_str}"
-            if toggle_msg not in self._state.system.system_alert_msgs:
-                self._state.system.system_alert_msgs.append(toggle_msg)
+            color = "🟢" if is_enabled else "🔴"
+            ch, dom = self._push_alert(f"{color} Automations engine turned {state_str}")
+            state_changed |= ch
+            changed_domains |= dom
 
-            # ⚡ Record the master state change directly in the dedicated automation log file
             from logic.automation_rules import AutomationEngine
             AutomationEngine._log_execution("Master Toggle", "Automations Engine", state_str)
 
         elif event_name == "DOMOTICZ_TOGGLED":
             is_enabled = payload.get("enabled", False)
             state_str = "ON" if is_enabled else "OFF"
-
-            # If error: append it to the log
-            error_msg = payload.get("error_msg")
-            if not is_enabled and error_msg:
-                if error_msg not in self._state.system.system_alert_msgs:
-                    self._state.system.system_alert_msgs.append(error_msg)
-
             self._state.system.domoticz_integration_enabled = is_enabled
             state_changed = True
             changed_domains.add("system")
 
-            # Push general toggle message to the UI msg panel
-            toggle_msg = f"Domoticz (in & outbound) polling turned {state_str}"
-            if toggle_msg not in self._state.system.system_alert_msgs:
-                self._state.system.system_alert_msgs.append(toggle_msg)
+            color = "🟢" if is_enabled else "🔴"
+            raw_error = payload.get("error_msg")
+            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+            ch, dom = self._push_alert(error_alert, f"{color} Domoticz (in & outbound) polling turned {state_str}")
+            state_changed |= ch
+            changed_domains |= dom
 
             # --- THE UX WIPE (NULLIFICATION) ---
             # If disabled (either manually or via 3-strike fault), instantly gray out Domoticz items
@@ -417,21 +460,16 @@ class StateManager:
         elif event_name == "OWM_TOGGLED":
             is_enabled = payload.get("enabled", False)
             state_str = "ON" if is_enabled else "OFF"
-
-            # If error: append it to the log
-            error_msg = payload.get("error_msg")
-            if not is_enabled and error_msg:
-                if error_msg not in self._state.system.system_alert_msgs:
-                    self._state.system.system_alert_msgs.append(error_msg)
-
             self._state.system.owm_integration_enabled = is_enabled
             state_changed = True
             changed_domains.add("system")
 
-            # Push message to the UI msg panel
-            toggle_msg = f"OWM Integration turned {state_str}"
-            if toggle_msg not in self._state.system.system_alert_msgs:
-                self._state.system.system_alert_msgs.append(toggle_msg)
+            color = "🟢" if is_enabled else "🔴"
+            raw_error = payload.get("error_msg")
+            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+            ch, dom = self._push_alert(error_alert, f"{color} OWM Integration turned {state_str}")
+            state_changed |= ch
+            changed_domains |= dom
 
         elif event_name == "SIMULATIONS_TOGGLED":
             self._state.hardware.simulations_enabled = payload.get("enabled", False)
@@ -447,10 +485,9 @@ class StateManager:
 
         elif event_name == "TEST_ALERT_INJECTED":
             errmsg_to_send = payload.get("msg_text", "")
-            if errmsg_to_send not in self._state.system.system_alert_msgs:
-                self._state.system.system_alert_msgs.append(errmsg_to_send)
-                state_changed = True
-                changed_domains.add("system")
+            ch, dom = self._push_alert(errmsg_to_send)
+            state_changed |= ch
+            changed_domains |= dom
 
         # --------------------------------------------------------
         # GENERIC TIMER ROUTING
