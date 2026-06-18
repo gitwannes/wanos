@@ -673,16 +673,22 @@ function wanosApp() {
             }
         },
 
-        reloadFrontend() {
-            console.log("♻️ Administrator triggered UI reload...");
-            // Force the browser to bypass its local cache and perform a hard, "end-to-end" refresh.
-            window.location.reload(true);
+        async reloadFrontend() {
+            try {
+                // 1. Force the browser network engine to silently download a fresh copy of app.js
+                // This updates the internal cache behind the scenes.
+                await fetch('app.js', { cache: 'reload' });
+            } catch (err) {
+                console.warn("⚠️ Cache bust fetch failed, proceeding with standard reload.");
+            }
+
+            // 2. Perform the standard reload. The browser will now load the freshly cached app.js!
+            window.location.reload();
+
         },
 
         injectTestAlert() {
-            // Generate a random number so we can stack multiple distinct errors
-            const randomId = Math.floor(Math.random() * 900) + 100;
-            const msg = `🧪 Simulated Error #${randomId} (Local Browser Injection)`;
+            const msg = `🧪 Simulated Error - Local Browser Injection`;
 
             // ⚡ Let the backend handle it so it remains the single source of truth!
             this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: msg });

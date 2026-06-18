@@ -28,734 +28,734 @@
         <div class="flex-1 w-full flex flex-col gap-6">
 
             <template x-if="state.hardware.sensor_errors && state.hardware.sensor_errors.length > 0">
-            <div class="alert alert-error shadow-lg border-2 border-red-500">
-                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11l2 2m0 0l2-2m-2 2v-4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <div class="font-mono text-sm">
-                    <span class="font-bold uppercase">Hardware Bus Exception Dropped!</span> Faults logged on peripheral interfaces:
-                    <span class="badge badge-neutral mx-1 text-red-400 font-bold" x-text="state.hardware.sensor_errors.join(', ')"></span>
+                <div class="alert alert-error shadow-lg border-2 border-red-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11l2 2m0 0l2-2m-2 2v-4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <div class="font-mono text-sm">
+                        <span class="font-bold uppercase">Hardware Bus Exception Dropped!</span> Faults logged on peripheral interfaces:
+                        <span class="badge badge-neutral mx-1 text-red-400 font-bold" x-text="state.hardware.sensor_errors.join(', ')"></span>
+                    </div>
                 </div>
-            </div>
-        </template>
+            </template>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            <div x-show="state.system.system_alert_msgs && state.system.system_alert_msgs.length > 0" x-cloak class="flex flex-col gap-2 mb-4 w-full">
+            <div x-show="state.system.system_alert_msgs && state.system.system_alert_msgs.length > 0" x-cloak class="flex flex-col gap-2 w-full items-center">
                 <template x-for="msg in state.system.system_alert_msgs" :key="msg">
-                    <div class="alert alert-error shadow-lg py-2 rounded-box text-sm flex justify-between">
-                        <div class="flex items-center gap-2">
+                    <div class="bg-error text-error-content shadow-lg py-3 px-4 rounded-xl text-sm flex flex-row items-center justify-between flex-nowrap whitespace-normal w-[95vw] md:w-[50vw] gap-4">
+                        <div class="flex items-center gap-3 min-w-0">
                             <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            <span x-text="msg" class="font-semibold"></span>
+                            <span x-text="msg" class="font-semibold text-left break-words"></span>
                         </div>
-                        <button @click="dispatchEvent('ALERT_DISMISSED', { msg_text: msg })" class="btn btn-ghost btn-xs btn-circle">
+                        <button @click="dispatchEvent('ALERT_DISMISSED', { msg_text: msg })" class="btn btn-ghost btn-xs btn-circle shrink-0 text-error-content hover:bg-black/10">
                             ✕
                         </button>
                     </div>
                 </template>
             </div>
 
-            <div class="lg:col-span-3">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <div class="lg:col-span-3">
+                    <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
+                        <div class="card-body">
+                            <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2 flex justify-between items-center w-full">
+                                <span>Sauna/IR Commander</span>
+                                <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"
+                                      :class="state.devices.door_sauna === 'OPEN' ? 'badge-error animate-pulse' : 'badge-neutral text-base-500'">
+                                    <span x-text="state.devices.door_sauna === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
+                                </span>
+                            </h2>
+                            <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-start mb-4 h-16 shadow-inner">
+                                <div class="font-mono text-green-500 text-md tracking-widest uppercase"
+                                     x-text="state.sauna.lcd_text || 'WISC CORE STANDBY'"></div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                    <div class="text-xs font-bold text-base-400 uppercase">Hue Lighting</div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-4 h-4 rounded-full border border-gray-600 transition-all duration-500"
+                                             :style="(!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices.sauna_hue === 'ON' ? `background-color: ${state.sauna.light_color}; box-shadow: 0 0 8px ${state.sauna.light_color};` : 'background-color: #333;')">
+                                        </div>
+                                        <span class="font-mono text-sm mt-0.5"
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null ? 'text-gray-500 italic text-xs' : (state.devices.sauna_hue === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_hue === null ? 'SYNCING...' : (state.devices.sauna_hue === 'ON' ? 'ON' : 'OFF'))"></span>
+                                        <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null"
+                                               :checked="state.devices.sauna_hue === 'ON'"
+                                               @change="injectLabHubStateChange('sauna_hue', $event.target.checked)" />
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                    <div class="text-xs font-bold text-base-400 uppercase">Zoutlamp</div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-mono text-sm mt-0.5"
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_zoutlamp === null ? 'text-gray-500 italic text-xs' : (state.devices.sauna_zoutlamp === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_zoutlamp === null ? 'SYNCING...' : (state.devices.sauna_zoutlamp === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                        <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_zoutlamp === null"
+                                               :checked="state.devices.sauna_zoutlamp === 'ON'"
+                                               @change="injectLabHubStateChange('sauna_zoutlamp', $event.target.checked)" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center bg-base-200 p-3 mt-4 rounded-box border border-base-300">
+                                <div class="text-xs font-bold text-base-400 uppercase">Extraction Fan</div>
+                                <div class="flex items-center gap-3">
+                                    <span class="font-mono text-[10px] tracking-wider mt-0.5"
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null ? 'text-gray-500 italic text-xs' : ((state.sauna.ventilation_state !== 'OFF' || state.devices.sauna_extrvent === 'ON') ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_extrvent === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices.sauna_extrvent === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
+                                    <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null"
+                                           :checked="state.devices.sauna_extrvent === 'ON'"
+                                           @change="injectLabHubStateChange('sauna_extrvent', $event.target.checked)" />
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center mt-6 mb-6">
+                                <div>
+                                    <div class="text-xs text-base-400 font-bold uppercase tracking-wider">Current Atmosphere</div>
+                                    <div class="text-5xl font-black font-mono tracking-tight mt-1 text-secondary flex items-baseline">
+                                        <span x-text="state.sensors.sauna_calc_temp !== null ? state.sensors.sauna_calc_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                        <span class="text-2xl text-info ml-3 font-semibold" x-text="state.sensors.sauna_calc_hum !== null ? state.sensors.sauna_calc_hum.toFixed(0) + '%' : '--%'"></span>
+                                    </div>
+                                </div>
+
+                                <div class="flex gap-4">
+                                    <button :class="state.sauna.active ? 'btn btn-error btn-lg shadow-lg px-8' : 'btn btn-outline btn-lg px-8'"
+                                            :disabled="(!state.sauna.active && (state.devices.door_sauna === 'OPEN' || state.ir.active)) || state.sensors.sauna_calc_temp == null"
+                                            @click="toggleSauna()">
+                                        <span x-show="state.sauna.active" class="animate-pulse">🔥 Sauna is ON</span>
+                                        <span x-show="!state.sauna.active">❄️ Sauna is OFF</span>
+                                    </button>
+                                    <button :class="state.ir.active ? 'btn btn-error btn-lg shadow-lg px-8' : 'btn btn-outline btn-lg px-8'"
+                                            :disabled="(!state.ir.active && state.sauna.active) || state.sensors.sauna_calc_temp == null"
+                                            @click="toggleIR()">
+                                        <span x-show="state.ir.active" class="animate-pulse">⚡ IR is ON <span class="ml-2 text-white text-xs opacity-80" x-text="'[' + irRemainingText + ']'"></span></span>
+                                        <span x-show="!state.ir.active">❄️ IR is OFF</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                                <div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm font-semibold tracking-wide">Temp. Setpoint Sauna</span>
+                                        <div class="flex gap-2 items-center">
+                                            <button class="btn btn-sm font-mono font-black text-xs tracking-wider transition-all duration-200 shadow-sm border"
+                                                    :class="!state.sauna.active ? 'bg-base-200 text-gray-500 border-gray-700 cursor-not-allowed opacity-40' :
+                                                            (state.sauna.hold_mode === 'hold' ? 'bg-amber-500 text-neutral-900 border-amber-500 hover:bg-amber-600 hover:border-amber-600' :
+                                                            (state.sauna.hold_mode === 'autohold' ? 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600' :
+                                                            'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700'))"
+                                                    :disabled="!state.sauna.active"
+                                                    @click="toggleHold()"
+                                                    x-text="!state.sauna.active ? '--' : state.sauna.hold_mode.toUpperCase()">
+                                            </button>
+                                            <span class="badge badge-secondary font-mono text-md font-bold p-3" x-text="(state.sauna.target_temp !== null ? state.sauna.target_temp : '--') + '°C'"></span>
+                                        </div>
+                                    </div>
+                                    <input type="range" min="40" :max="state.sauna.max_temp || 110" step="1"
+                                           class="range range-secondary"
+                                           :class="(!state.sauna.active || state.sauna.target_temp === null) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
+                                           :disabled="!state.sauna.active || state.sauna.target_temp === null"
+                                           x-model="state.sauna.target_temp"
+                                           @change="updateSetpoint()" />
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm font-semibold tracking-wide">IR Modulation</span>
+                                        <div class="flex gap-2 items-center">
+                                            <span class="badge badge-error font-mono text-md font-bold p-3" x-text="state.ir.modulation_pwm + '%'"></span>
+                                        </div>
+                                    </div>
+                                    <input type="range" min="0" max="6" step="1"
+                                           class="range range-error"
+                                           :class="!state.ir.active ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
+                                           :disabled="!state.ir.active"
+                                           x-model.number="irStepIndex"
+                                           @input="updateIRLocal()"
+                                           @change="updateIRSetpoint()" />
+                                    <div class="w-full flex justify-between text-[10px] px-1 mt-1 font-mono text-base-400 opacity-70">
+                                        <span>0</span><span>25</span><span>33</span><span>50</span><span>67</span><span>75</span><span>100</span>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="mt-6 bg-base-200 p-4 rounded-box border border-base-300" x-show="state.sauna.active">
+                                <div class="flex justify-between items-center text-xs font-mono mb-2">
+                                    <span class="text-base-400">Sauna Running Time: <span class="text-white font-bold" x-text="saunaElapsedText"></span></span>
+                                    <span class="text-base-400">Sauna Timer: <span class="text-warning font-black animate-pulse" x-text="saunaRemainingText"></span></span>
+                                </div>
+                                <div class="w-full bg-neutral rounded-full h-2 mb-4 overflow-hidden border border-base-300 shadow-inner">
+                                    <div class="bg-warning h-full transition-all duration-300 ease-out"
+                                         :style="`width: ${progressPercent}%`"></div>
+                                </div>
+                                <div class="flex justify-center gap-2">
+                                    <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(-10)">-10 MINS</button>
+                                    <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(10)">+10 MINS</button>
+                                </div>
+                            </div>
+                            <div class="mt-6 pt-6 border-t border-base-300/40">
+                                <div class="bg-base-200 p-3 rounded-box border border-base-300 space-y-4">
+                                    <div>
+                                        <div class="flex justify-between items-center mb-1 text-sm font-bold">
+                                            <span>Sauna Total Modulation</span>
+                                            <span class="font-mono text-primary text-md" x-text="(state.sauna.modulation_pwm || 0) + '%'"></span>
+                                        </div>
+                                        <div class="w-full bg-base-300 rounded-full h-3 overflow-hidden">
+                                            <div class="bg-primary h-3 rounded-full transition-none" :style="'width:' + (state.sauna.modulation_pwm || 0) + '%'"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 bg-base-200 p-4 rounded-box border border-base-300 flex justify-between items-center font-mono text-xs">
+                                    <div>
+                                        <div class="text-[10px] uppercase font-bold text-base-400">Total Energy Consumed</div>
+                                        <div class="text-xl font-black text-primary mt-1" x-text="(state.metrics.kwh_wh_ticks / 1000.0).toFixed(3) + ' kWh'"></div>
+                                    </div>
+                                    <span class="badge badge-neutral text-[10px] font-bold px-2 py-2" x-text="state.metrics.kwh_wh_ticks + ' Wh'"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
                 <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                     <div class="card-body">
-                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2 flex justify-between items-center w-full">
-                            <span>Sauna/IR Commander</span>
-                            <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"
-                                  :class="state.devices.door_sauna === 'OPEN' ? 'badge-error animate-pulse' : 'badge-neutral text-base-500'">
-                                <span x-text="state.devices.door_sauna === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
-                            </span>
-                        </h2>
-                        <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-start mb-4 h-16 shadow-inner">
-                            <div class="font-mono text-green-500 text-md tracking-widest uppercase"
-                                 x-text="state.sauna.lcd_text || 'WISC CORE STANDBY'"></div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">🎬 Cinema Lounge & Buro</h2>
+                        <div class="flex flex-col gap-4">
                             <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                                <div class="text-xs font-bold text-base-400 uppercase">Hue Lighting</div>
-                                <div class="flex items-center gap-3">
-                                    <div class="w-4 h-4 rounded-full border border-gray-600 transition-all duration-500"
-                                         :style="(!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices.sauna_hue === 'ON' ? `background-color: ${state.sauna.light_color}; box-shadow: 0 0 8px ${state.sauna.light_color};` : 'background-color: #333;')">
-                                    </div>
-                                    <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null ? 'text-gray-500 italic text-xs' : (state.devices.sauna_hue === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_hue === null ? 'SYNCING...' : (state.devices.sauna_hue === 'ON' ? 'ON' : 'OFF'))"></span>
-                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null"
-                                           :checked="state.devices.sauna_hue === 'ON'"
-                                           @change="injectLabHubStateChange('sauna_hue', $event.target.checked)" />
-                                </div>
-                            </div>
-
-                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                                <div class="text-xs font-bold text-base-400 uppercase">Zoutlamp</div>
-                                <div class="flex items-center gap-3">
-                                    <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_zoutlamp === null ? 'text-gray-500 italic text-xs' : (state.devices.sauna_zoutlamp === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_zoutlamp === null ? 'SYNCING...' : (state.devices.sauna_zoutlamp === 'ON' ? '💡 ON' : 'OFF'))"></span>
-                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_zoutlamp === null"
-                                           :checked="state.devices.sauna_zoutlamp === 'ON'"
-                                           @change="injectLabHubStateChange('sauna_zoutlamp', $event.target.checked)" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center bg-base-200 p-3 mt-4 rounded-box border border-base-300">
-                            <div class="text-xs font-bold text-base-400 uppercase">Extraction Fan</div>
-                            <div class="flex items-center gap-3">
-                                <span class="font-mono text-[10px] tracking-wider mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null ? 'text-gray-500 italic text-xs' : ((state.sauna.ventilation_state !== 'OFF' || state.devices.sauna_extrvent === 'ON') ? 'text-info font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_extrvent === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices.sauna_extrvent === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
-                                <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null"
-                                       :checked="state.devices.sauna_extrvent === 'ON'"
-                                       @change="injectLabHubStateChange('sauna_extrvent', $event.target.checked)" />
-                            </div>
-                        </div>
-                        <div class="flex justify-between items-center mt-6 mb-6">
-                            <div>
-                                <div class="text-xs text-base-400 font-bold uppercase tracking-wider">Current Atmosphere</div>
-                                <div class="text-5xl font-black font-mono tracking-tight mt-1 text-secondary flex items-baseline">
-                                    <span x-text="state.sensors.sauna_calc_temp !== null ? state.sensors.sauna_calc_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-2xl text-info ml-3 font-semibold" x-text="state.sensors.sauna_calc_hum !== null ? state.sensors.sauna_calc_hum.toFixed(0) + '%' : '--%'"></span>
-                                </div>
-                            </div>
-
-                            <div class="flex gap-4">
-                                <button :class="state.sauna.active ? 'btn btn-error btn-lg shadow-lg px-8' : 'btn btn-outline btn-lg px-8'"
-                                        :disabled="(!state.sauna.active && (state.devices.door_sauna === 'OPEN' || state.ir.active)) || state.sensors.sauna_calc_temp == null"
-                                        @click="toggleSauna()">
-                                    <span x-show="state.sauna.active" class="animate-pulse">🔥 Sauna is ON</span>
-                                    <span x-show="!state.sauna.active">❄️ Sauna is OFF</span>
-                                </button>
-                                <button :class="state.ir.active ? 'btn btn-error btn-lg shadow-lg px-8' : 'btn btn-outline btn-lg px-8'"
-                                        :disabled="(!state.ir.active && state.sauna.active) || state.sensors.sauna_calc_temp == null"
-                                        @click="toggleIR()">
-                                    <span x-show="state.ir.active" class="animate-pulse">⚡ IR is ON <span class="ml-2 text-white text-xs opacity-80" x-text="'[' + irRemainingText + ']'"></span></span>
-                                    <span x-show="!state.ir.active">❄️ IR is OFF</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
-
-                            <div>
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-semibold tracking-wide">Temp. Setpoint Sauna</span>
-                                    <div class="flex gap-2 items-center">
-                                        <button class="btn btn-sm font-mono font-black text-xs tracking-wider transition-all duration-200 shadow-sm border"
-                                                :class="!state.sauna.active ? 'bg-base-200 text-gray-500 border-gray-700 cursor-not-allowed opacity-40' :
-                                                        (state.sauna.hold_mode === 'hold' ? 'bg-amber-500 text-neutral-900 border-amber-500 hover:bg-amber-600 hover:border-amber-600' :
-                                                        (state.sauna.hold_mode === 'autohold' ? 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600' :
-                                                        'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700'))"
-                                                :disabled="!state.sauna.active"
-                                                @click="toggleHold()"
-                                                x-text="!state.sauna.active ? '--' : state.sauna.hold_mode.toUpperCase()">
-                                        </button>
-                                        <span class="badge badge-secondary font-mono text-md font-bold p-3" x-text="(state.sauna.target_temp !== null ? state.sauna.target_temp : '--') + '°C'"></span>
-                                    </div>
-                                </div>
-                                <input type="range" min="40" :max="state.sauna.max_temp || 110" step="1"
-                                       class="range range-secondary"
-                                       :class="(!state.sauna.active || state.sauna.target_temp === null) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
-                                       :disabled="!state.sauna.active || state.sauna.target_temp === null"
-                                       x-model="state.sauna.target_temp"
-                                       @change="updateSetpoint()" />
-                            </div>
-
-                            <div>
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-semibold tracking-wide">IR Modulation</span>
-                                    <div class="flex gap-2 items-center">
-                                        <span class="badge badge-error font-mono text-md font-bold p-3" x-text="state.ir.modulation_pwm + '%'"></span>
-                                    </div>
-                                </div>
-                                <input type="range" min="0" max="6" step="1"
-                                       class="range range-error"
-                                       :class="!state.ir.active ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
-                                       :disabled="!state.ir.active"
-                                       x-model.number="irStepIndex"
-                                       @input="updateIRLocal()"
-                                       @change="updateIRSetpoint()" />
-                                <div class="w-full flex justify-between text-[10px] px-1 mt-1 font-mono text-base-400 opacity-70">
-                                    <span>0</span><span>25</span><span>33</span><span>50</span><span>67</span><span>75</span><span>100</span>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <div class="mt-6 bg-base-200 p-4 rounded-box border border-base-300" x-show="state.sauna.active">
-                            <div class="flex justify-between items-center text-xs font-mono mb-2">
-                                <span class="text-base-400">Sauna Running Time: <span class="text-white font-bold" x-text="saunaElapsedText"></span></span>
-                                <span class="text-base-400">Sauna Timer: <span class="text-warning font-black animate-pulse" x-text="saunaRemainingText"></span></span>
-                            </div>
-                            <div class="w-full bg-neutral rounded-full h-2 mb-4 overflow-hidden border border-base-300 shadow-inner">
-                                <div class="bg-warning h-full transition-all duration-300 ease-out"
-                                     :style="`width: ${progressPercent}%`"></div>
-                            </div>
-                            <div class="flex justify-center gap-2">
-                                <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(-10)">-10 MINS</button>
-                                <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(10)">+10 MINS</button>
-                            </div>
-                        </div>
-                        <div class="mt-6 pt-6 border-t border-base-300/40">
-                            <div class="bg-base-200 p-3 rounded-box border border-base-300 space-y-4">
-                                <div>
-                                    <div class="flex justify-between items-center mb-1 text-sm font-bold">
-                                        <span>Sauna Total Modulation</span>
-                                        <span class="font-mono text-primary text-md" x-text="(state.sauna.modulation_pwm || 0) + '%'"></span>
-                                    </div>
-                                    <div class="w-full bg-base-300 rounded-full h-3 overflow-hidden">
-                                        <div class="bg-primary h-3 rounded-full transition-none" :style="'width:' + (state.sauna.modulation_pwm || 0) + '%'"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mt-4 bg-base-200 p-4 rounded-box border border-base-300 flex justify-between items-center font-mono text-xs">
-                                <div>
-                                    <div class="text-[10px] uppercase font-bold text-base-400">Total Energy Consumed</div>
-                                    <div class="text-xl font-black text-primary mt-1" x-text="(state.metrics.kwh_wh_ticks / 1000.0).toFixed(3) + ' kWh'"></div>
-                                </div>
-                                <span class="badge badge-neutral text-[10px] font-bold px-2 py-2" x-text="state.metrics.kwh_wh_ticks + ' Wh'"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
-                <div class="card-body">
-                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">🎬 Cinema Lounge & Buro</h2>
-                    <div class="flex flex-col gap-4">
-                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
-                            <div class="text-right font-mono">
-                                <span class="text-white font-bold" x-text="state.sensors.cinema_temp !== null ? state.sensors.cinema_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                <span class="text-info ml-1 text-xs" x-text="state.sensors.cinema_hum !== null ? state.sensors.cinema_hum + '%' : '--%'"></span>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="text-xs font-bold text-base-400 uppercase">Cinema Light</div>
-                            <div class="flex items-center gap-3">
-                                <span class="font-mono text-sm mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.cinema_main === null ? 'text-gray-500 italic text-xs' : (state.devices.cinema_main === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.cinema_main === null ? 'SYNCING...' : (state.devices.cinema_main === 'ON' ? '💡 ON' : 'OFF'))"></span>
-                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.cinema_main === null"
-                                       :checked="state.devices.cinema_main === 'ON'"
-                                       @change="injectLabHubStateChange('cinema_main', $event.target.checked)" />
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="text-xs font-bold text-base-400 uppercase">Cinema Hue</div>
-                            <div class="flex items-center gap-3">
-                                <div class="w-4 h-4 rounded-full border border-gray-600 transition-all duration-300"
-                                     :style="(!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices.cinema_hue === 'ON' ? 'background-color: #FFD180; box-shadow: 0 0 8px #FFD180;' : 'background-color: #333;')">
-                                </div>
-                                <span class="font-mono text-sm mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null ? 'text-gray-500 italic text-xs' : (state.devices.cinema_hue === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.cinema_hue === null ? 'SYNCING...' : (state.devices.cinema_hue === 'ON' ? 'ON' : 'OFF'))"></span>
-                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null"
-                                       :checked="state.devices.cinema_hue === 'ON'"
-                                       @change="injectLabHubStateChange('cinema_hue', $event.target.checked)" />
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="text-xs font-bold text-base-400 uppercase">Buro Light</div>
-                            <div class="flex items-center gap-3">
-                                <span class="font-mono text-sm mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.buro === null ? 'text-gray-500 italic text-xs' : (state.devices.buro === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.buro === null ? 'SYNCING...' : (state.devices.buro === 'ON' ? '💡 ON' : 'OFF'))"></span>
-                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.buro === null"
-                                       :checked="state.devices.buro === 'ON'"
-                                       @change="injectLabHubStateChange('buro', $event.target.checked)" />
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="text-xs font-bold text-base-400 uppercase">Buro Schemer</div>
-                            <div class="flex items-center gap-3">
-                                <span class="font-mono text-sm mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.buro_schemer === null ? 'text-gray-500 italic text-xs' : (state.devices.buro_schemer === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.buro_schemer === null ? 'SYNCING...' : (state.devices.buro_schemer === 'ON' ? '💡 ON' : 'OFF'))"></span>
-                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.buro_schemer === null"
-                                       :checked="state.devices.buro_schemer === 'ON'"
-                                       @change="injectLabHubStateChange('buro_schemer', $event.target.checked)" />
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="text-xs font-bold text-base-400 uppercase">PC Aux</div>
-                            <div class="flex items-center gap-3">
-                                <span class="font-mono text-sm mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.pc_aux === null ? 'text-gray-500 italic text-xs' : (state.devices.pc_aux === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc_aux === null ? 'SYNCING...' : (state.devices.pc_aux === 'ON' ? '⚡ ON' : 'OFF'))"></span>
-                                <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc_aux === null || state.devices.pc !== 'ON'"
-                                       :checked="state.devices.pc_aux === 'ON'"
-                                       @change="injectLabHubStateChange('pc_aux', $event.target.checked)" />                            </div>
-                        </div>
-
-                        <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="flex justify-between items-center w-full">
-                                <span class="text-xs font-bold text-base-400 uppercase">PC Power Draw</span>
+                                <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
                                 <div class="text-right font-mono">
-                                    <span class="text-warning font-bold" x-text="state.sensors.pc_power !== null ? state.sensors.pc_power + ' W' : '-- W'"></span>
+                                    <span class="text-white font-bold" x-text="state.sensors.cinema_temp !== null ? state.sensors.cinema_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                    <span class="text-info ml-1 text-xs" x-text="state.sensors.cinema_hum !== null ? state.sensors.cinema_hum + '%' : '--%'"></span>
                                 </div>
-                            </div>
-                            <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
-                                 x-show="state.sensors.pc_power_history && state.sensors.pc_power_history.length > 1" x-cloak>
-                                <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
-                                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
-                                              :points="getSparkline(state.sensors.pc_power_history)"></polyline>
-                                </svg>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="flex justify-between items-center w-full">
-                                <span class="text-xs font-bold text-base-400 uppercase">PC aux Power Draw</span>
-                                <div class="text-right font-mono">
-                                    <span class="text-warning font-bold" x-text="state.sensors.pc_aux_power !== null ? state.sensors.pc_aux_power + ' W' : '-- W'"></span>
-                                </div>
-                            </div>
-                            <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
-                                 x-show="state.sensors.pc_aux_power_history && state.sensors.pc_aux_power_history.length > 1" x-cloak>
-                                <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
-                                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
-                                              :points="getSparkline(state.sensors.pc_aux_power_history)"></polyline>
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
-                <div class="card-body">
-                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3 flex justify-between items-center w-full">
-                        <span>Bathroom</span>
-                        <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"
-                              :class="state.devices.door_bathroom === 'OPEN' ? 'badge-warning' : 'badge-neutral text-base-500'">
-                            <span x-text="state.devices.door_bathroom === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
-                        </span>
-                    </h2>
-                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
-                        <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
-                        <div class="text-right font-mono">
-                            <span class="text-white font-bold" x-text="state.sensors.bathroom1_temp !== null ? state.sensors.bathroom1_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                            <span class="text-info ml-1 text-xs" x-text="state.sensors.bathroom1_hum !== null ? state.sensors.bathroom1_hum + '%' : '--%'"></span>
-                        </div>
-                    </div>
-                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
-                        <div class="text-xs font-bold text-base-400 uppercase">Ventilator</div>
-                        <div class="flex items-center gap-3">
-                            <span class="font-mono text-sm mt-0.5"
-                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_ventilator === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_ventilator === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
-                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_ventilator === null ? 'SYNCING...' : (state.devices.bathroom1_ventilator === 'ON' ? '💨 RUNNING' : 'OFF'))"></span>
-                            <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
-                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_ventilator === null"
-                                   :checked="state.devices.bathroom1_ventilator === 'ON'"
-                                   @change="injectLabHubStateChange('bathroom1_ventilator', $event.target.checked)" />
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
-                        <div class="text-xs font-bold text-base-400 uppercase">Main Light</div>
-                        <div class="flex items-center gap-3">
-                            <span class="font-mono text-sm mt-0.5"
-                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_main === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_main === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_main === null ? 'SYNCING...' : (state.devices.bathroom1_main === 'ON' ? '💡 ON' : 'OFF'))"></span>
-                            <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_main === null"
-                                   :checked="state.devices.bathroom1_main === 'ON'"
-                                   @change="injectLabHubStateChange('bathroom1_main', $event.target.checked)" />
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
-                        <div class="text-xs font-bold text-base-400 uppercase">Wastafel Light</div>
-                        <div class="flex items-center gap-3">
-                            <span class="font-mono text-sm mt-0.5"
-                                  :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_wastafel === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_wastafel === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                  x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_wastafel === null ? 'SYNCING...' : (state.devices.bathroom1_wastafel === 'ON' ? '💡 ON' : 'OFF'))"></span>
-                            <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                   :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_wastafel === null"
-                                   :checked="state.devices.bathroom1_wastafel === 'ON'"
-                                   @change="injectLabHubStateChange('bathroom1_wastafel', $event.target.checked)" />
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4 font-mono text-xs">
-                        <div class="bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Cold Water</div>
-                            <div class="text-lg font-black text-white" x-text="state.sensors.water_cold_liters.toFixed(1) + ' L'"></div>
-                        </div>
-                        <div class="bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Hot Water</div>
-                            <div class="text-lg font-black text-error" x-text="state.sensors.water_hot_liters.toFixed(1) + ' L'"></div>
-                        </div>
-                    </div>
-                    <div class="mt-4 bg-neutral p-3 rounded-box border border-base-300 text-xs font-mono" x-show="state.metrics.douche_active || state.metrics.douche_water_liters > 0">
-                        <div class="font-bold text-accent uppercase tracking-wider mb-1.5 flex justify-between items-center">
-                            <span><span>🚿</span> Live Douche Tracker</span>
-                            <span class="badge badge-xs badge-accent animate-pulse" x-show="state.metrics.douche_active">ACTIVE RUN</span>
-                        </div>
-                        <div class="flex justify-between text-base-400">
-                            <span>Session Time:</span>
-                            <span class="text-white font-bold" x-text="doucheElapsedText"></span>
-                        </div>
-                        <div class="flex justify-between text-base-400 mt-1">
-                            <span>Water Usage:</span>
-                            <span class="text-white font-bold" x-text="state.metrics.douche_water_liters + ' L'"></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex flex-col gap-6">
-                <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
-                    <div class="card-body p-4 flex flex-col justify-between">
-                        <div>
-                            <div class="flex justify-between items-center font-mono text-sm mb-2">
-                                <span class="font-bold text-xs uppercase tracking-wider text-base-400">🌍 Outside Atmosphere</span>
-                                <div class="text-right">
-                                    <span class="text-white font-bold" x-text="state.sensors.outside_temp !== null ? state.sensors.outside_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-info ml-1 text-xs" x-text="state.sensors.outside_hum !== null ? state.sensors.outside_hum + '%' : '--%'"></span>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1.5 font-mono text-xs mb-4 text-base-400 border-b border-base-300 pb-3 items-center w-full">
-                                <div class="text-left">🌅 Sunrise</div>
-                                <div class="text-right text-white font-bold tabular-nums" x-text="formatUnixTime(state.sensors.sunrise_unix)"></div>
-                                <div class="text-right text-gray-500 tabular-nums min-w-[95px]" x-text="sunriseRelativeText"></div>
-
-                                <div class="text-left">🌇 Sunset</div>
-                                <div class="text-right text-warning font-bold tabular-nums" x-text="formatUnixTime(state.sensors.sunset_unix)"></div>
-                                <div class="text-right text-gray-500 tabular-nums min-w-[95px]" x-text="sunsetRelativeText"></div>
                             </div>
 
                             <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                                <div class="text-xs font-bold text-base-400 uppercase">Gang Boven</div>
+                                <div class="text-xs font-bold text-base-400 uppercase">Cinema Light</div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.gang_boven === null ? 'text-gray-500 italic text-xs' : (state.devices.gang_boven === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.gang_boven === null ? 'SYNCING...' : (state.devices.gang_boven === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices.cinema_main === null ? 'text-gray-500 italic text-xs' : (state.devices.cinema_main === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.cinema_main === null ? 'SYNCING...' : (state.devices.cinema_main === 'ON' ? '💡 ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.gang_boven === null"
-                                           :checked="state.devices.gang_boven === 'ON'"
-                                           @change="injectLabHubStateChange('gang_boven', $event.target.checked)" />
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.cinema_main === null"
+                                           :checked="state.devices.cinema_main === 'ON'"
+                                           @change="injectLabHubStateChange('cinema_main', $event.target.checked)" />
                                 </div>
                             </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2 mt-2 w-full">
-                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
-                                    @click="dispatchEvent('SCENE_GV_OFF')"
-                                    :disabled="!state.system.domoticz_mqtt_connected">
-                                gv All Off
-                            </button>
-                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
-                                    @click="dispatchEvent('SCENE_VERDIEP1_OFF')"
-                                    :disabled="!state.system.domoticz_mqtt_connected">
-                                1e verdiep All Off
-                            </button>
-                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
-                                    @click="dispatchEvent('SCENE_VERDIEP2_OFF')"
-                                    :disabled="!state.system.domoticz_mqtt_connected">
-                                2e verdiep All Off
-                            </button>
-                            <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
-                                    @click="dispatchEvent('SCENE_ALL_OFF')"
-                                    :disabled="!state.system.domoticz_mqtt_connected">
-                                All Off
-                            </button>
-                            <button class="btn btn-success btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
-                                    @click="dispatchEvent('SCENE_GOCOSY')"
-                                    :disabled="!state.system.domoticz_mqtt_connected">
-                                gv Go Cosy
-                            </button>
-                            <button class="btn btn-success btn-outline btn-sm font-mono tracking-wider text-[10px] px-1">
-                                .
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-        </div>
-
-        <div class="w-full mt-6" :class="state.hardware.live_mode ? 'opacity-40 grayscale pointer-events-none' : ''">
-            <div class="card bg-base-100 shadow-xl border border-base-200">
-                <div class="card-body">
-                    <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4 flex justify-between items-center">
-                        <span class="whitespace-nowrap">🧪 Lab Mode Simulation</span>
-                        <div class="flex items-center gap-4 flex-wrap justify-end">
-                            <div class="flex items-center gap-2">
-                                <span class="text-[10px] text-base-400">ENABLE SIMULATIONS (physics engine)</span>
-                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                       :disabled="state.hardware.live_mode"
-                                       :checked="state.hardware.simulations_enabled"
-                                       @change="toggleSimulations()" />
-                            </div>
-                            <div class="flex items-center gap-2 border-l border-base-300 pl-4">
-                                <span class="text-[10px] text-base-400">ENABLE LAB CONTROLS</span>
-                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                       :disabled="state.hardware.live_mode"
-                                       x-model="labControlsEnabled"
-                                       @change="syncLabControls()" />
-                            </div>
-                        </div>
-                    </h2>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" x-show="labControlsEnabled" x-transition>
-
-                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                            <h3 class="text-xs font-bold text-orange-400 uppercase tracking-wider border-b border-base-300 pb-1">Sauna</h3>
-                            <div>
-                                <div class="flex justify-between text-[11px] mb-1">
-                                    <span class="text-gray-400 font-medium">Ceiling Probe (High)</span>
-                                    <span class="text-warning font-mono font-bold" x-text="labSaunaHighTemp !== null ? parseFloat(labSaunaHighTemp).toFixed(1) + '°C / ' + labSaunaHighHum + '%' : '--.-°C / --%'"></span>
-                                </div>
-                                <input type="range" min="15" max="110" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaHighTemp" @input="labSaunaHighTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_high', labSaunaHighTemp)" />
-                                <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaHighHum" @input="labSaunaHighHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_high', labSaunaHighHum)" />
-                            </div>
-                            <div class="pt-2 border-t border-dashed border-base-300">
-                                <div class="flex justify-between text-[11px] mb-1">
-                                    <span class="text-gray-400 font-medium">Bench Probe (Low)</span>
-                                    <span class="text-warning font-mono font-bold" x-text="labSaunaLowTemp !== null ? parseFloat(labSaunaLowTemp).toFixed(1) + '°C / ' + labSaunaLowHum + '%' : '--.-°C / --%'"></span>
-                                </div>
-                                <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaLowTemp" @input="labSaunaLowTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_low', labSaunaLowTemp)" />
-                                <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaLowHum" @input="labSaunaLowHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_low', labSaunaLowHum)" />
-                            </div>
-                            <div class="pt-2 border-t border-base-300 space-y-2.5">
-                                <div class="flex items-center justify-between text-xs font-mono">
-                                    <span class="text-gray-400 font-medium">Sauna Door:</span>
-                                    <input type="checkbox" class="toggle toggle-error toggle-sm shadow"
-                                           :checked="state.devices.door_sauna === 'OPEN'"
-                                           @change="injectLabDoorChange('sauna', $event.target.checked)" />
-                                </div>
-                                <div class="flex items-center justify-between text-xs font-mono">
-                                    <span class="text-gray-400 font-medium">Sauna Hue:</span>
-                                    <input type="checkbox" class="toggle toggle-secondary toggle-sm shadow"
-                                           :checked="state.devices.sauna_hue === 'ON'"
-                                           @change="injectLabHubStateChange('sauna_hue', $event.target.checked)" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                            <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Bathroom</h3>
-                            <div>
-                                <div class="flex justify-between text-[11px] mb-1">
-                                    <span class="text-gray-400 font-medium">Atmosphere</span>
-                                    <span class="text-accent font-mono font-bold" x-text="labBathroom1Temp !== null ? parseFloat(labBathroom1Temp).toFixed(1) + '°C / ' + labBathroom1Hum + '%' : '--.-°C / --%'"></span>
-                                </div>
-                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroom1Temp" @input="labBathroom1Temp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'bathroom1', labBathroom1Temp)" />
-                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroom1Hum" @input="labBathroom1Hum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'bathroom1', labBathroom1Hum)" />
-                            </div>
-                            <div class="pt-2 border-t border-base-300 space-y-2.5">
-                                <div class="flex items-center justify-between text-xs font-mono">
-                                    <span class="text-gray-400 font-medium">Bathroom Door:</span>
+                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-xs font-bold text-base-400 uppercase">Cinema Hue</div>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-4 h-4 rounded-full border border-gray-600 transition-all duration-300"
+                                         :style="(!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices.cinema_hue === 'ON' ? 'background-color: #FFD180; box-shadow: 0 0 8px #FFD180;' : 'background-color: #333;')">
+                                    </div>
+                                    <span class="font-mono text-sm mt-0.5"
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null ? 'text-gray-500 italic text-xs' : (state.devices.cinema_hue === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.cinema_hue === null ? 'SYNCING...' : (state.devices.cinema_hue === 'ON' ? 'ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :checked="state.devices.door_bathroom === 'OPEN'"
-                                           @change="injectLabDoorChange('bathroom', $event.target.checked)" />
-                                </div>
-                            </div>
-                            <div class="pt-2 border-t border-dashed border-base-300 space-y-2">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Water Injectors</span>
-                                <div class="flex flex-col gap-2">
-                                    <button class="btn btn-outline btn-xs btn-info font-mono text-[10px] tracking-wide" @click="injectWaterPulse('cold')">
-                                        💧 1L Cold Water
-                                    </button>
-                                    <button class="btn btn-outline btn-xs btn-error font-mono text-[10px] tracking-wide" @click="injectWaterPulse('hot')">
-                                        🔥 1L Hot Water
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                            <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Cinema Lounge</h3>
-                            <div>
-                                <div class="flex justify-between text-[11px] mb-1">
-                                    <span class="text-gray-400 font-medium">Atmosphere</span>
-                                    <span class="text-accent font-mono font-bold" x-text="labCinemaTemp !== null ? parseFloat(labCinemaTemp).toFixed(1) + '°C / ' + labCinemaHum + '%' : '--.-°C / --%'"></span>
-                                </div>
-                                <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labCinemaTemp" @input="labCinemaTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'cinema', labCinemaTemp)" />
-                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labCinemaHum" @input="labCinemaHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'cinema', labCinemaHum)" />
-                            </div>
-                            <div class="pt-2 border-t border-base-300 space-y-2.5">
-                                <div class="flex items-center justify-between text-xs font-mono">
-                                    <span class="text-gray-400 font-medium">Cinema Hue:</span>
-                                    <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null"
                                            :checked="state.devices.cinema_hue === 'ON'"
                                            @change="injectLabHubStateChange('cinema_hue', $event.target.checked)" />
                                 </div>
                             </div>
+
+                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-xs font-bold text-base-400 uppercase">Buro Light</div>
+                                <div class="flex items-center gap-3">
+                                    <span class="font-mono text-sm mt-0.5"
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices.buro === null ? 'text-gray-500 italic text-xs' : (state.devices.buro === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.buro === null ? 'SYNCING...' : (state.devices.buro === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.buro === null"
+                                           :checked="state.devices.buro === 'ON'"
+                                           @change="injectLabHubStateChange('buro', $event.target.checked)" />
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-xs font-bold text-base-400 uppercase">Buro Schemer</div>
+                                <div class="flex items-center gap-3">
+                                    <span class="font-mono text-sm mt-0.5"
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices.buro_schemer === null ? 'text-gray-500 italic text-xs' : (state.devices.buro_schemer === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.buro_schemer === null ? 'SYNCING...' : (state.devices.buro_schemer === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.buro_schemer === null"
+                                           :checked="state.devices.buro_schemer === 'ON'"
+                                           @change="injectLabHubStateChange('buro_schemer', $event.target.checked)" />
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-xs font-bold text-base-400 uppercase">PC Aux</div>
+                                <div class="flex items-center gap-3">
+                                    <span class="font-mono text-sm mt-0.5"
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices.pc_aux === null ? 'text-gray-500 italic text-xs' : (state.devices.pc_aux === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc_aux === null ? 'SYNCING...' : (state.devices.pc_aux === 'ON' ? '⚡ ON' : 'OFF'))"></span>
+                                    <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc_aux === null || state.devices.pc !== 'ON'"
+                                           :checked="state.devices.pc_aux === 'ON'"
+                                           @change="injectLabHubStateChange('pc_aux', $event.target.checked)" />                            </div>
+                            </div>
+
+                            <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="flex justify-between items-center w-full">
+                                    <span class="text-xs font-bold text-base-400 uppercase">PC Power Draw</span>
+                                    <div class="text-right font-mono">
+                                        <span class="text-warning font-bold" x-text="state.sensors.pc_power !== null ? state.sensors.pc_power + ' W' : '-- W'"></span>
+                                    </div>
+                                </div>
+                                <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
+                                     x-show="state.sensors.pc_power_history && state.sensors.pc_power_history.length > 1" x-cloak>
+                                    <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                        <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
+                                                  :points="getSparkline(state.sensors.pc_power_history)"></polyline>
+                                    </svg>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="flex justify-between items-center w-full">
+                                    <span class="text-xs font-bold text-base-400 uppercase">PC aux Power Draw</span>
+                                    <div class="text-right font-mono">
+                                        <span class="text-warning font-bold" x-text="state.sensors.pc_aux_power !== null ? state.sensors.pc_aux_power + ' W' : '-- W'"></span>
+                                    </div>
+                                </div>
+                                <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
+                                     x-show="state.sensors.pc_aux_power_history && state.sensors.pc_aux_power_history.length > 1" x-cloak>
+                                    <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                        <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
+                                                  :points="getSparkline(state.sensors.pc_aux_power_history)"></polyline>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3 flex justify-between items-center w-full">
+                            <span>Bathroom</span>
+                            <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"
+                                  :class="state.devices.door_bathroom === 'OPEN' ? 'badge-warning' : 'badge-neutral text-base-500'">
+                                <span x-text="state.devices.door_bathroom === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
+                            </span>
+                        </h2>
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                            <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
+                            <div class="text-right font-mono">
+                                <span class="text-white font-bold" x-text="state.sensors.bathroom1_temp !== null ? state.sensors.bathroom1_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                <span class="text-info ml-1 text-xs" x-text="state.sensors.bathroom1_hum !== null ? state.sensors.bathroom1_hum + '%' : '--%'"></span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                            <div class="text-xs font-bold text-base-400 uppercase">Ventilator</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_ventilator === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_ventilator === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_ventilator === null ? 'SYNCING...' : (state.devices.bathroom1_ventilator === 'ON' ? '💨 RUNNING' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
+                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_ventilator === null"
+                                       :checked="state.devices.bathroom1_ventilator === 'ON'"
+                                       @change="injectLabHubStateChange('bathroom1_ventilator', $event.target.checked)" />
+                            </div>
                         </div>
 
-                        <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                            <h3 class="text-xs font-bold text-info uppercase tracking-wider border-b border-base-300 pb-1">Outside Atmosphere</h3>
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                            <div class="text-xs font-bold text-base-400 uppercase">Main Light</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_main === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_main === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_main === null ? 'SYNCING...' : (state.devices.bathroom1_main === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_main === null"
+                                       :checked="state.devices.bathroom1_main === 'ON'"
+                                       @change="injectLabHubStateChange('bathroom1_main', $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                            <div class="text-xs font-bold text-base-400 uppercase">Wastafel Light</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_wastafel === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_wastafel === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_wastafel === null ? 'SYNCING...' : (state.devices.bathroom1_wastafel === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_wastafel === null"
+                                       :checked="state.devices.bathroom1_wastafel === 'ON'"
+                                       @change="injectLabHubStateChange('bathroom1_wastafel', $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 font-mono text-xs">
+                            <div class="bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Cold Water</div>
+                                <div class="text-lg font-black text-white" x-text="state.sensors.water_cold_liters.toFixed(1) + ' L'"></div>
+                            </div>
+                            <div class="bg-base-200 p-3 rounded-box border border-base-300">
+                                <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Hot Water</div>
+                                <div class="text-lg font-black text-error" x-text="state.sensors.water_hot_liters.toFixed(1) + ' L'"></div>
+                            </div>
+                        </div>
+                        <div class="mt-4 bg-neutral p-3 rounded-box border border-base-300 text-xs font-mono" x-show="state.metrics.douche_active || state.metrics.douche_water_liters > 0">
+                            <div class="font-bold text-accent uppercase tracking-wider mb-1.5 flex justify-between items-center">
+                                <span><span>🚿</span> Live Douche Tracker</span>
+                                <span class="badge badge-xs badge-accent animate-pulse" x-show="state.metrics.douche_active">ACTIVE RUN</span>
+                            </div>
+                            <div class="flex justify-between text-base-400">
+                                <span>Session Time:</span>
+                                <span class="text-white font-bold" x-text="doucheElapsedText"></span>
+                            </div>
+                            <div class="flex justify-between text-base-400 mt-1">
+                                <span>Water Usage:</span>
+                                <span class="text-white font-bold" x-text="state.metrics.douche_water_liters + ' L'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-6">
+                    <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
+                        <div class="card-body p-4 flex flex-col justify-between">
                             <div>
-                                <div class="flex justify-between text-[11px] mb-1">
-                                    <span class="text-gray-400 font-medium">Outside</span>
-                                    <span class="text-info font-mono font-bold" x-text="labOutsideTemp !== null ? parseFloat(labOutsideTemp).toFixed(1) + '°C / ' + labOutsideHum + '%' : '--.-°C / --%'"></span>
+                                <div class="flex justify-between items-center font-mono text-sm mb-2">
+                                    <span class="font-bold text-xs uppercase tracking-wider text-base-400">🌍 Outside Atmosphere</span>
+                                    <div class="text-right">
+                                        <span class="text-white font-bold" x-text="state.sensors.outside_temp !== null ? state.sensors.outside_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                        <span class="text-info ml-1 text-xs" x-text="state.sensors.outside_hum !== null ? state.sensors.outside_hum + '%' : '--%'"></span>
+                                    </div>
                                 </div>
-                                <input type="range" min="-10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labOutsideTemp" @input="labOutsideTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'outside', labOutsideTemp)" />
-                                <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labOutsideHum" @input="labOutsideHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'outside', labOutsideHum)" />
+
+                                <div class="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1.5 font-mono text-xs mb-4 text-base-400 border-b border-base-300 pb-3 items-center w-full">
+                                    <div class="text-left">🌅 Sunrise</div>
+                                    <div class="text-right text-white font-bold tabular-nums" x-text="formatUnixTime(state.sensors.sunrise_unix)"></div>
+                                    <div class="text-right text-gray-500 tabular-nums min-w-[95px]" x-text="sunriseRelativeText"></div>
+
+                                    <div class="text-left">🌇 Sunset</div>
+                                    <div class="text-right text-warning font-bold tabular-nums" x-text="formatUnixTime(state.sensors.sunset_unix)"></div>
+                                    <div class="text-right text-gray-500 tabular-nums min-w-[95px]" x-text="sunsetRelativeText"></div>
+                                </div>
+
+                                <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                    <div class="text-xs font-bold text-base-400 uppercase">Gang Boven</div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-mono text-sm mt-0.5"
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices.gang_boven === null ? 'text-gray-500 italic text-xs' : (state.devices.gang_boven === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.gang_boven === null ? 'SYNCING...' : (state.devices.gang_boven === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                        <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices.gang_boven === null"
+                                               :checked="state.devices.gang_boven === 'ON'"
+                                               @change="injectLabHubStateChange('gang_boven', $event.target.checked)" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 mt-2 w-full">
+                                <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                        @click="dispatchEvent('SCENE_GV_OFF')"
+                                        :disabled="!state.system.domoticz_mqtt_connected">
+                                    gv All Off
+                                </button>
+                                <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                        @click="dispatchEvent('SCENE_VERDIEP1_OFF')"
+                                        :disabled="!state.system.domoticz_mqtt_connected">
+                                    1e verdiep All Off
+                                </button>
+                                <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                        @click="dispatchEvent('SCENE_VERDIEP2_OFF')"
+                                        :disabled="!state.system.domoticz_mqtt_connected">
+                                    2e verdiep All Off
+                                </button>
+                                <button class="btn btn-info btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                        @click="dispatchEvent('SCENE_ALL_OFF')"
+                                        :disabled="!state.system.domoticz_mqtt_connected">
+                                    All Off
+                                </button>
+                                <button class="btn btn-success btn-outline btn-sm font-mono tracking-wider text-[10px] px-1"
+                                        @click="dispatchEvent('SCENE_GOCOSY')"
+                                        :disabled="!state.system.domoticz_mqtt_connected">
+                                    gv Go Cosy
+                                </button>
+                                <button class="btn btn-success btn-outline btn-sm font-mono tracking-wider text-[10px] px-1">
+                                    .
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="w-full mt-6" :class="state.hardware.live_mode ? 'opacity-40 grayscale pointer-events-none' : ''">
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4 flex justify-between items-center">
+                            <span class="whitespace-nowrap">🧪 Lab Mode Simulation</span>
+                            <div class="flex items-center gap-4 flex-wrap justify-end">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] text-base-400">ENABLE SIMULATIONS (physics engine)</span>
+                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                           :disabled="state.hardware.live_mode"
+                                           :checked="state.hardware.simulations_enabled"
+                                           @change="toggleSimulations()" />
+                                </div>
+                                <div class="flex items-center gap-2 border-l border-base-300 pl-4">
+                                    <span class="text-[10px] text-base-400">ENABLE LAB CONTROLS</span>
+                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                           :disabled="state.hardware.live_mode"
+                                           x-model="labControlsEnabled"
+                                           @change="syncLabControls()" />
+                                </div>
+                            </div>
+                        </h2>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" x-show="labControlsEnabled" x-transition>
+
+                            <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                                <h3 class="text-xs font-bold text-orange-400 uppercase tracking-wider border-b border-base-300 pb-1">Sauna</h3>
+                                <div>
+                                    <div class="flex justify-between text-[11px] mb-1">
+                                        <span class="text-gray-400 font-medium">Ceiling Probe (High)</span>
+                                        <span class="text-warning font-mono font-bold" x-text="labSaunaHighTemp !== null ? parseFloat(labSaunaHighTemp).toFixed(1) + '°C / ' + labSaunaHighHum + '%' : '--.-°C / --%'"></span>
+                                    </div>
+                                    <input type="range" min="15" max="110" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaHighTemp" @input="labSaunaHighTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_high', labSaunaHighTemp)" />
+                                    <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaHighHum" @input="labSaunaHighHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_high', labSaunaHighHum)" />
+                                </div>
+                                <div class="pt-2 border-t border-dashed border-base-300">
+                                    <div class="flex justify-between text-[11px] mb-1">
+                                        <span class="text-gray-400 font-medium">Bench Probe (Low)</span>
+                                        <span class="text-warning font-mono font-bold" x-text="labSaunaLowTemp !== null ? parseFloat(labSaunaLowTemp).toFixed(1) + '°C / ' + labSaunaLowHum + '%' : '--.-°C / --%'"></span>
+                                    </div>
+                                    <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaLowTemp" @input="labSaunaLowTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_low', labSaunaLowTemp)" />
+                                    <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaLowHum" @input="labSaunaLowHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_low', labSaunaLowHum)" />
+                                </div>
+                                <div class="pt-2 border-t border-base-300 space-y-2.5">
+                                    <div class="flex items-center justify-between text-xs font-mono">
+                                        <span class="text-gray-400 font-medium">Sauna Door:</span>
+                                        <input type="checkbox" class="toggle toggle-error toggle-sm shadow"
+                                               :checked="state.devices.door_sauna === 'OPEN'"
+                                               @change="injectLabDoorChange('sauna', $event.target.checked)" />
+                                    </div>
+                                    <div class="flex items-center justify-between text-xs font-mono">
+                                        <span class="text-gray-400 font-medium">Sauna Hue:</span>
+                                        <input type="checkbox" class="toggle toggle-secondary toggle-sm shadow"
+                                               :checked="state.devices.sauna_hue === 'ON'"
+                                               @change="injectLabHubStateChange('sauna_hue', $event.target.checked)" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                                <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Bathroom</h3>
+                                <div>
+                                    <div class="flex justify-between text-[11px] mb-1">
+                                        <span class="text-gray-400 font-medium">Atmosphere</span>
+                                        <span class="text-accent font-mono font-bold" x-text="labBathroom1Temp !== null ? parseFloat(labBathroom1Temp).toFixed(1) + '°C / ' + labBathroom1Hum + '%' : '--.-°C / --%'"></span>
+                                    </div>
+                                    <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroom1Temp" @input="labBathroom1Temp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'bathroom1', labBathroom1Temp)" />
+                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroom1Hum" @input="labBathroom1Hum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'bathroom1', labBathroom1Hum)" />
+                                </div>
+                                <div class="pt-2 border-t border-base-300 space-y-2.5">
+                                    <div class="flex items-center justify-between text-xs font-mono">
+                                        <span class="text-gray-400 font-medium">Bathroom Door:</span>
+                                        <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                               :checked="state.devices.door_bathroom === 'OPEN'"
+                                               @change="injectLabDoorChange('bathroom', $event.target.checked)" />
+                                    </div>
+                                </div>
+                                <div class="pt-2 border-t border-dashed border-base-300 space-y-2">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Water Injectors</span>
+                                    <div class="flex flex-col gap-2">
+                                        <button class="btn btn-outline btn-xs btn-info font-mono text-[10px] tracking-wide" @click="injectWaterPulse('cold')">
+                                            💧 1L Cold Water
+                                        </button>
+                                        <button class="btn btn-outline btn-xs btn-error font-mono text-[10px] tracking-wide" @click="injectWaterPulse('hot')">
+                                            🔥 1L Hot Water
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                                <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Cinema Lounge</h3>
+                                <div>
+                                    <div class="flex justify-between text-[11px] mb-1">
+                                        <span class="text-gray-400 font-medium">Atmosphere</span>
+                                        <span class="text-accent font-mono font-bold" x-text="labCinemaTemp !== null ? parseFloat(labCinemaTemp).toFixed(1) + '°C / ' + labCinemaHum + '%' : '--.-°C / --%'"></span>
+                                    </div>
+                                    <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labCinemaTemp" @input="labCinemaTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'cinema', labCinemaTemp)" />
+                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labCinemaHum" @input="labCinemaHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'cinema', labCinemaHum)" />
+                                </div>
+                                <div class="pt-2 border-t border-base-300 space-y-2.5">
+                                    <div class="flex items-center justify-between text-xs font-mono">
+                                        <span class="text-gray-400 font-medium">Cinema Hue:</span>
+                                        <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
+                                               :checked="state.devices.cinema_hue === 'ON'"
+                                               @change="injectLabHubStateChange('cinema_hue', $event.target.checked)" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                                <h3 class="text-xs font-bold text-info uppercase tracking-wider border-b border-base-300 pb-1">Outside Atmosphere</h3>
+                                <div>
+                                    <div class="flex justify-between text-[11px] mb-1">
+                                        <span class="text-gray-400 font-medium">Outside</span>
+                                        <span class="text-info font-mono font-bold" x-text="labOutsideTemp !== null ? parseFloat(labOutsideTemp).toFixed(1) + '°C / ' + labOutsideHum + '%' : '--.-°C / --%'"></span>
+                                    </div>
+                                    <input type="range" min="-10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labOutsideTemp" @input="labOutsideTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'outside', labOutsideTemp)" />
+                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labOutsideHum" @input="labOutsideHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'outside', labOutsideHum)" />
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="w-full">
-            <div class="card bg-base-100 shadow-xl border border-base-200">
-                <div class="card-body">
-                    <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4 flex justify-between items-center w-full border-b border-base-200 pb-2">
-                        <span>⚙️ System Administration</span>
-                        <div class="flex gap-2">
-                            <button class="btn btn-xs btn-outline btn-error font-mono text-[10px]" @click="reloadFrontend()">♻️ RELOAD UI</button>
-                            <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]" @click="injectTestAlert()">test UI alert box</button>
-                        </div>
-                    </h2>
+            <div class="w-full mt-6">
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4 flex justify-between items-center w-full border-b border-base-200 pb-2">
+                            <span>⚙️ System Administration</span>
+                            <div class="flex gap-2">
+                                <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]" @click="reloadFrontend()">♻️ RELOAD UI</button>
+                                <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]" @click="injectTestAlert()">test UI alert box</button>
+                            </div>
+                        </h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 w-full">
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 w-full">
 
-                        <div class="flex flex-col gap-3 font-mono text-xs w-full">
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold">WanOS Broker</span>
-                                <span class="badge badge-xs py-2 px-2" :class="state.system.wanos_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.wanos_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold">Domoticz Hub</span>
-                                <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">Safety SSR Relay</span>
-                                <span class="badge badge-xs py-2 px-2"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.safety_ssr === null ? 'badge-neutral text-gray-500 italic' : (state.devices.safety_ssr === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.safety_ssr === null ? 'SYNCING' : (state.devices.safety_ssr === 'ON' ? 'ENGAGED' : 'SAFE'))"></span>
-                            </div>
-                            <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                <div class="flex flex-col">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">OS Uptime</span>
-                                    <span class="text-white text-[10px] opacity-90" x-text="state.system.os_uptime_formatted || '--'"></span>
+                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold">WanOS Broker</span>
+                                    <span class="badge badge-xs py-2 px-2" :class="state.system.wanos_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.wanos_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                                 </div>
-                                <div class="flex flex-col border-t border-base-300 pt-1.5">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Engine Uptime</span>
-                                    <span class="text-white text-[10px] opacity-90" x-text="state.system.app_uptime_formatted || '--'"></span>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold">Domoticz Hub</span>
+                                    <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                                 </div>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col gap-3 font-mono text-xs w-full">
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">Hardware Bus</span>
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.hardware.live_mode ? 'text-success' : 'text-warning'" x-text="state.hardware.live_mode ? 'LIVE' : 'DOWN'"></span>
-                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                           :checked="state.hardware.live_mode"
-                                           @click="handleHardwareToggleClick($event)" />
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">Domoticz MQTT</span>
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.system.domoticz_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.domoticz_integration_enabled ? 'LIVE' : 'DOWN'"></span>
-                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                           :checked="state.system.domoticz_integration_enabled"
-                                           @change="toggleDomoticz()" />
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">OpenWeather API</span>
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.system.owm_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.owm_integration_enabled ? 'LIVE' : 'DOWN'"></span>
-                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                           :checked="state.system.owm_integration_enabled"
-                                           @change="toggleOWM()" />
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">Automations Engine</span>
-                                <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.system.automations_enabled ? 'text-success' : 'text-warning'" x-text="state.system.automations_enabled ? 'LIVE' : 'DOWN'"></span>
-                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                           :checked="state.system.automations_enabled"
-                                           @change="toggleAutomations()" />
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                <span class="text-base-400 uppercase font-bold text-[10px]">PC Master Power</span>
-                                <div class="flex items-center gap-2">
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Safety SSR Relay</span>
                                     <span class="badge badge-xs py-2 px-2"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.pc === null ? 'badge-neutral text-gray-500 italic' : (state.devices.pc === 'ON' ? 'badge-success animate-pulse' : 'badge-neutral')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc === null ? 'SYNCING' : (state.devices.pc === 'ON' ? 'ON' : 'OFF'))"></span>
-                                    <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc === null"
-                                           :checked="state.devices.pc === 'ON'"
-                                           @click="handlePCToggleClick($event)" />
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices.safety_ssr === null ? 'badge-neutral text-gray-500 italic' : (state.devices.safety_ssr === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.safety_ssr === null ? 'SYNCING' : (state.devices.safety_ssr === 'ON' ? 'ENGAGED' : 'SAFE'))"></span>
                                 </div>
-                            </div>
-                        </div>
-
-                        <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-start">
-                            <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-1">Diagnostic: Sauna Probes & Heater Relays</div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-base-400">Ceiling (High):</span>
-                                <div class="text-right">
-                                    <span class="text-orange-400 font-bold text-sm" x-text="state.sensors.sauna_high_temp !== null ? state.sensors.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-info ml-1 text-xs" x-text="state.sensors.sauna_high_hum !== null ? state.sensors.sauna_high_hum + '%' : '--%'"></span>
-                                </div>
-                            </div>
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-base-400">Bench (Low):</span>
-                                <div class="text-right">
-                                    <span class="text-amber-500 font-bold text-sm" x-text="state.sensors.sauna_low_temp !== null ? state.sensors.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
-                                    <span class="text-info ml-1 text-xs" x-text="state.sensors.sauna_low_hum !== null ? state.sensors.sauna_low_hum + '%' : '--%'"></span>
+                                <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <div class="flex flex-col">
+                                        <span class="text-base-400 uppercase font-bold text-[10px]">OS Uptime</span>
+                                        <span class="text-white text-[10px] opacity-90" x-text="state.system.os_uptime_formatted || '--'"></span>
+                                    </div>
+                                    <div class="flex flex-col border-t border-base-300 pt-1.5">
+                                        <span class="text-base-400 uppercase font-bold text-[10px]">Engine Uptime</span>
+                                        <span class="text-white text-[10px] opacity-90" x-text="state.system.app_uptime_formatted || '--'"></span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="border-t border-base-300/50 pt-2 flex justify-between items-center">
-                                <span class="text-base-400">Fireorder:</span>
-                                <div class="text-right">
-                                    <span class="text-accent font-bold" x-text="state.sauna.fireorder"></span>
+                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Hardware Bus</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.hardware.live_mode ? 'text-success' : 'text-warning'" x-text="state.hardware.live_mode ? 'LIVE' : 'DISABLED'"></span>
+                                            <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :checked="state.hardware.live_mode"
+                                               @click="handleHardwareToggleClick($event)" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Domoticz MQTT</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.system.domoticz_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.domoticz_integration_enabled ? 'LIVE' : 'DISABLED'"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :checked="state.system.domoticz_integration_enabled"
+                                               @change="toggleDomoticz()" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">OpenWeather API</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.system.owm_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.owm_integration_enabled ? 'LIVE' : 'DISABLED'"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :checked="state.system.owm_integration_enabled"
+                                               @change="toggleOWM()" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Automations Engine</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.system.automations_enabled ? 'text-success' : 'text-warning'" x-text="state.system.automations_enabled ? 'LIVE' : 'DISABLED'"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :checked="state.system.automations_enabled"
+                                               @change="toggleAutomations()" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">PC Master Power</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="badge badge-xs py-2 px-2"
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices.pc === null ? 'badge-neutral text-gray-500 italic' : (state.devices.pc === 'ON' ? 'badge-success animate-pulse' : 'badge-neutral')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc === null ? 'SYNCING' : (state.devices.pc === 'ON' ? 'ON' : 'OFF'))"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc === null"
+                                               :checked="state.devices.pc === 'ON'"
+                                               @click="handlePCToggleClick($event)" />
+                                    </div>
                                 </div>
                             </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-base-400">Phase U:</span>
-                                <div class="text-right">
-                                    <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></span>
+
+                            <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-start">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-1">Diagnostic: Sauna Probes & Heater Relays</div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-base-400">Ceiling (High):</span>
+                                    <div class="text-right">
+                                        <span class="text-orange-400 font-bold text-sm" x-text="state.sensors.sauna_high_temp !== null ? state.sensors.sauna_high_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                        <span class="text-info ml-1 text-xs" x-text="state.sensors.sauna_high_hum !== null ? state.sensors.sauna_high_hum + '%' : '--%'"></span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-base-400">Phase V:</span>
-                                <div class="text-right">
-                                    <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></span>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-base-400">Bench (Low):</span>
+                                    <div class="text-right">
+                                        <span class="text-amber-500 font-bold text-sm" x-text="state.sensors.sauna_low_temp !== null ? state.sensors.sauna_low_temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                        <span class="text-info ml-1 text-xs" x-text="state.sensors.sauna_low_hum !== null ? state.sensors.sauna_low_hum + '%' : '--%'"></span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-base-400">Phase W:</span>
-                                <div class="text-right">
-                                    <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0) + '%'"></span>
+
+                                <div class="border-t border-base-300/50 pt-2 flex justify-between items-center">
+                                    <span class="text-base-400">Fireorder:</span>
+                                    <div class="text-right">
+                                        <span class="text-accent font-bold" x-text="state.sauna.fireorder"></span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-base-400">Phase U:</span>
+                                    <div class="text-right">
+                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-base-400">Phase V:</span>
+                                    <div class="text-right">
+                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-base-400">Phase W:</span>
+                                    <div class="text-right">
+                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0) + '%'"></span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
         </div>
         <dialog id="pc_power_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm">
             <div class="modal-box border bg-base-300 shadow-2xl"
