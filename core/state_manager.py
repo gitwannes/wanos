@@ -389,14 +389,30 @@ class StateManager:
             is_enabled = payload.get("enabled", False)
             state_str = "ON" if is_enabled else "OFF"
 
+            # If error: append it to the log
+            error_msg = payload.get("error_msg")
+            if not is_enabled and error_msg:
+                if error_msg not in self._state.system.system_alert_msgs:
+                    self._state.system.system_alert_msgs.append(error_msg)
+
             self._state.system.domoticz_integration_enabled = is_enabled
             state_changed = True
             changed_domains.add("system")
 
-            # Push message to the UI msg panel
+            # Push general toggle message to the UI msg panel
             toggle_msg = f"Domoticz (in & outbound) polling turned {state_str}"
             if toggle_msg not in self._state.system.system_alert_msgs:
                 self._state.system.system_alert_msgs.append(toggle_msg)
+
+            # --- THE UX WIPE (NULLIFICATION) ---
+            # If disabled (either manually or via 3-strike fault), instantly gray out Domoticz items
+            if not is_enabled:
+                for idx in list(self._state.devices.keys()):
+                    if isinstance(idx, int) and idx < 10000:
+                        if self._state.devices[idx] is not None:
+                            self._state.devices[idx] = None
+                            state_changed = True
+                            changed_domains.add("devices")
 
         elif event_name == "OWM_TOGGLED":
             is_enabled = payload.get("enabled", False)
@@ -888,7 +904,7 @@ class StateManager:
         """Background execution loop polling hardware diagnostics and connection channels."""
         import socket
 
-        def _get_ip():
+        def _get_ip() -> str:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.connect(("8.8.8.8", 80))
@@ -898,18 +914,26 @@ class StateManager:
             except Exception:
                 return "127.0.0.1"
 
-        def _is_connected(client_mgr) -> bool:
-            if not client_mgr:
-                return False
-            if hasattr(client_mgr, "client") and client_mgr.client is not None:
-                if hasattr(client_mgr.client, "is_connected"):
-                    return client_mgr.client.is_connected()
-                return True
+        def _is_connected(client_mgr: Any) -> bool:
+            if client_mgr is not None and hasattr(client_mgr, "is_connected"):
+                return client_mgr.is_connected
             return False
 
         while True:
             try:
                 await asyncio.sleep(2.0)
+
+                # 3-Strike Hard Fault Check for Domoticz
+                if self.domoticz_client and hasattr(self.domoticz_client, "failed_attempts"):
+                    if self.domoticz_client.failed_attempts >= 3 and self._state.system.domoticz_integration_enabled:
+                        dom_err = "🔌 Domoticz connection lost after 3 retries. Integration disabled."
+                        self.dispatch(Event(
+                            type=EventType.DOMOTICZ_TOGGLED,
+                            payload={"enabled": False, "error_msg": dom_err}
+                        ))
+                        # Record directly to backend log as well
+                        asyncio.create_task(self.logger.error(dom_err))
+
                 metrics_payload = {
                     "wanos_connected": _is_connected(self.mqtt_client),
                     "domoticz_connected": _is_connected(self.domoticz_client),

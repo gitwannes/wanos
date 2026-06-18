@@ -7,8 +7,17 @@
 #   stop [force]    Attempt graceful shutdown (SIGINT) of matching uvicorn PID(s); 'force' forces kill-9
 #   consolelog      Show last $TAIL_LINES lines of wanos.console.log and follow
 #   applog          Show last $TAIL_LINES lines of /var/log/wisc/wanos.log and follow
+#   applogdebug     Show last $TAIL_LINES lines of /var/log/wisc/wanos_debug.log and follow
 #   automationlog   Show last $TAIL_LINES lines of /var/log/wisc/wanos_automations.log and follow
 #   reload          Attempt stop (no force); if stop succeeds, start; do not force-kill
+#   log             Interactive or non-interactive chooser for which log to tail:
+#                     1 = console (wanos.console.log)
+#                     2 = app (/var/log/wisc/wanos.log)
+#                     3 = app-debug (/var/log/wisc/wanos_debug.log)
+#                     4 = automation (/var/log/wisc/wanos_automations.log)
+#                   Usage: ./wanos_boot.sh log        # prompts
+#                          ./wanos_boot.sh log 2      # tails app log
+#                          ./wanos_boot.sh log 1 100  # tails console log with 100 lines
 set -euo pipefail
 
 # -------------------------
@@ -22,9 +31,10 @@ APP_ARGS="main:app --host 0.0.0.0 --port 8000"
 
 LOG_FILE="$HOME/wisc_backend/wanos.console.log"
 APP_LOG_FILE="/var/log/wisc/wanos.log"
+APP_DEBUG_LOG_FILE="/var/log/wisc/wanos_debug.log"
 AUTOM_LOG_FILE="/var/log/wisc/wanos_automations.log"
 GRACE_PERIOD=10   # seconds to wait for graceful shutdown
-TAIL_LINES=20     # number of lines to show initially for 'consolelog' and 'applog'
+TAIL_LINES=20     # default number of lines to show initially for tails
 
 # -------------------------
 # Helpers
@@ -36,23 +46,38 @@ usage() {
 Usage: $0 <command> [args]
 
 Commands:
-  start           Start uvicorn in background (logs to $LOG_FILE)
-  status          Show whether uvicorn is running and which PID(s)
-  stop [force]    Attempt graceful shutdown (SIGINT) of matching uvicorn PID(s); 'force' forces kill -9
-  consolelog      Show last $TAIL_LINES lines of $LOG_FILE and follow
-  applog          Show last $TAIL_LINES lines of $APP_LOG_FILE and follow
-  automationlog   Show last $TAIL_LINES lines of $AUTOM_LOG_FILE and follow
-  reload          Attempt stop (no force); if stop succeeds, start; do not force-kill
+  start
+  status
+  stop [force]
+  consolelog
+  applog
+  applogdebug
+  automationlog
+  reload
+  log [choice] [lines]
+
+log choices:
+  1 = console (wanos.console.log)
+  2 = app (/var/log/wisc/wanos.log)
+  3 = app-debug (/var/log/wisc/wanos_debug.log)
+  4 = automation (/var/log/wisc/wanos_automations.log)
 
 Examples:
+* system
   $0 start
   $0 status
   $0 stop
   $0 stop force
+  $0 reload
+* logging
   $0 consolelog
   $0 applog
+  $0 applogdebug
   $0 automationlog
-  $0 reload
+* logging interactive prompt
+  $0 log        # interactive prompt
+  $0 log 2      # tail app log
+  $0 log 1 100  # tail console log with 100 lines
 EOF
   exit 2
 }
@@ -77,6 +102,19 @@ activate_venv() {
   fi
 }
 
+# Validate that a file exists and is readable; print message and exit 1 if not.
+ensure_readable_file_or_exit() {
+  local file="$1"
+  if [ ! -f "$file" ]; then
+    log "Log file not found: $file"
+    exit 1
+  fi
+  if [ ! -r "$file" ]; then
+    log "Log file not readable by current user: $file"
+    exit 1
+  fi
+}
+
 # -------------------------
 # Parse command line
 # -------------------------
@@ -88,11 +126,14 @@ CMD="$1"
 shift || true
 
 DO_FORCE=false
-for arg in "$@"; do
+# Collect remaining args for commands that accept them
+REMAINING_ARGS=("$@")
+
+for arg in "${REMAINING_ARGS[@]}"; do
   case "$arg" in
     force) DO_FORCE=true ;;
     -h|--help) usage ;;
-    *) log "Unknown argument: $arg"; usage ;;
+    *) ;; # other args handled per-command
   esac
 done
 
@@ -219,10 +260,7 @@ fi
 # Console log tailing
 # -------------------------
 if [ "$CMD" = "consolelog" ]; then
-  if [ ! -f "$LOG_FILE" ]; then
-    log "Console log file not found: $LOG_FILE"
-    exit 1
-  fi
+  ensure_readable_file_or_exit "$LOG_FILE"
   log "Tailing console log ($LOG_FILE). Showing last $TAIL_LINES lines then following."
   exec tail -n "$TAIL_LINES" -F "$LOG_FILE"
 fi
@@ -231,24 +269,91 @@ fi
 # App log tailing
 # -------------------------
 if [ "$CMD" = "applog" ]; then
-  if [ ! -f "$APP_LOG_FILE" ]; then
-    log "App log file not found: $APP_LOG_FILE"
-    exit 1
-  fi
+  ensure_readable_file_or_exit "$APP_LOG_FILE"
   log "Tailing app log ($APP_LOG_FILE). Showing last $TAIL_LINES lines then following."
   exec tail -n "$TAIL_LINES" -F "$APP_LOG_FILE"
+fi
+
+# -------------------------
+# App debug log tailing
+# -------------------------
+if [ "$CMD" = "applogdebug" ]; then
+  ensure_readable_file_or_exit "$APP_DEBUG_LOG_FILE"
+  log "Tailing app debug log ($APP_DEBUG_LOG_FILE). Showing last $TAIL_LINES lines then following."
+  exec tail -n "$TAIL_LINES" -F "$APP_DEBUG_LOG_FILE"
 fi
 
 # -------------------------
 # Automation log tailing
 # -------------------------
 if [ "$CMD" = "automationlog" ]; then
-  if [ ! -f "$AUTOM_LOG_FILE" ]; then
-    log "App log file not found: $AUTOM_LOG_FILE"
-    exit 1
-  fi
+  ensure_readable_file_or_exit "$AUTOM_LOG_FILE"
   log "Tailing automation log ($AUTOM_LOG_FILE). Showing last $TAIL_LINES lines then following."
   exec tail -n "$TAIL_LINES" -F "$AUTOM_LOG_FILE"
+fi
+
+# -------------------------
+# Log chooser (interactive or non-interactive)
+# -------------------------
+if [ "$CMD" = "log" ]; then
+  # If a numeric choice is provided as first remaining arg, use it; optional second arg overrides lines.
+  choice=""
+  lines="$TAIL_LINES"
+  if [ ${#REMAINING_ARGS[@]} -ge 1 ] && [[ "${REMAINING_ARGS[0]}" =~ ^[1-4]$ ]]; then
+    choice="${REMAINING_ARGS[0]}"
+    if [ ${#REMAINING_ARGS[@]} -ge 2 ] && [[ "${REMAINING_ARGS[1]}" =~ ^[0-9]+$ ]]; then
+      lines="${REMAINING_ARGS[1]}"
+    fi
+  else
+    # Interactive prompt
+    cat <<EOF
+Which log do you want to tail?
+  1) console (wanos.console.log)
+  2) app (/var/log/wisc/wanos.log)
+  3) app-debug (/var/log/wisc/wanos_debug.log)
+  4) automation (/var/log/wisc/wanos_automations.log)
+Enter choice [1-4]:
+EOF
+    read -r choice
+    # allow optional lines override interactively
+    echo "Number of lines to show initially (press Enter for default $TAIL_LINES):"
+    read -r input_lines
+    if [ -n "$input_lines" ]; then
+      if [[ "$input_lines" =~ ^[0-9]+$ ]]; then
+        lines="$input_lines"
+      else
+        log "Invalid lines value: $input_lines"
+        usage
+      fi
+    fi
+  fi
+
+  case "$choice" in
+    1)
+      ensure_readable_file_or_exit "$LOG_FILE"
+      log "Tailing console log ($LOG_FILE). Showing last $lines lines then following."
+      exec tail -n "$lines" -F "$LOG_FILE"
+      ;;
+    2)
+      ensure_readable_file_or_exit "$APP_LOG_FILE"
+      log "Tailing app log ($APP_LOG_FILE). Showing last $lines lines then following."
+      exec tail -n "$lines" -F "$APP_LOG_FILE"
+      ;;
+    3)
+      ensure_readable_file_or_exit "$APP_DEBUG_LOG_FILE"
+      log "Tailing app debug log ($APP_DEBUG_LOG_FILE). Showing last $lines lines then following."
+      exec tail -n "$lines" -F "$APP_DEBUG_LOG_FILE"
+      ;;
+    4)
+      ensure_readable_file_or_exit "$AUTOM_LOG_FILE"
+      log "Tailing automation log ($AUTOM_LOG_FILE). Showing last $lines lines then following."
+      exec tail -n "$lines" -F "$AUTOM_LOG_FILE"
+      ;;
+    *)
+      log "Invalid choice: $choice"
+      usage
+      ;;
+  esac
 fi
 
 # -------------------------

@@ -72,6 +72,11 @@ class DomoticzHomeHubBridge(WanosComponent):
 
     async def _fetch_initial_states_mqtt(self) -> None:
         """Fires MQTT commands to force Domoticz to broadcast current hardware states."""
+        # ⚡ HUB GUARD: Do not publish if network is down
+        if not getattr(self.mqtt_client, 'is_connected', False):
+            await self.logger.warning("[Domoticz] Network down. Aborting initial state sync.")
+            return
+
         all_idxs_to_fetch = self.watched_idxs
 
         count = len(all_idxs_to_fetch)
@@ -267,7 +272,13 @@ class DomoticzHomeHubBridge(WanosComponent):
                     is_force = idx in forced_devices
 
                     # ⚡ Fire if state changed OR if a force flag was passed!
-                    if current_state is not None and (current_state != self._last_known_states.get(idx) or is_force):
+                    if current_state is not None and (
+                            current_state != self._last_known_states.get(idx) or is_force):
+
+                        # ⚡ HUB GUARD: Do not publish if network is down
+                        if not getattr(self.mqtt_client, 'is_connected', False):
+                            continue
+
                         domoticz_command = {
                             "command": "switchlight",
                             "idx": idx,
@@ -276,7 +287,8 @@ class DomoticzHomeHubBridge(WanosComponent):
                         await self.mqtt_client.publish(self._out_topic, domoticz_command)
 
                         if is_force:
-                            await self.logger.warning(f"⚡ [FORCED OVERRIDE] Command Sent: IDX {idx} -> {current_state}")
+                            await self.logger.warning(
+                                f"⚡ [FORCED OVERRIDE] Command Sent: IDX {idx} -> {current_state}")
                         else:
                             await self.logger.info(f"[Domoticz] Command Sent: IDX {idx} -> {current_state}")
 

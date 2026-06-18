@@ -663,7 +663,7 @@
                             <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">Hardware Bus</span>
                                 <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.hardware.live_mode ? 'text-success' : 'text-warning'" x-text="state.hardware.live_mode ? 'LIVE' : 'SIMULATION'"></span>
+                                    <span class="font-bold text-[10px]" :class="state.hardware.live_mode ? 'text-success' : 'text-warning'" x-text="state.hardware.live_mode ? 'LIVE' : 'DOWN'"></span>
                                         <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
                                            :checked="state.hardware.live_mode"
                                            @click="handleHardwareToggleClick($event)" />
@@ -672,7 +672,7 @@
                             <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">Domoticz MQTT</span>
                                 <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.system.domoticz_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.domoticz_integration_enabled ? 'ACTIVE' : 'DOWN'"></span>
+                                    <span class="font-bold text-[10px]" :class="state.system.domoticz_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.domoticz_integration_enabled ? 'LIVE' : 'DOWN'"></span>
                                     <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
                                            :checked="state.system.domoticz_integration_enabled"
                                            @change="toggleDomoticz()" />
@@ -681,7 +681,7 @@
                             <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">OpenWeather API</span>
                                 <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.system.owm_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.owm_integration_enabled ? 'ACTIVE' : 'DOWN'"></span>
+                                    <span class="font-bold text-[10px]" :class="state.system.owm_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.owm_integration_enabled ? 'LIVE' : 'DOWN'"></span>
                                     <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
                                            :checked="state.system.owm_integration_enabled"
                                            @change="toggleOWM()" />
@@ -690,7 +690,7 @@
                             <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                 <span class="text-base-400 uppercase font-bold text-[10px]">Automations Engine</span>
                                 <div class="flex items-center gap-2">
-                                    <span class="font-bold text-[10px]" :class="state.system.automations_enabled ? 'text-success' : 'text-warning'" x-text="state.system.automations_enabled ? 'ACTIVE' : 'DOWN'"></span>
+                                    <span class="font-bold text-[10px]" :class="state.system.automations_enabled ? 'text-success' : 'text-warning'" x-text="state.system.automations_enabled ? 'LIVE' : 'DOWN'"></span>
                                     <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
                                            :checked="state.system.automations_enabled"
                                            @change="toggleAutomations()" />
