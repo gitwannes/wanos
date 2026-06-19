@@ -1,4 +1,4 @@
-# --- file: integrations/home_hub.py ---
+# --- file: integrations/domoticz.py ---
 import asyncio
 import json
 from typing import Any
@@ -27,6 +27,9 @@ class DomoticzHomeHubBridge(WanosComponent):
         # ⚡ Debounce properties to filter out rapid signal bouncing
         self._debounce_tasks: dict[int, asyncio.Task] = {}
         self._debounce_delay: float = 0.3  # 300ms waiting room
+
+        # Core track loop tracking variable to evaluate config reload deltas
+        self._tracked_whitelist: set[int] = set()
 
     @property
     def watched_idxs(self) -> set[int]:
@@ -60,6 +63,9 @@ class DomoticzHomeHubBridge(WanosComponent):
 
         # 2. Track internal toggle state to catch transitions
         self._integration_enabled = self.state_manager._state.system.domoticz_integration_enabled
+
+        # Initialize structural tracking whitelist matrix cache
+        self._tracked_whitelist = self.watched_idxs
 
         # 3. Only run cold-boot sync if the switch is ON at startup
         if self._integration_enabled:
@@ -136,7 +142,8 @@ class DomoticzHomeHubBridge(WanosComponent):
             if idx not in self.watched_idxs:
                 return
 
-            device_name = self.state_manager._config.dashboard.get(idx, f"idx_{idx}")
+            # ⚡ Prioritize the live Domoticz name, fallback to config map, then generic idx_ string
+            device_name = data.get("name") or self.state_manager._config.dashboard.get(idx, f"idx_{idx}")
 
             # ⚡ EARLY GATE DUPLICATE FILTER ⚡
             nvalue = data.get("nvalue")
@@ -233,6 +240,7 @@ class DomoticzHomeHubBridge(WanosComponent):
                     payload={
                         "idx": idx,
                         "state": status_string,
+                        "name": data.get("name"),  # for hybrid dashboard map learning
                         "is_push_button": is_push_button
                     }
                 ))
@@ -264,6 +272,28 @@ class DomoticzHomeHubBridge(WanosComponent):
                 for event in events:
                     if event.type == EventType.HUB_STATE_CHANGED and event.payload.get("force"):
                         forced_devices.add(event.payload.get("idx"))
+                    elif event.type == EventType.CONFIG_RELOAD_REQUESTED:
+                        # Delta verification evaluation loop for dynamic inclusions/exclusions
+                        new_whitelist = self.watched_idxs
+                        added_idxs = new_whitelist - self._tracked_whitelist
+                        removed_idxs = self._tracked_whitelist - new_whitelist
+                        self._tracked_whitelist = new_whitelist
+
+                        if removed_idxs:
+                            await self.logger.info(
+                                f"[Domoticz] Config reload pruned {len(removed_idxs)} devices from active listening channels.")
+
+                        if added_idxs:
+                            await self.logger.info(
+                                f"[Domoticz] Config reload detected {len(added_idxs)} new devices. Querying delta status...")
+                            for new_idx in added_idxs:
+                                if new_idx < 10000:
+                                    command_payload = {
+                                        "command": "getdeviceinfo",
+                                        "idx": new_idx
+                                    }
+                                    await self.mqtt_client.publish(self._out_topic, command_payload)
+                                    await asyncio.sleep(0.05)
 
             # Iterate purely over integer IDXs directly mapped in state.devices
             for idx, current_state in state.devices.items():

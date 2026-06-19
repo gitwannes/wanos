@@ -87,7 +87,7 @@ The `AutomationEngine` calculates logic statically. It does not ask for a `Wanos
 from loguru import logger  
 
 # Import the custom bound logger for the audit trail
-from core.logger import automation_logger  
+from core.logger import automation_logger
 ```
 
 ---

@@ -352,6 +352,10 @@ automations:
         state: "OFF"
 
 ### RFX
+rfx_switches:  # RFX2 - buro Wannes schemer
+  - virtual_idx: 140
+    on_trigger_idx: 270
+    off_trigger_idx: 114
   # RFX-ON  ON         -> virtual switch ON
   # virtual switch ON  -> RFX-ON  ON             # is this needed?
   # RFX-OFF ON         -> virtual switch OFF
@@ -391,13 +395,6 @@ automations:
     actions:
       - idx: 140
         state: "ON"
-  - name: "RFX2: OFF-to-virtual"
-    trigger:
-      - idx: 114
-        state: "ON"
-    actions:
-      - idx: 140
-        state: "OFF"
   - name: "RFX2: virtual-to-ON"
     trigger:
       idx: 140
@@ -405,12 +402,19 @@ automations:
     actions:
       - idx: 270
         state: "FORCE_ON"
+  - name: "RFX2: OFF-to-virtual"
+    trigger:
+      - idx: 114  # for an OFF 'button', "ON" means "OFF"
+        state: "ON"
+    actions:
+      - idx: 140
+        state: "OFF"
   - name: "RFX2: virtual-to-OFF"
     trigger:
       idx: 140
       state: "OFF"
     actions:
-      - idx: 114
+      - idx: 114  # for an OFF 'button', "ON" means "OFF"
         state: "FORCE_ON"
 
   # RFX3 controls living schemer  idx 157 (virtual switch)

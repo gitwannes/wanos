@@ -52,6 +52,8 @@ class EventType(str, Enum):
     SIMULATIONS_TOGGLED = "SIMULATIONS_TOGGLED"  # Simulation Physics Engine
     DOMOTICZ_TOGGLED = "DOMOTICZ_TOGGLED"  # Listen to Domoticz messages
     OWM_TOGGLED = "OWM_TOGGLED"  # get OWM weather
+    SYSTEM_SWEEP_REQUESTED = "SYSTEM_SWEEP_REQUESTED"  # Manual Time & Environment Audit
+    CONFIG_RELOAD_REQUESTED = "CONFIG_RELOAD_REQUESTED"  # Hot-reload config.yaml configuration
 
     # External Events
     HUB_STATE_CHANGED = "HUB_STATE_CHANGED"
@@ -73,6 +75,7 @@ class SystemAdminState(BaseModel):
     domoticz_integration_enabled: bool = False  # ⚡ Default OFF, controls whether we process Domoticz messages
     owm_integration_enabled: bool = False  # ⚡ Default OFF, controls OpenWeatherMap polling
     system_alert_msgs: list[str] = Field(default_factory=list)  # A list to hold multiple stacked alert messages
+    active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
 
 
 class Event(BaseModel):

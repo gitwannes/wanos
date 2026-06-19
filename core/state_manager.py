@@ -8,7 +8,7 @@ from loguru import logger
 
 from .models import SystemState, Event, EventType
 from .mqtt_transport import MqttClientManager
-from .logger import WanosLogger
+from .logger import WanosLogger, automation_logger
 from .config import load_config
 
 try:
@@ -27,7 +27,7 @@ class StateManager:
         self._telemetry_task: Optional[asyncio.Task] = None
         self._state_listeners: list[Any] = []  # Observer callback registry list
         self.mqtt_client: MqttClientManager = mqtt_client
-        self.domoticz_client: Optional[Any] = None  # Populated dynamically by home_hub bridge
+        self.domoticz_client: Optional[Any] = None  # Populated dynamically by Domoticz bridge
         self.logger: WanosLogger = logger
 
         # Optional reference to the MqttPublisher, injected after construction.
@@ -430,8 +430,7 @@ class StateManager:
             state_changed |= ch
             changed_domains |= dom
 
-            from logic.automation_rules import AutomationEngine
-            AutomationEngine._log_execution("Master Toggle", "Automations Engine", state_str)
+            automation_logger.info(f"Master Toggle -> Automations Engine set to {state_str}")
 
         elif event_name == "DOMOTICZ_TOGGLED":
             is_enabled = payload.get("enabled", False)
@@ -489,8 +488,30 @@ class StateManager:
             state_changed |= ch
             changed_domains |= dom
 
+        elif event_name == "CONFIG_RELOAD_REQUESTED":
+            await self.logger.info("🔄 Configuration hot-reload requested via UI button.")
+            try:
+                from logic.automation_rules import AutomationEngine
+                new_config = load_config()
+                self._config = new_config
+                AutomationEngine._config = None  # Reset rules engine cached reference copy
+
+                # Hybrid Learning Option B: Cumulative map update preserving dynamic allocations
+                for idx, name in new_config.dashboard.items():
+                    self._state.dashboard_map[idx] = name
+
+                # num_rules: int = len(new_config.automations)
+                msg: str = f"🟢 Config reloaded."  #: {num_rules} automations activated."
+                ch, dom = self._push_alert(msg)
+                state_changed |= ch
+                changed_domains |= dom
+            except Exception as e:
+                ch, dom = self._push_alert(f"🔴 Config reload failed: {e}")
+                state_changed |= ch
+                changed_domains |= dom
+
         # --------------------------------------------------------
-        # GENERIC TIMER ROUTING
+        # GENERIC TIMER ROUTING & GLASS-BOX TRACKING
         # --------------------------------------------------------
         elif event_name == "TIMER_SCHEDULED":
             timer_id: Optional[str] = payload.get("timer_id")
@@ -500,20 +521,34 @@ class StateManager:
 
             if timer_id and deadline and tgt_event_type:
                 self._timer_manager.schedule(timer_id, deadline, tgt_event_type, tgt_payload)
+                if timer_id not in self._state.system.active_timers:
+                    self._state.system.active_timers.append(timer_id)
+                    state_changed = True
+                    changed_domains.add("system")
 
         elif event_name == "TIMER_CANCELLED":
             timer_id: Optional[str] = payload.get("timer_id")
             if timer_id:
                 self._timer_manager.cancel(timer_id)
+                if timer_id in self._state.system.active_timers:
+                    self._state.system.active_timers.remove(timer_id)
+                    state_changed = True
+                    changed_domains.add("system")
 
         elif event_name == "LIGHT_TIMER_EXPIRED":
             idx: Optional[int] = payload.get("idx")
             if idx is not None:
-                await self.logger.info(f"Auto-off timer expired for light IDX {idx}. Forcing OFF.")
+                timer_id = f"light_auto_off_{idx}"
+                if timer_id in self._state.system.active_timers:
+                    self._state.system.active_timers.remove(timer_id)
+                    state_changed = True
+                    changed_domains.add("system")
+
+                automation_logger.info(f"Auto-off timer expired for light IDX {idx}, turning off light.")
                 # Force the specific IDX OFF by simulating a regular hub command
                 self.dispatch(Event(
                     type=EventType.HUB_STATE_CHANGED,
-                    payload={"idx": idx, "state": "OFF", "force": True}
+                    payload={"idx": idx, "state": "OFF", "force": True}  # Force to prevent State Desynchronization
                 ))
 
         # --------------------------------------------------------
@@ -779,7 +814,13 @@ class StateManager:
             state_val = payload.get("state")  # "ON" or "OFF"
             old_val = self._state.devices.get(idx)
 
-            # Grab the bypass flags!
+            # ⚡ Hybrid Learning: Cache semantic names from Domoticz if not already mapped in config.yaml
+            device_name = payload.get("name")
+            if device_name and idx not in self._state.dashboard_map and str(idx) not in self._state.dashboard_map:
+                self._state.dashboard_map[idx] = device_name
+                logger.info(f"Name for {idx} added to the dashboard map: {device_name}.")
+
+                # Grab the bypass flags!
             is_push_button = payload.get("is_push_button", False)
             is_force = payload.get("force", False)
 

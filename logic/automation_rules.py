@@ -2,6 +2,7 @@
 import datetime, time
 from core.models import Event, EventType, SystemState
 from core.config import load_config
+from typing import Optional
 
 # Import standard logger for diagnostics, and our new bound logger for the audit trail
 from loguru import logger
@@ -148,8 +149,83 @@ class AutomationEngine:
                                 # ⚡ SILENT AUDIT LOGGING
                                 automation_logger.info(f"'{rule.name}' -> Set Internal Event to {action.event}")
                             except KeyError:
-                                logger.error(
+                                automation_logger.error(
                                     f"[AUTOMATION] Rule '{rule.name}' failed: '{action.event}' is not a valid EventType.")
+
+        # -----------------------------------------------------------------
+        # SYSTEM SWEEPER: Time & Environment Audit
+        # -----------------------------------------------------------------
+        if event_name == "SYSTEM_SWEEP_REQUESTED":
+            recovered_timers: int = 0
+            recovered_vents: int = 0
+
+            # 1. Time Audit: Lighting
+            if hasattr(config, "lighting") and config.lighting.managed_lights:
+                for light_idx in config.lighting.managed_lights:
+                    current_state = state.devices.get(light_idx)
+                    if current_state == "ON":
+                        timer_id = f"light_auto_off_{light_idx}"
+                        if timer_id not in state.system.active_timers:
+                            delay_mins: int = config.lighting.auto_off_delays.get(light_idx,
+                                                                                  config.lighting.default_auto_off_minutes)
+                            deadline: int = int(time.time()) + delay_mins * 60
+
+                            follow_up_events.append(Event(
+                                type=EventType.TIMER_SCHEDULED,
+                                payload={
+                                    "timer_id": timer_id,
+                                    "deadline": deadline,
+                                    "event_type": EventType.LIGHT_TIMER_EXPIRED.value,
+                                    "event_payload": {"idx": light_idx}
+                                }
+                            ))
+                            semantic_name: str = state.dashboard_map.get(light_idx, "Unknown")
+                            automation_logger.info(
+                                f"Sweeper recovered missing timer for light IDX {light_idx} ({semantic_name}) (turning OFF in {delay_mins} min).")
+                            recovered_timers += 1
+
+            # 2. Environment Audit: Bathroom Ventilation
+            if hasattr(config, "bathroom1"):
+                on_threshold: int = config.bathroom1.vent_on_humidity
+                off_threshold: int = config.bathroom1.vent_off_humidity
+                current_hum: Optional[int] = state.sensors.bathroom1_hum
+
+                if current_hum is not None:
+                    current_vent_state = state.devices.get(7558, "OFF")
+                    is_locked: bool = state.devices.get(90001, False)
+                    semantic_name: str = state.dashboard_map.get(7558, "Unknown")
+
+                    if current_hum >= on_threshold and current_vent_state != "ON":
+                        follow_up_events.append(
+                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 7558, "state": "ON"})
+                        )
+                        automation_logger.info(
+                            f"Sweeper recovered environment: Bathroom vent IDX 7558 ({semantic_name}) forced ON.")
+                        recovered_vents += 1
+                    elif current_hum <= off_threshold and current_vent_state == "ON" and not is_locked:
+                        follow_up_events.append(
+                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 7558, "state": "OFF"})
+                        )
+                        automation_logger.info(
+                            f"Sweeper recovered environment: Bathroom vent IDX 7558 ({semantic_name}) forced OFF.")
+                        recovered_vents += 1
+
+            # Feedback Alert
+            total_recovered: int = recovered_timers + recovered_vents
+            if total_recovered == 0:
+                msg: str = "🟢 Sweeper complete: System is perfectly synced."
+            else:
+                parts: list[str] = []
+                if recovered_timers > 0:
+                    parts.append(f"{recovered_timers} timers")
+                if recovered_vents > 0:
+                    parts.append(f"{recovered_vents} environment states")
+                msg: str = f"🟢 Sweeper complete: Recovered {' and '.join(parts)}."
+
+            follow_up_events.append(Event(
+                type=EventType.TEST_ALERT_INJECTED,
+                payload={"msg_text": msg}
+            ))
 
         # -----------------------------------------------------------------
         # HYSTERESIS LOOPS: Bathroom 1eV Ventilator Auto-ON/OFF
@@ -191,6 +267,7 @@ class AutomationEngine:
         # -----------------------------------------------------------------
         if event_name == "HUB_STATE_CHANGED":
             idx = payload.get("idx")
+            semantic_name: str = state.dashboard_map.get(idx, "Unknown")
             # Only track IDXs that are explicitly registered in the lighting YAML config
             if idx is not None and hasattr(config, "lighting") and idx in config.lighting.managed_lights:
                 timer_id: str = f"light_auto_off_{idx}"
@@ -209,14 +286,16 @@ class AutomationEngine:
                             "event_payload": {"idx": idx}
                         }
                     ))
-                    logger.debug(f"[AUTOMATION] Scheduled auto-off for IDX {idx} in {delay_mins} min")
+                    automation_logger.info(f"[AUTOMATION] Scheduled auto-off for IDX {idx} ({semantic_name}) in {delay_mins} min")
 
                 elif new_state == "OFF":
-                    # Instantly cancel any pending countdowns for this light
-                    follow_up_events.append(Event(
-                        type=EventType.TIMER_CANCELLED,
-                        payload={"timer_id": timer_id}
-                    ))
-                    logger.debug(f"[AUTOMATION] Cancelled auto-off timer for IDX {idx}")
+                    # Instantly cancel any pending countdowns for this light,
+                    # but only if it's actually ticking (prevents phantom cancellations when the timer itself turned the light off)
+                    if timer_id in state.system.active_timers:
+                        follow_up_events.append(Event(
+                            type=EventType.TIMER_CANCELLED,
+                            payload={"timer_id": timer_id}
+                        ))
+                        automation_logger.info(f"Cancelled auto-off timer for IDX {idx} ({semantic_name}).")
 
         return follow_up_events

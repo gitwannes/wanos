@@ -110,6 +110,12 @@ function wanosApp() {
         // Dedicated UI Toggle to lock/unlock manual manipulation of the physics simulator
         labControlsEnabled: false,
 
+        // Tracks the execution state of the Sweeper
+        sweepRunning: false,
+
+        // Tracks the execution state of the configuration hot-reload loop
+        configReloading: false,
+
         // ⚡ IR Snapping Matrix (Values & Legacy Frequencies)
         // Solid State Relays (SSRs) must align with the 50Hz European AC grid (100 zero-crossings per second).
         // Standard PWM causes severe light flickering. This array maps specific power percentages to exact zero-crossing frequencies:
@@ -265,6 +271,16 @@ function wanosApp() {
             }
 
             this.state[domain] = Object.assign({}, this.state[domain], data);
+
+            // ⚡ INTELLIGENT UI UNLOCKER: Watch for backend sweep or config completion strings
+            if (domain === "system" && data.system_alert_msgs) {
+                if (data.system_alert_msgs.some(msg => msg.includes("Sweeper complete"))) {
+                    this.sweepRunning = false;
+                }
+                if (data.system_alert_msgs.some(msg => msg.includes("Config reloaded") || msg.includes("Config reload failed"))) {
+                    this.configReloading = false;
+                }
+            }
 
             // Re-sync components whenever their domain updates arrive
             if (domain === "ir") this.syncIRStepIndex();
@@ -692,6 +708,48 @@ function wanosApp() {
 
             // ⚡ Let the backend handle it so it remains the single source of truth!
             this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: msg });
+        },
+
+        async requestSystemSweep() {
+            if (this.sweepRunning) return;
+            this.sweepRunning = true;
+
+            // Dispatch a local status alert instantly
+            this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: "🧹 System sweep running..." });
+
+            // Dispatch the actual background execution event.
+            // Note: This only confirms the event entered the queue, not that it finished!
+            await this.dispatchEvent("SYSTEM_SWEEP_REQUESTED");
+
+            // 🛡️ EMERGENCY FAILSAFE ONLY
+            // The button is normally unlocked instantly by the SSE stream interceptor above.
+            // This timeout only exists to prevent a permanently frozen button
+            // if the network cable is unplugged exactly while the sweep is calculating.
+            setTimeout(() => {
+                if (this.sweepRunning) {
+                    this.sweepRunning = false;
+                    console.warn("UI Guard: Sweeper lock released via timeout failsafe.");
+                }
+            }, 30 * 1000);
+        },
+
+        async requestConfigReload() {
+            if (this.configReloading) return;
+            this.configReloading = true;
+
+            // Emit visual status state instantly
+            this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: "🔄 Reloading config.yaml configurations..." });
+
+            // Dispatch orchestration signal to central event manager queue
+            await this.dispatchEvent("CONFIG_RELOAD_REQUESTED");
+
+            // Emergency connection stream disconnect watchdog boundary failsafe
+            setTimeout(() => {
+                if (this.configReloading) {
+                    this.configReloading = false;
+                    console.warn("UI Guard: Config reload lock released via timeout failsafe.");
+                }
+            }, 10 * 1000);
         }
     };
 }

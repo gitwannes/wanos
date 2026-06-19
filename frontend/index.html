@@ -625,6 +625,18 @@
                         <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4 flex justify-between items-center w-full border-b border-base-200 pb-2">
                             <span>⚙️ System Administration</span>
                             <div class="flex gap-2">
+                                <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]"
+                                        @click="requestSystemSweep()"
+                                        :disabled="!state.system.domoticz_mqtt_connected || !state.system.automations_enabled || sweepRunning">
+                                    <span x-show="!sweepRunning">🧹 RUN SWEEPER</span>
+                                    <span x-show="sweepRunning" class="animate-pulse">🧹 RUNNING...</span>
+                                </button>
+                                <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]"
+                                        @click="requestConfigReload()"
+                                        :disabled="!state.system.domoticz_mqtt_connected || configReloading">
+                                    <span x-show="!configReloading">🔄 RELOAD CONFIG</span>
+                                    <span x-show="configReloading" class="animate-pulse">🔄 RELOADING...</span>
+                                </button>
                                 <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]" @click="reloadFrontend()">♻️ RELOAD UI</button>
                                 <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]" @click="injectTestAlert()">test UI alert box</button>
                             </div>
@@ -674,6 +686,8 @@
                                     <div class="flex items-center gap-2">
                                         <span class="font-bold text-[10px]" :class="state.system.domoticz_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.domoticz_integration_enabled ? 'LIVE' : 'DISABLED'"></span>
                                         <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :disabled="!state.system.domoticz_mqtt_connected"
+                                               :class="!state.system.domoticz_mqtt_connected ? 'opacity-50 cursor-not-allowed' : ''"
                                                :checked="state.system.domoticz_integration_enabled"
                                                @change="toggleDomoticz()" />
                                     </div>

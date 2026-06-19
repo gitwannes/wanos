@@ -20,7 +20,7 @@ from core.state_manager import StateManager
 from core.config import load_config, AppConfig
 from core.logger import setup_wanos_logging, WanosLogger
 from hardware.simulator import lab_mode_thermodynamics_loop
-from integrations.home_hub import DomoticzHomeHubBridge
+from integrations.domoticz import DomoticzHomeHubBridge
 from integrations.open_weather import weather_polling_loop
 
 # Create a global shutdown event kill switch
