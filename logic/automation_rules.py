@@ -2,7 +2,11 @@
 import datetime, time
 from core.models import Event, EventType, SystemState
 from core.config import load_config
-from loguru import logger  # ⚡ Added logger for troubleshooting
+
+# Import standard logger for diagnostics, and our new bound logger for the audit trail
+from loguru import logger
+from core.logger import automation_logger
+
 
 class AutomationEngine:
     """
@@ -18,21 +22,6 @@ class AutomationEngine:
         if cls._config is None:
             cls._config = load_config()
         return cls._config
-
-    @staticmethod
-    def _log_execution(rule_name: str, target: str, new_state: str) -> None:
-        """
-        Temporary flat-file logger for executed automations.
-        Will be replaced by MySQL integration in the future.
-        """
-        try:
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            message = f"[AUTOMATION] '{rule_name}' -> Set {target} to {new_state}"
-            log_line = f"{timestamp} | INFO     | {message}\n"
-            with open("/var/log/wisc/wanos_automations.log", "a", encoding="utf-8") as f:
-                f.write(log_line)
-        except Exception:
-            pass
 
     @staticmethod
     def _is_dark(state: SystemState) -> bool:
@@ -126,22 +115,25 @@ class AutomationEngine:
 
                             # ⚡ UNINITIALIZED STATE GUARD
                             if current_target_state is None:
-                                logger.debug(f"[X-RAY]    -> Action SKIPPED for IDX {action.idx}: Current state is None")
+                                logger.debug(
+                                    f"[X-RAY]    -> Action SKIPPED for IDX {action.idx}: Current state is None")
                                 continue
 
                             logger.debug(
                                 f"[X-RAY]    -> Checking IDX {action.idx}: Current state is {current_target_state}, Target is {target_action_state} (Force: {is_force})")
 
                             if current_target_state != target_action_state or is_force:
-                                logger.debug (f"[X-RAY]    -> IDX {action.idx} switching to {target_action_state}")
+                                logger.debug(f"[X-RAY]    -> IDX {action.idx} switching to {target_action_state}")
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
-                                    payload = {"idx": action.idx, "state": target_action_state, "force": is_force}
+                                    payload={"idx": action.idx, "state": target_action_state, "force": is_force}
                                 ))
-                                AutomationEngine._log_execution(rule.name, f"IDX {action.idx}",
-                                                                f"{target_action_state} (FORCED)" if is_force else target_action_state)
+
+                                # ⚡ SILENT AUDIT LOGGING
+                                final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
+                                automation_logger.info(f"'{rule.name}' -> Set IDX {action.idx} to {final_state_str}")
                             else:
-                                logger.debug (f"[X-RAY]    -> IDX {action.idx} already {target_action_state}")
+                                logger.debug(f"[X-RAY]    -> IDX {action.idx} already {target_action_state}")
 
                         # --- Nested Event Chaining ---
                         elif getattr(action, "event", None):
@@ -152,7 +144,9 @@ class AutomationEngine:
                                     type=evt_type,
                                     payload={}
                                 ))
-                                AutomationEngine._log_execution(rule.name, "Internal Event", action.event)
+
+                                # ⚡ SILENT AUDIT LOGGING
+                                automation_logger.info(f"'{rule.name}' -> Set Internal Event to {action.event}")
                             except KeyError:
                                 logger.error(
                                     f"[AUTOMATION] Rule '{rule.name}' failed: '{action.event}' is not a valid EventType.")
@@ -182,7 +176,7 @@ class AutomationEngine:
                             Event(type=EventType.HUB_STATE_CHANGED,
                                   payload={"idx": 7558, "state": "ON"})
                         )
-                        AutomationEngine._log_execution("Bathroom 1eV Vent Auto-ON", "IDX 7558", "ON")
+                        automation_logger.info("'Bathroom 1eV Vent Auto-ON' -> Set IDX 7558 to ON")
                     elif val <= off_threshold and current_vent_state == "ON":
                         # Humidity is low: Auto-disengage ventilator (IF 5-MIN LOCK EXPIRED)
                         if not is_locked:
@@ -190,7 +184,8 @@ class AutomationEngine:
                                 Event(type=EventType.HUB_STATE_CHANGED,
                                       payload={"idx": 7558, "state": "OFF"})
                             )
-                            AutomationEngine._log_execution("Bathroom 1eV Vent Auto-OFF", "IDX 7558", "OFF")
+                            automation_logger.info("'Bathroom 1eV Vent Auto-OFF' -> Set IDX 7558 to OFF")
+
         # -----------------------------------------------------------------
         # AUTO-OFF TIMERS: Lighting Configuration
         # -----------------------------------------------------------------
