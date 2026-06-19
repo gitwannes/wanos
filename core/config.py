@@ -76,6 +76,13 @@ class LightingConfig(BaseModel):
     auto_off_delays: Dict[int, int]
 
 
+class RFXSwitchConfig(BaseModel):
+    """Declarative translation model mapping stateless RFX commands to virtual states."""
+    virtual_idx: int
+    on_trigger_idx: int
+    off_trigger_idx: int
+
+
 # --- Automation Models ---
 class TriggerConfig(BaseModel):
     idx: Optional[int] = None
@@ -115,6 +122,7 @@ class AppConfig(BaseModel):
     lighting: LightingConfig
     weather: WeatherConfig
     boot_seed: Dict[Union[int, str], Any] = {}
+    rfx_switches: List[RFXSwitchConfig] = Field(default_factory=list)
     automations: List[AutomationRuleConfig] = Field(default_factory=list)
 
 
@@ -158,6 +166,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "bathroom1": runtime_data["bathroom1"],
         "lighting": runtime_data.get("lighting", {}),
         "weather": runtime_data["weather"],
+        "rfx_switches": runtime_data.get("rfx_switches", []),
         "automations": runtime_data.get("automations", [])
     }
 

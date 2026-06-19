@@ -8,6 +8,7 @@ wanos:
     broker_host: "localhost"
     port: 1883
     username: "st"
+    # password in .env
 
 # Domoticz broker network configuration
 domoticz:
@@ -15,6 +16,7 @@ domoticz:
     broker_host: "10.32.251.181"
     port: 1883
     username: "st0001"
+    # password in .env
 
 # The Dashboard Dictionary
 # Maps raw numeric IDXs to semantic names exclusively for the frontend UI.
@@ -52,10 +54,12 @@ dashboard:
 
   # --- OpenWeatherMap sensors (Virtual IDXs) ---
   30001: "outside"
-  30002: "sunrise"
-  30003: "sunset"
 
-## Part 1: Runtime System Parameters - Modifiable via Web UI
+weather:  # for OpenWeatherMap
+  location: "Borsbeek,BE"
+  poll_interval_mins: 30
+
+## Runtime System Parameters - Modifiable via Web UI
 # Dictionaries (No Dashes): Used for describing a single, unique thing with named properties
 sauna:
   default_sauna_setpoint: 80     # Default sauna temperature setpoint
@@ -79,10 +83,10 @@ bathroom1:
   vent_min_runtime_mins: 5  # Minimum time the fan must run before auto-disengaging
 
 lighting:
-  default_auto_off_minutes: 300
-  # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
   managed_lights: [52, 53, 60, 100, 139, 140, 141, 157, 169, 282, 283, 348, 411, 1524, 1622, 6051, 6060, 6067, 6070, 6731, 7236, 7237, 7312, 9645, 9648]
   # Specific delay overrides in minutes
+  default_auto_off_minutes: 300
+  # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
   auto_off_delays:
     100: 10
     141: 120
@@ -98,10 +102,6 @@ lighting:
     7237: 30
     9645: 15
     9648: 5
-
-weather:
-  location: "Borsbeek,BE"
-  poll_interval_mins: 30
 
 ## Part 2: Automation rules
 # Lists (Dashes): Used for describing a collection of repeating things
@@ -352,121 +352,19 @@ automations:
         state: "OFF"
 
 ### RFX
-rfx_switches:  # RFX2 - buro Wannes schemer
-  - virtual_idx: 140
+rfx_switches:
+  - virtual_idx: 139  # RFX1 - cinema schemer
+    on_trigger_idx: 627
+    off_trigger_idx: 628
+  - virtual_idx: 140  # RFX2 - buro Wannes schemer
     on_trigger_idx: 270
     off_trigger_idx: 114
-  # RFX-ON  ON         -> virtual switch ON
-  # virtual switch ON  -> RFX-ON  ON             # is this needed?
-  # RFX-OFF ON         -> virtual switch OFF
-
-  # RFX1 controls cinema_schemer  idx 139 (virtual switch)
-  # RFX1 ON    idx 627
-  # RFX1 OFF   idx 628
-  - name: "RFX1_1"
-    trigger:
-      idx: 627
-      state: "SYNC"
-    actions:
-      - idx: 139
-        state: "SYNC"
-  - name: "RFX1_2"
-    trigger:
-      idx: 139
-      state: "SYNC"
-    actions:
-      - idx: 627
-        state: "SYNC"
-  - name: "RFX1_3"
-    trigger:
-      idx: 628
-      state: "ON"
-    actions:
-      - idx: 139
-        state: "OFF"
-
-  # RFX2 controls buro schemer    idx 140 (virtual switch)
-  # RFX2 ON    idx 270
-  # RFX2 OFF   idx 114
-  - name: "RFX2: ON-to-virtual"
-    trigger:
-      idx: 270
-      state: "ON"
-    actions:
-      - idx: 140
-        state: "ON"
-  - name: "RFX2: virtual-to-ON"
-    trigger:
-      idx: 140
-      state: "ON"
-    actions:
-      - idx: 270
-        state: "FORCE_ON"
-  - name: "RFX2: OFF-to-virtual"
-    trigger:
-      - idx: 114  # for an OFF 'button', "ON" means "OFF"
-        state: "ON"
-    actions:
-      - idx: 140
-        state: "OFF"
-  - name: "RFX2: virtual-to-OFF"
-    trigger:
-      idx: 140
-      state: "OFF"
-    actions:
-      - idx: 114  # for an OFF 'button', "ON" means "OFF"
-        state: "FORCE_ON"
-
-  # RFX3 controls living schemer  idx 157 (virtual switch)
-  # RFX3 ON    idx 630
-  # RFX3 OFF   idx 115
-  - name: "RFX3_1"
-    trigger:
-      idx: 630
-      state: "SYNC"
-    actions:
-      - idx: 157
-        state: "SYNC"
-  - name: "RFX3_2"
-    trigger:
-      - idx: 157
-        state: "SYNC"
-    actions:
-      - idx: 630
-        state: "SYNC"
-  - name: "RFX3_3"
-    trigger:
-      - idx: 115
-        state: "ON"
-    actions:
-      - idx: 157
-        state: "OFF"
-
-  # RFX4 controls kerstboom       idx 158 (virtual switch)
-  # RFX4 ON    idx 631
-  # RFX4 OFF   idx 146
-  - name: "RFX4_1"
-    trigger:
-      idx: 631
-      state: "SYNC"
-    actions:
-      - idx: 158
-        state: "SYNC"
-  - name: "RFX4_2"
-    trigger:
-      - idx: 158
-        state: "SYNC"
-    actions:
-      - idx: 631
-        state: "SYNC"
-  - name: "RFX4_3"
-    trigger:
-      - idx: 146
-        state: "ON"
-    actions:
-      - idx: 158
-        state: "OFF"
-
-  # RFX5 controls -unused-        idx 636 (virtual switch)
-  # RFX5 ON    idx 631
-  # RFX5 OFF   idx 147
+  - virtual_idx: 157  # RFX3 - living schemer
+    on_trigger_idx: 630
+    off_trigger_idx: 115
+  - virtual_idx: 158  # RFX4 - kerstboom
+    on_trigger_idx: 631
+    off_trigger_idx: 146
+  - virtual_idx: 636  # RFX5 - currently unused
+    on_trigger_idx: 150
+    off_trigger_idx: 147
