@@ -77,10 +77,26 @@ class LightingConfig(BaseModel):
 
 
 class RFXSwitchConfig(BaseModel):
-    """Declarative translation model mapping stateless RFX commands to virtual states."""
+    """Declarative translation model mapping stateless RFX commands to virtual states.
+    --> FALLBACK for use of RFXCom with Domoticz
+    This will have to be removed when the RFXCom is physically moved to the WanOS Pi"""
     virtual_idx: int
     on_trigger_idx: int
     off_trigger_idx: int
+
+
+class RFXComSettings(BaseModel):
+    """Configuration for the physical USB RFXCOM transceiver."""
+    serial_port: str
+
+
+class NativeRFXConfig(BaseModel):
+    """Declarative translation model mapping native hex IDs to virtual WanOS states."""
+    name: str
+    virtual_idx: int
+    protocol: str
+    on_id: str
+    off_id: str
 
 
 # --- Automation Models ---
@@ -123,6 +139,7 @@ class AppConfig(BaseModel):
     weather: WeatherConfig
     boot_seed: Dict[Union[int, str], Any] = {}
     rfx_switches: List[RFXSwitchConfig] = Field(default_factory=list)
+    native_rfx: List[NativeRFXConfig] = Field(default_factory=list)
     automations: List[AutomationRuleConfig] = Field(default_factory=list)
 
 
@@ -154,7 +171,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
 
     # 3. Consolidate payloads for unified validation assembly
     compiled_data = {
-        # wanos and domoticz networks moved to runtime config (config.yaml)
         "wanos": runtime_data["wanos"],
         "domoticz": runtime_data["domoticz"],
         "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
@@ -167,6 +183,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "lighting": runtime_data.get("lighting", {}),
         "weather": runtime_data["weather"],
         "rfx_switches": runtime_data.get("rfx_switches", []),
+        "native_rfx": runtime_data.get("native_rfx", []),
         "automations": runtime_data.get("automations", [])
     }
 

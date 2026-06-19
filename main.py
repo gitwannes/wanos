@@ -74,6 +74,21 @@ domoticz_bridge: DomoticzHomeHubBridge = DomoticzHomeHubBridge(
     domoticz_mqtt_client=domoticz_mqtt_manager
 )
 
+# 7. Bind the Native RFXCOM Bridge (Dual-Use Architecture)
+# Conditionally loaded to prevent crashes if the config block is omitted.
+native_rfx_bridge = None
+if getattr(config, "rfxcom", None) and getattr(config.rfxcom, "serial_port", None):
+    try:
+        from integrations.rfxcom import NativeRFXCOMBridge
+        native_rfx_bridge = NativeRFXCOMBridge(
+            state_manager=state_manager,
+            serial_port=config.rfxcom.serial_port
+        )
+        # Inject into state_manager for UI telemetry tracking
+        state_manager.rfxcom_bridge = native_rfx_bridge
+    except ImportError:
+        logger.warning("NativeRFXCOMBridge module missing or PyRFXtrx not installed. Skipping native hardware.")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -117,6 +132,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         # Start external bridges
         await domoticz_bridge.start()
+        if native_rfx_bridge:
+            await native_rfx_bridge.start()
 
         # 3. Seed initial state parameters
         state_manager.dispatch(Event(type=EventType.SYSTEM_READY))
@@ -145,6 +162,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     physics_task.cancel()
     weather_task.cancel()
     mqtt_publisher.stop()
+    if native_rfx_bridge:
+        await native_rfx_bridge.stop()
     await domoticz_bridge.stop()
     await state_manager.stop()
     await domoticz_mqtt_manager.stop()

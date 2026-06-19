@@ -286,7 +286,7 @@ class AutomationEngine:
                             "event_payload": {"idx": idx}
                         }
                     ))
-                    automation_logger.info(f"[AUTOMATION] Scheduled auto-off for IDX {idx} ({semantic_name}) in {delay_mins} min")
+                    automation_logger.info(f"Scheduled auto-off for IDX {idx} ({semantic_name}) in {delay_mins} min")
 
                 elif new_state == "OFF":
                     # Instantly cancel any pending countdowns for this light,

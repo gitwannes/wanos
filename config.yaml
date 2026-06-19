@@ -368,3 +368,22 @@ rfx_switches:
   - virtual_idx: 636  # RFX5 - currently unused
     on_trigger_idx: 150
     off_trigger_idx: 147
+
+### RFX via native hardware-connected RFXCom RFXtrx433E device
+# To find the exact USB port when you plug in the device, run the following in terminal:
+#  dmesg | grep tty   OR   lsusb
+# For now, we default to the standard Linux USB serial assignment:
+rfxcom:
+  serial_port: "/dev/ttyUSB0"
+
+native_rfx:
+  - name: "buro_schemer"
+    virtual_idx: 40001
+    protocol: "Lighting4"
+    on_id: "544555"
+    off_id: "544554"
+  - name: "buro_schemer"
+    virtual_idx: 40001
+    protocol: "Lighting4"
+    on_id: "544555"
+    off_id: "544554"

@@ -654,6 +654,10 @@
                                     <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold">Native RFXCOM</span>
+                                    <span class="badge badge-xs py-2 px-2" :class="state.system.rfxcom_connected ? 'badge-success' : 'badge-error'" x-text="state.system.rfxcom_connected ? 'MOUNTED' : 'OFFLINE'"></span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                     <span class="text-base-400 uppercase font-bold text-[10px]">Safety SSR Relay</span>
                                     <span class="badge badge-xs py-2 px-2"
                                           :class="!state.system.domoticz_mqtt_connected || state.devices.safety_ssr === null ? 'badge-neutral text-gray-500 italic' : (state.devices.safety_ssr === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral')"
@@ -690,6 +694,17 @@
                                                :class="!state.system.domoticz_mqtt_connected ? 'opacity-50 cursor-not-allowed' : ''"
                                                :checked="state.system.domoticz_integration_enabled"
                                                @change="toggleDomoticz()" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Native RFXCOM</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.system.rfxcom_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.rfxcom_integration_enabled ? 'LIVE' : 'DISABLED'"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :disabled="!state.system.rfxcom_connected"
+                                               :class="!state.system.rfxcom_connected ? 'opacity-50 cursor-not-allowed' : ''"
+                                               :checked="state.system.rfxcom_integration_enabled"
+                                               @change="toggleRFXCOM()" />
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">

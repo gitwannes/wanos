@@ -28,6 +28,7 @@ class StateManager:
         self._state_listeners: list[Any] = []  # Observer callback registry list
         self.mqtt_client: MqttClientManager = mqtt_client
         self.domoticz_client: Optional[Any] = None  # Populated dynamically by Domoticz bridge
+        self.rfxcom_bridge: Optional[Any] = None  # ⚡ Populated dynamically by Native RFXCOM bridge
         self.logger: WanosLogger = logger
 
         # Optional reference to the MqttPublisher, injected after construction.
@@ -367,10 +368,12 @@ class StateManager:
         elif event_name == "SYSTEM_METRICS_UPDATED":
             wanos_conn = payload.get("wanos_connected", False)
             dom_conn = payload.get("domoticz_connected", False)
+            rfx_conn = payload.get("rfxcom_connected", False)
             ip_addr = payload.get("ip_address", "0.0.0.0")
 
             prev_wanos = self._state.system.wanos_mqtt_connected
             prev_dom = self._state.system.domoticz_mqtt_connected
+            prev_rfx = self._state.system.rfxcom_connected
 
             # --- UI CONNECTION TRANSITION ALERTS ---
             # 1. Local WanOS Broker
@@ -393,18 +396,29 @@ class StateManager:
                 state_changed |= ch
                 changed_domains |= dom
 
+            # 3. Native RFXCOM USB Serial
+            if prev_rfx and not rfx_conn:
+                ch, dom = self._push_alert("🔴 CRITICAL: Native RFXCOM USB Transceiver offline or disconnected")
+                state_changed |= ch
+                changed_domains |= dom
+            elif not prev_rfx and rfx_conn and self._state.system.app_boot_unix is not None:
+                ch, dom = self._push_alert("🟢 SUCCESS: Native RFXCOM USB Transceiver mounted")
+                state_changed |= ch
+                changed_domains |= dom
+
             # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
             if (prev_wanos != wanos_conn or
                     prev_dom != dom_conn or
+                    prev_rfx != rfx_conn or
                     self._state.system.ip_address != ip_addr or
                     self._state.system.app_boot_unix is None):
-
                 self._state.system.wanos_mqtt_connected = wanos_conn
                 self._state.system.domoticz_mqtt_connected = dom_conn
+                self._state.system.rfxcom_connected = rfx_conn
                 self._state.system.ip_address = ip_addr
 
                 # Capture static Unix boot times once during host identification
-                if self._state.system.app_boot_unix is None and ip_addr != "0.0.0.0":
+            if self._state.system.app_boot_unix is None and ip_addr != "0.0.0.0":
                     import psutil
                     self._state.system.app_boot_unix = int(self._start_time)
                     self._state.system.os_boot_unix = int(psutil.boot_time())
@@ -442,7 +456,7 @@ class StateManager:
             color = "🟢" if is_enabled else "🔴"
             raw_error = payload.get("error_msg")
             error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} Domoticz (in & outbound) polling turned {state_str}")
+            ch, dom = self._push_alert(error_alert, f"{color} Domoticz polling turned {state_str}")
             state_changed |= ch
             changed_domains |= dom
 
@@ -1015,6 +1029,7 @@ class StateManager:
                 metrics_payload = {
                     "wanos_connected": _is_connected(self.mqtt_client),
                     "domoticz_connected": _is_connected(self.domoticz_client),
+                    "rfxcom_connected": _is_connected(self.rfxcom_bridge),
                     "ip_address": _get_ip()
                 }
                 self.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))

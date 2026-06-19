@@ -68,6 +68,7 @@ class EventType(str, Enum):
 class SystemAdminState(BaseModel):
     wanos_mqtt_connected: bool = False
     domoticz_mqtt_connected: bool = False
+    rfxcom_connected: bool = False  # ⚡ Tracks native USB RFX transceiver health
     ip_address: str = "0.0.0.0"
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None

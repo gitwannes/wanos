@@ -16,6 +16,8 @@ function wanosApp() {
                 automations_enabled: true, // Master switch for the logic engine
                 domoticz_integration_enabled: false, // ⚡ Switch to block/allow Domoticz messages
                 owm_integration_enabled: false // ⚡ Switch to block/allow OWM polling
+                rfxcom_connected: false, // ⚡ Live USB mounting health status
+                rfxcom_integration_enabled: false // ⚡ Switch to block/allow native RFXCOM transmission/reception
             },
             sensors: {
                 outside_temp: null,
@@ -589,6 +591,11 @@ function wanosApp() {
         toggleDomoticz() {
             const nextState = !this.state.system.domoticz_integration_enabled;
             this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: nextState });
+        },
+
+        toggleRFXCOM() {
+            const nextState = !this.state.system.rfxcom_integration_enabled;
+            this.dispatchEvent("RFXCOM_TOGGLED", { enabled: nextState });
         },
 
         toggleOWM() {

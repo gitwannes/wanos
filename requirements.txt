@@ -3,6 +3,10 @@
 ## python3 -m pip install --upgrade pip setuptools wheel
 ## pip install -r requirements.txt
 
+## to check version to install on current Debian version:
+# https://pypi.org/pypi/<package_name>/json  e.g. https://pypi.org/pypi/pyserial-asyncio/json and look for "version"
+# curl -s https://pypi.org/pypi/pyRFXtrx/json | grep '"version"'
+
 # Web Server
 fastapi==0.128.8
 uvicorn==0.39.0
@@ -24,6 +28,10 @@ PyYAML==6.0.1
 # Logging
 loguru==0.7.2
 
-# Phase 2 (Hardware - intentionally deferred for now)
+# Native RFXCOM Hardware Integration
+pyRFXtrx==0.34.0
+pyserial-asyncio==0.6
+
+# GPIO Hardware - intentionally deferred for now
 # smbus2==0.4.3
 # lgpio==0.2.2.0
