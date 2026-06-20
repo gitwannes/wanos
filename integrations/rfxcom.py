@@ -6,13 +6,14 @@ from core.models import Event, EventType, SystemState
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
-# 🛡️ Safe Import: Allows WanOS to boot even if pyRFXtrx is not yet installed
+# 🛡️ Safe Import: Catch ALL exceptions to prevent module load from crashing WanOS
 try:
     import RFXtrx
     import RFXtrx.lowlevel as lowlevel
 
     PYRFXTRX_AVAILABLE = True
-except ImportError:
+except Exception as lib_err:
+    print(f"⚠️ pyRFXtrx library failed to load: {lib_err}")
     PYRFXTRX_AVAILABLE = False
 
 
@@ -24,8 +25,9 @@ class NativeRFXCOMBridge(WanosComponent):
         self.core: Optional[Any] = None
         self._integration_enabled: bool = False
 
-        # Reference to the main asyncio loop so the background serial thread can safely call back into it
-        self.loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
+        # We must define the variable here, but we CANNOT capture the loop yet,
+        # because __init__ runs at module load time before the async engine boots!
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
 
         # The internal circuit-breaker cache.
         # Tracks the physical state to instantly drop network echoes.
@@ -47,22 +49,29 @@ class NativeRFXCOMBridge(WanosComponent):
         for device in self.state_manager._config.native_rfx:
             idx = device.virtual_idx
 
+            # Bulletproof string casting to prevent AttributeError if YAML parses them as ints
+            on_id_str = str(device.on_id).strip().lower()
+            off_id_str = str(device.off_id).strip().lower()
+
             # Map for out-bound transmission lookups
             self._outbound_map[idx] = {
                 "protocol": device.protocol,
-                "ON": device.on_id.strip().lower(),
-                "OFF": device.off_id.strip().lower()
+                "ON": on_id_str,
+                "OFF": off_id_str
             }
 
             # Map for in-bound reception lookups
-            self._inbound_map[device.on_id.strip().lower()] = {"idx": idx, "state": "ON"}
-            self._inbound_map[device.off_id.strip().lower()] = {"idx": idx, "state": "OFF"}
+            self._inbound_map[on_id_str] = {"idx": idx, "state": "ON"}
+            self._inbound_map[off_id_str] = {"idx": idx, "state": "OFF"}
 
     async def start(self) -> None:
         """Initializes the physical USB connection and spawns the background listener thread."""
         if not PYRFXTRX_AVAILABLE:
             await self.logger.critical("[Native RFX] pyRFXtrx library is not installed. Aborting hardware mount.")
             return
+
+        # ⚡ Safely capture the event loop now that WanOS is fully running in an async context
+        self.loop = asyncio.get_running_loop()
 
         self._integration_enabled = self.state_manager._state.system.rfxcom_integration_enabled
         self.state_manager.register_listener(self._on_state_changed)
@@ -77,7 +86,6 @@ class NativeRFXCOMBridge(WanosComponent):
                 None,
                 lambda: RFXtrx.Core(
                     self.serial_port,
-                    transport_protocol=RFXtrx.PySerialTransport,
                     event_callback=self._rfx_callback
                 )
             )
@@ -118,7 +126,8 @@ class NativeRFXCOMBridge(WanosComponent):
         raw_id = str(event.device.id_string).lower().replace("_", "")
 
         # Teleport execution safely back to the WanOS event loop!
-        self.loop.call_soon_threadsafe(self._process_inbound_threadsafe, raw_id)
+        if self.loop:
+            self.loop.call_soon_threadsafe(self._process_inbound_threadsafe, raw_id)
 
     def _process_inbound_threadsafe(self, raw_id: str) -> None:
         """

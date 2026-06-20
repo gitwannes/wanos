@@ -128,6 +128,7 @@ class AppConfig(BaseModel):
     """The unified master configuration model."""
     wanos: WanosConfig
     domoticz: DomoticzConfig
+    rfxcom: Optional[RFXComSettings] = None
     dashboard: Dict[int, str]
     auth: Dict[str, str]
     pins: PinMappingConfig
@@ -173,6 +174,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     compiled_data = {
         "wanos": runtime_data["wanos"],
         "domoticz": runtime_data["domoticz"],
+        "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings
         "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},
         "pins": hardware_data["pins"],

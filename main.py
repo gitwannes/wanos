@@ -86,8 +86,8 @@ if getattr(config, "rfxcom", None) and getattr(config.rfxcom, "serial_port", Non
         )
         # Inject into state_manager for UI telemetry tracking
         state_manager.rfxcom_bridge = native_rfx_bridge
-    except ImportError:
-        logger.warning("NativeRFXCOMBridge module missing or PyRFXtrx not installed. Skipping native hardware.")
+    except Exception as e:
+        logger.exception(f"CRITICAL: Crash loading NativeRFXCOMBridge: {e}")
 
 
 @asynccontextmanager

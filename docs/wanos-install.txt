@@ -152,6 +152,15 @@ pip install -r requirements.txt
 sudo usermod -a -G dialout $USER
 and then reboot
 
+** Configure permanent /dev assignation
+edit/create /etc/udev/rules.d/99-rfxcom.rules
+this content:
+	SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="rfxcom"
+Save, exit, and reload the USB rules
+	sudo udevadm trigger --subsystem-match=tty
+check with
+	ls -l /dev/rfxcom
+
 ** run the app
 # source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
 # uvicorn main:app --host 0.0.0.0 --port 8000 --reload

@@ -307,6 +307,10 @@ class DomoticzHomeHubBridge(WanosComponent):
             if current_enabled and not getattr(self, '_integration_enabled', False):
                 self._integration_enabled = True
                 await self.logger.success("[Domoticz] Integration ENABLED via UI.")
+                # ⚡ CACHE PURGE: Wipe the internal bridge memory so the incoming sync echoes aren't silently dropped!
+                # This forces the bridge to pass the data to the Engine, triggering a clean is_initialization boot sequence.
+                self._raw_cache.clear()
+                self._last_known_states.clear()
                 await self.logger.info("[Domoticz] Initiating network sync...")
                 asyncio.create_task(self._fetch_initial_states_mqtt())
             elif not current_enabled and getattr(self, '_integration_enabled', False):

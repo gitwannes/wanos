@@ -374,16 +374,31 @@ rfx_switches:
 #  dmesg | grep tty   OR   lsusb
 # For now, we default to the standard Linux USB serial assignment:
 rfxcom:
-  serial_port: "/dev/ttyUSB0"
+  serial_port: "/dev/rfxcom"
 
 native_rfx:
-  - name: "buro_schemer"
-    virtual_idx: 40001
+  - name: "cinema schemer"
+    virtual_idx: 40001  # RFX1
+    protocol: "Lighting4"
+    on_id: "541555"
+    off_id: "541554"
+  - name: "buro Wannes schemer"
+    virtual_idx: 40002  # RFX2
     protocol: "Lighting4"
     on_id: "544555"
     off_id: "544554"
-  - name: "buro_schemer"
-    virtual_idx: 40001
+  - name: "living schemer"
+    virtual_idx: 40003  # RFX3
     protocol: "Lighting4"
-    on_id: "544555"
-    off_id: "544554"
+    on_id: "545155"
+    off_id: "545154"
+  - name: "kerstboom"
+    virtual_idx: 40004  # RFX4
+    protocol: "Lighting4"
+    on_id: "545455"
+    off_id: "545454"
+  - name: "RFX5 unused"
+    virtual_idx: 40005  # RFX5
+    protocol: "Lighting4"
+    on_id: "545511"
+    off_id: "545414"
