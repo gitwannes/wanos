@@ -351,25 +351,7 @@ automations:
       - idx: 6051  # berging
         state: "OFF"
 
-### RFX
-rfx_switches:
-  - virtual_idx: 139  # RFX1 - cinema schemer
-    on_trigger_idx: 627
-    off_trigger_idx: 628
-  - virtual_idx: 140  # RFX2 - buro Wannes schemer
-    on_trigger_idx: 270
-    off_trigger_idx: 114
-  - virtual_idx: 157  # RFX3 - living schemer
-    on_trigger_idx: 630
-    off_trigger_idx: 115
-  - virtual_idx: 158  # RFX4 - kerstboom
-    on_trigger_idx: 631
-    off_trigger_idx: 146
-  - virtual_idx: 636  # RFX5 - currently unused
-    on_trigger_idx: 150
-    off_trigger_idx: 147
-
-### RFX via native hardware-connected RFXCom RFXtrx433E device
+### native hardware-connected RFXCom RFXtrx433E device
 # To find the exact USB port when you plug in the device, run the following in terminal:
 #  dmesg | grep tty   OR   lsusb
 # For now, we default to the standard Linux USB serial assignment:
