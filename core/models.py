@@ -51,6 +51,7 @@ class EventType(str, Enum):
     AUTOMATIONS_TOGGLED = "AUTOMATIONS_TOGGLED"  # Automation Rules
     SIMULATIONS_TOGGLED = "SIMULATIONS_TOGGLED"  # Simulation Physics Engine
     DOMOTICZ_TOGGLED = "DOMOTICZ_TOGGLED"  # Listen to Domoticz messages
+    RFXCOM_TOGGLED = "RFXCOM_TOGGLED"  # ⚡ Added to allow UI HTTP events to pass validation!
     OWM_TOGGLED = "OWM_TOGGLED"  # get OWM weather
     SYSTEM_SWEEP_REQUESTED = "SYSTEM_SWEEP_REQUESTED"  # Manual Time & Environment Audit
     CONFIG_RELOAD_REQUESTED = "CONFIG_RELOAD_REQUESTED"  # Hot-reload config.yaml configuration
@@ -69,6 +70,7 @@ class SystemAdminState(BaseModel):
     wanos_mqtt_connected: bool = False
     domoticz_mqtt_connected: bool = False
     rfxcom_connected: bool = False  # ⚡ Tracks native USB RFX transceiver health
+    rfxcom_integration_enabled: bool = False  # ⚡ Switch to block/allow native RFXCOM transmission/reception
     ip_address: str = "0.0.0.0"
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None
@@ -77,6 +79,7 @@ class SystemAdminState(BaseModel):
     owm_integration_enabled: bool = False  # ⚡ Default OFF, controls OpenWeatherMap polling
     system_alert_msgs: list[str] = Field(default_factory=list)  # A list to hold multiple stacked alert messages
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
+    native_rfx_devices: list[dict] = Field(default_factory=list)  # ⚡ Pushed dynamically to UI panel
 
 
 class Event(BaseModel):

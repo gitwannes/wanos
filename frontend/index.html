@@ -342,6 +342,36 @@
 
                 <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                     <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">📻 433MHz Native Devices</h2>
+                        <div class="flex flex-col gap-4">
+
+                            <template x-for="device in state.system.native_rfx_devices" :key="device.virtual_idx">
+                                <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                                    <div class="text-xs font-bold text-base-400 uppercase" x-text="device.name"></div>
+                                    <div class="flex items-center gap-3">
+
+                                        <span class="font-mono text-sm mt-0.5"
+                                              :class="!state.system.rfxcom_integration_enabled ? 'text-gray-500 italic text-xs' : (state.devices[device.name] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.rfxcom_integration_enabled ? 'OFFLINE' : (state.devices[device.name] === null ? 'SYNCING...' : (state.devices[device.name] === 'ON' ? 'ON' : 'OFF'))"></span>
+
+                                        <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                               :disabled="!state.system.rfxcom_integration_enabled || state.devices[device.name] === null"
+                                               :checked="state.devices[device.name] === 'ON'"
+                                               @change="injectLabHubStateChange(device.name, $event.target.checked)" />
+                                    </div>
+                                </div>
+                            </template>
+
+                            <div x-show="state.system.native_rfx_devices && state.system.native_rfx_devices.length === 0" class="text-center text-xs text-base-400 py-4 italic">
+                                No native RFX devices configured in config.yaml.
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
+                    <div class="card-body">
                         <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3 flex justify-between items-center w-full">
                             <span>Bathroom</span>
                             <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"

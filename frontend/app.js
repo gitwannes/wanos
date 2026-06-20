@@ -17,7 +17,8 @@ function wanosApp() {
                 domoticz_integration_enabled: false, // ⚡ Switch to block/allow Domoticz messages
                 owm_integration_enabled: false, // ⚡ Switch to block/allow OWM polling
                 rfxcom_connected: false, // ⚡ Live USB mounting health status
-                rfxcom_integration_enabled: false // ⚡ Switch to block/allow native RFXCOM transmission/reception
+                rfxcom_integration_enabled: false, // ⚡ Switch to block/allow native RFXCOM transmission/reception
+                native_rfx_devices: [] // ⚡ Enables reactivity for the dynamic panel
             },
             sensors: {
                 outside_temp: null,

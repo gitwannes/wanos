@@ -397,8 +397,8 @@ native_rfx:
     protocol: "Lighting4"
     on_id: "545455"
     off_id: "545454"
-  - name: "RFX5 unused"
-    virtual_idx: 40005  # RFX5
-    protocol: "Lighting4"
-    on_id: "545511"
-    off_id: "545414"
+#  - name: "RFX5 unused"
+#    virtual_idx: 40005  # RFX5
+#    protocol: "Lighting4"
+#    on_id: "545511"
+#    off_id: "545414"

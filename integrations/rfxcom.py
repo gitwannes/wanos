@@ -1,20 +1,46 @@
 # --- file: integrations/rfxcom.py ---
 import asyncio
-from typing import Any, Dict, Optional
+import os
+from typing import Any, Dict, List, Optional
 
 from core.models import Event, EventType, SystemState
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
-# 🛡️ Safe Import: Catch ALL exceptions to prevent module load from crashing WanOS
 try:
-    import RFXtrx
+    import serial_asyncio
     import RFXtrx.lowlevel as lowlevel
+    DEPENDENCIES_AVAILABLE = True
+except ImportError as lib_err:
+    print(f"⚠️ [Native RFX] Required library missing: {lib_err}")
+    DEPENDENCIES_AVAILABLE = False
 
-    PYRFXTRX_AVAILABLE = True
-except Exception as lib_err:
-    print(f"⚠️ pyRFXtrx library failed to load: {lib_err}")
-    PYRFXTRX_AVAILABLE = False
+
+class WanOSRFXProtocol(asyncio.Protocol):
+    """Native Asyncio Serial Protocol to handle the RFX stream directly on the main event loop."""
+    def __init__(self, bridge):
+        self.bridge = bridge
+        self.buffer = bytearray()
+
+    def connection_made(self, transport):
+        self.bridge.transport = transport
+        self.bridge.is_connected = True
+
+    def data_received(self, data):
+        self.buffer.extend(data)
+        # RFXCOM packets always start with a length byte (packet length = byte[0] + 1)
+        while len(self.buffer) > 0:
+            pkt_len = self.buffer[0] + 1
+            if len(self.buffer) >= pkt_len:
+                packet = self.buffer[:pkt_len]
+                self.buffer = self.buffer[pkt_len:]
+                self.bridge.handle_raw_packet(packet)
+            else:
+                break
+
+    def connection_lost(self, exc):
+        self.bridge.is_connected = False
+        self.bridge.transport = None
 
 
 class NativeRFXCOMBridge(WanosComponent):
@@ -22,208 +48,210 @@ class NativeRFXCOMBridge(WanosComponent):
         super().__init__(state_manager)
 
         self.serial_port: str = serial_port
-        self.core: Optional[Any] = None
+        self.transport = None
+        self.protocol = None
+
+        self.is_connected: bool = False
         self._integration_enabled: bool = False
+        self._listener_registered: bool = False
 
-        # We must define the variable here, but we CANNOT capture the loop yet,
-        # because __init__ runs at module load time before the async engine boots!
         self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self._watchdog_task: Optional[asyncio.Task] = None
 
-        # The internal circuit-breaker cache.
-        # Tracks the physical state to instantly drop network echoes.
         self._last_known_states: Dict[int, str] = {}
-
-        # ⚡ INBOUND EDGE MAP: hex_id -> {"idx": 40001, "state": "ON"}
         self._inbound_map: Dict[str, Dict[str, Any]] = {}
-
-        # ⚡ OUTBOUND EDGE MAP: idx -> {"protocol": "Lighting4", "ON": "544555", "OFF": "544554"}
         self._outbound_map: Dict[int, Dict[str, str]] = {}
 
         self._build_translation_maps()
 
     def _build_translation_maps(self) -> None:
-        """Parses the config.yaml block to construct O(1) lookup tables for lightning-fast packet translation."""
         if not hasattr(self.state_manager._config, "native_rfx"):
             return
 
         for device in self.state_manager._config.native_rfx:
-            idx = device.virtual_idx
+            try:
+                idx = device.virtual_idx
+                on_id_str = str(device.on_id).strip().lower()
+                off_id_str = str(device.off_id).strip().lower()
 
-            # Bulletproof string casting to prevent AttributeError if YAML parses them as ints
-            on_id_str = str(device.on_id).strip().lower()
-            off_id_str = str(device.off_id).strip().lower()
+                if on_id_str == off_id_str:
+                    continue
 
-            # Map for out-bound transmission lookups
-            self._outbound_map[idx] = {
-                "protocol": device.protocol,
-                "ON": on_id_str,
-                "OFF": off_id_str
-            }
+                self._outbound_map[idx] = {
+                    "protocol": device.protocol,
+                    "ON": on_id_str,
+                    "OFF": off_id_str
+                }
 
-            # Map for in-bound reception lookups
-            self._inbound_map[on_id_str] = {"idx": idx, "state": "ON"}
-            self._inbound_map[off_id_str] = {"idx": idx, "state": "OFF"}
+                self._inbound_map[on_id_str] = {"idx": idx, "state": "ON"}
+                self._inbound_map[off_id_str] = {"idx": idx, "state": "OFF"}
+            except Exception:
+                pass
 
     async def start(self) -> None:
-        """Initializes the physical USB connection and spawns the background listener thread."""
-        if not PYRFXTRX_AVAILABLE:
-            await self.logger.critical("[Native RFX] pyRFXtrx library is not installed. Aborting hardware mount.")
+        if not DEPENDENCIES_AVAILABLE:
+            await self.logger.error("[Native RFX] Missing serial_asyncio library. Aborting mount.")
             return
 
-        # ⚡ Safely capture the event loop now that WanOS is fully running in an async context
         self.loop = asyncio.get_running_loop()
-
         self._integration_enabled = self.state_manager._state.system.rfxcom_integration_enabled
-        self.state_manager.register_listener(self._on_state_changed)
 
+        if not self._listener_registered:
+            self.state_manager.register_listener(self._on_state_changed)
+            self._listener_registered = True
+
+        if not os.path.exists(self.serial_port):
+            await self.logger.error(f"[Native RFX] Port {self.serial_port} not found. Waiting for watchdog...")
+        else:
+            await self._mount_serial()
+
+        if not self._watchdog_task:
+            self._watchdog_task = self.loop.create_task(self._usb_watchdog())
+
+    async def _mount_serial(self) -> None:
         try:
-            # ⚡ PyRFXtrx natively spawns a background thread to read the serial stream!
-            # We supply self._rfx_callback as the hook for when a packet successfully decodes.
-            await self.logger.info(f"[Native RFX] Mounting physical USB Transceiver on {self.serial_port}...")
-
-            # Run the blocking core initialization in an executor so it doesn't freeze the boot sequence
-            self.core = await self.loop.run_in_executor(
-                None,
-                lambda: RFXtrx.Core(
-                    self.serial_port,
-                    event_callback=self._rfx_callback
-                )
+            await self.logger.info(f"[Native RFX] Mounting Native Asyncio Transport on {self.serial_port}...")
+            coro = serial_asyncio.create_serial_connection(
+                self.loop,
+                lambda: WanOSRFXProtocol(self),
+                self.serial_port,
+                baudrate=38400
             )
-
-            # Tell the StateManager the hardware is alive
-            self.is_connected = True
-            await self.logger.success("[Native RFX] USB Transceiver mounted successfully. Listener thread active.")
-
+            self.transport, self.protocol = await asyncio.wait_for(coro, timeout=5.0)
+            await self.logger.success(f"[Native RFX] USB Transceiver mounted! {len(self._outbound_map)} device(s) registered.")
         except Exception as e:
             self.is_connected = False
-            await self.logger.error(f"[Native RFX] Failed to mount USB Transceiver: {e}")
+            await self.logger.error(f"[Native RFX] Failed to mount: {e}")
 
     async def stop(self) -> None:
-        """Gracefully closes the USB port and terminates the background thread."""
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
         self.is_connected = False
-        if self.core and self.core.transport:
+        if self.transport:
             try:
-                # Close the physical serial port
-                await self.loop.run_in_executor(None, self.core.transport.close)
-                await self.logger.warning("[Native RFX] USB Transceiver unmounted and released.")
-            except Exception as e:
-                await self.logger.error(f"[Native RFX] Error closing USB Transceiver: {e}")
+                self.transport.close()
+            except Exception:
+                pass
+        self.transport = None
 
-    # =========================================================================
-    # INBOUND EDGE (Reading the Airwaves)
-    # =========================================================================
+    async def _usb_watchdog(self) -> None:
+        try:
+            while True:
+                try:
+                    await asyncio.sleep(3.0)
+                    port_exists = os.path.exists(self.serial_port)
 
-    def _rfx_callback(self, event: Any) -> None:
-        """
-        ⚡ WARNING: This method executes inside the pyRFXtrx background C-thread! ⚡
-        You cannot safely modify WanOS state or log async messages from here.
-        We must extract the raw data and bounce it back to the main asyncio loop immediately.
-        """
-        if not hasattr(event, "device") or not hasattr(event.device, "id_string"):
-            return
+                    if self.is_connected and not port_exists:
+                        self.is_connected = False
+                        await self.logger.error(f"[Native RFX] ⚠️ PHYSICAL DISCONNECT: {self.serial_port} lost!")
 
-        # Clean the ID string (pyRFXtrx sometimes outputs "13_00_54_45_55" depending on the sub-protocol)
-        raw_id = str(event.device.id_string).lower().replace("_", "")
+                        if self.transport:
+                            try:
+                                self.transport.close()
+                            except Exception:
+                                pass
+                            self.transport = None
 
-        # Teleport execution safely back to the WanOS event loop!
-        if self.loop:
-            self.loop.call_soon_threadsafe(self._process_inbound_threadsafe, raw_id)
+                        if self._integration_enabled:
+                            self.state_manager.dispatch(Event(
+                                type=EventType.RFXCOM_TOGGLED,
+                                payload={"enabled": False, "error_msg": "RFXCOM physically unplugged!"}
+                            ))
 
-    def _process_inbound_threadsafe(self, raw_id: str) -> None:
-        """
-        Executes on the primary asyncio loop.
-        Maps the raw hex ID to a virtual IDX and dispatches it to the WanOS Engine.
-        """
-        # Master integration kill-switch check
+                    elif not self.is_connected and port_exists:
+                        await self.logger.info(f"[Native RFX] Detected {self.serial_port}. Auto-remounting...")
+                        await self._mount_serial()
+
+                except Exception as inner_e:
+                    print(f"[Native RFX Watchdog] Inner loop error safely caught: {inner_e}")
+        except asyncio.CancelledError:
+            pass
+
+    def handle_raw_packet(self, packet: bytearray) -> None:
+        """Called directly by the WanOSRFXProtocol when a full packet is assembled."""
+        raw_hex = packet.hex().lower()
+
+        # Bypass WanOS log filters so we can always see the firehose in consolelog!
+        print(f"📻 [ANTENNA FIREHOSE] {raw_hex}")
+
         if not self._integration_enabled:
             return
 
-        # Scan our inbound map to see if we recognize this hex code
-        for configured_hex, mapping in self._inbound_map.items():
-            if configured_hex in raw_id:
-                virtual_idx = mapping["idx"]
-                target_state = mapping["state"]
+        mapping = None
+        for configured_hex, map_data in self._inbound_map.items():
+            if configured_hex in raw_hex:
+                mapping = map_data
+                break
 
-                # ⚡ 100% DETERMINISTIC ECHO DROP
-                # If the physical cache is already perfectly aligned with this state,
-                # we silently drop the packet to prevent infinite engine ping-pong loops.
-                if self._last_known_states.get(virtual_idx) == target_state:
-                    return
-
-                # Synchronize local circuit breaker cache
-                self._last_known_states[virtual_idx] = target_state
-
-                # Look up the semantic name for clean UI hybrid learning
-                virtual_name = self.state_manager._config.dashboard.get(virtual_idx, f"idx_{virtual_idx}")
-
-                # ⚡ ORIGIN TAGGING
-                # We tag this event with 'rfx_origin'. This tells the outbound edge router
-                # that the physical light is ALREADY on, so it shouldn't blast a duplicate radio command.
-                self.state_manager.dispatch(Event(
-                    type=EventType.HUB_STATE_CHANGED,
-                    payload={
-                        "idx": virtual_idx,
-                        "state": target_state,
-                        "name": virtual_name,
-                        "is_push_button": False,
-                        "rfx_origin": configured_hex
-                    }
-                ))
-
-                # We use create_task here because we are in a synchronous threadsafe wrapper
-                asyncio.create_task(self.logger.debug(
-                    f"[Native RFX] Physical Remote Intercepted: Hex [{configured_hex}] mapped to Virtual IDX {virtual_idx} -> {target_state}"))
-                return
-
-    # =========================================================================
-    # OUTBOUND EDGE (Transmitting to the Airwaves)
-    # =========================================================================
-
-    async def _on_state_changed(self, state: SystemState, events: list[Event] = None) -> None:
-        """Listens to the WanOS Engine and broadcasts state mutations out via the USB antenna."""
-
-        # --- Master Toggle State Evaluation ---
-        current_enabled = state.system.rfxcom_integration_enabled
-        if current_enabled and not getattr(self, '_integration_enabled', False):
-            self._integration_enabled = True
-            await self.logger.success("[Native RFX] Engine ENABLED via UI.")
-        elif not current_enabled and getattr(self, '_integration_enabled', False):
-            self._integration_enabled = False
-            await self.logger.info("[Native RFX] Engine DISABLED via UI.")
-
-        if not current_enabled or not getattr(self, 'is_connected', False):
+        if not mapping:
             return
 
-        # --- Process Batch Events ---
-        if events:
+        virtual_idx = mapping["idx"]
+        target_state = mapping["state"]
+
+        if self._last_known_states.get(virtual_idx) == target_state:
+            return
+
+        self._last_known_states[virtual_idx] = target_state
+        virtual_name = self.state_manager._config.dashboard.get(virtual_idx, f"idx_{virtual_idx}")
+
+        self.state_manager.dispatch(Event(
+            type=EventType.HUB_STATE_CHANGED,
+            payload={
+                "idx": virtual_idx,
+                "state": target_state,
+                "name": virtual_name,
+                "is_push_button": False,
+                "rfx_origin": raw_hex
+            }
+        ))
+
+        asyncio.ensure_future(self.logger.success(
+            f"[Native RFX] Physical Remote Intercepted: Hex [{raw_hex}] mapped to Virtual IDX {virtual_idx} ({virtual_name}) -> {target_state}"
+        ))
+
+    async def _on_state_changed(self, state: SystemState, events: List[Event] = None) -> None:
+        try:
+            current_enabled = state.system.rfxcom_integration_enabled
+
+            if current_enabled and not self._integration_enabled:
+                self._integration_enabled = True
+                await self.logger.success("[Native RFX] Engine ENABLED via UI.")
+            elif not current_enabled and self._integration_enabled:
+                self._integration_enabled = False
+                await self.logger.info("[Native RFX] Engine DISABLED via UI.")
+
+            if not current_enabled or not self.is_connected or not events:
+                return
+
             for event in events:
-                if event.type == EventType.HUB_STATE_CHANGED:
-                    idx = event.payload.get("idx")
-                    new_state = event.payload.get("state")
-                    rfx_origin = event.payload.get("rfx_origin")
-                    is_init = event.payload.get("is_initialization", False)
+                if event.type != EventType.HUB_STATE_CHANGED:
+                    continue
 
-                    # Ensure this is actually a device managed by the Native RFX block
-                    if idx in self._outbound_map:
+                idx = event.payload.get("idx")
+                new_state = event.payload.get("state")
+                rfx_origin = event.payload.get("rfx_origin")
+                is_init = event.payload.get("is_initialization", False)
 
-                        # Only proceed if the state actually mutated
-                        if new_state != self._last_known_states.get(idx):
+                if idx is None or new_state is None or idx not in self._outbound_map:
+                    continue
 
-                            # 1. Deterministic Boot Absorber
-                            if is_init:
-                                self._last_known_states[idx] = new_state
-                                continue
+                if new_state == self._last_known_states.get(idx):
+                    continue
 
-                            # 2. Sync the local physical cache
-                            self._last_known_states[idx] = new_state
+                if is_init:
+                    self._last_known_states[idx] = new_state
+                    continue
 
-                            # 3. Origin Router: Only transmit if the command came from the UI or Automation Engine
-                            # If rfx_origin is populated, it means the physical remote triggered it, so we do nothing!
-                            if rfx_origin is None:
-                                await self._transmit_physical(idx, new_state)
+                self._last_known_states[idx] = new_state
+
+                if rfx_origin is None:
+                    await self._transmit_physical(idx, new_state)
+
+        except Exception as e:
+            await self.logger.error(f"[Native RFX] Unexpected error in _on_state_changed: {e}")
 
     async def _transmit_physical(self, idx: int, state: str) -> None:
-        """Constructs a high-level PyRFXtrx payload and blasts it synchronously out the USB port."""
         config = self._outbound_map.get(idx)
         if not config:
             return
@@ -231,31 +259,70 @@ class NativeRFXCOMBridge(WanosComponent):
         target_hex = config["ON"] if state == "ON" else config["OFF"]
         protocol = config["protocol"]
 
+        if not self.transport:
+            self.is_connected = False
+            await self.logger.error(f"[Native RFX] Cannot transmit for IDX {idx}: transport is dead.")
+            return
+
         try:
-            # ⚡ HIGH LEVEL PACKET CONSTRUCTION
-            # Dynamically instantiate the exact protocol class requested in config.yaml (e.g. lowlevel.Lighting4)
-            pkt_class = getattr(lowlevel, protocol, None)
-            if not pkt_class:
-                await self.logger.error(f"[Native RFX] Unknown protocol '{protocol}' requested for IDX {idx}")
-                return
+            payload_bytes = None
 
-            pkt = pkt_class()
+            # ⚡ NATIVE LIGHTING4 PACKET GENERATOR ⚡
+            # Completely bypasses pyRFXtrx class complexity to prevent Poison Pill crashes.
+            if protocol.lower() == "lighting4":
+                # PT2262 payload is exactly 10 bytes.
+                # Hex string must be exactly 6 characters (3 bytes).
+                clean_hex = target_hex.zfill(6)
+                payload_bytes = bytearray([
+                    0x09,  # Length (9 bytes follow)
+                    0x13,  # Packet type: Lighting4
+                    0x00,  # Subtype: PT2262
+                    0x00,  # Sequence number (0 is fine for TX)
+                    int(clean_hex[0:2], 16),  # ID Byte 1
+                    int(clean_hex[2:4], 16),  # ID Byte 2
+                    int(clean_hex[4:6], 16),  # ID Byte 3
+                    0x01,  # Pulse high (0x01A5 = 421 us)
+                    0xA5,  # Pulse low
+                    0x00  # Signal level (0 for TX)
+                ])
+            else:
+                # ⚡ FALLBACK FOR OTHER PROTOCOLS ⚡
+                pkt_class = getattr(lowlevel, protocol, None)
+                if not pkt_class:
+                    await self.logger.error(f"[Native RFX] Unknown protocol '{protocol}' for IDX {idx}.")
+                    return
 
-            # The Lighting4/PT2262 protocol embeds the command directly into the hex ID!
-            if hasattr(pkt, 'parse_id'):
-                # Handle library quirks: some older pyRFXtrx versions expect integers instead of hex strings
+                pkt = pkt_class()
+
+                # Assign arbitrary pulse so data property doesn't crash internally
+                if hasattr(pkt, 'pulse'):
+                    pkt.pulse = 400
+
                 try:
-                    pkt.parse_id(target_hex)
-                except (TypeError, ValueError):
-                    pkt.parse_id(int(target_hex, 16))
+                    pkt.parse_id(0, target_hex)
+                except Exception:
+                    try:
+                        pkt.parse_id(0, int(target_hex, 16))
+                    except Exception:
+                        try:
+                            pkt.parse_id(target_hex)
+                        except Exception as parse_err:
+                            await self.logger.error(f"[Native RFX] Parse failed for {target_hex}: {parse_err}")
+                            return
 
-            # ⚡ TRANSMIT
-            # Because serial writes are highly isolated operations, running this inside
-            # run_in_executor ensures it never blocks WanOS even if the USB driver momentarily hangs.
-            if self.core and self.core.transport:
-                await self.loop.run_in_executor(None, self.core.transport.send, pkt.data)
+                # The Poison Pill Guard
+                if not hasattr(pkt, 'data') or pkt.data is None:
+                    await self.logger.error(f"[Native RFX] Library failed to generate byte array for {target_hex}.")
+                    return
+
+                # Strict type casting
+                payload_bytes = bytes(pkt.data) if isinstance(pkt.data, (bytearray, list)) else pkt.data
+
+            # ⚡ FINAL TRANSMISSION ⚡
+            if payload_bytes:
+                self.transport.write(payload_bytes)
                 await self.logger.info(
-                    f"[Native RFX] Transmission Blasted: Virtual IDX {idx} -> Protocol: {protocol} | ID: {target_hex}")
+                    f"[Native RFX] Transmitted: IDX {idx} -> {state} | Protocol: {protocol} | Hex: {target_hex}")
 
         except Exception as e:
-            await self.logger.error(f"[Native RFX] Failed to transmit payload for IDX {idx}: {e}")
+            await self.logger.error(f"[Native RFX] Transmission failed for IDX {idx}: {e}")

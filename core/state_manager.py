@@ -54,6 +54,17 @@ class StateManager:
         for idx in self._state.dashboard_map.keys():
             self._state.devices[idx] = None
 
+        # ⚡ NATIVE RFX AUTO-INITIALIZATION
+        # Maps the RFX devices and forcefully sets them to "OFF" since 433MHz is stateless and can't be queried.
+        if hasattr(self._config, "native_rfx"):
+            for rfx_dev in self._config.native_rfx:
+                self._state.system.native_rfx_devices.append({
+                    "name": rfx_dev.name,
+                    "virtual_idx": rfx_dev.virtual_idx
+                })
+                self._state.dashboard_map[rfx_dev.virtual_idx] = rfx_dev.name
+                self._state.devices[rfx_dev.virtual_idx] = "OFF"
+
     def register_listener(self, callback: Any) -> None:
         """Registers an async callback to be triggered on post-drain state snapshots."""
         self._state_listeners.append(callback)
@@ -469,6 +480,20 @@ class StateManager:
                             self._state.devices[idx] = None
                             state_changed = True
                             changed_domains.add("devices")
+
+        elif event_name == "RFXCOM_TOGGLED":
+            is_enabled = payload.get("enabled", False)
+            state_str = "ON" if is_enabled else "OFF"
+            self._state.system.rfxcom_integration_enabled = is_enabled
+            state_changed = True
+            changed_domains.add("system")
+
+            color = "🟢" if is_enabled else "🔴"
+            raw_error = payload.get("error_msg")
+            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+            ch, dom = self._push_alert(error_alert, f"{color} Native RFXCOM Engine turned {state_str}")
+            state_changed |= ch
+            changed_domains |= dom
 
         elif event_name == "OWM_TOGGLED":
             is_enabled = payload.get("enabled", False)
