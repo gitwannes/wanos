@@ -4,9 +4,7 @@ from core.models import Event, EventType, SystemState
 from core.config import load_config
 from typing import Optional
 
-# Import standard logger for diagnostics, and our new bound logger for the audit trail
-from loguru import logger
-from core.logger import automation_logger
+from core.logger import automation_logger  # only log to automation_log
 
 
 class AutomationEngine:
@@ -78,7 +76,7 @@ class AutomationEngine:
 
             # If the trigger matched, evaluate conditions and execute
             if trigger_matched:
-                logger.debug(f"[X-RAY] -> TRIGGER MATCHED for rule: '{rule.name}'")
+                automation_logger.debug(f"[X-RAY] -> TRIGGER MATCHED for rule: '{rule.name}'")
                 conditions_met = True
                 if rule.conditions:
                     for condition in rule.conditions:
@@ -86,15 +84,15 @@ class AutomationEngine:
                             is_dark = AutomationEngine._is_dark(state)
                             if condition.condition_is == "dark" and not is_dark:
                                 conditions_met = False
-                                logger.debug(f"[X-RAY] -> Condition FAILED (It is not dark)")
+                                automation_logger.debug(f"[X-RAY] -> Condition FAILED (It is not dark)")
                             elif condition.condition_is == "light" and is_dark:
                                 conditions_met = False
-                                logger.debug(f"[X-RAY] -> Condition FAILED (It is not light)")
+                                automation_logger.debug(f"[X-RAY] -> Condition FAILED (It is not light)")
 
                 if conditions_met:
-                    logger.debug(f"[X-RAY] -> CONDITIONS MET for '{rule.name}'. Evaluating actions...")
+                    automation_logger.debug(f"[X-RAY] -> CONDITIONS MET for '{rule.name}'. Evaluating actions...")
                     for action in rule.actions:
-                        logger.debug(f"[X-RAY]    -> Pydantic parsed this action: {action}")
+                        automation_logger.debug(f"[X-RAY]    -> Pydantic parsed this action: {action}")
 
                         # ⚡ Resolve target action state
                         raw_action_state = action.state
@@ -116,15 +114,15 @@ class AutomationEngine:
 
                             # ⚡ UNINITIALIZED STATE GUARD
                             if current_target_state is None:
-                                logger.debug(
+                                automation_logger.debug(
                                     f"[X-RAY]    -> Action SKIPPED for IDX {action.idx}: Current state is None")
                                 continue
 
-                            logger.debug(
+                            automation_logger.debug(
                                 f"[X-RAY]    -> Checking IDX {action.idx}: Current state is {current_target_state}, Target is {target_action_state} (Force: {is_force})")
 
                             if current_target_state != target_action_state or is_force:
-                                logger.debug(f"[X-RAY]    -> IDX {action.idx} switching to {target_action_state}")
+                                automation_logger.debug(f"[X-RAY]    -> IDX {action.idx} switching to {target_action_state}")
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
                                     payload={"idx": action.idx, "state": target_action_state, "force": is_force}
@@ -134,11 +132,11 @@ class AutomationEngine:
                                 final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
                                 automation_logger.info(f"'{rule.name}' -> Set IDX {action.idx} to {final_state_str}")
                             else:
-                                logger.debug(f"[X-RAY]    -> IDX {action.idx} already {target_action_state}")
+                                automation_logger.debug(f"[X-RAY]    -> IDX {action.idx} already {target_action_state}")
 
                         # --- Nested Event Chaining ---
                         elif getattr(action, "event", None):
-                            logger.debug(f"[X-RAY]    -> Yielding internal event chain: {action.event}")
+                            automation_logger.debug(f"[X-RAY]    -> Yielding internal event chain: {action.event}")
                             try:
                                 evt_type = EventType[action.event]
                                 follow_up_events.append(Event(

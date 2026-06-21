@@ -100,8 +100,8 @@ class DomoticzHomeHubBridge(WanosComponent):
         pwd = dom_http.password
 
         # ⚡ PRE-2023 LEGACY ENDPOINT ⚡
-        # Using type=devices ensures compatibility with older Domoticz C++ engines.
-        url = f"http://{host}:{port}/json.htm?type=devices&filter=all&used=true&favorite=1"
+        # Using type=devices ensures compatibility with older Domoticz C++ engines. (pre-2023) :: Smartastic
+        url = f"http://{host}:{port}/json.htm?type=devices&filter=all&used=true"
         auth = aiohttp.BasicAuth(user, pwd) if user and pwd else None
 
         await self.logger.info("[Domoticz] Initiating atomic HTTP boot-sync via legacy API...")
@@ -137,10 +137,22 @@ class DomoticzHomeHubBridge(WanosComponent):
                 return
             idx = int(idx_str)
 
-            # Dynamically register this favorite so the MQTT listener watches it permanently
+            is_favorite = device.get("Favorite", 0) == 1
+            config_name = self.state_manager._config.dashboard.get(idx)
+
+            # ⚡ ONLY process devices that are starred in Domoticz OR explicitly mapped in WanOS config.yaml
+            if not is_favorite and not config_name:
+                return
+
+            # Dynamically register this so the MQTT listener watches it permanently
             self._dynamic_favorites_idxs.add(idx)
 
-            name = device.get("Name", f"idx_{idx}")
+            # ⚡ Prioritize config.yaml mapped names. Explicitly reject Domoticz "Unknown" default labels.
+            dom_name = device.get("Name")
+            if dom_name and dom_name.lower() == "unknown":
+                dom_name = None
+            name = config_name or dom_name or f"idx_{idx}"
+
             device_type = device.get("Type", "")
             switch_type = device.get("SwitchType", "")
 
@@ -150,7 +162,9 @@ class DomoticzHomeHubBridge(WanosComponent):
                 level = device.get("LevelInt", 0)
                 self.state_manager.dispatch(Event(
                     type=EventType.HUB_STATE_CHANGED,
-                    payload={"idx": idx, "state": level, "name": name, "is_push_button": False, "rfx_origin": None,
+                    payload={"idx": idx, "state": level, "name": name, "device_type": "blinds", "origin": "domoticz",
+                             "is_push_button": False,
+                             "rfx_origin": None,
                              "is_initialization": True}
                 ))
 
@@ -162,26 +176,57 @@ class DomoticzHomeHubBridge(WanosComponent):
 
                 self.state_manager.dispatch(Event(
                     type=EventType.HUB_STATE_CHANGED,
-                    payload={"idx": idx, "state": state_str, "name": name, "is_push_button": is_push_button,
+                    payload={"idx": idx, "state": state_str, "name": name, "device_type": "switch",
+                             "origin": "domoticz",
+                             "is_push_button": is_push_button,
                              "rfx_origin": None, "is_initialization": True}
                 ))
 
-            # 3. Temp / Humidity
+            # 3. Temp / HumidityZ
             elif "Temp" in device_type or "Hum" in device_type:
                 self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
                 temp = device.get("Temp")
                 hum = device.get("Humidity")
 
+                # ⚡ Detect if this is a single sensor or a compound Temp+Hum sensor
+                dtype_tag = "temp_hum" if (temp is not None and hum is not None) else (
+                    "temp" if temp is not None else "hum")
+
                 if temp is not None:
                     self.state_manager.dispatch(Event(
                         type=EventType.TEMP_UPDATED,
-                        payload={"idx": idx, "value": float(temp), "is_initialization": True}
+                        payload={"idx": idx, "value": float(temp), "name": name, "device_type": dtype_tag,
+                                 "origin": "domoticz",
+                                 "is_initialization": True}
                     ))
                 if hum is not None:
                     self.state_manager.dispatch(Event(
                         type=EventType.HUMIDITY_UPDATED,
-                        payload={"idx": idx, "value": int(hum), "is_initialization": True}
+                        payload={"idx": idx, "value": int(hum), "name": name, "device_type": dtype_tag,
+                                 "origin": "domoticz",
+                                 "is_initialization": True}
                     ))
+
+            # 4. Power / Wattage Sensors
+            elif "Usage" in device_type or "Watt" in device_type or "Power" in device_type or "Kwh" in switch_type:
+                self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
+                try:
+                    # Domoticz HTTP API typically returns power in the 'Usage' or 'Data' fields as a string like "0.0 Watt"
+                    raw_power = str(device.get("Usage", device.get("Data", "0.0")))
+
+                    # Clean out alphabetical characters (like ' Watt' or ' W') to parse the pure float
+                    clean_power = ''.join(c for c in raw_power if c.isdigit() or c == '.' or c == '-')
+                    if not clean_power or clean_power == "." or clean_power == "-":
+                        clean_power = "0.0"
+
+                    self.state_manager.dispatch(Event(
+                        type=EventType.POWER_UPDATED,
+                        payload={"idx": idx, "value": float(clean_power), "name": name, "device_type": "power",
+                                 "origin": "domoticz", "is_initialization": True}
+                    ))
+                except Exception as e:
+                    asyncio.create_task(
+                        self.logger.error(f"[Domoticz] Power normalization failed for IDX {idx}: {e}"))
 
         except Exception as e:
             asyncio.create_task(self.logger.error(f"[Domoticz] Normalization failed for device: {e}"))
@@ -229,8 +274,12 @@ class DomoticzHomeHubBridge(WanosComponent):
             if idx not in self.watched_idxs:
                 return
 
-            # ⚡ Prioritize the live Domoticz name, fallback to config map, then generic idx_ string
-            device_name = data.get("name") or self.state_manager._config.dashboard.get(idx, f"idx_{idx}")
+            # ⚡ Prioritize config.yaml mapped names. Explicitly reject Domoticz "Unknown" default labels.
+            config_name = self.state_manager._config.dashboard.get(idx)
+            dom_name = data.get("name")
+            if dom_name and dom_name.lower() == "unknown":
+                dom_name = None
+            device_name = config_name or dom_name or f"idx_{idx}"
 
             # ⚡ EARLY GATE DUPLICATE FILTER ⚡
             nvalue = data.get("nvalue")
@@ -253,7 +302,7 @@ class DomoticzHomeHubBridge(WanosComponent):
             # Forward raw data to internal bus
             filtered_raw_data = {
                 "idx": idx,
-                "name": data.get("name", device_name),
+                "name": device_name,
                 "dtype": data.get("dtype"),
                 "nvalue": nvalue,
                 "svalue": svalue,
@@ -281,39 +330,45 @@ class DomoticzHomeHubBridge(WanosComponent):
                     raw_temp = data.get("svalue1")
                     raw_hum = data.get("svalue2")
 
+                has_temp = raw_temp is not None and raw_temp != ""
+                has_hum = raw_hum is not None and raw_hum != ""
+                dtype_tag = "temp_hum" if (has_temp and has_hum) else ("temp" if has_temp else "hum")
+
                 log_parts = []
-                if raw_temp is not None and raw_temp != "":
+                if has_temp:
                     log_parts.append(f"{raw_temp}°C")
                     self.state_manager.dispatch(Event(
                         type=EventType.TEMP_UPDATED,
-                        payload={"idx": idx, "value": float(raw_temp)}
+                        payload={"idx": idx, "value": float(raw_temp), "device_type": dtype_tag, "origin": "domoticz",
+                                 "name": device_name}
                     ))
-                if raw_hum is not None and raw_hum != "":
+                if has_hum:
                     log_parts.append(f"{raw_hum}%")
                     self.state_manager.dispatch(Event(
                         type=EventType.HUMIDITY_UPDATED,
-                        payload={"idx": idx, "value": int(float(raw_hum))}
+                        payload={"idx": idx, "value": int(float(raw_hum)), "device_type": dtype_tag,
+                                 "origin": "domoticz",
+                                 "name": device_name}
                     ))
-
                 log_display = " / ".join(log_parts) if log_parts else "No Data"
-                await self.logger.debug(
-                    f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor ({dtype}) update received -> {log_display}")
 
-            # 2. Power Sensors
+                # 2. Power Sensors
             elif "Usage" in dtype or "Watt" in dtype or "Power" in dtype:
                 self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
                 try:
                     raw_svalue = data.get("svalue1", "0.0")
                     wattage = float(raw_svalue)
-                    log_display = f"{wattage} W"
+                    # log_display = f"{wattage} W"
+                    log_display = ""  # don't log power (too much noise)
                     self.state_manager.dispatch(Event(
                         type=EventType.POWER_UPDATED,
-                        payload={"idx": idx, "value": wattage}
+                        payload={"idx": idx, "value": wattage, "device_type": "power", "origin": "domoticz",
+                                 "name": device_name}
                     ))
                 except (ValueError, TypeError) as e:
                     await self.logger.error(f"Failed to parse power reading for IDX {idx}: {e}")
 
-            # 3. Switches, Relays, and Blinds
+                # 3. Switches, Relays, and Blinds
             else:
                 if switch_type == "Blinds Percentage":
                     try:
@@ -322,10 +377,12 @@ class DomoticzHomeHubBridge(WanosComponent):
                     except ValueError:
                         target_state = 0
                     log_display = f"{target_state}%"
+                    dtype_tag = "blinds"
                 else:
                     nvalue = data.get("nvalue", 0)
                     target_state = "ON" if nvalue > 0 else "OFF"
                     log_display = target_state
+                    dtype_tag = "switch"
 
                 if not is_push_button and self._last_known_states.get(idx) == target_state:
                     return
@@ -338,10 +395,13 @@ class DomoticzHomeHubBridge(WanosComponent):
                         "idx": idx,
                         "state": target_state,
                         "name": data.get("name"),  # for hybrid dashboard map learning
+                        "device_type": dtype_tag,
+                        "origin": "domoticz",
                         "is_push_button": is_push_button,
                         "rfx_origin": None  # ⚡ Tag as UI/Internal origin
                     }
                 ))
+            if log_display:
                 await self.logger.debug(
                     f"[Domoticz] Node '{device_name}' (IDX {idx}) sensor ({dtype}) update received -> {log_display}")
 

@@ -80,6 +80,8 @@ class SystemAdminState(BaseModel):
     system_alert_msgs: list[str] = Field(default_factory=list)  # A list to hold multiple stacked alert messages
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
     native_rfx_devices: list[dict] = Field(default_factory=list)  # ⚡ Pushed dynamically to UI panel
+    available_scenes: list[dict[str, str]] = Field(default_factory=list)  # ⚡ Extracted stateless triggers for UI
+    hidden_explorer_idxs: list[int] = Field(default_factory=list)  # ⚡ Devices explicitly hidden from Device Explorer
 
 
 class Event(BaseModel):
@@ -169,6 +171,10 @@ class SystemState(BaseModel):
     # Dictionary loaded from config.yaml to map numeric IDXs back to semantic names for the UI.
     # The frontend parses this on boot.
     dashboard_map: Dict[int, str] = Field(default_factory=dict)
+
+    # ⚡ The dynamic device registry. Maps IDXs to a dictionary containing {name: str, type: str}
+    # to allow the frontend to know exactly how to render a dynamic list element.
+    device_metadata: Dict[int, Dict[str, Any]] = Field(default_factory=dict)
 
     # Allows the baseline validation rules parsed out of config_lab.yaml
     # to be passed seamlessly down to the web UI without strict compilation loop blocks.

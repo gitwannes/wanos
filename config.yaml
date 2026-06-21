@@ -57,6 +57,13 @@ dashboard:
   # --- OpenWeatherMap sensors (Virtual IDXs) ---
   30001: "outside"
 
+# ⚡ Devices explicitly hidden from the Device Explorer UI
+deviceexplorer_exclude:
+  - 8     # PC itself
+  - 8567  # Wisc safety SSR
+  - 7550  # Sauna
+  - 7551  # IR
+
 weather:  # for OpenWeatherMap
   location: "Borsbeek,BE"
   poll_interval_mins: 30
@@ -155,14 +162,14 @@ automations:
       - idx: 1500  # sauna_zoutlamp
         state: "ON"
 
-  - name: "Sauna Lights OFF"
+  - name: "Sauna OFF -> Hue Off"
     trigger:
       event: "SAUNA_OFF"
     actions:
       - idx: 7561
         state: "OFF"
 
-  - name: "Sauna Lights Off2"
+  - name: "Sauna Hue Off -> Zoutlamp Off"
     trigger:
       - idx: 7561
         state: "OFF"
@@ -171,7 +178,8 @@ automations:
         state: "OFF"
 
 ### --- SCENES ---
-  - name: "Scene: gv ALL OFF"
+  - name: "ALL OFF gv"
+    scene: true
     trigger:
       event: "SCENE_GV_OFF"
     actions:
@@ -200,7 +208,8 @@ automations:
       - idx: 7396       # licht tuin
         state: "OFF"
 
-  - name: "Scene: 1e Verdiep ALL OFF"
+  - name: "ALL OFF 1eV"
+    scene: true
     trigger:
       event: "SCENE_VERDIEP1_OFF"
     actions:
@@ -221,7 +230,8 @@ automations:
       - idx: 169  # gang_boven
         state: "OFF"
 
-  - name: "Scene: 2e Verdiep ALL OFF"
+  - name: "ALL OFF 2eV"
+    scene: true
     trigger:
       event: "SCENE_VERDIEP2_OFF"
     actions:
@@ -242,7 +252,8 @@ automations:
       - idx: 7237     # slpk Dries Hue
         state: "OFF"
 
-  - name: "Scene: ALL OFF"
+  - name: "ALL OFF overal"
+    scene: true
     trigger:
       event: "SCENE_ALL_OFF"
     actions:
@@ -250,17 +261,18 @@ automations:
       - event: "SCENE_VERDIEP1_OFF"
       - event: "SCENE_VERDIEP2_OFF"
 
-  - name: "Scene: GoCosy"
+  - name: "GoCosy gv"
+    scene: true
     trigger:
       event: "SCENE_GOCOSY"
     actions:
       - idx: 52
         state: "ON"
+      - idx: 7236
+        state: "ON"
       - idx: 40003
         state: "OFF"
       - idx: 40004
-        state: "OFF"
-      - idx: 7236
         state: "OFF"
 
 ### Using Raw Domoticz IDXs for sensors not used above

@@ -14,7 +14,7 @@
          class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center transition-opacity duration-300">
          <span class="loading loading-infinity w-16 text-error mb-4"></span>
         <h2 class="text-2xl font-black tracking-widest text-base-content">LINK INTERRUPTED</h2>
-        <p class="text-error mt-2 font-mono text-sm">RE-ESTABLISHING PERSISTENT CONNECTION STREAM OVER WANOS...</p>
+        <p class="text-error mt-2 font-mono text-sm">Re-establishing connection stream to WanOS...</p>
     </div>
 
     <header class="navbar bg-base-100 shadow-md px-6 mb-8 flex-wrap gap-4">
@@ -104,10 +104,16 @@
                             <div class="flex justify-between items-center bg-base-200 p-3 mt-4 rounded-box border border-base-300">
                                 <div class="text-xs font-bold text-base-400 uppercase">Extraction Fan</div>
                                 <div class="flex items-center gap-3">
-                                    <span class="font-mono text-[10px] tracking-wider mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices[8577] === null ? 'text-gray-500 italic text-xs' : ((state.sauna.ventilation_state !== 'OFF' || state.devices[8577] === 'ON') ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                    <span class="font-mono mt-0.5 transition-all duration-300"
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[8577] === null
+                                            ? 'text-gray-500 italic text-xs'
+                                            : (state.sauna.ventilation_state !== 'OFF'
+                                                ? 'text-info font-bold animate-pulse text-[10px] tracking-wider'
+                                                : (state.devices[8577] === 'ON'
+                                                    ? 'text-info font-bold animate-pulse text-sm'
+                                                    : 'text-base-500 text-sm'))"
                                           x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[8577] === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices[8577] === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
-                                    <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
+                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow" autocomplete="off"
                                            :disabled="!state.system.domoticz_mqtt_connected || state.devices[8577] === null"
                                            :checked="state.devices[8577] === 'ON'"
                                            @change="injectLabHubStateChange(8577, $event.target.checked)" />
@@ -627,6 +633,7 @@
                         <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4 flex justify-between items-center w-full border-b border-base-200 pb-2">
                             <span>⚙️ System Administration</span>
                             <div class="flex gap-2">
+                                <a href="dashboard.html" class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]">📋 DEVICE EXPLORER</a>
                                 <button class="btn btn-ghost btn-xs text-base-content/20 hover:text-base-content/50 font-mono text-[10px]"
                                         @click="requestSystemSweep()"
                                         :disabled="!state.system.domoticz_mqtt_connected || !state.system.automations_enabled || sweepRunning">

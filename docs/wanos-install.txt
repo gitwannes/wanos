@@ -11,7 +11,8 @@
 - Robocopy
 - Chrome
 - https://jsonformatter.org
-- https://text-compare.com/
+- https://text-compare.com
+- http://rfxcom.com
 
 
 ** first, Wannes-default config

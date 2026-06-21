@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WanOS Device Explorer</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
+
+    <div x-show="!connected"
+         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center transition-opacity duration-300">
+         <span class="loading loading-infinity w-16 text-error mb-4"></span>
+        <h2 class="text-2xl font-black tracking-widest text-base-content">LINK INTERRUPTED</h2>
+        <p class="text-error mt-2 font-mono text-sm">Re-establishing connection stream to WanOS...</p>
+    </div>
+
+    <header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center overflow-hidden min-h-[3rem]">
+        <div class="flex-1 flex items-center gap-2 min-w-0">
+            <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-primary truncate">⚡ WANOS // DEVICE EXPLORER</span>
+            <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" x-text="unifiedDeviceList.length + ' Nodes'"></span>
+        </div>
+        <div class="flex-none shrink-0">
+            <a href="index.html" class="btn btn-outline btn-xs md:btn-sm font-mono tracking-widest text-[9px] md:text-xs px-2">⬅ <span class="hidden sm:inline">DASHBOARD</span></a>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-2 md:px-4 max-w-[70rem] pb-10 flex flex-col gap-4 md:gap-6">
+
+        <div x-show="disabledIntegrationsText !== ''" x-cloak class="bg-warning/20 border border-warning/50 text-warning shadow-md py-2 px-3 md:px-4 rounded-box text-[10px] md:text-xs font-mono font-bold flex justify-center w-full text-center">
+            <span x-text="disabledIntegrationsText"></span>
+        </div>
+
+        <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3">
+            <div class="grid grid-cols-2 md:flex md:flex-row gap-2 md:gap-3 items-center w-full">
+
+                <div class="form-control col-span-2 md:col-auto md:flex-1 w-full">
+                    <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 focus-within:outline-none focus-within:border-primary w-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3 md:w-4 md:h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
+                        <input type="text" class="grow font-mono text-[10px] md:text-xs w-full" placeholder="Search devices or scenes..." x-model="searchQuery" />
+                    </label>
+                </div>
+
+                <select class="select select-bordered select-sm col-span-1 md:w-auto min-w-[110px] font-mono text-[10px] md:text-xs w-full px-2 transition-colors duration-200"
+                        :class="typeFilter !== 'ALL' ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-base-200'"
+                        x-model="typeFilter">
+                    <option value="ALL" class="text-base-content bg-base-200 font-normal">All Types</option>
+                    <option value="SWITCH" class="text-base-content bg-base-200 font-normal">Switches</option>
+                    <option value="BLINDS" class="text-base-content bg-base-200 font-normal">Blinds</option>
+                    <option value="SENSOR" class="text-base-content bg-base-200 font-normal">Sensors</option>
+                    <option value="SCENE" class="text-base-content bg-base-200 font-normal">Scenes</option>
+                </select>
+
+                <select class="select select-bordered select-sm col-span-1 md:w-auto min-w-[110px] font-mono text-[10px] md:text-xs w-full px-2 transition-colors duration-200"
+                        :class="statusFilter !== 'ALL' ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-base-200'"
+                        x-model="statusFilter">
+                    <option value="ALL" class="text-base-content bg-base-200 font-normal">All States</option>
+                    <option value="ON" class="text-base-content bg-base-200 font-normal">ON / Open</option>
+                    <option value="OFF" class="text-base-content bg-base-200 font-normal">OFF / Closed</option>
+                </select>
+
+                <select class="select select-bordered select-sm col-span-2 md:col-auto md:w-auto min-w-[120px] font-mono text-[10px] md:text-xs bg-base-200 w-full px-2" x-model="sortMode">
+                    <option value="NAME">Sort by Name</option>
+                    <option value="STATUS">Sort by Status</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow-xl border border-base-200 overflow-hidden">
+            <ul class="flex flex-col w-full divide-y divide-base-200/50">
+                <template x-for="item in unifiedDeviceList" :key="item.id">
+
+                    <li class="flex flex-row items-center justify-between p-3 md:p-4 hover:bg-base-200/50 transition-colors gap-1 md:gap-6 overflow-hidden w-full">
+
+                        <div class="flex-1 min-w-0 pr-1 md:pr-2 flex flex-col justify-center">
+                            <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate w-full" x-text="item.name"></div>
+                        </div>
+
+                        <div class="shrink-0 flex items-center justify-end">
+
+                            <template x-if="item.type === 'switch'">
+                                <div class="flex items-center justify-end gap-2 md:gap-3 shrink-0">
+                                    <span class="font-mono text-[9px] md:text-xs"
+                                          :class="item.raw_value === null ? 'text-gray-500 italic' : (item.is_on ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="item.raw_value === null ? 'SYNC...' : (item.is_on ? 'ON' : 'OFF')"></span>
+                                    <input type="checkbox" class="toggle toggle-sm md:toggle-md toggle-warning shadow shrink-0"
+                                           :disabled="item.raw_value === null"
+                                           :checked="item.is_on"
+                                           @change="injectLabHubStateChange(item.id, $event.target.checked)" />
+                                </div>
+                            </template>
+
+                            <template x-if="item.type === 'blinds'">
+                                <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
+                                    <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1 py-0 h-4 md:h-5 shrink-0 min-w-[2.25rem] justify-center" x-text="item.raw_value !== null ? item.raw_value + '%' : '--'"></span>
+
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-info">OPEN</span>
+
+                                    <input type="range" min="0" max="100" step="1" class="range range-info range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0"
+                                           :disabled="item.raw_value === null"
+                                           :value="item.raw_value !== null ? item.raw_value : 0"
+                                           @change="dispatchEvent('HUB_STATE_CHANGED', { idx: item.id, state: parseInt($event.target.value, 10) })" />
+
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error">CLOSED</span>
+                                </div>
+                            </template>
+
+                            <template x-if="item.type === 'temp'">
+                                <div class="flex justify-end shrink-0">
+                                    <span class="font-mono font-bold text-orange-400 text-xs md:text-sm whitespace-nowrap" x-text="item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C'"></span>
+                                </div>
+                            </template>
+
+                            <template x-if="item.type === 'hum'">
+                                <div class="flex justify-end shrink-0">
+                                    <span class="font-mono font-bold text-info text-xs md:text-sm whitespace-nowrap" x-text="item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %'"></span>
+                                </div>
+                            </template>
+
+                            <template x-if="item.type === 'temp_hum'">
+                                <div class="flex justify-end font-mono text-[10px] md:text-sm whitespace-nowrap shrink-0">
+                                    <span class="font-bold text-orange-400" x-text="item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C'"></span>
+                                    <span class="mx-1 text-base-content/50">/</span>
+                                    <span class="font-bold text-info" x-text="item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %'"></span>
+                                </div>
+                            </template>
+
+                            <template x-if="item.type === 'power'">
+                                <div class="flex justify-end shrink-0">
+                                    <span class="font-mono font-bold text-warning text-xs md:text-sm whitespace-nowrap" x-text="item.raw_value !== null ? parseFloat(item.raw_value).toFixed(1) + ' W' : '-- W'"></span>
+                                </div>
+                            </template>
+
+                            <template x-if="item.type === 'scene'">
+                                <div class="flex justify-end shrink-0">
+                                    <button class="btn btn-outline btn-accent btn-xs md:btn-sm font-mono tracking-widest text-[9px] md:text-xs px-3 md:px-6 shadow-sm"
+                                            @click="dispatchEvent(item.id)">
+                                        GO
+                                    </button>
+                                </div>
+                            </template>
+
+                        </div>
+                    </li>
+                </template>
+
+                <li x-show="unifiedDeviceList.length === 0" class="p-6 text-center text-base-400 font-mono text-xs md:text-sm italic w-full">
+                    No hardware nodes match the current filter criteria.
+                </li>
+            </ul>
+        </div>
+
+    </main>
+    <script src="app.js"></script>
+</body>
+</html>

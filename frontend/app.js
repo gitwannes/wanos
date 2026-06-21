@@ -18,7 +18,9 @@ function wanosApp() {
                 owm_integration_enabled: false, // ⚡ Switch to block/allow OWM polling
                 rfxcom_connected: false, // ⚡ Live USB mounting health status
                 rfxcom_integration_enabled: false, // ⚡ Switch to block/allow native RFXCOM transmission/reception
-                native_rfx_devices: [] // ⚡ Enables reactivity for the dynamic panel
+                native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
+                available_scenes: [], // ⚡ Holds dynamically extracted stateless automations
+                hidden_explorer_idxs: [] // ⚡ Devices to hide from the Device Explorer
             },
             sensors: {
                 outside_temp: null,
@@ -104,6 +106,7 @@ function wanosApp() {
                 169: null // gang_boven
             },
             dashboard_map: {}, // ⚡ Store the backend mapping dictionary for labels only
+            device_metadata: {}, // ⚡ The dynamic registry powering dashboard.html
             boot_seed: null
         },
 
@@ -115,6 +118,129 @@ function wanosApp() {
 
         // Tracks the execution state of the configuration hot-reload loop
         configReloading: false,
+
+        // ⚡ Dynamic Device Explorer (dashboard.html) UI States
+        searchQuery: "",
+        typeFilter: "ALL",   // "ALL", "SWITCH", "SCENE", "BLINDS", "SENSOR"
+        statusFilter: "ALL", // "ALL", "ON", "OFF"
+        sortMode: "NAME",    // "NAME", "STATUS"
+
+        // ⚡ Dynamically compiles a list of disabled backend integrations
+        get disabledIntegrationsText() {
+            let disabled = [];
+            // if (!this.state.hardware.live_mode) disabled.push("Hardware Bus"); // To be enabled later
+            if (!this.state.system.domoticz_integration_enabled) disabled.push("Domoticz");
+            if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
+            if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
+            if (!this.state.system.automations_enabled) disabled.push("Automation");
+
+            if (disabled.length === 0) return "";
+            return "⚠️ OFFLINE: " + disabled.join(", ");
+        },
+
+        get unifiedDeviceList() {
+            let list = [];
+
+            // 1. Map actual devices from the backend metadata registry
+            for (const [idxStr, meta] of Object.entries(this.state.device_metadata)) {
+
+                // ⚡ INTEGRATION ORIGIN GUARD
+                // Automatically drop devices from the UI if their parent integration is disabled.
+                if (meta.origin === 'domoticz' && !this.state.system.domoticz_integration_enabled) continue;
+                if (meta.origin === 'rfxcom' && !this.state.system.rfxcom_integration_enabled) continue;
+
+                const idx = parseInt(idxStr, 10);
+
+                // ⚡ CONFIG EXCLUSION GUARD
+                // Automatically drop devices explicitly blacklisted in config.yaml
+                if (this.state.system.hidden_explorer_idxs.includes(idx))
+                    continue;
+
+                const rawValue = this.state.devices[idx];
+                let isOn = false;
+
+                if (meta.type === 'blinds') {
+                    // Shutters: > 0% = ON
+                    isOn = parseInt(rawValue, 10) > 0;
+                } else if (meta.type === 'switch') {
+                    isOn = rawValue === 'ON';
+                }
+
+                list.push({
+                    id: idx,
+                    name: meta.name,
+                    type: meta.type,
+                    raw_value: rawValue,
+                    is_on: isOn
+                });
+            }
+
+            // 2. Map Stateless Scenes
+            // ⚡ Only display scenes if both major action hubs (Domoticz & RFX) are online
+            if (this.state.system.available_scenes &&
+                this.state.system.domoticz_integration_enabled &&
+                this.state.system.rfxcom_integration_enabled) {
+                for (const scene of this.state.system.available_scenes) {
+                    list.push({
+                        id: scene.event,
+                        name: scene.name,
+                        type: 'scene',
+                        raw_value: null,
+                        is_on: null // Stateless element
+                    });
+                }
+            }
+
+            // 3. Apply Text Search
+            if (this.searchQuery.trim() !== "") {
+                const q = this.searchQuery.toLowerCase();
+                list = list.filter(item => item.name.toLowerCase().includes(q));
+            }
+
+            // 4. Apply Type Filter
+            if (this.typeFilter !== "ALL") {
+                list = list.filter(item => {
+                    if (this.typeFilter === "SWITCH") return item.type === 'switch';
+                    if (this.typeFilter === "SCENE") return item.type === 'scene';
+                    if (this.typeFilter === "BLINDS") return item.type === 'blinds';
+                    if (this.typeFilter === "SENSOR") return item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power';
+                    return true;
+                });
+            }
+
+            // 5. Apply Status Filter (Hide sensors & scenes if ON/OFF is requested)
+            if (this.statusFilter !== "ALL") {
+                list = list.filter(item => {
+                    if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'scene') {
+                        return false; // Safely drop elements that lack binary state
+                    }
+                    if (this.statusFilter === "ON") return item.is_on;
+                    if (this.statusFilter === "OFF") return !item.is_on;
+                    return true;
+                });
+            }
+
+            // 6. Apply Nested Sort
+            list.sort((a, b) => {
+                if (this.sortMode === "STATUS") {
+                    // 1 (ON) sorts before 0 (OFF) before -1 (Stateless)
+                    const statusA = a.is_on === true ? 1 : (a.is_on === false ? 0 : -1);
+                    const statusB = b.is_on === true ? 1 : (b.is_on === false ? 0 : -1);
+                    if (statusA !== statusB) {
+                        return statusB - statusA;
+                    }
+                } else if (this.sortMode === "NAME") {
+                    // Sort primarily by Type (Groups items logically)
+                    if (a.type !== b.type) {
+                        return a.type.localeCompare(b.type);
+                    }
+                }
+                // Universal Fallback: Alphabetical by Name
+                return a.name.localeCompare(b.name);
+            });
+
+            return list;
+        },
 
         // ⚡ IR Snapping Matrix (Values & Legacy Frequencies)
         // Solid State Relays (SSRs) must align with the 50Hz European AC grid (100 zero-crossings per second).
@@ -187,7 +313,7 @@ function wanosApp() {
             fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
 
             // Alpine Reactivity Preservation
-            for (const domain of ["system", "sensors", "sauna", "ir", "metrics", "hardware"]) {
+            for (const domain of ["system", "sensors", "sauna", "ir", "metrics", "hardware", "device_metadata"]) {
                 if (fullState[domain]) {
                     this.state[domain] = Object.assign({}, this.state[domain], fullState[domain]);
                 }

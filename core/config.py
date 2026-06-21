@@ -119,6 +119,7 @@ class ActionConfig(BaseModel):
 
 class AutomationRuleConfig(BaseModel):
     name: str
+    scene: bool = False  # ⚡ Expose this automation rule as a manually triggerable scene in the UI
     trigger: Union[TriggerConfig, List[TriggerConfig]]
     conditions: Optional[List[ConditionConfig]] = None
     actions: List[ActionConfig]
@@ -130,6 +131,7 @@ class AppConfig(BaseModel):
     domoticz: DomoticzConfig
     rfxcom: Optional[RFXComSettings] = None
     dashboard: Dict[int, str]
+    deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
     auth: Dict[str, str]
     pins: PinMappingConfig
     sensors: Dict[str, SHT11SensorNode]
@@ -175,6 +177,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "domoticz": runtime_data["domoticz"],
         "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings
         "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
+        "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},
         "pins": hardware_data["pins"],
         "sensors": hardware_data["sht11_sensors"],

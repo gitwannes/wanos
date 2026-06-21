@@ -48,6 +48,9 @@ class StateManager:
         # into the live SystemState so it gets sent to app.js during the initial /api/state fetch!
         self._state.dashboard_map = self._config.dashboard
 
+        # ⚡ Map the excluded UI devices to the live state payload
+        self._state.system.hidden_explorer_idxs = self._config.deviceexplorer_exclude
+
         # ⚡ STALE CACHE PURGE: Pre-fill the state dictionary with explicit None values
         # for every mapped dashboard device. This forces the frontend to overwrite its
         # stale UI cache with 'null', triggering the "SYNCING..." visual state upon reconnect!
@@ -63,7 +66,30 @@ class StateManager:
                     "virtual_idx": rfx_dev.virtual_idx
                 })
                 self._state.dashboard_map[rfx_dev.virtual_idx] = rfx_dev.name
+                self._state.device_metadata[rfx_dev.virtual_idx] = {"name": rfx_dev.name, "type": "switch",
+                                                                    "origin": "rfxcom"}
                 self._state.devices[rfx_dev.virtual_idx] = "OFF"
+
+        # Dynamically scan configuration file for stateless triggers
+        self._extract_scenes_from_config()
+
+    def _extract_scenes_from_config(self) -> None:
+        """Scans the automations configuration for stateless events to expose as scenes in the dynamic UI."""
+        self._state.system.available_scenes.clear()
+        if hasattr(self._config, "automations"):
+            for rule in self._config.automations:
+                # ⚡ Explicitly filter out background macros; only expose rules flagged as scenes
+                if getattr(rule, "scene", False) is not True:
+                    continue
+                triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
+                for t in triggers:
+                    if t.event:
+                        # Avoid duplicates if multiple backend rules trigger on the exact same event string
+                        if not any(s["event"] == t.event for s in self._state.system.available_scenes):
+                            self._state.system.available_scenes.append({
+                                "name": rule.name,
+                                "event": t.event
+                            })
 
     def register_listener(self, callback: Any) -> None:
         """Registers an async callback to be triggered on post-drain state snapshots."""
@@ -272,6 +298,25 @@ class StateManager:
         state_changed: bool = False
         changed_domains: Set[str] = set()
 
+        # ⚡ DYNAMIC METADATA REGISTRY HOOK
+        # Intercept any payload that carries a device_type and name, logging it into the global UI registry.
+        meta_idx = payload.get("idx")
+        meta_type = payload.get("device_type")
+        meta_name = payload.get("name")
+        meta_origin = payload.get("origin")
+
+        if meta_idx is not None and meta_type is not None:
+            existing = self._state.device_metadata.get(meta_idx)
+            if not existing or existing.get("type") != meta_type or existing.get("name") != meta_name or existing.get(
+                    "origin") != meta_origin:
+                self._state.device_metadata[meta_idx] = {
+                    "name": meta_name or f"idx_{meta_idx}",
+                    "type": meta_type,
+                    "origin": meta_origin
+                }
+                state_changed = True
+                changed_domains.add("device_metadata")
+
         # --- LIVE TERMINAL LOGGING INJECTION GATEWAY ---
         is_manual_lab_action = payload.get("lab_override", False)
         is_boot_baseline_seed = payload.get("boot_seed", False)
@@ -296,6 +341,15 @@ class StateManager:
                 elif is_boot_baseline_seed:
                     origin_tag = " [BOOT_SEED]"
                 logger.debug(f"Event Received [{event_name}]{origin_tag}: {payload}")
+
+            # ⚡ Domoticz HTTP Boot-Sync formatting interceptor
+            elif event_name == "HUB_STATE_CHANGED" and payload.get("is_initialization") and payload.get(
+                    "origin") == "domoticz":
+                d_idx = payload.get("idx")
+                d_name = payload.get("name", "Unknown")
+                d_state = payload.get("state")
+                logger.info(f"--> Domoticz sensor idx {d_idx} ({d_name}): initial state received: {d_state}")
+
             elif event_name != "POWER_UPDATED":
                 logger.info(f"Event Received [{event_name}]: {payload}")
 
@@ -324,6 +378,12 @@ class StateManager:
 
             # Compute smoothed moving average aggregate
             avg_val = round(sum(history) / len(history), 1)
+
+            # ⚡ GENERIC CATCH-ALL: Universally store ALL power sensors in the generic registry
+            if self._state.devices.get(idx) != avg_val:
+                self._state.devices[idx] = avg_val
+                state_changed = True
+                changed_domains.add("devices")
 
             # Route explicitly mapped core IDXs to their semantic SensorsState variables
             # 9 = pc_power, 9622 = pc_aux_power
@@ -356,11 +416,6 @@ class StateManager:
                     sns.pc_aux_power = avg_val
                     state_changed = True
                     changed_domains.add("sensors")
-            else:
-                if self._state.devices.get(idx) != avg_val:
-                    self._state.devices[idx] = avg_val
-                    state_changed = True
-                    changed_domains.add("devices")
 
         elif event_name == "EXTERNAL_WEATHER_UPDATED":
             # Map absolute sun cycles cleanly into state tracking arrays
@@ -406,6 +461,15 @@ class StateManager:
                 ch, dom = self._push_alert("🟢 SUCCESS: Domoticz MQTT Broker Connection back online")
                 state_changed |= ch
                 changed_domains |= dom
+
+                # ⚡ AUTO-RECOVERY BRIDGE
+                # If the system previously faulted out and disabled polling, programmatically toggle it back ON.
+                # This seamlessly initiates the HTTP Boot-Sync to recover lost state.
+                if not self._state.system.domoticz_integration_enabled:
+                    self.dispatch(Event(
+                        type=EventType.DOMOTICZ_TOGGLED,
+                        payload={"enabled": True}
+                    ))
 
             # 3. Native RFXCOM USB Serial
             if prev_rfx and not rfx_conn:
@@ -467,7 +531,7 @@ class StateManager:
             color = "🟢" if is_enabled else "🔴"
             raw_error = payload.get("error_msg")
             error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} Domoticz polling turned {state_str}")
+            ch, dom = self._push_alert(error_alert, f"{color} Domoticz polling turned {state_str} by system")
             state_changed |= ch
             changed_domains |= dom
 
@@ -480,6 +544,14 @@ class StateManager:
                             self._state.devices[idx] = None
                             state_changed = True
                             changed_domains.add("devices")
+
+            # --- AUTO-SWEEP SCHEDULER ---
+            # If enabled, spawn a 5-second delayed sweep to ensure the logic engine
+            # evaluates the fresh data downloaded during the HTTP Boot-Sync
+            else:
+                deadline = int(time.time()) + 5
+                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED")
+                logger.info("Domoticz Integration ENABLED. Scheduled full system logic sweep in 5 seconds.")
 
         elif event_name == "RFXCOM_TOGGLED":
             is_enabled = payload.get("enabled", False)
@@ -538,6 +610,11 @@ class StateManager:
                 # Hybrid Learning Option B: Cumulative map update preserving dynamic allocations
                 for idx, name in new_config.dashboard.items():
                     self._state.dashboard_map[idx] = name
+
+                # ⚡ Re-extract scenes dynamically in case the user added new ones to config.yaml
+                self._extract_scenes_from_config()
+                state_changed = True
+                changed_domains.add("system")
 
                 # num_rules: int = len(new_config.automations)
                 msg: str = f"🟢 Config reloaded."  #: {num_rules} automations activated."
@@ -633,6 +710,16 @@ class StateManager:
             val: float = payload.get("value", 0.0)
             sns: Any = self._state.sensors
 
+            # ⚡ GENERIC CATCH-ALL: Universally store ALL sensors in the generic dictionary
+            current = self._state.devices.get(idx)
+            if not isinstance(current, dict):
+                current = {}
+            if current.get("temp") != val:
+                current["temp"] = val
+                self._state.devices[idx] = current
+                state_changed = True
+                changed_domains.add("devices")
+
             # --- CORE ENGINE TARGET ROUTING ---
             # We explicitly map virtual hardware IDXs to their semantic internal variables.
             # Note for programmers: IDX 20001 (Sauna Ceiling Probe) and IDX 20002 (Sauna Bench Probe)
@@ -667,10 +754,10 @@ class StateManager:
                     sns.outside_temp = val
                     state_changed = True
                     changed_domains.add("sensors")
-            else:
-                # Generic Peripheral Target: Store it safely by integer IDX for the UI
-                if self._state.devices.get(idx) != val:
-                    self._state.devices[idx] = val
+
+                if current.get("temp") != val:
+                    current["temp"] = val
+                    self._state.devices[idx] = current
                     state_changed = True
                     changed_domains.add("devices")
 
@@ -678,6 +765,16 @@ class StateManager:
             idx: int = payload.get("idx")
             val: int = payload.get("value", 0)
             sns: Any = self._state.sensors
+
+            # ⚡ GENERIC CATCH-ALL: Universally store ALL sensors in the generic dictionary
+            current = self._state.devices.get(idx)
+            if not isinstance(current, dict):
+                current = {}
+            if current.get("hum") != val:
+                current["hum"] = val
+                self._state.devices[idx] = current
+                state_changed = True
+                changed_domains.add("devices")
 
             # --- CORE ENGINE TARGET ROUTING ---
             # Note for programmers: IDX 20001 and IDX 20002 are mathematically
@@ -711,10 +808,10 @@ class StateManager:
                     sns.outside_hum = val
                     state_changed = True
                     changed_domains.add("sensors")
-            else:
-                # Generic Peripheral Target: Store it safely by integer IDX for the UI
-                if self._state.devices.get(idx) != val:
-                    self._state.devices[idx] = val
+
+                if current.get("hum") != val:
+                    current["hum"] = val
+                    self._state.devices[idx] = current
                     state_changed = True
                     changed_domains.add("devices")
 
@@ -852,14 +949,17 @@ class StateManager:
             idx = payload.get("idx")
             state_val = payload.get("state")  # "ON" or "OFF"
             old_val = self._state.devices.get(idx)
+            is_init = payload.get("is_initialization", False)
 
             # ⚡ Hybrid Learning: Cache semantic names from Domoticz if not already mapped in config.yaml
             device_name = payload.get("name")
             if device_name and idx not in self._state.dashboard_map and str(idx) not in self._state.dashboard_map:
                 self._state.dashboard_map[idx] = device_name
-                logger.info(f"Name for {idx} added to the dashboard map: {device_name}.")
+                # Suppress the redundant log spam if this is the initial HTTP boot sync
+                if not is_init:
+                    logger.info(f"Name for {idx} added to the dashboard map: {device_name}.")
 
-                # Grab the bypass flags!
+            # Grab the bypass flags!
             is_push_button = payload.get("is_push_button", False)
             is_force = payload.get("force", False)
 
@@ -877,14 +977,18 @@ class StateManager:
                     payload["transitioned"] = True
 
                 # ⚡ Artificially inject 0.0W to instantly flush power graphs when switches turn off
+                # Includes full metadata payload so the Device Explorer properly updates!
                 if state_val == "OFF":
                     if idx == 8:  # pc
-                        self.dispatch(
-                            Event(type=EventType.POWER_UPDATED, payload={"idx": 9, "value": 0.0}))  # 9 = pc_power
+                        self.dispatch(Event(type=EventType.POWER_UPDATED, payload={
+                            "idx": 9, "value": 0.0, "device_type": "power", "origin": "domoticz",
+                            "name": self._state.dashboard_map.get(9, "pc_power")
+                        }))
                     elif idx == 9618:  # pc_aux
-                        self.dispatch(
-                            Event(type=EventType.POWER_UPDATED,
-                                  payload={"idx": 9622, "value": 0.0}))  # 9622 = pc_aux_power
+                        self.dispatch(Event(type=EventType.POWER_UPDATED, payload={
+                            "idx": 9622, "value": 0.0, "device_type": "power", "origin": "domoticz",
+                            "name": self._state.dashboard_map.get(9622, "pc_aux_power")
+                        }))
 
                 # ⚡ Bathroom 1e ventilator timer lock
                 # 7558 is the Domoticz extraction fan raw IDX
