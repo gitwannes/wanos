@@ -15,6 +15,11 @@ domoticz:
     port: 1883
     username: "st0001"
     # password in .env
+  http:
+    host: "10.32.251.181"
+    port: 8080
+    username: "updatesensors"
+    # password in .env
 
 # The Dashboard Dictionary
 # Maps raw numeric IDXs to semantic names exclusively for the frontend UI.

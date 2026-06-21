@@ -1,6 +1,7 @@
 # --- file: integrations/domoticz.py ---
 import asyncio
 import json
+import aiohttp
 from typing import Any
 from core.models import Event, EventType, SystemState
 from core.state_manager import StateManager
@@ -31,6 +32,12 @@ class DomoticzHomeHubBridge(WanosComponent):
         # Core track loop tracking variable to evaluate config reload deltas
         self._tracked_whitelist: set[int] = set()
 
+        # ⚡ Dynamic Favorites Memory: Stores IDXs discovered during the HTTP boot-sync
+        self._dynamic_favorites_idxs: set[int] = set()
+
+        # ⚡ Read-Only Sensor Guard: Tracks IDXs that should never receive outbound MQTT commands
+        self._read_only_idxs: set[int] = set()
+
     @property
     def watched_idxs(self) -> set[int]:
         """Dynamically builds a whitelist by scanning both the dashboard and automations."""
@@ -54,7 +61,9 @@ class DomoticzHomeHubBridge(WanosComponent):
                     for action in rule.actions:
                         if action.idx is not None and action.idx < 10000:
                             idxs.add(action.idx)
-        return idxs
+
+        # ⚡ Seamlessly merge dynamically discovered HTTP favorites into the live MQTT whitelist
+        idxs.update(self._dynamic_favorites_idxs)
         return idxs
 
     async def start(self) -> None:
@@ -70,35 +79,112 @@ class DomoticzHomeHubBridge(WanosComponent):
 
         # 3. Only run cold-boot sync if the switch is ON at startup
         if self._integration_enabled:
-            await self._fetch_initial_states_mqtt()
+            asyncio.create_task(self._fetch_initial_states_http())
 
-        await self.logger.success("[Domoticz] HomeHub Bridge initialized (Pure MQTT IDX Mode).")
+        await self.logger.success("[Domoticz] HomeHub Bridge initialized (Pure MQTT IDX Mode + HTTP Sync).")
 
     async def stop(self) -> None:
         await self.logger.warning("[Domoticz] HomeHub Bridge stopped.")
 
-    async def _fetch_initial_states_mqtt(self) -> None:
-        """Fires MQTT commands to force Domoticz to broadcast current hardware states."""
-        # ⚡ HUB GUARD: Do not publish if network is down
-        if not getattr(self.mqtt_client, 'is_connected', False):
-            await self.logger.warning("[Domoticz] Network down. Aborting initial state sync.")
+    async def _fetch_initial_states_http(self) -> None:
+        """Fetches all favorite devices in a single atomic JSON burst using the legacy API."""
+        try:
+            dom_http = self.state_manager._config.domoticz.http
+        except AttributeError:
+            await self.logger.error("[Domoticz] HTTP configuration missing in config.yaml! Aborting boot-sync.")
             return
 
-        all_idxs_to_fetch = self.watched_idxs
+        host = dom_http.host
+        port = dom_http.port
+        user = dom_http.username
+        pwd = dom_http.password
 
-        count = len(all_idxs_to_fetch)
-        await self.logger.info(
-            f"Firing {count} MQTT state requests to Domoticz for cold-boot sync and awaiting asynchronous echo...")
+        # ⚡ PRE-2023 LEGACY ENDPOINT ⚡
+        # Using type=devices ensures compatibility with older Domoticz C++ engines.
+        url = f"http://{host}:{port}/json.htm?type=devices&filter=all&used=true&favorite=1"
+        auth = aiohttp.BasicAuth(user, pwd) if user and pwd else None
 
-        for idx in all_idxs_to_fetch:
-            # We only query actual Domoticz hardware (virtual IDXs >= 10000 exist only locally)
-            if idx < 10000:
-                command_payload = {
-                    "command": "getdeviceinfo",
-                    "idx": idx
-                }
-                await self.mqtt_client.publish(self._out_topic, command_payload)
-                await asyncio.sleep(0.05)
+        await self.logger.info("[Domoticz] Initiating atomic HTTP boot-sync via legacy API...")
+
+        try:
+            async with aiohttp.ClientSession(auth=auth) as session:
+                async with session.get(url, timeout=15.0) as response:
+                    if response.status != 200:
+                        await self.logger.error(f"[Domoticz] HTTP sync failed with status {response.status}")
+                        return
+
+                    data = await response.json()
+
+                    if data.get("status") == "ERR":
+                        await self.logger.error("[Domoticz] HTTP API returned ERR. Ensure credentials are correct.")
+                        return
+
+                    results = data.get("result", [])
+                    await self.logger.success(
+                        f"[Domoticz] HTTP sync complete. Discovered {len(results)} favorite devices.")
+
+                    for device in results:
+                        self._normalize_http_device(device)
+
+        except Exception as e:
+            await self.logger.error(f"[Domoticz] HTTP sync exception: {e}")
+
+    def _normalize_http_device(self, device: dict[str, Any]) -> None:
+        """Translates Domoticz HTTP JSON formats into unified WanOS events."""
+        try:
+            idx_str = device.get("idx")
+            if not idx_str:
+                return
+            idx = int(idx_str)
+
+            # Dynamically register this favorite so the MQTT listener watches it permanently
+            self._dynamic_favorites_idxs.add(idx)
+
+            name = device.get("Name", f"idx_{idx}")
+            device_type = device.get("Type", "")
+            switch_type = device.get("SwitchType", "")
+
+            # 1. Blinds / Roller Shutters (Percentage)
+            if switch_type == "Blinds Percentage":
+                # HTTP JSON uses 'LevelInt' for the blind percentage integer
+                level = device.get("LevelInt", 0)
+                self.state_manager.dispatch(Event(
+                    type=EventType.HUB_STATE_CHANGED,
+                    payload={"idx": idx, "state": level, "name": name, "is_push_button": False, "rfx_origin": None,
+                             "is_initialization": True}
+                ))
+
+            # 2. Standard Switches / Relays
+            elif device_type in ["Light/Switch", "Lighting 2", "Lighting 1"]:
+                status = device.get("Status", "Off")
+                is_push_button = switch_type.startswith("Push")
+                state_str = "ON" if status.lower() == "on" else "OFF"
+
+                self.state_manager.dispatch(Event(
+                    type=EventType.HUB_STATE_CHANGED,
+                    payload={"idx": idx, "state": state_str, "name": name, "is_push_button": is_push_button,
+                             "rfx_origin": None, "is_initialization": True}
+                ))
+
+            # 3. Temp / Humidity
+            elif "Temp" in device_type or "Hum" in device_type:
+                self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
+                temp = device.get("Temp")
+                hum = device.get("Humidity")
+
+                if temp is not None:
+                    self.state_manager.dispatch(Event(
+                        type=EventType.TEMP_UPDATED,
+                        payload={"idx": idx, "value": float(temp), "is_initialization": True}
+                    ))
+                if hum is not None:
+                    self.state_manager.dispatch(Event(
+                        type=EventType.HUMIDITY_UPDATED,
+                        payload={"idx": idx, "value": int(hum), "is_initialization": True}
+                    ))
+
+        except Exception as e:
+            asyncio.create_task(self.logger.error(f"[Domoticz] Normalization failed for device: {e}"))
 
     async def _parse_domoticz_inbound(self, topic: str, payload: str) -> None:
         # ⚡ Master Lockout: Silently drop all incoming Domoticz messages if integration is disabled in the UI
@@ -181,6 +267,7 @@ class DomoticzHomeHubBridge(WanosComponent):
 
             # 1. Temp & Humidity Sensors
             if "Temp" in dtype or "Hum" in dtype:
+                self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
                 svalue_str: str = str(data.get("svalue1", data.get("svalue", "")))
                 raw_temp: str | None = None
                 raw_hum: str | None = None
@@ -214,6 +301,7 @@ class DomoticzHomeHubBridge(WanosComponent):
 
             # 2. Power Sensors
             elif "Usage" in dtype or "Watt" in dtype or "Power" in dtype:
+                self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
                 try:
                     raw_svalue = data.get("svalue1", "0.0")
                     wattage = float(raw_svalue)
@@ -225,22 +313,30 @@ class DomoticzHomeHubBridge(WanosComponent):
                 except (ValueError, TypeError) as e:
                     await self.logger.error(f"Failed to parse power reading for IDX {idx}: {e}")
 
-            # 3. Switches and Relays
+            # 3. Switches, Relays, and Blinds
             else:
-                nvalue = data.get("nvalue", 0)
-                status_string = "ON" if nvalue > 0 else "OFF"
-                log_display = status_string
+                if switch_type == "Blinds Percentage":
+                    try:
+                        # MQTT payload for blinds uses svalue1 for the percentage
+                        target_state = int(data.get("svalue1", 0))
+                    except ValueError:
+                        target_state = 0
+                    log_display = f"{target_state}%"
+                else:
+                    nvalue = data.get("nvalue", 0)
+                    target_state = "ON" if nvalue > 0 else "OFF"
+                    log_display = target_state
 
-                if not is_push_button and self._last_known_states.get(idx) == status_string:
+                if not is_push_button and self._last_known_states.get(idx) == target_state:
                     return
 
-                self._last_known_states[idx] = status_string
+                self._last_known_states[idx] = target_state
 
                 self.state_manager.dispatch(Event(
                     type=EventType.HUB_STATE_CHANGED,
                     payload={
                         "idx": idx,
-                        "state": status_string,
+                        "state": target_state,
                         "name": data.get("name"),  # for hybrid dashboard map learning
                         "is_push_button": is_push_button,
                         "rfx_origin": None  # ⚡ Tag as UI/Internal origin
@@ -264,7 +360,7 @@ class DomoticzHomeHubBridge(WanosComponent):
                 self._raw_cache.clear()
                 self._last_known_states.clear()
                 await self.logger.info("[Domoticz] Initiating network sync...")
-                asyncio.create_task(self._fetch_initial_states_mqtt())
+                asyncio.create_task(self._fetch_initial_states_http())
             elif not current_enabled and getattr(self, '_integration_enabled', False):
                 self._integration_enabled = False
                 await self.logger.info("[Domoticz] Integration DISABLED via UI.")
@@ -277,12 +373,17 @@ class DomoticzHomeHubBridge(WanosComponent):
             rfx_origins: dict[int, Any] = {}
             if events:
                 for event in events:
+                    # Safely grab payload, defaulting to empty dict for events that don't have one
+                    payload = event.payload or {}
+
+                    # ⚡ UNIVERSAL FLAG EXTRACTION ⚡
+                    # Extract initialization tags across ALL event types (Temp, Hum, Power, Hub State)
+                    if payload.get("is_initialization") and payload.get("idx") is not None:
+                        initialized_devices.add(payload.get("idx"))
+
                     if event.type == EventType.HUB_STATE_CHANGED:
-                        payload = event.payload
-                        if payload.get("force"):
+                        if payload.get("force") and payload.get("idx") is not None:
                             forced_devices.add(payload.get("idx"))
-                        if payload.get("is_initialization"):
-                            initialized_devices.add(payload.get("idx"))
                         if "rfx_origin" in payload and payload.get("rfx_origin") is not None:
                             rfx_origins[payload.get("idx")] = payload.get("rfx_origin")
                     elif event.type == EventType.CONFIG_RELOAD_REQUESTED:
@@ -310,6 +411,11 @@ class DomoticzHomeHubBridge(WanosComponent):
 
             # Iterate purely over integer IDXs directly mapped in state.devices
             for idx, current_state in state.devices.items():
+                # ⚡ READ-ONLY SENSOR GUARD ⚡
+                # Do not attempt to evaluate or transmit state changes for thermometers, humidity sensors or power meters!
+                if idx in self._read_only_idxs:
+                    continue
+
                 # Only publish to real Domoticz IDXs (ignore local 10000+ virtuals)
                 if isinstance(idx, int) and idx < 10000:
                     is_force = idx in forced_devices
@@ -331,11 +437,21 @@ class DomoticzHomeHubBridge(WanosComponent):
                         if not getattr(self.mqtt_client, 'is_connected', False):
                             continue
 
-                        domoticz_command = {
-                            "command": "switchlight",
-                            "idx": idx,
-                            "switchcmd": "On" if current_state == "ON" else "Off"
-                        }
+                        # ⚡ OUTBOUND SAFETY GUARD ⚡
+                        # If the UI sends an integer, it is controlling a blind. We dynamically swap to "Set Level".
+                        if isinstance(current_state, int):
+                            domoticz_command = {
+                                "command": "switchlight",
+                                "idx": idx,
+                                "switchcmd": "Set Level",
+                                "level": current_state
+                            }
+                        else:
+                            domoticz_command = {
+                                "command": "switchlight",
+                                "idx": idx,
+                                "switchcmd": "On" if current_state == "ON" else "Off"
+                            }
                         await self.mqtt_client.publish(self._out_topic, domoticz_command)
 
                         if is_force:

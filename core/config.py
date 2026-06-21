@@ -20,6 +20,14 @@ class MQTTConfig(BaseModel):
     password: Optional[str] = None
 
 
+class HTTPConfig(BaseModel):
+    """Configuration mapping for the Domoticz HTTP JSON API."""
+    host: str
+    port: int
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+
 class WanosConfig(BaseModel):
     """Internal broker configuration block."""
     mqtt: MQTTConfig
@@ -28,6 +36,7 @@ class WanosConfig(BaseModel):
 class DomoticzConfig(BaseModel):
     """Configuration mapping for the remote Domoticz broker."""
     mqtt: MQTTConfig
+    http: HTTPConfig
 
 
 class PinMappingConfig(BaseModel):
@@ -181,16 +190,20 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     # STRICT CHECK 2: Extract & validate required secret keys
     wanos_pass = os.getenv("WANOS_MQTT_PASSWORD")
     dom_pass = os.getenv("DOM_MQTT_PASSWORD")
+    dom_http_pass = os.getenv("DOM_HTTP_PASSWORD")
     compiled_data["weather"]["api_key"] = os.getenv("OWM_API_KEY")
 
     if not wanos_pass:
         raise ValueError("CRITICAL: Missing required environment variable 'WANOS_MQTT_PASSWORD' in .env")
     if not dom_pass:
         raise ValueError("CRITICAL: Missing required environment variable 'DOM_MQTT_PASSWORD' in .env")
+    if not dom_http_pass:
+        raise ValueError("CRITICAL: Missing required environment variable 'DOM_HTTP_PASSWORD' in .env")
 
     # 4. Inject verified secrets into the nested MQTT objects
     compiled_data["wanos"]["mqtt"]["password"] = wanos_pass
     compiled_data["domoticz"]["mqtt"]["password"] = dom_pass
+    compiled_data["domoticz"]["http"]["password"] = dom_http_pass
 
     # 5. Extract Lab Seeding if present
     if lab_yaml_path.exists():
