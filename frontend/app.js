@@ -80,35 +80,32 @@ function wanosApp() {
                 safety_pin_active: false, // Hardwired GPIO. Instantly verified locally, safe to default false.
                 sensor_errors: []
             },
-            // Generic peripheral payload dict (hues, ventilators, relays, lighting, doors).
             // PESSIMISTIC UI ARCHITECTURE: All Domoticz-driven relays are initialized
             // strictly to `null`. This keeps the UI buttons disabled and grayed out
             // until the Python backend explicitly pushes their verified state.
+            // ⚡ REFACTORED: Utilizing pure numeric IDXs directly instead of semantic names!
             devices: {
-                door_sauna: "CLOSED", // Local GPIO (Not Domoticz)
-                door_bathroom1: "CLOSED", // Local GPIO
-                buro: null,
-                cinema_main: null,
-                cinema_buro: null,
-                buro_schemer: null,
-                cinema_hue: null,
-                sauna_hue: null,
-                sauna_zoutlamp: null,
-                bathroom1_main: null,
-                bathroom1_wastafel: null,
-                bathroom1_ventilator: null,
-                sauna_extrvent: null,
-                safety_ssr: null,
-                pc: null,
-                pc_aux: null,
-                gang_boven: null
+                10001: "CLOSED", // Local GPIO (door_sauna)
+                10002: "CLOSED", // Local GPIO (door_bathroom1)
+                282: null, // buro
+                283: null, // cinema_main
+                40001: null, // cinema_schemer
+                40002: null, // buro_schemer
+                7312: null, // cinema_hue
+                7561: null, // sauna_hue
+                1500: null, // sauna_zoutlamp
+                141: null, // bathroom1_main
+                7555: null, // bathroom1_wastafel
+                7558: null, // bathroom1_ventilator
+                8577: null, // sauna_extrvent
+                8567: null, // safety_ssr
+                8: null, // pc
+                9618: null, // pc_aux
+                169: null // gang_boven
             },
-            dashboard_map: {}, // ⚡ Store the backend mapping dictionary
+            dashboard_map: {}, // ⚡ Store the backend mapping dictionary for labels only
             boot_seed: null
         },
-
-        // ⚡ Memory cache used to lookup raw IDXs before emitting outbound HTTP actions
-        reverse_dashboard_map: {},
 
         // Dedicated UI Toggle to lock/unlock manual manipulation of the physics simulator
         labControlsEnabled: false,
@@ -166,8 +163,6 @@ function wanosApp() {
 
         async fetchFullSnapshot() {
             // Fetches the complete state from /api/state and replaces the local store.
-            // Called on first connect and on every reconnect to guarantee full sync
-            // before delta updates resume.
             try {
                 const res = await fetch("/api/state");
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -192,38 +187,20 @@ function wanosApp() {
             fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
 
             // Alpine Reactivity Preservation
-            // Never overwrite `this.state` directly, as it severs the reactivity proxy!
-            // Instead, gracefully merge the incoming snapshot into the existing tracked domains.
             for (const domain of ["system", "sensors", "sauna", "ir", "metrics", "hardware"]) {
                 if (fullState[domain]) {
                     this.state[domain] = Object.assign({}, this.state[domain], fullState[domain]);
                 }
             }
 
-            // ⚡ BUILD THE REVERSE MAPPING DICTIONARY
             if (fullState.dashboard_map) {
                 this.state.dashboard_map = fullState.dashboard_map;
-                this.reverse_dashboard_map = {};
-                for (const [idx, name] of Object.entries(fullState.dashboard_map)) {
-                    this.reverse_dashboard_map[name] = parseInt(idx, 10);
-                }
             }
 
-            // ⚡ TRANSLATE INCOMING IDXs BACK TO SEMANTIC NAMES
-            // Iterate over the incoming devices dict, translate the integer IDXs to names using the map,
-            // and safely merge them so the UI remains blissfully ignorant of IDXs!
-            const translatedDevices = {};
+            // ⚡ Natively merge the numeric IDXs directly without any string translation loops!
             if (fullState.devices) {
-                for (const [idx, stateVal] of Object.entries(fullState.devices)) {
-                    const semanticName = this.state.dashboard_map[idx];
-                    if (semanticName) {
-                        translatedDevices[semanticName] = stateVal;
-                    } else {
-                        translatedDevices[idx] = stateVal; // Failsafe
-                    }
-                }
+                this.state.devices = Object.assign({}, this.state.devices, fullState.devices);
             }
-            this.state.devices = Object.assign({}, this.state.devices, translatedDevices);
 
             if (fullState.boot_seed) {
                 this.state.boot_seed = fullState.boot_seed;
@@ -253,20 +230,8 @@ function wanosApp() {
                 if (!data.sensor_errors) data.sensor_errors = [];
             }
             if (domain === "devices") {
-                // ⚡ TRANSLATE INCOMING IDXs BACK TO SEMANTIC NAMES
-                const translatedDevices = {};
-                for (const [idx, stateVal] of Object.entries(data)) {
-                    const semanticName = this.state.dashboard_map[idx];
-                    if (semanticName) {
-                        translatedDevices[semanticName] = stateVal;
-                    } else {
-                        translatedDevices[idx] = stateVal; // Failsafe
-                    }
-                }
-
-                // Merge device keys individually
-                this.state.devices = Object.assign({}, this.state.devices, translatedDevices);
-                // ⚡ FIX: Sync lab controls when devices update so UI stays pinned
+                // Merge device keys individually natively!
+                this.state.devices = Object.assign({}, this.state.devices, data);
                 if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
                     this.syncLabControls();
                 }
@@ -312,7 +277,6 @@ function wanosApp() {
                     }, 10000); // 2x the 5-second backend ping interval
                 };
 
-                // Arm watchdog immediately on link orchestration
                 resetWatchdog();
 
                 eventSource.onmessage = (event) => {
@@ -320,10 +284,8 @@ function wanosApp() {
                     try {
                         // Any incoming data frame proves the underlying pipeline is alive
                         resetWatchdog();
-
                         const msg = JSON.parse(event.data);
 
-                        // If it's a keep-alive frame, intercept and return early without altering UI metrics
                         if (msg.domain === "ping") {
                             this.connected = true;
                             return;
@@ -453,11 +415,9 @@ function wanosApp() {
             const secs = dateObj.getSeconds().toString().padStart(2, '0');
             const bootStr = `${year}-${month}-${date} ${hours}:${mins}:${secs}`;
 
-            // Combine into unified output format
             return `${durationStr} (${bootStr})`;
         },
 
-        // 📈 Dynamic Sparkline SVG Generator
         getSparkline(data) {
             if (!data || data.length < 2) return "";
 
@@ -465,15 +425,14 @@ function wanosApp() {
             const min = Math.min(...data);
             const range = max - min;
 
-            const width = 100;  // Virtual SVG viewBox width
-            const height = 30;  // Virtual SVG viewBox height
+            const width = 100;
+            const height = 30;
 
             const points = data.map((val, i) => {
                 const x = (i / (data.length - 1)) * width;
                 let y;
 
                 if (range === 0) {
-                    // If everything is exactly 0W, draw a flatline on the floor instead of the middle
                     y = val === 0 ? height : height / 2;
                 } else {
                     y = height - ((val - min) / range) * height;
@@ -514,14 +473,8 @@ function wanosApp() {
             }
         },
 
-        injectLabMetric(eventType, sensorId, targetValue) {
-            // Reverse lookup: Translate semantic sensor string (e.g. 'sauna_high') to IDX (20001)
-            const idx = this.reverse_dashboard_map[sensorId];
-            if (!idx) {
-                console.warn(`[UI Guard] No mapped IDX found for sensor: ${sensorId}`);
-                return;
-            }
-
+        // ⚡ REFACTORED: Now natively accepts and dispatches numeric IDXs for sensor data
+        injectLabMetric(eventType, idx, targetValue) {
             const payload = {
                 idx: parseInt(idx, 10),
                 value: eventType === "TEMP_UPDATED" ? parseFloat(targetValue) : parseInt(targetValue, 10),
@@ -609,37 +562,22 @@ function wanosApp() {
             this.dispatchEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
         },
 
-        injectLabDoorChange(doorName, isOpen) {
-            // Reverse lookup: Translate semantic door string (e.g. 'door_sauna') to IDX (10001)
-            const deviceId = "door_" + doorName;
-            const idx = this.reverse_dashboard_map[deviceId];
-            if (!idx) {
-                console.warn(`[UI Guard] No mapped IDX found for door: ${deviceId}`);
-                return;
-            }
-
+        // ⚡ REFACTORED: Now natively accepts and dispatches numeric IDXs for doors
+        injectLabDoorChange(idx, isOpen) {
             this.dispatchEvent("DOOR_CHANGED", { idx: parseInt(idx, 10), is_open: isOpen });
         },
 
-        injectLabHubStateChange(deviceId, isOn) {
+        // ⚡ REFACTORED: Now natively accepts and dispatches numeric IDXs for switches
+        injectLabHubStateChange(idx, isOn) {
             // 🛡️ GHOST CLICK GUARD:
-            // If the backend is still syncing (null), block the browser from sending fake restoration clicks.
-            if (this.state.devices[deviceId] === null) {
-                console.warn(`[UI Guard] Blocked browser ghost click for ${deviceId}. System still syncing.`);
+            if (this.state.devices[idx] === null) {
+                console.warn(`[UI Guard] Blocked browser ghost click for IDX ${idx}. System still syncing.`);
                 return;
             }
 
             const targetState = isOn ? "ON" : "OFF";
 
-            // Prevent echoing commands if the system is already in the requested state
-            if (this.state.devices[deviceId] === targetState) {
-                return;
-            }
-
-            // Reverse lookup: Translate semantic switch string (e.g. 'pc_aux') to IDX (9618)
-            const idx = this.reverse_dashboard_map[deviceId];
-            if (!idx) {
-                console.warn(`[UI Guard] No mapped IDX found for device: ${deviceId}`);
+            if (this.state.devices[idx] === targetState) {
                 return;
             }
 
@@ -655,9 +593,9 @@ function wanosApp() {
         // Executed only if the user confirms the action in the modal
         confirmPCPowerToggle() {
             document.getElementById('pc_power_modal').close();
-            const isCurrentlyOn = this.state.devices.pc === 'ON';
-            // Send the opposite of the current state
-            this.injectLabHubStateChange('pc', !isCurrentlyOn);
+            // 8 is the immutable IDX for the PC Power Relay
+            const isCurrentlyOn = this.state.devices[8] === 'ON';
+            this.injectLabHubStateChange(8, !isCurrentlyOn);
         },
 
         // 🛡️ Hardware Bus Safety Interceptor
@@ -669,7 +607,7 @@ function wanosApp() {
         // Executed only if the user confirms the bus switch
         confirmHardwareModeToggle() {
             document.getElementById('hardware_mode_modal').close();
-            this.toggleHardwareMode(); // Executes your original toggle logic
+            this.toggleHardwareMode();
         },
 
         injectWaterPulse(fluidType) {
@@ -677,7 +615,6 @@ function wanosApp() {
             this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, lab_override: true });
         },
 
-        // Parses global Unix timestamps automatically into your local browser timezone
         formatUnixTime(unixTime) {
             if (!unixTime) return "--:--:--";
             const date = new Date(unixTime * 1000);
@@ -691,9 +628,9 @@ function wanosApp() {
             const timeStr = this.formatTime(absDiff);
 
             if (diff > 0) {
-                return `(in ${timeStr})`; // Future time (Countdown)
+                return `(in ${timeStr})`;
             } else {
-                return `(${timeStr} ago)`; // Past time (Countup)
+                return `(${timeStr} ago)`;
             }
         },
 
@@ -708,13 +645,10 @@ function wanosApp() {
 
             // 2. Perform the standard reload. The browser will now load the freshly cached app.js!
             window.location.reload();
-
         },
 
         injectTestAlert() {
             const msg = `🧪 Simulated Error - Local Browser Injection`;
-
-            // ⚡ Let the backend handle it so it remains the single source of truth!
             this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: msg });
         },
 
@@ -722,11 +656,8 @@ function wanosApp() {
             if (this.sweepRunning) return;
             this.sweepRunning = true;
 
-            // Dispatch a local status alert instantly
             this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: "🧹 System sweep running..." });
 
-            // Dispatch the actual background execution event.
-            // Note: This only confirms the event entered the queue, not that it finished!
             await this.dispatchEvent("SYSTEM_SWEEP_REQUESTED");
 
             // 🛡️ EMERGENCY FAILSAFE ONLY
@@ -745,13 +676,10 @@ function wanosApp() {
             if (this.configReloading) return;
             this.configReloading = true;
 
-            // Emit visual status state instantly
             this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: "🔄 Reloading config.yaml configurations..." });
 
-            // Dispatch orchestration signal to central event manager queue
             await this.dispatchEvent("CONFIG_RELOAD_REQUESTED");
 
-            // Emergency connection stream disconnect watchdog boundary failsafe
             setTimeout(() => {
                 if (this.configReloading) {
                     this.configReloading = false;

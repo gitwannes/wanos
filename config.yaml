@@ -1,7 +1,5 @@
 # --- file: config.yaml ---
 
-# --- file: config.yaml ---
-
 # Internal WanOS broker network configuration
 wanos:
   mqtt:
@@ -29,7 +27,6 @@ dashboard:
   7551: "ir"
   283: "cinema_main"
   282: "buro"
-  140: "buro_schemer"
   141: "bathroom1_main"
   7555: "bathroom1_wastafel"
   7558: "bathroom1_ventilator"
@@ -83,7 +80,7 @@ bathroom1:
   vent_min_runtime_mins: 5  # Minimum time the fan must run before auto-disengaging
 
 lighting:
-  managed_lights: [52, 53, 60, 100, 139, 140, 141, 157, 169, 282, 283, 348, 411, 1524, 1622, 6051, 6060, 6067, 6070, 6731, 7236, 7237, 7312, 9645, 9648]
+  managed_lights: [52, 53, 60, 100, 141, 169, 282, 283, 348, 411, 1524, 1622, 40001, 40002, 40003, 40004, 6051, 6060, 6067, 6070, 6731, 7236, 7237, 7312, 9645, 9648]
   # Specific delay overrides in minutes
   default_auto_off_minutes: 300
   # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
@@ -132,7 +129,7 @@ automations:
       - type: "time_of_day"
         is: "dark"
     actions:
-      - idx: 140
+      - idx: 40002
         state: "ON"
 
   - name: "PC Aux OFF -> Buro Schemer OFF"
@@ -140,7 +137,7 @@ automations:
       idx: 9618
       state: "OFF"
     actions:
-      - idx: 140
+      - idx: 40002
         state: "OFF"
 
 # --- SAUNA MACROS ---
@@ -187,9 +184,9 @@ automations:
         state: "OFF"
       - idx: 6731       # licht eetkamer Hue
         state: "OFF"
-      - idx: 157       # licht living schemer groot (via RFX3)
+      - idx: 40003    # licht living schemer groot (via RFX3)
         state: "OFF"
-      - idx: 158       # licht kerstboom (via RFX4)
+      - idx: 40004    # licht kerstboom (via RFX4)
         state: "OFF"
       - idx: 9645       # licht toilet
         state: "OFF"
@@ -206,11 +203,11 @@ automations:
         state: "OFF"
       - idx: 7312  # cinema_hue
         state: "OFF"
-      - idx: 139  # cinema_schemer
+      - idx: 40001 # cinema_schemer
         state: "OFF"
       - idx: 282  # buro
         state: "OFF"
-      - idx: 140  # buro_schemer
+      - idx: 40002 # buro_schemer
         state: "OFF"
       - idx: 9618  # pc_aux
         state: "OFF"
@@ -254,9 +251,9 @@ automations:
     actions:
       - idx: 52
         state: "ON"
-      - idx: 157
+      - idx: 40003
         state: "OFF"
-      - idx: 158
+      - idx: 40004
         state: "OFF"
       - idx: 7236
         state: "OFF"
@@ -287,9 +284,9 @@ automations:
       - idx: 283  # Cinema
         state: "ON"
     actions:
-      - idx: 139 # Cinema schemer klein
+      - idx: 40001 # Cinema schemer klein
         state: "ON"
-      - idx: 140 # Buro schemer
+      - idx: 40002 # Buro schemer
         state: "ON"
   - name: "toilet_gv_ventilatie_on"
     trigger:

@@ -61,8 +61,8 @@
                             <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2 flex justify-between items-center w-full">
                                 <span>Sauna/IR Commander</span>
                                 <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"
-                                      :class="state.devices.door_sauna === 'OPEN' ? 'badge-error animate-pulse' : 'badge-neutral text-base-500'">
-                                    <span x-text="state.devices.door_sauna === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
+                                      :class="state.devices[10001] === 'OPEN' ? 'badge-error animate-pulse' : 'badge-neutral text-base-500'">
+                                    <span x-text="state.devices[10001] === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
                                 </span>
                             </h2>
                             <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-start mb-4 h-16 shadow-inner">
@@ -75,15 +75,15 @@
                                     <div class="text-xs font-bold text-base-400 uppercase">Hue Lighting</div>
                                     <div class="flex items-center gap-3">
                                         <div class="w-4 h-4 rounded-full border border-gray-600 transition-all duration-500"
-                                             :style="(!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices.sauna_hue === 'ON' ? `background-color: ${state.sauna.light_color}; box-shadow: 0 0 8px ${state.sauna.light_color};` : 'background-color: #333;')">
+                                             :style="(!state.system.domoticz_mqtt_connected || state.devices[7561] === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices[7561] === 'ON' ? `background-color: ${state.sauna.light_color}; box-shadow: 0 0 8px ${state.sauna.light_color};` : 'background-color: #333;')">
                                         </div>
                                         <span class="font-mono text-sm mt-0.5"
-                                              :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null ? 'text-gray-500 italic text-xs' : (state.devices.sauna_hue === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_hue === null ? 'SYNCING...' : (state.devices.sauna_hue === 'ON' ? 'ON' : 'OFF'))"></span>
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices[7561] === null ? 'text-gray-500 italic text-xs' : (state.devices[7561] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[7561] === null ? 'SYNCING...' : (state.devices[7561] === 'ON' ? 'ON' : 'OFF'))"></span>
                                         <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_hue === null"
-                                               :checked="state.devices.sauna_hue === 'ON'"
-                                               @change="injectLabHubStateChange('sauna_hue', $event.target.checked)" />
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices[7561] === null"
+                                               :checked="state.devices[7561] === 'ON'"
+                                               @change="injectLabHubStateChange(7561, $event.target.checked)" />
                                     </div>
                                 </div>
 
@@ -91,12 +91,12 @@
                                     <div class="text-xs font-bold text-base-400 uppercase">Zoutlamp</div>
                                     <div class="flex items-center gap-3">
                                         <span class="font-mono text-sm mt-0.5"
-                                              :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_zoutlamp === null ? 'text-gray-500 italic text-xs' : (state.devices.sauna_zoutlamp === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_zoutlamp === null ? 'SYNCING...' : (state.devices.sauna_zoutlamp === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices[1500] === null ? 'text-gray-500 italic text-xs' : (state.devices[1500] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[1500] === null ? 'SYNCING...' : (state.devices[1500] === 'ON' ? '💡 ON' : 'OFF'))"></span>
                                         <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_zoutlamp === null"
-                                               :checked="state.devices.sauna_zoutlamp === 'ON'"
-                                               @change="injectLabHubStateChange('sauna_zoutlamp', $event.target.checked)" />
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices[1500] === null"
+                                               :checked="state.devices[1500] === 'ON'"
+                                               @change="injectLabHubStateChange(1500, $event.target.checked)" />
                                     </div>
                                 </div>
                             </div>
@@ -105,12 +105,12 @@
                                 <div class="text-xs font-bold text-base-400 uppercase">Extraction Fan</div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-mono text-[10px] tracking-wider mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null ? 'text-gray-500 italic text-xs' : ((state.sauna.ventilation_state !== 'OFF' || state.devices.sauna_extrvent === 'ON') ? 'text-info font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.sauna_extrvent === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices.sauna_extrvent === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[8577] === null ? 'text-gray-500 italic text-xs' : ((state.sauna.ventilation_state !== 'OFF' || state.devices[8577] === 'ON') ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[8577] === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices[8577] === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
                                     <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.sauna_extrvent === null"
-                                           :checked="state.devices.sauna_extrvent === 'ON'"
-                                           @change="injectLabHubStateChange('sauna_extrvent', $event.target.checked)" />
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices[8577] === null"
+                                           :checked="state.devices[8577] === 'ON'"
+                                           @change="injectLabHubStateChange(8577, $event.target.checked)" />
                                 </div>
                             </div>
                             <div class="flex justify-between items-center mt-6 mb-6">
@@ -124,7 +124,7 @@
 
                                 <div class="flex gap-4">
                                     <button :class="state.sauna.active ? 'btn btn-error btn-lg shadow-lg px-8' : 'btn btn-outline btn-lg px-8'"
-                                            :disabled="(!state.sauna.active && (state.devices.door_sauna === 'OPEN' || state.ir.active)) || state.sensors.sauna_calc_temp == null"
+                                            :disabled="(!state.sauna.active && (state.devices[10001] === 'OPEN' || state.ir.active)) || state.sensors.sauna_calc_temp == null"
                                             @click="toggleSauna()">
                                         <span x-show="state.sauna.active" class="animate-pulse">🔥 Sauna is ON</span>
                                         <span x-show="!state.sauna.active">❄️ Sauna is OFF</span>
@@ -224,7 +224,8 @@
                     </div>
                 </div>
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                     <div class="card-body">
@@ -242,12 +243,12 @@
                                 <div class="text-xs font-bold text-base-400 uppercase">Cinema Light</div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.cinema_main === null ? 'text-gray-500 italic text-xs' : (state.devices.cinema_main === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.cinema_main === null ? 'SYNCING...' : (state.devices.cinema_main === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[283] === null ? 'text-gray-500 italic text-xs' : (state.devices[283] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[283] === null ? 'SYNCING...' : (state.devices[283] === 'ON' ? '💡 ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.cinema_main === null"
-                                           :checked="state.devices.cinema_main === 'ON'"
-                                           @change="injectLabHubStateChange('cinema_main', $event.target.checked)" />
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices[283] === null"
+                                           :checked="state.devices[283] === 'ON'"
+                                           @change="injectLabHubStateChange(283, $event.target.checked)" />
                                 </div>
                             </div>
 
@@ -255,15 +256,15 @@
                                 <div class="text-xs font-bold text-base-400 uppercase">Cinema Hue</div>
                                 <div class="flex items-center gap-3">
                                     <div class="w-4 h-4 rounded-full border border-gray-600 transition-all duration-300"
-                                         :style="(!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices.cinema_hue === 'ON' ? 'background-color: #FFD180; box-shadow: 0 0 8px #FFD180;' : 'background-color: #333;')">
+                                         :style="(!state.system.domoticz_mqtt_connected || state.devices[7312] === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices[7312] === 'ON' ? 'background-color: #FFD180; box-shadow: 0 0 8px #FFD180;' : 'background-color: #333;')">
                                     </div>
                                     <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null ? 'text-gray-500 italic text-xs' : (state.devices.cinema_hue === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.cinema_hue === null ? 'SYNCING...' : (state.devices.cinema_hue === 'ON' ? 'ON' : 'OFF'))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[7312] === null ? 'text-gray-500 italic text-xs' : (state.devices[7312] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[7312] === null ? 'SYNCING...' : (state.devices[7312] === 'ON' ? 'ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.cinema_hue === null"
-                                           :checked="state.devices.cinema_hue === 'ON'"
-                                           @change="injectLabHubStateChange('cinema_hue', $event.target.checked)" />
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices[7312] === null"
+                                           :checked="state.devices[7312] === 'ON'"
+                                           @change="injectLabHubStateChange(7312, $event.target.checked)" />
                                 </div>
                             </div>
 
@@ -271,12 +272,12 @@
                                 <div class="text-xs font-bold text-base-400 uppercase">Buro Light</div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.buro === null ? 'text-gray-500 italic text-xs' : (state.devices.buro === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.buro === null ? 'SYNCING...' : (state.devices.buro === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[282] === null ? 'text-gray-500 italic text-xs' : (state.devices[282] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[282] === null ? 'SYNCING...' : (state.devices[282] === 'ON' ? '💡 ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.buro === null"
-                                           :checked="state.devices.buro === 'ON'"
-                                           @change="injectLabHubStateChange('buro', $event.target.checked)" />
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices[282] === null"
+                                           :checked="state.devices[282] === 'ON'"
+                                           @change="injectLabHubStateChange(282, $event.target.checked)" />
                                 </div>
                             </div>
 
@@ -284,12 +285,12 @@
                                 <div class="text-xs font-bold text-base-400 uppercase">Buro Schemer</div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.buro_schemer === null ? 'text-gray-500 italic text-xs' : (state.devices.buro_schemer === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.buro_schemer === null ? 'SYNCING...' : (state.devices.buro_schemer === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[40002] === null ? 'text-gray-500 italic text-xs' : (state.devices[40002] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[40002] === null ? 'SYNCING...' : (state.devices[40002] === 'ON' ? '💡 ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.buro_schemer === null"
-                                           :checked="state.devices.buro_schemer === 'ON'"
-                                           @change="injectLabHubStateChange('buro_schemer', $event.target.checked)" />
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices[40002] === null"
+                                           :checked="state.devices[40002] === 'ON'"
+                                           @change="injectLabHubStateChange(40002, $event.target.checked)" />
                                 </div>
                             </div>
 
@@ -297,12 +298,12 @@
                                 <div class="text-xs font-bold text-base-400 uppercase">PC Aux</div>
                                 <div class="flex items-center gap-3">
                                     <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.pc_aux === null ? 'text-gray-500 italic text-xs' : (state.devices.pc_aux === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc_aux === null ? 'SYNCING...' : (state.devices.pc_aux === 'ON' ? '⚡ ON' : 'OFF'))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[9618] === null ? 'text-gray-500 italic text-xs' : (state.devices[9618] === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[9618] === null ? 'SYNCING...' : (state.devices[9618] === 'ON' ? '⚡ ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc_aux === null || state.devices.pc !== 'ON'"
-                                           :checked="state.devices.pc_aux === 'ON'"
-                                           @change="injectLabHubStateChange('pc_aux', $event.target.checked)" />                            </div>
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices[9618] === null || state.devices[8] !== 'ON'"
+                                           :checked="state.devices[9618] === 'ON'"
+                                           @change="injectLabHubStateChange(9618, $event.target.checked)" />                            </div>
                             </div>
 
                             <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
@@ -342,41 +343,11 @@
 
                 <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                     <div class="card-body">
-                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3">📻 433MHz Native Devices</h2>
-                        <div class="flex flex-col gap-4">
-
-                            <template x-for="device in state.system.native_rfx_devices" :key="device.virtual_idx">
-                                <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
-                                    <div class="text-xs font-bold text-base-400 uppercase" x-text="device.name"></div>
-                                    <div class="flex items-center gap-3">
-
-                                        <span class="font-mono text-sm mt-0.5"
-                                              :class="!state.system.rfxcom_integration_enabled ? 'text-gray-500 italic text-xs' : (state.devices[device.name] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                              x-text="!state.system.rfxcom_integration_enabled ? 'OFFLINE' : (state.devices[device.name] === null ? 'SYNCING...' : (state.devices[device.name] === 'ON' ? 'ON' : 'OFF'))"></span>
-
-                                        <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                               :disabled="!state.system.rfxcom_integration_enabled || state.devices[device.name] === null"
-                                               :checked="state.devices[device.name] === 'ON'"
-                                               @change="injectLabHubStateChange(device.name, $event.target.checked)" />
-                                    </div>
-                                </div>
-                            </template>
-
-                            <div x-show="state.system.native_rfx_devices && state.system.native_rfx_devices.length === 0" class="text-center text-xs text-base-400 py-4 italic">
-                                No native RFX devices configured in config.yaml.
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
-                    <div class="card-body">
                         <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-3 flex justify-between items-center w-full">
                             <span>Bathroom</span>
                             <span class="badge font-mono text-[10px] tracking-wider px-2 py-3"
-                                  :class="state.devices.door_bathroom === 'OPEN' ? 'badge-warning' : 'badge-neutral text-base-500'">
-                                <span x-text="state.devices.door_bathroom === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
+                                  :class="state.devices[10002] === 'OPEN' ? 'badge-warning' : 'badge-neutral text-base-500'">
+                                <span x-text="state.devices[10002] === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
                             </span>
                         </h2>
                         <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
@@ -386,16 +357,17 @@
                                 <span class="text-info ml-1 text-xs" x-text="state.sensors.bathroom1_hum !== null ? state.sensors.bathroom1_hum + '%' : '--%'"></span>
                             </div>
                         </div>
+                        
                         <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
                             <div class="text-xs font-bold text-base-400 uppercase">Ventilator</div>
                             <div class="flex items-center gap-3">
                                 <span class="font-mono text-sm mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_ventilator === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_ventilator === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_ventilator === null ? 'SYNCING...' : (state.devices.bathroom1_ventilator === 'ON' ? '💨 RUNNING' : 'OFF'))"></span>
+                                      :class="!state.system.domoticz_mqtt_connected || state.devices[7558] === null ? 'text-gray-500 italic text-xs' : (state.devices[7558] === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[7558] === null ? 'SYNCING...' : (state.devices[7558] === 'ON' ? '💨 RUNNING' : 'OFF'))"></span>
                                 <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_ventilator === null"
-                                       :checked="state.devices.bathroom1_ventilator === 'ON'"
-                                       @change="injectLabHubStateChange('bathroom1_ventilator', $event.target.checked)" />
+                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices[7558] === null"
+                                       :checked="state.devices[7558] === 'ON'"
+                                       @change="injectLabHubStateChange(7558, $event.target.checked)" />
                             </div>
                         </div>
 
@@ -403,12 +375,12 @@
                             <div class="text-xs font-bold text-base-400 uppercase">Main Light</div>
                             <div class="flex items-center gap-3">
                                 <span class="font-mono text-sm mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_main === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_main === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_main === null ? 'SYNCING...' : (state.devices.bathroom1_main === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                      :class="!state.system.domoticz_mqtt_connected || state.devices[141] === null ? 'text-gray-500 italic text-xs' : (state.devices[141] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[141] === null ? 'SYNCING...' : (state.devices[141] === 'ON' ? '💡 ON' : 'OFF'))"></span>
                                 <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_main === null"
-                                       :checked="state.devices.bathroom1_main === 'ON'"
-                                       @change="injectLabHubStateChange('bathroom1_main', $event.target.checked)" />
+                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices[141] === null"
+                                       :checked="state.devices[141] === 'ON'"
+                                       @change="injectLabHubStateChange(141, $event.target.checked)" />
                             </div>
                         </div>
 
@@ -416,12 +388,12 @@
                             <div class="text-xs font-bold text-base-400 uppercase">Wastafel Light</div>
                             <div class="flex items-center gap-3">
                                 <span class="font-mono text-sm mt-0.5"
-                                      :class="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_wastafel === null ? 'text-gray-500 italic text-xs' : (state.devices.bathroom1_wastafel === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.bathroom1_wastafel === null ? 'SYNCING...' : (state.devices.bathroom1_wastafel === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                      :class="!state.system.domoticz_mqtt_connected || state.devices[7555] === null ? 'text-gray-500 italic text-xs' : (state.devices[7555] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[7555] === null ? 'SYNCING...' : (state.devices[7555] === 'ON' ? '💡 ON' : 'OFF'))"></span>
                                 <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices.bathroom1_wastafel === null"
-                                       :checked="state.devices.bathroom1_wastafel === 'ON'"
-                                       @change="injectLabHubStateChange('bathroom1_wastafel', $event.target.checked)" />
+                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices[7555] === null"
+                                       :checked="state.devices[7555] === 'ON'"
+                                       @change="injectLabHubStateChange(7555, $event.target.checked)" />
                             </div>
                         </div>
 
@@ -452,7 +424,7 @@
                     </div>
                 </div>
 
-                <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-6 col-span-1 lg:col-span-2">
                     <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
                         <div class="card-body p-4 flex flex-col justify-between">
                             <div>
@@ -478,12 +450,12 @@
                                     <div class="text-xs font-bold text-base-400 uppercase">Gang Boven</div>
                                     <div class="flex items-center gap-3">
                                         <span class="font-mono text-sm mt-0.5"
-                                              :class="!state.system.domoticz_mqtt_connected || state.devices.gang_boven === null ? 'text-gray-500 italic text-xs' : (state.devices.gang_boven === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.gang_boven === null ? 'SYNCING...' : (state.devices.gang_boven === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices[169] === null ? 'text-gray-500 italic text-xs' : (state.devices[169] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[169] === null ? 'SYNCING...' : (state.devices[169] === 'ON' ? '💡 ON' : 'OFF'))"></span>
                                         <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices.gang_boven === null"
-                                               :checked="state.devices.gang_boven === 'ON'"
-                                               @change="injectLabHubStateChange('gang_boven', $event.target.checked)" />
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices[169] === null"
+                                               :checked="state.devices[169] === 'ON'"
+                                               @change="injectLabHubStateChange(169, $event.target.checked)" />
                                     </div>
                                 </div>
                             </div>
@@ -555,29 +527,29 @@
                                         <span class="text-gray-400 font-medium">Ceiling Probe (High)</span>
                                         <span class="text-warning font-mono font-bold" x-text="labSaunaHighTemp !== null ? parseFloat(labSaunaHighTemp).toFixed(1) + '°C / ' + labSaunaHighHum + '%' : '--.-°C / --%'"></span>
                                     </div>
-                                    <input type="range" min="15" max="110" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaHighTemp" @input="labSaunaHighTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_high', labSaunaHighTemp)" />
-                                    <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaHighHum" @input="labSaunaHighHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_high', labSaunaHighHum)" />
+                                    <input type="range" min="15" max="110" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaHighTemp" @input="labSaunaHighTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20001, labSaunaHighTemp)" />
+                                    <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaHighHum" @input="labSaunaHighHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20001, labSaunaHighHum)" />
                                 </div>
                                 <div class="pt-2 border-t border-dashed border-base-300">
                                     <div class="flex justify-between text-[11px] mb-1">
                                         <span class="text-gray-400 font-medium">Bench Probe (Low)</span>
                                         <span class="text-warning font-mono font-bold" x-text="labSaunaLowTemp !== null ? parseFloat(labSaunaLowTemp).toFixed(1) + '°C / ' + labSaunaLowHum + '%' : '--.-°C / --%'"></span>
                                     </div>
-                                    <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaLowTemp" @input="labSaunaLowTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'sauna_low', labSaunaLowTemp)" />
-                                    <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaLowHum" @input="labSaunaLowHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'sauna_low', labSaunaLowHum)" />
+                                    <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaLowTemp" @input="labSaunaLowTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20002, labSaunaLowTemp)" />
+                                    <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaLowHum" @input="labSaunaLowHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20002, labSaunaLowHum)" />
                                 </div>
                                 <div class="pt-2 border-t border-base-300 space-y-2.5">
                                     <div class="flex items-center justify-between text-xs font-mono">
                                         <span class="text-gray-400 font-medium">Sauna Door:</span>
                                         <input type="checkbox" class="toggle toggle-error toggle-sm shadow"
-                                               :checked="state.devices.door_sauna === 'OPEN'"
-                                               @change="injectLabDoorChange('sauna', $event.target.checked)" />
+                                               :checked="state.devices[10001] === 'OPEN'"
+                                               @change="injectLabDoorChange(10001, $event.target.checked)" />
                                     </div>
                                     <div class="flex items-center justify-between text-xs font-mono">
                                         <span class="text-gray-400 font-medium">Sauna Hue:</span>
                                         <input type="checkbox" class="toggle toggle-secondary toggle-sm shadow"
-                                               :checked="state.devices.sauna_hue === 'ON'"
-                                               @change="injectLabHubStateChange('sauna_hue', $event.target.checked)" />
+                                               :checked="state.devices[7561] === 'ON'"
+                                               @change="injectLabHubStateChange(7561, $event.target.checked)" />
                                     </div>
                                 </div>
                             </div>
@@ -589,15 +561,15 @@
                                         <span class="text-gray-400 font-medium">Atmosphere</span>
                                         <span class="text-accent font-mono font-bold" x-text="labBathroom1Temp !== null ? parseFloat(labBathroom1Temp).toFixed(1) + '°C / ' + labBathroom1Hum + '%' : '--.-°C / --%'"></span>
                                     </div>
-                                    <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroom1Temp" @input="labBathroom1Temp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'bathroom1', labBathroom1Temp)" />
-                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroom1Hum" @input="labBathroom1Hum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'bathroom1', labBathroom1Hum)" />
+                                    <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroom1Temp" @input="labBathroom1Temp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20004, labBathroom1Temp)" />
+                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroom1Hum" @input="labBathroom1Hum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20004, labBathroom1Hum)" />
                                 </div>
                                 <div class="pt-2 border-t border-base-300 space-y-2.5">
                                     <div class="flex items-center justify-between text-xs font-mono">
                                         <span class="text-gray-400 font-medium">Bathroom Door:</span>
                                         <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                               :checked="state.devices.door_bathroom === 'OPEN'"
-                                               @change="injectLabDoorChange('bathroom', $event.target.checked)" />
+                                               :checked="state.devices[10002] === 'OPEN'"
+                                               @change="injectLabDoorChange(10002, $event.target.checked)" />
                                     </div>
                                 </div>
                                 <div class="pt-2 border-t border-dashed border-base-300 space-y-2">
@@ -620,15 +592,15 @@
                                         <span class="text-gray-400 font-medium">Atmosphere</span>
                                         <span class="text-accent font-mono font-bold" x-text="labCinemaTemp !== null ? parseFloat(labCinemaTemp).toFixed(1) + '°C / ' + labCinemaHum + '%' : '--.-°C / --%'"></span>
                                     </div>
-                                    <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labCinemaTemp" @input="labCinemaTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'cinema', labCinemaTemp)" />
-                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labCinemaHum" @input="labCinemaHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'cinema', labCinemaHum)" />
+                                    <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labCinemaTemp" @input="labCinemaTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20003, labCinemaTemp)" />
+                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labCinemaHum" @input="labCinemaHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20003, labCinemaHum)" />
                                 </div>
                                 <div class="pt-2 border-t border-base-300 space-y-2.5">
                                     <div class="flex items-center justify-between text-xs font-mono">
                                         <span class="text-gray-400 font-medium">Cinema Hue:</span>
                                         <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
-                                               :checked="state.devices.cinema_hue === 'ON'"
-                                               @change="injectLabHubStateChange('cinema_hue', $event.target.checked)" />
+                                               :checked="state.devices[7312] === 'ON'"
+                                               @change="injectLabHubStateChange(7312, $event.target.checked)" />
                                     </div>
                                 </div>
                             </div>
@@ -640,8 +612,8 @@
                                         <span class="text-gray-400 font-medium">Outside</span>
                                         <span class="text-info font-mono font-bold" x-text="labOutsideTemp !== null ? parseFloat(labOutsideTemp).toFixed(1) + '°C / ' + labOutsideHum + '%' : '--.-°C / --%'"></span>
                                     </div>
-                                    <input type="range" min="-10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labOutsideTemp" @input="labOutsideTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 'outside', labOutsideTemp)" />
-                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labOutsideHum" @input="labOutsideHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 'outside', labOutsideHum)" />
+                                    <input type="range" min="-10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labOutsideTemp" @input="labOutsideTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 30001, labOutsideTemp)" />
+                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labOutsideHum" @input="labOutsideHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 30001, labOutsideHum)" />
                                 </div>
                             </div>
                         </div>
@@ -690,8 +662,8 @@
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                     <span class="text-base-400 uppercase font-bold text-[10px]">Safety SSR Relay</span>
                                     <span class="badge badge-xs py-2 px-2"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices.safety_ssr === null ? 'badge-neutral text-gray-500 italic' : (state.devices.safety_ssr === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.safety_ssr === null ? 'SYNCING' : (state.devices.safety_ssr === 'ON' ? 'ENGAGED' : 'SAFE'))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[8567] === null ? 'badge-neutral text-gray-500 italic' : (state.devices[8567] === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[8567] === null ? 'SYNCING' : (state.devices[8567] === 'ON' ? 'ENGAGED' : 'SAFE'))"></span>
                                 </div>
                                 <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
                                     <div class="flex flex-col">
@@ -759,11 +731,11 @@
                                     <span class="text-base-400 uppercase font-bold text-[10px]">PC Master Power</span>
                                     <div class="flex items-center gap-2">
                                         <span class="badge badge-xs py-2 px-2"
-                                              :class="!state.system.domoticz_mqtt_connected || state.devices.pc === null ? 'badge-neutral text-gray-500 italic' : (state.devices.pc === 'ON' ? 'badge-success animate-pulse' : 'badge-neutral')"
-                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices.pc === null ? 'SYNCING' : (state.devices.pc === 'ON' ? 'ON' : 'OFF'))"></span>
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices[8] === null ? 'badge-neutral text-gray-500 italic' : (state.devices[8] === 'ON' ? 'badge-success animate-pulse' : 'badge-neutral')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[8] === null ? 'SYNCING' : (state.devices[8] === 'ON' ? 'ON' : 'OFF'))"></span>
                                         <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices.pc === null"
-                                               :checked="state.devices.pc === 'ON'"
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices[8] === null"
+                                               :checked="state.devices[8] === 'ON'"
                                                @click="handlePCToggleClick($event)" />
                                     </div>
                                 </div>
@@ -811,6 +783,33 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-start">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-1">📻 433MHz Automatic RFX</div>
+
+                                <div class="flex flex-col gap-3 overflow-y-auto max-h-[250px] pr-1">
+                                    <template x-for="device in state.system.native_rfx_devices" :key="device.virtual_idx">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-base-400 uppercase" x-text="device.name"></span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-bold text-[10px]"
+                                                      :class="!state.system.rfxcom_integration_enabled ? 'text-gray-500 italic' : (state.devices[device.virtual_idx] === 'ON' ? 'text-warning animate-pulse' : 'text-base-500')"
+                                                      x-text="!state.system.rfxcom_integration_enabled ? 'OFFLINE' : (state.devices[device.virtual_idx] === null ? 'SYNCING' : (state.devices[device.virtual_idx] === 'ON' ? 'ON' : 'OFF'))"></span>
+
+                                                <input type="checkbox" class="toggle toggle-warning toggle-xs shadow"
+                                                       :disabled="!state.system.rfxcom_integration_enabled || state.devices[device.virtual_idx] === null"
+                                                       :checked="state.devices[device.virtual_idx] === 'ON'"
+                                                       @change="injectLabHubStateChange(device.virtual_idx, $event.target.checked)" />
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <div x-show="state.system.native_rfx_devices && state.system.native_rfx_devices.length === 0" class="text-center text-[10px] text-base-400 py-2 italic">
+                                        No native RFX devices.
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -818,19 +817,19 @@
         </div>
         <dialog id="pc_power_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm">
             <div class="modal-box border bg-base-300 shadow-2xl"
-                 :class="state.devices.pc === 'ON' ? 'border-error' : 'border-success'">
+                 :class="state.devices[8] === 'ON' ? 'border-error' : 'border-success'">
 
                 <h3 class="font-bold text-lg flex items-center gap-2 uppercase tracking-widest"
-                    :class="state.devices.pc === 'ON' ? 'text-error' : 'text-success'">
-                    <span x-text="state.devices.pc === 'ON' ? '⚠️ Critical Power Cut' : '⚡ Power Startup'"></span>
+                    :class="state.devices[8] === 'ON' ? 'text-error' : 'text-success'">
+                    <span x-text="state.devices[8] === 'ON' ? '⚠️ Critical Power Cut' : '⚡ Power Startup'"></span>
                 </h3>
 
                 <p class="py-4 text-base-400 font-mono text-sm leading-relaxed">
-                    <span x-show="state.devices.pc === 'ON'">
+                    <span x-show="state.devices[8] === 'ON'">
                         You are about to <span class="text-error font-bold">CUT</span> the master power to the PC. This will instantly kill any running processes and cascade the shutdown to the PC Aux relay.
                     </span>
 
-                    <span x-show="state.devices.pc !== 'ON'">
+                    <span x-show="state.devices[8] !== 'ON'">
                         You are about to <span class="text-success font-bold">ENGAGE</span> the master power to the PC.
                     </span>
 
@@ -843,9 +842,9 @@
                         <button class="btn btn-outline btn-sm font-mono">Cancel</button>
                     </form>
                     <button class="btn btn-sm shadow-lg font-mono font-bold"
-                            :class="state.devices.pc === 'ON' ? 'btn-error text-neutral-900' : 'btn-success text-neutral-900'"
+                            :class="state.devices[8] === 'ON' ? 'btn-error text-neutral-900' : 'btn-success text-neutral-900'"
                             @click="confirmPCPowerToggle()"
-                            x-text="state.devices.pc === 'ON' ? 'YES, TURN OFF' : 'YES, TURN ON'">
+                            x-text="state.devices[8] === 'ON' ? 'YES, TURN OFF' : 'YES, TURN ON'">
                     </button>
                 </div>
             </div>
