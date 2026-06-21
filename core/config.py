@@ -85,6 +85,23 @@ class LightingConfig(BaseModel):
     auto_off_delays: Dict[int, int]
 
 
+class BlindsScheduleConfig(BaseModel):
+    morning_open_earliest: str
+    morning_open_latest: str
+    evening_close_earliest: str
+    evening_close_latest: str
+
+
+class TwilightScheduleConfig(BaseModel):
+    evening_off_time: str
+    morning_on_time: str
+
+
+class EnvironmentalScheduleConfig(BaseModel):
+    blinds: BlindsScheduleConfig
+    twilight: TwilightScheduleConfig
+
+
 class RFXComSettings(BaseModel):
     """Configuration for the physical USB RFXCOM transceiver."""
     serial_port: str
@@ -108,6 +125,7 @@ class TriggerConfig(BaseModel):
 
 class ConditionConfig(BaseModel):
     type: str
+    idx: Optional[int] = None
     condition_is: str = Field(alias="is")
 
 
@@ -139,6 +157,7 @@ class AppConfig(BaseModel):
     ir: IRRuntimeConfig
     bathroom1: BathroomConfig
     lighting: LightingConfig
+    environmental_schedule: Optional[EnvironmentalScheduleConfig] = None
     weather: WeatherConfig
     boot_seed: Dict[Union[int, str], Any] = {}
     native_rfx: List[NativeRFXConfig] = Field(default_factory=list)
@@ -185,6 +204,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "ir": runtime_data["ir"],
         "bathroom1": runtime_data["bathroom1"],
         "lighting": runtime_data.get("lighting", {}),
+        "environmental_schedule": runtime_data.get("environmental_schedule"),
         "weather": runtime_data["weather"],
         "native_rfx": runtime_data.get("native_rfx", []),
         "automations": runtime_data.get("automations", [])

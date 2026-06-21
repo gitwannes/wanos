@@ -61,7 +61,15 @@ class EventType(str, Enum):
     LIGHTING_STATE_CHANGED = "LIGHTING_STATE_CHANGED"
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
 
-# Timer & Generic Engine Events
+    # 🌍 Environment Schedule Events
+    BLINDS_OPEN_TRIGGER = "BLINDS_OPEN_TRIGGER"
+    BLINDS_CLOSE_TRIGGER = "BLINDS_CLOSE_TRIGGER"
+    TWILIGHT_EVENING_ON_TRIGGER = "TWILIGHT_EVENING_ON_TRIGGER"
+    TWILIGHT_EVENING_OFF_TRIGGER = "TWILIGHT_EVENING_OFF_TRIGGER"
+    TWILIGHT_MORNING_ON_TRIGGER = "TWILIGHT_MORNING_ON_TRIGGER"
+    TWILIGHT_MORNING_OFF_TRIGGER = "TWILIGHT_MORNING_OFF_TRIGGER"
+
+    # Timer & Generic Engine Events
     TIMER_SCHEDULED = "TIMER_SCHEDULED"
     TIMER_CANCELLED = "TIMER_CANCELLED"
     LIGHT_TIMER_EXPIRED = "LIGHT_TIMER_EXPIRED"
@@ -94,6 +102,14 @@ class SensorsState(BaseModel):
     outside_hum: Optional[int] = None
     sunrise_unix: Optional[int] = None
     sunset_unix: Optional[int] = None
+
+    # 🌍 Environmental Daily Target Epochs
+    env_schedule_blinds_open_unix: Optional[int] = None
+    env_schedule_blinds_close_unix: Optional[int] = None
+    env_schedule_twilight_evening_on_unix: Optional[int] = None
+    env_schedule_twilight_evening_off_unix: Optional[int] = None
+    env_schedule_twilight_morning_on_unix: Optional[int] = None
+    env_schedule_twilight_morning_off_unix: Optional[int] = None
 
     bathroom1_temp: Optional[float] = None
     bathroom1_hum: Optional[int] = None

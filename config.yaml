@@ -68,6 +68,17 @@ weather:  # for OpenWeatherMap
   location: "Borsbeek,BE"
   poll_interval_mins: 30
 
+# 🌍 The Daily Time-Series Engine (Environmental Bounds)
+environmental_schedule:
+  blinds:
+    morning_open_earliest: "07:30"
+    morning_open_latest: "09:00"
+    evening_close_earliest: "16:30"
+    evening_close_latest: "22:00"
+  twilight:
+    evening_off_time: "23:00"
+    morning_on_time: "06:00"
+
 ## Runtime System Parameters - Modifiable via Web UI
 # Dictionaries (No Dashes): Used for describing a single, unique thing with named properties
 sauna:
@@ -116,6 +127,107 @@ lighting:
 # Lists (Dashes): Used for describing a collection of repeating things
 # (like a list of 10 Automation Rules, or a list of 3 Actions to take)
 automations:
+
+# ==============================================================================
+# 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
+# ==============================================================================
+# The backend Time-Series Engine automatically broadcasts semantic triggers
+# based on mathematically clamped Sunrise/Sunset. We map those generic events
+# to specific hardware components here.
+# ==============================================================================
+# ==============================================================================
+# 📚🌍 available Environmental & Twilight Triggers
+# Use these specific event strings in your 'trigger:' blocks below.
+#
+# BLINDS_OPEN_TRIGGER           : Fired in the morning to open blinds (clamped between earliest/latest configured times).
+# BLINDS_CLOSE_TRIGGER          : Fired in the evening to close blinds (clamped between earliest/latest configured times).
+# TWILIGHT_EVENING_ON_TRIGGER   : Fired exactly at Sunset to turn on evening mood/garden lighting.
+# TWILIGHT_EVENING_OFF_TRIGGER  : Fired at your configured evening cutoff (e.g., 23:00) to turn off evening lights.
+# TWILIGHT_MORNING_ON_TRIGGER   : Fired at your configured morning start (e.g., 06:00) to turn on morning lights.
+# TWILIGHT_MORNING_OFF_TRIGGER  : Fired exactly at Sunrise to turn off morning lights.
+#
+# ==============================================================================
+
+  - name: "Morning Blinds Open"
+    trigger:
+      event: "BLINDS_OPEN_TRIGGER"
+    actions:
+      - idx: 55    # gv L
+        state: "100"
+      - idx: 71    # gv R
+        state: "100"
+      - idx: 548   # 1eV sauna
+        state: "100"
+      - idx: 583   # 1eV schuifraam
+        state: "100"
+  - name: "Evening Blinds Close"
+    trigger:
+      event: "BLINDS_CLOSE_TRIGGER"
+    actions:
+      - idx: 55    # gv L
+        state: "100"
+      - idx: 71    # gv R
+        state: "100"
+      - idx: 548   # 1eV sauna
+        state: "100"
+      - idx: 583   # 1eV schuifraam
+        state: "100"
+
+  - name: "Tuinlichten & kerststuff aan 's avonds"
+    trigger:
+      - event: "TWILIGHT_EVENING_ON_TRIGGER"
+    actions:
+      - idx: 7396 # Licht tuin
+        state: "ON"
+      - idx: 40004 # Kerstboom
+        state: "ON"
+      - idx: 9627 # kerstverl tuin achter
+        state: "ON"
+      - idx: 40004 # kerstverl voortuin
+        state: "ON"
+  - name: "Tuinlichten & kerststuff uit 's avonds"
+    trigger:
+      - event: "TWILIGHT_EVENING_OFF_TRIGGER"
+    actions:
+      - idx: 7396 # Licht tuin
+        state: "OFF"
+      - idx: 40004 # Kerstboom
+        state: "OFF"
+      - idx: 9627 # kerstverl tuin achter
+        state: "OFF"
+      - idx: 40004 # kerstverl voortuin
+        state: "OFF"
+  - name: "Kerstverlichting voor & achter aan 's morgens"
+    trigger:
+      - event: "TWILIGHT_MORNING_ON_TRIGGER"
+    actions:
+      - idx: 9627 # kerstverl tuin achter
+        state: "ON"
+      - idx: 40004 # kerstverl voortuin
+        state: "ON"
+  - name: "Kerstverlichting voor & achter uit 's morgens"
+    trigger:
+      - event: "TWILIGHT_MORNING_OFF_TRIGGER"
+    actions:
+      - idx: 9627 # kerstverl tuin achter
+        state: "OFF"
+      - idx: 40004 # kerstverl voortuin
+        state: "OFF"
+
+  - name: "Garden Lights Evening Only"
+    trigger:
+      event: "TWILIGHT_EVENING_ON_TRIGGER"
+    actions:
+      - idx: 7396 # Licht tuin
+        state: "ON"
+
+  - name: "Garden Lights OFF at 23:00"
+    trigger:
+      event: "TWILIGHT_EVENING_OFF_TRIGGER" # Fires exactly at 23:00 (or config setting)
+    actions:
+      - idx: 7396
+        state: "OFF"
+
 ### --- HARDWARE TOGGLES ---
   - name: "PC ON -> PC Aux ON"
     trigger:
@@ -322,6 +434,15 @@ automations:
     actions:
       - idx: 100       # licht garage
         state: "ON"
+  - name: "gocosy-savonds"
+    trigger:
+      event: TWILIGHT_EVENING_ON_TRIGGER
+    conditions:
+      - type: "device_state"
+        idx: 52  # licht living
+        is: "ON"
+    actions:
+      - event: SCENE_GOCOSY
   - name: "achterdeur_waskot"
     trigger:
       idx: 94  # achterdeur

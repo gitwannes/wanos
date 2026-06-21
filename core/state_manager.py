@@ -197,6 +197,81 @@ class StateManager:
                 changed = True
         return changed
 
+    def _recalculate_environmental_schedule(self) -> None:
+        """
+        🌍 The Daily Time-Series Engine (Schedule Calculator)
+        This function dynamically calculates exact UNIX timestamps for today's environmental phases.
+        It runs whenever OWM fetches weather, applying Min/Max logic (Clamps) to prevent edge cases
+        like blinds opening at 4:30 AM in mid-summer.
+        """
+        sns = self._state.sensors
+        cfg = self._config.environmental_schedule
+        if not sns.sunrise_unix or not sns.sunset_unix or not cfg:
+            return
+
+        def _get_unix_for_today(time_str: str) -> int:
+            try:
+                h, m = map(int, time_str.split(':'))
+                now = datetime.now()
+                target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                return int(target.timestamp())
+            except (ValueError, AttributeError):
+                return 0
+
+        # --- Phase 1: BLINDS CLAMPING MATH ---
+        mo_early = _get_unix_for_today(cfg.blinds.morning_open_earliest)
+        mo_late = _get_unix_for_today(cfg.blinds.morning_open_latest)
+        ec_early = _get_unix_for_today(cfg.blinds.evening_close_earliest)
+        ec_late = _get_unix_for_today(cfg.blinds.evening_close_latest)
+
+        # Open = Max(Sunrise, 07:30). If 09:00 limit exists, clamp Open = Min(Open, 09:00).
+        blinds_open = max(sns.sunrise_unix, mo_early)
+        if mo_late > 0: blinds_open = min(blinds_open, mo_late)
+
+        # Close = Max(Sunset, 16:30). If 22:00 limit exists, clamp Close = Min(Close, 22:00).
+        blinds_close = max(sns.sunset_unix, ec_early)
+        if ec_late > 0: blinds_close = min(blinds_close, ec_late)
+
+        # --- Phase 2: TWILIGHT LOGIC ---
+        twi_eve_on = sns.sunset_unix
+        twi_eve_off = _get_unix_for_today(cfg.twilight.evening_off_time)
+        twi_morn_on = _get_unix_for_today(cfg.twilight.morning_on_time)
+        twi_morn_off = sns.sunrise_unix
+
+        # Store to unified State Memory
+        sns.env_schedule_blinds_open_unix = blinds_open
+        sns.env_schedule_blinds_close_unix = blinds_close
+        sns.env_schedule_twilight_evening_on_unix = twi_eve_on
+        sns.env_schedule_twilight_evening_off_unix = twi_eve_off
+
+        # ⚡ Edge Case Protection: Skip morning twilight entirely if sunrise occurs BEFORE the configured on-time
+        if twi_morn_off > twi_morn_on:
+            sns.env_schedule_twilight_morning_on_unix = twi_morn_on
+            sns.env_schedule_twilight_morning_off_unix = twi_morn_off
+        else:
+            sns.env_schedule_twilight_morning_on_unix = None
+            sns.env_schedule_twilight_morning_off_unix = None
+
+        # --- Phase 3: SCHEDULER DEPLOYMENT ---
+        now_unix = int(time.time())
+        # The TimerManager gracefully absorbs or drops duplicate exact requests, so it's safe to spam.
+        if blinds_open > now_unix:
+            self._timer_manager.schedule("env_blinds_open", blinds_open, "BLINDS_OPEN_TRIGGER")
+        if blinds_close > now_unix:
+            self._timer_manager.schedule("env_blinds_close", blinds_close, "BLINDS_CLOSE_TRIGGER")
+        if twi_eve_on > now_unix:
+            self._timer_manager.schedule("env_twi_eve_on", twi_eve_on, "TWILIGHT_EVENING_ON_TRIGGER")
+        if twi_eve_off > now_unix:
+            self._timer_manager.schedule("env_twi_eve_off", twi_eve_off, "TWILIGHT_EVENING_OFF_TRIGGER")
+        if sns.env_schedule_twilight_morning_on_unix and sns.env_schedule_twilight_morning_on_unix > now_unix:
+            self._timer_manager.schedule("env_twi_morn_on", sns.env_schedule_twilight_morning_on_unix,
+                                         "TWILIGHT_MORNING_ON_TRIGGER")
+        if sns.env_schedule_twilight_morning_off_unix and sns.env_schedule_twilight_morning_off_unix > now_unix:
+            self._timer_manager.schedule("env_twi_morn_off", sns.env_schedule_twilight_morning_off_unix,
+                                         "TWILIGHT_MORNING_OFF_TRIGGER")
+
+        logger.debug("🌍 Environmental Time-Series mathematically calculated and deployed.")
+
     async def _process_events(self) -> None:
         """
         Sequential event execution loop with outbound network batch debouncing.
@@ -423,6 +498,8 @@ class StateManager:
             self._state.sensors.sunset_unix = payload.get("sunset")
             state_changed = True
             changed_domains.add("sensors")
+            # ⚡ Trigger recalculation instantly when weather cycles shift
+            self._recalculate_environmental_schedule()
 
         # --- SYSTEM STATE ROUTERS ---
         elif event_name == "SYSTEM_READY":
@@ -625,6 +702,46 @@ class StateManager:
                 ch, dom = self._push_alert(f"🔴 Config reload failed: {e}")
                 state_changed |= ch
                 changed_domains |= dom
+
+        elif event_name == "SYSTEM_SWEEP_REQUESTED":
+            """
+            🌍 The Aggressive Catch-Up Sweeper (Option B Enforcer)
+            When this runs, it doesn't just evaluate manual sensor states. It explicitly looks
+            at the 6-point Daily Time-Series to figure out exactly what Phase of the day we are in.
+            It instantly force-dispatches the correct ambient light and blind positions, absorbing
+            any power outages or logic downtime gracefully!
+            """
+            # Ensure boundaries are up to date
+            self._recalculate_environmental_schedule()
+
+            sns = self._state.sensors
+            now = int(time.time())
+
+            # 1. Blinds Enforcement
+            if sns.env_schedule_blinds_open_unix and sns.env_schedule_blinds_close_unix:
+                # If current time falls exactly between the Open and Close epoch...
+                if sns.env_schedule_blinds_open_unix <= now < sns.env_schedule_blinds_close_unix:
+                    self.dispatch(Event(type=EventType.BLINDS_OPEN_TRIGGER))
+                else:
+                    self.dispatch(Event(type=EventType.BLINDS_CLOSE_TRIGGER))
+
+            # 2. Morning Twilight Enforcement
+            if sns.env_schedule_twilight_morning_on_unix and sns.env_schedule_twilight_morning_off_unix:
+                if sns.env_schedule_twilight_morning_on_unix <= now < sns.env_schedule_twilight_morning_off_unix:
+                    self.dispatch(Event(type=EventType.TWILIGHT_MORNING_ON_TRIGGER))
+                else:
+                    self.dispatch(Event(type=EventType.TWILIGHT_MORNING_OFF_TRIGGER))
+
+            # 3. Evening Twilight Enforcement
+            if sns.env_schedule_twilight_evening_on_unix and sns.env_schedule_twilight_evening_off_unix:
+                if sns.env_schedule_twilight_evening_on_unix <= now < sns.env_schedule_twilight_evening_off_unix:
+                    self.dispatch(Event(type=EventType.TWILIGHT_EVENING_ON_TRIGGER))
+                else:
+                    self.dispatch(Event(type=EventType.TWILIGHT_EVENING_OFF_TRIGGER))
+
+            ch, dom = self._push_alert("🟢 System Sweeper complete. Environmental phases synchronized.")
+            state_changed |= ch
+            changed_domains |= dom
 
         # --------------------------------------------------------
         # GENERIC TIMER ROUTING & GLASS-BOX TRACKING
