@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <title>WanOS Device Explorer</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -11,10 +16,10 @@
 <body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
 
     <div x-show="!connected"
-         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center transition-opacity duration-300">
+         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
          <span class="loading loading-infinity w-16 text-error mb-4"></span>
-        <h2 class="text-2xl font-black tracking-widest text-base-content">LINK INTERRUPTED</h2>
-        <p class="text-error mt-2 font-mono text-sm">Re-establishing connection stream to WanOS...</p>
+        <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
+        <p class="text-error mt-2 font-mono text-sm">Establishing connection stream to WanOS backend...</p>
     </div>
 
     <header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center overflow-hidden min-h-[3rem]">
@@ -153,6 +158,6 @@
         </div>
 
     </main>
-    <script src="app.js"></script>
+    <script src="app.js?v=2.0"></script>
 </body>
 </html>

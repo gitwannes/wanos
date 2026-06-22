@@ -2,6 +2,7 @@
 import asyncio
 import time
 import re
+import json
 from datetime import datetime
 from typing import Optional, Any, Set
 from loguru import logger
@@ -272,21 +273,41 @@ class StateManager:
 
         # --- Phase 3: SCHEDULER DEPLOYMENT ---
         now_unix = int(time.time())
-        # The TimerManager gracefully absorbs or drops duplicate exact requests, so it's safe to spam.
+        # ⚡ Dispatched dynamically to the bus so the Glass-Box Timeline UI registers them instantly.
+        # Metadata mapping is handled automatically downstream via Subscriber Fan-Out logic.
         if blinds_open > now_unix:
-            self._timer_manager.schedule("env_blinds_open", blinds_open, "BLINDS_OPEN_TRIGGER")
+            self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_blinds_open", "deadline": blinds_open, "event_type": "BLINDS_OPEN_TRIGGER",
+                "event_payload": {}
+            }))
         if blinds_close > now_unix:
-            self._timer_manager.schedule("env_blinds_close", blinds_close, "BLINDS_CLOSE_TRIGGER")
+            self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_blinds_close", "deadline": blinds_close, "event_type": "BLINDS_CLOSE_TRIGGER",
+                "event_payload": {}
+            }))
         if twi_eve_on > now_unix:
-            self._timer_manager.schedule("env_twi_eve_on", twi_eve_on, "TWILIGHT_EVENING_ON_TRIGGER")
+            self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_twi_eve_on", "deadline": twi_eve_on, "event_type": "TWILIGHT_EVENING_ON_TRIGGER",
+                "event_payload": {}
+            }))
         if twi_eve_off > now_unix:
-            self._timer_manager.schedule("env_twi_eve_off", twi_eve_off, "TWILIGHT_EVENING_OFF_TRIGGER")
+            self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_twi_eve_off", "deadline": twi_eve_off,
+                "event_type": "TWILIGHT_EVENING_OFF_TRIGGER",
+                "event_payload": {}
+            }))
         if sns.env_schedule_twilight_morning_on_unix and sns.env_schedule_twilight_morning_on_unix > now_unix:
-            self._timer_manager.schedule("env_twi_morn_on", sns.env_schedule_twilight_morning_on_unix,
-                                         "TWILIGHT_MORNING_ON_TRIGGER")
+            self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_twi_morn_on", "deadline": sns.env_schedule_twilight_morning_on_unix,
+                "event_type": "TWILIGHT_MORNING_ON_TRIGGER",
+                "event_payload": {}
+            }))
         if sns.env_schedule_twilight_morning_off_unix and sns.env_schedule_twilight_morning_off_unix > now_unix:
-            self._timer_manager.schedule("env_twi_morn_off", sns.env_schedule_twilight_morning_off_unix,
-                                         "TWILIGHT_MORNING_OFF_TRIGGER")
+            self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_twi_morn_off", "deadline": sns.env_schedule_twilight_morning_off_unix,
+                "event_type": "TWILIGHT_MORNING_OFF_TRIGGER",
+                "event_payload": {}
+            }))
 
         logger.debug("🌍 Environmental Time-Series mathematically calculated and deployed.")
 
@@ -772,17 +793,80 @@ class StateManager:
 
             if timer_id and deadline and tgt_event_type:
                 self._timer_manager.schedule(timer_id, deadline, tgt_event_type, tgt_payload)
-                if timer_id not in self._state.system.active_timers:
-                    self._state.system.active_timers.append(timer_id)
-                    state_changed = True
-                    changed_domains.add("system")
+
+                active = self._state.system.active_timers
+
+                # Clear old instances of this timer_id safely before injecting new ones
+                self._state.system.active_timers = [
+                    t for t in active
+                    if not (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t))
+                       and not (isinstance(t, dict) and t.get("timer_id") == timer_id)
+                ]
+
+                # ⚡ SUBSCRIBER FAN-OUT LOGIC ⚡
+                # If the timer targets a generic broadcast trigger, scan the automation rules
+                # and fan out a unique timeline object for every specific rule that listens to it.
+                matched_rules = False
+                if hasattr(self._config, "automations"):
+                    for rule in self._config.automations:
+                        rule_triggered = False
+                        triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
+
+                        for t in triggers:
+                            if getattr(t, "event", None):
+                                rule_evt = t.event.value if hasattr(t.event, 'value') else str(t.event)
+                                if rule_evt == tgt_event_type:
+                                    rule_triggered = True
+                                    break
+
+                        if rule_triggered:
+                            matched_rules = True
+                            name_suffix = " (conditional)" if getattr(rule, "conditions", None) else ""
+                            timeline_obj = {
+                                "timer_id": timer_id,
+                                "deadline": deadline,
+                                "event_type": tgt_event_type,
+                                "idx": None,
+                                "name": f"{rule.name}{name_suffix}",
+                                "type": "scene",
+                                "target_state": "Execute"
+                            }
+                            # Bypass Pydantic string coercion by injecting a serialized JSON object natively
+                            self._state.system.active_timers.append(json.dumps(timeline_obj))
+
+                # ⚡ FALLBACK LOGIC
+                # If no automation rules matched (e.g., standard lighting auto-off timers),
+                # append the directly targeted hardware object.
+                if not matched_rules:
+                    target_idx = tgt_payload.get("idx")
+                    timeline_obj = {
+                        "timer_id": timer_id,
+                        "deadline": deadline,
+                        "event_type": tgt_event_type,
+                        "idx": target_idx,
+                        "name": tgt_payload.get("name", self._state.dashboard_map.get(target_idx, "System Macro")),
+                        "type": tgt_payload.get("type", "scene" if target_idx is None else "switch"),
+                        "target_state": tgt_payload.get("target_state", "Execute")
+                    }
+                    self._state.system.active_timers.append(json.dumps(timeline_obj))
+
+                state_changed = True
+                changed_domains.add("system")
 
         elif event_name == "TIMER_CANCELLED":
             timer_id: Optional[str] = payload.get("timer_id")
             if timer_id:
                 self._timer_manager.cancel(timer_id)
-                if timer_id in self._state.system.active_timers:
-                    self._state.system.active_timers.remove(timer_id)
+                active = self._state.system.active_timers
+                original_len = len(active)
+
+                self._state.system.active_timers = [
+                    t for t in active
+                    if not (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t))
+                       and not (isinstance(t, dict) and t.get("timer_id") == timer_id)
+                ]
+
+                if len(self._state.system.active_timers) < original_len:
                     state_changed = True
                     changed_domains.add("system")
 
@@ -790,8 +874,16 @@ class StateManager:
             idx: Optional[int] = payload.get("idx")
             if idx is not None:
                 timer_id = f"light_auto_off_{idx}"
-                if timer_id in self._state.system.active_timers:
-                    self._state.system.active_timers.remove(timer_id)
+                active = self._state.system.active_timers
+                original_len = len(active)
+
+                self._state.system.active_timers = [
+                    t for t in active
+                    if not (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t))
+                       and not (isinstance(t, dict) and t.get("timer_id") == timer_id)
+                ]
+
+                if len(self._state.system.active_timers) < original_len:
                     state_changed = True
                     changed_domains.add("system")
 

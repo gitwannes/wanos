@@ -132,8 +132,17 @@ class DomoticzHomeHubBridge(WanosComponent):
                     for device in results:
                         self._normalize_http_device(device)
 
+        except asyncio.TimeoutError:
+            # ⚡ asyncio.TimeoutError renders as an empty string by default. This explicit catch
+            # translates it into a human-readable diagnosis of the network blockage.
+            await self.logger.error(
+                "[Domoticz] HTTP sync exception: Connection timed out (15s). Is Domoticz offline or unreachable?")
+        except aiohttp.ClientError as e:
+            await self.logger.error(f"[Domoticz] HTTP sync exception: Network/Client error occurred: {repr(e)}")
         except Exception as e:
-            await self.logger.error(f"[Domoticz] HTTP sync exception: {e}")
+            # ⚡ Fallback using repr(e) to guarantee the exact Python Class name is always printed,
+            # preventing invisible ghost-errors.
+            await self.logger.error(f"[Domoticz] HTTP sync exception: {repr(e)}")
 
     def _normalize_http_device(self, device: dict[str, Any]) -> None:
         """Translates Domoticz HTTP JSON formats into unified WanOS events."""

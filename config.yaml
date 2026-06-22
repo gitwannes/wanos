@@ -63,6 +63,8 @@ deviceexplorer_exclude:
   - 8567  # Wisc safety SSR
   - 7550  # Sauna
   - 7551  # IR
+  - 1612  # toilet ventilatie motor (= sync'd met knop binnen)
+  - 1625  # badk 2e binnen (= unused & sync'd met knop buitenà)
 
 weather:  # for OpenWeatherMap
   location: "Borsbeek,BE"

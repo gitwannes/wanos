@@ -263,6 +263,23 @@ async def sse_state_stream(request: Request):
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+
+# ⚡ TIER 3 CACHE-BUSTING MIDDLEWARE ⚡
+# Intercepts every outgoing HTTP request. If the browser is asking for a frontend asset
+# (HTML, JS, CSS), we forcefully inject HTTP headers forbidding the browser from caching it.
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    # Do not mess with API endpoints or SSE streams, only static files.
+    if not request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
+    return response
+
+
 frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
 if os.path.exists(frontend_path):
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")

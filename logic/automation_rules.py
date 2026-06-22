@@ -205,21 +205,35 @@ class AutomationEngine:
                     current_state = state.devices.get(light_idx)
                     if current_state == "ON":
                         timer_id = f"light_auto_off_{light_idx}"
-                        if timer_id not in state.system.active_timers:
+
+                        # Secure parsing to detect JSON structured active_timers
+                        timer_exists = any(
+                            (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t)) or
+                            (isinstance(t, dict) and t.get("timer_id") == timer_id)
+                            for t in state.system.active_timers
+                        )
+
+                        if not timer_exists:
                             delay_mins: int = config.lighting.auto_off_delays.get(light_idx,
                                                                                   config.lighting.default_auto_off_minutes)
                             deadline: int = int(time.time()) + delay_mins * 60
+                            semantic_name: str = state.dashboard_map.get(light_idx, "Unknown")
 
+                            # ⚡ Structured Payload for UI Timeline Processing
                             follow_up_events.append(Event(
                                 type=EventType.TIMER_SCHEDULED,
                                 payload={
                                     "timer_id": timer_id,
                                     "deadline": deadline,
                                     "event_type": EventType.LIGHT_TIMER_EXPIRED.value,
-                                    "event_payload": {"idx": light_idx}
+                                    "event_payload": {
+                                        "idx": light_idx,
+                                        "name": semantic_name,
+                                        "type": "switch",
+                                        "target_state": "OFF"
+                                    }
                                 }
                             ))
-                            semantic_name: str = state.dashboard_map.get(light_idx, "Unknown")
                             automation_logger.info(
                                 f"[System Sweeper] Recovered missing auto-off timer for light IDX {light_idx} ({semantic_name}). Turning OFF in {delay_mins} min.")
                             recovered_timers += 1
@@ -337,7 +351,12 @@ class AutomationEngine:
                             "timer_id": timer_id,
                             "deadline": deadline,
                             "event_type": EventType.LIGHT_TIMER_EXPIRED.value,
-                            "event_payload": {"idx": idx}
+                            "event_payload": {
+                                "idx": idx,
+                                "name": semantic_name,
+                                "type": "switch",
+                                "target_state": "OFF"
+                            }
                         }
                     ))
                     automation_logger.info(
@@ -346,7 +365,13 @@ class AutomationEngine:
                 elif new_state == "OFF":
                     # Instantly cancel any pending countdowns for this light,
                     # but only if it's actually ticking (prevents phantom cancellations when the timer itself turned the light off)
-                    if timer_id in state.system.active_timers:
+                    timer_exists = any(
+                        (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t)) or
+                        (isinstance(t, dict) and t.get("timer_id") == timer_id)
+                        for t in state.system.active_timers
+                    )
+
+                    if timer_exists:
                         follow_up_events.append(Event(
                             type=EventType.TIMER_CANCELLED,
                             payload={"timer_id": timer_id}

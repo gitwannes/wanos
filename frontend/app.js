@@ -125,6 +125,76 @@ function wanosApp() {
         statusFilter: "ALL", // "ALL", "ON", "OFF"
         sortMode: "NAME",    // "NAME", "STATUS"
 
+        // ⚡ Reactive Time Heartbeat
+        nowUnix: Math.floor(Date.now() / 1000),
+
+        // ⏱️ Structured Chronological Timeline Getter
+        get chronologicalTimeline() {
+            if (!this.state.system.active_timers) return [];
+
+            // Access this.nowUnix to ensure Alpine registers the dependency for periodic re-evaluations
+            const now = this.nowUnix || Math.floor(Date.now() / 1000);
+
+            let list = [];
+            for (const itemStr of this.state.system.active_timers) {
+                if (!itemStr) continue;
+                let t;
+                if (typeof itemStr === 'object') {
+                    t = itemStr;
+                } else {
+                    try {
+                        t = JSON.parse(itemStr);
+                    } catch {
+                        // Failsafe for generic string timers missing payload metadata
+                        t = { timer_id: itemStr, deadline: 0, name: itemStr, type: "scene", target_state: "" };
+                    }
+                }
+                list.push(t);
+            }
+
+            // Sort ascending by absolute deadline
+            list.sort((a, b) => a.deadline - b.deadline);
+
+            return list.map(t => {
+                const d = new Date(t.deadline * 1000);
+                const absTime = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+                const diff = t.deadline - now;
+                let relTime = "";
+                if (diff <= 0) relTime = "imminent";
+                else if (diff < 60) relTime = `in ${diff} sec`;
+                else {
+                    const mins = Math.floor(diff / 60);
+                    const hrs = Math.floor(mins / 60);
+                    if (hrs > 0) relTime = `in ${hrs}h ${mins % 60}m`;
+                    else relTime = `in ${mins} min`;
+                }
+
+                let actionText = "will trigger";
+                if (t.target_state) {
+                    if (t.type === "blinds") {
+                        if (t.target_state === "100") actionText = "will CLOSE";
+                        else if (t.target_state === "0") actionText = "will OPEN";
+                        else actionText = `will change to ${t.target_state}%`;
+                    } else if (t.type === "switch") {
+                        actionText = `will turn ${t.target_state}`;
+                    } else if (t.type === "scene") {
+                        // ⚡ Detailed Scene Intention: Appends the specific scene name for timeline clarity
+                        actionText = `will execute scene`;  //  "${t.name}"
+                    } else {
+                        actionText = `will -> ${t.target_state}`;
+                    }
+                }
+
+                return {
+                    ...t,
+                    absTime: absTime,
+                    relTime: relTime,
+                    actionText: actionText
+                };
+            });
+        },
+
         // ⚡ Dynamically compiles a list of disabled backend integrations
         get disabledIntegrationsText() {
             let disabled = [];
@@ -437,6 +507,7 @@ function wanosApp() {
 
         ticker() {
             const now = Math.floor(Date.now() / 1000);
+            this.nowUnix = now; // Binds local tick to reactive state engine
 
             // ⏱️ Dynamic Uptime Live Generators
             if (this.state.system.os_boot_unix) {

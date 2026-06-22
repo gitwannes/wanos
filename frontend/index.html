@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <title>WanOS Ecosystem Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -11,7 +16,7 @@
 <body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
 
     <div x-show="!connected"
-         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center transition-opacity duration-300">
+         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
          <span class="loading loading-infinity w-16 text-error mb-4"></span>
         <h2 class="text-2xl font-black tracking-widest text-base-content">LINK INTERRUPTED</h2>
         <p class="text-error mt-2 font-mono text-sm">Re-establishing connection stream to WanOS...</p>
@@ -817,6 +822,33 @@
                                 </div>
                             </div>
 
+                            <div class="col-span-1 md:col-span-2 xl:col-span-4 p-4 bg-base-200 rounded-box border border-base-300 shadow-sm w-full flex flex-col justify-start">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-3 flex items-center justify-center gap-2">
+                                    <span>⏱️ Planned Automations Timeline</span>
+                                    <span class="badge badge-neutral text-[9px] font-mono px-1.5" x-text="chronologicalTimeline.length"></span>
+                                </div>
+                                <div class="flex flex-col gap-2 overflow-y-auto max-h-[300px] pr-1">
+                                    <template x-for="item in chronologicalTimeline" :key="item.timer_id + '_' + item.name">
+                                        <div class="flex items-center justify-between bg-base-300/50 p-2 rounded border border-base-300/50">
+                                            <div class="flex items-center gap-3">
+                                                <span class="font-mono text-warning font-bold text-xs tabular-nums" x-text="item.absTime"></span>
+                                                <span class="badge badge-neutral text-[9px] font-mono px-1.5 tabular-nums min-w-[70px] justify-center" x-text="item.relTime"></span>
+                                                <div class="flex flex-col">
+                                                    <span class="font-bold text-xs text-white" x-text="item.name"></span>
+                                                    <span class="text-[10px] text-base-400 font-mono" x-show="item.idx !== null" x-text="'IDX ' + item.idx"></span>
+                                                </div>
+                                            </div>
+                                            <div class="text-right">
+                                                <span class="font-mono text-xs text-info font-bold" x-text="item.actionText"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div x-show="chronologicalTimeline.length === 0" class="text-center text-[10px] text-base-400 py-4 italic">
+                                        No upcoming events scheduled.
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -893,6 +925,6 @@
             </form>
         </dialog>
     </main>
-    <script src="app.js"></script>
+    <script src="app.js?v=2.0"></script>
 </body>
 </html>
