@@ -104,7 +104,7 @@ lighting:
     169: 10
     348: 5
     411: 1
-    1524: 60
+    1524: 30
     1622: 30
     6051: 1
     6060: 30
@@ -154,13 +154,13 @@ automations:
       event: "BLINDS_OPEN_TRIGGER"
     actions:
       - idx: 55    # gv L
-        state: "100"
+        state: "0"
       - idx: 71    # gv R
-        state: "100"
+        state: "0"
       - idx: 548   # 1eV sauna
-        state: "100"
+        state: "0"
       - idx: 583   # 1eV schuifraam
-        state: "100"
+        state: "0"
   - name: "Evening Blinds Close"
     trigger:
       event: "BLINDS_CLOSE_TRIGGER"
@@ -384,10 +384,10 @@ automations:
   - name: "Slpk_Dries"
     trigger:
       idx: 1524
-      state: "ON"
+      state: "SYNC"
     actions:
       - idx: 7237 # Hue
-        state: "ON"
+        state: "SYNC"
   - name: "KeukenLivingEetk_EetkHue"
     trigger:
       - idx: 52   # Living

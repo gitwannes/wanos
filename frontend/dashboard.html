@@ -62,8 +62,8 @@
                         :class="statusFilter !== 'ALL' ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-base-200'"
                         x-model="statusFilter">
                     <option value="ALL" class="text-base-content bg-base-200 font-normal">All States</option>
-                    <option value="ON" class="text-base-content bg-base-200 font-normal">ON / Open</option>
-                    <option value="OFF" class="text-base-content bg-base-200 font-normal">OFF / Closed</option>
+                    <option value="ON" class="text-base-content bg-base-200 font-normal">ON / Closed</option>
+                    <option value="OFF" class="text-base-content bg-base-200 font-normal">OFF / Open</option>
                 </select>
 
                 <select class="select select-bordered select-sm col-span-2 md:col-auto md:w-auto min-w-[120px] font-mono text-[10px] md:text-xs bg-base-200 w-full px-2" x-model="sortMode">
