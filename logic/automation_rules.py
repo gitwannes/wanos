@@ -223,18 +223,20 @@ class AutomationEngine:
 
                         # --- Action Type C: Nested Event Chaining ---
                         elif getattr(action, "event", None):
+                            # ⚡ Dynamically accept known Enums or fallback to raw strings
                             try:
                                 evt_type = EventType[action.event]
-                                follow_up_events.append(Event(
-                                    type=evt_type,
-                                    payload={}
-                                ))
-                                # --- TIER C: The Action Audit Trail (INFO) ---
-                                automation_logger.info(
-                                    f"[ACTION] '{rule.name}' -> Dispatched Internal Event [{action.event}]")
                             except KeyError:
+                                evt_type = action.event
                                 automation_logger.error(
                                     f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: '{action.event}' is not a valid EventType Enum.")
+
+                            follow_up_events.append(Event(
+                                type=evt_type,
+                                payload={}
+                            ))
+                            automation_logger.info(
+                                f"[ACTION] '{rule.name}' -> Dispatched Internal Event [{action.event}]")
 
         # =========================================================================
         # 2. SYSTEM SWEEPER: Time & Environment Audit (Option B Enforcer)
@@ -391,7 +393,10 @@ class AutomationEngine:
             if idx is not None and hasattr(config, "lighting") and idx in config.lighting.managed_lights:
                 timer_id: str = f"light_auto_off_{idx}"
 
-                if new_state == "ON":
+                # Normalize string to uppercase to catch Domoticz "On"/"Off" states
+                safe_state = str(new_state).upper() if new_state else ""
+
+                if safe_state == "ON":
                     # Look up specific delay, fallback to the global default
                     delay_mins: int = config.lighting.auto_off_delays.get(idx, config.lighting.default_auto_off_minutes)
                     deadline: int = int(time.time()) + delay_mins * 60
@@ -413,7 +418,7 @@ class AutomationEngine:
                     automation_logger.info(
                         f"[Lighting Auto-Off] Device IDX {idx} ({semantic_name}) turned ON. Scheduling OFF timer for {delay_mins} minutes (ID: {timer_id}).")
 
-                elif new_state == "OFF":
+                elif safe_state == "OFF":
                     # Instantly cancel any pending countdowns for this light,
                     # but only if it's actually ticking (prevents phantom cancellations when the timer itself turned the light off)
                     timer_exists = any(

@@ -166,12 +166,18 @@ class HueConfig(BaseModel):
     presets: Dict[str, HuePresetConfig] = Field(default_factory=dict)
 
 
+class EpsonConfig(BaseModel):
+    """Epson projector"""
+    ip_address: str
+
+
 class AppConfig(BaseModel):
     """The unified master configuration model."""
     wanos: WanosConfig
-    domoticz: DomoticzConfig
+    domoticz: Optional[DomoticzConfig] = None
     rfxcom: Optional[RFXComSettings] = None
-    hue: Optional[HueConfig] = None  # ⚡ Added modular lighting reference mapping
+    hue: Optional[HueConfig] = None
+    epson: Optional[EpsonConfig] = None
     dashboard: Dict[int, str]
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
     auth: Dict[str, str]
@@ -230,6 +236,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "domoticz": runtime_data["domoticz"],
         "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings
         "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
+        "epson": runtime_data.get("epson"),
         "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},

@@ -11,6 +11,7 @@ from .models import SystemState, Event, EventType
 from .mqtt_transport import MqttClientManager
 from .logger import WanosLogger, automation_logger
 from .config import load_config
+from integrations.epson import EpsonProjector
 
 try:
     import lgpio
@@ -31,6 +32,7 @@ class StateManager:
         self.domoticz_client: Optional[Any] = None  # Populated dynamically by Domoticz bridge
         self.rfxcom_bridge: Optional[Any] = None  # ⚡ Populated dynamically by Native RFXCOM bridge
         self.hue_bridge: Optional[Any] = None  # ⚡ Populated dynamically by local Hue API v2 bridge
+        self.epson_bridge: Optional[Any] = None
         self.logger: WanosLogger = logger
 
         # Optional reference to the MqttPublisher, injected after construction.
@@ -91,7 +93,6 @@ class StateManager:
                 self._state.devices[rfx_dev.virtual_idx] = "OFF"
 
         # ⚡ LOCAL HUE AUTO-INITIALIZATION
-        # ⚡ LOCAL HUE AUTO-INITIALIZATION
         # Pre-seeds the device registry so advanced lights and room groups appear in the UI immediately on boot.
         if hasattr(self._config, "hue") and getattr(self._config, "hue", None):
             # Seed individual bulb channels (5000x block)
@@ -116,6 +117,17 @@ class StateManager:
                     "origin": "hue"
                 }
                 self._state.devices[idx_int] = None
+
+        # ⚡ EPSON PROJECTOR AUTO-INITIALIZATION
+        # Pre-seeds the projector to OFF since it cannot report its physical state on boot
+        if getattr(self._config, "epson", None):
+            self._state.dashboard_map[80001] = "Epson Projector"
+            self._state.device_metadata[80001] = {
+                "name": "Epson Projector",
+                "type": "switch",
+                "origin": "epson"
+            }
+            self._state.devices[80001] = "OFF"
 
         # Dynamically scan configuration file for stateless triggers
         self._extract_scenes_from_config()
@@ -205,9 +217,11 @@ class StateManager:
     async def _dispatch_from_timer(self, event_type_str: str, payload: dict) -> None:
         try:
             e_type = EventType(event_type_str)
-            self.dispatch(Event(type=e_type, payload=payload))
         except ValueError:
-            await self.logger.error(f"Timer dispatch error: {event_type_str}")
+            # ⚡ Fall back to raw string for dynamic custom scenes
+            e_type = event_type_str
+
+        self.dispatch(Event(type=e_type, payload=payload))
 
     def get_state_snapshot(self) -> SystemState:
         return self._state.model_copy(deep=True)
@@ -1315,6 +1329,15 @@ class StateManager:
                     self._state.devices[90001] = True
                     deadline = int(time.time()) + (self._config.bathroom1.vent_min_runtime_mins * 60)
                     self._timer_manager.schedule("bath1_vent_lock", deadline, "BATH1_VENT_LOCK_EXPIRED")
+
+                # ⚡ EPSON INTERCEPTOR
+                if idx == 80001 and (old_val != state_val or is_force):
+                    if getattr(self, "epson_bridge", None):
+                        # We use asyncio.create_task so the TCP network call doesn't block WanOS's event queue!
+                        asyncio.create_task(self.epson_bridge.power(state_val))
+                    else:
+                        automation_logger.error(
+                            "Tried to trigger Epson projector, but bridge is offline or misconfigured.")
 
         elif event_name == "BATH1_VENT_LOCK_EXPIRED":
             # The 5-minute minimum runtime has passed. Release the internal lock.

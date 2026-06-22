@@ -112,6 +112,17 @@ if getattr(config, "hue", None) and getattr(config.hue, "bridge_ip", None):
 else:
     logger.debug("DIAGNOSTIC: Hue config NOT found or missing bridge_ip.")
 
+# 9. Bind the Epson Projector Bridge
+epson_bridge = None
+if getattr(config, "epson", None) and getattr(config.epson, "ip_address", None):
+    try:
+        from integrations.epson import EpsonProjector
+        epson_bridge = EpsonProjector(host=config.epson.ip_address)
+        state_manager.epson_bridge = epson_bridge
+        logger.info(f"Epson Projector Bridge initialized at {config.epson.ip_address}")
+    except Exception as e:
+        logger.exception(f"CRITICAL: Crash loading EpsonProjector: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manages startup and shutdown sequences safely without silent deadlocks."""
@@ -221,7 +232,7 @@ class DummyTempRequest(BaseModel):
 
 
 class GenericEventRequest(BaseModel):
-    type: EventType
+    type: Union[EventType, str]  # Allow raw strings
     payload: dict[str, Any] = {}
 
 
@@ -240,7 +251,13 @@ async def inject_dummy_temp(request: DummyTempRequest) -> dict[str, Union[str, E
 
 @app.post("/api/event")
 async def inject_event(request: GenericEventRequest) -> dict[str, Union[str, Event]]:
-    event: Event = Event(type=request.type, payload=request.payload)
+    # ⚡ Try to cast to a strict Enum. If it's a custom YAML scene, fall back to the raw string!
+    try:
+        e_type = EventType(request.type)
+    except ValueError:
+        e_type = request.type
+
+    event: Event = Event(type=e_type, payload=request.payload)
     state_manager.dispatch(event)
     return {"status": "Event dispatched", "event": event}
 

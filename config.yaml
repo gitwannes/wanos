@@ -1,6 +1,10 @@
-# --- file: config.yaml ---
+# ==============================================================================
+# WanOS Master Configuration File
+# ==============================================================================
 
-# Internal WanOS broker network configuration
+# ==============================================================================
+# 1. INTEGRATIONS & NETWORK LAYER
+# ==============================================================================
 wanos:
   mqtt:
     broker_host: "localhost"
@@ -8,7 +12,6 @@ wanos:
     username: "st"
     # password in .env
 
-# Domoticz broker network configuration
 domoticz:
   mqtt:
     broker_host: "10.32.251.181"
@@ -21,39 +24,80 @@ domoticz:
     username: "updatesensors"
     # password in .env
 
-# The Dashboard Dictionary
+epson:
+  ip_address: "10.32.251.75"
+
+weather:
+  location: "Borsbeek,BE"
+  poll_interval_mins: 30
+
+rfxcom:
+  # To find the exact USB port run: dmesg | grep tty OR lsusb
+  serial_port: "/dev/rfxcom"
+
+# --- Declarative translation mapping for physical 433MHz signals ---
+native_rfx:
+  - name: "cinema schemer"
+    virtual_idx: 40001  # RFX1
+    protocol: "Lighting4"
+    on_id: "541555"
+    off_id: "541554"
+  - name: "buro Wannes schemer"
+    virtual_idx: 40002  # RFX2
+    protocol: "Lighting4"
+    on_id: "544555"
+    off_id: "544554"
+  - name: "living schemer"
+    virtual_idx: 40003  # RFX3
+    protocol: "Lighting4"
+    on_id: "545155"
+    off_id: "545154"
+  - name: "kerstboom"
+    virtual_idx: 40004  # RFX4
+    protocol: "Lighting4"
+    on_id: "545455"
+    off_id: "545454"
+
+
+# ==============================================================================
+# 2. PRESENTATION LAYER (UI MAPPINGS)
+# ==============================================================================
 # Maps raw numeric IDXs to semantic names exclusively for the frontend UI.
 dashboard:
-# --- Domoticz Hardware (Real IDXs) ---
+  # --- Core System & Hardware ---
+  8: "pc"
+  9: "pc_power"
+  9618: "pc_aux"
+  9622: "pc_aux_power"
   8567: "safety_ssr"
-  8577: "sauna_extrvent"
+
+  # --- Environment ---
+  30001: "outside"
+
+  # --- Wellness & Sauna ---
   7550: "sauna"
-  1500: "sauna_zoutlamp"
   7551: "ir"
-  283: "cinema_main"
-  282: "buro"
+  1500: "sauna_zoutlamp"
+  8577: "sauna_extrvent"
+  10001: "door_sauna"
+  20001: "sauna_high"
+  20002: "sauna_low"
+
+  # --- Bathroom 1 ---
   141: "bathroom1_main"
   7555: "bathroom1_wastafel"
   7558: "bathroom1_ventilator"
-  8: "pc"
-  9618: "pc_aux"
-  9: "pc_power"
-  9622: "pc_aux_power"
-  60: "gang_beneden"
-  169: "gang_boven"
-
-  # --- Physical Pi Hardware GPIOs (Virtual IDXs) ---
-  10001: "door_sauna"
   10002: "door_bathroom1"
-
-  # --- Physical Pi Hardware SHT sensors (Virtual IDXs) ---
-  20001: "sauna_high"
-  20002: "sauna_low"
-  20003: "cinema"
   20004: "bathroom1"
 
-  # --- OpenWeatherMap sensors (Virtual IDXs) ---
-  30001: "outside"
+  # --- Ground Floor ---
+  60: "gang_beneden"
+
+  # --- First Floor ---
+  169: "gang_boven"
+  282: "buro"
+  283: "cinema_main"
+  20003: "cinema"
 
 # ⚡ Devices explicitly hidden from the Device Explorer UI
 deviceexplorer_exclude:
@@ -62,40 +106,49 @@ deviceexplorer_exclude:
   - 7550  # Sauna
   - 7551  # IR
   - 1612  # toilet ventilatie motor (= sync'd met knop binnen)
-  - 1625  # badk 2e binnen (= unused & sync'd met knop buitenà)
+  - 1625  # badk 2e binnen (= unused & sync'd met knop buiten)
 
-weather:  # for OpenWeatherMap
-  location: "Borsbeek,BE"
-  poll_interval_mins: 30
 
-## Runtime System Parameters - Modifiable via Web UI
-# Dictionaries (No Dashes): Used for describing a single, unique thing with named properties
+# ==============================================================================
+# 3. DOMAIN RUNTIME PARAMETERS
+# ==============================================================================
 sauna:
   default_sauna_setpoint: 80     # Default sauna temperature setpoint
-  max_temp: 95             # maximum setpoint that can be set in the UI
-  kp: 3.0                  # PID P
-  ki: 0.01                 # PID I
-  kd: 0.0                  # PID D
-  default_timer: 70        # Default sauna duration in minutes
-  vent_delay_mins: 1       # Cooldown wait time before starting the extraction fan - will be 10 min
-  vent_run_mins: 160       # Duration the extraction fan runs
-  timer_offset_temp: 7.0   # Frozen countdown: triggers when temp >= (Setpoint - Offset)
+  max_temp: 95                   # Maximum setpoint that can be set in the UI
+  kp: 3.0                        # PID Proportional
+  ki: 0.01                       # PID Integral
+  kd: 0.0                        # PID Derivative
+  default_timer: 70              # Default sauna duration in minutes
+  vent_delay_mins: 1             # Cooldown wait time before starting the extraction fan
+  vent_run_mins: 160             # Duration the extraction fan runs
+  timer_offset_temp: 7.0         # Frozen countdown: triggers when temp >= (Setpoint - Offset)
 
 ir:
-  default_ir_modulation: 75     # Default IR power modulation 75%
+  default_ir_modulation: 75      # Default IR power modulation (75%)
   min_time_mins: 5
   max_time_mins: 20
 
 bathroom1:
-  vent_on_humidity: 80      # Auto-engage fan above this %
-  vent_off_humidity: 74     # Auto-disengage fan below this %
-  vent_min_runtime_mins: 5  # Minimum time the fan must run before auto-disengaging
+  vent_on_humidity: 80           # Auto-engage fan above this %
+  vent_off_humidity: 74          # Auto-disengage fan below this %
+  vent_min_runtime_mins: 5       # Minimum time the fan must run before auto-disengaging
+
+# 🌍 The Daily Time-Series Engine (Environmental Bounds)
+environmental_schedule:
+  blinds:
+    morning_open_earliest: "07:30"
+    morning_open_latest: "09:00"
+    evening_close_earliest: "16:30"
+    evening_close_latest: "22:00"
+  twilight:
+    evening_off_time: "23:00"
+    morning_on_time: "06:00"
 
 lighting:
-  managed_lights: [52, 53, 60, 100, 141, 169, 282, 283, 348, 411, 1524, 1622, 40001, 40002, 40003, 40004, 6051, 6060, 6067, 6070, 6731, 7236, 7237, 7312, 9645, 9648]
-  # Specific delay overrides in minutes
-  default_auto_off_minutes: 300
   # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
+  managed_lights: [52, 53, 60, 100, 141, 169, 282, 283, 348, 411, 1524, 1622, 40001, 40002, 40003, 40004, 6051, 6060, 6067, 6070, 6731, 7236, 7237, 7312, 9645, 9648]
+  default_auto_off_minutes: 300
+  # Specific delay overrides in minutes
   auto_off_delays:
     100: 10
     141: 120
@@ -112,41 +165,15 @@ lighting:
     9645: 15
     9648: 5
 
-# 🌍 The Daily Time-Series Engine (Environmental Bounds)
-environmental_schedule:
-  blinds:
-    morning_open_earliest: "07:30"
-    morning_open_latest: "09:00"
-    evening_close_earliest: "16:30"
-    evening_close_latest: "22:00"
-  twilight:
-    evening_off_time: "23:00"
-    morning_on_time: "06:00"
 
-## Part 2: Automation rules
-# Lists (Dashes): Used for describing a collection of repeating things
-# (like a list of 10 Automation Rules, or a list of 3 Actions to take)
+# ==============================================================================
+# 4. AUTOMATION RULES & SCENES
+# ==============================================================================
 automations:
-# ==============================================================================
-# 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
-# ==============================================================================
-# The backend Time-Series Engine automatically broadcasts semantic triggers
-# based on mathematically clamped Sunrise/Sunset. We map those generic events
-# to specific hardware components here.
-# ==============================================================================
-# ==============================================================================
-# 📚🌍 available Environmental & Twilight Triggers
-# Use these specific event strings in your 'trigger:' blocks below.
-#
-# BLINDS_OPEN_TRIGGER           : Fired in the morning to open blinds (clamped between earliest/latest configured times).
-# BLINDS_CLOSE_TRIGGER          : Fired in the evening to close blinds (clamped between earliest/latest configured times).
-# TWILIGHT_EVENING_ON_TRIGGER   : Fired exactly at Sunset to turn on evening mood/garden lighting.
-# TWILIGHT_EVENING_OFF_TRIGGER  : Fired at your configured evening cutoff (e.g., 23:00) to turn off evening lights.
-# TWILIGHT_MORNING_ON_TRIGGER   : Fired at your configured morning start (e.g., 06:00) to turn on morning lights.
-# TWILIGHT_MORNING_OFF_TRIGGER  : Fired exactly at Sunrise to turn off morning lights.
-#
-# ==============================================================================
 
+  # --------------------------------------------------------------------------
+  # 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
+  # --------------------------------------------------------------------------
   - name: "Morning Blinds Open"
     trigger:
       event: "BLINDS_OPEN_TRIGGER"
@@ -159,6 +186,7 @@ automations:
         state: "0"
       - idx: 583   # 1eV schuifraam
         state: "0"
+
   - name: "Evening Blinds Close"
     trigger:
       event: "BLINDS_CLOSE_TRIGGER"
@@ -182,8 +210,9 @@ automations:
         state: "ON"
       - idx: 9627 # kerstverl tuin achter
         state: "ON"
-      - idx: 40004 # kerstverl voortuin
+      - idx: 40004 # kerstverl voortuin (Assuming duplicate IDX is intentional RFX bridging)
         state: "ON"
+
   - name: "Tuinlichten & kerststuff uit 's avonds"
     trigger:
       - event: "TWILIGHT_EVENING_OFF_TRIGGER"
@@ -196,6 +225,7 @@ automations:
         state: "OFF"
       - idx: 40004 # kerstverl voortuin
         state: "OFF"
+
   - name: "Kerstverlichting voor & achter aan 's morgens"
     trigger:
       - event: "TWILIGHT_MORNING_ON_TRIGGER"
@@ -204,6 +234,7 @@ automations:
         state: "ON"
       - idx: 40004 # kerstverl voortuin
         state: "ON"
+
   - name: "Kerstverlichting voor & achter uit 's morgens"
     trigger:
       - event: "TWILIGHT_MORNING_OFF_TRIGGER"
@@ -227,82 +258,9 @@ automations:
       - idx: 7396
         state: "OFF"
 
-### --- HARDWARE TOGGLES ---
-  - name: "PC ON/OFF -> PC Aux ON/OFF"
-    trigger:
-      idx: 8
-      state: "SYNC"
-    actions:
-      - idx: 9618
-        state: "SYNC"
-
-  - name: "PC Aux ON -> Buro Schemer ON (#Only if Dark)"
-    trigger:
-      idx: 9618
-      state: "ON"
-    #conditions:
-    #  - type: "time_of_day"
-    #    is: "dark"
-    actions:
-      - idx: 40002
-        state: "ON"
-
-  - name: "PC Aux OFF -> Buro Schemer OFF"
-    trigger:
-      idx: 9618
-      state: "OFF"
-    actions:
-      - idx: 40002
-        state: "OFF"
-
-  - name: "Hue test: buro Wannes schemer ON -> Hue cinema ON"
-    trigger:
-      idx: 40002
-      state: "ON"
-    actions:
-      - target: "hue_scene"
-        scene: "hue_slpk_wannes_rm_lezen"
-
-# --- SAUNA MACROS ---
-  - name: "Sauna Lights ON"
-    trigger:
-      event: "SAUNA_ON"
-    actions:
-      - target: "hue_scene"
-        scene: "hue_sauna_rm_savanne_zonsondergang"
-      - idx: 1500
-        state: "ON"  # Sauna zoutlamp
-  - name: "Sauna OFF -> Hue Off"
-    trigger:
-      event: "SAUNA_OFF"
-    actions:
-      - idx: 51002  # Sauna Hue alles
-        state: "OFF"
-      - idx: 1500
-        state: "OFF"  # Sauna zoutlamp
-
-# --- TEST ---
-  - name: "test Hue1"
-    trigger:
-      - idx: 7396 # tuinlicht
-        state: "ON"
-      - idx: 10001 # deur sauna
-        state: "ON"  # ON = Open, OFF = Closed
-    actions:
-      - target: "hue_scene"
-        scene: "hue_cinema_rm_tropische_schemering"
-  - name: "test Hue2"
-    trigger:
-      - idx: 7396 # tuinlicht
-        state: "OFF"
-      - idx: 10001 # deur sauna
-        state: "OFF"  # ON = Open, OFF = Closed
-    actions:
-      - target: "hue_scene"
-        scene: "hue_cinema_rm_helder"
-
-
-### --- SCENES ---
+  # --------------------------------------------------------------------------
+  # 🎛️ MANUALLY TRIGGERED SCENES (UI Visible)
+  # --------------------------------------------------------------------------
   - name: "ALL OFF gv"
     scene: true
     trigger:
@@ -312,25 +270,21 @@ automations:
         state: "OFF"
       - idx: 52       # licht living
         state: "OFF"
-      - idx: 7236     # licht living Hue
-        state: "OFF"
       - idx: 53       # licht keuken
         state: "OFF"
-      - idx: 411       # licht voorraad
+      - idx: 411      # licht voorraad
         state: "OFF"
-      - idx: 6060       # licht eetkamer
-        state: "OFF"
-      - idx: 6731       # licht eetkamer Hue
+      - idx: 6060     # licht eetkamer
         state: "OFF"
       - idx: 40003    # licht living schemer groot (via RFX3)
         state: "OFF"
       - idx: 40004    # licht kerstboom (via RFX4)
         state: "OFF"
-      - idx: 9645       # licht toilet
+      - idx: 9645     # licht toilet
         state: "OFF"
-      - idx: 100       # licht garage
+      - idx: 100      # licht garage
         state: "OFF"
-      - idx: 7396       # licht tuin
+      - idx: 7396     # licht tuin
         state: "OFF"
 
   - name: "ALL OFF 1eV"
@@ -340,7 +294,7 @@ automations:
     actions:
       - idx: 283  # cinema_main
         state: "OFF"
-      - idx: 7312  # cinema_hue
+      - idx: 7312 # cinema_hue # ToChangeToHue50x
         state: "OFF"
       - idx: 40001 # cinema_schemer
         state: "OFF"
@@ -364,17 +318,17 @@ automations:
         state: "OFF"
       - idx: 170  # badkamer groot
         state: "OFF"
-      - idx: 1524     # slpk Dries
+      - idx: 1524 # slpk Dries
         state: "OFF"
-      - idx: 6048     # slpk Liene
+      - idx: 6048 # slpk Liene
         state: "OFF"
-      - idx: 6051     # berging
+      - idx: 6051 # berging
         state: "OFF"
-      - idx: 6067     # slpk Wannes
+      - idx: 6067 # slpk Wannes
         state: "OFF"
-      - idx: 6070     # slpk Wannes nachtlichtjes
+      - idx: 6070 # slpk Wannes nachtlichtjes
         state: "OFF"
-      - idx: 7237     # slpk Dries Hue
+      - idx: 7237 # slpk Dries Hue # ToChangeToHue50x
         state: "OFF"
 
   - name: "ALL OFF overal"
@@ -392,53 +346,49 @@ automations:
       event: "SCENE_GOCOSY"
     actions:
       - idx: 52
-        state: "ON"
-      - idx: 7236
-        state: "ON"
-      - idx: 40003
         state: "OFF"
-      - idx: 40004
-        state: "OFF"
+      - idx: 51005    # Hue living
+        state: "ON"
+        bri: 254
+        xy: [0.6915, 0.3083] # Relaxing deep red
+      - idx: 40003    # licht living schemer groot (via RFX3)
+        state: "ON"
+      - idx: 40004    # licht kerstboom (via RFX4)
+        state: "ON"
 
-### Using Raw Domoticz IDXs for sensors not used above
+  # --------------------------------------------------------------------------
+  # 💡 ROOM MACROS & LIGHTING CHAINS
+  # --------------------------------------------------------------------------
   - name: "Slpk_Dries"
     trigger:
       idx: 1524
       state: "SYNC"
     actions:
-      - idx: 7237 # Hue
+      - idx: 7237 # Hue # ToChangeToHue50x
         state: "SYNC"
+
   - name: "KeukenLivingEetk_EetkHue"
     trigger:
       - idx: 52   # Living
         state: "ON"
       - idx: 53   # Keuken
         state: "ON"
-      - idx: 6060  # Eetkamer
+      - idx: 6060 # Eetkamer
         state: "ON"
     actions:
-      - idx: 6731 # Eetkamer Hue
+      - idx: 6731 # Eetkamer Hue # ToChangeToHue50x
         state: "ON"
+
   - name: "BuroCinemaPC_cosy"
     trigger:
       - idx: 282  # Buro
         state: "ON"
-      - idx: 283  # Cinema
-        state: "ON"
     actions:
-      - target: "hue_scene"
-        scene: "hue_cinema_rm_tropische_schemering"
       - idx: 40001 # Cinema schemer klein
         state: "ON"
       - idx: 40002 # Buro schemer
         state: "ON"
-  - name: "toilet_gv_ventilatie_on"
-    trigger:
-      idx: 9648  # toilet ventilatie knop
-      state: "SYNC"
-    actions:
-      - idx: 1612 # ventilatie motor
-        state: "SYNC"
+
   - name: "garage_motion"
     trigger:
       idx: 106  # garage motion
@@ -447,8 +397,139 @@ automations:
       - type: "time_of_day"
         is: "dark"
     actions:
-      - idx: 100       # licht garage
+      - idx: 100 # licht garage
         state: "ON"
+
+  - name: "achterdeur_waskot"
+    trigger:
+      idx: 94  # achterdeur
+      state: "ON"
+    actions:
+      - idx: 348 # licht waskot
+        state: "ON"
+
+  - name: "garage_waskot_OFF"
+    trigger:
+      idx: 100  # licht garage
+      state: "OFF"
+    actions:
+      - idx: 348  # licht waskot
+        state: "OFF"
+
+  - name: "gang_boven_berging_OFF"
+    trigger:
+      idx: 169  # gang boven
+      state: "OFF"
+    actions:
+      - idx: 6051  # berging
+        state: "OFF"
+
+  # --------------------------------------------------------------------------
+  # 🛋️ LIVING ROOM: "SPARE" SMART BUTTON (IDX 6689)
+  # --------------------------------------------------------------------------
+
+  # --- Scenario 1: Room is already active -> Shut down the house ---
+  - name: "Spare Button: Hue is ON -> Trigger ALL OFF"
+    trigger:
+      - idx: 6689
+        state: "ON"
+      - idx: 6689
+        state: "OFF"
+    conditions:
+      - type: "device_state"
+        idx: 51005       # living hue room
+        is: "ON"         # 🛡️ Only fires if the living room is already lit
+    actions:
+      - event: "SCENE_ALL_OFF"   # Note: Change to SCENE_GV_OFF if you only want the ground floor to turn off!
+
+  # --- Scenario 2: Room is Dark AND it's nighttime -> Go Cosy ---
+  - name: "Spare Button: Hue OFF + Night -> Go Cosy"
+    trigger:
+      - idx: 6689
+        state: "ON"
+      - idx: 6689
+        state: "OFF"
+    conditions:
+      - type: "device_state"
+        idx: 51005
+        is: "OFF"        # Condition A: Room is currently off
+      - type: "time_of_day"
+        is: "dark"       # Condition B: Sun has set
+    actions:
+      - event: "SCENE_GOCOSY"
+
+  # --- Scenario 3: Room is Dark AND it's daytime -> Red Accent ---
+  - name: "Spare Button: Hue OFF + Day -> Red Accent"
+    trigger:
+      - idx: 6689
+        state: "ON"
+      - idx: 6689
+        state: "OFF"
+    conditions:
+      - type: "device_state"
+        idx: 51005
+        is: "OFF"        # Condition A: Room is currently off
+      - type: "time_of_day"
+        is: "light"      # Condition B: Sun is still up
+    actions:
+      - idx: 51005       # living hue room
+        state: "ON"
+        bri: 254
+        xy: [ 0.6915, 0.3083 ] # Deep red
+      - idx: 52          # living main
+        state: "OFF"     # Turn off the traditional lights (Ensure this doesn't cut power to the Hue!)
+
+  # --------------------------------------------------------------------------
+  # ⚙️ HARDWARE SYNC & SYSTEM MACROS
+  # --------------------------------------------------------------------------
+  - name: "PC ON/OFF -> PC Aux ON/OFF"
+    trigger:
+      idx: 8
+      state: "SYNC"
+    actions:
+      - idx: 9618
+        state: "SYNC"
+
+  - name: "PC Aux ON -> Buro Schemer ON (#Only if Dark)"
+    trigger:
+      idx: 9618
+      state: "ON"
+    actions:
+      - idx: 40002
+        state: "ON"
+
+  - name: "PC Aux OFF -> Buro Schemer OFF"
+    trigger:
+      idx: 9618
+      state: "OFF"
+    actions:
+      - idx: 40002
+        state: "OFF"
+
+  - name: "toilet_gv_ventilatie_on"
+    trigger:
+      idx: 9648  # toilet ventilatie knop
+      state: "SYNC"
+    actions:
+      - idx: 1612 # ventilatie motor
+        state: "SYNC"
+
+  - name: "badkamer_2e_SyncBinnenBuiten"
+    trigger:
+      idx: 170  # badkamer groot buiten
+      state: "SYNC"
+    actions:
+      - idx: 1625  # badkamer groot binnen
+        state: "SYNC"
+
+  - name: "badkamer_2e_off"
+    trigger:
+      idx: 170  # badkamer groot buiten
+      state: "OFF"
+    actions:
+      - idx: 171  # badkamer wastafel
+        state: "OFF"
+
   - name: "gocosy-savonds"
     trigger:
       event: TWILIGHT_EVENING_ON_TRIGGER
@@ -458,79 +539,209 @@ automations:
         is: "ON"
     actions:
       - event: SCENE_GOCOSY
-  - name: "achterdeur_waskot"
+
+# --------------------------------------------------------------------------
+  # 🛁 BATHROOM 1 (1e) LIGHTING & HUE SYNC
+  # --------------------------------------------------------------------------
+
+  # --- Wastafel (Sink) Logic: Split into Day/Night context ---
+  - name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
     trigger:
-      idx: 94  # achterdeur
+      idx: 7555          # badkamer 1e wastafel
+      state: "ON"
+    conditions:
+      - type: "device_state"
+        idx: 51001       # badkamer 1e hue room
+        is: "ON"         # Only fires if the room is already lit
+    actions:
+      - idx: 51001
+        state: "ON"
+        bri: 100
+        xy: [0.3127, 0.3290] # Pure crisp white for mirror use
+
+  - name: "Badk 1e: Wastafel ON -> Hue Red (If room was dark)"
+    trigger:
+      idx: 7555
+      state: "ON"
+    conditions:
+      - type: "device_state"
+        idx: 51001
+        is: "OFF"        # Fires if this is the first light turned on
+    actions:
+      - idx: 51001
+        state: "ON"
+        bri: 254
+        xy: [0.6915, 0.3083] # Relaxing deep red
+
+  # --- Main Bathroom Switch (141) Master Control ---
+  - name: "Badk 1e: Main Switch ON -> Hue Red"
+    trigger:
+      idx: 141           # badkamer 1e groot switch
       state: "ON"
     actions:
-      - idx: 348       # licht waskot
+      - idx: 51001       # badkamer 1e hue room
         state: "ON"
-  - name: "badkamer_1e_off"
+        bri: 254
+        xy: [0.6915, 0.3083] # Relaxing deep red
+
+  - name: "Badk 1e: Main Switch OFF -> Hue & wastafel OFF"
     trigger:
-      idx: 141  # badkamer groot
+      idx: 141
       state: "OFF"
     actions:
+      - idx: 51001
+        state: "OFF"
       - idx: 7555  # badkamer wastafel
         state: "OFF"
-  - name: "badkamer_2e_SyncBinnenBuiten"
+
+  # --- Hue App Override Sync (Bidirectional support) ---
+  - name: "Badk 1e: Hue App Syncs to Main Switch"
     trigger:
-      idx: 170  # badkamer groot buiten
+      idx: 51001         # If someone uses the Hue app/remote...
       state: "SYNC"
     actions:
-      - idx: 1625  # badkamer groot binnen
+      - idx: 141         # ...the Domoticz relay physically follows suit.
         state: "SYNC"
-  - name: "badkamer_2e_off"
+
+  # --------------------------------------------------------------------------
+  # 🛏️ SLPK WANNES LIGHTING & HUE SYNC
+  # --------------------------------------------------------------------------
+
+  # --- Physical Switch Master Control ---
+  - name: "Slpk Wannes: Switch ON -> Hue Red (If Room was Dark)"
     trigger:
-      idx: 170  # badkamer groot buiten
+      idx: 6070          # slpk Wannes nachtlichtjes (2e switch)
+      state: "ON"
+    conditions:
+      - type: "device_state"
+        idx: 51006       # room: slpk Wannes-rm
+        is: "OFF"        # 🛡️ Anti-Overwrite Guard: Only applies Red if the room was off
+    actions:
+      - idx: 51006
+        state: "ON"
+        bri: 254
+        xy: [ 0.6915, 0.3083 ] # Deep red
+
+  - name: "Slpk Wannes: Switch OFF -> Hue OFF"
+    trigger:
+      idx: 6070
       state: "OFF"
     actions:
-      - idx: 171  # badkamer wastafel
-        state: "OFF"
-  - name: "garage_waskot_OFF"
-    trigger:
-      idx: 100  # licht garage
-      state: "OFF"
-    actions:
-      - idx: 348  # licht waskot
-        state: "OFF"
-  - name: "gang_boven_berging_OFF"
-    trigger:
-      idx: 169  # gang boven
-      state: "OFF"
-    actions:
-      - idx: 6051  # berging
+      - idx: 51006
         state: "OFF"
 
-### native hardware-connected RFXCom RFXtrx433E device
-# To find the exact USB port when you plug in the device, run the following in terminal:
-#  dmesg | grep tty   OR   lsusb
-# For now, we default to the standard Linux USB serial assignment:
-rfxcom:
-  serial_port: "/dev/rfxcom"
+  # --- Hue App Override Sync (Bidirectional support) ---
+  - name: "Slpk Wannes: Hue App Syncs to Switch"
+    trigger:
+      idx: 51006         # If Wannes uses the Hue app/remote...
+      state: "SYNC"
+    actions:
+      - idx: 6070        # ...the physical Domoticz relay UI follows suit.
+        state: "SYNC"
 
-native_rfx:
-  - name: "cinema schemer"
-    virtual_idx: 40001  # RFX1
-    protocol: "Lighting4"
-    on_id: "541555"
-    off_id: "541554"
-  - name: "buro Wannes schemer"
-    virtual_idx: 40002  # RFX2
-    protocol: "Lighting4"
-    on_id: "544555"
-    off_id: "544554"
-  - name: "living schemer"
-    virtual_idx: 40003  # RFX3
-    protocol: "Lighting4"
-    on_id: "545155"
-    off_id: "545154"
-  - name: "kerstboom"
-    virtual_idx: 40004  # RFX4
-    protocol: "Lighting4"
-    on_id: "545455"
-    off_id: "545454"
-#  - name: "RFX5 unused"
-#    virtual_idx: 40005  # RFX5
-#    protocol: "Lighting4"
-#    on_id: "545511"
-#    off_id: "545414"
+  # --------------------------------------------------------------------------
+  # 🧖‍♂️ SAUNA AUTOMATIONS
+  # --------------------------------------------------------------------------
+  - name: "Sauna Lights ON"
+    trigger:
+      event: "SAUNA_ON"
+    actions:
+      - target: "hue_scene"
+        scene: "hue_sauna_rm_savanne_zonsondergang"
+      - idx: 1500
+        state: "ON"  # Sauna zoutlamp
+
+  - name: "Sauna OFF -> Hue Off"
+    trigger:
+      event: "SAUNA_OFF"
+    actions:
+      - idx: 51002  # Sauna Hue alles
+        state: "OFF"
+      - idx: 1500
+        state: "OFF"  # Sauna zoutlamp
+
+  # --------------------------------------------------------------------------
+  # 🍿 CINEMA MODE SCENES
+  # --------------------------------------------------------------------------
+
+  - name: "CINEMA ON"
+    scene: true
+    trigger:
+      event: "SCENE_CINEMA_ON"
+    actions:
+      - idx: 80001    # Epson Projector
+        state: "FORCE_ON"
+      - idx: 583      # 1eV schuifraam (blinds)
+        state: "100"  # 100 = Closed
+      # Turn off surrounding lights and PC aux
+      - idx: 282      # buro
+        state: "OFF"
+      - idx: 283      # cinema_main
+        state: "OFF"
+      - idx: 60       # gang beneden
+        state: "OFF"
+      - idx: 169      # gang boven
+        state: "OFF"
+      - idx: 9618     # pc_aux
+        state: "OFF"
+      # --- SONOS PLACEHOLDER ---
+      # - idx: XXXXX  # Replace with Domoticz Sonos virtual IDX when available
+      #   state: "OFF"
+      - idx: 51004    # Hue cinema group
+        state: "ON"
+        bri: 254
+        xy: [0.6744, 0.3212]
+
+  # --- CINEMA OFF: SPLIT INTO TWO RULES FOR IF/ELSE LOGIC ---
+  - name: "CINEMA OFF"
+    # This one makes it to the dashboard.trigger:
+    # It fires the event "SCENE_CINEMA_OFF", both this and "CINEMA OFF (Day)" are then evaluated.
+    scene: true
+    trigger:
+      event: "SCENE_CINEMA_OFF"
+    conditions:
+      - type: "time_of_day"
+        is: "dark"
+    actions:
+      - idx: 80001    # Epson Projector
+        state: "FORCE_OFF"
+      - idx: 51004    # Hue cinema group
+        state: "OFF"
+      - idx: 283      # cinema_main light
+        state: "ON"   # Turn on lights because it is dark outside!
+  - name: "CINEMA OFF (Day)"
+    trigger:
+      event: "SCENE_CINEMA_OFF"
+    conditions:
+      - type: "time_of_day"
+        is: "light"
+    actions:
+      - idx: 80001    # Epson Projector
+        state: "FORCE_OFF"
+      - idx: 51004    # Hue cinema group
+        state: "OFF"
+      - idx: 583      # 1eV schuifraam (blinds)
+        state: "0"    # Open the blinds to let the daylight back in!
+
+  # --------------------------------------------------------------------------
+  # 🧪 TEST & DEBUG MACROS
+  # --------------------------------------------------------------------------
+  - name: "test Hue1"
+    trigger:
+      - idx: 7396 # tuinlicht
+        state: "ON"
+      - idx: 10001 # deur sauna
+        state: "ON"  # ON = Open, OFF = Closed
+    actions:
+      - target: "hue_scene"
+        scene: "hue_cinema_rm_tropische_schemering"
+
+  - name: "test Hue2"
+    trigger:
+      - idx: 7396 # tuinlicht
+        state: "OFF"
+      - idx: 10001 # deur sauna
+        state: "OFF"  # ON = Open, OFF = Closed
+    actions:
+      - target: "hue_scene"
+        scene: "hue_cinema_rm_helder"

@@ -1,6 +1,6 @@
 # --- file: core/models.py ---
 from pydantic import BaseModel, Field
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 from enum import Enum
 
 
@@ -16,12 +16,6 @@ class EventType(str, Enum):
     BATH1_VENT_LOCK_EXPIRED = "BATH1_VENT_LOCK_EXPIRED"  # Fired when the bathroom vent minimum runtime ends
     ALERT_DISMISSED = "ALERT_DISMISSED"  # General error message on top of the UI
     TEST_ALERT_INJECTED = "TEST_ALERT_INJECTED"  # to test the teneral error message on top of the UI
-
-    # Macro & Scene Events
-    SCENE_GV_OFF = "SCENE_GV_OFF"
-    SCENE_VERDIEP1_OFF = "SCENE_VERDIEP1_OFF"
-    SCENE_VERDIEP2_OFF = "SCENE_VERDIEP2_OFF"
-    SCENE_ALL_OFF = "SCENE_ALL_OFF"
 
     # Sauna & Logic Events
     SAUNA_ON = "SAUNA_ON"
@@ -96,7 +90,7 @@ class SystemAdminState(BaseModel):
 
 
 class Event(BaseModel):
-    type: EventType
+    type: Union[EventType, str]  # Let custom scene strings live in the core event bus
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
