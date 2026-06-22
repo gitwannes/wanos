@@ -51,11 +51,29 @@ class StateManager:
         # ⚡ Map the excluded UI devices to the live state payload
         self._state.system.hidden_explorer_idxs = self._config.deviceexplorer_exclude
 
-        # ⚡ STALE CACHE PURGE: Pre-fill the state dictionary with explicit None values
-        # for every mapped dashboard device. This forces the frontend to overwrite its
-        # stale UI cache with 'null', triggering the "SYNCING..." visual state upon reconnect!
-        for idx in self._state.dashboard_map.keys():
-            self._state.devices[idx] = None
+        # ⚡ STALE CACHE PURGE & COMPREHENSIVE ALLOCATION: Pre-fill the state dictionary with explicit None values
+        # for every unique raw integer IDX mentioned anywhere in config.yaml (Dashboard, Managed Lights,
+        # and Automation Triggers/Actions). This forces the frontend to overwrite its stale UI cache
+        # with 'null', triggering the "SYNCING..." visual state upon reconnect, and ensures no device stays untracked.
+        all_config_idxs = set()
+        if hasattr(self._config, "dashboard"):
+            all_config_idxs.update(k for k in self._config.dashboard.keys() if isinstance(k, int))
+        if hasattr(self._config, "lighting") and self._config.lighting.managed_lights:
+            all_config_idxs.update(idx for idx in self._config.lighting.managed_lights if isinstance(idx, int))
+        if hasattr(self._config, "automations"):
+            for rule in self._config.automations:
+                triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
+                for t in triggers:
+                    if t.idx is not None:
+                        all_config_idxs.add(t.idx)
+                if rule.actions:
+                    for action in rule.actions:
+                        if action.idx is not None:
+                            all_config_idxs.add(action.idx)
+
+        for idx in all_config_idxs:
+            if idx < 10000:  # Only track real external hardware components
+                self._state.devices[idx] = None
 
         # ⚡ NATIVE RFX AUTO-INITIALIZATION
         # Maps the RFX devices and forcefully sets them to "OFF" since 433MHz is stateless and can't be queried.

@@ -40,12 +40,18 @@ class DomoticzHomeHubBridge(WanosComponent):
 
     @property
     def watched_idxs(self) -> set[int]:
-        """Dynamically builds a whitelist by scanning both the dashboard and automations."""
+        """Dynamically builds a comprehensive whitelist by scanning the dashboard, managed lights, and automations."""
         idxs = set()
 
         # 1. Grab UI Dashboard IDXs
         if hasattr(self.state_manager._config, "dashboard"):
             for idx in self.state_manager._config.dashboard.keys():
+                if isinstance(idx, int) and idx < 10000:
+                    idxs.add(idx)
+
+        # 2. Grab Managed Lights IDXs
+        if hasattr(self.state_manager._config, "lighting") and self.state_manager._config.lighting.managed_lights:
+            for idx in self.state_manager._config.lighting.managed_lights:
                 if isinstance(idx, int) and idx < 10000:
                     idxs.add(idx)
 
@@ -137,11 +143,13 @@ class DomoticzHomeHubBridge(WanosComponent):
                 return
             idx = int(idx_str)
 
-            is_favorite = device.get("Favorite", 0) == 1
+            # ⚡ RESOLVE DASHBOARD SCOPE: Re-extract config_name at the top of the block
+            # to safely clear the NameError thrown by the normalization pipeline.
             config_name = self.state_manager._config.dashboard.get(idx)
+            is_favorite = device.get("Favorite", 0) == 1
 
-            # ⚡ ONLY process devices that are starred in Domoticz OR explicitly mapped in WanOS config.yaml
-            if not is_favorite and not config_name:
+            # ⚡ COMPREHENSIVE SYNC GATE: Only process devices starred in Domoticz OR explicitly monitored anywhere in config.yaml
+            if not is_favorite and idx not in self.watched_idxs:
                 return
 
             # Dynamically register this so the MQTT listener watches it permanently
@@ -431,6 +439,9 @@ class DomoticzHomeHubBridge(WanosComponent):
             forced_devices = set()
             initialized_devices = set()
             rfx_origins: dict[int, Any] = {}
+            idxs_to_check: set[int] = set()
+            is_full_sweep: bool = False
+
             if events:
                 for event in events:
                     # Safely grab payload, defaulting to empty dict for events that don't have one
@@ -441,12 +452,17 @@ class DomoticzHomeHubBridge(WanosComponent):
                     if payload.get("is_initialization") and payload.get("idx") is not None:
                         initialized_devices.add(payload.get("idx"))
 
-                    if event.type == EventType.HUB_STATE_CHANGED:
+                    if event.type in [EventType.HUB_STATE_CHANGED, EventType.LIGHTING_STATE_CHANGED]:
                         if payload.get("force") and payload.get("idx") is not None:
                             forced_devices.add(payload.get("idx"))
                         if "rfx_origin" in payload and payload.get("rfx_origin") is not None:
                             rfx_origins[payload.get("idx")] = payload.get("rfx_origin")
-                    elif event.type == EventType.CONFIG_RELOAD_REQUESTED:
+                        if payload.get("idx") is not None:
+                            idxs_to_check.add(payload.get("idx"))
+                    elif event.type in [EventType.SYSTEM_SWEEP_REQUESTED, EventType.CONFIG_RELOAD_REQUESTED]:
+                        is_full_sweep = True
+
+                    if event.type == EventType.CONFIG_RELOAD_REQUESTED:
                         # Delta verification evaluation loop for dynamic inclusions/exclusions
                         new_whitelist = self.watched_idxs
                         added_idxs = new_whitelist - self._tracked_whitelist
@@ -469,8 +485,20 @@ class DomoticzHomeHubBridge(WanosComponent):
                                     await self.mqtt_client.publish(self._out_topic, command_payload)
                                     await asyncio.sleep(0.05)
 
-            # Iterate purely over integer IDXs directly mapped in state.devices
-            for idx, current_state in state.devices.items():
+            # ⚡ STRICT EVENT-DRIVEN ROUTING GUARD ⚡
+            # If a full sweep macro runs, parse all physical hardware targets. Otherwise, exclusively
+            # evaluate the explicit device indices mutated in this event transaction. This isolates
+            # background metrics/telemetry ticks (SYSTEM_METRICS_UPDATED) and drops un-synced queue floods entirely.
+            if is_full_sweep:
+                idxs_to_check = {idx for idx in state.devices.keys() if isinstance(idx, int) and idx < 10000}
+
+            if not idxs_to_check:
+                return
+
+            # Iterate purely over integer IDXs targeted by active events
+            for idx in idxs_to_check:
+                current_state = state.devices.get(idx)
+
                 # ⚡ READ-ONLY SENSOR GUARD ⚡
                 # Do not attempt to evaluate or transmit state changes for thermometers, humidity sensors or power meters!
                 if idx in self._read_only_idxs:

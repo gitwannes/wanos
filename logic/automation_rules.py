@@ -152,16 +152,20 @@ class AutomationEngine:
                                     f"[X-RAY] -> Action SKIPPED for target IDX {action.idx}: Current state is unknown (NULL).")
                                 continue
 
-                            if current_target_state != target_action_state or is_force:
+                            # ⚡ STRING NORMALIZATION COMPARISON
+                            # Coerced to uppercase strings to ensure integers (e.g., 100) and YAML strings (e.g., "100")
+                            # or mixed-case status descriptors evaluate flawlessly, preventing duplicate command streams.
+                            if str(current_target_state).upper() != str(target_action_state).upper() or is_force:
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
                                     payload={"idx": action.idx, "state": target_action_state, "force": is_force}
                                 ))
 
                                 # --- TIER C: The Action Audit Trail (INFO) ---
+                                semantic_name = state.dashboard_map.get(action.idx, "Unknown")
                                 final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
                                 automation_logger.info(
-                                    f"[ACTION] '{rule.name}' -> Set target IDX {action.idx} to {final_state_str}")
+                                    f"[ACTION] '{rule.name}' -> Set target IDX {action.idx} ({semantic_name}) to {final_state_str}")
                             else:
                                 automation_logger.debug(
                                     f"[X-RAY] -> Target IDX {action.idx} is already {target_action_state}. Ignoring.")

@@ -109,13 +109,13 @@ def setup_wanos_logging() -> None:
         filter=lambda record: record["level"].name == "DEBUG" and not record["extra"].get("is_automation", False)
     )
 
-    # 4. Sink 3: Automation Audit Log (Strictly for bound automation logs)
+    # 4. Sink 3: Unified Automation Log (Dynamically captures both INFO and DEBUG lines)
     sys_logger.add(
         f"{log_dir}/wanos_automations.log",
         rotation="5 MB",
         retention=3,
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | INFO     | [AUTOMATION] {message}",
-        level="INFO",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | [AUTOMATION] {message}",
+        level="DEBUG",
         enqueue=True,  # Write via safe background thread without blocking physics engine!
         filter=lambda record: record["extra"].get("is_automation", False)
     )

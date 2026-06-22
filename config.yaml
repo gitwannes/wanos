@@ -68,17 +68,6 @@ weather:  # for OpenWeatherMap
   location: "Borsbeek,BE"
   poll_interval_mins: 30
 
-# 🌍 The Daily Time-Series Engine (Environmental Bounds)
-environmental_schedule:
-  blinds:
-    morning_open_earliest: "07:30"
-    morning_open_latest: "09:00"
-    evening_close_earliest: "16:30"
-    evening_close_latest: "22:00"
-  twilight:
-    evening_off_time: "23:00"
-    morning_on_time: "06:00"
-
 ## Runtime System Parameters - Modifiable via Web UI
 # Dictionaries (No Dashes): Used for describing a single, unique thing with named properties
 sauna:
@@ -123,11 +112,21 @@ lighting:
     9645: 15
     9648: 5
 
+# 🌍 The Daily Time-Series Engine (Environmental Bounds)
+environmental_schedule:
+  blinds:
+    morning_open_earliest: "07:30"
+    morning_open_latest: "09:00"
+    evening_close_earliest: "16:30"
+    evening_close_latest: "22:00"
+  twilight:
+    evening_off_time: "23:00"
+    morning_on_time: "06:00"
+
 ## Part 2: Automation rules
 # Lists (Dashes): Used for describing a collection of repeating things
 # (like a list of 10 Automation Rules, or a list of 3 Actions to take)
 automations:
-
 # ==============================================================================
 # 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
 # ==============================================================================
@@ -229,29 +228,21 @@ automations:
         state: "OFF"
 
 ### --- HARDWARE TOGGLES ---
-  - name: "PC ON -> PC Aux ON"
+  - name: "PC ON/OFF -> PC Aux ON/OFF"
     trigger:
       idx: 8
-      state: "ON"
+      state: "SYNC"
     actions:
       - idx: 9618
-        state: "ON"
+        state: "SYNC"
 
-  - name: "PC OFF -> PC Aux OFF"
-    trigger:
-      idx: 8
-      state: "OFF"
-    actions:
-      - idx: 9618
-        state: "OFF"
-
-  - name: "PC Aux ON -> Buro Schemer ON (Only if Dark)"
+  - name: "PC Aux ON -> Buro Schemer ON (#Only if Dark)"
     trigger:
       idx: 9618
       state: "ON"
-    conditions:
-      - type: "time_of_day"
-        is: "dark"
+    #conditions:
+    #  - type: "time_of_day"
+    #    is: "dark"
     actions:
       - idx: 40002
         state: "ON"
