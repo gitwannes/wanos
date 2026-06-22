@@ -53,6 +53,7 @@ class EventType(str, Enum):
     DOMOTICZ_TOGGLED = "DOMOTICZ_TOGGLED"  # Listen to Domoticz messages
     RFXCOM_TOGGLED = "RFXCOM_TOGGLED"  # ⚡ Added to allow UI HTTP events to pass validation!
     OWM_TOGGLED = "OWM_TOGGLED"  # get OWM weather
+    HUE_TOGGLED = "HUE_TOGGLED"  # ⚡ Listen to local Hue Bridge messages
     SYSTEM_SWEEP_REQUESTED = "SYSTEM_SWEEP_REQUESTED"  # Manual Time & Environment Audit
     CONFIG_RELOAD_REQUESTED = "CONFIG_RELOAD_REQUESTED"  # Hot-reload config.yaml configuration
 
@@ -79,6 +80,8 @@ class SystemAdminState(BaseModel):
     domoticz_mqtt_connected: bool = False
     rfxcom_connected: bool = False  # ⚡ Tracks native USB RFX transceiver health
     rfxcom_integration_enabled: bool = False  # ⚡ Switch to block/allow native RFXCOM transmission/reception
+    hue_connected: bool = False  # ⚡ Tracks local Hue API v2 connection
+    hue_integration_enabled: bool = False  # ⚡ Switch to block/allow Hue API v2 bidirectional commands
     ip_address: str = "0.0.0.0"
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None

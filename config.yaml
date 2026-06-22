@@ -41,8 +41,6 @@ dashboard:
   9622: "pc_aux_power"
   60: "gang_beneden"
   169: "gang_boven"
-  7312: "cinema_hue"
-  7561: "sauna_hue"
 
   # --- Physical Pi Hardware GPIOs (Virtual IDXs) ---
   10001: "door_sauna"
@@ -215,14 +213,14 @@ automations:
       - idx: 40004 # kerstverl voortuin
         state: "OFF"
 
-  - name: "Garden Lights Evening Only"
+  - name: "Tuinlichten Evening ON"
     trigger:
       event: "TWILIGHT_EVENING_ON_TRIGGER"
     actions:
       - idx: 7396 # Licht tuin
         state: "ON"
 
-  - name: "Garden Lights OFF at 23:00"
+  - name: "Tuinlichten Evening OFF"
     trigger:
       event: "TWILIGHT_EVENING_OFF_TRIGGER" # Fires exactly at 23:00 (or config setting)
     actions:
@@ -257,30 +255,52 @@ automations:
       - idx: 40002
         state: "OFF"
 
+  - name: "Hue test: buro Wannes schemer ON -> Hue cinema ON"
+    trigger:
+      idx: 40002
+      state: "ON"
+    actions:
+      - target: "hue_scene"
+        scene: "hue_slpk_wannes_rm_lezen"
+
 # --- SAUNA MACROS ---
   - name: "Sauna Lights ON"
     trigger:
       event: "SAUNA_ON"
     actions:
-      - idx: 7561  # sauna_hue
-        state: "ON"
-      - idx: 1500  # sauna_zoutlamp
-        state: "ON"
-
+      - target: "hue_scene"
+        scene: "hue_sauna_rm_savanne_zonsondergang"
+      - idx: 1500
+        state: "ON"  # Sauna zoutlamp
   - name: "Sauna OFF -> Hue Off"
     trigger:
       event: "SAUNA_OFF"
     actions:
-      - idx: 7561
+      - idx: 51002  # Sauna Hue alles
         state: "OFF"
-
-  - name: "Sauna Hue Off -> Zoutlamp Off"
-    trigger:
-      - idx: 7561
-        state: "OFF"
-    actions:
       - idx: 1500
+        state: "OFF"  # Sauna zoutlamp
+
+# --- TEST ---
+  - name: "test Hue1"
+    trigger:
+      - idx: 7396 # tuinlicht
+        state: "ON"
+      - idx: 10001 # deur sauna
+        state: "ON"  # ON = Open, OFF = Closed
+    actions:
+      - target: "hue_scene"
+        scene: "hue_cinema_rm_tropische_schemering"
+  - name: "test Hue2"
+    trigger:
+      - idx: 7396 # tuinlicht
         state: "OFF"
+      - idx: 10001 # deur sauna
+        state: "OFF"  # ON = Open, OFF = Closed
+    actions:
+      - target: "hue_scene"
+        scene: "hue_cinema_rm_helder"
+
 
 ### --- SCENES ---
   - name: "ALL OFF gv"
@@ -406,6 +426,8 @@ automations:
       - idx: 283  # Cinema
         state: "ON"
     actions:
+      - target: "hue_scene"
+        scene: "hue_cinema_rm_tropische_schemering"
       - idx: 40001 # Cinema schemer klein
         state: "ON"
       - idx: 40002 # Buro schemer

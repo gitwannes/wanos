@@ -30,6 +30,7 @@ class StateManager:
         self.mqtt_client: MqttClientManager = mqtt_client
         self.domoticz_client: Optional[Any] = None  # Populated dynamically by Domoticz bridge
         self.rfxcom_bridge: Optional[Any] = None  # ⚡ Populated dynamically by Native RFXCOM bridge
+        self.hue_bridge: Optional[Any] = None  # ⚡ Populated dynamically by local Hue API v2 bridge
         self.logger: WanosLogger = logger
 
         # Optional reference to the MqttPublisher, injected after construction.
@@ -88,6 +89,33 @@ class StateManager:
                 self._state.device_metadata[rfx_dev.virtual_idx] = {"name": rfx_dev.name, "type": "switch",
                                                                     "origin": "rfxcom"}
                 self._state.devices[rfx_dev.virtual_idx] = "OFF"
+
+        # ⚡ LOCAL HUE AUTO-INITIALIZATION
+        # ⚡ LOCAL HUE AUTO-INITIALIZATION
+        # Pre-seeds the device registry so advanced lights and room groups appear in the UI immediately on boot.
+        if hasattr(self._config, "hue") and getattr(self._config, "hue", None):
+            # Seed individual bulb channels (5000x block)
+            for idx_int in self._config.hue.device_map.keys():
+                semantic_name = self._state.dashboard_map.get(idx_int, f"Hue Light {idx_int}")
+                self._state.dashboard_map[idx_int] = semantic_name
+                self._state.device_metadata[idx_int] = {
+                    "name": semantic_name,
+                    "type": "light",
+                    "origin": "hue"
+                }
+                self._state.devices[idx_int] = None
+
+            # Seed collective room/zone groups (5100x block)
+            group_map = getattr(self._config.hue, "group_map", {})
+            for idx_int in group_map.keys():
+                semantic_name = self._state.dashboard_map.get(idx_int, f"Hue Group {idx_int}")
+                self._state.dashboard_map[idx_int] = semantic_name
+                self._state.device_metadata[idx_int] = {
+                    "name": semantic_name,
+                    "type": "light",
+                    "origin": "hue"
+                }
+                self._state.devices[idx_int] = None
 
         # Dynamically scan configuration file for stateless triggers
         self._extract_scenes_from_config()
@@ -551,11 +579,13 @@ class StateManager:
             wanos_conn = payload.get("wanos_connected", False)
             dom_conn = payload.get("domoticz_connected", False)
             rfx_conn = payload.get("rfxcom_connected", False)
+            hue_conn = payload.get("hue_connected", False)
             ip_addr = payload.get("ip_address", "0.0.0.0")
 
             prev_wanos = self._state.system.wanos_mqtt_connected
             prev_dom = self._state.system.domoticz_mqtt_connected
             prev_rfx = self._state.system.rfxcom_connected
+            prev_hue = self._state.system.hue_connected
 
             # --- UI CONNECTION TRANSITION ALERTS ---
             # 1. Local WanOS Broker
@@ -597,15 +627,27 @@ class StateManager:
                 state_changed |= ch
                 changed_domains |= dom
 
+            # 4. Local Hue Bridge
+            if prev_hue and not hue_conn:
+                ch, dom = self._push_alert("🔴 CRITICAL: Local Hue Bridge connection lost")
+                state_changed |= ch
+                changed_domains |= dom
+            elif not prev_hue and hue_conn and self._state.system.app_boot_unix is not None:
+                ch, dom = self._push_alert("🟢 SUCCESS: Local Hue Bridge connected via API v2")
+                state_changed |= ch
+                changed_domains |= dom
+
             # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
             if (prev_wanos != wanos_conn or
                     prev_dom != dom_conn or
                     prev_rfx != rfx_conn or
+                    prev_hue != hue_conn or
                     self._state.system.ip_address != ip_addr or
                     self._state.system.app_boot_unix is None):
                 self._state.system.wanos_mqtt_connected = wanos_conn
                 self._state.system.domoticz_mqtt_connected = dom_conn
                 self._state.system.rfxcom_connected = rfx_conn
+                self._state.system.hue_connected = hue_conn
                 self._state.system.ip_address = ip_addr
 
                 # Capture static Unix boot times once during host identification
@@ -666,7 +708,9 @@ class StateManager:
             # evaluates the fresh data downloaded during the HTTP Boot-Sync
             else:
                 deadline = int(time.time()) + 5
-                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED")
+                # Append a context payload specifying that this sweep originates from an integration recovery routine
+                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                             {"reason": "domoticz_reconnection"})
                 logger.info("Domoticz Integration ENABLED. Scheduled full system logic sweep in 5 seconds.")
 
         elif event_name == "RFXCOM_TOGGLED":
@@ -694,6 +738,20 @@ class StateManager:
             raw_error = payload.get("error_msg")
             error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
             ch, dom = self._push_alert(error_alert, f"{color} OWM Integration turned {state_str}")
+            state_changed |= ch
+            changed_domains |= dom
+
+        elif event_name == "HUE_TOGGLED":
+            is_enabled = payload.get("enabled", False)
+            state_str = "ON" if is_enabled else "OFF"
+            self._state.system.hue_integration_enabled = is_enabled
+            state_changed = True
+            changed_domains.add("system")
+
+            color = "🟢" if is_enabled else "🔴"
+            raw_error = payload.get("error_msg")
+            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+            ch, dom = self._push_alert(error_alert, f"{color} Hue Integration turned {state_str}")
             state_changed |= ch
             changed_domains |= dom
 
@@ -729,6 +787,15 @@ class StateManager:
 
                 # ⚡ Re-extract scenes dynamically in case the user added new ones to config.yaml
                 self._extract_scenes_from_config()
+
+                # ⚡ RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
+                # Triggers full lifecycle stop/start teardown sequence to bind to configuration mutations seamlessly
+                if self.hue_bridge:
+                    await self.hue_bridge.stop()
+                    self.hue_bridge._config = new_config
+                    self.hue_bridge._initialize_mappings()
+                    await self.hue_bridge.start()
+
                 state_changed = True
                 changed_domains.add("system")
 
@@ -744,11 +811,11 @@ class StateManager:
 
         elif event_name == "SYSTEM_SWEEP_REQUESTED":
             """
-            🌍 The Aggressive Catch-Up Sweeper (Option B Enforcer)
+            🌍 The Catch-Up Sweeper
             When this runs, it doesn't just evaluate manual sensor states. It explicitly looks
             at the 6-point Daily Time-Series to figure out exactly what Phase of the day we are in.
-            It instantly force-dispatches the correct ambient light and blind positions, absorbing
-            any power outages or logic downtime gracefully!
+            It instantly force-dispatches the correct ambient light, absorbing any power outages
+            or logic downtime gracefully!
             """
             # Ensure boundaries are up to date
             self._recalculate_environmental_schedule()
@@ -757,7 +824,11 @@ class StateManager:
             now = int(time.time())
 
             # 1. Blinds Enforcement
-            if sns.env_schedule_blinds_open_unix and sns.env_schedule_blinds_close_unix:
+            # ⚡ INITIALIZATION RECOVERY GUARD: Skip forcing physical roller shutter movements if this
+            # sweep was automatically scheduled by an integration reconnection event to avoid moving blinds.
+            if payload.get("reason") == "domoticz_reconnection":
+                logger.info("[Sweeper] Skipping initial time-series blinds alignment to respect passive sync baseline.")
+            elif sns.env_schedule_blinds_open_unix and sns.env_schedule_blinds_close_unix:
                 # If current time falls exactly between the Open and Close epoch...
                 if sns.env_schedule_blinds_open_unix <= now < sns.env_schedule_blinds_close_unix:
                     self.dispatch(Event(type=EventType.BLINDS_OPEN_TRIGGER))
@@ -1178,6 +1249,26 @@ class StateManager:
             old_val = self._state.devices.get(idx)
             is_init = payload.get("is_initialization", False)
 
+            # ⚡ RICH PAYLOAD MERGE FOR HUE/ADVANCED LIGHTING
+            # This safely merges attributes like brightness and color into a dictionary without destroying them.
+            is_rich_payload = "bri" in payload or "xy" in payload
+            new_val = state_val
+
+            if isinstance(old_val, dict):
+                new_val = old_val.copy()
+                if state_val is not None:
+                    new_val["state"] = state_val
+                if "bri" in payload:
+                    new_val["bri"] = payload["bri"]
+                if "xy" in payload:
+                    new_val["xy"] = payload["xy"]
+            elif is_rich_payload:
+                new_val = {"state": state_val}
+                if "bri" in payload:
+                    new_val["bri"] = payload["bri"]
+                if "xy" in payload:
+                    new_val["xy"] = payload["xy"]
+
             # ⚡ Hybrid Learning: Cache semantic names from Domoticz if not already mapped in config.yaml
             device_name = payload.get("name")
             if device_name and idx not in self._state.dashboard_map and str(idx) not in self._state.dashboard_map:
@@ -1191,8 +1282,8 @@ class StateManager:
             is_force = payload.get("force", False)
 
             # ⚡ ALWAYS process the event if it's a push button, a forced command, or if the state actually changed.
-            if old_val != state_val or is_push_button or is_force:
-                self._state.devices[idx] = state_val
+            if old_val != new_val or is_push_button or is_force:
+                self._state.devices[idx] = new_val
                 state_changed = True
                 changed_domains.add("devices")
 
@@ -1386,6 +1477,7 @@ class StateManager:
                     "wanos_connected": _is_connected(self.mqtt_client),
                     "domoticz_connected": _is_connected(self.domoticz_client),
                     "rfxcom_connected": _is_connected(self.rfxcom_bridge),
+                    "hue_connected": _is_connected(getattr(self, "hue_bridge", None)),
                     "ip_address": _get_ip()
                 }
                 self.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))

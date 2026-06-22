@@ -18,8 +18,8 @@
     <div x-show="!connected"
          class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
          <span class="loading loading-infinity w-16 text-error mb-4"></span>
-        <h2 class="text-2xl font-black tracking-widest text-base-content">LINK INTERRUPTED</h2>
-        <p class="text-error mt-2 font-mono text-sm">Re-establishing connection stream to WanOS...</p>
+        <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
+        <p class="text-error mt-2 font-mono text-sm">Establishing connection stream to WanOS backend...</p>
     </div>
 
     <header class="navbar bg-base-100 shadow-md px-6 mb-8 flex-wrap gap-4">
@@ -235,7 +235,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 <div class="card bg-base-100 shadow-xl border border-base-200 h-full">
@@ -368,7 +368,7 @@
                                 <span class="text-info ml-1 text-xs" x-text="state.sensors.bathroom1_hum !== null ? state.sensors.bathroom1_hum + '%' : '--%'"></span>
                             </div>
                         </div>
-                        
+
                         <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
                             <div class="text-xs font-bold text-base-400 uppercase">Ventilator</div>
                             <div class="flex items-center gap-3">
@@ -668,6 +668,10 @@
                                     <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold">Hue Bridge</span>
+                                    <span class="badge badge-xs py-2 px-2" :class="state.system.hue_connected ? 'badge-success' : 'badge-error'" x-text="state.system.hue_connected ? 'ONLINE' : 'OFFLINE'"></span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                     <span class="text-base-400 uppercase font-bold">Native RFXCOM</span>
                                     <span class="badge badge-xs py-2 px-2" :class="state.system.rfxcom_connected ? 'badge-success' : 'badge-error'" x-text="state.system.rfxcom_connected ? 'MOUNTED' : 'OFFLINE'"></span>
                                 </div>
@@ -728,6 +732,17 @@
                                         <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
                                                :checked="state.system.owm_integration_enabled"
                                                @change="toggleOWM()" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Hue</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.system.hue_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.hue_integration_enabled ? 'LIVE' : 'DISABLED'"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :disabled="!state.system.hue_connected"
+                                               :class="!state.system.hue_connected ? 'opacity-50 cursor-not-allowed' : ''"
+                                               :checked="state.system.hue_integration_enabled"
+                                               @change="dispatchEvent('HUE_TOGGLED', { enabled: $event.target.checked })" />
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">

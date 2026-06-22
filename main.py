@@ -89,6 +89,28 @@ if getattr(config, "rfxcom", None) and getattr(config.rfxcom, "serial_port", Non
     except Exception as e:
         logger.exception(f"CRITICAL: Crash loading NativeRFXCOMBridge: {e}")
 
+# 8. Bind the Local Hue Bridge (API v2)
+hue_bridge = None
+logger.debug("DIAGNOSTIC: Checking if Hue config exists...")
+if getattr(config, "hue", None) and getattr(config.hue, "bridge_ip", None):
+    logger.debug(f"DIAGNOSTIC: Hue config found. IP: {config.hue.bridge_ip}. Attempting to import HueLocalBridge...")
+    try:
+        from integrations.hue import HueLocalBridge
+        logger.debug("DIAGNOSTIC: HueLocalBridge imported successfully. Instantiating...")
+        hue_bridge = HueLocalBridge(
+            state_manager=state_manager,
+            config=config
+        )
+        logger.debug("DIAGNOSTIC: HueLocalBridge instantiated successfully.")
+        # Inject into state_manager for UI telemetry tracking
+        state_manager.hue_bridge = hue_bridge
+    except Exception as e:
+        logger.debug(f"DIAGNOSTIC CRITICAL CRASH during Hue init: {e}")
+        import traceback
+        traceback.print_exc()  # Force raw Python stack trace to console
+        logger.exception(f"CRITICAL: Crash loading HueLocalBridge: {e}")
+else:
+    logger.debug("DIAGNOSTIC: Hue config NOT found or missing bridge_ip.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -131,9 +153,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         mqtt_publisher.start()
 
         # Start external bridges
+        logger.debug("DIAGNOSTIC: Awaiting domoticz_bridge.start()...")
         await domoticz_bridge.start()
+        logger.debug("DIAGNOSTIC: domoticz_bridge.start() completed successfully.")
         if native_rfx_bridge:
-            await native_rfx_bridge.start()
+            logger.debug("DIAGNOSTIC: Awaiting native_rfx_bridge.start()...")
+            try:
+                await native_rfx_bridge.start()
+                logger.debug("DIAGNOSTIC: native_rfx_bridge.start() completed successfully.")
+            except Exception as e:
+                logger.debug(f"DIAGNOSTIC CRASH during await native_rfx_bridge.start(): {e}")
+                import traceback
+                traceback.print_exc()
+        if hue_bridge:
+            logger.debug("DIAGNOSTIC: Awaiting hue_bridge.start()...")
+            try:
+                await hue_bridge.start()
+                logger.debug("DIAGNOSTIC: hue_bridge.start() completed successfully.")
+            except Exception as e:
+                logger.debug(f"DIAGNOSTIC CRASH during await hue_bridge.start(): {e}")
+                import traceback
+                traceback.print_exc()
 
         # 3. Seed initial state parameters
         state_manager.dispatch(Event(type=EventType.SYSTEM_READY))
@@ -164,6 +204,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     mqtt_publisher.stop()
     if native_rfx_bridge:
         await native_rfx_bridge.stop()
+    if hue_bridge:
+        await hue_bridge.stop()
     await domoticz_bridge.stop()
     await state_manager.stop()
     await domoticz_mqtt_manager.stop()

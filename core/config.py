@@ -133,6 +133,12 @@ class ActionConfig(BaseModel):
     idx: Optional[int] = None
     state: Optional[str] = None
     event: Optional[str] = None
+    # ⚡ Rich Hue Automation Properties
+    target: Optional[str] = None
+    scene: Optional[str] = None
+    preset: Optional[str] = None
+    bri: Optional[int] = None
+    xy: Optional[List[float]] = None
 
 
 class AutomationRuleConfig(BaseModel):
@@ -143,11 +149,29 @@ class AutomationRuleConfig(BaseModel):
     actions: List[ActionConfig]
 
 
+# --- ⚡ Philips Hue Modular Models ⚡ ---
+class HuePresetConfig(BaseModel):
+    """Data blueprint verifying individual preset properties."""
+    xy: List[float]
+    bri: int
+
+
+class HueConfig(BaseModel):
+    """Configuration mapping for the segregated local Hue API v2 settings."""
+    bridge_ip: str
+    application_key: Optional[str] = None
+    device_map: Dict[int, str] = Field(default_factory=dict)
+    group_map: Dict[int, str] = Field(default_factory=dict)
+    scene_map: Dict[str, str] = Field(default_factory=dict)
+    presets: Dict[str, HuePresetConfig] = Field(default_factory=dict)
+
+
 class AppConfig(BaseModel):
     """The unified master configuration model."""
     wanos: WanosConfig
     domoticz: DomoticzConfig
     rfxcom: Optional[RFXComSettings] = None
+    hue: Optional[HueConfig] = None  # ⚡ Added modular lighting reference mapping
     dashboard: Dict[int, str]
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
     auth: Dict[str, str]
@@ -170,6 +194,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     runtime_yaml_path = Path(config_path) if Path(config_path).is_absolute() else BASE_DIR / config_path
     hardware_yaml_path = BASE_DIR / "hardware.yaml"
     lab_yaml_path = BASE_DIR / "config_lab.yaml"
+    hue_yaml_path = BASE_DIR / "config_hue.yaml"  # ⚡ Segregated lighting profile path entry
 
     # STRICT CHECK 1: Ensure .env file physically exists
     if not env_path.exists():
@@ -190,11 +215,21 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     with open(hardware_yaml_path, "r", encoding="utf-8") as file:
         hardware_data = yaml.safe_load(file)
 
-    # 3. Consolidate payloads for unified validation assembly
+    # 3. Read Segregated Lighting Config Profile if available
+    hue_data: Optional[Dict[str, Any]] = None
+    if hue_yaml_path.exists():
+        with open(hue_yaml_path, "r", encoding="utf-8") as file:
+            hue_file_raw = yaml.safe_load(file)
+            if isinstance(hue_file_raw, dict):
+                # Clean encapsulation: Supports both nested 'hue:' definitions and root declarations
+                hue_data = hue_file_raw.get("hue", hue_file_raw)
+
+    # 4. Consolidate payloads for unified validation assembly
     compiled_data = {
         "wanos": runtime_data["wanos"],
         "domoticz": runtime_data["domoticz"],
         "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings
+        "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
         "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},
@@ -228,7 +263,12 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     compiled_data["domoticz"]["mqtt"]["password"] = dom_pass
     compiled_data["domoticz"]["http"]["password"] = dom_http_pass
 
-    # 5. Extract Lab Seeding if present
+    # ⚡ Safe Credential Fallback Strategy: Populate key from environment using safe .get() to prevent KeyErrors
+    if compiled_data.get("hue") is not None and isinstance(compiled_data["hue"], dict):
+        if not compiled_data["hue"].get("application_key"):
+            compiled_data["hue"]["application_key"] = os.getenv("HUE_API_KEY")
+
+    # 6. Extract Lab Seeding if present
     if lab_yaml_path.exists():
         with open(lab_yaml_path, "r", encoding="utf-8") as lab_file:
             lab_data_raw = yaml.safe_load(lab_file)

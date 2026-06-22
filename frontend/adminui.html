@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <title>WanOS Admin Operations</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
+
+    <div x-show="!connected"
+         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
+         <span class="loading loading-infinity w-16 text-error mb-4"></span>
+         <h1 class="text-3xl font-black tracking-widest text-base-content uppercase mb-2 shadow-sm">WanOS</h1>
+         <p class="text-sm font-mono text-base-400 max-w-sm">Connecting to local MQTT Event Bus on <span class="text-primary font-bold">WS://9001</span>...</p>
+    </div>
+
+    <div class="navbar bg-base-200/50 backdrop-blur-sm border-b border-base-300 sticky top-0 z-40">
+        <div class="flex-1 px-2 lg:px-4">
+            <span class="text-lg font-black tracking-widest text-primary uppercase shadow-sm">WanOS Admin</span>
+        </div>
+        <div class="flex-none gap-2 px-2">
+            <a href="dashboard.html" class="btn btn-sm btn-ghost font-mono">Device Explorer</a>
+            <a href="userui.html" class="btn btn-sm btn-primary font-mono text-neutral-900 font-bold">User UI</a>
+        </div>
+    </div>
+
+    <div x-show="state.system.system_alert_msgs && state.system.system_alert_msgs.length > 0" x-cloak class="fixed top-16 left-0 right-0 z-50 flex flex-col gap-2 w-full px-4 items-center pointer-events-none">
+        <template x-for="msg in state.system.system_alert_msgs" :key="msg">
+            <div class="bg-error text-error-content shadow-lg py-3 px-4 rounded-xl text-sm font-mono font-bold w-full max-w-3xl flex justify-between items-center pointer-events-auto">
+                <div class="flex items-center gap-3">
+                    <span class="text-xl">⚠️</span>
+                    <span x-text="msg" class="break-words"></span>
+                </div>
+                <button @click="dispatchEvent('ALERT_DISMISSED', { msg_text: msg })" class="btn btn-ghost btn-xs btn-circle shrink-0 text-error-content hover:bg-black/10">
+                    ✕
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <main class="p-4 lg:p-8 max-w-7xl mx-auto space-y-6" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <div class="space-y-6">
+
+                <div class="card bg-base-200 shadow-sm border border-base-300">
+                    <div class="card-body p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <div>
+                                <h3 class="font-bold uppercase tracking-widest text-xs text-base-400">Master Event Bus</h3>
+                                <span class="font-mono text-sm">Automations Engine</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-[10px]"
+                                      :class="state.system.wanos_mqtt_connected ? 'text-success' : 'text-gray-500 italic'"
+                                      x-text="state.system.wanos_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
+                                <input type="checkbox" class="toggle toggle-success toggle-sm shadow"
+                                       :disabled="!state.system.wanos_mqtt_connected"
+                                       :checked="state.system.automations_enabled"
+                                       @change="toggleAutomations()" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-200 shadow-sm border border-base-300">
+                    <div class="card-body p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <div>
+                                <h3 class="font-bold uppercase tracking-widest text-xs text-base-400">Legacy Master</h3>
+                                <span class="font-mono text-sm">Domoticz HTTP Sync</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-[10px]"
+                                      :class="state.system.domoticz_mqtt_connected ? 'text-success' : 'text-error animate-pulse'"
+                                      x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
+                                <input type="checkbox" class="toggle toggle-success toggle-sm shadow"
+                                       :disabled="!state.system.domoticz_mqtt_connected"
+                                       :checked="state.system.domoticz_integration_enabled"
+                                       @change="toggleDomoticz()" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-200 shadow-sm border border-base-300">
+                    <div class="card-body p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <div>
+                                <h3 class="font-bold uppercase tracking-widest text-xs text-base-400">Climate Pipeline</h3>
+                                <span class="font-mono text-sm">OWM Cloud Engine</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-[10px]"
+                                      :class="state.system.wanos_mqtt_connected ? 'text-success' : 'text-error animate-pulse'"
+                                      x-text="state.system.wanos_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
+                                <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
+                                       :disabled="!state.system.wanos_mqtt_connected"
+                                       :checked="state.system.owm_integration_enabled"
+                                       @change="toggleOWM()" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-200 shadow-sm border border-base-300">
+                    <div class="card-body p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <div>
+                                <h3 class="font-bold uppercase tracking-widest text-xs text-base-400">Stateless Radio</h3>
+                                <span class="font-mono text-sm">RFXCOM Transceiver</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-[10px]"
+                                      :class="state.system.rfxcom_connected ? 'text-success' : 'text-error animate-pulse'"
+                                      x-text="state.system.rfxcom_connected ? 'MOUNTED' : 'UNPLUGGED'"></span>
+                                <input type="checkbox" class="toggle toggle-success toggle-sm shadow"
+                                       :disabled="!state.system.rfxcom_connected"
+                                       :checked="state.system.rfxcom_integration_enabled"
+                                       @change="toggleRFXCOM()" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-200 shadow-sm border border-base-300">
+                    <div class="card-body p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <div>
+                                <h3 class="font-bold uppercase tracking-widest text-xs text-base-400">Mesh Lighting</h3>
+                                <span class="font-mono text-sm">Local Hue Bridge</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-[10px]"
+                                      :class="state.system.hue_connected ? 'text-success' : 'text-error animate-pulse'"
+                                      x-text="state.system.hue_connected ? 'API v2 LINKED' : 'OFFLINE'"></span>
+                                <input type="checkbox" class="toggle toggle-success toggle-sm shadow"
+                                       :disabled="!state.system.hue_connected"
+                                       :checked="state.system.hue_integration_enabled"
+                                       @change="toggleHue()" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="space-y-6">
+                <div class="card bg-base-200 shadow-xl border border-base-300">
+                    <div class="card-body p-5">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-2 border-b border-base-300 pb-2">Host Health & Diagnostics</h2>
+
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div class="flex flex-col items-center justify-center p-3 bg-base-300/50 rounded-box border border-base-300 shadow-inner">
+                                <span class="text-[10px] font-bold text-base-400 uppercase tracking-wider mb-1">OS Uptime</span>
+                                <span class="font-mono text-sm text-primary" x-text="state.system.os_uptime_formatted">00:00:00</span>
+                            </div>
+                            <div class="flex flex-col items-center justify-center p-3 bg-base-300/50 rounded-box border border-base-300 shadow-inner">
+                                <span class="text-[10px] font-bold text-base-400 uppercase tracking-wider mb-1">Engine Uptime</span>
+                                <span class="font-mono text-sm text-secondary" x-text="state.system.app_uptime_formatted">00:00:00</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center bg-base-300/50 rounded-box p-3 border border-base-300">
+                                <span class="font-mono text-xs font-bold uppercase text-base-400">PC Master Power</span>
+                                <input type="checkbox" class="toggle toggle-sm"
+                                       :class="state.devices[8] === 'ON' ? 'toggle-success' : 'toggle-error'"
+                                       :checked="state.devices[8] === 'ON'"
+                                       :disabled="!state.system.domoticz_mqtt_connected || state.devices[8] === null"
+                                       @click.prevent="state.devices[8] === 'ON' ? document.getElementById('pc_power_modal').showModal() : injectLabHubStateChange(8, true)" />
+                            </div>
+
+                            <div class="flex justify-between items-center bg-base-300/50 rounded-box p-3 border border-base-300">
+                                <span class="text-base-400 uppercase font-bold text-[10px]">Safety SSR Relay</span>
+                                <span class="badge badge-xs py-2 px-2 font-mono text-[10px]"
+                                      :class="!state.system.domoticz_mqtt_connected || state.devices[8567] === null ? 'badge-neutral text-gray-500 italic' : (state.devices[8567] === 'ON' ? 'badge-error animate-pulse' : 'badge-neutral')"
+                                      x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[8567] === null ? 'SYNCING' : (state.devices[8567] === 'ON' ? 'ENGAGED' : 'SAFE'))"></span>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 border-t border-base-300 pt-4 flex gap-2">
+                             <button class="btn btn-sm btn-outline flex-1 text-[10px] font-mono"
+                                     :disabled="configReloading"
+                                     @click="requestConfigReload()">
+                                <span x-show="configReloading" class="loading loading-spinner loading-xs"></span>
+                                <span x-show="!configReloading">Reload Config</span>
+                            </button>
+                             <button class="btn btn-sm btn-outline flex-1 text-[10px] font-mono"
+                                     :disabled="sweepRunning"
+                                     @click="requestSystemSweep()">
+                                <span x-show="sweepRunning" class="loading loading-spinner loading-xs"></span>
+                                <span x-show="!sweepRunning">Force Sweep</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="card bg-base-200 shadow-xl border border-base-300">
+                    <div class="card-body p-5">
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <h2 class="card-title text-base-400 uppercase text-xs tracking-widest">RFXCOM Bridge</h2>
+                                <h3 class="text-sm font-bold">433MHz Automatic Switches</h3>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-2 overflow-y-auto max-h-[250px] pr-1">
+                            <template x-for="device in state.system.native_rfx_devices" :key="device.virtual_idx">
+                                <div class="flex justify-between items-center bg-base-300/50 p-2 rounded border border-base-300/50">
+                                    <span class="font-mono text-[10px] text-base-400 uppercase" x-text="device.name"></span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]"
+                                              :class="!state.system.rfxcom_integration_enabled ? 'text-gray-500 italic' : (state.devices[device.virtual_idx] === 'ON' ? 'text-warning animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.rfxcom_integration_enabled ? 'OFFLINE' : (state.devices[device.virtual_idx] === null ? 'SYNCING' : (state.devices[device.virtual_idx] === 'ON' ? 'ON' : 'OFF'))"></span>
+
+                                        <input type="checkbox" class="toggle toggle-warning toggle-xs shadow"
+                                               :disabled="!state.system.rfxcom_integration_enabled || state.devices[device.virtual_idx] === null"
+                                               :checked="state.devices[device.virtual_idx] === 'ON'"
+                                               @change="injectLabHubStateChange(device.virtual_idx, $event.target.checked)" />
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="state.system.native_rfx_devices.length === 0">
+                                <div class="text-center text-[10px] text-base-400 py-4 italic">No native 433MHz devices mapped.</div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-base-200 shadow-xl border border-base-300 w-full flex flex-col justify-start">
+                    <div class="card-body p-4">
+                        <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-3 flex items-center justify-center gap-2">
+                            <span>⏱️ Planned Automations Timeline</span>
+                            <span class="badge badge-neutral text-[9px] font-mono px-1.5" x-text="chronologicalTimeline.length"></span>
+                        </div>
+                        <div class="flex flex-col gap-2 overflow-y-auto max-h-[300px] pr-1">
+                            <template x-for="item in chronologicalTimeline" :key="item.timer_id + '_' + item.name">
+                                <div class="flex items-center justify-between bg-base-300/50 p-2 rounded border border-base-300/50">
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-mono text-warning font-bold text-xs tabular-nums" x-text="item.absTime"></span>
+                                        <span class="badge badge-neutral text-[9px] font-mono px-1.5 tabular-nums min-w-[70px] justify-center" x-text="item.relTime"></span>
+                                        <div class="flex flex-col">
+                                            <span class="font-bold text-xs text-white" x-text="item.name"></span>
+                                            <span class="text-[10px] text-base-400 font-mono" x-show="item.idx !== null" x-text="'IDX ' + item.idx"></span>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="font-mono text-xs text-info font-bold" x-text="item.actionText"></span>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="chronologicalTimeline.length === 0" class="text-center text-[10px] text-base-400 py-4 italic">
+                                No upcoming events scheduled.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <dialog id="pc_power_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm">
+            <div class="modal-box border bg-base-300 shadow-2xl"
+                 :class="state.devices[8] === 'ON' ? 'border-error' : 'border-success'">
+
+                <h3 class="font-bold text-lg flex items-center gap-2 uppercase tracking-widest"
+                    :class="state.devices[8] === 'ON' ? 'text-error' : 'text-success'">
+                    <span x-text="state.devices[8] === 'ON' ? '⚠️ Critical Power Cut' : '⚡ Power Startup'"></span>
+                </h3>
+
+                <p class="py-4 text-base-400 font-mono text-sm leading-relaxed">
+                    <span x-show="state.devices[8] === 'ON'">
+                        You are about to <span class="text-error font-bold">CUT</span> the master power to the PC. This will instantly kill any running processes and cascade the shutdown to the PC Aux relay.
+                    </span>
+
+                    <span x-show="state.devices[8] !== 'ON'">
+                        You are about to <span class="text-success font-bold">ENGAGE</span> the master power to the PC.
+                    </span>
+
+                    <br><br>
+                    <span class="text-white font-bold">Are you sure you want to proceed?</span>
+                </p>
+
+                <div class="modal-action">
+                    <form method="dialog">
+                        <button class="btn btn-outline btn-sm font-mono">Cancel</button>
+                    </form>
+                    <button class="btn btn-sm shadow-lg font-mono font-bold"
+                            :class="state.devices[8] === 'ON' ? 'btn-error text-neutral-900' : 'btn-success text-neutral-900'"
+                            @click="injectLabHubStateChange(8, false); document.getElementById('pc_power_modal').close()"
+                            x-text="state.devices[8] === 'ON' ? 'YES, TURN OFF' : 'YES, TURN ON'">
+                    </button>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+    </main>
+
+    <script src="app.js?v=2.0"></script>
+</body>
+</html>

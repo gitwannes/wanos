@@ -85,7 +85,6 @@ function wanosApp() {
             // PESSIMISTIC UI ARCHITECTURE: All Domoticz-driven relays are initialized
             // strictly to `null`. This keeps the UI buttons disabled and grayed out
             // until the Python backend explicitly pushes their verified state.
-            // ⚡ REFACTORED: Utilizing pure numeric IDXs directly instead of semantic names!
             devices: {
                 10001: "CLOSED", // Local GPIO (door_sauna)
                 10002: "CLOSED", // Local GPIO (door_bathroom1)
@@ -118,6 +117,12 @@ function wanosApp() {
 
         // Tracks the execution state of the configuration hot-reload loop
         configReloading: false,
+
+        // ⚡ Light Control Modal State
+        activeLightId: null,
+        activeLightName: "",
+        activeLightBri: 100,
+        activeLightHex: "#FFD180",
 
         // ⚡ Dynamic Device Explorer (dashboard.html) UI States
         searchQuery: "",
@@ -218,6 +223,7 @@ function wanosApp() {
                 // Automatically drop devices from the UI if their parent integration is disabled.
                 if (meta.origin === 'domoticz' && !this.state.system.domoticz_integration_enabled) continue;
                 if (meta.origin === 'rfxcom' && !this.state.system.rfxcom_integration_enabled) continue;
+                if (meta.origin === 'hue' && !this.state.system.hue_integration_enabled) continue;
 
                 const idx = parseInt(idxStr, 10);
 
@@ -232,8 +238,9 @@ function wanosApp() {
                 if (meta.type === 'blinds') {
                     // Shutters: > 0% = ON
                     isOn = parseInt(rawValue, 10) > 0;
-                } else if (meta.type === 'switch') {
-                    isOn = rawValue === 'ON';
+                } else if (meta.type === 'switch' || meta.type === 'light') {
+                    // ⚡ RICH PAYLOAD SUPPORT: Parse "ON" state whether it's a flat string or a dictionary object
+                    isOn = (typeof rawValue === 'object' && rawValue !== null) ? rawValue.state === 'ON' : rawValue === 'ON';
                 }
 
                 list.push({
@@ -241,7 +248,8 @@ function wanosApp() {
                     name: meta.name,
                     type: meta.type,
                     raw_value: rawValue,
-                    is_on: isOn
+                    is_on: isOn,
+                    is_hue: idx >= 50000 // ⚡ Safest architectural bound to classify advanced local API lights
                 });
             }
 
@@ -270,7 +278,10 @@ function wanosApp() {
             // 4. Apply Type Filter
             if (this.typeFilter !== "ALL") {
                 list = list.filter(item => {
-                    if (this.typeFilter === "SWITCH") return item.type === 'switch';
+                    // Isolates traditional non-Hue hardware relays, binary switches, and sockets
+                    if (this.typeFilter === "SWITCH") return item.type === 'switch' && !item.is_hue;
+                    // Isolates advanced local API Hue mesh channels, rooms, and zones (IDX >= 50000)
+                    if (this.typeFilter === "HUE") return item.is_hue;
                     if (this.typeFilter === "SCENE") return item.type === 'scene';
                     if (this.typeFilter === "BLINDS") return item.type === 'blinds';
                     if (this.typeFilter === "SENSOR") return item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power';
@@ -670,7 +681,6 @@ function wanosApp() {
             }
         },
 
-        // ⚡ REFACTORED: Now natively accepts and dispatches numeric IDXs for sensor data
         injectLabMetric(eventType, idx, targetValue) {
             const payload = {
                 idx: parseInt(idx, 10),
@@ -759,12 +769,10 @@ function wanosApp() {
             this.dispatchEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
         },
 
-        // ⚡ REFACTORED: Now natively accepts and dispatches numeric IDXs for doors
         injectLabDoorChange(idx, isOpen) {
             this.dispatchEvent("DOOR_CHANGED", { idx: parseInt(idx, 10), is_open: isOpen });
         },
 
-        // ⚡ REFACTORED: Now natively accepts and dispatches numeric IDXs for switches
         injectLabHubStateChange(idx, isOn) {
             // 🛡️ GHOST CLICK GUARD:
             if (this.state.devices[idx] === null) {
@@ -773,12 +781,108 @@ function wanosApp() {
             }
 
             const targetState = isOn ? "ON" : "OFF";
+            const current = this.state.devices[idx];
 
-            if (this.state.devices[idx] === targetState) {
+            // ⚡ Extract state safely whether it's a flat string or a rich dictionary
+            const currentState = (typeof current === 'object' && current !== null) ? current.state : current;
+
+            if (currentState === targetState) {
                 return;
             }
 
             this.dispatchEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
+        },
+
+        // =========================================================================
+        // 🎨 NATIVE LIGHTING CONTROL MATHEMATICS & DISPATCHERS
+        // =========================================================================
+
+        openLightModal(item) {
+            this.activeLightId = item.id;
+            this.activeLightName = item.name;
+
+            // Load existing color from backend state, or default to Warm White
+            if (typeof item.raw_value === 'object' && item.raw_value !== null) {
+                this.activeLightBri = item.raw_value.bri !== undefined ? item.raw_value.bri : 100;
+                this.activeLightHex = this.xyToHex(
+                    item.raw_value.xy ? item.raw_value.xy[0] : undefined,
+                    item.raw_value.xy ? item.raw_value.xy[1] : undefined,
+                    this.activeLightBri
+                );
+            } else {
+                this.activeLightBri = 100;
+                this.activeLightHex = "#FFD180";
+            }
+            document.getElementById('light_control_modal').showModal();
+        },
+
+        updateActiveLightState() {
+            if (!this.activeLightId) return;
+            const xy = this.hexToXY(this.activeLightHex);
+
+            // Dispatch a rich dictionary. We pass force: true so the backend guarantees
+            // transmission even if the bulb's power state is already "ON".
+            this.dispatchEvent("HUB_STATE_CHANGED", {
+                idx: parseInt(this.activeLightId, 10),
+                state: "ON",
+                bri: parseInt(this.activeLightBri, 10),
+                xy: xy,
+                force: true
+            });
+        },
+
+        // 🧮 Converts CIE 1931 [x, y] color space to standard Hex string for the UI Color Wheel
+        xyToHex(x, y, bri) {
+            if (x === undefined || y === undefined) return "#FFD180";
+
+            let z = 1.0 - x - y;
+            let Y = (bri !== undefined ? bri : 100) / 100.0;
+            let X = (Y / y) * x;
+            let Z = (Y / y) * z;
+
+            // Wide RGB D65 conversion matrix
+            let r = X * 1.656492 - Y * 0.354851 - Z * 0.255038;
+            let g = -X * 0.707196 + Y * 1.655397 + Z * 0.036152;
+            let b =  X * 0.051713 - Y * 0.121364 + Z * 1.011530;
+
+            // Reverse gamma correction
+            r = r <= 0.0031308 ? 12.92 * r : (1.0 + 0.055) * Math.pow(r, (1.0 / 2.4)) - 0.055;
+            g = g <= 0.0031308 ? 12.92 * g : (1.0 + 0.055) * Math.pow(g, (1.0 / 2.4)) - 0.055;
+            b = b <= 0.0031308 ? 12.92 * b : (1.0 + 0.055) * Math.pow(b, (1.0 / 2.4)) - 0.055;
+
+            // Clamp and convert to Hex
+            r = Math.max(0, Math.min(1, r));
+            g = Math.max(0, Math.min(1, g));
+            b = Math.max(0, Math.min(1, b));
+
+            const toHex = (c) => Math.round(c * 255).toString(16).padStart(2, '0');
+            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        },
+
+        // 🧮 Converts standard Hex string from the UI Color Wheel to CIE 1931 [x, y] for the Hue API
+        hexToXY(hex) {
+            hex = hex.replace('#', '');
+            let r = parseInt(hex.substring(0, 2), 16) / 255.0;
+            let g = parseInt(hex.substring(2, 4), 16) / 255.0;
+            let b = parseInt(hex.substring(4, 6), 16) / 255.0;
+
+            // Apply gamma correction
+            r = (r > 0.04045) ? Math.pow((r + 0.055) / 1.055, 2.4) : (r / 12.92);
+            g = (g > 0.04045) ? Math.pow((g + 0.055) / 1.055, 2.4) : (g / 12.92);
+            b = (b > 0.04045) ? Math.pow((b + 0.055) / 1.055, 2.4) : (b / 12.92);
+
+            // Convert to XYZ color space
+            let X = r * 0.664511 + g * 0.154324 + b * 0.162028;
+            let Y = r * 0.283881 + g * 0.668433 + b * 0.047685;
+            let Z = r * 0.000088 + g * 0.072310 + b * 0.986039;
+
+            if ((X + Y + Z) === 0) return [0.3127, 0.3290]; // Failsafe to standard white
+
+            // Calculate final CIE 1931 xy coordinates
+            let x = X / (X + Y + Z);
+            let y = Y / (X + Y + Z);
+
+            return [parseFloat(x.toFixed(4)), parseFloat(y.toFixed(4))];
         },
 
         // 🛡️ PC Power Safety Interceptor
@@ -873,7 +977,7 @@ function wanosApp() {
             if (this.configReloading) return;
             this.configReloading = true;
 
-            this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: "🔄 Reloading config.yaml configurations..." });
+            this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: "🔄 Reloading all config yaml configurations..." });
 
             await this.dispatchEvent("CONFIG_RELOAD_REQUESTED");
 

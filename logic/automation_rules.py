@@ -86,6 +86,18 @@ class AutomationEngine:
                             trigger_matched = True
                             trigger_reason = f"IDX {event_idx} -> {new_state}"
                             break
+                    # ⚡ Support Native Door Telemetry: Map the semantic is_open boolean to standard ON/OFF string states
+                    # Note: Hardware door events are inherently edge-triggered transitions, so is_transition is bypassed.
+                    elif event_name == "DOOR_CHANGED":
+                        is_open = payload.get("is_open")
+                        mapped_state = "ON" if is_open else "OFF"
+                        if t.idx == event_idx and (t.state == "SYNC" or t.state == mapped_state):
+                            trigger_matched = True
+                            trigger_reason = f"Door Sensor {event_idx} -> {mapped_state}"
+                            # Temporarily inject the mapped state into the local loop context
+                            # so downstream Action resolving doesn't fail if it relies on 'new_state'
+                            new_state = mapped_state
+                            break
 
                 # Trigger Type B: Semantic System Event (e.g., SAUNA_ON, BLINDS_OPEN_TRIGGER)
                 elif t.event:
@@ -143,7 +155,7 @@ class AutomationEngine:
                             target_action_state = raw_action_state
 
                         # --- Action Type A: Raw IDX Execution ---
-                        if action.idx is not None:
+                        if getattr(action, "idx", None) is not None:
                             current_target_state = state.devices.get(action.idx)
 
                             # ⚡ UNINITIALIZED STATE GUARD
@@ -152,25 +164,64 @@ class AutomationEngine:
                                     f"[X-RAY] -> Action SKIPPED for target IDX {action.idx}: Current state is unknown (NULL).")
                                 continue
 
+                            # ⚡ RICH PAYLOAD EXTRACTION (Hue Presets & Direct Overrides)
+                            bri = getattr(action, "bri", None)
+                            xy = getattr(action, "xy", None)
+                            preset_name = getattr(action, "preset", None)
+
+                            # Load preset if specified
+                            if preset_name and hasattr(config, "hue") and hasattr(config.hue, "presets"):
+                                preset = getattr(config.hue.presets, preset_name, None)
+                                if preset:
+                                    bri = getattr(preset, "bri", bri)
+                                    xy = getattr(preset, "xy", xy)
+
+                            # If rich attributes are provided, we must force the command because the power state
+                            # might already be "ON", but we still need to send the new color/brightness payload.
+                            is_rich_action = bri is not None or xy is not None
+                            if is_rich_action:
+                                is_force = True
+
                             # ⚡ STRING NORMALIZATION COMPARISON
                             # Coerced to uppercase strings to ensure integers (e.g., 100) and YAML strings (e.g., "100")
                             # or mixed-case status descriptors evaluate flawlessly, preventing duplicate command streams.
                             if str(current_target_state).upper() != str(target_action_state).upper() or is_force:
+                                payload = {"idx": action.idx, "state": target_action_state, "force": is_force}
+                                if bri is not None:
+                                    payload["bri"] = bri
+                                if xy is not None:
+                                    payload["xy"] = xy
+
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
-                                    payload={"idx": action.idx, "state": target_action_state, "force": is_force}
+                                    payload=payload
                                 ))
 
                                 # --- TIER C: The Action Audit Trail (INFO) ---
                                 semantic_name = state.dashboard_map.get(action.idx, "Unknown")
                                 final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
+                                preset_str = f" [Rich Payload]" if is_rich_action else ""
                                 automation_logger.info(
-                                    f"[ACTION] '{rule.name}' -> Set target IDX {action.idx} ({semantic_name}) to {final_state_str}")
+                                    f"[ACTION] '{rule.name}' -> Set target IDX {action.idx} ({semantic_name}) to {final_state_str}{preset_str}")
                             else:
                                 automation_logger.debug(
                                     f"[X-RAY] -> Target IDX {action.idx} is already {target_action_state}. Ignoring.")
 
-                        # --- Action Type B: Nested Event Chaining ---
+                        # --- Action Type B: Native Hue Scene Trigger ---
+                        elif getattr(action, "target", None) == "hue_scene":
+                            scene_name = getattr(action, "scene", None)
+                            if scene_name:
+                                follow_up_events.append(Event(
+                                    type=EventType.HUB_STATE_CHANGED,
+                                    payload={"target": "hue_scene", "scene": scene_name, "origin": "automation"}
+                                ))
+                                automation_logger.info(
+                                    f"[ACTION] '{rule.name}' -> Dispatched Native Hue Scene [{scene_name}]")
+                            else:
+                                automation_logger.error(
+                                    f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: Missing 'scene' name for hue_scene target.")
+
+                        # --- Action Type C: Nested Event Chaining ---
                         elif getattr(action, "event", None):
                             try:
                                 evt_type = EventType[action.event]
