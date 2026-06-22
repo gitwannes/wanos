@@ -52,5 +52,6 @@
     .gitignore
     * - Copy.py
 	*.zip
+	dhcpcd.conf
 :: On Pi
 	wanos.console.log
