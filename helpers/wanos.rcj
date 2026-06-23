@@ -42,7 +42,7 @@
     docs
 	code-import
 :: On Pi
-	wisc_backend_venv
+	wanos_venv
 	__pycache__
 
 :: --- Exclude Files

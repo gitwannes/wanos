@@ -6,15 +6,15 @@
 #   status          Show whether uvicorn is running and which PID(s)
 #   stop [force]    Attempt graceful shutdown (SIGINT) of matching uvicorn PID(s); 'force' forces kill-9
 #   consolelog      Show last $TAIL_LINES lines of wanos.console.log and follow
-#   applog          Show last $TAIL_LINES lines of /var/log/wisc/wanos.log and follow
-#   applogdebug     Show last $TAIL_LINES lines of /var/log/wisc/wanos_debug.log and follow
-#   automationlog   Show last $TAIL_LINES lines of /var/log/wisc/wanos_automations.log and follow
+#   applog          Show last $TAIL_LINES lines of /var/log/wanos/wanos.log and follow
+#   applogdebug     Show last $TAIL_LINES lines of /var/log/wanos/wanos_debug.log and follow
+#   automationlog   Show last $TAIL_LINES lines of /var/log/wanos/wanos_automations.log and follow
 #   reload          Attempt stop (no force); if stop succeeds, start; do not force-kill
 #   log             Interactive or non-interactive chooser for which log to tail:
 #                     1 = console (wanos.console.log)
-#                     2 = app (/var/log/wisc/wanos.log)
-#                     3 = app-debug (/var/log/wisc/wanos_debug.log)
-#                     4 = automation (/var/log/wisc/wanos_automations.log)
+#                     2 = app (/var/log/wanos/wanos.log)
+#                     3 = app-debug (/var/log/wanos/wanos_debug.log)
+#                     4 = automation (/var/log/wanos/wanos_automations.log)
 #                   Usage: ./wanos_boot.sh log        # prompts
 #                          ./wanos_boot.sh log 2      # tails app log
 #                          ./wanos_boot.sh log 1 100  # tails console log with 100 lines
@@ -23,16 +23,16 @@ set -euo pipefail
 # -------------------------
 # Configuration
 # -------------------------
-VENV_DIR="$HOME/wisc_backend/wisc_backend_venv"
+VENV_DIR="$HOME/wanos/wanos_venv"
 
 # For info: manual launch: uvicorn main:app --host 0.0.0.0 --port 8000
 APP_CMD="$VENV_DIR/bin/python -u -m uvicorn"
 APP_ARGS="main:app --host 0.0.0.0 --port 8000"
 
-LOG_FILE="$HOME/wisc_backend/wanos.console.log"
-APP_LOG_FILE="/var/log/wisc/wanos.log"
-APP_DEBUG_LOG_FILE="/var/log/wisc/wanos_debug.log"
-AUTOM_LOG_FILE="/var/log/wisc/wanos_automations.log"
+LOG_FILE="$HOME/wanos/wanos.console.log"
+APP_LOG_FILE="/var/log/wanos/wanos.log"
+APP_DEBUG_LOG_FILE="/var/log/wanos/wanos_debug.log"
+AUTOM_LOG_FILE="/var/log/wanos/wanos_automations.log"
 GRACE_PERIOD=10   # seconds to wait for graceful shutdown
 TAIL_LINES=20     # default number of lines to show initially for tails
 
@@ -58,9 +58,9 @@ Commands:
 
 log choices:
   1 = console (wanos.console.log)
-  2 = app (/var/log/wisc/wanos.log)
-  3 = app-debug (/var/log/wisc/wanos_debug.log)
-  4 = automation (/var/log/wisc/wanos_automations.log)
+  2 = app (/var/log/wanos/wanos.log)
+  3 = app-debug (/var/log/wanos/wanos_debug.log)
+  4 = automation (/var/log/wanos/wanos_automations.log)
 
 Examples:
 * system
@@ -309,9 +309,9 @@ if [ "$CMD" = "log" ]; then
     cat <<EOF
 Which log do you want to tail?
   1) console (wanos.console.log)
-  2) app (/var/log/wisc/wanos.log)
-  3) app-debug (/var/log/wisc/wanos_debug.log)
-  4) automation (/var/log/wisc/wanos_automations.log)
+  2) app (/var/log/wanos/wanos.log)
+  3) app-debug (/var/log/wanos/wanos_debug.log)
+  4) automation (/var/log/wanos/wanos_automations.log)
 Enter choice [1-4]:
 EOF
     read -r choice

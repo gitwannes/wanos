@@ -82,7 +82,7 @@ def setup_wanos_logging() -> None:
     sys_logger.remove()
 
     custom_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}"
-    log_dir = "/var/log/wisc"
+    log_dir = "/var/log/wanos"
 
     # Ensure directory exists
     os.makedirs(log_dir, exist_ok=True)

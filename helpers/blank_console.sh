@@ -1,42 +1,46 @@
 #!/usr/bin/env bash
 #
-# setup_screen_control.sh
+# bank_console.sh
 #
 # Purpose:
-#   Configure Raspberry Pi OS Bullseye so that the screen:
+#   Configure Raspberry Pi OS so that the screen:
 #     - NEVER auto-wakes
 #     - NEVER auto-dims
 #     - NEVER auto-blanks
 #     - NEVER receives DPMS ON events
-#   Your blank_console.sh script becomes the ONLY controller of the screen.
+#   Your custom scripts become the ONLY controller of the screen.
 #
 # Behavior:
-#   - All system paths and toggles are defined at the top
-#   - You can enable/disable each modification individually
-#   - Creates .bak backups before modifying any file
-#   - Requires sudo
-#   - Exits gracefully if a file or directory is missing
-#   - Does NOT reboot automatically
-#
+#   - Dynamically detects legacy (/boot) vs modern (/boot/firmware) OS paths.
+#   - Safely skips X11/LightDM modifications if running on a "Lite" OS image.
+#   - Creates .bak backups before modifying any file.
 # ---------------------------------------------------------------------------
 
 set -euo pipefail
 
 # =============================================================================
-# CONFIGURATION TOGGLES (set true/false to enable/disable each modification)
+# CONFIGURATION TOGGLES
 # =============================================================================
 
 MODIFY_CMDLINE=true      # Disable console blanking (consoleblank=0)
 MODIFY_UDEV=true         # Block kernel backlight "change" events
-MODIFY_X11=true          # Disable X11 DPMS + blanking
-MODIFY_LIGHTDM=true      # Disable LightDM DPMS wakeups
+MODIFY_X11=true          # Disable X11 DPMS + blanking (skipped safely if missing)
+MODIFY_LIGHTDM=true      # Disable LightDM DPMS wakeups (skipped safely if missing)
 MODIFY_LOGIND=true       # Disable systemd-logind wake triggers
 
 # =============================================================================
-# FILE PATHS (all full paths defined here)
+# DYNAMIC FILE PATHS
 # =============================================================================
 
-CMDLINE="/boot/cmdline.txt"
+# Detect correct cmdline path (Trixie/Bookworm uses /firmware, older uses /boot)
+if [ -f "/boot/firmware/cmdline.txt" ]; then
+    CMDLINE="/boot/firmware/cmdline.txt"
+elif [ -f "/boot/cmdline.txt" ]; then
+    CMDLINE="/boot/cmdline.txt"
+else
+    CMDLINE=""
+fi
+
 UDEV_RULE="/etc/udev/rules.d/99-backlight.rules"
 X11_CONF_DIR="/etc/X11/xorg.conf.d"
 X11_MONITOR_CONF="$X11_CONF_DIR/10-monitor.conf"
@@ -52,7 +56,8 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "Applying screen-control configuration for Bullseye..."
+echo "Applying universal screen-control configuration..."
+echo "Detected CMDLINE path: ${CMDLINE:-Not Found}"
 echo
 
 # =============================================================================
@@ -74,8 +79,8 @@ backup_file() {
 if [ "$MODIFY_CMDLINE" = true ]; then
     echo "[CMDLINE] Disabling console blanking..."
 
-    if [ ! -f "$CMDLINE" ]; then
-        echo "ERROR: $CMDLINE not found. Skipping consoleblank modification."
+    if [ -z "$CMDLINE" ]; then
+        echo "ERROR: cmdline.txt not found in /boot or /boot/firmware. Skipping."
         echo
     else
         backup_file "$CMDLINE"
@@ -127,8 +132,8 @@ if [ "$MODIFY_X11" = true ]; then
     echo "[X11] Disabling X11 DPMS and blanking..."
 
     if [ ! -d "$X11_CONF_DIR" ]; then
-        echo "WARNING: X11 directory not found: $X11_CONF_DIR"
-        echo "Skipping X11 DPMS disable (system may be console-only or Wayland)."
+        echo "INFO: X11 directory not found: $X11_CONF_DIR"
+        echo "Skipping X11 DPMS disable (Expected on Lite OS images)."
         echo
     else
         backup_file "$X11_MONITOR_CONF"
@@ -165,17 +170,13 @@ if [ "$MODIFY_LIGHTDM" = true ]; then
 
     if [ ! -f "$LIGHTDM_CONF" ]; then
         echo "INFO: LightDM not found at $LIGHTDM_CONF"
-        echo "Skipping LightDM DPMS disable."
+        echo "Skipping LightDM DPMS disable (Expected on Lite OS images)."
         echo
     else
         backup_file "$LIGHTDM_CONF"
 
         # Ensure [Seat:*] section exists
-        if ! grep -q "^
-
-\[Seat:\*\]
-
-" "$LIGHTDM_CONF"; then
+        if ! grep -q "^\[Seat:\*\]" "$LIGHTDM_CONF"; then
             echo "[Seat:*]" >> "$LIGHTDM_CONF"
         fi
 
@@ -207,37 +208,4 @@ if [ "$MODIFY_LOGIND" = true ]; then
         backup_file "$LOGIND_CONF"
 
         sed -i '/HandleLidSwitch=/d' "$LOGIND_CONF"
-        sed -i '/HandleSuspendKey=/d' "$LOGIND_CONF"
-        sed -i '/HandleHibernateKey=/d' "$LOGIND_CONF"
-        sed -i '/HandlePowerKey=/d' "$LOGIND_CONF"
-
-        cat >> "$LOGIND_CONF" <<'EOF'
-HandleLidSwitch=ignore
-HandleSuspendKey=ignore
-HandleHibernateKey=ignore
-HandlePowerKey=ignore
-EOF
-
-        echo "logind wake triggers disabled."
-        echo
-    fi
-else
-    echo "[LOGIND] Skipped (toggle disabled)."
-    echo
-fi
-
-# =============================================================================
-# Final message
-# =============================================================================
-
-echo "-------------------------------------------------------------------"
-echo "Screen-control configuration applied."
-echo "Backups created for all modified files (.bak)."
-echo
-echo "IMPORTANT:"
-echo "  • Reboot is required for all changes to take effect."
-echo "  • After reboot, ONLY your blank_console.sh script will control"
-echo "    the screen. No auto-wake, no auto-dim, no auto-blank."
-echo "-------------------------------------------------------------------"
-echo
-echo "Done."
+        sed -i '/HandleSuspendKey=/

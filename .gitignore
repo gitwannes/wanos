@@ -1,5 +1,5 @@
 # =========================
-# WISC Backend .gitignore
+# WanOS backend .gitignore
 # =========================
 
 # hidden files & directories
@@ -20,7 +20,7 @@ status.json
 # (Ignore your active python environments)
 venv/
 env/
-wisc_backend_venv/
+wanos_venv/
 .venv/
 
 # 4. Python Artifacts & Cache

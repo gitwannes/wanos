@@ -47,7 +47,7 @@ class MqttPublisher:
         # Parsed delta cache for wanos/domsensors/parsed
         self._parsed_cache: dict[str, Any] = {}
 
-        # Sauna core cache for wanos/wisc
+        # Sauna core cache for wanos
         self._sauna_cache: dict[str, Any] = {}
         self._sauna_was_active: bool = False
 
@@ -183,7 +183,7 @@ class MqttPublisher:
 
         if s.active and not self._sauna_was_active:
             # Sauna just turned ON: Send full baseline snapshot
-            await self._client.publish("wanos/wisc", current_state)
+            await self._client.publish("wanos", current_state)
             self._sauna_cache = current_state
         elif s.active:
             # Sauna is running: Send only modified keys
@@ -193,6 +193,6 @@ class MqttPublisher:
                     deltas[k] = v
                     self._sauna_cache[k] = v
             if deltas:
-                await self._client.publish("wanos/wisc", deltas)
+                await self._client.publish("wanos", deltas)
 
         self._sauna_was_active = s.active

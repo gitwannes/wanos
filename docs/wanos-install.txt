@@ -17,10 +17,10 @@
 
 ** first, Wannes-default config
 
-ToDo -> Move to Debian 13 (Trixie)
+ToDo -> Move to Debian 13 (Trixie) Lite (64-Bit)
 
 flash Raspberry Pi OS Lite (Legacy, 32-bit)
-	hostname wiscnew
+	hostname wanos
 	username and password: wannes / xxx
 	configure wifi (country BE)
 	locale timezone Europe / Brussels & keyboard layout: Generic 105 -> Belgian
@@ -58,7 +58,7 @@ create /home/wannes/.config/bat/config (check location with cat --config-file)
 change in /etc/skel/.bashrc & ~/.bashrc (& /root/.bashrc --> NOT)
 	alias ls='ls -lh --color=auto' (add -lh)
 	alias cat=batcat
-	alias lw='ls /var/log/wisc/* -t'
+	alias lw='ls /var/log/wanos/* -t'
 in /etc/profile
 	RED='\033[0;31m'
 	GREEN='\033[0;32m'
@@ -83,7 +83,7 @@ setup /etc/motd
 	motd.txt
 
 ** configure mijn eigen Python-execution script
-in ~/wisc
+in ~/wanos
 sudo chmod +x sp
 if needed: mkdir -p ~/.local/bin
 sudo ln -s $HOME/wisc/sp ~/.local/bin/sp #voor uitvoering zonder .sh
@@ -137,15 +137,15 @@ sudo netstat -tlnp | grep 9001
 sudo netstat -tlnp | grep 1883
 
 ** for logging
-sudo mkdir /var/log/wisc
-sudo chown wannes:wannes /var/log/wisc
-# Note: Loguru will automatically write its rotated system logs to /var/log/wisc/wanos.log
+sudo mkdir /var/log/wanos
+sudo chown wannes:wannes /var/log/wanos
+# Note: Loguru will automatically write its rotated system logs to /var/log/wanos/wanos.log
 
 ** python Environment Setup
 sudo apt install -y python3-venv python3-pip
-mkdir ~/wisc_backend
-cd ~/wisc_backend
-python3 -m venv wisc_backend_venv
+mkdir ~/wanos
+cd ~/wanos
+python3 -m venv wanos_venv
 
 ** Install Project Dependencies
 # Upgrade pip first to prevent pyproject.toml / MarkupSafe build errors on older Debian versions
@@ -167,18 +167,17 @@ check with
 	ls -l /dev/rfxcom
 
 ** run the app
-# source /home/wannes/wisc_backend/wisc_backend_venv/bin/activate
+# source /home/wannes/wanos/wanos_venv/bin/activate
 # uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ./wanos_boot.sh start
 
 ** setup SMB
+deactivate (not in venv)
 sudo apt update && sudo apt install samba -y
-sudo nano /etc/samba/smb.conf  # file in GIT
+sudo vi /etc/samba/smb.conf  # file in GIT
 sudo systemctl restart smbd
 # on Windows
 net use Z: "\\10.32.251.28\wanos_share" /user:wannes
 
 ** setup Z-Wave JS middleware
-edit /boot/config.txt (disable onboard BT)
-dtoverlay=disable-bt
-enable_uart=1
+cfr zwave migration.md

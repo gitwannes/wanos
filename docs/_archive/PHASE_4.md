@@ -57,7 +57,7 @@ To handle silent hardware disconnects (e.g., pulling a network cable or losing W
 ## 5. Storage & Memory Overhead Removal (`core/logger.py`)
 To eliminate arbitrary RAM consumption and maximize the lifespan of the host SD card, the rolling in-memory web console panel was completely decommissioned.
 
-* **Logger Strip Down:** Removed the `history` collections `deque` object from the initialization step of `WanosLogger`. Logs are now piped straight to disk file locations (`/var/log/wisc/wanos.log`) via Loguru or broadcasted raw over MQTT.
+* **Logger Strip Down:** Removed the `history` collections `deque` object from the initialization step of `WanosLogger`. Logs are now piped straight to disk file locations (`/var/log/wanos/wanos.log`) via Loguru or broadcasted raw over MQTT.
 * **Endpoint Deletion:** The route `@app.get("/api/console")` was completely removed from `main.py`.
 * **Interface Cleanup:** Removed the sticky left-hand logging panel container from `index.html`, allowing the main application dashboards to expand to 100% full screen width.
 
