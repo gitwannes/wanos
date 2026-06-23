@@ -107,6 +107,7 @@ deviceexplorer_exclude:
   - 7551  # IR
   - 1612  # toilet ventilatie motor (= sync'd met knop binnen)
   - 1625  # badk 2e binnen (= unused & sync'd met knop buiten)
+  - 6070  # slpk Wannes hue switch aan deur
 
 
 # ==============================================================================
@@ -144,9 +145,10 @@ environmental_schedule:
     evening_off_time: "23:00"
     morning_on_time: "06:00"
 
+
 lighting:
   # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
-  managed_lights: [52, 53, 60, 100, 141, 169, 282, 283, 348, 411, 1524, 1622, 40001, 40002, 40003, 40004, 6051, 6060, 6067, 6070, 6731, 7236, 7237, 7312, 9645, 9648]
+  managed_lights: [52, 53, 60, 100, 141, 169, 282, 283, 348, 411, 1524, 1622, 40001, 40002, 40003, 40004, 6051, 6060, 6067, 51006, 51003, 51005, 51008, 51004, 9645, 9648]
   default_auto_off_minutes: 300
   # Specific delay overrides in minutes
   auto_off_delays:
@@ -160,8 +162,8 @@ lighting:
     6051: 1
     6060: 30
     6067: 30
-    6070: 90
-    7237: 30
+    51006: 90
+    51008: 30
     9645: 15
     9648: 5
 
@@ -286,6 +288,8 @@ automations:
         state: "OFF"
       - idx: 7396     # licht tuin
         state: "OFF"
+      - idx: 51012 # Hue gv ALL OFF
+        state: "OFF"
 
   - name: "ALL OFF 1eV"
     scene: true
@@ -293,8 +297,6 @@ automations:
       event: "SCENE_VERDIEP1_OFF"
     actions:
       - idx: 283  # cinema_main
-        state: "OFF"
-      - idx: 7312 # cinema_hue # ToChangeToHue50x
         state: "OFF"
       - idx: 40001 # cinema_schemer
         state: "OFF"
@@ -307,6 +309,8 @@ automations:
       - idx: 141  # bathroom1_main
         state: "OFF"
       - idx: 169  # gang_boven
+        state: "OFF"
+      - idx: 51010 # Hue 1e V ALL OFF
         state: "OFF"
 
   - name: "ALL OFF 2eV"
@@ -326,9 +330,7 @@ automations:
         state: "OFF"
       - idx: 6067 # slpk Wannes
         state: "OFF"
-      - idx: 6070 # slpk Wannes nachtlichtjes
-        state: "OFF"
-      - idx: 7237 # slpk Dries Hue # ToChangeToHue50x
+      - idx: 51009 # Hue 2e V ALL OFF
         state: "OFF"
 
   - name: "ALL OFF overal"
@@ -364,7 +366,7 @@ automations:
       idx: 1524
       state: "SYNC"
     actions:
-      - idx: 7237 # Hue # ToChangeToHue50x
+      - idx: 51008 # Hue
         state: "SYNC"
 
   - name: "KeukenLivingEetk_EetkHue"
@@ -376,7 +378,7 @@ automations:
       - idx: 6060 # Eetkamer
         state: "ON"
     actions:
-      - idx: 6731 # Eetkamer Hue # ToChangeToHue50x
+      - idx: 51003 # Eetkamer Hue
         state: "ON"
 
   - name: "BuroCinemaPC_cosy"

@@ -398,45 +398,63 @@ class StateManager:
 
     def _push_alert(self, *msgs: Optional[str], domain: str = "system") -> tuple[bool, Set[str]]:
         """
-        Safely timestamps and deduplicates UI alerts.
-        If the exact base message already exists, increments a (x) counter at the end, preserving the original timestamp.
-        Returns (state_changed, changed_domains) so callers can merge into their own.
+        Safely timestamps, deduplicates, and structures UI alerts into routing dictionaries.
+        Auto-classifies severity based on emojis to maintain backwards compatibility
+        with all existing log strings across the architecture!
         """
         changed = False
         domains: Set[str] = set()
+        import uuid
 
-        for base_msg in msgs:
-            if not base_msg:
+        for raw_msg in msgs:
+            if not raw_msg:
                 continue
 
+            # ⚡ Auto-classify severity and strip legacy emojis for clean JSON delivery
+            level = "info"
+            clean_msg = raw_msg
+
+            if "🔴 CRITICAL" in raw_msg:
+                level = "critical"
+                clean_msg = raw_msg.replace("🔴 CRITICAL:", "").replace("🔴 CRITICAL", "").strip()
+            elif "🔴" in raw_msg:
+                level = "warning"
+                clean_msg = raw_msg.replace("🔴", "").strip()
+            elif "🟢 SUCCESS" in raw_msg:
+                level = "success"
+                clean_msg = raw_msg.replace("🟢 SUCCESS:", "").replace("🟢 SUCCESS", "").strip()
+            elif "🟢" in raw_msg:
+                level = "success"
+                clean_msg = raw_msg.replace("🟢", "").strip()
+            elif "🧹" in raw_msg:
+                level = "info"
+                clean_msg = raw_msg.replace("🧹", "").strip()
+            elif "🔄" in raw_msg:
+                level = "info"
+                clean_msg = raw_msg.replace("🔄", "").strip()
+
+            timestamp: str = datetime.now().strftime("%-d/%b %H:%M:%S")
             msg_handled = False
 
-            # 1. Prevent spam & increment counter: Check if base message is already active
-            for i, existing_msg in enumerate(self._state.system.system_alert_msgs):
-                if base_msg in existing_msg:
-                    # Look for an existing " (x)" pattern at the end of the string
-                    match = re.search(r' \((\d+)\)$', existing_msg)
-                    if match:
-                        count = int(match.group(1)) + 1
-                        # Strip the old count and append the new one
-                        new_msg = existing_msg[:match.start()] + f" ({count})"
-                    else:
-                        # Second occurrence, start at (2)
-                        new_msg = existing_msg + " (2)"
-
-                    # Update it in place to keep the original timestamp intact
-                    self._state.system.system_alert_msgs[i] = new_msg
+            # Prevent spam & increment counter: Check if base message is already active
+            for existing in self._state.system.system_alert_msgs:
+                if existing.get("message") == clean_msg:
+                    existing["count"] = existing.get("count", 1) + 1
+                    existing["timestamp"] = timestamp  # Refresh UI time on re-occurrence
                     changed = True
                     domains.add(domain)
                     msg_handled = True
                     break
 
-            # 2. Brand new message: Prepend time (e.g. [14:05:09])
+            # Brand new message: Append as structured dictionary!
             if not msg_handled:
-                timestamp: str = datetime.now().strftime("%/d/%b %H:%M:%S")
-                timestamp: str = datetime.now().strftime("%-d/%b %H:%M:%S")
-                full_msg = f"[{timestamp}] {base_msg}"
-                self._state.system.system_alert_msgs.append(full_msg)
+                self._state.system.system_alert_msgs.append({
+                    "id": str(uuid.uuid4())[:8],
+                    "level": level,
+                    "message": clean_msg,
+                    "timestamp": timestamp,
+                    "count": 1
+                })
                 changed = True
                 domains.add(domain)
 
@@ -594,12 +612,14 @@ class StateManager:
             dom_conn = payload.get("domoticz_connected", False)
             rfx_conn = payload.get("rfxcom_connected", False)
             hue_conn = payload.get("hue_connected", False)
+            epson_conn = payload.get("epson_connected", False)
             ip_addr = payload.get("ip_address", "0.0.0.0")
 
             prev_wanos = self._state.system.wanos_mqtt_connected
             prev_dom = self._state.system.domoticz_mqtt_connected
             prev_rfx = self._state.system.rfxcom_connected
             prev_hue = self._state.system.hue_connected
+            prev_epson = self._state.system.epson_connected
 
             # --- UI CONNECTION TRANSITION ALERTS ---
             # 1. Local WanOS Broker
@@ -651,17 +671,29 @@ class StateManager:
                 state_changed |= ch
                 changed_domains |= dom
 
+            # 5. Epson Projector TCP
+            if prev_epson and not epson_conn:
+                ch, dom = self._push_alert("🔴 CRITICAL: Epson Projector TCP connection lost (Unplugged?)")
+                state_changed |= ch
+                changed_domains |= dom
+            elif not prev_epson and epson_conn and self._state.system.app_boot_unix is not None:
+                ch, dom = self._push_alert("🟢 SUCCESS: Epson Projector TCP socket responding")
+                state_changed |= ch
+                changed_domains |= dom
+
             # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
             if (prev_wanos != wanos_conn or
                     prev_dom != dom_conn or
                     prev_rfx != rfx_conn or
                     prev_hue != hue_conn or
+                    prev_epson != epson_conn or
                     self._state.system.ip_address != ip_addr or
                     self._state.system.app_boot_unix is None):
                 self._state.system.wanos_mqtt_connected = wanos_conn
                 self._state.system.domoticz_mqtt_connected = dom_conn
                 self._state.system.rfxcom_connected = rfx_conn
                 self._state.system.hue_connected = hue_conn
+                self._state.system.epson_connected = epson_conn
                 self._state.system.ip_address = ip_addr
 
                 # Capture static Unix boot times once during host identification
@@ -769,19 +801,45 @@ class StateManager:
             state_changed |= ch
             changed_domains |= dom
 
+        elif event_name == "EPSON_TOGGLED":
+            is_enabled = payload.get("enabled", False)
+            state_str = "ON" if is_enabled else "OFF"
+            self._state.system.epson_integration_enabled = is_enabled
+            state_changed = True
+            changed_domains.add("system")
+
+            color = "🟢" if is_enabled else "🔴"
+            ch, dom = self._push_alert(f"{color} Epson Integration turned {state_str}")
+            state_changed |= ch
+            changed_domains |= dom
+
         elif event_name == "SIMULATIONS_TOGGLED":
             self._state.hardware.simulations_enabled = payload.get("enabled", False)
             state_changed = True
             changed_domains.add("hardware")
 
         elif event_name == "ALERT_DISMISSED":
-            msg_to_remove = payload.get("msg_text", "")
-            if msg_to_remove in self._state.system.system_alert_msgs:
-                self._state.system.system_alert_msgs.remove(msg_to_remove)
+            msg_to_remove = payload.get("id")
+            original_len = len(self._state.system.system_alert_msgs)
+            self._state.system.system_alert_msgs = [
+                msg for msg in self._state.system.system_alert_msgs
+                if msg.get("id") != msg_to_remove
+            ]
+            if len(self._state.system.system_alert_msgs) != original_len:
                 state_changed = True
                 changed_domains.add("system")
 
-        elif event_name == "TEST_ALERT_INJECTED":
+        elif event_name == "ALERT_CLEAR_NON_CRITICAL":
+            original_len = len(self._state.system.system_alert_msgs)
+            self._state.system.system_alert_msgs = [
+                msg for msg in self._state.system.system_alert_msgs
+                if msg.get("level") == "critical"
+            ]
+            if len(self._state.system.system_alert_msgs) != original_len:
+                state_changed = True
+                changed_domains.add("system")
+
+        elif event_name == "ALERT_INJECTED":
             errmsg_to_send = payload.get("msg_text", "")
             ch, dom = self._push_alert(errmsg_to_send)
             state_changed |= ch
@@ -818,6 +876,11 @@ class StateManager:
                 ch, dom = self._push_alert(msg)
                 state_changed |= ch
                 changed_domains |= dom
+
+                # Automatically trigger a system sweep 2 seconds after a config reload
+                # We pass a specific reason payload so the Sweeper knows to bypass physical hardware movements
+                self._timer_manager.schedule("post_reload_sweep", int(time.time()) + 2, "SYSTEM_SWEEP_REQUESTED",
+                                             {"reason": "config_reload"})
             except Exception as e:
                 ch, dom = self._push_alert(f"🔴 Config reload failed: {e}")
                 state_changed |= ch
@@ -838,30 +901,35 @@ class StateManager:
             now = int(time.time())
 
             # 1. Blinds Enforcement
-            # ⚡ INITIALIZATION RECOVERY GUARD: Skip forcing physical roller shutter movements if this
-            # sweep was automatically scheduled by an integration reconnection event to avoid moving blinds.
-            if payload.get("reason") == "domoticz_reconnection":
-                logger.info("[Sweeper] Skipping initial time-series blinds alignment to respect passive sync baseline.")
-            elif sns.env_schedule_blinds_open_unix and sns.env_schedule_blinds_close_unix:
-                # If current time falls exactly between the Open and Close epoch...
-                if sns.env_schedule_blinds_open_unix <= now < sns.env_schedule_blinds_close_unix:
-                    self.dispatch(Event(type=EventType.BLINDS_OPEN_TRIGGER))
-                else:
-                    self.dispatch(Event(type=EventType.BLINDS_CLOSE_TRIGGER))
+            # ⚡ INITIALIZATION RECOVERY GUARD
+            # Skip forcing physical roller shutter movements and environmental triggers if this
+            # sweep was automatically scheduled by a reconnection, a config reload, or a manual UI trigger.
+            # `None` ensures that manual UI sweeps (which have no reason payload) ALSO skip the blinds!
+            is_passive_sweep = payload.get("reason") in ["domoticz_reconnection", "config_reload", None]
 
-            # 2. Morning Twilight Enforcement
-            if sns.env_schedule_twilight_morning_on_unix and sns.env_schedule_twilight_morning_off_unix:
-                if sns.env_schedule_twilight_morning_on_unix <= now < sns.env_schedule_twilight_morning_off_unix:
-                    self.dispatch(Event(type=EventType.TWILIGHT_MORNING_ON_TRIGGER))
-                else:
-                    self.dispatch(Event(type=EventType.TWILIGHT_MORNING_OFF_TRIGGER))
+            if is_passive_sweep:
+                logger.info("[Sweeper] Skipping time-series hardware alignment to respect passive sync baseline.")
+            else:
+                # 1. Blinds Enforcement
+                if sns.env_schedule_blinds_open_unix and sns.env_schedule_blinds_close_unix:
+                    if sns.env_schedule_blinds_open_unix <= now < sns.env_schedule_blinds_close_unix:
+                        self.dispatch(Event(type=EventType.BLINDS_OPEN_TRIGGER))
+                    else:
+                        self.dispatch(Event(type=EventType.BLINDS_CLOSE_TRIGGER))
 
-            # 3. Evening Twilight Enforcement
-            if sns.env_schedule_twilight_evening_on_unix and sns.env_schedule_twilight_evening_off_unix:
-                if sns.env_schedule_twilight_evening_on_unix <= now < sns.env_schedule_twilight_evening_off_unix:
-                    self.dispatch(Event(type=EventType.TWILIGHT_EVENING_ON_TRIGGER))
-                else:
-                    self.dispatch(Event(type=EventType.TWILIGHT_EVENING_OFF_TRIGGER))
+                # 2. Morning Twilight Enforcement
+                if sns.env_schedule_twilight_morning_on_unix and sns.env_schedule_twilight_morning_off_unix:
+                    if sns.env_schedule_twilight_morning_on_unix <= now < sns.env_schedule_twilight_morning_off_unix:
+                        self.dispatch(Event(type=EventType.TWILIGHT_MORNING_ON_TRIGGER))
+                    else:
+                        self.dispatch(Event(type=EventType.TWILIGHT_MORNING_OFF_TRIGGER))
+
+                # 3. Evening Twilight Enforcement
+                if sns.env_schedule_twilight_evening_on_unix and sns.env_schedule_twilight_evening_off_unix:
+                    if sns.env_schedule_twilight_evening_on_unix <= now < sns.env_schedule_twilight_evening_off_unix:
+                        self.dispatch(Event(type=EventType.TWILIGHT_EVENING_ON_TRIGGER))
+                    else:
+                        self.dispatch(Event(type=EventType.TWILIGHT_EVENING_OFF_TRIGGER))
 
             ch, dom = self._push_alert("🟢 System Sweeper complete. Environmental phases synchronized.")
             state_changed |= ch
@@ -1332,12 +1400,19 @@ class StateManager:
 
                 # ⚡ EPSON INTERCEPTOR
                 if idx == 80001 and (old_val != state_val or is_force):
-                    if getattr(self, "epson_bridge", None):
-                        # We use asyncio.create_task so the TCP network call doesn't block WanOS's event queue!
-                        asyncio.create_task(self.epson_bridge.power(state_val))
+                    if self._state.system.epson_integration_enabled:
+                        if getattr(self, "epson_bridge", None):
+                            # We use asyncio.create_task so the TCP network call doesn't block WanOS's event queue!
+                            asyncio.create_task(self.epson_bridge.power(state_val))
+                        else:
+                            automation_logger.error(
+                                "Tried to trigger Epson projector, but bridge is offline or misconfigured.")
                     else:
-                        automation_logger.error(
-                            "Tried to trigger Epson projector, but bridge is offline or misconfigured.")
+                        # 🛡️ Bouncer logic: Provide clear UI feedback that the integration is disabled
+                        automation_logger.warning("Epson command dropped: Integration is disabled in UI.")
+                        ch, dom = self._push_alert("🔴 Epson command dropped: Integration is disabled.")
+                        state_changed |= ch
+                        changed_domains |= dom
 
         elif event_name == "BATH1_VENT_LOCK_EXPIRED":
             # The 5-minute minimum runtime has passed. Release the internal lock.
@@ -1481,6 +1556,21 @@ class StateManager:
                 return client_mgr.is_connected
             return False
 
+        async def _ping_epson() -> bool:
+            if not getattr(self._config, "epson", None) or not self._config.epson.ip_address:
+                return False
+            try:
+                # ⚡ Non-blocking TCP ping to check if the projector's network stack is alive
+                _, writer = await asyncio.wait_for(
+                    asyncio.open_connection(self._config.epson.ip_address, 3629),
+                    timeout=1.0
+                )
+                writer.close()
+                await writer.wait_closed()
+                return True
+            except Exception:
+                return False
+
         while True:
             try:
                 await asyncio.sleep(2.0)
@@ -1496,11 +1586,13 @@ class StateManager:
                         # Record directly to backend log as well
                         asyncio.create_task(self.logger.error(dom_err))
 
+                epson_online = await _ping_epson()
                 metrics_payload = {
                     "wanos_connected": _is_connected(self.mqtt_client),
                     "domoticz_connected": _is_connected(self.domoticz_client),
                     "rfxcom_connected": _is_connected(self.rfxcom_bridge),
                     "hue_connected": _is_connected(getattr(self, "hue_bridge", None)),
+                    "epson_connected": epson_online,
                     "ip_address": _get_ip()
                 }
                 self.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))

@@ -227,8 +227,12 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         with open(hue_yaml_path, "r", encoding="utf-8") as file:
             hue_file_raw = yaml.safe_load(file)
             if isinstance(hue_file_raw, dict):
-                # Clean encapsulation: Supports both nested 'hue:' definitions and root declarations
                 hue_data = hue_file_raw.get("hue", hue_file_raw)
+                # ⚡ Sanitize empty YAML keys so they don't crash Pydantic
+                if hue_data:
+                    for map_key in ["device_map", "group_map", "scene_map", "presets"]:
+                        if hue_data.get(map_key) is None:
+                            hue_data[map_key] = {}
 
     # 4. Consolidate payloads for unified validation assembly
     compiled_data = {

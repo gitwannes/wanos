@@ -15,7 +15,8 @@ class EventType(str, Enum):
     SENSOR_ERROR = "SENSOR_ERROR"
     BATH1_VENT_LOCK_EXPIRED = "BATH1_VENT_LOCK_EXPIRED"  # Fired when the bathroom vent minimum runtime ends
     ALERT_DISMISSED = "ALERT_DISMISSED"  # General error message on top of the UI
-    TEST_ALERT_INJECTED = "TEST_ALERT_INJECTED"  # to test the teneral error message on top of the UI
+    ALERT_CLEAR_NON_CRITICAL = "ALERT_CLEAR_NON_CRITICAL"  # ⚡ Clear all info/success alerts
+    ALERT_INJECTED = "ALERT_INJECTED"  # to test the teneral error message on top of the UI
 
     # Sauna & Logic Events
     SAUNA_ON = "SAUNA_ON"
@@ -48,6 +49,7 @@ class EventType(str, Enum):
     RFXCOM_TOGGLED = "RFXCOM_TOGGLED"  # ⚡ Added to allow UI HTTP events to pass validation!
     OWM_TOGGLED = "OWM_TOGGLED"  # get OWM weather
     HUE_TOGGLED = "HUE_TOGGLED"  # ⚡ Listen to local Hue Bridge messages
+    EPSON_TOGGLED = "EPSON_TOGGLED"  # ⚡ Block/allow Epson projector network commands
     SYSTEM_SWEEP_REQUESTED = "SYSTEM_SWEEP_REQUESTED"  # Manual Time & Environment Audit
     CONFIG_RELOAD_REQUESTED = "CONFIG_RELOAD_REQUESTED"  # Hot-reload config.yaml configuration
 
@@ -76,13 +78,15 @@ class SystemAdminState(BaseModel):
     rfxcom_integration_enabled: bool = False  # ⚡ Switch to block/allow native RFXCOM transmission/reception
     hue_connected: bool = False  # ⚡ Tracks local Hue API v2 connection
     hue_integration_enabled: bool = False  # ⚡ Switch to block/allow Hue API v2 bidirectional commands
+    epson_connected: bool = False  # ⚡ Tracks physical TCP availability of the Epson Projector
+    epson_integration_enabled: bool = False  # ⚡ Master UI switch to block/allow Epson commands
     ip_address: str = "0.0.0.0"
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None
     automations_enabled: bool = False  # Master switch for the logic engine
     domoticz_integration_enabled: bool = False  # ⚡ Default OFF, controls whether we process Domoticz messages
     owm_integration_enabled: bool = False  # ⚡ Default OFF, controls OpenWeatherMap polling
-    system_alert_msgs: list[str] = Field(default_factory=list)  # A list to hold multiple stacked alert messages
+    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # ⚡ Upgraded to structured dicts {id, level, message, timestamp, count}
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
     native_rfx_devices: list[dict] = Field(default_factory=list)  # ⚡ Pushed dynamically to UI panel
     available_scenes: list[dict[str, str]] = Field(default_factory=list)  # ⚡ Extracted stateless triggers for UI

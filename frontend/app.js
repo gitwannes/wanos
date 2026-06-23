@@ -18,6 +18,8 @@ function wanosApp() {
                 owm_integration_enabled: false, // ⚡ Switch to block/allow OWM polling
                 rfxcom_connected: false, // ⚡ Live USB mounting health status
                 rfxcom_integration_enabled: false, // ⚡ Switch to block/allow native RFXCOM transmission/reception
+                epson_connected: false, // ⚡ Tracks physical TCP availability of the Epson Projector
+                epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
                 available_scenes: [], // ⚡ Holds dynamically extracted stateless automations
                 hidden_explorer_idxs: [] // ⚡ Devices to hide from the Device Explorer
@@ -200,7 +202,24 @@ function wanosApp() {
             });
         },
 
+        // 🔔 Intelligent Alert Routing Getters
+        get criticalAlerts() {
+            if (!this.state.system.system_alert_msgs) return [];
+            return this.state.system.system_alert_msgs.filter(msg => msg.level === 'critical');
+        },
+
+        get nonCriticalAlerts() {
+            if (!this.state.system.system_alert_msgs) return [];
+            // Return sorted newest-first so the bell dropdown feels like a real notification feed
+            return this.state.system.system_alert_msgs.filter(msg => msg.level !== 'critical').reverse();
+        },
+
+        get unreadAlertCount() {
+            return this.nonCriticalAlerts.length;
+        },
+
         // ⚡ Dynamically compiles a list of disabled backend integrations
+
         get disabledIntegrationsText() {
             let disabled = [];
             // if (!this.state.hardware.live_mode) disabled.push("Hardware Bus"); // To be enabled later
@@ -208,6 +227,7 @@ function wanosApp() {
             if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
             if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
             if (!this.state.system.automations_enabled) disabled.push("Automation");
+            if (!this.state.system.epson_integration_enabled) disabled.push("Epson projector");
 
             if (disabled.length === 0) return "";
             return "⚠️ OFFLINE: " + disabled.join(", ");
@@ -447,12 +467,12 @@ function wanosApp() {
 
             this.state[domain] = Object.assign({}, this.state[domain], data);
 
-            // ⚡ INTELLIGENT UI UNLOCKER: Watch for backend sweep or config completion strings
+            // ⚡ INTELLIGENT UI UNLOCKER: Watch for backend sweep or config completion dictionaries
             if (domain === "system" && data.system_alert_msgs) {
-                if (data.system_alert_msgs.some(msg => msg.includes("Sweeper complete"))) {
+                if (data.system_alert_msgs.some(msg => msg.message && msg.message.includes("Sweeper complete"))) {
                     this.sweepRunning = false;
                 }
-                if (data.system_alert_msgs.some(msg => msg.includes("Config reloaded") || msg.includes("Config reload failed"))) {
+                if (data.system_alert_msgs.some(msg => msg.message && (msg.message.includes("Config reloaded") || msg.message.includes("Config reload failed")))) {
                     this.configReloading = false;
                 }
             }
@@ -681,6 +701,15 @@ function wanosApp() {
             }
         },
 
+        // 🔔 Alert UI Action Dispatchers
+        dismissAlert(id) {
+            this.dispatchEvent("ALERT_DISMISSED", { id: id });
+        },
+
+        clearNonCriticalAlerts() {
+            this.dispatchEvent("ALERT_CLEAR_NON_CRITICAL");
+        },
+
         injectLabMetric(eventType, idx, targetValue) {
             const payload = {
                 idx: parseInt(idx, 10),
@@ -762,6 +791,11 @@ function wanosApp() {
         toggleOWM() {
             const nextState = !this.state.system.owm_integration_enabled;
             this.dispatchEvent("OWM_TOGGLED", { enabled: nextState });
+        },
+
+        toggleEpson() {
+            const nextState = !this.state.system.epson_integration_enabled;
+            this.dispatchEvent("EPSON_TOGGLED", { enabled: nextState });
         },
 
         toggleSimulations() {

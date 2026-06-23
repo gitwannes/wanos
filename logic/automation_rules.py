@@ -328,7 +328,7 @@ class AutomationEngine:
                 msg: str = f"🟢 Sweeper complete: Recovered {' and '.join(parts)}."
 
             follow_up_events.append(Event(
-                type=EventType.TEST_ALERT_INJECTED,
+                type=EventType.ALERT_INJECTED,
                 payload={"msg_text": msg}
             ))
 
