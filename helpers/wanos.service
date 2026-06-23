@@ -1,0 +1,26 @@
+## /etc/systemd/system/wanos.service
+
+[Unit]
+Description=WanOS Home Automation Core
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=wannes
+Group=wannes
+WorkingDirectory=/home/wannes/wanos
+# Forces unbuffered Python output so Journald gets it instantly
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/wannes/wanos/wanos_venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+# Sends Graceful SIGTERM, waits 10s, then sends SIGKILL if it hangs
+TimeoutStopSec=10
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
+
+#sudo systemctl daemon-reload
+#sudo systemctl enable wanos.service
+#sudo systemctl start wanos.service

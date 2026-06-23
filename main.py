@@ -190,6 +190,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         state_manager.dispatch(Event(type=EventType.SYSTEM_READY))
         logger.info("Core systems online. Base state ready.")
 
+        # ⚡ AUTOSTART SEQUENCE ⚡
+        # Evaluates .env configuration. Spawns a non-blocking background task to wait
+        # 5 seconds for local network sockets to stabilize, then fires the Master Start Sequence.
+        if os.getenv("WANOS_AUTOSTART", "False").lower() == "true":
+            async def delayed_autostart():
+                await asyncio.sleep(5.0)
+                logger.info("🚀 Executing automated Master Start Sequence (WANOS_AUTOSTART=True)...")
+                # Phase 1: Arm the Brain
+                state_manager.dispatch(Event(type=EventType.AUTOMATIONS_TOGGLED, payload={"enabled": True}))
+                # Phase 2: Power the Actuators
+                state_manager.dispatch(Event(type=EventType.HUE_TOGGLED, payload={"enabled": True}))
+                state_manager.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True}))
+                state_manager.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={"enabled": True}))
+                # Phase 3: Enable Domoticz (State Database Sync)
+                state_manager.dispatch(Event(type=EventType.DOMOTICZ_TOGGLED, payload={"enabled": True}))
+                # Phase 4: The Cloud
+                state_manager.dispatch(Event(type=EventType.OWM_TOGGLED, payload={"enabled": True}))
+                # Phase 5: Time-Series Synchronization Sweep
+                state_manager.dispatch(Event(type=EventType.SYSTEM_SWEEP_REQUESTED, payload={}))
+
+            asyncio.create_task(delayed_autostart())
+
         # 4. Start the thermodynamics engine in the background
         logger.info("Simulation engine booting...")
         physics_task = asyncio.create_task(lab_mode_thermodynamics_loop(state_manager))
@@ -287,7 +309,8 @@ async def sse_state_stream(request: Request):
                 data_sent = False
 
                 # Emit only domains whose serialized content has changed since last push
-                for domain in ["system", "sensors", "sauna", "ir", "metrics", "hardware", "devices"]:
+                for domain in ["system", "sensors", "sauna", "ir", "metrics", "hardware", "devices", "device_metadata",
+                               "dashboard_map"]:
                     domain_data = getattr(current_state, domain, None)
                     if domain_data is None:
                         continue
