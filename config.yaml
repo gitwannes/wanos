@@ -108,6 +108,7 @@ deviceexplorer_exclude:
   - 1612  # toilet ventilatie motor (= sync'd met knop binnen)
   - 1625  # badk 2e binnen (= unused & sync'd met knop buiten)
   - 6070  # slpk Wannes hue switch aan deur
+  - 80001 # Epson projector
 
 
 # ==============================================================================

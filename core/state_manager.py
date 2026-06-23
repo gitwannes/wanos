@@ -621,7 +621,7 @@ class StateManager:
             prev_hue = self._state.system.hue_connected
             prev_epson = self._state.system.epson_connected
 
-            # --- UI CONNECTION TRANSITION ALERTS ---
+            # --- UI CONNECTION TRANSITION ALERTS & RECOVERY ---
             # 1. Local WanOS Broker
             if prev_wanos and not wanos_conn:
                 ch, dom = self._push_alert("🔴 CRITICAL: Local MQTT Broker offline")
@@ -641,15 +641,9 @@ class StateManager:
                 ch, dom = self._push_alert("🟢 SUCCESS: Domoticz MQTT Broker Connection back online")
                 state_changed |= ch
                 changed_domains |= dom
-
-                # ⚡ AUTO-RECOVERY BRIDGE
-                # If the system previously faulted out and disabled polling, programmatically toggle it back ON.
-                # This seamlessly initiates the HTTP Boot-Sync to recover lost state.
                 if not self._state.system.domoticz_integration_enabled:
-                    self.dispatch(Event(
-                        type=EventType.DOMOTICZ_TOGGLED,
-                        payload={"enabled": True}
-                    ))
+                    self.dispatch(
+                        Event(type=EventType.DOMOTICZ_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
             # 3. Native RFXCOM USB Serial
             if prev_rfx and not rfx_conn:
@@ -660,6 +654,9 @@ class StateManager:
                 ch, dom = self._push_alert("🟢 SUCCESS: Native RFXCOM USB Transceiver mounted")
                 state_changed |= ch
                 changed_domains |= dom
+                if not self._state.system.rfxcom_integration_enabled:
+                    self.dispatch(
+                        Event(type=EventType.RFXCOM_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
             # 4. Local Hue Bridge
             if prev_hue and not hue_conn:
@@ -670,6 +667,9 @@ class StateManager:
                 ch, dom = self._push_alert("🟢 SUCCESS: Local Hue Bridge connected via API v2")
                 state_changed |= ch
                 changed_domains |= dom
+                if not self._state.system.hue_integration_enabled:
+                    self.dispatch(
+                        Event(type=EventType.HUE_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
             # 5. Epson Projector TCP
             if prev_epson and not epson_conn:
@@ -680,6 +680,9 @@ class StateManager:
                 ch, dom = self._push_alert("🟢 SUCCESS: Epson Projector TCP socket responding")
                 state_changed |= ch
                 changed_domains |= dom
+                if not self._state.system.epson_integration_enabled:
+                    self.dispatch(
+                        Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
             # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
             if (prev_wanos != wanos_conn or
@@ -735,12 +738,11 @@ class StateManager:
             color = "🟢" if is_enabled else "🔴"
             raw_error = payload.get("error_msg")
             error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} Domoticz polling turned {state_str} by system")
+            ch, dom = self._push_alert(error_alert, f"{color} Domoticz polling turned {state_str}")
             state_changed |= ch
             changed_domains |= dom
 
             # --- THE UX WIPE (NULLIFICATION) ---
-            # If disabled (either manually or via 3-strike fault), instantly gray out Domoticz items
             if not is_enabled:
                 for idx in list(self._state.devices.keys()):
                     if isinstance(idx, int) and idx < 10000:
@@ -748,16 +750,14 @@ class StateManager:
                             self._state.devices[idx] = None
                             state_changed = True
                             changed_domains.add("devices")
-
-            # --- AUTO-SWEEP SCHEDULER ---
-            # If enabled, spawn a 5-second delayed sweep to ensure the logic engine
-            # evaluates the fresh data downloaded during the HTTP Boot-Sync
             else:
-                deadline = int(time.time()) + 5
-                # Append a context payload specifying that this sweep originates from an integration recovery routine
-                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
-                                             {"reason": "domoticz_reconnection"})
-                logger.info("Domoticz Integration ENABLED. Scheduled full system logic sweep in 5 seconds.")
+                # ⚡ DEBOUNCED AUTO-SWEEP SCHEDULER
+                # Only trigger sweeps if this was an automatic network recovery! Manual UI clicks stay silent.
+                if payload.get("is_auto_recovery", False):
+                    deadline = int(time.time()) + 10
+                    self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                                 {"reason": "network_recovery"})
+                    logger.info("Domoticz Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
         elif event_name == "RFXCOM_TOGGLED":
             is_enabled = payload.get("enabled", False)
@@ -773,6 +773,12 @@ class StateManager:
             state_changed |= ch
             changed_domains |= dom
 
+            if is_enabled and payload.get("is_auto_recovery", False):
+                deadline = int(time.time()) + 10
+                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                             {"reason": "network_recovery"})
+                logger.info("RFXCOM Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+
         elif event_name == "OWM_TOGGLED":
             is_enabled = payload.get("enabled", False)
             state_str = "ON" if is_enabled else "OFF"
@@ -786,6 +792,12 @@ class StateManager:
             ch, dom = self._push_alert(error_alert, f"{color} OWM Integration turned {state_str}")
             state_changed |= ch
             changed_domains |= dom
+
+            if is_enabled and payload.get("is_auto_recovery", False):
+                deadline = int(time.time()) + 10
+                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                             {"reason": "network_recovery"})
+                logger.info("OWM Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
         elif event_name == "HUE_TOGGLED":
             is_enabled = payload.get("enabled", False)
@@ -801,6 +813,12 @@ class StateManager:
             state_changed |= ch
             changed_domains |= dom
 
+            if is_enabled and payload.get("is_auto_recovery", False):
+                deadline = int(time.time()) + 10
+                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                             {"reason": "network_recovery"})
+                logger.info("Hue Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+
         elif event_name == "EPSON_TOGGLED":
             is_enabled = payload.get("enabled", False)
             state_str = "ON" if is_enabled else "OFF"
@@ -809,9 +827,17 @@ class StateManager:
             changed_domains.add("system")
 
             color = "🟢" if is_enabled else "🔴"
-            ch, dom = self._push_alert(f"{color} Epson Integration turned {state_str}")
+            raw_error = payload.get("error_msg")
+            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+            ch, dom = self._push_alert(error_alert, f"{color} Epson Integration turned {state_str}")
             state_changed |= ch
             changed_domains |= dom
+
+            if is_enabled and payload.get("is_auto_recovery", False):
+                deadline = int(time.time()) + 10
+                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                             {"reason": "network_recovery"})
+                logger.info("Epson Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
         elif event_name == "SIMULATIONS_TOGGLED":
             self._state.hardware.simulations_enabled = payload.get("enabled", False)
@@ -857,6 +883,10 @@ class StateManager:
                 for idx, name in new_config.dashboard.items():
                     self._state.dashboard_map[idx] = name
 
+                # ⚡ Sync the Explorer Exclusion List
+                # Overwrites the live RAM state with the fresh list from the hard drive so the UI hides the dropped devices
+                self._state.system.hidden_explorer_idxs = new_config.deviceexplorer_exclude
+
                 # ⚡ Re-extract scenes dynamically in case the user added new ones to config.yaml
                 self._extract_scenes_from_config()
 
@@ -901,11 +931,12 @@ class StateManager:
             now = int(time.time())
 
             # 1. Blinds Enforcement
-            # ⚡ INITIALIZATION RECOVERY GUARD
+            # ⚡ ENHANCED RECOVERY GUARD
             # Skip forcing physical roller shutter movements and environmental triggers if this
             # sweep was automatically scheduled by a reconnection, a config reload, or a manual UI trigger.
-            # `None` ensures that manual UI sweeps (which have no reason payload) ALSO skip the blinds!
-            is_passive_sweep = payload.get("reason") in ["domoticz_reconnection", "config_reload", None]
+            # Adding `None` ensures that manual UI sweeps (which have no reason payload) ALSO skip the blinds!
+            is_passive_sweep = payload.get("reason") in ["domoticz_reconnection", "network_recovery", "config_reload",
+                                                         None]
 
             if is_passive_sweep:
                 logger.info("[Sweeper] Skipping time-series hardware alignment to respect passive sync baseline.")
@@ -1571,28 +1602,50 @@ class StateManager:
             except Exception:
                 return False
 
+        # ⚡ Dedicated Strike Counters for Auto-Kill thresholds
+        # Network integrations get 3 strikes (6 seconds) to survive minor TCP blips.
+        # USB hardware gets 1 strike (2 seconds) because a missing /dev/tty is immediately fatal.
+        strikes = {"domoticz": 0, "hue": 0, "epson": 0, "rfxcom": 0}
+
         while True:
             try:
                 await asyncio.sleep(2.0)
 
-                # 3-Strike Hard Fault Check for Domoticz
-                if self.domoticz_client and hasattr(self.domoticz_client, "failed_attempts"):
-                    if self.domoticz_client.failed_attempts >= 3 and self._state.system.domoticz_integration_enabled:
-                        dom_err = "🔌 Domoticz connection lost after 3 retries. Integration disabled."
-                        self.dispatch(Event(
-                            type=EventType.DOMOTICZ_TOGGLED,
-                            payload={"enabled": False, "error_msg": dom_err}
-                        ))
-                        # Record directly to backend log as well
-                        asyncio.create_task(self.logger.error(dom_err))
+                wanos_conn = _is_connected(self.mqtt_client)
+                dom_conn = _is_connected(self.domoticz_client)
+                rfx_conn = _is_connected(self.rfxcom_bridge)
+                hue_conn = _is_connected(getattr(self, "hue_bridge", None))
+                epson_conn = await _ping_epson()
 
-                epson_online = await _ping_epson()
+                # Update strike tracking based on physical socket availability
+                strikes["domoticz"] = 0 if dom_conn else strikes["domoticz"] + 1
+                strikes["hue"] = 0 if hue_conn else strikes["hue"] + 1
+                strikes["epson"] = 0 if epson_conn else strikes["epson"] + 1
+                strikes["rfxcom"] = 0 if rfx_conn else strikes["rfxcom"] + 1
+
+                # ⚡ Evaluate Auto-Kill thresholds
+                if strikes["domoticz"] >= 3 and self._state.system.domoticz_integration_enabled:
+                    self.dispatch(Event(type=EventType.DOMOTICZ_TOGGLED, payload={"enabled": False,
+                                                                                  "error_msg": "🔌 Domoticz connection lost after 3 retries. Integration disabled."}))
+
+                if strikes["hue"] >= 3 and self._state.system.hue_integration_enabled:
+                    self.dispatch(Event(type=EventType.HUE_TOGGLED, payload={"enabled": False,
+                                                                             "error_msg": "🔌 Hue Bridge connection lost after 3 retries. Integration disabled."}))
+
+                if strikes["epson"] >= 3 and self._state.system.epson_integration_enabled:
+                    self.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": False,
+                                                                               "error_msg": "🔌 Epson Projector connection lost after 3 retries. Integration disabled."}))
+
+                if strikes["rfxcom"] >= 1 and self._state.system.rfxcom_integration_enabled:
+                    self.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={"enabled": False,
+                                                                                "error_msg": "🔌 USB RFXCOM disconnected. Integration disabled."}))
+
                 metrics_payload = {
-                    "wanos_connected": _is_connected(self.mqtt_client),
-                    "domoticz_connected": _is_connected(self.domoticz_client),
-                    "rfxcom_connected": _is_connected(self.rfxcom_bridge),
-                    "hue_connected": _is_connected(getattr(self, "hue_bridge", None)),
-                    "epson_connected": epson_online,
+                    "wanos_connected": wanos_conn,
+                    "domoticz_connected": dom_conn,
+                    "rfxcom_connected": rfx_conn,
+                    "hue_connected": hue_conn,
+                    "epson_connected": epson_conn,
                     "ip_address": _get_ip()
                 }
                 self.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))

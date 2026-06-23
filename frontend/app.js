@@ -269,7 +269,7 @@ function wanosApp() {
                     type: meta.type,
                     raw_value: rawValue,
                     is_on: isOn,
-                    is_hue: idx >= 50000 // ⚡ Safest architectural bound to classify advanced local API lights
+                    is_hue: meta.origin === 'hue'
                 });
             }
 
@@ -384,6 +384,26 @@ function wanosApp() {
 
         init() {
             console.log("🚀 WanOS Web Controller initializing...");
+
+            // ⚡ URL Query Parameters Parser
+            // Automatically extracts and seeds filters on page boot, stripping literal quotes if passed
+            const urlParams = new URLSearchParams(window.location.search);
+
+            if (urlParams.has('search')) {
+                // Cleanly strips bounding single or double quotes from the string payload
+                this.searchQuery = urlParams.get('search').replace(/^["']|["']$/g, '');
+            }
+
+            if (urlParams.has('state')) {
+                const stateParam = urlParams.get('state').replace(/^["']|["']$/g, '').toUpperCase();
+                // Map logical semantic device states directly back to binary dashboard filters
+                if (stateParam === 'ON' || stateParam === 'CLOSED') {
+                    this.statusFilter = 'ON';
+                } else if (stateParam === 'OFF' || stateParam === 'OPEN') {
+                    this.statusFilter = 'OFF';
+                }
+            }
+
             this.connectSSE();
             setInterval(this.ticker.bind(this), 1000);
         },
@@ -803,6 +823,28 @@ function wanosApp() {
             this.dispatchEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
         },
 
+        async enableAllIntegrations() {
+            this.dispatchEvent("ALERT_INJECTED", { msg_text: "🚀 Initiating Master Start Sequence..." });
+
+            // Phase 1: Arm the Brain (Automations)
+            await this.dispatchEvent("AUTOMATIONS_TOGGLED", { enabled: true });
+
+            // Phase 2: Power the Actuators (Hardware Bridges & Displays)
+            await this.dispatchEvent("HUE_TOGGLED", { enabled: true });
+            await this.dispatchEvent("EPSON_TOGGLED", { enabled: true });
+            await this.dispatchEvent("RFXCOM_TOGGLED", { enabled: true });
+
+            // Phase 3: Enable Domoticz (State Database Sync)
+            await this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: true });
+
+            // Phase 4: The Cloud (Low-priority polling)
+            await this.dispatchEvent("OWM_TOGGLED", { enabled: true });
+
+            // Phase 5: Ensure Time-Series & Auto-Timers are synchronized
+            // (Reuses the dedicated sweep macro to enforce UI locks!)
+            await this.requestSystemSweep();
+        },
+
         injectLabDoorChange(idx, isOpen) {
             this.dispatchEvent("DOOR_CHANGED", { idx: parseInt(idx, 10), is_open: isOpen });
         },
@@ -984,14 +1026,14 @@ function wanosApp() {
 
         injectTestAlert() {
             const msg = `🧪 Simulated Error - Local Browser Injection`;
-            this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: msg });
+            this.dispatchEvent("ALERT_INJECTED", { msg_text: msg });
         },
 
         async requestSystemSweep() {
             if (this.sweepRunning) return;
             this.sweepRunning = true;
 
-            this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: "🧹 System sweep running..." });
+            this.dispatchEvent("ALERT_INJECTED", { msg_text: "🧹 System sweep running..." });
 
             await this.dispatchEvent("SYSTEM_SWEEP_REQUESTED");
 
@@ -1011,7 +1053,7 @@ function wanosApp() {
             if (this.configReloading) return;
             this.configReloading = true;
 
-            this.dispatchEvent("TEST_ALERT_INJECTED", { msg_text: "🔄 Reloading all config yaml configurations..." });
+            this.dispatchEvent("ALERT_INJECTED", { msg_text: "🔄 Reloading all config yaml configurations..." });
 
             await this.dispatchEvent("CONFIG_RELOAD_REQUESTED");
 
