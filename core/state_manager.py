@@ -315,36 +315,46 @@ class StateManager:
 
         # --- Phase 3: SCHEDULER DEPLOYMENT ---
         now_unix = int(time.time())
+        uptime = now_unix - self._start_time
+
+        # ⚡ Anti-NTP Jump Guard: Safely absorb Pi fake-hwclock skews during boot.
+        # Only schedule time-series timers if they are safely in the future (> 5s),
+        # or if the system has fully stabilized past its 3-minute boot window.
+        def _should_schedule(target_unix: Optional[int]) -> bool:
+            if not target_unix:
+                return False
+            return target_unix > now_unix and (target_unix - now_unix > 5 or uptime > 180)
+
         # ⚡ Dispatched dynamically to the bus so the Glass-Box Timeline UI registers them instantly.
         # Metadata mapping is handled automatically downstream via Subscriber Fan-Out logic.
-        if blinds_open > now_unix:
+        if _should_schedule(blinds_open):
             self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_blinds_open", "deadline": blinds_open, "event_type": "BLINDS_OPEN_TRIGGER",
                 "event_payload": {}
             }))
-        if blinds_close > now_unix:
+        if _should_schedule(blinds_close):
             self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_blinds_close", "deadline": blinds_close, "event_type": "BLINDS_CLOSE_TRIGGER",
                 "event_payload": {}
             }))
-        if twi_eve_on > now_unix:
+        if _should_schedule(twi_eve_on):
             self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_eve_on", "deadline": twi_eve_on, "event_type": "TWILIGHT_EVENING_ON_TRIGGER",
                 "event_payload": {}
             }))
-        if twi_eve_off > now_unix:
+        if _should_schedule(twi_eve_off):
             self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_eve_off", "deadline": twi_eve_off,
                 "event_type": "TWILIGHT_EVENING_OFF_TRIGGER",
                 "event_payload": {}
             }))
-        if sns.env_schedule_twilight_morning_on_unix and sns.env_schedule_twilight_morning_on_unix > now_unix:
+        if _should_schedule(sns.env_schedule_twilight_morning_on_unix):
             self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_morn_on", "deadline": sns.env_schedule_twilight_morning_on_unix,
                 "event_type": "TWILIGHT_MORNING_ON_TRIGGER",
                 "event_payload": {}
             }))
-        if sns.env_schedule_twilight_morning_off_unix and sns.env_schedule_twilight_morning_off_unix > now_unix:
+        if _should_schedule(sns.env_schedule_twilight_morning_off_unix):
             self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_morn_off", "deadline": sns.env_schedule_twilight_morning_off_unix,
                 "event_type": "TWILIGHT_MORNING_OFF_TRIGGER",
@@ -934,12 +944,15 @@ class StateManager:
             # ⚡ ENHANCED RECOVERY GUARD
             # Skip forcing physical roller shutter movements and environmental triggers if this
             # sweep was automatically scheduled by a reconnection, a config reload, or a manual UI trigger.
-            # Adding `None` ensures that manual UI sweeps (which have no reason payload) ALSO skip the blinds!
-            is_passive_sweep = payload.get("reason") in ["domoticz_reconnection", "network_recovery", "config_reload",
-                                                         None]
+            # Adding `None` ensures that manual UI sweeps (which have no reason payload) ALSO skip the blinds.
+            # An absolute 3-minute Uptime Guard natively absorbs initial boot commands.
+            reason = payload.get("reason")
+            is_passive_sweep = reason in ["domoticz_reconnection", "network_recovery", "config_reload", None]
+            uptime = int(time.time() - self._start_time)
 
-            if is_passive_sweep:
-                logger.info("[Sweeper] Skipping time-series hardware alignment to respect passive sync baseline.")
+            if is_passive_sweep or uptime < 180:
+                logger.info(
+                    f"[Sweeper] Skipping time-series hardware alignment to respect passive baseline (Uptime: {uptime}s).")
             else:
                 # 1. Blinds Enforcement
                 if sns.env_schedule_blinds_open_unix and sns.env_schedule_blinds_close_unix:

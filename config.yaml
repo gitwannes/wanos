@@ -109,6 +109,11 @@ deviceexplorer_exclude:
   - 1625  # badk 2e binnen (= unused & sync'd met knop buiten)
   - 6070  # slpk Wannes hue switch aan deur
   - 80001 # Epson projector
+  - 6689  # living special switch
+  - 621   # kerst voor
+  - 9627  # kerst achter
+  - 40004 # kerstboom
+  - 8577  # sauna extr vent
 
 
 # ==============================================================================
@@ -138,7 +143,7 @@ bathroom1:
 # 🌍 The Daily Time-Series Engine (Environmental Bounds)
 environmental_schedule:
   blinds:
-    morning_open_earliest: "07:30"
+    morning_open_earliest: "07:00"
     morning_open_latest: "09:00"
     evening_close_earliest: "16:30"
     evening_close_latest: "22:00"

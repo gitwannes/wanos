@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 from loguru import logger
 
 EPSON_INIT = bytes([
@@ -58,3 +59,42 @@ class EpsonProjector:
         except Exception as e:
             logger.error(f"🔴 Epson communication failed: {e}")
             return False
+
+    async def get_power_state(self) -> Optional[str]:
+        """Returns 'ON', 'OFF', or None if no response."""
+        reader, writer = await asyncio.open_connection(self.host, self.port)
+
+        # Send INIT
+        writer.write(EPSON_INIT)
+        await writer.drain()
+        await asyncio.sleep(0.5)
+
+        # Send query
+        writer.write(b"PWR?\x0D")
+        await writer.drain()
+
+        try:
+            resp = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+            resp = resp.decode(errors="ignore").strip()
+        except asyncio.TimeoutError:
+            resp = None
+
+        writer.close()
+        await writer.wait_closed()
+
+        if not resp:
+            return None
+
+        # Epson power states:
+        # 01 = ON
+        # 02 = WARMING UP (treat as ON)
+        # 03 = COOLING DOWN (treat as OFF)
+        # 00 = OFF
+
+        if "PWR=01" in resp or "PWR=02" in resp:
+            return "ON"
+
+        if "PWR=00" in resp or "PWR=03" in resp:
+            return "OFF"
+
+        return None

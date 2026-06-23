@@ -16,6 +16,9 @@
 
 
 ** first, Wannes-default config
+
+ToDo -> Move to Debian 13 (Trixie)
+
 flash Raspberry Pi OS Lite (Legacy, 32-bit)
 	hostname wiscnew
 	username and password: wannes / xxx
@@ -175,3 +178,7 @@ sudo systemctl restart smbd
 # on Windows
 net use Z: "\\10.32.251.28\wanos_share" /user:wannes
 
+** setup Z-Wave JS middleware
+edit /boot/config.txt (disable onboard BT)
+dtoverlay=disable-bt
+enable_uart=1
