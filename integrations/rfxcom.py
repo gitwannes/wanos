@@ -236,8 +236,9 @@ class NativeRFXCOMBridge(WanosComponent):
                 if idx is None or new_state is None or idx not in self._outbound_map:
                     continue
 
-                if new_state == self._last_known_states.get(idx):
-                    continue
+                # ⚡ STATELESS RADIO BYPASS ⚡
+                # 433MHz devices cannot acknowledge receipt.
+                # Outbound commands ALWAYS transmit over the air!
 
                 if is_init:
                     self._last_known_states[idx] = new_state

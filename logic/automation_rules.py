@@ -182,6 +182,13 @@ class AutomationEngine:
                             if is_rich_action:
                                 is_force = True
 
+                            # ⚡ RFXCOM FORCE GUARD ⚡
+                            # 433MHz is a stateless protocol. We automatically apply the FORCE flag
+                            # behind the scenes to guarantee the radio transmits the signal every time the rule executes.
+                            meta_origin: str = state.device_metadata.get(action.idx, {}).get("origin", "")
+                            if meta_origin == "rfxcom":
+                                is_force = True
+
                             # ⚡ STRING NORMALIZATION COMPARISON
                             # Coerced to uppercase strings to ensure integers (e.g., 100) and YAML strings (e.g., "100")
                             # or mixed-case status descriptors evaluate flawlessly, preventing duplicate command streams.

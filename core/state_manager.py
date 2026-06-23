@@ -1418,6 +1418,14 @@ class StateManager:
             is_push_button = payload.get("is_push_button", False)
             is_force = payload.get("force", False)
 
+            # ⚡ RFXCOM FORCE GUARD ⚡
+            # Stateless 433MHz radios cannot confirm state, so UI clicks must ALWAYS be forced
+            # to guarantee the signal transmits even if the database thinks the device is already ON/OFF.
+            meta_origin: str = self._state.device_metadata.get(idx, {}).get("origin", "")
+            if not is_force and meta_origin == "rfxcom":
+                is_force = True
+                payload["force"] = True  # Ensure the flag cascades down to the integration bridges
+
             # ⚡ ALWAYS process the event if it's a push button, a forced command, or if the state actually changed.
             if old_val != new_val or is_push_button or is_force:
                 self._state.devices[idx] = new_val
