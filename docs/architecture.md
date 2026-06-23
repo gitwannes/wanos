@@ -2,75 +2,95 @@
 
 # WanOS Home Control System - Architecture Blueprint
 
-GIT: https://bitbucket.org/bitwannes/wanos
+**Repository Link:** https://bitbucket.org/bitwannes/wanos  
+**Target Environment:** Raspberry Pi Node / Debian 13 (Trixie Lite 64-bit)
 
-## Definitions
-WanOS = Wannes OS = backend system: interfaces with Domoticz, listens to temp&hum sensors, gets outside temperature, etc.
-WISC = Wannes Incredible Sauna Control = part of the system that controls the sauna & IR
-Logo or name placement to be defined.
+---
 
-## 1. Topography & Hardware Overview
-The system operates on a private home network and consists of two primary Raspberry Pi nodes. The **Backend Node** is connected via wired Ethernet for maximum stability. It acts as the brain of the system, handling all calculations, hardware I/O, and state management. The physical LCD displays are wired directly to this node.
-The **Frontend Node** (and other clients) connects over the network (WiFi or other). These act strictly as "dumb" terminals, responsible only for rendering the UI and capturing user inputs.
+## 1. Topography & Node Topology
 
-## 2. Greenfield Development Philosophy & Frameworks
-This project is a 100% clean-slate rewrite.
-All new code adheres to modern best practices (SOLID principles, strict typing, modularity).
+The system operates on an isolated local network, separating intensive background processing loops from presentation display layers:
 
-* **Backend:** Python 3.11+ utilizing **FastAPI**. Enforces strict data validation via **Pydantic** models. Manages the core async event loop.
-* **Frontend:** **Alpine.js**. A lightweight, reactive framework paired with **TailwindCSS** and **DaisyUI** allows the UI to be instantly adaptable without a heavy build step.
-* **Communication:** **Server-Sent Events (SSE)** for frontend real-time tracking, and **MQTT** for external clients/hardware.
-* **Dual MQTT Brokers:** The system utilizes a dual-client architecture.
-	A local Mosquitto broker handles internal diagnostic monitoring and telemetry tools.
-	While a dedicated secondary client bridges to Domoticz.
+* **The Backend Node (The Processing Brain):** Deployed via a physical wired Ethernet interface for absolute connection stability. It houses the asynchronous event thread queue, executes the PID algorithms, binds to physical interfaces, and drives local hardware lines.
+* **The Frontend Client Terminals:** Connected over local Wi-Fi or user devices. They function strictly as lightweight, stateless "dumb" presentation displays, translating user interactions into standard event frames and rendering updates from the server.
 
-## 3. Core Principles & Logic Separation
-* **Thin Client Architecture:** The frontend holds zero business logic. All mathematical operations, session tracking, and timers exist purely on the backend.
-* **Unidirectional Event Flow:** State is managed via an Event-Driven Architecture. Hardware callbacks, MQTT listeners, and timers post Events to a central queue. 
-* **Modern IoT Telemetry Pipeline:** Session metrics follow a three-tier Hot/Warm/Cold architecture. Active sessions accumulate accurate *time-weighted averages* in RAM (`SessionAggregator` - Hot). Upon session end, the structured Pydantic payload is dumped to `last_sessions.json` for instant UI boot restoration (Warm), and logged concurrently into a self-contained `wanos_history.db` SQLite database for long-term analytics and graphing (Cold).
-* **Logic/Hardware Decoupling:** Business logic modules never write to hardware directly. They compute targets and post state updates. Actuators are strictly divided: `hardware/` modules manage local GPIO (heaters, local SHT11 sensors), while `integrations/` modules bridge out to network hubs like Domoticz and external APIs.
-* **Pessimistic UI:** The frontend employs a "pessimistic" update model. When a user toggles a light, the UI shows a loading/disabled state until the backend confirms the physical state change. Core safety elements (like PC power or Hardware Bus) require bidirectional DaisyUI modal confirmation before emitting payloads.
-* **Lab Mode:** The backend supports a fully mocked hardware layer. Thermodynamic engines simulate complex states (sauna thermal stratification, bathroom humidity decay, outside 24h temperature cycles, and dynamic kW tracking scaling exactly to UI Setpoints) allowing the system to be run and tested on a standard PC.
+---
 
-## 4. State Broadcasting & Disconnect Strategy
-State is broadcasted across **seven domain-scoped MQTT topics** rather than a single monolithic dump. Each topic fires independently at its own cadence.
+## 2. Greenfield Programming Philosophy & Stack Frameworks
 
-To combat the "Smart Plug Firehose" (where noisy, high-frequency wattage fluctuations spam the network), WanOS utilizes a **Deep Rolling Average Buffer**. Inbound metrics (e.g., PC Power) are captured into a x-point moving array. The backend calculates smoothed aggregates in RAM and strictly throttles SSE UI updates, only broadcasting when the rounded median mathematically shifts.
+WanOS is built from a 100% clean-slate modular architecture adhering strictly to object separation patterns and clean type hinting conventions:
 
-The backend SSE loop evaluates data frames every 0.5 seconds; it suppresses transmissions unless a state change occurs, or a 5-second silence barrier is reached—at which point it pipes a lightweight `{"domain": "ping"}` frame down the pipe. The frontend maintains an internal 10-second sliding watchdog to guard against dirty socket drops.
+* **The Core Backend Sandbox:** Built on Python 3.9+ (running production-validated Python 3.11+ patterns) utilizing **FastAPI**. It enforces strict data validation contracts through **Pydantic** structures and coordinates non-blocking background routines using the `asyncio` event loop engine.
+* **The Presentation Interface:** Powered by **Alpine.js**. Paired with **TailwindCSS** and **DaisyUI**, it allows for instant reactive UI updates and theme matching without relying on intensive, long-compile node build bundles.
+* **The Communication Layer:** Employs **Server-Sent Events (SSE)** for unidirectional backend-to-browser telemetry streams, and utilizes a **Dual MQTT Broker Architecture** to maintain clean network boundaries:
+  1. A Local `localhost` Mosquitto broker handles high-frequency administrative diagnostic metrics and terminal log monitors.
+  2. A Remote client bridge targets your secondary home hub node to handle long-distance external data exchanges.
 
-## 5. Configuration, Authentication, & Access
-* **Separation of Concerns:** - `.env`: Securely holds sensitive keys, passwords, and external API tokens.
-  - `hardware.yaml`: Layered static definitions of physical/virtual node IDXs, MQTT targets, and GPIO pins.
-  - `config.yaml`: Controls dynamic structural and runtime properties (default setpoints, PIDs, IR defaults, API polling intervals).
-  - `config_lab.yaml`: Injects mock states during Lab Mode.
+---
 
-## 6. UI Structure (Alpine.js Component Tree)
-The UI is built modularly using CSS Grid and Flexbox layouts via Tailwind CSS. 
-* **50/50 Split Layout:** The Sauna/IR setpoints utilize a horizontal side-by-side split grid.
-* **Zero-Crossing Modulation:** The IR Setpoint employs a snapping Alpine slider that strictly maps percentages (0, 25, 33, 50, 67, 75, 100) to safe 50Hz AC zero-crossing frequencies to prevent physical Solid State Relay (SSR) flickering on the home electrical grid.
-* **Visual Data Overlays:** Lightweight, auto-scaling SVG sparklines are dynamically mapped on the client side using 10-point historical telemetry arrays pushed by the backend.
+## 3. Structural Design Patterns & Core Logic Boundaries
 
-## 7. Safety Mechanisms, Watchdogs & Graceful Shutdown
-* **Hardware Actuation Lock:** The GPIO controller must explicitly verify a global `hardware_live_mode` flag before asserting physical signals.
-* **Door Interlock:** The Bouncer actively rejects `SAUNA_ON` commands if the door is open and bypasses the PID to drop heaters to 0% if the door opens mid-session.
-* **Network Link Watchdog:** A sliding 10-second watchdog actively monitors the health of the underlying SSE HTTP stream connection.
-* **Clean Exit Sequence:** The ASGI entry point registers handlers for `SIGINT` and `SIGTERM`.
+```text
+  [Inbound Streams]       [The Central Processing Brain]      [Outbound Delivery]
+  
+  ┌─────────────────┐     ┌────────────────────────────┐     ┌────────────────────┐
+  │  MqttTransport  │────>│         StateManager       │────>│   MqttPublisher    │
+  └─────────────────┘     │                            │     └────────────────────┘
+                          │   (Single Worker Thread)   │               │
+  ┌─────────────────┐     │                            │               ▼
+  │   FastAPI App   │────>│   - Rolling Power Buffers  │     ┌────────────────────┐
+  └─────────────────┘     │   - Dynamic NTP Guards     │     │  Local Broker UI   │
+                          │   - Automation Bouncer     │     └────────────────────┘
+  ┌─────────────────┐     └────────────────────────────┘               │
+  │ Physical Probes │                   │                              ▼
+  └─────────────────┘                   ▼                    ┌────────────────────┐
+                          ┌────────────────────────────┐     │ Remote Hub Network │
+                          │     AutomationEngine       │     └────────────────────┘
+                          └────────────────────────────┘
+```
 
-## 8. Core Event Type Catalogue
-For payload schemas, refer to `reference.md`.
+### Unidirectional Event Flow
+All internal transitions follow a strictly structured event routing path. Outbound network drivers, user button presses, and automated background timers never modify system states directly. Instead, they format an `Event` and push it to an asynchronous `Queue`. A single dedicated background worker thread processes this queue sequentially, avoiding race conditions or data corruption in memory.
 
-## 9. Phased Implementation Roadmap
-To mitigate risk and ensure logical separation from hardware quirks, development proceeds in the following phases:
+### Thin Client Architecture
+The frontend web browser holds zero business or processing logic. All mathematical filtering, time thresholds, hysteresis loops, and scheduler parameters exist purely inside the backend Python environment. The client simply receives the processed data snapshot and prints it to the viewport frames.
 
-* **Phase 1: Backend Core (COMPLETE)** - FastAPI + MQTT + `state_manager` + Pydantic models.
-* **Phase 2: Lab Mode & Logic (COMPLETE)** - Hardware abstraction layer and core business logic (`sauna_controller`).
-* **Phase 3: Environmental State Machine & Integrations (COMPLETE)** - Door interlocks, Session Timers, Thermodynamics Lab Engine, Alpine.js layout overhaul, and the Domoticz network bridge.
-* **Phase 4: Administrative UI, Telemetry & REST APIs (COMPLETE)** - Built the System Administration panel, dynamic SVG sparklines, shifted uptime calculations to client-side tickers, and stabilized connection watchdog frameworks.
-* **Phase 5: Hardware Migration (COMPLETE)** - Map the physical Raspberry Pi GPIOs, bi-directional interceptor modals, zero-crossing frequency matrices for SSRs, and sliding 40-point buffers for noisy electrical firehoses.
-* **Phase 6: Data Telemetry (ACTIVE)** - Finalize the Hot/Warm/Cold data lifecycle. Implement the RAM `SessionAggregator`, `last_sessions.json` boot restoration, and the `wanos_history.db` SQLite analytics engine.
+### Noisy Metric Smoothing (Rolling Average Buffers)
+To combat network pollution caused by highly erratic device telemetry (such as high-frequency electrical plug updates), the system uses a **RAM Moving Average Array**. Incoming telemetry metrics (like raw computer power draw) are collected into a rolling 10-point window. The backend processes a smoothed aggregate value and suppresses downstream SSE updates unless the final rounded value shifts, preventing UI flashing.
 
-## 10. Technical Reference Guide
-All implementation mapping blueprints—including **Codebase Directory Layouts**, **MQTT Topics**, **REST API URLs**, **SSE Endpoints**, and exact **API Event Injection JSON payloads**—have been centralized into a comprehensive system reference document.
+### Logic-to-Hardware Decoupling (The Boundary Rule)
+Core software algorithms have no direct awareness of physical circuit links. They calculate target metrics and update state models. Outbound actions are separated into clean directory paths: `hardware/` modules manage local GPIO lines (relays and local SHT11 probes), while `integrations/` handle the networking protocols for external platforms like your Hue Bridge, Domoticz instance, and the Epson Projector TCP socket.
 
-**👉 See `reference.md`**
+### Pessimistic Presentation Rendering
+The web dashboard follows a pessimistic update path. When a toggle is clicked, the toggle switch locks and changes to a "SYNCING..." loading state. The UI only unlocks and flips visually once the physical peripheral successfully processes the command and pushes its verified state back up the SSE telemetry stream.
+
+---
+
+## 4. Life-Cycle Telemetry, Version Tracking & Security
+
+### Hot/Warm/Cold Data Lifecycles
+System operations use an tiered storage structure based on performance demands:
+* **Hot Storage (RAM):** The active event queue and moving average history windows process inputs at microsecond speeds.
+* **Warm Storage (Local Filesystem):** Critical system states and structural configuration models read directly from highly readable YAML profiles (`config.yaml`, `hardware.yaml`, `config_lab.yaml`).
+* **Cold Storage (System Logs):** Structured diagnostic traces are handled via a multi-sink Loguru wrapper that splits inputs into three distinct file outputs (`wanos.log`, `wanos_debug.log`, `wanos_automations.log`) using non-blocking background worker threads to keep disk execution from freezing the runtime loops.
+
+### Option C Lifecycle Tracking
+To trace exactly what version of the code is executing across your deployment pipelines without incurring constant SD-card wear, WanOS implements an intelligent runtime string builder pattern:
+1. The semantic layout number (`version: "0.6"`) is managed manually at the absolute top of `config.yaml`.
+2. When the application initializes `main.py`, it computes a standard, immutable system execution build stamp based on the process initiation date (`datetime.now().strftime("%Y%m%d%H%M")`).
+3. These variables are saved in RAM inside the state engine as `version_major` and `version_full` and transmitted down the SSE line. If a hot-reload is triggered, the engine refreshes the semantic configuration file parameters but locks the original boot timestamp in place.
+
+---
+
+## 5. Connection Stability, Time Guards & Sweeper Restraints
+
+### The Sliding WATCHDOG Guardian
+The backend stream loop monitors client health every 0.5 seconds, suppressing heavy transmissions unless a true state mutation occurs. If the channel remains quiet for 5 seconds, it pipes a lightweight keep-alive heartbeat frame. The client-side Alpine engine runs a sliding 10-second timer watchdog. If a network cable drop or socket death disrupts the heartbeat, the watchdog triggers, displays a "NOT CONNECTED" blur screen, and attempts to re-link.
+
+### The Absolute Uptime and Anti-NTP Jump Guard
+To prevent your physical window shutters or light arrays from executing unexpected actions on startup due to network clock skew (e.g., when a reboot occurs and a local software utility like `fake-hwclock` temporarily shifts system time back an hour before an NTP server connects), the `StateManager` implements an **Absolute Uptime Guard**. 
+
+During the initial 3 minutes (180 seconds) of the application's process life, all digital timers and environment calculator engines compile timeline boundaries in memory, but they are strictly blocked from broadcasting automated triggers to the hardware layer.
+
+### The Catch-Up Sweeper Protection
+The maintenance sweeper (`SYSTEM_SWEEP_REQUESTED`) performs an environmental health audit by analyzing your daily 6-point time-series profiles. To ensure a manual administrative click or an automatic reconnection sweep does not cause physical roller shutter movements across your rooms, the loop evaluates an explicit `is_passive_sweep` validation rule. If the sweep reason matches a network recovery or configuration hot-reload, the fan and climate parameters synchronize, but the physical blinds are bypassed.

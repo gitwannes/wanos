@@ -173,6 +173,7 @@ class EpsonConfig(BaseModel):
 
 class AppConfig(BaseModel):
     """The unified master configuration model."""
+    version: str # ⚡ Core semantic version configuration tracking field
     wanos: WanosConfig
     domoticz: Optional[DomoticzConfig] = None
     rfxcom: Optional[RFXComSettings] = None
@@ -236,6 +237,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
 
     # 4. Consolidate payloads for unified validation assembly
     compiled_data = {
+        "version": runtime_data.get("version", "1.0"),  # ⚡ Pull semantic baseline from absolute file root
         "wanos": runtime_data["wanos"],
         "domoticz": runtime_data["domoticz"],
         "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings

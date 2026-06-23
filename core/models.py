@@ -72,6 +72,8 @@ class EventType(str, Enum):
     LIGHT_TIMER_EXPIRED = "LIGHT_TIMER_EXPIRED"
 
 class SystemAdminState(BaseModel):
+    version_major: str = "v0.0"  # ⚡ Exposes major layout semantic configuration strings to dashboard layout
+    version_full: str = "v0.0-build_unknown"  # ⚡ Exposes consolidated full runtime version mapping strings to admin layout
     wanos_mqtt_connected: bool = False
     domoticz_mqtt_connected: bool = False
     rfxcom_connected: bool = False  # ⚡ Tracks native USB RFX transceiver health

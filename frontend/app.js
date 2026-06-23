@@ -6,6 +6,8 @@ function wanosApp() {
 
         state: {
             system: {
+                version_major: "v0.0", // ⚡ Reactive placeholder container mapping
+                version_full: "v0.0-build_unknown", // ⚡ Reactive placeholder container mapping
                 wanos_mqtt_connected: false,
                 domoticz_mqtt_connected: false,
                 ip_address: "0.0.0.0",

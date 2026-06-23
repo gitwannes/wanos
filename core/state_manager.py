@@ -41,12 +41,19 @@ class StateManager:
 
         self._start_time = time.time()  # Track initialization timestamp for Engine Uptime calculation
 
+        # ⚡ Generate immutable build timestamp string once at process boot (Option C)
+        self._build_timestamp: str = datetime.now().strftime("%Y%m%d%H%M")
+
         # Track rolling data windows for moving averages
         # Modified to expect integer IDXs as dictionary keys
         self._sensor_history: dict[int, list[float]] = {}
 
         # Load centralized configuration profiles
         self._config = load_config()
+
+        # ⚡ Assemble initial structural application lifecycle tags inside live RAM state
+        self._state.system.version_major = f"v{self._config.version}"
+        self._state.system.version_full = f"v{self._config.version}-build_{self._build_timestamp}"
 
         # Transfer the parsed dictionary from the static config
         # into the live SystemState so it gets sent to app.js during the initial /api/state fetch!
@@ -888,6 +895,10 @@ class StateManager:
                 new_config = load_config()
                 self._config = new_config
                 AutomationEngine._config = None  # Reset rules engine cached reference copy
+
+                # ⚡ Update metadata metrics on reload while safely locking down the original immutable process timestamp
+                self._state.system.version_major = f"v{new_config.version}"
+                self._state.system.version_full = f"v{new_config.version}-build_{self._build_timestamp}"
 
                 # Hybrid Learning Option B: Cumulative map update preserving dynamic allocations
                 for idx, name in new_config.dashboard.items():
