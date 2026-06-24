@@ -24,7 +24,8 @@ function wanosApp() {
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
                 available_scenes: [], // ⚡ Holds dynamically extracted stateless automations
-                hidden_explorer_idxs: [] // ⚡ Devices to hide from the Device Explorer
+                hidden_explorer_idxs: [], // ⚡ Devices to hide from the Device Explorer
+                hue_presets: {} // ⚡ Dynamically injected from config_hue.yaml
             },
             sensors: {
                 outside_temp: null,
@@ -127,6 +128,7 @@ function wanosApp() {
         activeLightName: "",
         activeLightBri: 100,
         activeLightHex: "#FFD180",
+        colorPicker: null, // ⚡ Holds the iro.js UI instance
 
         // ⚡ Dynamic Device Explorer (dashboard.html) UI States
         searchQuery: "",
@@ -891,7 +893,49 @@ function wanosApp() {
                 this.activeLightBri = 100;
                 this.activeLightHex = "#FFD180";
             }
+
+            // ⚡ Initialize iro.js exactly once, then just update its color dynamically
+            if (!this.colorPicker) {
+                // Ensure the DOM element is visible before mounting
+                setTimeout(() => {
+                    this.colorPicker = new iro.ColorPicker("#color-picker-container", {
+                        width: 220,
+                        color: this.activeLightHex,
+                        layout: [
+                            { component: iro.ui.Wheel, options: {} }
+                        ]
+                    });
+
+                    // Update Alpine state when user drags the wheel
+                    this.colorPicker.on('color:change', (color) => {
+                        this.activeLightHex = color.hexString;
+                    });
+
+                    // Send API call ONLY when the user stops dragging to prevent network spam
+                    this.colorPicker.on('input:end', (color) => {
+                        this.updateActiveLightState();
+                    });
+                }, 50); // Tiny delay ensures DaisyUI modal has rendered the div
+            } else {
+                // If it already exists, just snap the wheel to the correct color
+                this.colorPicker.color.hexString = this.activeLightHex;
+            }
+
             document.getElementById('light_control_modal').showModal();
+        },
+
+        applyPreset(preset) {
+            this.activeLightBri = preset.bri;
+            // The preset has xy coordinates. We need to convert xy back to hex for the UI wheel!
+            this.activeLightHex = this.xyToHex(preset.xy[0], preset.xy[1], preset.bri);
+
+            // Instantly snap the iro.js color wheel to the new preset color
+            if (this.colorPicker) {
+                this.colorPicker.color.hexString = this.activeLightHex;
+            }
+
+            // Dispatch the command to the physical bulb, but leave the modal open for tweaking!
+            this.updateActiveLightState();
         },
 
         updateActiveLightState() {

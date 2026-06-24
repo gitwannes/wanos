@@ -136,6 +136,11 @@ class StateManager:
             }
             self._state.devices[80001] = "OFF"
 
+        # ⚡ INJECT HUE PRESETS INTO STATE
+        # Passes the YAML definitions dynamically so app.js can build UI buttons on the fly
+        if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
+            self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
+
         # Dynamically scan configuration file for stateless triggers
         self._extract_scenes_from_config()
 
@@ -899,6 +904,12 @@ class StateManager:
                 # ⚡ Update metadata metrics on reload while safely locking down the original immutable process timestamp
                 self._state.system.version_major = f"v{new_config.version}"
                 self._state.system.version_full = f"v{new_config.version}-build_{self._build_timestamp}"
+
+                # ⚡ Sync the Hue Presets dynamically if YAML was changed
+                if hasattr(new_config, "hue") and getattr(new_config.hue, "presets", None):
+                    self._state.system.hue_presets = {k: v.model_dump() for k, v in new_config.hue.presets.items()}
+                else:
+                    self._state.system.hue_presets = {}
 
                 # Hybrid Learning Option B: Cumulative map update preserving dynamic allocations
                 for idx, name in new_config.dashboard.items():

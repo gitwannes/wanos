@@ -93,6 +93,7 @@ class SystemAdminState(BaseModel):
     native_rfx_devices: list[dict] = Field(default_factory=list)  # ⚡ Pushed dynamically to UI panel
     available_scenes: list[dict[str, str]] = Field(default_factory=list)  # ⚡ Extracted stateless triggers for UI
     hidden_explorer_idxs: list[int] = Field(default_factory=list)  # ⚡ Devices explicitly hidden from Device Explorer
+    hue_presets: dict[str, Any] = Field(default_factory=dict)  # ⚡ UI Button Configurations pushed from YAML
 
 
 class Event(BaseModel):

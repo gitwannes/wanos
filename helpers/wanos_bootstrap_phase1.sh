@@ -35,6 +35,7 @@ if ! grep -q "dtoverlay=disable-bt" "$BOOT_CONFIG"; then
     cat << 'EOF' >> "$BOOT_CONFIG"
 
 # --- WanOS Hardware Config ---
+# Pi 4: disable-bt remaps PL011 (ttyAMA0) to GPIO 14/15; enable_uart=1 is redundant but harmless
 dtparam=audio=off
 dtoverlay=disable-bt
 enable_uart=1
@@ -46,6 +47,11 @@ if [ -f "$CMDLINE" ]; then
         sed -i 's/$/ consoleblank=0/' "$CMDLINE"
     fi
 fi
+
+# Disable Bluetooth service — hardware already disabled via dtoverlay=disable-bt above
+# Mask prevents hciuart from logging errors at every boot
+sudo systemctl disable hciuart 2>/dev/null || true
+sudo systemctl mask hciuart
 
 # 3. Environment & Aliases (.bashrc, .profile, .vimrc)
 echo "[3/7] Configuring user bash profiles..."

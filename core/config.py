@@ -152,6 +152,7 @@ class AutomationRuleConfig(BaseModel):
 # --- ⚡ Philips Hue Modular Models ⚡ ---
 class HuePresetConfig(BaseModel):
     """Data blueprint verifying individual preset properties."""
+    name: str  # ⚡ Display name exposed dynamically to the Frontend UI
     xy: List[float]
     bri: int
 

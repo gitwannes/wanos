@@ -3,7 +3,31 @@
 # WanOS Home Control System - Architecture Blueprint
 
 **Repository Link:** https://bitbucket.org/bitwannes/wanos  
-**Target Environment:** Raspberry Pi Node / Debian 13 (Trixie Lite 64-bit)
+**Target Environment:**
+
+** Wanos backend
+* Raspberry Pi 4 Model B Rev 1.5 (batcat -A /proc/device-tree/model)
+* OS: Debian 13 Trixie Lite 64-bit
+
+** Wanos frontend
+* Raspberry Pi 3 Model B Rev 1.2 (cat /proc/device-tree/model)
+* Waveshare 4.3inch IPS screen, 800 x 480 hardware resolution
+* connected via DSI
+* https://www.waveshare.com/wiki/4.3inch_DSI_LCD
+* OS: Raspberry Pi OS Lite - Debian 12 Bookworm 32-bit
+* kiosk stack: cage + chromium
+* cage
+*    is a Wayland compositor built specifically for kiosks
+*    its entire job is to launch exactly one application and lock it to full-screen
+* config.txt
+*  dtparam=audio=off            # saves RAM/CPU
+*  dtoverlay=disable-bt         # saves RAM/CPU & reduces electrical noise near the wifi antenna
+*  dtoverlay=vc4-kms-v3d        # DSI driver Wayland stack: Linux Kernel Mode Setting (KMS) 3D graphics driver
+*    On Debian 12 (Bookworm), the Wayland display server requires this driver to talk to the Pi's GPU.
+*  dtoverlay=vc4-kms-dsi-7inch  # destination: tells the GPU where to send the signal
+* network connection rule: iw dev wlan0 set power_save off
+* use swayidle for DSI power cutoff
+
 
 ---
 
