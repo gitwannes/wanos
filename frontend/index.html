@@ -115,15 +115,15 @@
                                     <div class="text-xs font-bold text-base-400 uppercase">Hue Lighting</div>
                                     <div class="flex items-center gap-3">
                                         <div class="w-4 h-4 rounded-full border border-gray-600 transition-all duration-500"
-                                             :style="(!state.system.domoticz_mqtt_connected || state.devices[7561] === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices[7561] === 'ON' ? `background-color: ${state.sauna.light_color}; box-shadow: 0 0 8px ${state.sauna.light_color};` : 'background-color: #333;')">
+                                             :style="(!state.system.domoticz_mqtt_connected || state.devices[51002] === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices[51002] === 'ON' ? `background-color: ${state.sauna.light_color}; box-shadow: 0 0 8px ${state.sauna.light_color};` : 'background-color: #333;')">
                                         </div>
                                         <span class="font-mono text-sm mt-0.5"
-                                              :class="!state.system.domoticz_mqtt_connected || state.devices[7561] === null ? 'text-gray-500 italic text-xs' : (state.devices[7561] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[7561] === null ? 'SYNCING...' : (state.devices[7561] === 'ON' ? 'ON' : 'OFF'))"></span>
+                                              :class="!state.system.domoticz_mqtt_connected || state.devices[51002] === null ? 'text-gray-500 italic text-xs' : (state.devices[51002] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                              x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[51002] === null ? 'SYNCING...' : (state.devices[51002] === 'ON' ? 'ON' : 'OFF'))"></span>
                                         <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices[7561] === null"
-                                               :checked="state.devices[7561] === 'ON'"
-                                               @change="injectLabHubStateChange(7561, $event.target.checked)" />
+                                               :disabled="!state.system.domoticz_mqtt_connected || state.devices[51002] === null"
+                                               :checked="state.devices[51002] === 'ON'"
+                                               @change="injectLabHubStateChange(51002, $event.target.checked)" />
                                     </div>
                                 </div>
 
@@ -302,15 +302,15 @@
                                 <div class="text-xs font-bold text-base-400 uppercase">Cinema Hue</div>
                                 <div class="flex items-center gap-3">
                                     <div class="w-4 h-4 rounded-full border border-gray-600 transition-all duration-300"
-                                         :style="(!state.system.domoticz_mqtt_connected || state.devices[7312] === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices[7312] === 'ON' ? 'background-color: #FFD180; box-shadow: 0 0 8px #FFD180;' : 'background-color: #333;')">
+                                         :style="(!state.system.domoticz_mqtt_connected || state.devices[51004] === null) ? 'background-color: #333; opacity: 0.5;' : (state.devices[51004] === 'ON' ? 'background-color: #FFD180; box-shadow: 0 0 8px #FFD180;' : 'background-color: #333;')">
                                     </div>
                                     <span class="font-mono text-sm mt-0.5"
-                                          :class="!state.system.domoticz_mqtt_connected || state.devices[7312] === null ? 'text-gray-500 italic text-xs' : (state.devices[7312] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[7312] === null ? 'SYNCING...' : (state.devices[7312] === 'ON' ? 'ON' : 'OFF'))"></span>
+                                          :class="!state.system.domoticz_mqtt_connected || state.devices[51004] === null ? 'text-gray-500 italic text-xs' : (state.devices[51004] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                          x-text="!state.system.domoticz_mqtt_connected ? 'OFFLINE' : (state.devices[51004] === null ? 'SYNCING...' : (state.devices[51004] === 'ON' ? 'ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices[7312] === null"
-                                           :checked="state.devices[7312] === 'ON'"
-                                           @change="injectLabHubStateChange(7312, $event.target.checked)" />
+                                           :disabled="!state.system.domoticz_mqtt_connected || state.devices[51004] === null"
+                                           :checked="state.devices[51004] === 'ON'"
+                                           @change="injectLabHubStateChange(51004, $event.target.checked)" />
                                 </div>
                             </div>
 
@@ -541,7 +541,7 @@
 
             </div>
 
-            <div class="w-full mt-6" :class="state.hardware.live_mode ? 'opacity-40 grayscale pointer-events-none' : ''">
+            <div class="w-full mt-6" :class="state.hardware.gpio_output_enabled ? 'opacity-40 grayscale pointer-events-none' : ''">
                 <div class="card bg-base-100 shadow-xl border border-base-200">
                     <div class="card-body">
                         <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4 flex justify-between items-center">
@@ -594,8 +594,8 @@
                                     <div class="flex items-center justify-between text-xs font-mono">
                                         <span class="text-gray-400 font-medium">Sauna Hue:</span>
                                         <input type="checkbox" class="toggle toggle-secondary toggle-sm shadow"
-                                               :checked="state.devices[7561] === 'ON'"
-                                               @change="injectLabHubStateChange(7561, $event.target.checked)" />
+                                               :checked="state.devices[51002] === 'ON'"
+                                               @change="injectLabHubStateChange(51002, $event.target.checked)" />
                                     </div>
                                 </div>
                             </div>
@@ -645,8 +645,8 @@
                                     <div class="flex items-center justify-between text-xs font-mono">
                                         <span class="text-gray-400 font-medium">Cinema Hue:</span>
                                         <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
-                                               :checked="state.devices[7312] === 'ON'"
-                                               @change="injectLabHubStateChange(7312, $event.target.checked)" />
+                                               :checked="state.devices[51004] === 'ON'"
+                                               @change="injectLabHubStateChange(51004, $event.target.checked)" />
                                     </div>
                                 </div>
                             </div>
@@ -703,6 +703,10 @@
                                     <span class="badge badge-xs py-2 px-2" :class="state.system.domoticz_mqtt_connected ? 'badge-success' : 'badge-error'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold">Z-Wave Mesh</span>
+                                    <span class="badge badge-xs py-2 px-2" :class="state.system.zwave_connected ? 'badge-success' : 'badge-error'" x-text="state.system.zwave_connected ? 'ONLINE' : 'OFFLINE'"></span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
                                     <span class="text-base-400 uppercase font-bold">Hue Bridge</span>
                                     <span class="badge badge-xs py-2 px-2" :class="state.system.hue_connected ? 'badge-success' : 'badge-error'" x-text="state.system.hue_connected ? 'ONLINE' : 'OFFLINE'"></span>
                                 </div>
@@ -749,12 +753,33 @@
                                     🚀 START ALL ENGINES
                                 </button>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Hardware Bus</span>
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Physical Inputs</span>
                                     <div class="flex items-center gap-2">
-                                        <span class="font-bold text-[10px]" :class="state.hardware.live_mode ? 'text-success' : 'text-warning'" x-text="state.hardware.live_mode ? 'LIVE' : 'DISABLED'"></span>
-                                            <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                               :checked="state.hardware.live_mode"
-                                               @click="handleHardwareToggleClick($event)" />
+                                        <span class="font-bold text-[10px]" :class="state.hardware.gpio_input_connected ? (state.hardware.gpio_input_enabled ? 'text-success' : 'text-warning') : 'text-gray-500'" x-text="!state.hardware.gpio_input_connected ? 'OFFLINE' : (state.hardware.gpio_input_enabled ? 'LIVE' : 'DISABLED')"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                           :disabled="!state.hardware.gpio_input_connected"
+                                           :checked="state.hardware.gpio_input_connected && state.hardware.gpio_input_enabled"
+                                           @change="toggleGPIOInput()" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Physical Sensors</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.hardware.sht11_connected ? (state.hardware.sht11_enabled ? 'text-success' : 'text-warning') : 'text-error'" x-text="!state.hardware.sht11_connected ? 'UNPLUGGED' : (state.hardware.sht11_enabled ? 'LIVE' : 'DISABLED')"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                           :disabled="!state.hardware.sht11_connected"
+                                           :checked="state.hardware.sht11_connected && state.hardware.sht11_enabled"
+                                           @change="toggleSHT11()" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px] text-error">HV Outputs</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.hardware.gpio_output_connected ? (state.hardware.gpio_output_enabled ? 'text-error animate-pulse' : 'text-warning') : 'text-gray-500'" x-text="!state.hardware.gpio_output_connected ? 'OFFLINE' : (state.hardware.gpio_output_enabled ? 'ARMED' : 'DISABLED')"></span>
+                                        <input type="checkbox" class="toggle toggle-error toggle-sm shadow" autocomplete="off"
+                                           :disabled="!state.hardware.gpio_output_connected"
+                                           :checked="state.hardware.gpio_output_connected && state.hardware.gpio_output_enabled"
+                                           @click="handleOutputToggleClick($event)" />
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
@@ -766,6 +791,17 @@
                                                :class="!state.system.domoticz_mqtt_connected ? 'opacity-50 cursor-not-allowed' : ''"
                                                :checked="state.system.domoticz_integration_enabled"
                                                @change="toggleDomoticz()" />
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Z-Wave</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-[10px]" :class="state.system.zwave_integration_enabled ? 'text-success' : 'text-warning'" x-text="state.system.zwave_integration_enabled ? 'LIVE' : 'DISABLED'"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :disabled="!state.system.zwave_connected"
+                                               :class="!state.system.zwave_connected ? 'opacity-50 cursor-not-allowed' : ''"
+                                               :checked="state.system.zwave_integration_enabled"
+                                               @change="toggleZwave()" />
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm">
@@ -843,21 +879,21 @@
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-base-400">Phase U:</span>
+                                    <span class="text-base-400">Phase U (3500W):</span>
                                     <div class="text-right">
-                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[0]) || 0) + '%'"></span>
+                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm.U) || 0) + '%'"></span>
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-base-400">Phase V:</span>
+                                    <span class="text-base-400">Phase V (3500W):</span>
                                     <div class="text-right">
-                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[1]) || 0) + '%'"></span>
+                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm.V) || 0) + '%'"></span>
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-base-400">Phase W:</span>
+                                    <span class="text-base-400">Phase W (2000W):</span>
                                     <div class="text-right">
-                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm[2]) || 0) + '%'"></span>
+                                        <span class="text-white font-bold" x-text="((state.sauna.phases_pwm && state.sauna.phases_pwm.W) || 0) + '%'"></span>
                                     </div>
                                 </div>
                             </div>

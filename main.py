@@ -22,6 +22,12 @@ from core.logger import setup_wanos_logging, WanosLogger
 from hardware.simulator import lab_mode_thermodynamics_loop
 from integrations.domoticz import DomoticzHomeHubBridge
 from integrations.open_weather import weather_polling_loop
+from integrations.zwave import ZWaveJSUIBridge
+
+# ⚡ Physical Hardware Imports
+from hardware.inputs import HardwareInputs
+from hardware.sensors import HardwareSensors
+from hardware.actuators import HardwareActuators
 
 # Create a global shutdown event kill switch
 shutdown_event = asyncio.Event()
@@ -42,10 +48,7 @@ mqtt_manager: MqttClientManager = MqttClientManager(
     password=config.wanos.mqtt.password
 )
 
-# 3. Create a dedicated Remote MQTT Transport for Domoticz
-# ARCHITECTURE NOTE: This is the "Network Postman". Its ONLY job is handling the TCP
-# socket, authentication, and auto-reconnecting to the remote broker (10.32.251.181).
-# It knows absolutely nothing about Domoticz JSON formats or sauna states.
+# 3. MQTT Transport for Domoticz
 domoticz_mqtt_manager: MqttClientManager = MqttClientManager(
     broker_host=config.domoticz.mqtt.broker_host,
     port=config.domoticz.mqtt.port,
@@ -74,12 +77,20 @@ domoticz_bridge: DomoticzHomeHubBridge = DomoticzHomeHubBridge(
     domoticz_mqtt_client=domoticz_mqtt_manager
 )
 
+# 6. Bind the Z-Wave JS UI Bridge
+zwave_bridge = ZWaveJSUIBridge(
+    state_manager=state_manager,
+    mqtt_client=mqtt_manager  # Uses the primary local WanOS broker
+)
+state_manager.zwave_bridge = zwave_bridge
+
 # 7. Bind the Native RFXCOM Bridge (Dual-Use Architecture)
 # Conditionally loaded to prevent crashes if the config block is omitted.
 native_rfx_bridge = None
 if getattr(config, "rfxcom", None) and getattr(config.rfxcom, "serial_port", None):
     try:
         from integrations.rfxcom import NativeRFXCOMBridge
+
         native_rfx_bridge = NativeRFXCOMBridge(
             state_manager=state_manager,
             serial_port=config.rfxcom.serial_port
@@ -106,8 +117,8 @@ if getattr(config, "hue", None) and getattr(config.hue, "bridge_ip", None):
         state_manager.hue_bridge = hue_bridge
     except Exception as e:
         logger.debug(f"DIAGNOSTIC CRITICAL CRASH during Hue init: {e}")
-        import traceback
-        traceback.print_exc()  # Force raw Python stack trace to console
+        # import traceback
+        # traceback.print_exc()  # Force raw Python stack trace to console
         logger.exception(f"CRITICAL: Crash loading HueLocalBridge: {e}")
 else:
     logger.debug("DIAGNOSTIC: Hue config NOT found or missing bridge_ip.")
@@ -122,6 +133,12 @@ if getattr(config, "epson", None) and getattr(config.epson, "ip_address", None):
         logger.info(f"Epson Projector Bridge initialized at {config.epson.ip_address}")
     except Exception as e:
         logger.exception(f"CRITICAL: Crash loading EpsonProjector: {e}")
+
+# 10. Bind the Physical Hardware Layer ⚡
+hw_inputs = HardwareInputs(state_manager=state_manager)
+hw_sensors = HardwareSensors(state_manager=state_manager)
+hw_actuators = HardwareActuators(state_manager=state_manager)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -158,8 +175,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 2. Initialize the state engine and wire up the publisher
         await state_manager.start()
 
-        # Inject the publisher reference so StateManager can forward pulse accumulation
-        # and the publisher receives post-drain snapshots with changed domain sets
         state_manager.mqtt_publisher = mqtt_publisher
         mqtt_publisher.start()
 
@@ -167,6 +182,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.debug("DIAGNOSTIC: Awaiting domoticz_bridge.start()...")
         await domoticz_bridge.start()
         logger.debug("DIAGNOSTIC: domoticz_bridge.start() completed successfully.")
+        logger.debug("DIAGNOSTIC: Awaiting zwave_bridge.start()...")
+        await zwave_bridge.start()
+        logger.debug("DIAGNOSTIC: zwave_bridge.start() completed successfully.")
         if native_rfx_bridge:
             logger.debug("DIAGNOSTIC: Awaiting native_rfx_bridge.start()...")
             try:
@@ -186,6 +204,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 import traceback
                 traceback.print_exc()
 
+        # ⚡ Start Physical Hardware Layer
+        logger.info("Initializing Raspberry Pi Hardware Layer...")
+        await hw_inputs.start()
+        await hw_sensors.start()
+        await hw_actuators.start()
+
         # 3. Seed initial state parameters
         state_manager.dispatch(Event(type=EventType.SYSTEM_READY))
         logger.info("Core systems online. Base state ready.")
@@ -203,11 +227,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 state_manager.dispatch(Event(type=EventType.HUE_TOGGLED, payload={"enabled": True}))
                 state_manager.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True}))
                 state_manager.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={"enabled": True}))
-                # Phase 3: Enable Domoticz (State Database Sync)
+                # Phase 3: Enable Domoticz
                 state_manager.dispatch(Event(type=EventType.DOMOTICZ_TOGGLED, payload={"enabled": True}))
-                # Phase 4: The Cloud
+                # Phase 4: Enable Z-Wave
+                state_manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True}))
+                # Phase 5: The OWM Cloud
                 state_manager.dispatch(Event(type=EventType.OWM_TOGGLED, payload={"enabled": True}))
-                # Phase 5: Time-Series Synchronization Sweep
+                # Phase 6: Arm Hardware Inputs
+                state_manager.dispatch(Event(type=EventType.GPIO_INPUT_TOGGLED, payload={"enabled": True}))
+                state_manager.dispatch(Event(type=EventType.SHT11_TOGGLED, payload={"enabled": True}))
+                # Phase 7: Wait for stabilization (Give SHT11 loop time to parse real-world temps)
+                await asyncio.sleep(2.0)
+                # Phase 8: Arm High-Power Outputs
+                state_manager.dispatch(Event(type=EventType.GPIO_OUTPUT_TOGGLED, payload={"enabled": True}))
+                # Phase 9: Synchronization Sweep
                 state_manager.dispatch(Event(type=EventType.SYSTEM_SWEEP_REQUESTED, payload={}))
 
             asyncio.create_task(delayed_autostart())
@@ -235,11 +268,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     physics_task.cancel()
     weather_task.cancel()
     mqtt_publisher.stop()
+
+    # ⚡ Stop the physical hardware layer gracefully
+    await hw_inputs.stop()
+    await hw_sensors.stop()
+    await hw_actuators.stop()
+
     if native_rfx_bridge:
         await native_rfx_bridge.stop()
     if hue_bridge:
         await hue_bridge.stop()
+    await zwave_bridge.stop()
     await domoticz_bridge.stop()
+
     await state_manager.stop()
     await domoticz_mqtt_manager.stop()
     await mqtt_manager.stop()
@@ -254,13 +295,12 @@ class DummyTempRequest(BaseModel):
 
 
 class GenericEventRequest(BaseModel):
-    type: Union[EventType, str]  # Allow raw strings
+    type: Union[EventType, str]
     payload: dict[str, Any] = {}
 
 
 @app.get("/api/state")
 async def get_state() -> dict[str, Any]:
-    """Returns a full state snapshot. Called by the frontend on initial connect and reconnect."""
     return state_manager.get_state_snapshot().model_dump()
 
 
@@ -273,7 +313,6 @@ async def inject_dummy_temp(request: DummyTempRequest) -> dict[str, Union[str, E
 
 @app.post("/api/event")
 async def inject_event(request: GenericEventRequest) -> dict[str, Union[str, Event]]:
-    # ⚡ Try to cast to a strict Enum. If it's a custom YAML scene, fall back to the raw string!
     try:
         e_type = EventType(request.type)
     except ValueError:
@@ -296,7 +335,6 @@ async def sse_state_stream(request: Request):
     async def event_generator():
         # Track the last emitted snapshot per domain to suppress redundant pushes
         last_domain_snapshots: dict[str, str] = {}
-
         import time
         last_ping_time = time.time()
 
@@ -358,7 +396,6 @@ async def add_no_cache_headers(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
-
     return response
 
 
@@ -366,4 +403,4 @@ frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
 if os.path.exists(frontend_path):
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 else:
-    logger.warning("⚠️ Warning: Frontend directory not found at {frontend_path}")
+    logger.warning(f"⚠️ Warning: Frontend directory not found at {frontend_path}")

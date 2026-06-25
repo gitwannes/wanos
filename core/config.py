@@ -40,10 +40,13 @@ class DomoticzConfig(BaseModel):
 
 
 class PinMappingConfig(BaseModel):
+    # ⚡ Explicit Semantic Hardware Keys directly mapping to hardware.yaml
     safety_gpio: int
     kwh_pin: int
     ir_relais: int
-    sauna_relais: List[int]
+    sauna_relais_phase_U: int
+    sauna_relais_phase_V: int
+    sauna_relais_phase_W: int
     water_cold: int
     water_hot: int
     door_sauna: int
@@ -108,7 +111,6 @@ class RFXComSettings(BaseModel):
 
 
 class NativeRFXConfig(BaseModel):
-    """Declarative translation model mapping native hex IDs to virtual WanOS states."""
     name: str
     virtual_idx: int
     protocol: str
@@ -116,7 +118,6 @@ class NativeRFXConfig(BaseModel):
     off_id: str
 
 
-# --- Automation Models ---
 class TriggerConfig(BaseModel):
     idx: Optional[int] = None
     state: Optional[str] = None
@@ -133,7 +134,6 @@ class ActionConfig(BaseModel):
     idx: Optional[int] = None
     state: Optional[str] = None
     event: Optional[str] = None
-    # ⚡ Rich Hue Automation Properties
     target: Optional[str] = None
     scene: Optional[str] = None
     preset: Optional[str] = None
@@ -149,16 +149,13 @@ class AutomationRuleConfig(BaseModel):
     actions: List[ActionConfig]
 
 
-# --- ⚡ Philips Hue Modular Models ⚡ ---
 class HuePresetConfig(BaseModel):
-    """Data blueprint verifying individual preset properties."""
-    name: str  # ⚡ Display name exposed dynamically to the Frontend UI
+    name: str
     xy: List[float]
     bri: int
 
 
 class HueConfig(BaseModel):
-    """Configuration mapping for the segregated local Hue API v2 settings."""
     bridge_ip: str
     application_key: Optional[str] = None
     device_map: Dict[int, str] = Field(default_factory=dict)
@@ -168,13 +165,11 @@ class HueConfig(BaseModel):
 
 
 class EpsonConfig(BaseModel):
-    """Epson projector"""
     ip_address: str
 
 
 class AppConfig(BaseModel):
-    """The unified master configuration model."""
-    version: str # ⚡ Core semantic version configuration tracking field
+    version: str
     wanos: WanosConfig
     domoticz: Optional[DomoticzConfig] = None
     rfxcom: Optional[RFXComSettings] = None
@@ -207,7 +202,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     # STRICT CHECK 1: Ensure .env file physically exists
     if not env_path.exists():
         raise FileNotFoundError(f"Environment configuration file not found: {env_path}")
-
     load_dotenv(dotenv_path=env_path)
 
     if not runtime_yaml_path.exists():
@@ -230,7 +224,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             hue_file_raw = yaml.safe_load(file)
             if isinstance(hue_file_raw, dict):
                 hue_data = hue_file_raw.get("hue", hue_file_raw)
-                # ⚡ Sanitize empty YAML keys so they don't crash Pydantic
                 if hue_data:
                     for map_key in ["device_map", "group_map", "scene_map", "presets"]:
                         if hue_data.get(map_key) is None:
@@ -247,8 +240,20 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},
-        "pins": hardware_data["pins"],
+        "pins": {
+            "safety_gpio": hardware_data["gpio_output"]["safety_gpio"],
+            "ir_relais": hardware_data["gpio_output"]["ir_relais"],
+            "sauna_relais_phase_U": hardware_data["gpio_output"]["sauna_relais_phase_U"],
+            "sauna_relais_phase_V": hardware_data["gpio_output"]["sauna_relais_phase_V"],
+            "sauna_relais_phase_W": hardware_data["gpio_output"]["sauna_relais_phase_W"],
+            "kwh_pin": hardware_data["gpio_input"]["kwh_pin"],
+            "water_cold": hardware_data["gpio_input"]["water_cold"],
+            "water_hot": hardware_data["gpio_input"]["water_hot"],
+            "door_sauna": hardware_data["gpio_input"]["door_sauna"],
+            "door_bathroom1": hardware_data["gpio_input"]["door_bathroom1"]
+        },
         "sensors": hardware_data["sht11_sensors"],
+
         "sauna": runtime_data["sauna"],
         "ir": runtime_data["ir"],
         "bathroom1": runtime_data["bathroom1"],

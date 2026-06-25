@@ -57,6 +57,7 @@ coverage.xml
 *.cover
 *.swn
 .pytest_cache/
+backup*/
 
 # 6. OS & IDE Clutter
 # (Prevents your editor settings from bleeding into the repo)

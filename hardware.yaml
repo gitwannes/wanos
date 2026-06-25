@@ -1,15 +1,19 @@
 # --- file: hardware.yaml ---
 # STRICT PHYSICAL LAYER ONLY
 
-pins:
-  safety_gpio: 4
+gpio_input:
   kwh_pin: 12
-  ir_relais: 14
-  sauna_relais: [15, 17, 18] # Phases: U, V, W
   water_cold: 6
   water_hot: 5
   door_sauna: 27
   door_bathroom1: 22
+
+gpio_output:
+  ir_relais: 14
+  sauna_relais_phase_U: 15 # 3500 W
+  sauna_relais_phase_V: 17 # 3500 W
+  sauna_relais_phase_W: 18 # 2000 W
+  safety_gpio: 4
 
 sht11_sensors:
   bathroom1:

@@ -4,6 +4,19 @@ This plain-text document contains your complete operational blueprint to safely 
 
 ---
 
+** ADDITION
+Because we already possess the RaZberry NVM backup (`.bin`), we bypass the RaZberry entirely on the new host.
+### Physical Relocation
+1. **Plug in the ZBT-2:** Insert the Home Assistant ZBT-2 USB stick into the WanOS Raspberry Pi (preferably using a short USB extension cable to reduce EMF interference).
+1. Gracefully shut down your ancient Debian Jessie Raspberry Pi.
+2. **Find the persistent USB Path:**
+2. Unplug the power source and unseat the physical **RaZberry Plus** GPIO expansion card from the motherboard.
+   Run `ls -l /dev/serial/by-id/` in your terminal.
+3. Power down your modern **WanOS Raspberry Pi**.
+   Copy the path that points to the ZBT-2:
+	/dev/serial/by-id/usb-Nabu_Casa_ZBT-2_14C19FC70CC4-if00 -> ../../ttyACM0
+	/dev/ttyACM0
+
 ## Phase 1: Pre-Migration Data Extraction
 
 Before touching any hardware, you must extract human-readable naming mappings from your existing setup. The Z-Wave controller chip handles the network communication, but it does not store your custom text labels.
@@ -16,7 +29,7 @@ Before touching any hardware, you must extract human-readable naming mappings fr
 
 ---
 
-## Phase 2: Hardware Migration & Pi OS Preparation
+## Phase 2: Hardware Preparation & Z-Wave JS UI Deployment
 
 In this stage, you physically migrate the existing Z-Wave controller and modify the WanOS host Linux kernel to cleanly communicate with the RaZberry shield's hardware serial lines.
 
@@ -104,18 +117,15 @@ docker run -d \
   --privileged \
   --network host \
   -v /opt/zwave-js-ui:/usr/src/app/store \
-  --device /dev/ttyAMA0 \
+  --device /dev/serial/by-id/usb-Nabu_Casa_ZBT-2_14C19FC70CC4-if00:/dev/zwave \
   zwavejs/zwave-js-ui:latest
 ```
-
-For USB Z-Wave stick: /dev/ttyUSB0
-
 
 ### 2. Initializing Hardware Integration
 1. Open a web browser window and navigate to your dashboard host endpoint on port `8091`: http://10.32.251.30:8091
 2. Navigate to **Settings > Z-Wave**.
 3. Configure the following hardware communication fields:
-   * **Serial Port:** `/dev/ttyAMA0` (The hardware UART pin path mapping)
+   * **Serial Port:** `/dev/ttyACM0` (The hardware UART pin path mapping)
    * **Z-Wave API Boot Timeout:** `disabled`
 4. Click **Save**. The middleware will initialize your RaZberry module, query its internal EEPROM memory, and automatically populate your 40+ hardware nodes directly onto the UI panel.
 

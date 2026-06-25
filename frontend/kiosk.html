@@ -1,112 +1,118 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <title>WanOS Kiosk Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 
-<body class="bg-slate-900 text-slate-100 h-screen w-screen overflow-hidden select-none touch-none"
+<body class="bg-stone-100 text-stone-800 h-screen w-screen overflow-hidden select-none touch-none font-sans"
       x-data="Object.assign(wanosApp(), { showCinemaModal: false })">
 
     <div class="flex h-full w-full" x-data="{ activeTab: 'dashboard' }">
 
-        <nav class="w-24 bg-slate-950 border-r border-slate-800 flex flex-col items-center py-4 z-40 shrink-0">
-            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 flex flex-col items-center justify-center mb-6 shadow-md">
-                <span class="font-black text-primary text-[11px] tracking-widest leading-none">WAN</span>
-                <span class="font-black text-slate-400 text-[9px] tracking-wider mt-0.5 leading-none">OS</span>
+        <nav class="w-24 bg-stone-200/70 border-r border-stone-300 flex flex-col items-center py-4 z-40 shrink-0">
+
+            <div class="w-14 h-14 rounded-2xl bg-white border border-stone-200 flex flex-col items-center justify-center mb-6 shadow-sm">
+                <span class="font-black text-stone-800 text-[11px] tracking-widest leading-none">WAN</span>
+                <span class="font-bold text-stone-400 text-[9px] tracking-wider mt-0.5 leading-none">OS</span>
             </div>
 
             <div class="flex flex-col gap-4 w-full px-2">
                 <button @click="activeTab = 'dashboard'"
                         class="flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-2xl transition-all duration-200"
-                        :class="activeTab === 'dashboard' ? 'bg-primary/10 text-primary border border-primary/30 shadow-[0_0_15px_rgba(59,130,246,0.15)] font-bold' : 'text-slate-400 hover:bg-slate-800/50'">
+                        :class="activeTab === 'dashboard' ? 'bg-white text-stone-800 border border-stone-200 shadow-md font-bold' : 'text-stone-500 hover:bg-stone-300/50'">
                     <span class="text-[10px] tracking-widest uppercase">Info</span>
                 </button>
 
                 <button @click="activeTab = 'saunair'"
                         class="flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-2xl transition-all duration-200"
-                        :class="activeTab === 'saunair' ? 'bg-warning/10 text-warning border border-warning/30 shadow-[0_0_15px_rgba(245,158,11,0.15)] font-bold' : 'text-slate-400 hover:bg-slate-800/50'">
+                        :class="activeTab === 'saunair' ? 'bg-white text-stone-800 border border-stone-200 shadow-md font-bold' : 'text-stone-500 hover:bg-stone-300/50'">
                     <span class="text-[10px] tracking-widest uppercase">Sauna</span>
                 </button>
 
                 <button @click="activeTab = 'controls'"
                         class="flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-2xl transition-all duration-200"
-                        :class="activeTab === 'controls' ? 'bg-accent/10 text-accent border border-accent/30 shadow-[0_0_15px_rgba(20,184,166,0.15)] font-bold' : 'text-slate-400 hover:bg-slate-800/50'">
+                        :class="activeTab === 'controls' ? 'bg-white text-stone-800 border border-stone-200 shadow-md font-bold' : 'text-stone-500 hover:bg-stone-300/50'">
                     <span class="text-[10px] tracking-widest uppercase">Ctrl</span>
                 </button>
             </div>
 
             <div class="mt-auto text-center w-full px-1">
-                <div class="text-sm font-black text-slate-400 tracking-wider font-mono"
+                <div class="text-sm font-black text-stone-500 tracking-wider font-mono"
                      x-text="nowUnix ? new Date(nowUnix * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'"></div>
             </div>
         </nav>
 
-        <main class="flex-1 relative bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950">
+        <main class="flex-1 relative bg-stone-100">
 
             <div x-show="activeTab === 'dashboard'" x-transition.opacity.duration.150ms class="absolute inset-0 p-5 flex flex-col gap-4">
 
-                <div class="flex justify-between items-center border-b border-slate-800 pb-2 shrink-0">
+                <div class="flex justify-between items-center border-b border-stone-300 pb-2 shrink-0">
                     <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
-                        <h1 class="text-sm font-black tracking-widest text-slate-400 uppercase">System Status Overview</h1>
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-sm animate-pulse"></span>
+                        <h1 class="text-sm font-black tracking-widest text-stone-600 uppercase">System Status Overview</h1>
                     </div>
-                    <span class="text-[10px] font-mono text-slate-500" x-text="state.system.version_full"></span>
+                    <span class="text-[10px] font-mono text-stone-400" x-text="state.system.version_full"></span>
                 </div>
 
-                <div class="grid grid-cols-12 gap-4 flex-1 min-h-0">
+                <div class="grid grid-cols-12 gap-5 flex-1 min-h-0">
 
-                    <div class="col-span-5 flex flex-col gap-3 overflow-hidden">
-                        <div class="bg-slate-950/40 rounded-2xl p-3 border border-slate-800/60 flex flex-col justify-between flex-1">
-                            <span class="text-[10px] uppercase font-bold tracking-wider text-slate-500">Last Sauna Run</span>
+                    <div class="col-span-5 flex flex-col gap-4 overflow-hidden">
+                        <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col justify-between flex-1">
+                            <span class="text-[10px] uppercase font-bold tracking-wider text-stone-400">Last Sauna Run</span>
                             <div>
-                                <div class="text-md font-bold text-slate-300 font-mono">Vandaag 06:00</div>
-                                <div class="text-xs text-slate-500 font-mono mt-0.5">23s | <span class="text-warning font-bold">0.060 kWh</span></div>
+                                <div class="text-md font-bold text-stone-700 font-mono">Vandaag 06:00</div>
+                                <div class="text-xs text-stone-500 font-mono mt-0.5">23s | <span class="text-orange-500 font-bold">0.060 kWh</span></div>
                             </div>
                         </div>
 
-                        <div class="bg-slate-950/40 rounded-2xl p-3 border border-slate-800/60 flex flex-col justify-between flex-1">
-                            <span class="text-[10px] uppercase font-bold tracking-wider text-slate-500">Last IR Run</span>
+                        <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col justify-between flex-1">
+                            <span class="text-[10px] uppercase font-bold tracking-wider text-stone-400">Last IR Run</span>
                             <div>
-                                <div class="text-md font-bold text-slate-300 font-mono">Vandaag 06:00</div>
-                                <div class="text-xs text-slate-500 font-mono mt-0.5">22s | <span class="text-success font-bold">2 Wh</span></div>
+                                <div class="text-md font-bold text-stone-700 font-mono">Vandaag 06:00</div>
+                                <div class="text-xs text-stone-500 font-mono mt-0.5">22s | <span class="text-emerald-500 font-bold">2 Wh</span></div>
                             </div>
                         </div>
 
-                        <div class="bg-slate-950/40 rounded-2xl p-3 border border-slate-800/60 flex flex-col justify-between flex-1">
-                            <span class="text-[10px] uppercase font-bold tracking-wider text-slate-500">Last Shower</span>
+                        <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col justify-between flex-1">
+                            <span class="text-[10px] uppercase font-bold tracking-wider text-stone-400">Last Shower</span>
                             <div>
-                                <div class="text-md font-bold text-slate-300 font-mono">Eergisteren 21:31</div>
-                                <div class="text-xs text-slate-500 font-mono mt-0.5">4m 24s | <span class="text-info font-bold">58L</span></div>
+                                <div class="text-md font-bold text-stone-700 font-mono">Eergisteren 21:31</div>
+                                <div class="text-xs text-stone-500 font-mono mt-0.5">4m 24s | <span class="text-sky-500 font-bold">58L</span></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="col-span-7 bg-slate-950/30 rounded-3xl p-4 border border-slate-800/60 flex flex-col justify-center gap-4">
+                    <div class="col-span-7 bg-white rounded-3xl p-5 border border-stone-200 shadow-sm flex flex-col justify-center gap-5">
 
-                        <div class="flex justify-between items-center bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
+                        <div class="flex justify-between items-center bg-stone-50 p-4 rounded-2xl border border-stone-100">
                             <div class="flex flex-col">
-                                <span class="text-sm font-black text-slate-300 tracking-wide">1e Verdieping</span>
-                                <span class="text-[10px] text-slate-500 font-mono">Internal Core Node</span>
+                                <span class="text-sm font-black text-stone-700 tracking-wide">1e Verdieping</span>
+                                <span class="text-[10px] text-stone-400 font-mono">Internal Core Node</span>
                             </div>
                             <div class="flex items-baseline gap-3 font-mono">
-                                <span class="text-2xl font-black text-warning">26.0<span class="text-sm font-normal text-slate-400">°C</span></span>
-                                <span class="text-xl font-bold text-info">65<span class="text-xs font-normal text-slate-500">%</span></span>
+                                <span class="text-3xl font-black text-stone-800">26.0<span class="text-sm font-normal text-stone-400">°C</span></span>
+                                <span class="text-xl font-bold text-stone-500">65<span class="text-xs font-normal text-stone-400">%</span></span>
                             </div>
                         </div>
 
-                        <div class="flex justify-between items-center bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
+                        <div class="flex justify-between items-center bg-stone-50 p-4 rounded-2xl border border-stone-100">
                             <div class="flex flex-col">
-                                <span class="text-sm font-black text-slate-300 tracking-wide">Buiten</span>
-                                <span class="text-[10px] text-slate-500 font-mono">OpenWeatherMap Stream</span>
+                                <span class="text-sm font-black text-stone-700 tracking-wide">Buiten</span>
+                                <span class="text-[10px] text-stone-400 font-mono">OpenWeatherMap Stream</span>
                             </div>
                             <div class="flex items-baseline gap-3 font-mono">
-                                <span class="text-2xl font-black text-warning">22.0<span class="text-sm font-normal text-slate-400">°C</span></span>
-                                <span class="text-xl font-bold text-info">91<span class="text-xs font-normal text-slate-500">%</span></span>
+                                <span class="text-3xl font-black text-stone-800">22.0<span class="text-sm font-normal text-stone-400">°C</span></span>
+                                <span class="text-xl font-bold text-stone-500">91<span class="text-xs font-normal text-stone-400">%</span></span>
                             </div>
                         </div>
 
@@ -114,67 +120,67 @@
                 </div>
             </div>
 
-            <div x-show="activeTab === 'saunair'" x-transition.opacity.duration.150ms class="absolute inset-0 p-4 flex flex-col gap-3" x-cloak>
+            <div x-show="activeTab === 'saunair'" x-transition.opacity.duration.150ms class="absolute inset-0 p-5 flex flex-col gap-4" x-cloak>
 
-                <div class="bg-slate-950 border border-slate-800 rounded-2xl py-2 flex justify-center items-center shadow-lg shrink-0">
-                    <div class="text-2xl font-black tracking-widest text-warning font-mono">
+                <div class="bg-white border border-stone-200 rounded-2xl py-3 flex justify-center items-center shadow-sm shrink-0">
+                    <div class="text-2xl font-black tracking-widest text-stone-800 font-mono">
                         <span x-text="state.sensors.sauna_calc_temp !== null ? parseFloat(state.sensors.sauna_calc_temp).toFixed(1) + '°C' : '--.-°C'"></span>
-                        <span class="text-slate-700 mx-3">/</span>
-                        <span class="text-info" x-text="state.sensors.sauna_calc_hum !== null ? state.sensors.sauna_calc_hum + '%' : '--%'"></span>
+                        <span class="text-stone-300 mx-3">/</span>
+                        <span class="text-stone-500" x-text="state.sensors.sauna_calc_hum !== null ? state.sensors.sauna_calc_hum + '%' : '--%'"></span>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 flex-1 min-h-0">
+                <div class="grid grid-cols-2 gap-5 flex-1 min-h-0">
 
-                    <div class="flex flex-col gap-3 h-full">
+                    <div class="flex flex-col gap-4 h-full">
                         <button @click="toggleSauna()"
-                                class="flex-1 rounded-2xl border-2 flex flex-col items-center justify-center transition-all duration-300 relative overflow-hidden"
-                                :class="state.sauna.active ? 'bg-warning/10 border-warning shadow-[0_0_25px_rgba(245,158,11,0.25)]' : 'bg-slate-950/40 border-slate-800/80'">
-                            <span class="text-xl font-black tracking-widest uppercase" :class="state.sauna.active ? 'text-warning' : 'text-slate-500'">Sauna Engine</span>
-                            <span class="text-[11px] font-mono mt-1 font-bold" :class="state.sauna.active ? 'text-warning/80 animate-pulse' : 'text-slate-600'" x-text="state.sauna.active ? 'ACTIVE ELEMENT LOAD' : 'SYSTEM OFF'"></span>
+                                class="flex-1 rounded-3xl border-2 flex flex-col items-center justify-center transition-all duration-300 relative overflow-hidden"
+                                :class="state.sauna.active ? 'bg-orange-400 border-orange-500 shadow-md text-white' : 'bg-white border-stone-200 shadow-sm text-stone-500'">
+                            <span class="text-2xl font-black tracking-widest uppercase">Sauna <span x-text="state.sauna.active ? 'ON' : 'OFF'"></span></span>
+                            <span class="text-[11px] font-mono mt-1 font-bold" :class="state.sauna.active ? 'text-orange-100' : 'text-stone-400'" x-text="state.sauna.active ? 'ACTIVE ELEMENT LOAD' : 'TAP TO SWITCH'"></span>
                         </button>
 
-                        <div class="grid grid-cols-2 gap-3 shrink-0">
-                            <div class="bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col items-center justify-between p-1 h-20">
-                                <span class="text-[9px] uppercase font-black text-slate-500 tracking-wider">Setpoint</span>
+                        <div class="grid grid-cols-2 gap-4 shrink-0">
+                            <div class="bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col items-center justify-between p-1.5 h-20">
+                                <span class="text-[9px] uppercase font-bold text-stone-400 tracking-wider">Setpoint</span>
                                 <div class="flex items-center justify-between w-full px-1">
-                                    <button @click="state.sauna.target_temp = Math.max(20, state.sauna.target_temp - 5); updateSaunaSetpoint()" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-black text-slate-400 active:scale-95">-</button>
-                                    <span class="text-sm font-bold font-mono text-slate-200" x-text="state.sauna.target_temp + '°'"></span>
-                                    <button @click="state.sauna.target_temp = Math.min(100, state.sauna.target_temp + 5); updateSaunaSetpoint()" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-black text-slate-400 active:scale-95">+</button>
+                                    <button @click="state.sauna.target_temp = Math.max(20, state.sauna.target_temp - 5); updateSaunaSetpoint()" class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center font-black text-stone-600 active:bg-stone-200 transition-colors">-</button>
+                                    <span class="text-sm font-bold font-mono text-stone-800" x-text="state.sauna.target_temp + '°'"></span>
+                                    <button @click="state.sauna.target_temp = Math.min(100, state.sauna.target_temp + 5); updateSaunaSetpoint()" class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center font-black text-stone-600 active:bg-stone-200 transition-colors">+</button>
                                 </div>
                             </div>
-                            <div class="bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col items-center justify-between p-1 h-20">
-                                <span class="text-[9px] uppercase font-black text-slate-500 tracking-wider">Timer</span>
+                            <div class="bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col items-center justify-between p-1.5 h-20">
+                                <span class="text-[9px] uppercase font-bold text-stone-400 tracking-wider">Timer</span>
                                 <div class="flex items-center justify-between w-full px-1">
-                                    <button @click="adjustSaunaTimer(-5)" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-black text-slate-400 active:scale-95">-</button>
-                                    <span class="text-xs font-bold font-mono text-slate-200 truncate max-w-[45px]" x-text="state.sauna.active ? saunaRemainingText : formatTime(state.sauna.session_end_time || 3600)"></span>
-                                    <button @click="adjustSaunaTimer(5)" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-black text-slate-400 active:scale-95">+</button>
+                                    <button @click="adjustSaunaTimer(-5)" class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center font-black text-stone-600 active:bg-stone-200 transition-colors">-</button>
+                                    <span class="text-xs font-bold font-mono text-stone-800 truncate max-w-[45px]" x-text="state.sauna.active ? saunaRemainingText : formatTime(state.sauna.session_end_time || 3600)"></span>
+                                    <button @click="adjustSaunaTimer(5)" class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center font-black text-stone-600 active:bg-stone-200 transition-colors">+</button>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex flex-col gap-3 h-full">
+                    <div class="flex flex-col gap-4 h-full">
                         <button @click="toggleIR()"
-                                class="flex-1 rounded-2xl border-2 flex flex-col items-center justify-center transition-all duration-300 relative overflow-hidden"
-                                :class="state.ir.active ? 'bg-success/10 border-success shadow-[0_0_25px_rgba(52,211,153,0.25)]' : 'bg-slate-950/40 border-slate-800/80'">
-                            <span class="text-xl font-black tracking-widest uppercase" :class="state.ir.active ? 'text-success' : 'text-slate-500'">Infrared Hub</span>
-                            <span class="text-[11px] font-mono mt-1 font-bold" :class="state.ir.active ? 'text-success/80 animate-pulse' : 'text-slate-600'" x-text="state.ir.active ? 'GRID MODULATION' : 'SYSTEM OFF'"></span>
+                                class="flex-1 rounded-3xl border-2 flex flex-col items-center justify-center transition-all duration-300 relative overflow-hidden"
+                                :class="state.ir.active ? 'bg-emerald-400 border-emerald-500 shadow-md text-white' : 'bg-white border-stone-200 shadow-sm text-stone-500'">
+                            <span class="text-2xl font-black tracking-widest uppercase">IR <span x-text="state.ir.active ? 'ON' : 'OFF'"></span></span>
+                            <span class="text-[11px] font-mono mt-1 font-bold" :class="state.ir.active ? 'text-emerald-100' : 'text-stone-400'" x-text="state.ir.active ? 'GRID MODULATION' : 'TAP TO SWITCH'"></span>
                         </button>
 
-                        <div class="grid grid-cols-2 gap-3 shrink-0">
-                            <div class="bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col items-center justify-between p-1 h-20">
-                                <span class="text-[9px] uppercase font-black text-slate-500 tracking-wider">Modulation</span>
+                        <div class="grid grid-cols-2 gap-4 shrink-0">
+                            <div class="bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col items-center justify-between p-1.5 h-20">
+                                <span class="text-[9px] uppercase font-bold text-stone-400 tracking-wider">Modulation</span>
                                 <div class="flex items-center justify-between w-full px-1">
-                                    <button @click="if(irStepIndex > 0) { irStepIndex--; updateIRSetpoint(); }" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-black text-slate-400 active:scale-95">-</button>
-                                    <span class="text-sm font-bold font-mono text-slate-200" x-text="irStepValues[irStepIndex] + '%'"></span>
-                                    <button @click="if(irStepIndex < irStepValues.length - 1) { irStepIndex++; updateIRSetpoint(); }" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-black text-slate-400 active:scale-95">+</button>
+                                    <button @click="if(irStepIndex > 0) { irStepIndex--; updateIRSetpoint(); }" class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center font-black text-stone-600 active:bg-stone-200 transition-colors">-</button>
+                                    <span class="text-sm font-bold font-mono text-stone-800" x-text="irStepValues[irStepIndex] + '%'"></span>
+                                    <button @click="if(irStepIndex < irStepValues.length - 1) { irStepIndex++; updateIRSetpoint(); }" class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center font-black text-stone-600 active:bg-stone-200 transition-colors">+</button>
                                 </div>
                             </div>
-                            <div class="bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col items-center justify-between p-1 h-20 opacity-70">
-                                <span class="text-[9px] uppercase font-black text-slate-600 tracking-wider">IR Timeline</span>
+                            <div class="bg-stone-100 rounded-2xl border border-stone-200 shadow-inner flex flex-col items-center justify-between p-1.5 h-20 opacity-80">
+                                <span class="text-[9px] uppercase font-bold text-stone-400 tracking-wider">IR Timeline</span>
                                 <div class="flex items-center justify-center w-full h-full pb-2">
-                                    <span class="text-sm font-bold font-mono text-slate-400" x-text="state.ir.active ? irRemainingText : '00:30:00'"></span>
+                                    <span class="text-sm font-bold font-mono text-stone-500" x-text="state.ir.active ? irRemainingText : '00:30:00'"></span>
                                 </div>
                             </div>
                         </div>
@@ -183,90 +189,90 @@
                 </div>
             </div>
 
-            <div x-show="activeTab === 'controls'" x-transition.opacity.duration.150ms class="absolute inset-0 p-4 flex flex-col gap-3" x-cloak>
+            <div x-show="activeTab === 'controls'" x-transition.opacity.duration.150ms class="absolute inset-0 p-5 flex flex-col gap-4" x-cloak>
 
-                <div class="grid grid-cols-4 grid-rows-3 gap-3 flex-1 min-h-0">
+                <div class="grid grid-cols-4 grid-rows-3 gap-4 flex-1 min-h-0">
 
                     <button @click="injectLabHubStateChange(141, !(state.devices[141] === 'ON'))"
-                            class="rounded-xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[141] === 'ON' ? 'bg-primary/20 border-primary text-primary font-bold shadow-md' : 'bg-slate-950/40 border-slate-800/80 text-slate-400'">
-                        <span class="text-xs uppercase tracking-wider">Badkamer<br>Licht</span>
+                            class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
+                            :class="state.devices[141] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                        <span class="font-black text-xs uppercase tracking-wider">Badkamer<br>Licht</span>
                     </button>
 
                     <button @click="injectLabHubStateChange(7555, !(state.devices[7555] === 'ON'))"
-                            class="rounded-xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[7555] === 'ON' ? 'bg-primary/20 border-primary text-primary font-bold shadow-md' : 'bg-slate-950/40 border-slate-800/80 text-slate-400'">
-                        <span class="text-xs uppercase tracking-wider">Lavabo<br>Licht</span>
+                            class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
+                            :class="state.devices[7555] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                        <span class="font-black text-xs uppercase tracking-wider">Lavabo<br>Licht</span>
                     </button>
 
                     <button @click="injectLabHubStateChange(7558, !(state.devices[7558] === 'ON'))"
-                            class="rounded-xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[7558] === 'ON' ? 'bg-info/20 border-info text-info font-bold shadow-md' : 'bg-slate-950/40 border-slate-800/80 text-slate-400'">
-                        <span class="text-xs uppercase tracking-wider">Badkamer<br>Vent</span>
+                            class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
+                            :class="state.devices[7558] === 'ON' ? 'bg-sky-300 border-sky-400 text-sky-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                        <span class="font-black text-xs uppercase tracking-wider">Badkamer<br>Vent</span>
                     </button>
 
                     <button @click="dispatchEvent('SCENE_VERDIEP1_OFF')"
-                            class="rounded-xl border border-error bg-error/10 hover:bg-error/20 flex flex-col items-center justify-center text-center p-2 transition-all duration-200 shadow-sm active:scale-98">
-                        <span class="font-black text-error text-xs uppercase tracking-widest">1e Verdiep<br>ALL OFF</span>
+                            class="rounded-2xl border border-red-200 bg-red-100 hover:bg-red-200 flex flex-col items-center justify-center text-center p-2 transition-all duration-200 shadow-sm active:scale-95">
+                        <span class="font-black text-red-600 text-xs uppercase tracking-widest">1e Verdiep<br>ALL OFF</span>
                     </button>
 
-                    <div class="grid grid-rows-3 gap-1 h-full">
-                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 0 })" class="rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-slate-800 text-[10px] font-black tracking-widest uppercase text-slate-400 active:bg-slate-800">Rolluik Op</button>
-                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 75 })" class="rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-slate-800 text-[10px] font-black tracking-widest uppercase text-slate-400 active:bg-slate-800">3/4 Stand</button>
-                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 100 })" class="rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-slate-800 text-[10px] font-black tracking-widest uppercase text-slate-400 active:bg-slate-800">Rolluik Neer</button>
+                    <div class="grid grid-rows-3 gap-1.5 h-full">
+                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 0 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">Rolluik Op</button>
+                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 75 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">3/4 Stand</button>
+                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 100 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">Rolluik Neer</button>
                     </div>
 
                     <button @click="injectLabHubStateChange(283, !(state.devices[283] === 'ON'))"
-                            class="rounded-xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[283] === 'ON' ? 'bg-primary/20 border-primary text-primary font-bold shadow-md' : 'bg-slate-950/40 border-slate-800/80 text-slate-400'">
-                        <span class="text-xs uppercase tracking-wider">Cinema<br>Licht</span>
+                            class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
+                            :class="state.devices[283] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                        <span class="font-black text-xs uppercase tracking-wider">Cinema<br>Licht</span>
                     </button>
 
-                    <button @click="injectLabHubStateChange(7312, !(state.devices[7312] === 'ON'))"
-                            class="rounded-xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[7312] === 'ON' ? 'bg-primary/20 border-primary text-primary font-bold shadow-md' : 'bg-slate-950/40 border-slate-800/80 text-slate-400'">
-                        <span class="text-xs uppercase tracking-wider">Cinema<br>Hue</span>
+                    <button @click="injectLabHubStateChange(51004, !(state.devices[51004] === 'ON'))"
+                            class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
+                            :class="state.devices[51004] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                        <span class="font-black text-xs uppercase tracking-wider">Cinema<br>Hue</span>
                     </button>
 
                     <button @click="injectLabHubStateChange(282, !(state.devices[282] === 'ON'))"
-                            class="rounded-xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[282] === 'ON' ? 'bg-primary/20 border-primary text-primary font-bold shadow-md' : 'bg-slate-950/40 border-slate-800/80 text-slate-400'">
-                        <span class="text-xs uppercase tracking-wider">Buro<br>Licht</span>
+                            class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
+                            :class="state.devices[282] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                        <span class="font-black text-xs uppercase tracking-wider">Buro<br>Licht</span>
                     </button>
 
                     <button @click="showCinemaModal = true"
-                            class="col-span-4 rounded-2xl border-2 flex flex-col items-center justify-center transition-all duration-300 border-dashed"
-                            :class="state.devices[80001] === 'ON' ? 'bg-success/5 border-success/40' : 'bg-slate-950/30 border-slate-800'">
+                            class="col-span-4 rounded-3xl border-2 flex flex-col items-center justify-center transition-all duration-300"
+                            :class="state.devices[80001] === 'ON' ? 'bg-emerald-400 border-emerald-500 text-white shadow-md' : 'bg-white border-stone-300 border-dashed text-stone-500 shadow-sm'">
                         <div class="text-sm font-black tracking-widest uppercase flex items-center gap-3">
-                            <span class="w-2 h-2 rounded-full" :class="state.devices[80001] === 'ON' ? 'bg-success animate-ping' : 'bg-slate-600'"></span>
-                            <span :class="state.devices[80001] === 'ON' ? 'text-success' : 'text-slate-400'">Cinema System is <span x-text="state.devices[80001] === 'ON' ? 'ON' : 'OFF'"></span></span>
+                            <span class="w-2 h-2 rounded-full" :class="state.devices[80001] === 'ON' ? 'bg-white animate-ping' : 'bg-stone-300'"></span>
+                            <span>Cinema System is <span x-text="state.devices[80001] === 'ON' ? 'ON' : 'OFF'"></span></span>
                         </div>
-                        <span class="text-[10px] font-mono text-slate-500 mt-0.5 uppercase tracking-wider">Tap to change power profile</span>
+                        <span class="text-[10px] font-bold font-mono mt-0.5 uppercase tracking-wider" :class="state.devices[80001] === 'ON' ? 'text-emerald-100' : 'text-stone-400'">Tap to change power profile</span>
                     </button>
 
                 </div>
             </div>
 
             <div x-show="showCinemaModal"
-                 class="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-8 transition-opacity duration-200"
+                 class="absolute inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-8 transition-opacity duration-200"
                  x-cloak x-transition>
 
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-center flex flex-col gap-6">
+                <div class="bg-stone-50 border border-stone-200 rounded-3xl p-6 max-w-md w-full shadow-2xl text-center flex flex-col gap-6">
                     <div>
-                        <h2 class="text-md uppercase font-black text-slate-400 tracking-widest mb-1">Ecosystem Intercept</h2>
-                        <p class="text-lg font-bold text-slate-100">
-                            Are you sure you want to turn the Cinema <span class="font-black text-primary underline decoration-2 underline-offset-4" x-text="state.devices[80001] === 'ON' ? 'OFF' : 'ON'"></span>?
+                        <h2 class="text-md uppercase font-black text-stone-400 tracking-widest mb-1">Ecosystem Intercept</h2>
+                        <p class="text-xl font-bold text-stone-800">
+                            Are you sure you want to turn the Cinema <span class="font-black underline decoration-2 underline-offset-4 text-amber-500" x-text="state.devices[80001] === 'ON' ? 'OFF' : 'ON'"></span>?
                         </p>
                     </div>
 
                     <div class="flex gap-4">
                         <button @click="showCinemaModal = false"
-                                class="flex-1 py-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold uppercase tracking-wider border border-slate-700 transition-colors">
+                                class="flex-1 py-4 rounded-xl bg-white hover:bg-stone-100 text-stone-600 text-sm font-bold uppercase tracking-wider border border-stone-200 transition-colors shadow-sm">
                             Cancel
                         </button>
                         <button @click="dispatchEvent(state.devices[80001] === 'ON' ? 'SCENE_CINEMA_OFF' : 'SCENE_CINEMA_ON'); showCinemaModal = false;"
-                                class="flex-1 py-4 rounded-xl text-sm font-black uppercase tracking-wider transition-all shadow-md"
-                                :class="state.devices[80001] === 'ON' ? 'bg-error text-slate-950 hover:bg-error/90' : 'bg-success text-slate-950 hover:bg-success/90'">
+                                class="flex-1 py-4 rounded-xl text-white text-sm font-black uppercase tracking-wider transition-all shadow-md"
+                                :class="state.devices[80001] === 'ON' ? 'bg-red-400 hover:bg-red-500' : 'bg-emerald-400 hover:bg-emerald-500'">
                             Confirm Action
                         </button>
                     </div>
@@ -276,6 +282,6 @@
         </main>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=2.0"></script>
 </body>
 </html>

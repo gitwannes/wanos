@@ -18,6 +18,9 @@ class EventType(str, Enum):
     ALERT_CLEAR_NON_CRITICAL = "ALERT_CLEAR_NON_CRITICAL"  # ⚡ Clear all info/success alerts
     ALERT_INJECTED = "ALERT_INJECTED"  # to test the teneral error message on top of the UI
 
+    # Dynamic Hardware Bus Health Pings
+    HARDWARE_BUS_HEALTH_UPDATED = "HARDWARE_BUS_HEALTH_UPDATED"
+
     # Sauna & Logic Events
     SAUNA_ON = "SAUNA_ON"
     SAUNA_OFF = "SAUNA_OFF"
@@ -40,16 +43,24 @@ class EventType(str, Enum):
     # System Events
     SYSTEM_READY = "SYSTEM_READY"
     BACKEND_SHUTDOWN = "BACKEND_SHUTDOWN"
-    HARDWARE_LIVE_MODE_CHANGED = "HARDWARE_LIVE_MODE_CHANGED"  # SHT sensors, Sauna & IR controls, LCD text
     CONFIG_UPDATED = "CONFIG_UPDATED"
     SYSTEM_METRICS_UPDATED = "SYSTEM_METRICS_UPDATED"
+
+    # Toggles
     AUTOMATIONS_TOGGLED = "AUTOMATIONS_TOGGLED"  # Automation Rules
     SIMULATIONS_TOGGLED = "SIMULATIONS_TOGGLED"  # Simulation Physics Engine
     DOMOTICZ_TOGGLED = "DOMOTICZ_TOGGLED"  # Listen to Domoticz messages
     RFXCOM_TOGGLED = "RFXCOM_TOGGLED"  # ⚡ Added to allow UI HTTP events to pass validation!
     OWM_TOGGLED = "OWM_TOGGLED"  # get OWM weather
+    ZWAVE_TOGGLED = "ZWAVE_TOGGLED"  # ⚡ Z-Wave integration toggle
     HUE_TOGGLED = "HUE_TOGGLED"  # ⚡ Listen to local Hue Bridge messages
     EPSON_TOGGLED = "EPSON_TOGGLED"  # ⚡ Block/allow Epson projector network commands
+
+    # ⚡ NEW: Physical Hardware Isolation Toggles
+    SHT11_TOGGLED = "SHT11_TOGGLED"
+    GPIO_INPUT_TOGGLED = "GPIO_INPUT_TOGGLED"
+    GPIO_OUTPUT_TOGGLED = "GPIO_OUTPUT_TOGGLED"
+
     SYSTEM_SWEEP_REQUESTED = "SYSTEM_SWEEP_REQUESTED"  # Manual Time & Environment Audit
     CONFIG_RELOAD_REQUESTED = "CONFIG_RELOAD_REQUESTED"  # Hot-reload config.yaml configuration
 
@@ -58,7 +69,7 @@ class EventType(str, Enum):
     LIGHTING_STATE_CHANGED = "LIGHTING_STATE_CHANGED"
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
 
-    # 🌍 Environment Schedule Events
+    # Environment Schedule Events
     BLINDS_OPEN_TRIGGER = "BLINDS_OPEN_TRIGGER"
     BLINDS_CLOSE_TRIGGER = "BLINDS_CLOSE_TRIGGER"
     TWILIGHT_EVENING_ON_TRIGGER = "TWILIGHT_EVENING_ON_TRIGGER"
@@ -66,10 +77,11 @@ class EventType(str, Enum):
     TWILIGHT_MORNING_ON_TRIGGER = "TWILIGHT_MORNING_ON_TRIGGER"
     TWILIGHT_MORNING_OFF_TRIGGER = "TWILIGHT_MORNING_OFF_TRIGGER"
 
-    # Timer & Generic Engine Events
+    # Timer Events
     TIMER_SCHEDULED = "TIMER_SCHEDULED"
     TIMER_CANCELLED = "TIMER_CANCELLED"
     LIGHT_TIMER_EXPIRED = "LIGHT_TIMER_EXPIRED"
+
 
 class SystemAdminState(BaseModel):
     version_major: str = "v0.0"  # ⚡ Exposes major layout semantic configuration strings to dashboard layout
@@ -78,6 +90,8 @@ class SystemAdminState(BaseModel):
     domoticz_mqtt_connected: bool = False
     rfxcom_connected: bool = False  # ⚡ Tracks native USB RFX transceiver health
     rfxcom_integration_enabled: bool = False  # ⚡ Switch to block/allow native RFXCOM transmission/reception
+    zwave_connected: bool = False  # ⚡ Tracks Z-Wave JS UI MQTT health
+    zwave_integration_enabled: bool = False  # ⚡ Switch to block/allow Z-Wave processing
     hue_connected: bool = False  # ⚡ Tracks local Hue API v2 connection
     hue_integration_enabled: bool = False  # ⚡ Switch to block/allow Hue API v2 bidirectional commands
     epson_connected: bool = False  # ⚡ Tracks physical TCP availability of the Epson Projector
@@ -97,7 +111,7 @@ class SystemAdminState(BaseModel):
 
 
 class Event(BaseModel):
-    type: Union[EventType, str]  # Let custom scene strings live in the core event bus
+    type: Union[EventType, str]
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -107,7 +121,6 @@ class SensorsState(BaseModel):
     sunrise_unix: Optional[int] = None
     sunset_unix: Optional[int] = None
 
-    # 🌍 Environmental Daily Target Epochs
     env_schedule_blinds_open_unix: Optional[int] = None
     env_schedule_blinds_close_unix: Optional[int] = None
     env_schedule_twilight_evening_on_unix: Optional[int] = None
@@ -117,7 +130,6 @@ class SensorsState(BaseModel):
 
     bathroom1_temp: Optional[float] = None
     bathroom1_hum: Optional[int] = None
-
     cinema_temp: Optional[float] = None
     cinema_hum: Optional[int] = None
 
@@ -133,7 +145,6 @@ class SensorsState(BaseModel):
     pc_aux_power: Optional[float] = None
     pc_aux_power_history: List[float] = Field(default_factory=list)
 
-    # Water metrics are analog sensor aggregations
     water_cold_liters: float = 0.0
     water_hot_liters: float = 0.0
 
@@ -144,7 +155,7 @@ class SaunaState(BaseModel):
     max_temp: Optional[float] = None
     hold_mode: str = "nohold"
     modulation_pwm: int = 0
-    phases_pwm: List[int] = Field(default_factory=lambda: [0, 0, 0])
+    phases_pwm: Dict[str, int] = Field(default_factory=lambda: {"U": 0, "V": 0, "W": 0})
     fireorder: str = "--"
     session_start_time: Optional[int] = None
     session_end_time: Optional[int] = None
@@ -171,7 +182,13 @@ class MetricsState(BaseModel):
 
 
 class HardwareState(BaseModel):
-    live_mode: bool = False
+    sht11_connected: bool = False
+    sht11_enabled: bool = False
+    gpio_input_connected: bool = False
+    gpio_input_enabled: bool = False
+    gpio_output_connected: bool = False
+    gpio_output_enabled: bool = False
+
     simulations_enabled: bool = False  # Master switch for thesimulation engine
     safety_pin_active: bool = False
     sensor_errors: List[str] = Field(default_factory=list)

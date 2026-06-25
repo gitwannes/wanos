@@ -41,6 +41,8 @@
     .venv
     docs
 	code-import
+	bootstrap
+	backup*
 :: On Pi
 	wanos_venv
 	__pycache__

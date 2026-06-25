@@ -177,7 +177,7 @@ cat << 'EOF' > /etc/samba/smb.conf
 
     # Disable printer subsystem (improves performance and limits noise)
     load printers = no
-    printing = standard
+    printing = bsd
     printcap name = /dev/null
     disable spoolss = yes
 

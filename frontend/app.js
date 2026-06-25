@@ -20,6 +20,8 @@ function wanosApp() {
                 owm_integration_enabled: false, // ⚡ Switch to block/allow OWM polling
                 rfxcom_connected: false, // ⚡ Live USB mounting health status
                 rfxcom_integration_enabled: false, // ⚡ Switch to block/allow native RFXCOM transmission/reception
+                zwave_connected: false, // ⚡ Tracks Z-Wave JS UI MQTT health
+                zwave_integration_enabled: false, // ⚡ Switch to block/allow Z-Wave processing
                 epson_connected: false, // ⚡ Tracks physical TCP availability of the Epson Projector
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
@@ -226,8 +228,9 @@ function wanosApp() {
 
         get disabledIntegrationsText() {
             let disabled = [];
-            // if (!this.state.hardware.live_mode) disabled.push("Hardware Bus"); // To be enabled later
+            if (!this.state.hardware.gpio_output_enabled) disabled.push("GPIO outputs");
             if (!this.state.system.domoticz_integration_enabled) disabled.push("Domoticz");
+            if (!this.state.system.zwave_integration_enabled) disabled.push("Z-Wave");
             if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
             if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
             if (!this.state.system.automations_enabled) disabled.push("Automation");
@@ -248,6 +251,7 @@ function wanosApp() {
                 if (meta.origin === 'domoticz' && !this.state.system.domoticz_integration_enabled) continue;
                 if (meta.origin === 'rfxcom' && !this.state.system.rfxcom_integration_enabled) continue;
                 if (meta.origin === 'hue' && !this.state.system.hue_integration_enabled) continue;
+                if (meta.origin === 'zwave' && !this.state.system.zwave_integration_enabled) continue;
 
                 const idx = parseInt(idxStr, 10);
 
@@ -427,12 +431,13 @@ function wanosApp() {
 
         _applyFullSnapshot(fullState) {
             // Defensive defaults for any fields that may be absent
-            if (!fullState.sauna.phases_pwm) {
-                fullState.sauna.phases_pwm = [0, 0, 0];
+            if (!fullState.sauna.phases_pwm || Array.isArray(fullState.sauna.phases_pwm)) {
+                fullState.sauna.phases_pwm = {"U": 0, "V": 0, "W": 0};
             } else {
-                fullState.sauna.phases_pwm = fullState.sauna.phases_pwm.map(v =>
-                    (v === null || v === undefined || isNaN(v)) ? 0 : v
-                );
+                for (const phase of ["U", "V", "W"]) {
+                    let v = fullState.sauna.phases_pwm[phase];
+                    fullState.sauna.phases_pwm[phase] = (v === null || v === undefined || isNaN(v)) ? 0 : v;
+                }
             }
             if (!fullState.hardware.sensor_errors) fullState.hardware.sensor_errors = [];
             fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
@@ -470,10 +475,13 @@ function wanosApp() {
         _applyDomainDelta(domain, data) {
             // Merges a single changed domain subtree into the reactive store.
             if (domain === "sauna") {
-                if (data.phases_pwm) {
-                    data.phases_pwm = data.phases_pwm.map(v =>
-                        (v === null || v === undefined || isNaN(v)) ? 0 : v
-                    );
+                if (data.phases_pwm && !Array.isArray(data.phases_pwm)) {
+                    for (const phase of ["U", "V", "W"]) {
+                        let v = data.phases_pwm[phase];
+                        data.phases_pwm[phase] = (v === null || v === undefined || isNaN(v)) ? 0 : v;
+                    }
+                } else {
+                    data.phases_pwm = {"U": 0, "V": 0, "W": 0};
                 }
                 data.modulation_pwm = data.modulation_pwm ?? 0;
             }
@@ -792,9 +800,19 @@ function wanosApp() {
             this.dispatchEvent(action);
         },
 
-        toggleHardwareMode() {
-            const nextMode = !this.state.hardware.live_mode;
-            this.dispatchEvent("HARDWARE_LIVE_MODE_CHANGED", { live: nextMode });
+        toggleSHT11() {
+            const nextState = !this.state.hardware.sht11_enabled;
+            this.dispatchEvent("SHT11_TOGGLED", { enabled: nextState });
+        },
+
+        toggleGPIOInput() {
+            const nextState = !this.state.hardware.gpio_input_enabled;
+            this.dispatchEvent("GPIO_INPUT_TOGGLED", { enabled: nextState });
+        },
+
+        toggleGPIOOutput() {
+            const nextState = !this.state.hardware.gpio_output_enabled;
+            this.dispatchEvent("GPIO_OUTPUT_TOGGLED", { enabled: nextState });
         },
 
         toggleAutomations() {
@@ -802,9 +820,19 @@ function wanosApp() {
             this.dispatchEvent("AUTOMATIONS_TOGGLED", { enabled: nextState });
         },
 
+        toggleZwave() {
+            const nextState = !this.state.system.domoticz_integration_enabled;
+            this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: nextState });
+        },
+
         toggleDomoticz() {
             const nextState = !this.state.system.domoticz_integration_enabled;
             this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: nextState });
+        },
+
+        toggleZwave() {
+            const nextState = !this.state.system.zwave_integration_enabled;
+            this.dispatchEvent("ZWAVE_TOGGLED", { enabled: nextState });
         },
 
         toggleRFXCOM() {
@@ -841,10 +869,26 @@ function wanosApp() {
             // Phase 3: Enable Domoticz (State Database Sync)
             await this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: true });
 
-            // Phase 4: The Cloud (Low-priority polling)
+            // Phase 4: Enable Z-Wave
+            await this.dispatchEvent("ZWAVE_TOGGLED", { enabled: true });
+
+            // Phase 5: The Cloud (Low-priority polling)
             await this.dispatchEvent("OWM_TOGGLED", { enabled: true });
 
-            // Phase 5: Ensure Time-Series & Auto-Timers are synchronized
+            // Phase 6: Arm Physical Inputs
+            await this.dispatchEvent("GPIO_INPUT_TOGGLED", { enabled: true });
+            if (this.state.hardware.sht11_connected) {
+                await this.dispatchEvent("SHT11_TOGGLED", { enabled: true });
+            }
+
+            // Phase 7: Hardware Stabilization Wait (Give the SHT11 loop time to sample the room)
+            this.dispatchEvent("ALERT_INJECTED", { msg_text: "⏳ Waiting 2 seconds for sensor bus stabilization..." });
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Phase 8: Arm High-Voltage Physical Outputs
+            await this.dispatchEvent("GPIO_OUTPUT_TOGGLED", { enabled: true });
+
+            // Phase 9: Ensure Time-Series & Auto-Timers are synchronized
             // (Reuses the dedicated sweep macro to enforce UI locks!)
             await this.requestSystemSweep();
         },
@@ -1021,16 +1065,16 @@ function wanosApp() {
             this.injectLabHubStateChange(8, !isCurrentlyOn);
         },
 
-        // 🛡️ Hardware Bus Safety Interceptor
-        handleHardwareToggleClick(event) {
+        // 🛡️ Hardware Output Safety Interceptor
+        handleOutputToggleClick(event) {
             event.preventDefault(); // Stop the toggle from visually flipping
-            document.getElementById('hardware_mode_modal').showModal();
+            document.getElementById('hardware_output_modal').showModal();
         },
 
         // Executed only if the user confirms the bus switch
-        confirmHardwareModeToggle() {
-            document.getElementById('hardware_mode_modal').close();
-            this.toggleHardwareMode();
+        confirmOutputModeToggle() {
+            document.getElementById('hardware_output_modal').close();
+            this.toggleGPIOOutput();
         },
 
         injectWaterPulse(fluidType) {

@@ -30,9 +30,10 @@ class StateManager:
         self._state_listeners: list[Any] = []  # Observer callback registry list
         self.mqtt_client: MqttClientManager = mqtt_client
         self.domoticz_client: Optional[Any] = None  # Populated dynamically by Domoticz bridge
-        self.rfxcom_bridge: Optional[Any] = None  # ⚡ Populated dynamically by Native RFXCOM bridge
-        self.hue_bridge: Optional[Any] = None  # ⚡ Populated dynamically by local Hue API v2 bridge
-        self.epson_bridge: Optional[Any] = None
+        self.rfxcom_bridge: Optional[Any] = None  # Populated dynamically by Native RFXCOM bridge
+        self.hue_bridge: Optional[Any] = None  # Populated dynamically by local Hue API v2 bridge
+        self.epson_bridge: Optional[Any] = None  # 
+        self.zwave_bridge: Optional[Any] = None  # Populated dynamically by Z-Wave bridge
         self.logger: WanosLogger = logger
 
         # Optional reference to the MqttPublisher, injected after construction.
@@ -41,7 +42,7 @@ class StateManager:
 
         self._start_time = time.time()  # Track initialization timestamp for Engine Uptime calculation
 
-        # ⚡ Generate immutable build timestamp string once at process boot (Option C)
+        # Generate immutable build timestamp string once at process boot (Option C)
         self._build_timestamp: str = datetime.now().strftime("%Y%m%d%H%M")
 
         # Track rolling data windows for moving averages
@@ -51,7 +52,7 @@ class StateManager:
         # Load centralized configuration profiles
         self._config = load_config()
 
-        # ⚡ Assemble initial structural application lifecycle tags inside live RAM state
+        # Assemble initial structural application lifecycle tags inside live RAM state
         self._state.system.version_major = f"v{self._config.version}"
         self._state.system.version_full = f"v{self._config.version}-build_{self._build_timestamp}"
 
@@ -59,10 +60,10 @@ class StateManager:
         # into the live SystemState so it gets sent to app.js during the initial /api/state fetch!
         self._state.dashboard_map = self._config.dashboard
 
-        # ⚡ Map the excluded UI devices to the live state payload
+        # Map the excluded UI devices to the live state payload
         self._state.system.hidden_explorer_idxs = self._config.deviceexplorer_exclude
 
-        # ⚡ STALE CACHE PURGE & COMPREHENSIVE ALLOCATION: Pre-fill the state dictionary with explicit None values
+        # STALE CACHE PURGE & COMPREHENSIVE ALLOCATION: Pre-fill the state dictionary with explicit None values
         # for every unique raw integer IDX mentioned anywhere in config.yaml (Dashboard, Managed Lights,
         # and Automation Triggers/Actions). This forces the frontend to overwrite its stale UI cache
         # with 'null', triggering the "SYNCING..." visual state upon reconnect, and ensures no device stays untracked.
@@ -86,7 +87,7 @@ class StateManager:
             if idx < 10000:  # Only track real external hardware components
                 self._state.devices[idx] = None
 
-        # ⚡ NATIVE RFX AUTO-INITIALIZATION
+        # NATIVE RFX AUTO-INITIALIZATION
         # Maps the RFX devices and forcefully sets them to "OFF" since 433MHz is stateless and can't be queried.
         if hasattr(self._config, "native_rfx"):
             for rfx_dev in self._config.native_rfx:
@@ -99,7 +100,7 @@ class StateManager:
                                                                     "origin": "rfxcom"}
                 self._state.devices[rfx_dev.virtual_idx] = "OFF"
 
-        # ⚡ LOCAL HUE AUTO-INITIALIZATION
+        # LOCAL HUE AUTO-INITIALIZATION
         # Pre-seeds the device registry so advanced lights and room groups appear in the UI immediately on boot.
         if hasattr(self._config, "hue") and getattr(self._config, "hue", None):
             # Seed individual bulb channels (5000x block)
@@ -125,7 +126,7 @@ class StateManager:
                 }
                 self._state.devices[idx_int] = None
 
-        # ⚡ EPSON PROJECTOR AUTO-INITIALIZATION
+        # EPSON PROJECTOR AUTO-INITIALIZATION
         # Pre-seeds the projector to OFF since it cannot report its physical state on boot
         if getattr(self._config, "epson", None):
             self._state.dashboard_map[80001] = "Epson Projector"
@@ -136,7 +137,7 @@ class StateManager:
             }
             self._state.devices[80001] = "OFF"
 
-        # ⚡ INJECT HUE PRESETS INTO STATE
+        # INJECT HUE PRESETS INTO STATE
         # Passes the YAML definitions dynamically so app.js can build UI buttons on the fly
         if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
             self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
@@ -149,7 +150,7 @@ class StateManager:
         self._state.system.available_scenes.clear()
         if hasattr(self._config, "automations"):
             for rule in self._config.automations:
-                # ⚡ Explicitly filter out background macros; only expose rules flagged as scenes
+                # Explicitly filter out background macros; only expose rules flagged as scenes
                 if getattr(rule, "scene", False) is not True:
                     continue
                 triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
@@ -169,7 +170,7 @@ class StateManager:
         self._state.sauna.max_temp = float(self._config.sauna.max_temp)
         self._state.boot_seed = self._config.boot_seed
 
-        # ⚡ Initialize IR Setpoint from config so it shows default on boot while OFF
+        # Initialize IR Setpoint from config so it shows default on boot while OFF
         self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
         freq_map = {0: 0, 25: 25, 33: 33, 50: 50, 67: 33, 75: 25, 100: 5}
         # If an invalid default (e.g. 42%) is placed in config.yaml, fallback safely to 0Hz
@@ -230,7 +231,7 @@ class StateManager:
         try:
             e_type = EventType(event_type_str)
         except ValueError:
-            # ⚡ Fall back to raw string for dynamic custom scenes
+            # Fall back to raw string for dynamic custom scenes
             e_type = event_type_str
 
         self.dispatch(Event(type=e_type, payload=payload))
@@ -317,7 +318,7 @@ class StateManager:
         sns.env_schedule_twilight_evening_on_unix = twi_eve_on
         sns.env_schedule_twilight_evening_off_unix = twi_eve_off
 
-        # ⚡ Edge Case Protection: Skip morning twilight entirely if sunrise occurs BEFORE the configured on-time
+        # Edge Case Protection: Skip morning twilight entirely if sunrise occurs BEFORE the configured on-time
         if twi_morn_off > twi_morn_on:
             sns.env_schedule_twilight_morning_on_unix = twi_morn_on
             sns.env_schedule_twilight_morning_off_unix = twi_morn_off
@@ -329,7 +330,7 @@ class StateManager:
         now_unix = int(time.time())
         uptime = now_unix - self._start_time
 
-        # ⚡ Anti-NTP Jump Guard: Safely absorb Pi fake-hwclock skews during boot.
+        # Anti-NTP Jump Guard: Safely absorb Pi fake-hwclock skews during boot.
         # Only schedule time-series timers if they are safely in the future (> 5s),
         # or if the system has fully stabilized past its 3-minute boot window.
         def _should_schedule(target_unix: Optional[int]) -> bool:
@@ -337,7 +338,7 @@ class StateManager:
                 return False
             return target_unix > now_unix and (target_unix - now_unix > 5 or uptime > 180)
 
-        # ⚡ Dispatched dynamically to the bus so the Glass-Box Timeline UI registers them instantly.
+        # Dispatched dynamically to the bus so the Glass-Box Timeline UI registers them instantly.
         # Metadata mapping is handled automatically downstream via Subscriber Fan-Out logic.
         if _should_schedule(blinds_open):
             self.dispatch(Event(type=EventType.TIMER_SCHEDULED, payload={
@@ -382,7 +383,7 @@ class StateManager:
         """
         pending_broadcast = False
         changed_domains: Set[str] = set()
-        batch_events: list[Event] = []  # ⚡ Collect events that triggered changes
+        batch_events: list[Event] = []  # Collect events that triggered changes
 
         while True:
             event: Event = await self._queue.get()
@@ -391,7 +392,7 @@ class StateManager:
                 if changed:
                     pending_broadcast = True
                     changed_domains.update(domains)
-                    batch_events.append(event)  # ⚡ Add causal event to batch
+                    batch_events.append(event)  # Add causal event to batch
             except Exception as e:
                 await self.logger.error(f"Error handling event {event.type.value}: {e}")
             finally:
@@ -409,14 +410,14 @@ class StateManager:
                 # Notify all other registered state listeners (e.g., Domoticz bridge)
                 for listener in self._state_listeners:
                     try:
-                        # ⚡ Pass the batch_events so listeners know WHY the state changed!
+                        # Pass the batch_events so listeners know WHY the state changed!
                         await listener(snapshot_obj, batch_events)
                     except Exception as e:
                         await self.logger.error(f"Error in state listener: {e}")
 
                 pending_broadcast = False
                 changed_domains.clear()
-                batch_events.clear()  # ⚡ Clear the batch for the next round
+                batch_events.clear()  # Clear the batch for the next round
 
     def _push_alert(self, *msgs: Optional[str], domain: str = "system") -> tuple[bool, Set[str]]:
         """
@@ -432,7 +433,7 @@ class StateManager:
             if not raw_msg:
                 continue
 
-            # ⚡ Auto-classify severity and strip legacy emojis for clean JSON delivery
+            # Auto-classify severity and strip legacy emojis for clean JSON delivery
             level = "info"
             clean_msg = raw_msg
 
@@ -494,7 +495,7 @@ class StateManager:
         state_changed: bool = False
         changed_domains: Set[str] = set()
 
-        # ⚡ DYNAMIC METADATA REGISTRY HOOK
+        # DYNAMIC METADATA REGISTRY HOOK
         # Intercept any payload that carries a device_type and name, logging it into the global UI registry.
         meta_idx = payload.get("idx")
         meta_type = payload.get("device_type")
@@ -538,7 +539,7 @@ class StateManager:
                     origin_tag = " [BOOT_SEED]"
                 logger.debug(f"Event Received [{event_name}]{origin_tag}: {payload}")
 
-            # ⚡ Domoticz HTTP Boot-Sync formatting interceptor
+            # Domoticz HTTP Boot-Sync formatting interceptor
             elif event_name == "HUB_STATE_CHANGED" and payload.get("is_initialization") and payload.get(
                     "origin") == "domoticz":
                 d_idx = payload.get("idx")
@@ -575,7 +576,7 @@ class StateManager:
             # Compute smoothed moving average aggregate
             avg_val = round(sum(history) / len(history), 1)
 
-            # ⚡ GENERIC CATCH-ALL: Universally store ALL power sensors in the generic registry
+            # GENERIC CATCH-ALL: Universally store ALL power sensors in the generic registry
             if self._state.devices.get(idx) != avg_val:
                 self._state.devices[idx] = avg_val
                 state_changed = True
@@ -619,12 +620,16 @@ class StateManager:
             self._state.sensors.sunset_unix = payload.get("sunset")
             state_changed = True
             changed_domains.add("sensors")
-            # ⚡ Trigger recalculation instantly when weather cycles shift
+            # Trigger recalculation instantly when weather cycles shift
             self._recalculate_environmental_schedule()
 
         # --- SYSTEM STATE ROUTERS ---
         elif event_name == "SYSTEM_READY":
-            self._state.hardware.live_mode = False
+            # System initializes completely unarmed for safety
+            self._state.hardware.sht11_enabled = False
+            self._state.hardware.gpio_input_enabled = False
+            self._state.hardware.gpio_output_enabled = False
+            self._set_hardware_safety_gate(False)
             self._set_hardware_safety_gate(False)
             state_changed = True
             changed_domains.add("hardware")
@@ -635,6 +640,7 @@ class StateManager:
             rfx_conn = payload.get("rfxcom_connected", False)
             hue_conn = payload.get("hue_connected", False)
             epson_conn = payload.get("epson_connected", False)
+            zwave_conn = payload.get("zwave_connected", False)
             ip_addr = payload.get("ip_address", "0.0.0.0")
 
             prev_wanos = self._state.system.wanos_mqtt_connected
@@ -642,6 +648,7 @@ class StateManager:
             prev_rfx = self._state.system.rfxcom_connected
             prev_hue = self._state.system.hue_connected
             prev_epson = self._state.system.epson_connected
+            prev_zwave = self._state.system.zwave_connected
 
             # --- UI CONNECTION TRANSITION ALERTS & RECOVERY ---
             # 1. Local WanOS Broker
@@ -706,12 +713,27 @@ class StateManager:
                     self.dispatch(
                         Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
+            # 6. Z-Wave Bridge
+            if prev_zwave and not zwave_conn:
+                ch, dom = self._push_alert("🔴 CRITICAL: Z-Wave JS UI connection lost")
+                state_changed |= ch
+                changed_domains |= dom
+            elif not prev_zwave and zwave_conn and self._state.system.app_boot_unix is not None:
+                ch, dom = self._push_alert("🟢 SUCCESS: Z-Wave JS UI connection active")
+                state_changed |= ch
+                changed_domains |= dom
+                if not self._state.system.zwave_integration_enabled:
+                    self.dispatch(
+                        Event(type=EventType.ZWAVE_TOGGLED,
+                              payload={"enabled": True, "is_auto_recovery": True}))
+
             # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
             if (prev_wanos != wanos_conn or
                     prev_dom != dom_conn or
                     prev_rfx != rfx_conn or
                     prev_hue != hue_conn or
                     prev_epson != epson_conn or
+                    prev_zwave != zwave_conn or
                     self._state.system.ip_address != ip_addr or
                     self._state.system.app_boot_unix is None):
                 self._state.system.wanos_mqtt_connected = wanos_conn
@@ -719,6 +741,7 @@ class StateManager:
                 self._state.system.rfxcom_connected = rfx_conn
                 self._state.system.hue_connected = hue_conn
                 self._state.system.epson_connected = epson_conn
+                self._state.system.zwave_connected = zwave_conn
                 self._state.system.ip_address = ip_addr
 
                 # Capture static Unix boot times once during host identification
@@ -730,11 +753,56 @@ class StateManager:
                 state_changed = True
                 changed_domains.add("system")
 
-        elif event_name == "HARDWARE_LIVE_MODE_CHANGED":
-            self._state.hardware.live_mode = payload.get("live", False)
-            self._set_hardware_safety_gate(self._state.hardware.live_mode)
+        elif event_name == "HARDWARE_BUS_HEALTH_UPDATED":
+            # Background tracking: Updates the UI on whether the physical buses are responding
+            bus = payload.get("bus")
+            is_connected = payload.get("connected", False)
+
+            if bus == "sht11" and self._state.hardware.sht11_connected != is_connected:
+                self._state.hardware.sht11_connected = is_connected
+                state_changed = True
+                changed_domains.add("hardware")
+
+                # Failsafe: If the SHT11 bus physically dies, we must instantly disable the software toggle
+                if not is_connected and self._state.hardware.sht11_enabled:
+                    self._state.hardware.sht11_enabled = False
+                    asyncio.create_task(self.logger.error("🔴 SHT11 Bus dropped! Disabling sensor polling loop."))
+
+            elif bus == "gpio_input" and self._state.hardware.gpio_input_connected != is_connected:
+                self._state.hardware.gpio_input_connected = is_connected
+                state_changed = True
+                changed_domains.add("hardware")
+
+            elif bus == "gpio_output" and self._state.hardware.gpio_output_connected != is_connected:
+                self._state.hardware.gpio_output_connected = is_connected
+                state_changed = True
+                changed_domains.add("hardware")
+
+        elif event_name == "SHT11_TOGGLED":
+            self._state.hardware.sht11_enabled = payload.get("enabled", False)
             state_changed = True
             changed_domains.add("hardware")
+
+        elif event_name == "GPIO_INPUT_TOGGLED":
+            self._state.hardware.gpio_input_enabled = payload.get("enabled", False)
+            state_changed = True
+            changed_domains.add("hardware")
+
+        elif event_name == "GPIO_OUTPUT_TOGGLED":
+            self._state.hardware.gpio_output_enabled = payload.get("enabled", False)
+            # Master Safety Gate Link: The safety contactor ONLY engages if outputs are armed.
+            # (Note: The actual sequence of driving the pins high/low is handled physically inside actuators.py)
+            self._set_hardware_safety_gate(self._state.hardware.gpio_output_enabled)
+            state_changed = True
+            changed_domains.add("hardware")
+
+            # 🛡️ FATAL DROP PROTECTION: If the user drops outputs while the sauna is running,
+            # we must cascade the OFF signal to the software PID controller immediately!
+            if not self._state.hardware.gpio_output_enabled:
+                if self._state.sauna.active:
+                    self.dispatch(Event(type=EventType.SAUNA_OFF))
+                if self._state.ir.active:
+                    self.dispatch(Event(type=EventType.IR_OFF))
 
         elif event_name == "AUTOMATIONS_TOGGLED":
             is_enabled = payload.get("enabled", True)
@@ -773,7 +841,7 @@ class StateManager:
                             state_changed = True
                             changed_domains.add("devices")
             else:
-                # ⚡ DEBOUNCED AUTO-SWEEP SCHEDULER
+                # DEBOUNCED AUTO-SWEEP SCHEDULER
                 # Only trigger sweeps if this was an automatic network recovery! Manual UI clicks stay silent.
                 if payload.get("is_auto_recovery", False):
                     deadline = int(time.time()) + 10
@@ -861,6 +929,20 @@ class StateManager:
                                              {"reason": "network_recovery"})
                 logger.info("Epson Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
+        elif event_name == "ZWAVE_TOGGLED":
+            is_enabled = payload.get("enabled", False)
+            state_str = "ON" if is_enabled else "OFF"
+            self._state.system.zwave_integration_enabled = is_enabled
+            state_changed = True
+            changed_domains.add("system")
+
+            color = "🟢" if is_enabled else "🔴"
+            raw_error = payload.get("error_msg")
+            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+            ch, dom = self._push_alert(error_alert, f"{color} Z-Wave Integration turned {state_str}")
+            state_changed |= ch
+            changed_domains |= dom
+
         elif event_name == "SIMULATIONS_TOGGLED":
             self._state.hardware.simulations_enabled = payload.get("enabled", False)
             state_changed = True
@@ -901,11 +983,11 @@ class StateManager:
                 self._config = new_config
                 AutomationEngine._config = None  # Reset rules engine cached reference copy
 
-                # ⚡ Update metadata metrics on reload while safely locking down the original immutable process timestamp
+                # Update metadata metrics on reload while safely locking down the original immutable process timestamp
                 self._state.system.version_major = f"v{new_config.version}"
                 self._state.system.version_full = f"v{new_config.version}-build_{self._build_timestamp}"
 
-                # ⚡ Sync the Hue Presets dynamically if YAML was changed
+                # Sync the Hue Presets dynamically if YAML was changed
                 if hasattr(new_config, "hue") and getattr(new_config.hue, "presets", None):
                     self._state.system.hue_presets = {k: v.model_dump() for k, v in new_config.hue.presets.items()}
                 else:
@@ -915,14 +997,14 @@ class StateManager:
                 for idx, name in new_config.dashboard.items():
                     self._state.dashboard_map[idx] = name
 
-                # ⚡ Sync the Explorer Exclusion List
+                # Sync the Explorer Exclusion List
                 # Overwrites the live RAM state with the fresh list from the hard drive so the UI hides the dropped devices
                 self._state.system.hidden_explorer_idxs = new_config.deviceexplorer_exclude
 
-                # ⚡ Re-extract scenes dynamically in case the user added new ones to config.yaml
+                # Re-extract scenes dynamically in case the user added new ones to config.yaml
                 self._extract_scenes_from_config()
 
-                # ⚡ RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
+                # RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
                 # Triggers full lifecycle stop/start teardown sequence to bind to configuration mutations seamlessly
                 if self.hue_bridge:
                     await self.hue_bridge.stop()
@@ -963,7 +1045,7 @@ class StateManager:
             now = int(time.time())
 
             # 1. Blinds Enforcement
-            # ⚡ ENHANCED RECOVERY GUARD
+            # ENHANCED RECOVERY GUARD
             # Skip forcing physical roller shutter movements and environmental triggers if this
             # sweep was automatically scheduled by a reconnection, a config reload, or a manual UI trigger.
             # Adding `None` ensures that manual UI sweeps (which have no reason payload) ALSO skip the blinds.
@@ -1022,7 +1104,7 @@ class StateManager:
                        and not (isinstance(t, dict) and t.get("timer_id") == timer_id)
                 ]
 
-                # ⚡ SUBSCRIBER FAN-OUT LOGIC ⚡
+                # SUBSCRIBER FAN-OUT LOGIC
                 # If the timer targets a generic broadcast trigger, scan the automation rules
                 # and fan out a unique timeline object for every specific rule that listens to it.
                 matched_rules = False
@@ -1053,7 +1135,7 @@ class StateManager:
                             # Bypass Pydantic string coercion by injecting a serialized JSON object natively
                             self._state.system.active_timers.append(json.dumps(timeline_obj))
 
-                # ⚡ FALLBACK LOGIC
+                # FALLBACK LOGIC
                 # If no automation rules matched (e.g., standard lighting auto-off timers),
                 # append the directly targeted hardware object.
                 if not matched_rules:
@@ -1156,7 +1238,7 @@ class StateManager:
             val: float = payload.get("value", 0.0)
             sns: Any = self._state.sensors
 
-            # ⚡ GENERIC CATCH-ALL: Universally store ALL sensors in the generic dictionary
+            # GENERIC CATCH-ALL: Universally store ALL sensors in the generic dictionary
             current = self._state.devices.get(idx)
             if not isinstance(current, dict):
                 current = {}
@@ -1212,7 +1294,7 @@ class StateManager:
             val: int = payload.get("value", 0)
             sns: Any = self._state.sensors
 
-            # ⚡ GENERIC CATCH-ALL: Universally store ALL sensors in the generic dictionary
+            # GENERIC CATCH-ALL: Universally store ALL sensors in the generic dictionary
             current = self._state.devices.get(idx)
             if not isinstance(current, dict):
                 current = {}
@@ -1397,7 +1479,7 @@ class StateManager:
             old_val = self._state.devices.get(idx)
             is_init = payload.get("is_initialization", False)
 
-            # ⚡ RICH PAYLOAD MERGE FOR HUE/ADVANCED LIGHTING
+            # RICH PAYLOAD MERGE FOR HUE/ADVANCED LIGHTING
             # This safely merges attributes like brightness and color into a dictionary without destroying them.
             is_rich_payload = "bri" in payload or "xy" in payload
             new_val = state_val
@@ -1417,7 +1499,7 @@ class StateManager:
                 if "xy" in payload:
                     new_val["xy"] = payload["xy"]
 
-            # ⚡ Hybrid Learning: Cache semantic names from Domoticz if not already mapped in config.yaml
+            # Hybrid Learning: Cache semantic names from Domoticz if not already mapped in config.yaml
             device_name = payload.get("name")
             if device_name and idx not in self._state.dashboard_map and str(idx) not in self._state.dashboard_map:
                 self._state.dashboard_map[idx] = device_name
@@ -1429,7 +1511,7 @@ class StateManager:
             is_push_button = payload.get("is_push_button", False)
             is_force = payload.get("force", False)
 
-            # ⚡ RFXCOM FORCE GUARD ⚡
+            # RFXCOM FORCE GUARD
             # Stateless 433MHz radios cannot confirm state, so UI clicks must ALWAYS be forced
             # to guarantee the signal transmits even if the database thinks the device is already ON/OFF.
             meta_origin: str = self._state.device_metadata.get(idx, {}).get("origin", "")
@@ -1437,7 +1519,7 @@ class StateManager:
                 is_force = True
                 payload["force"] = True  # Ensure the flag cascades down to the integration bridges
 
-            # ⚡ ALWAYS process the event if it's a push button, a forced command, or if the state actually changed.
+            # ALWAYS process the event if it's a push button, a forced command, or if the state actually changed.
             if old_val != new_val or is_push_button or is_force:
                 self._state.devices[idx] = new_val
                 state_changed = True
@@ -1450,7 +1532,7 @@ class StateManager:
                 else:
                     payload["transitioned"] = True
 
-                # ⚡ Artificially inject 0.0W to instantly flush power graphs when switches turn off
+                # Artificially inject 0.0W to instantly flush power graphs when switches turn off
                 # Includes full metadata payload so the Device Explorer properly updates!
                 if state_val == "OFF":
                     if idx == 8:  # pc
@@ -1464,7 +1546,7 @@ class StateManager:
                             "name": self._state.dashboard_map.get(9622, "pc_aux_power")
                         }))
 
-                # ⚡ Bathroom 1e ventilator timer lock
+                # Bathroom 1e ventilator timer lock
                 # 7558 is the Domoticz extraction fan raw IDX
                 if idx == 7558 and state_val == "ON" and old_val != "ON":
                     # 90001 is the internal virtual lock IDX
@@ -1472,7 +1554,7 @@ class StateManager:
                     deadline = int(time.time()) + (self._config.bathroom1.vent_min_runtime_mins * 60)
                     self._timer_manager.schedule("bath1_vent_lock", deadline, "BATH1_VENT_LOCK_EXPIRED")
 
-                # ⚡ EPSON INTERCEPTOR
+                # EPSON INTERCEPTOR
                 if idx == 80001 and (old_val != state_val or is_force):
                     if self._state.system.epson_integration_enabled:
                         if getattr(self, "epson_bridge", None):
@@ -1601,7 +1683,7 @@ class StateManager:
             state_changed = True
             changed_domains.add("sauna")
 
-        # ⚡ AUTOMATION ENGINE HOOK ⚡
+        # AUTOMATION ENGINE HOOK
         # Evaluates the current event and dispatches any automated downstream cascades or scenes.
         # Master Safety Gate: Run automations if the toggle is ON, or forcefully run them
         # if Live Hardware is active (to ensure the real house never ignores rules).
@@ -1634,7 +1716,7 @@ class StateManager:
             if not getattr(self._config, "epson", None) or not self._config.epson.ip_address:
                 return False
             try:
-                # ⚡ Non-blocking TCP ping to check if the projector's network stack is alive
+                # Non-blocking TCP ping to check if the projector's network stack is alive
                 _, writer = await asyncio.wait_for(
                     asyncio.open_connection(self._config.epson.ip_address, 3629),
                     timeout=1.0
@@ -1645,7 +1727,7 @@ class StateManager:
             except Exception:
                 return False
 
-        # ⚡ Dedicated Strike Counters for Auto-Kill thresholds
+        # Dedicated Strike Counters for Auto-Kill thresholds
         # Network integrations get 3 strikes (6 seconds) to survive minor TCP blips.
         # USB hardware gets 1 strike (2 seconds) because a missing /dev/tty is immediately fatal.
         strikes = {"domoticz": 0, "hue": 0, "epson": 0, "rfxcom": 0}
@@ -1660,13 +1742,19 @@ class StateManager:
                 hue_conn = _is_connected(getattr(self, "hue_bridge", None))
                 epson_conn = await _ping_epson()
 
+                # Z-Wave physical health is tracked explicitly by the Z-Wave JS UI Bridge.
+                # It polls the internal `is_physically_connected` boolean, which will be toggled
+                # by the Last Will and Testament (LWT) topic once the USB hardware is mounted.
+                zwave_conn = getattr(self.zwave_bridge, "is_physically_connected", False)
+
                 # Update strike tracking based on physical socket availability
                 strikes["domoticz"] = 0 if dom_conn else strikes["domoticz"] + 1
                 strikes["hue"] = 0 if hue_conn else strikes["hue"] + 1
                 strikes["epson"] = 0 if epson_conn else strikes["epson"] + 1
                 strikes["rfxcom"] = 0 if rfx_conn else strikes["rfxcom"] + 1
+                strikes["zwave"] = 0 if zwave_conn else strikes.setdefault("zwave", 0) + 1
 
-                # ⚡ Evaluate Auto-Kill thresholds
+                # Evaluate Auto-Kill thresholds
                 if strikes["domoticz"] >= 3 and self._state.system.domoticz_integration_enabled:
                     self.dispatch(Event(type=EventType.DOMOTICZ_TOGGLED, payload={"enabled": False,
                                                                                   "error_msg": "🔌 Domoticz connection lost after 3 retries. Integration disabled."}))
@@ -1683,12 +1771,17 @@ class StateManager:
                     self.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={"enabled": False,
                                                                                 "error_msg": "🔌 USB RFXCOM disconnected. Integration disabled."}))
 
+                if strikes["zwave"] >= 3 and self._state.system.zwave_integration_enabled:
+                    self.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": False,
+                                                                               "error_msg": "🔌 Z-Wave MQTT connection lost. Integration disabled."}))
+
                 metrics_payload = {
                     "wanos_connected": wanos_conn,
                     "domoticz_connected": dom_conn,
                     "rfxcom_connected": rfx_conn,
                     "hue_connected": hue_conn,
                     "epson_connected": epson_conn,
+                    "zwave_connected": zwave_conn,
                     "ip_address": _get_ip()
                 }
                 self.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))

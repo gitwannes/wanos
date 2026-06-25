@@ -1,16 +1,12 @@
 # --- file: logic/sauna_controller.py ---
 import time
 from itertools import permutations
-from typing import List, Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any
 from core.models import SystemState
 
 
 class PID:
-    """
-    Integrated Wisc PID Controller.
-    Merges legacy clamping, initialization mechanics, and tracking
-    with high-mass thermal protections to prevent overshoot.
-    """
+    """Integrated Wisc PID Controller for Sauna Heating."""
 
     def __init__(
             self,
@@ -23,7 +19,6 @@ class PID:
         self.kp, self.ki, self.kd = kp, ki, kd
         self.setpoint = setpoint
         self._min_output, self._max_output = output_limits
-
         self.reset()
 
     def reset(self) -> None:
@@ -84,7 +79,6 @@ class PID:
         # State tracking updates
         self._last_input = current_input
         self._last_time = current_time
-
         return output
 
 
@@ -93,22 +87,24 @@ class SaunaController:
 
     def __init__(self, initial_target_temp: float, kp: float = 1.0, ki: float = 0.1, kd: float = 0.0):
         self.pid = PID(kp=kp, ki=ki, kd=kd, setpoint=initial_target_temp, output_limits=(0.0, 100.0))
-        self.sp = (3500, 3500, 2000)  # Physical element capacities in Watts
+        # Known mapping: Phase U = 3500W, Phase V = 3500W, Phase W = 2000W
+        self.sp = (3500, 3500, 2000)
         self.total_p = sum(self.sp)
         self.current_total_pwm: int = 0
-        self.current_phases: List[int] = [0, 0, 0]
+        self.current_phases: Dict[str, int] = {"U": 0, "V": 0, "W": 0}
 
     def _get_fire_order(self) -> Tuple[int, int, int]:
-        """Calculates the daily rotating fire order to wear-level the SSRs."""
         doy = time.localtime().tm_yday
         fo_number = doy % 6
         return list(permutations((0, 1, 2)))[fo_number]
 
-    def _calculate_waterfall(self, total_pwm: int) -> List[int]:
-        """Distributes the total required power across the 3 phases using a waterfall."""
+    def _calculate_waterfall(self, total_pwm: int) -> Dict[str, int]:
+        """
+        Distributes the total required power across the 3 phases using a waterfall.
+        Returns an explicit, self-describing dictionary for absolute electrical safety.
+        """
         fo = self._get_fire_order()
 
-        # Calculate what percentage of total power each element represents
         spfp = [
             round((self.sp[fo[0]] / self.total_p) * 100),
             round((self.sp[fo[1]] / self.total_p) * 100),
@@ -134,12 +130,15 @@ class SaunaController:
             mfo[1] = 0
             mfo[2] = int(total_pwm / spfp[2] * 100)
 
-        mp = [0, 0, 0]
-        mp[fo[0]] = mfo[0]
-        mp[fo[1]] = mfo[1]
-        mp[fo[2]] = mfo[2]
+        # ⚡ Secure Dictionary Return Structure ⚡
+        mp_dict = {"U": 0, "V": 0, "W": 0}
+        phase_keys = ["U", "V", "W"]
 
-        return mp
+        mp_dict[phase_keys[fo[0]]] = mfo[0]
+        mp_dict[phase_keys[fo[1]]] = mfo[1]
+        mp_dict[phase_keys[fo[2]]] = mfo[2]
+
+        return mp_dict
 
     def get_current_order_string(self) -> str:
         """Returns a human-readable string of the current daily element wear-leveling priority."""
@@ -148,25 +147,19 @@ class SaunaController:
         return " -> ".join(phase_names[idx] for idx in fo)
 
     def evaluate(self, state: 'SystemState') -> Optional[Dict[str, Any]]:
-        """
-        Called by the State Manager when temps or targets change.
-        Returns pure numeric state data if the modulation needs updating, or None if no change.
-        """
-        door_sauna_open = state.devices.get("door_sauna") == "OPEN"
+        door_sauna_open = state.devices.get(10001) == "OPEN"
 
         # --- Safety & Hold Interlocks ---
         if door_sauna_open or state.sauna.hold_mode == "hold" or not state.sauna.active:
-            # Safety override: instantly drop all power and bypass PID updates.
             if self.current_total_pwm != 0:
                 self.current_total_pwm = 0
-                self.current_phases = [0, 0, 0]
+                self.current_phases = {"U": 0, "V": 0, "W": 0}
                 self.pid.reset()
-                return {"pwm": 0, "phases": [0, 0, 0]}
+                return {"pwm": 0, "phases": {"U": 0, "V": 0, "W": 0}}
             return None
 
         current_temp = state.sensors.sauna_calc_temp
         target_temp = state.sauna.target_temp
-        # Inject real unix timestamp context into calculations
         now_ts = time.time()
 
         self.pid.setpoint = target_temp

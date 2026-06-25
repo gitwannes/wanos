@@ -1,0 +1,12 @@
+# /boot/firstboot.service
+[Unit]
+Description=First boot configuration
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/boot/firstboot.sh
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

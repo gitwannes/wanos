@@ -92,8 +92,11 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
 
             state = state_mgr.get_state_snapshot()
 
-            # If we transition to live hardware, or if the simulation engine is toggled off, skip physics entirely
-            if state.hardware.live_mode or not state.hardware.simulations_enabled:
+            # ⚡ Master Simulator Override Gate
+            # If any of the 3 physical hardware buses are armed by the user, OR if the simulation engine
+            # is explicitly toggled off in the UI, we skip physics evaluation entirely.
+            hardware_live = state.hardware.gpio_input_enabled or state.hardware.sht11_enabled or state.hardware.gpio_output_enabled
+            if hardware_live or not state.hardware.simulations_enabled:
                 continue
 
             # --- LIVE UI INTERCEPT SYNCHRONIZER ---
