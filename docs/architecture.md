@@ -17,14 +17,14 @@
 * OS: Raspberry Pi OS Lite - Debian 12 Bookworm 32-bit
 * kiosk stack: cage + chromium
 * cage
-*    is a Wayland compositor built specifically for kiosks
-*    its entire job is to launch exactly one application and lock it to full-screen
+* is a Wayland compositor built specifically for kiosks
+* its entire job is to launch exactly one application and lock it to full-screen
 * config.txt
-*  dtparam=audio=off            # saves RAM/CPU
-*  dtoverlay=disable-bt         # saves RAM/CPU & reduces electrical noise near the wifi antenna
-*  dtoverlay=vc4-kms-v3d        # DSI driver Wayland stack: Linux Kernel Mode Setting (KMS) 3D graphics driver
-*    On Debian 12 (Bookworm), the Wayland display server requires this driver to talk to the Pi's GPU.
-*  dtoverlay=vc4-kms-dsi-7inch  # destination: tells the GPU where to send the signal
+* dtparam=audio=off            # saves RAM/CPU
+* dtoverlay=disable-bt         # saves RAM/CPU & reduces electrical noise near the wifi antenna
+* dtoverlay=vc4-kms-v3d        # DSI driver Wayland stack: Linux Kernel Mode Setting (KMS) 3D graphics driver
+* On Debian 12 (Bookworm), the Wayland display server requires this driver to talk to the Pi's GPU.
+* dtoverlay=vc4-kms-dsi-7inch  # destination: tells the GPU where to send the signal
 * network connection rule: iw dev wlan0 set power_save off
 * use swayidle for DSI power cutoff
 
@@ -59,22 +59,32 @@ WanOS is built from a 100% clean-slate modular architecture adhering strictly to
   
   ┌─────────────────┐     ┌────────────────────────────┐     ┌────────────────────┐
   │  MqttTransport  │────>│         StateManager       │────>│   MqttPublisher    │
-  └─────────────────┘     │                            │     └────────────────────┘
-                          │   (Single Worker Thread)   │               │
-  ┌─────────────────┐     │                            │               ▼
-  │   FastAPI App   │────>│   - Rolling Power Buffers  │     ┌────────────────────┐
-  └─────────────────┘     │   - Dynamic NTP Guards     │     │  Local Broker UI   │
-                          │   - Automation Bouncer     │     └────────────────────┘
-  ┌─────────────────┐     └────────────────────────────┘               │
-  │ Physical Probes │                   │                              ▼
-  └─────────────────┘                   ▼                    ┌────────────────────┐
-                          ┌────────────────────────────┐     │ Remote Hub Network │
-                          │     AutomationEngine       │     └────────────────────┘
-                          └────────────────────────────┘
+  └─────────────────┘     │    (Event Queue Router)    │     └────────────────────┘
+                          │             │              │               │
+  ┌─────────────────┐     │             ▼              │               ▼
+  │   FastAPI App   │────>│   ┌────────────────────┐   │     ┌────────────────────┐
+  └─────────────────┘     │   │   Event Handlers   │   │     │  Local Broker UI   │
+                          │   │ (Strategy Pattern) │   │     └────────────────────┘
+  ┌─────────────────┐     │   └────────────────────┘   │               │
+  │ Physical Probes │────>└────────────────────────────┘               ▼
+  └─────────────────┘                   │                    ┌────────────────────┐
+                                        ▼                    │ Remote Hub Network │
+    ┌─────────────────┐   ┌────────────────────────────┐     └────────────────────┘
+    │  HealthMonitor  │   │     AutomationEngine       │     
+    │  Env. Scheduler │   └────────────────────────────┘
+    └─────────────────┘
 ```
 
-### Unidirectional Event Flow
-All internal transitions follow a strictly structured event routing path. Outbound network drivers, user button presses, and automated background timers never modify system states directly. Instead, they format an `Event` and push it to an asynchronous `Queue`. A single dedicated background worker thread processes this queue sequentially, avoiding race conditions or data corruption in memory.
+### Unidirectional Event Flow & The Strategy Pattern
+All internal transitions follow a strictly structured event routing path. Outbound network drivers, user button presses, and automated background timers never modify system states directly. Instead, they format an `Event` and push it to an asynchronous `Queue`. 
+
+To prevent the `StateManager` from becoming a monolithic "God Object", it utilizes the **Strategy Pattern**. When an event is pulled from the queue, the StateManager acts as an ultra-fast proxy, instantly mapping the payload to an isolated function in the `core/event_handlers/` registry. This cleanly separates routing from business execution.
+
+### Single Responsibility Background Services
+Heavy, non-blocking operational tasks are extracted into dedicated service classes under the `logic/` directory:
+* **The Health Monitor:** Pings sockets and external bridges continuously, dispatching Auto-Kill commands if hardware is dropped.
+* **The Environment Scheduler:** Performs mathematical bounds clamping for sun cycles.
+* **The Alert Manager:** Centralizes all UI notification generation and deduplication.
 
 ### Thin Client Architecture
 The frontend web browser holds zero business or processing logic. All mathematical filtering, time thresholds, hysteresis loops, and scheduler parameters exist purely inside the backend Python environment. The client simply receives the processed data snapshot and prints it to the viewport frames.
@@ -85,8 +95,8 @@ To combat network pollution caused by highly erratic device telemetry (such as h
 ### Logic-to-Hardware Decoupling (The Boundary Rule)
 Core software algorithms have no direct awareness of physical circuit links. They calculate target metrics and update state models. Outbound actions are separated into clean directory paths: `hardware/` modules manage local GPIO lines (relays and local SHT11 probes), while `integrations/` handle the networking protocols for external platforms like your Hue Bridge, Domoticz instance, and the Epson Projector TCP socket.
 
-### Pessimistic Presentation Rendering
-The web dashboard follows a pessimistic update path. When a toggle is clicked, the toggle switch locks and changes to a "SYNCING..." loading state. The UI only unlocks and flips visually once the physical peripheral successfully processes the command and pushes its verified state back up the SSE telemetry stream.
+### Pessimistic Presentation Rendering & Permissive Interlocks
+The web dashboard follows a pessimistic update path. When a toggle is clicked, the switch locks and changes to a "SYNCING..." loading state until the verified state pushes back down the SSE telemetry stream. Furthermore, the backend employs **Permissive Interlocks** (ICS standards): if a user attempts to arm an integration whose physical socket is offline, the handlers immediately reject the payload and trigger a red UI alert before state corruption can occur.
 
 ---
 
@@ -117,4 +127,4 @@ To prevent your physical window shutters or light arrays from executing unexpect
 During the initial 3 minutes (180 seconds) of the application's process life, all digital timers and environment calculator engines compile timeline boundaries in memory, but they are strictly blocked from broadcasting automated triggers to the hardware layer.
 
 ### The Catch-Up Sweeper Protection
-The maintenance sweeper (`SYSTEM_SWEEP_REQUESTED`) performs an environmental health audit by analyzing your daily 6-point time-series profiles. To ensure a manual administrative click or an automatic reconnection sweep does not cause physical roller shutter movements across your rooms, the loop evaluates an explicit `is_passive_sweep` validation rule. If the sweep reason matches a network recovery or configuration hot-reload, the fan and climate parameters synchronize, but the physical blinds are bypassed.
+The maintenance sweeper (`SYSTEM_SWEEP_REQUESTED`) performs an environmental health audit by analyzing your daily 6-point time-series profiles via the `EnvironmentScheduler`. To ensure a manual administrative click or an automatic reconnection sweep does not cause physical roller shutter movements across your rooms, the loop evaluates an explicit `is_passive_sweep` validation rule. If the sweep reason matches a network recovery or configuration hot-reload, the fan and climate parameters synchronize, but the physical blinds are bypassed.

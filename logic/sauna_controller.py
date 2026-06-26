@@ -146,6 +146,29 @@ class SaunaController:
         phase_names = ["U", "V", "W"]
         return " -> ".join(phase_names[idx] for idx in fo)
 
+    @staticmethod
+    def recalculate_sauna_metrics(state: SystemState) -> bool:
+        """
+        Mathematical calculation combining the two physical SHT11 temperature probes
+        (Ceiling probe via virtual IDX 20001 and Bench probe via virtual IDX 20002)
+        into a single smoothed virtual metric (sauna_calc_temp) used by the PID controller.
+        """
+        sns = state.sensors
+        changed = False
+        if sns.sauna_high_temp is not None and sns.sauna_low_temp is not None:
+            raw_temp = (sns.sauna_high_temp + sns.sauna_low_temp) / 2
+            calc_temp = round(raw_temp * 2) / 2
+            if calc_temp != sns.sauna_calc_temp:
+                sns.sauna_calc_temp = calc_temp
+                changed = True
+        if sns.sauna_high_hum is not None and sns.sauna_low_hum is not None:
+            raw_hum = (sns.sauna_high_hum + (sns.sauna_low_hum * 4)) / 5
+            calc_hum = round(raw_hum)
+            if calc_hum != sns.sauna_calc_hum:
+                sns.sauna_calc_hum = calc_hum
+                changed = True
+        return changed
+
     def evaluate(self, state: 'SystemState') -> Optional[Dict[str, Any]]:
         door_sauna_open = state.devices.get(10001) == "OPEN"
 
@@ -158,6 +181,7 @@ class SaunaController:
                 return {"pwm": 0, "phases": {"U": 0, "V": 0, "W": 0}}
             return None
 
+        # PID uses the explicitly calculated metric, guaranteeing identical behavior across real/simulated envs
         current_temp = state.sensors.sauna_calc_temp
         target_temp = state.sauna.target_temp
         now_ts = time.time()

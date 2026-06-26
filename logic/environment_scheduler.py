@@ -1,0 +1,115 @@
+# --- file: logic/environment_scheduler.py ---
+import time
+from datetime import datetime
+from typing import Optional
+
+from core.models import SystemState, Event, EventType
+from core.config import AppConfig
+
+
+class EnvironmentScheduler:
+    """
+    🌍 The Daily Time-Series Engine (Schedule Calculator)
+    Responsible for dynamically calculating exact UNIX timestamps for today's environmental phases.
+    """
+
+    @staticmethod
+    def recalculate_schedule(state: SystemState, config: AppConfig, start_time: float, dispatch_fn) -> None:
+        """
+        Runs whenever OWM fetches weather, applying Min/Max logic (Clamps) to prevent edge cases
+        like blinds opening at 4:30 AM in mid-summer. Deploys timeline events directly to the StateManager queue.
+        """
+        sns = state.sensors
+        cfg = config.environmental_schedule
+        if not sns.sunrise_unix or not sns.sunset_unix or not cfg:
+            return
+
+        def _get_unix_for_today(time_str: str) -> int:
+            try:
+                h, m = map(int, time_str.split(':'))
+                now = datetime.now()
+                target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                return int(target.timestamp())
+            except (ValueError, AttributeError):
+                return 0
+
+        # --- Phase 1: BLINDS CLAMPING MATH ---
+        mo_early = _get_unix_for_today(cfg.blinds.morning_open_earliest)
+        mo_late = _get_unix_for_today(cfg.blinds.morning_open_latest)
+        ec_early = _get_unix_for_today(cfg.blinds.evening_close_earliest)
+        ec_late = _get_unix_for_today(cfg.blinds.evening_close_latest)
+
+        # Open = Max(Sunrise, 07:30). If 09:00 limit exists, clamp Open = Min(Open, 09:00).
+        blinds_open = max(sns.sunrise_unix, mo_early)
+        if mo_late > 0: blinds_open = min(blinds_open, mo_late)
+
+        # Close = Max(Sunset, 16:30). If 22:00 limit exists, clamp Close = Min(Close, 22:00).
+        blinds_close = max(sns.sunset_unix, ec_early)
+        if ec_late > 0: blinds_close = min(blinds_close, ec_late)
+
+        # --- Phase 2: TWILIGHT LOGIC ---
+        twi_eve_on = sns.sunset_unix
+        twi_eve_off = _get_unix_for_today(cfg.twilight.evening_off_time)
+        twi_morn_on = _get_unix_for_today(cfg.twilight.morning_on_time)
+        twi_morn_off = sns.sunrise_unix
+
+        # Store to unified State Memory
+        sns.env_schedule_blinds_open_unix = blinds_open
+        sns.env_schedule_blinds_close_unix = blinds_close
+        sns.env_schedule_twilight_evening_on_unix = twi_eve_on
+        sns.env_schedule_twilight_evening_off_unix = twi_eve_off
+
+        # Edge Case Protection: Skip morning twilight entirely if sunrise occurs BEFORE the configured on-time
+        if twi_morn_off > twi_morn_on:
+            sns.env_schedule_twilight_morning_on_unix = twi_morn_on
+            sns.env_schedule_twilight_morning_off_unix = twi_morn_off
+        else:
+            sns.env_schedule_twilight_morning_on_unix = None
+            sns.env_schedule_twilight_morning_off_unix = None
+
+        # --- Phase 3: SCHEDULER DEPLOYMENT ---
+        now_unix = int(time.time())
+        uptime = now_unix - start_time
+
+        # Anti-NTP Jump Guard: Safely absorb Pi fake-hwclock skews during boot.
+        # Only schedule time-series timers if they are safely in the future (> 5s),
+        # or if the system has fully stabilized past its 3-minute boot window.
+        def _should_schedule(target_unix: Optional[int]) -> bool:
+            if not target_unix:
+                return False
+            return target_unix > now_unix and (target_unix - now_unix > 5 or uptime > 180)
+
+        # Dispatched dynamically to the bus so the Glass-Box Timeline UI registers them instantly.
+        if _should_schedule(blinds_open):
+            dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_blinds_open", "deadline": blinds_open, "event_type": "BLINDS_OPEN_TRIGGER",
+                "event_payload": {}
+            }))
+        if _should_schedule(blinds_close):
+            dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_blinds_close", "deadline": blinds_close, "event_type": "BLINDS_CLOSE_TRIGGER",
+                "event_payload": {}
+            }))
+        if _should_schedule(twi_eve_on):
+            dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_twi_eve_on", "deadline": twi_eve_on, "event_type": "TWILIGHT_EVENING_ON_TRIGGER",
+                "event_payload": {}
+            }))
+        if _should_schedule(twi_eve_off):
+            dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_twi_eve_off", "deadline": twi_eve_off,
+                "event_type": "TWILIGHT_EVENING_OFF_TRIGGER",
+                "event_payload": {}
+            }))
+        if _should_schedule(sns.env_schedule_twilight_morning_on_unix):
+            dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_twi_morn_on", "deadline": sns.env_schedule_twilight_morning_on_unix,
+                "event_type": "TWILIGHT_MORNING_ON_TRIGGER",
+                "event_payload": {}
+            }))
+        if _should_schedule(sns.env_schedule_twilight_morning_off_unix):
+            dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
+                "timer_id": "env_twi_morn_off", "deadline": sns.env_schedule_twilight_morning_off_unix,
+                "event_type": "TWILIGHT_MORNING_OFF_TRIGGER",
+                "event_payload": {}
+            }))

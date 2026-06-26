@@ -23,22 +23,34 @@ This document serves as the master blueprint and reference guide for the directo
 * `models.py`: House-wide data structures storing the unified `SystemState`, system administration parameters, sensor arrays, and device matrices.
 * `mqtt_transport.py`: Pure, transport-agnostic client wrapper managing network sockets, keep-alives, subscriptions, and automatic hardware retry loops.
 * `mqtt_publisher.py`: The domain-scoped MQTT correspondent. Monitors the coordination worker and transforms state updates into target broker topics.
-* `state_manager.py`: The central async engine driving the unidirectional event execution loop. Throttles noisy metrics using rolling buffers and manages the catch-up sweeper.
+* `state_manager.py`: The ultra-fast core engine driving the unidirectional event execution loop. It acts as a pure memory router, delegating payload processing to the Strategy Pattern registry.
+
+**core/event_handlers/** (Strategy Pattern Routers)
+* `registry.py`: The central dictionary mapping linking string EventTypes to their asynchronous handler functions.
+* `integration_handlers.py`: Manages network toggles, including permissive interlocks that reject commands if hardware is offline.
+* `hardware_handlers.py`: Processes GPIO, SHT11, and physical bus health state mutations.
+* `telemetry_handlers.py`: Handles high-frequency data streams, rolling power buffers, and weather synchronization.
+* `timer_handlers.py`: Routes scheduled structural events, expiration boundaries, and time-series automation drops.
+* `hub_handlers.py`: Handles generic device state mutations and advanced Hue color payload dictionaries.
+* `sauna_handlers.py`: Dedicated routers for high-voltage heating activation, setpoints, and element modulation tracking.
+* `system_handlers.py`: Oversees boot lifecycles, configuration hot-reloads, and UI alert routing.
 
 **frontend/** (Dumb Asset Interfaces)
-* `adminui.html`: Administrative operation deck exposing low-level system integrations and interactive diagnostic components.
 * `app.js`: Master Alpine.js reactive interface store managing SSE channel bindings, connection watchdogs, dynamic client-side uptimes, and inline sparkline calculations.
 * `dashboard.html`: The Device Explorer panel. Implements search query matrices, type exclusions, and cascading alphanumeric sorting algorithms.
-* `index.html`: Primary operational web interface layout structured around side-by-side grids and physical action safety interceptors.
+* `index.html`: Primary operational web interface layout structured around side-by-side grids, 4-column responsive admin panels, and physical action safety interceptors.
 
 **hardware/** (Local Peripherals)
 * `sensors.py`: Production worker loop handling physical SHT11 bus scanning and consecutive hardware timeout counters.
 * `simulator.py`: Lab Mode thermodynamics loop executing 2-second physics iterations, water accretion ticks, and cyclic day/night weather trends.
 
-**logic/** (Pure Business Rules)
+**logic/** (Pure Business Rules & Background Services)
+* `alert_manager.py`: Centralized UI Notification Engine handling timestamping, deduplication, and severity classification of frontend banners.
 * `automation_rules.py`: Dynamically evaluates declarative YAML rules and implements uninitialized state filters to trap boot storms.
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
-* `sauna_controller.py`: Manages element priority wear-leveling algorithms and handles anti-windup loops for high thermal mass zones.
+* `environment_scheduler.py`: Calculates mathematical bounds clamping and dynamically schedules blind/twilight timers based on external weather.
+* `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets and executing auto-kill strike protocols on failed hardware.
+* `sauna_controller.py`: Manages element priority wear-leveling algorithms, probe math aggregation, and handles anti-windup loops for high thermal mass zones.
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)
@@ -97,7 +109,7 @@ WanOS operates on an Event-Driven Delta Architecture utilizing two separate clie
 
 ### TOPIC: `wanos` (Core Sauna Telemetry)
 * **Cadence:** Sends a full baseline definition map when the sauna activates, then fires partial dictionaries (deltas) *only* if values change during execution.
-* **Rules:** Isolates heater PID loops andelement priority tracking. Ancillary fans or room sensors are strictly excluded.
+* **Rules:** Isolates heater PID loops and element priority tracking. Ancillary fans or room sensors are strictly excluded.
 * **Payload Examples:**
   * Baseline Activation: `{"active": true, "setpoint_temp": 80.0, "modulation_pwm": 0, "phases_pwm": [0,0,0], "fireorder": "UVW"}`
   * Delta Power Shift: `{"modulation_pwm": 75, "phases_pwm": [25, 100, 100]}`
@@ -200,10 +212,6 @@ To communicate with the system, payloads must align with the exact structural da
 * **Trigger Live Configuration Hot-Reload:**
   ```json
   { "type": "CONFIG_RELOAD_REQUESTED", "payload": {} }
-  ```
-* **Toggle Operating Mode:**
-  ```json
-  { "type": "HARDWARE_LIVE_MODE_CHANGED", "payload": { "live": false } }
   ```
 * **General Automation Loop Kill Switch:**
   ```json
