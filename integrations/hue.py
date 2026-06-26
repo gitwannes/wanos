@@ -38,7 +38,8 @@ class HueLocalBridge:
         self.uuid_to_idx: Dict[str, int] = {}
         self.idx_to_group_uuid: Dict[int, str] = {}
         self.group_uuid_to_idx: Dict[str, int] = {}
-        self.scene_map: Dict[str, str] = {}
+        # ⚡ Nested Scene Map: { WanOS_Room_IDX: { "clean_scene_name": "Scene_UUID" } }
+        self.room_scenes: Dict[int, Dict[str, str]] = {}
 
         self._initialize_mappings()
 
@@ -52,6 +53,7 @@ class HueLocalBridge:
         self.uuid_to_idx.clear()
         self.idx_to_group_uuid.clear()
         self.group_uuid_to_idx.clear()
+        self.room_scenes.clear()
 
         device_map: Dict[Any, str] = getattr(self._config.hue, "device_map", {})
         for idx_str, uuid in device_map.items():
@@ -71,9 +73,8 @@ class HueLocalBridge:
             except ValueError:
                 logger.error(f"[HUE] Invalid non-integer IDX in config.yaml group_map: {idx_str}")
 
-        # The scene_map is left intentionally blank here. It will be dynamically populated
+        # The room_scenes dict is left intentionally blank here. It will be dynamically populated
         # from the physical Hue Bridge during the _sync_initial_state() boot routine.
-        self.scene_map = {}
         logger.info(
             f"[HUE] Mapped {len(self.idx_to_uuid)} lights and {len(self.idx_to_group_uuid)} groups from configuration."
         )
@@ -140,6 +141,7 @@ class HueLocalBridge:
             # Fetch Rooms and Zones to map scene contexts and build group name lookup tables
             group_names: Dict[str, str] = {}
             grouped_light_to_name: Dict[str, str] = {}
+            room_uuid_to_idx: Dict[str, int] = {}  # ⚡ Temporary mapping to link Room UUIDs to WanOS IDXs
 
             for endpoint in ["room", "zone"]:
                 url = f"https://{self.bridge_ip}/clip/v2/resource/{endpoint}"
@@ -150,33 +152,48 @@ class HueLocalBridge:
                             g_name = item.get("metadata", {}).get("name", "unknown")
                             group_names[item["id"]] = g_name
 
-                            # Crawl internal services to map the anonymous grouped_light reference to the container name
+                            # Crawl internal services to map the anonymous grouped_light reference
                             for service in item.get("services", []):
                                 if service.get("rtype") == "grouped_light":
-                                    # Prepend the specific resource type type to distinguish Rooms from Zones in the UI
-                                    grouped_light_to_name[service.get("rid")] = f"{endpoint}: {g_name}"
+                                    gl_id = service.get("rid")
+                                    # Prepend the specific resource type to distinguish Rooms from Zones in the UI
+                                    grouped_light_to_name[gl_id] = f"{endpoint}: {g_name}"
+
+                                    # ⚡ Reverse mapping: Find the WanOS IDX from the grouped_light UUID
+                                    mapped_idx = self.group_uuid_to_idx.get(gl_id)
+                                    if mapped_idx:
+                                        room_uuid_to_idx[item["id"]] = mapped_idx
 
             # Fetch all native Scenes
             url = f"https://{self.bridge_ip}/clip/v2/resource/scene"
             async with self._session.get(url, headers=headers, timeout=10) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    self.scene_map.clear()
+                    self.room_scenes.clear()
+                    scene_count = 0
 
                     for scene in data.get("data", []):
                         scene_uuid = scene.get("id")
                         scene_name = scene.get("metadata", {}).get("name", "unknown")
                         group_id = scene.get("group", {}).get("rid")
-                        group_name = group_names.get(group_id, "global")
 
-                        # Generate a clean, predictable string key for config.yaml automations
-                        raw_key = f"hue_{group_name}_{scene_name}"
-                        clean_key = raw_key.lower().replace(" ", "_").replace("-", "_")
-                        clean_key = "".join(c for c in clean_key if c.isalnum() or c == "_")
+                        # ⚡ Look up the WanOS IDX assigned to this specific room/zone
+                        idx = room_uuid_to_idx.get(group_id)
+                        if not idx:
+                            continue  # If the room isn't mapped in config_hue.yaml, we don't load its scenes
 
-                        self.scene_map[clean_key] = scene_uuid
+                        # Generate a clean, predictable string key for safe dictionary lookup
+                        clean_name = "".join(c for c in scene_name.lower().replace(" ", "_").replace("-", "_") if
+                                             c.isalnum() or c == "_")
 
-                    logger.success(f"🟢 [HUE] Dynamically extracted and mapped {len(self.scene_map)} native scenes.")
+                        if idx not in self.room_scenes:
+                            self.room_scenes[idx] = {}
+
+                        self.room_scenes[idx][clean_name] = scene_uuid
+                        scene_count += 1
+
+                    logger.success(
+                        f"🟢 [HUE] Dynamically extracted and mapped {scene_count} native scenes to configured IDXs.")
 
             # =========================================================================
             # 2. 💡 DYNAMIC LIGHT & ROOM/ZONE GROUP EXTRACTION
@@ -274,8 +291,9 @@ class HueLocalBridge:
             target = payload.get("target")
             if target == "hue_scene":
                 scene_name = payload.get("scene")
-                if scene_name:
-                    await self._send_scene_command(scene_name)
+                idx = payload.get("idx")
+                if scene_name and idx is not None:
+                    await self._send_scene_command(idx, scene_name)
                 continue
 
             # Scenario B: Direct Light Command (State, Brightness, Color)
@@ -369,11 +387,14 @@ class HueLocalBridge:
             logger.error(f"🔴 [HUE] Communication failure on group command: {e}")
             self.is_connected = False
 
-    async def _send_scene_command(self, scene_name: str) -> None:
+    async def _send_scene_command(self, idx: int, scene_name: str) -> None:
         """Triggers a perfectly synchronized native Zigbee multicast scene."""
-        uuid = self.scene_map.get(scene_name)
+        clean_name = "".join(
+            c for c in scene_name.lower().replace(" ", "_").replace("-", "_") if c.isalnum() or c == "_")
+        uuid = self.room_scenes.get(idx, {}).get(clean_name)
+
         if not uuid or not self._session:
-            logger.warning(f"🟠 [HUE] Scene '{scene_name}' triggered but not found in config_hue.yaml scene_map!")
+            logger.warning(f"🟠 [HUE] Scene '{scene_name}' (idx {idx}) triggered but not found in mapped room scenes!")
             return
 
         # V2 API requires sending the 'active' recall action to the scene resource UUID
@@ -386,7 +407,7 @@ class HueLocalBridge:
                 if resp.status not in (200, 207):
                     logger.error(f"🔴 [HUE] API Error {resp.status} for scene '{scene_name}'")
                 else:
-                    logger.info(f"🎬 [HUE] Multicast Scene triggered natively: {scene_name}")
+                    logger.info(f"🎬 [HUE] Multicast Scene triggered natively: {scene_name} (Group IDX: {idx})")
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on scene command: {e}")
             self.is_connected = False
@@ -480,7 +501,8 @@ class HueLocalBridge:
                     "origin": "hue",
                     "device_type": "light",  # Forces Option B UI rendering with glowing orb
                     # Pull the name dynamically from the live state map seeded during boot
-                    "name": self.state_manager._state.dashboard_map.get(idx, f"Hue {'Group' if r_type == 'grouped_light' else 'Light'} {idx}")
+                    "name": self.state_manager._state.dashboard_map.get(idx,
+                                                                        f"Hue {'Group' if r_type == 'grouped_light' else 'Light'} {idx}")
                 }
 
                 if "on" in resource and "on" in resource["on"]:

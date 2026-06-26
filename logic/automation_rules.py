@@ -175,7 +175,7 @@ class AutomationEngine:
                             target_action_state = raw_action_state
 
                         # --- Action Type A: Raw IDX Execution ---
-                        if getattr(action, "idx", None) is not None:
+                        if getattr(action, "idx", None) is not None and getattr(action, "target", None) != "hue_scene":
                             # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
                             raw_target_state = state.devices.get(action.idx)
                             current_target_state = raw_target_state.get("state") if isinstance(raw_target_state,
@@ -240,16 +240,20 @@ class AutomationEngine:
                         # --- Action Type B: Native Hue Scene Trigger ---
                         elif getattr(action, "target", None) == "hue_scene":
                             scene_name = getattr(action, "scene", None)
-                            if scene_name:
+                            idx = getattr(action, "idx", None)
+
+                            # ⚡ 2-PART PAYLOAD: Requires both the string name AND the room IDX
+                            if scene_name and idx is not None:
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
-                                    payload={"target": "hue_scene", "scene": scene_name, "origin": "automation"}
+                                    payload={"target": "hue_scene", "scene": scene_name, "idx": idx,
+                                             "origin": "automation"}
                                 ))
                                 automation_logger.info(
-                                    f"[ACTION] '{rule.name}' -> Dispatched Native Hue Scene [{scene_name}]")
+                                    f"[ACTION] '{rule.name}' -> Dispatched Native Hue Scene [{scene_name}] on IDX {idx}")
                             else:
                                 automation_logger.error(
-                                    f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: Missing 'scene' name for hue_scene target.")
+                                    f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: Missing 'scene' or 'idx' for hue_scene target.")
 
                         # --- Action Type C: Nested Event Chaining ---
                         elif getattr(action, "event", None):
@@ -286,7 +290,11 @@ class AutomationEngine:
             if hasattr(config, "lighting") and config.lighting.managed_lights:
                 for light_idx in config.lighting.managed_lights:
                     current_state = state.devices.get(light_idx)
-                    if current_state == "ON":
+
+                    # ⚡ RICH PAYLOAD SUPPORT: Safely extract state from dictionary objects
+                    extracted_state = current_state.get("state") if isinstance(current_state, dict) else current_state
+
+                    if extracted_state == "ON":
                         timer_id = f"light_auto_off_{light_idx}"
 
                         # Secure parsing to detect JSON structured active_timers
@@ -419,8 +427,12 @@ class AutomationEngine:
             if idx is not None and hasattr(config, "lighting") and idx in config.lighting.managed_lights:
                 timer_id: str = f"light_auto_off_{idx}"
 
+                # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
+                raw_state = state.devices.get(idx)
+                current_state = raw_state.get("state") if isinstance(raw_state, dict) else raw_state
+
                 # Normalize string to uppercase to catch Domoticz "On"/"Off" states
-                safe_state = str(new_state).upper() if new_state else ""
+                safe_state = str(current_state).upper() if current_state else ""
 
                 if safe_state == "ON":
                     # Look up specific delay, fallback to the global default
