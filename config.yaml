@@ -63,7 +63,7 @@ native_rfx:
 # ==============================================================================
 # 2. PRESENTATION LAYER (UI MAPPINGS)
 # ==============================================================================
-# Maps raw numeric IDXs to semantic names exclusively for the frontend UI.
+# Maps raw numeric IDXs to semantic names for the frontend UI.
 dashboard:
   # --- Core System & Hardware ---
   8: "pc"
@@ -73,7 +73,7 @@ dashboard:
   8567: "safety_ssr"
 
   # --- Environment ---
-  30001: "outside"
+  30001: "outside TH"
 
   # --- Wellness & Sauna ---
   7550: "sauna"
@@ -81,24 +81,23 @@ dashboard:
   1500: "sauna_zoutlamp"
   8577: "sauna_extrvent"
   10001: "door_sauna"
-  20001: "sauna_high"
-  20002: "sauna_low"
+  20001: "sauna_high TH"
+  20002: "sauna_low TH"
 
   # --- Bathroom 1 ---
   141: "bathroom1_main"
   7555: "bathroom1_wastafel"
   7558: "bathroom1_ventilator"
   10002: "door_bathroom1"
-  20004: "bathroom1"
+  20004: "bathroom1 TH"
 
   # --- Ground Floor ---
   60: "gang_beneden"
 
   # --- First Floor ---
-  169: "gang_boven"
   282: "buro"
   283: "cinema_main"
-  20003: "cinema"
+  20003: "cinema TH"
 
 # ⚡ Devices explicitly hidden from the Device Explorer UI
 deviceexplorer_exclude:
@@ -115,6 +114,7 @@ deviceexplorer_exclude:
   - 9627  # kerst achter
   - 40004 # kerstboom
   - 8577  # sauna extr vent
+  - 106   # garage motion
 
 
 # ==============================================================================
@@ -358,8 +358,7 @@ automations:
         state: "OFF"
       - idx: 51005    # Hue living
         state: "ON"
-        bri: 254
-        xy: [0.6915, 0.3083] # Relaxing deep red
+        preset: "relax_red"
       - idx: 40003    # licht living schemer groot (via RFX3)
         state: "ON"
       - idx: 40004    # licht kerstboom (via RFX4)
@@ -483,8 +482,7 @@ automations:
     actions:
       - idx: 51005       # living hue room
         state: "ON"
-        bri: 254
-        xy: [ 0.6915, 0.3083 ] # Deep red
+        preset: "relax_red"
       - idx: 52          # living main
         state: "OFF"     # Turn off the traditional lights (Ensure this doesn't cut power to the Hue!)
 
@@ -523,22 +521,6 @@ automations:
       - idx: 1612 # ventilatie motor
         state: "SYNC"
 
-  - name: "badkamer_2e_SyncBinnenBuiten"
-    trigger:
-      idx: 170  # badkamer groot buiten
-      state: "SYNC"
-    actions:
-      - idx: 1625  # badkamer groot binnen
-        state: "SYNC"
-
-  - name: "badkamer_2e_off"
-    trigger:
-      idx: 170  # badkamer groot buiten
-      state: "OFF"
-    actions:
-      - idx: 171  # badkamer wastafel
-        state: "OFF"
-
   - name: "gocosy-savonds"
     trigger:
       event: TWILIGHT_EVENING_ON_TRIGGER
@@ -565,8 +547,20 @@ automations:
     actions:
       - idx: 51001
         state: "ON"
-        bri: 100
-        xy: [0.3127, 0.3290] # Pure crisp white for mirror use
+        preset: "my_white"
+
+  - name: "Badk 1e: Wastafel OFF -> Hue Red (If already in room)"
+    trigger:
+      idx: 7555          # badkamer 1e wastafel
+      state: "OFF"
+    conditions:
+      - type: "device_state"
+        idx: 51001       # badkamer 1e hue room
+        is: "ON"         # Only fires if the room is already lit
+    actions:
+      - idx: 51001
+        state: "ON"
+        preset: "relax_red"
 
   - name: "Badk 1e: Wastafel ON -> Hue Red (If room was dark)"
     trigger:
@@ -575,12 +569,11 @@ automations:
     conditions:
       - type: "device_state"
         idx: 51001
-        is: "OFF"        # Fires if this is the first light turned on
+        is: "ON"        # Fires if this is the first light turned on
     actions:
       - idx: 51001
         state: "ON"
-        bri: 254
-        xy: [0.6915, 0.3083] # Relaxing deep red
+        preset: "relax_red"
 
   # --- Main Bathroom Switch (141) Master Control ---
   - name: "Badk 1e: Main Switch ON -> Hue Red"
@@ -590,8 +583,7 @@ automations:
     actions:
       - idx: 51001       # badkamer 1e hue room
         state: "ON"
-        bri: 254
-        xy: [0.6915, 0.3083] # Relaxing deep red
+        preset: "relax_red"
 
   - name: "Badk 1e: Main Switch OFF -> Hue & wastafel OFF"
     trigger:
@@ -613,6 +605,85 @@ automations:
         state: "SYNC"
 
   # --------------------------------------------------------------------------
+  # 🛁 BATHROOM 2 (2e) LIGHTING & HUE SYNC
+  # --------------------------------------------------------------------------
+
+  # 170   # groot buiten
+  # 1625  # groot binnen (unused)
+  # 51007 # Hue
+  # 171   # wastafel
+  # 1622  # ventilator
+
+  # --- Wastafel (Sink) Logic: Split into Day/Night context ---
+  - name: "Badk 2e: Wastafel ON -> Hue White (If already in room)"
+    trigger:
+      idx: 171
+      state: "ON"
+    conditions:
+      - type: "device_state"
+        idx: 51007
+        is: "ON"
+    actions:
+      - idx: 51007
+        state: "ON"
+        preset: "my_white"
+
+  - name: "Badk 2e: Wastafel OFF -> Hue Red (If already in room)"
+    trigger:
+      idx: 171
+      state: "OFF"
+    conditions:
+      - type: "device_state"
+        idx: 51007
+        is: "ON"
+    actions:
+      - idx: 51001
+        state: "ON"
+        preset: "relax_red"
+
+  - name: "Badk 1e: Wastafel ON -> Hue Red (If room was dark)"
+    trigger:
+      idx: 171
+      state: "ON"
+    conditions:
+      - type: "device_state"
+        idx: 51007
+        is: "OFF"
+    actions:
+      - idx: 51007
+        state: "ON"
+        preset: "relax_red"
+
+  # --- Main Bathroom Switch Master Control ---
+  - name: "Badk 2e: Main Switch ON -> Hue Red"
+    trigger:
+      idx: 170
+      state: "ON"
+    actions:
+      - idx: 51007
+        state: "ON"
+        preset: "relax_red"
+
+  - name: "Badk 2e: Main Switch OFF -> Hue & wastafel OFF"
+    trigger:
+      idx: 170
+      state: "OFF"
+    actions:
+      - idx: 51007
+        state: "OFF"
+      - idx: 171
+        state: "OFF"
+
+  # --- Hue App Override Sync (Bidirectional support) ---
+  - name: "Badk 2e: Hue App Syncs to Main Switch"
+    trigger:
+      idx: 51007         # If someone uses the Hue app/remote...
+      state: "SYNC"
+    actions:
+      - idx: 170         # ...the Domoticz relay physically follows suit.
+        state: "SYNC"
+
+  # --------------------------------------------------------------------------
   # 🛏️ SLPK WANNES LIGHTING & HUE SYNC
   # --------------------------------------------------------------------------
 
@@ -628,8 +699,7 @@ automations:
     actions:
       - idx: 51006
         state: "ON"
-        bri: 254
-        xy: [ 0.6915, 0.3083 ] # Deep red
+        preset: "relax_red"
 
   - name: "Slpk Wannes: Switch OFF -> Hue OFF"
     trigger:
@@ -698,8 +768,7 @@ automations:
       #   state: "OFF"
       - idx: 51004    # Hue cinema group
         state: "ON"
-        bri: 254
-        xy: [0.6744, 0.3212]
+        preset: "relax_red"
 
   # --- CINEMA OFF: SPLIT INTO TWO RULES FOR IF/ELSE LOGIC ---
   - name: "CINEMA OFF"
@@ -717,7 +786,7 @@ automations:
       - idx: 51004    # Hue cinema group
         state: "OFF"
       - idx: 283      # cinema_main light
-        state: "ON"   # Turn on lights because it is dark outside!
+        state: "ON"
   - name: "CINEMA OFF (Day)"
     trigger:
       event: "SCENE_CINEMA_OFF"
@@ -730,7 +799,7 @@ automations:
       - idx: 51004    # Hue cinema group
         state: "OFF"
       - idx: 583      # 1eV schuifraam (blinds)
-        state: "0"    # Open the blinds to let the daylight back in!
+        state: "0"
 
   # --------------------------------------------------------------------------
   # 🧪 TEST & DEBUG MACROS

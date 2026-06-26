@@ -127,6 +127,7 @@ x.	give exec
 * https://text-compare.com
 * https://www.raspberrypi.com/software
 * https://etcher.balena.io
+* https://minify-js.com
 
 ---
 

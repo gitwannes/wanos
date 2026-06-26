@@ -13,8 +13,8 @@ function wanosApp() {
                 ip_address: "0.0.0.0",
                 os_boot_unix: null,
                 app_boot_unix: null,
-                os_uptime_formatted: "00:00:00",
-                app_uptime_formatted: "00:00:00",
+                os_uptime_formatted: { duration: "00:00:00", boot: "--" },
+                app_uptime_formatted: { duration: "00:00:00", boot: "--" },
                 automations_enabled: true, // Master switch for the logic engine
                 domoticz_integration_enabled: false, // ⚡ Switch to block/allow Domoticz messages
                 owm_integration_enabled: false, // ⚡ Switch to block/allow OWM polling
@@ -84,7 +84,12 @@ function wanosApp() {
                 douche_water_liters: 0
             },
             hardware: {
-                live_mode: false,
+                sht11_connected: false,
+                sht11_enabled: false,
+                gpio_input_connected: false,
+                gpio_input_enabled: false,
+                gpio_output_connected: false,
+                gpio_output_enabled: false,
                 simulations_enabled: false, // Master switch for the physics engine
                 safety_pin_active: false, // Hardwired GPIO. Instantly verified locally, safe to default false.
                 sensor_errors: []
@@ -140,6 +145,10 @@ function wanosApp() {
 
         // ⚡ Reactive Time Heartbeat
         nowUnix: Math.floor(Date.now() / 1000),
+
+        // ⚡ SSE Connection State
+        eventSource: null,
+        sseWatchdog: null,
 
         // ⏱️ Structured Chronological Timeline Getter
         get chronologicalTimeline() {
@@ -224,18 +233,38 @@ function wanosApp() {
             return this.nonCriticalAlerts.length;
         },
 
-        // ⚡ Dynamically compiles a list of disabled backend integrations
+        // ⚡ Intelligently evaluates if all capable engines are currently running
+        get allEnginesStarted() {
+            const s = this.state.system;
+            const h = this.state.hardware;
 
+            if (!s.automations_enabled) return false;
+            if (s.domoticz_mqtt_connected && !s.domoticz_integration_enabled) return false;
+            if (s.hue_connected && !s.hue_integration_enabled) return false;
+            if (s.epson_connected && !s.epson_integration_enabled) return false;
+            if (s.rfxcom_connected && !s.rfxcom_integration_enabled) return false;
+            if (s.zwave_connected && !s.zwave_integration_enabled) return false;
+            if (s.owm_integration_enabled && !s.owm_integration_enabled) return false;
+            if (h.gpio_input_connected && !h.gpio_input_enabled) return false;
+            if (h.sht11_connected && !h.sht11_enabled) return false;
+            if (h.gpio_output_connected && !h.gpio_output_enabled) return false;
+
+            return true;
+        },
+
+        // ⚡ Dynamically compiles a list of disabled backend integrations
         get disabledIntegrationsText() {
             let disabled = [];
-            if (!this.state.hardware.gpio_output_enabled) disabled.push("GPIO outputs");
             if (!this.state.system.domoticz_integration_enabled) disabled.push("Domoticz");
-            if (!this.state.system.zwave_integration_enabled) disabled.push("Z-Wave");
-            if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
-            if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
             if (!this.state.system.automations_enabled) disabled.push("Automation");
+            if (!this.state.system.hue_integration_enabled) disabled.push("Hue");
             if (!this.state.system.epson_integration_enabled) disabled.push("Epson projector");
-
+            if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
+            if (!this.state.system.zwave_integration_enabled) disabled.push("Z-Wave");
+            if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
+            if (!this.state.hardware.gpio_input_enabled) disabled.push("GPIO inputs");
+            if (!this.state.hardware.gpio_output_enabled) disabled.push("GPIO outputs");
+            if (!this.state.hardware.sht11_enabled) disabled.push("temp/hum sensors");
             if (disabled.length === 0) return "";
             return "⚠️ OFFLINE: " + disabled.join(", ");
         },
@@ -361,7 +390,7 @@ function wanosApp() {
         // 67%  = 33Hz (2 zero-crossings ON, 1 OFF)
         // 75%  = 25Hz (3 zero-crossings ON, 1 OFF)
         // 100% = 5Hz  (All ON - frequency technically irrelevant here, but 5Hz keeps lgpio stable)
-        irStepIndex: 5, // Defaults to index 6 (75%)
+        irStepIndex: 5, // Defaults to index 5 (75%)
         irStepValues: [0, 25, 33, 50, 67, 75, 100],
         irStepFreqs: [0, 25, 33, 50, 33, 25, 5],
 
@@ -430,15 +459,17 @@ function wanosApp() {
         },
 
         _applyFullSnapshot(fullState) {
-            // Defensive defaults for any fields that may be absent
-            if (!fullState.sauna.phases_pwm || Array.isArray(fullState.sauna.phases_pwm)) {
-                fullState.sauna.phases_pwm = {"U": 0, "V": 0, "W": 0};
-            } else {
+            // Defensive defaults for any fields that may be absent or improperly typed
+            const p = fullState.sauna.phases_pwm;
+            if (p && typeof p === 'object' && !Array.isArray(p) && 'U' in p && 'V' in p && 'W' in p) {
                 for (const phase of ["U", "V", "W"]) {
                     let v = fullState.sauna.phases_pwm[phase];
                     fullState.sauna.phases_pwm[phase] = (v === null || v === undefined || isNaN(v)) ? 0 : v;
                 }
+            } else {
+                fullState.sauna.phases_pwm = {"U": 0, "V": 0, "W": 0};
             }
+
             if (!fullState.hardware.sensor_errors) fullState.hardware.sensor_errors = [];
             fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
 
@@ -473,38 +504,44 @@ function wanosApp() {
         },
 
         _applyDomainDelta(domain, data) {
+            // 🛡️ Enforce immutability: Clone the incoming payload so we don't mutate the caller's parsed SSE object
+            const payload = { ...data };
+
             // Merges a single changed domain subtree into the reactive store.
             if (domain === "sauna") {
-                if (data.phases_pwm && !Array.isArray(data.phases_pwm)) {
+                const p = payload.phases_pwm;
+                if (p && typeof p === 'object' && !Array.isArray(p) && 'U' in p && 'V' in p && 'W' in p) {
+                    // Deep clone the nested object to prevent mutating the inner array/object
+                    payload.phases_pwm = { ...p };
                     for (const phase of ["U", "V", "W"]) {
-                        let v = data.phases_pwm[phase];
-                        data.phases_pwm[phase] = (v === null || v === undefined || isNaN(v)) ? 0 : v;
+                        let v = payload.phases_pwm[phase];
+                        payload.phases_pwm[phase] = (v === null || v === undefined || isNaN(v)) ? 0 : v;
                     }
                 } else {
-                    data.phases_pwm = {"U": 0, "V": 0, "W": 0};
+                    payload.phases_pwm = {"U": 0, "V": 0, "W": 0};
                 }
-                data.modulation_pwm = data.modulation_pwm ?? 0;
+                payload.modulation_pwm = payload.modulation_pwm ?? 0;
             }
             if (domain === "hardware") {
-                if (!data.sensor_errors) data.sensor_errors = [];
+                if (!payload.sensor_errors) payload.sensor_errors = [];
             }
             if (domain === "devices") {
                 // Merge device keys individually natively!
-                this.state.devices = Object.assign({}, this.state.devices, data);
+                this.state.devices = Object.assign({}, this.state.devices, payload);
                 if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
                     this.syncLabControls();
                 }
                 return;
             }
 
-            this.state[domain] = Object.assign({}, this.state[domain], data);
+            this.state[domain] = Object.assign({}, this.state[domain], payload);
 
             // ⚡ INTELLIGENT UI UNLOCKER: Watch for backend sweep or config completion dictionaries
-            if (domain === "system" && data.system_alert_msgs) {
-                if (data.system_alert_msgs.some(msg => msg.message && msg.message.includes("Sweeper complete"))) {
+            if (domain === "system" && payload.system_alert_msgs) {
+                if (payload.system_alert_msgs.some(msg => msg.message && msg.message.includes("Sweeper complete"))) {
                     this.sweepRunning = false;
                 }
-                if (data.system_alert_msgs.some(msg => msg.message && (msg.message.includes("Config reloaded") || msg.message.includes("Config reload failed")))) {
+                if (payload.system_alert_msgs.some(msg => msg.message && (msg.message.includes("Config reloaded") || msg.message.includes("Config reload failed")))) {
                     this.configReloading = false;
                 }
             }
@@ -523,7 +560,12 @@ function wanosApp() {
             // Fetch a full snapshot first, then open the delta stream.
             // This guarantees the store is coherent before any partial updates arrive.
             this.fetchFullSnapshot().then(() => {
-                const eventSource = new EventSource("/api/state/sse");
+                // 🛡️ Prevent memory/connection leaks if connectSSE is called multiple times
+                if (this.eventSource) {
+                    this.eventSource.close();
+                }
+
+                this.eventSource = new EventSource("/api/state/sse");
 
                 // ⏱️ Sliding Watchdog Guardian Loop
                 const resetWatchdog = () => {
@@ -531,14 +573,14 @@ function wanosApp() {
                     this.sseWatchdog = setTimeout(() => {
                         console.warn("⚠️ Watchdog Timeout! No server signal detected for 10s. Forcing reconnect...");
                         this.connected = false;
-                        eventSource.close();
+                        if (this.eventSource) this.eventSource.close();
                         setTimeout(() => this.connectSSE(), 3000);
                     }, 10000); // 2x the 5-second backend ping interval
                 };
 
                 resetWatchdog();
 
-                eventSource.onmessage = (event) => {
+                this.eventSource.onmessage = (event) => {
                     // This is where the data is received from the backend, main.py
                     try {
                         // Any incoming data frame proves the underlying pipeline is alive
@@ -557,11 +599,11 @@ function wanosApp() {
                     }
                 };
 
-                eventSource.onerror = (err) => {
+                this.eventSource.onerror = (err) => {
                     if (this.sseWatchdog) clearTimeout(this.sseWatchdog);
                     this.connected = false;
                     console.error("❌ SSE stream broke. Re-linking context in 3s...");
-                    eventSource.close();
+                    if (this.eventSource) this.eventSource.close();
                     // On reconnect, fetch a fresh full snapshot before resuming deltas
                     setTimeout(() => this.connectSSE(), 3000);
                 };
@@ -675,7 +717,7 @@ function wanosApp() {
             const secs = dateObj.getSeconds().toString().padStart(2, '0');
             const bootStr = `${year}-${month}-${date} ${hours}:${mins}:${secs}`;
 
-            return `${durationStr} (${bootStr})`;
+            return { duration: durationStr, boot: bootStr };
         },
 
         getSparkline(data) {
@@ -721,7 +763,7 @@ function wanosApp() {
             this.labOutsideHum    = sns.outside_hum     ?? seed.outside_hum;
         },
 
-        async dispatchEvent(eventType, payload = {}) {
+        async publishEvent(eventType, payload = {}) {
             try {
                 await fetch("/api/event", {
                     method: "POST",
@@ -733,13 +775,19 @@ function wanosApp() {
             }
         },
 
+        // 🛡️ LEGACY API WRAPPER: Prevents breaking existing HTML files that still call dispatchEvent directly
+        dispatchEvent(eventType, payload = {}) {
+            console.warn("Deprecation notice: dispatchEvent shadows a native DOM API. It has been renamed to publishEvent. Please update your HTML templates.");
+            return this.publishEvent(eventType, payload);
+        },
+
         // 🔔 Alert UI Action Dispatchers
         dismissAlert(id) {
-            this.dispatchEvent("ALERT_DISMISSED", { id: id });
+            this.publishEvent("ALERT_DISMISSED", { id: id });
         },
 
         clearNonCriticalAlerts() {
-            this.dispatchEvent("ALERT_CLEAR_NON_CRITICAL");
+            this.publishEvent("ALERT_CLEAR_NON_CRITICAL");
         },
 
         injectLabMetric(eventType, idx, targetValue) {
@@ -748,7 +796,7 @@ function wanosApp() {
                 value: eventType === "TEMP_UPDATED" ? parseFloat(targetValue) : parseInt(targetValue, 10),
                 lab_override: true
             };
-            this.dispatchEvent(eventType, payload);
+            this.publishEvent(eventType, payload);
         },
 
         toggleSauna() {
@@ -757,11 +805,11 @@ function wanosApp() {
                 return;
             }
             const action = this.state.sauna.active ? "SAUNA_OFF" : "SAUNA_ON";
-            this.dispatchEvent(action);
+            this.publishEvent(action);
         },
 
         updateSaunaSetpoint() {
-            this.dispatchEvent("SAUNA_SETPOINT_CHANGED", { target: parseFloat(this.state.sauna.target_temp) });
+            this.publishEvent("SAUNA_SETPOINT_CHANGED", { target: parseFloat(this.state.sauna.target_temp) });
         },
 
         syncIRStepIndex() {
@@ -780,15 +828,15 @@ function wanosApp() {
             const pwm = this.irStepValues[this.irStepIndex];
             const freq = this.irStepFreqs[this.irStepIndex];
             this.state.ir.modulation_pwm = pwm;
-            this.dispatchEvent("IR_MODULATION_UPDATED", { pwm: pwm, freq: freq });
+            this.publishEvent("IR_MODULATION_UPDATED", { pwm: pwm, freq: freq });
         },
 
         toggleSaunaHold() {
-            this.dispatchEvent("SAUNA_HOLD_TOGGLED");
+            this.publishEvent("SAUNA_HOLD_TOGGLED");
         },
 
         adjustSaunaTimer(minutesToAdd) {
-            this.dispatchEvent("SAUNA_TIMER_ADJUSTED", { minutes: minutesToAdd });
+            this.publishEvent("SAUNA_TIMER_ADJUSTED", { minutes: minutesToAdd });
         },
 
         toggleIR() {
@@ -797,96 +845,96 @@ function wanosApp() {
                 return;
             }
             const action = this.state.ir.active ? "IR_OFF" : "IR_ON";
-            this.dispatchEvent(action);
+            this.publishEvent(action);
         },
 
         toggleSHT11() {
             const nextState = !this.state.hardware.sht11_enabled;
-            this.dispatchEvent("SHT11_TOGGLED", { enabled: nextState });
+            this.publishEvent("SHT11_TOGGLED", { enabled: nextState });
         },
 
         toggleGPIOInput() {
             const nextState = !this.state.hardware.gpio_input_enabled;
-            this.dispatchEvent("GPIO_INPUT_TOGGLED", { enabled: nextState });
+            this.publishEvent("GPIO_INPUT_TOGGLED", { enabled: nextState });
         },
 
         toggleGPIOOutput() {
             const nextState = !this.state.hardware.gpio_output_enabled;
-            this.dispatchEvent("GPIO_OUTPUT_TOGGLED", { enabled: nextState });
+            this.publishEvent("GPIO_OUTPUT_TOGGLED", { enabled: nextState });
         },
 
         toggleAutomations() {
             const nextState = !this.state.system.automations_enabled;
-            this.dispatchEvent("AUTOMATIONS_TOGGLED", { enabled: nextState });
-        },
-
-        toggleZwave() {
-            const nextState = !this.state.system.domoticz_integration_enabled;
-            this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: nextState });
+            this.publishEvent("AUTOMATIONS_TOGGLED", { enabled: nextState });
         },
 
         toggleDomoticz() {
             const nextState = !this.state.system.domoticz_integration_enabled;
-            this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: nextState });
+            this.publishEvent("DOMOTICZ_TOGGLED", { enabled: nextState });
         },
 
         toggleZwave() {
             const nextState = !this.state.system.zwave_integration_enabled;
-            this.dispatchEvent("ZWAVE_TOGGLED", { enabled: nextState });
+            this.publishEvent("ZWAVE_TOGGLED", { enabled: nextState });
         },
 
         toggleRFXCOM() {
             const nextState = !this.state.system.rfxcom_integration_enabled;
-            this.dispatchEvent("RFXCOM_TOGGLED", { enabled: nextState });
+            this.publishEvent("RFXCOM_TOGGLED", { enabled: nextState });
         },
 
         toggleOWM() {
             const nextState = !this.state.system.owm_integration_enabled;
-            this.dispatchEvent("OWM_TOGGLED", { enabled: nextState });
+            this.publishEvent("OWM_TOGGLED", { enabled: nextState });
         },
 
         toggleEpson() {
             const nextState = !this.state.system.epson_integration_enabled;
-            this.dispatchEvent("EPSON_TOGGLED", { enabled: nextState });
+            this.publishEvent("EPSON_TOGGLED", { enabled: nextState });
         },
 
         toggleSimulations() {
             const nextState = !this.state.hardware.simulations_enabled;
-            this.dispatchEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
+            this.publishEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
         },
 
         async enableAllIntegrations() {
-            this.dispatchEvent("ALERT_INJECTED", { msg_text: "🚀 Initiating Master Start Sequence..." });
+            this.publishEvent("ALERT_INJECTED", { msg_text: "🚀 Initiating Master Start Sequence..." });
+
+            // ⚡ NOTE ON AWAITS:
+            // `await this.publishEvent` only waits for the HTTP 200 OK (the event being accepted into the queue).
+            // It does NOT wait for the backend StateManager to actually process and propagate the state.
+            // These awaits act as a network traffic pacer to prevent API DDoS, rather than strict logical sequence locks.
 
             // Phase 1: Arm the Brain (Automations)
-            await this.dispatchEvent("AUTOMATIONS_TOGGLED", { enabled: true });
+            await this.publishEvent("AUTOMATIONS_TOGGLED", { enabled: true });
 
             // Phase 2: Power the Actuators (Hardware Bridges & Displays)
-            await this.dispatchEvent("HUE_TOGGLED", { enabled: true });
-            await this.dispatchEvent("EPSON_TOGGLED", { enabled: true });
-            await this.dispatchEvent("RFXCOM_TOGGLED", { enabled: true });
+            await this.publishEvent("HUE_TOGGLED", { enabled: true });
+            await this.publishEvent("EPSON_TOGGLED", { enabled: true });
+            await this.publishEvent("RFXCOM_TOGGLED", { enabled: true });
 
             // Phase 3: Enable Domoticz (State Database Sync)
-            await this.dispatchEvent("DOMOTICZ_TOGGLED", { enabled: true });
+            await this.publishEvent("DOMOTICZ_TOGGLED", { enabled: true });
 
             // Phase 4: Enable Z-Wave
-            await this.dispatchEvent("ZWAVE_TOGGLED", { enabled: true });
+            await this.publishEvent("ZWAVE_TOGGLED", { enabled: true });
 
             // Phase 5: The Cloud (Low-priority polling)
-            await this.dispatchEvent("OWM_TOGGLED", { enabled: true });
+            await this.publishEvent("OWM_TOGGLED", { enabled: true });
 
             // Phase 6: Arm Physical Inputs
-            await this.dispatchEvent("GPIO_INPUT_TOGGLED", { enabled: true });
+            await this.publishEvent("GPIO_INPUT_TOGGLED", { enabled: true });
             if (this.state.hardware.sht11_connected) {
-                await this.dispatchEvent("SHT11_TOGGLED", { enabled: true });
+                await this.publishEvent("SHT11_TOGGLED", { enabled: true });
             }
 
             // Phase 7: Hardware Stabilization Wait (Give the SHT11 loop time to sample the room)
-            this.dispatchEvent("ALERT_INJECTED", { msg_text: "⏳ Waiting 2 seconds for sensor bus stabilization..." });
+            this.publishEvent("ALERT_INJECTED", { msg_text: "⏳ Waiting 2 seconds for sensor bus stabilization..." });
             await new Promise(resolve => setTimeout(resolve, 2000));
 
             // Phase 8: Arm High-Voltage Physical Outputs
-            await this.dispatchEvent("GPIO_OUTPUT_TOGGLED", { enabled: true });
+            await this.publishEvent("GPIO_OUTPUT_TOGGLED", { enabled: true });
 
             // Phase 9: Ensure Time-Series & Auto-Timers are synchronized
             // (Reuses the dedicated sweep macro to enforce UI locks!)
@@ -894,7 +942,7 @@ function wanosApp() {
         },
 
         injectLabDoorChange(idx, isOpen) {
-            this.dispatchEvent("DOOR_CHANGED", { idx: parseInt(idx, 10), is_open: isOpen });
+            this.publishEvent("DOOR_CHANGED", { idx: parseInt(idx, 10), is_open: isOpen });
         },
 
         injectLabHubStateChange(idx, isOn) {
@@ -914,7 +962,7 @@ function wanosApp() {
                 return;
             }
 
-            this.dispatchEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
+            this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
         },
 
         // =========================================================================
@@ -988,7 +1036,7 @@ function wanosApp() {
 
             // Dispatch a rich dictionary. We pass force: true so the backend guarantees
             // transmission even if the bulb's power state is already "ON".
-            this.dispatchEvent("HUB_STATE_CHANGED", {
+            this.publishEvent("HUB_STATE_CHANGED", {
                 idx: parseInt(this.activeLightId, 10),
                 state: "ON",
                 bri: parseInt(this.activeLightBri, 10),
@@ -1079,7 +1127,7 @@ function wanosApp() {
 
         injectWaterPulse(fluidType) {
             // Injects 396 pulses = exactly 1 liter for lab testing
-            this.dispatchEvent("WATER_PULSE", { fluid: fluidType, count: 396, lab_override: true });
+            this.publishEvent("WATER_PULSE", { fluid: fluidType, count: 396, lab_override: true });
         },
 
         formatUnixTime(unixTime) {
@@ -1116,16 +1164,16 @@ function wanosApp() {
 
         injectTestAlert() {
             const msg = `🧪 Simulated Error - Local Browser Injection`;
-            this.dispatchEvent("ALERT_INJECTED", { msg_text: msg });
+            this.publishEvent("ALERT_INJECTED", { msg_text: msg });
         },
 
         async requestSystemSweep() {
             if (this.sweepRunning) return;
             this.sweepRunning = true;
 
-            this.dispatchEvent("ALERT_INJECTED", { msg_text: "🧹 System sweep running..." });
+            this.publishEvent("ALERT_INJECTED", { msg_text: "🧹 System sweep running..." });
 
-            await this.dispatchEvent("SYSTEM_SWEEP_REQUESTED");
+            await this.publishEvent("SYSTEM_SWEEP_REQUESTED");
 
             // 🛡️ EMERGENCY FAILSAFE ONLY
             // The button is normally unlocked instantly by the SSE stream interceptor above.
@@ -1143,9 +1191,9 @@ function wanosApp() {
             if (this.configReloading) return;
             this.configReloading = true;
 
-            this.dispatchEvent("ALERT_INJECTED", { msg_text: "🔄 Reloading all config yaml configurations..." });
+            this.publishEvent("ALERT_INJECTED", { msg_text: "🔄 Reloading all config yaml configurations..." });
 
-            await this.dispatchEvent("CONFIG_RELOAD_REQUESTED");
+            await this.publishEvent("CONFIG_RELOAD_REQUESTED");
 
             setTimeout(() => {
                 if (this.configReloading) {

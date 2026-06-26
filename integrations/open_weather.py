@@ -17,7 +17,7 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
 
     await state_manager.logger.success(f"[OWM] polling initialized for {config.location}.")
 
-    # ⚡ EARLY GATE DUPLICATE FILTER ⚡
+    # EARLY GATE DUPLICATE FILTER
     last_temp = None
     last_hum = None
 
@@ -99,7 +99,7 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
                 except Exception as e:
                     await state_manager.logger.error(f"Error fetching OpenWeatherMap data: {e}")
 
-                    # ⚡ SAFETY TRIPWIRE: Automatically disable OWM integration on HTTP failure
+                    # SAFETY TRIPWIRE: Automatically disable OWM integration on HTTP failure
                     if state_manager._state.system.owm_integration_enabled:
                         owm_err = "🌩️ OpenWeatherMap HTTP Connection lost! Integration disabled."
 

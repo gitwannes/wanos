@@ -55,14 +55,11 @@ hue:
 
 
   presets:
-    # ⚡ The 'name' field is automatically injected into the frontend UI preset buttons
-    white_bright: { name: "bright", xy: [ 0.3144, 0.3302 ], bri: 100 }
-    bathroom_red: { name: "badkamer", xy: [ 0.6750, 0.3220 ], bri: 100 }
-    bedroom: { name: "slpk", xy: [ 0.96186, 0.3481 ], bri: 100 }
-    cinema_dim: { name: "cosy", xy: [ 0.6744, 0.3212 ], bri: 40 }
-    reading: { name: "lezen", xy: [ 0.2901, 0.2479 ], bri: 100 }
+    # The 'name' field is automatically injected into the frontend UI preset buttons
+    relax_red: { name: "relax", xy: [ 0.6750, 0.3220 ], bri: 100 }
+    my_white: { name: "helder", xy: [ 0.2901, 0.2479 ], bri: 100 }
 
-    ## OLD
+    ## OLD Wisc
     # // gv
     # var hueeetkamerstrip =	{"on": true, "bri": 200, "xy": [0.2901, 0.2479]};
     # var huelivingstrip =	{"on": true, "bri": 100, "xy": [0.6058, 0.3727]};

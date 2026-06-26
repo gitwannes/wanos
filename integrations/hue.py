@@ -97,14 +97,14 @@ class HueLocalBridge:
         connector = aiohttp.TCPConnector(ssl=ssl_context)
         self._session = aiohttp.ClientSession(connector=connector)
 
-        # ⚡ Reset the stop event flag to allow background listener tasks to run during a reload cycle
+        # Reset the stop event flag to allow background listener tasks to run during a reload cycle
         self._stop_event.clear()
 
         # Wire into the central WanOS event bus to listen for outbound commands if not already subscribed
         if self._on_state_changed not in self.state_manager._state_listeners:
             self.state_manager.register_listener(self._on_state_changed)
 
-        # ⚡ INITIATE FULL BOOT SYNC: Grab all names, colors, and states before starting the live stream
+        # INITIATE FULL BOOT SYNC: Grab all names, colors, and states before starting the live stream
         await self._sync_initial_state()
 
         # Start the continuous background listener for inbound physical switch events
@@ -305,8 +305,10 @@ class HueLocalBridge:
             hue_payload["on"] = {"on": False}
 
         if bri is not None:
-            # Hue V2 expects a float brightness percentage
-            hue_payload["dimming"] = {"brightness": float(bri)}
+            # Hue V2 expects a float brightness percentage (0.0 to 100.0)
+            # Clamp safeguard natively catches legacy v1 'bri: 254' from YAML to prevent 400 Bad Requests
+            clamped_bri = min(100.0, max(0.0, float(bri)))
+            hue_payload["dimming"] = {"brightness": clamped_bri}
 
         if xy is not None and isinstance(xy, list) and len(xy) == 2:
             # Hue V2 expects explicit x and y nested attributes
@@ -321,7 +323,8 @@ class HueLocalBridge:
         try:
             async with self._session.put(url, headers=headers, json=hue_payload) as resp:
                 if resp.status not in (200, 207):
-                    logger.error(f"🔴 [HUE] API Error {resp.status} for light IDX {idx}")
+                    err_text = await resp.text()
+                    logger.error(f"🔴 [HUE] API Error {resp.status} for light IDX {idx}: {err_text}")
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on light command: {e}")
             self.is_connected = False
@@ -344,7 +347,9 @@ class HueLocalBridge:
             hue_payload["on"] = {"on": False}
 
         if bri is not None:
-            hue_payload["dimming"] = {"brightness": float(bri)}
+            # Clamp safeguard natively catches legacy v1 'bri: 254' from YAML
+            clamped_bri = min(100.0, max(0.0, float(bri)))
+            hue_payload["dimming"] = {"brightness": clamped_bri}
 
         if xy is not None and isinstance(xy, list) and len(xy) == 2:
             hue_payload["color"] = {"xy": {"x": float(xy[0]), "y": float(xy[1])}}
@@ -358,7 +363,8 @@ class HueLocalBridge:
         try:
             async with self._session.put(url, headers=headers, json=hue_payload) as resp:
                 if resp.status not in (200, 207):
-                    logger.error(f"🔴 [HUE] API Error {resp.status} for group IDX {idx}")
+                    err_text = await resp.text()
+                    logger.error(f"🔴 [HUE] API Error {resp.status} for group IDX {idx}: {err_text}")
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on group command: {e}")
             self.is_connected = False
@@ -473,7 +479,7 @@ class HueLocalBridge:
                     "idx": idx,
                     "origin": "hue",
                     "device_type": "light",  # Forces Option B UI rendering with glowing orb
-                    # ⚡ Pull the name dynamically from the live state map seeded during boot
+                    # Pull the name dynamically from the live state map seeded during boot
                     "name": self.state_manager._state.dashboard_map.get(idx, f"Hue {'Group' if r_type == 'grouped_light' else 'Light'} {idx}")
                 }
 

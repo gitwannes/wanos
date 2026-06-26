@@ -25,17 +25,17 @@ class DomoticzHomeHubBridge(WanosComponent):
         # Early-gate cache to silently drop exact duplicate Domoticz broadcasts
         self._raw_cache: dict[int, Any] = {}
 
-        # ⚡ Debounce properties to filter out rapid signal bouncing
+        # Debounce properties to filter out rapid signal bouncing
         self._debounce_tasks: dict[int, asyncio.Task] = {}
         self._debounce_delay: float = 0.3  # 300ms waiting room
 
         # Core track loop tracking variable to evaluate config reload deltas
         self._tracked_whitelist: set[int] = set()
 
-        # ⚡ Dynamic Favorites Memory: Stores IDXs discovered during the HTTP boot-sync
+        # Dynamic Favorites Memory: Stores IDXs discovered during the HTTP boot-sync
         self._dynamic_favorites_idxs: set[int] = set()
 
-        # ⚡ Read-Only Sensor Guard: Tracks IDXs that should never receive outbound MQTT commands
+        # Read-Only Sensor Guard: Tracks IDXs that should never receive outbound MQTT commands
         self._read_only_idxs: set[int] = set()
 
     @property
@@ -68,7 +68,7 @@ class DomoticzHomeHubBridge(WanosComponent):
                         if action.idx is not None and action.idx < 10000:
                             idxs.add(action.idx)
 
-        # ⚡ Seamlessly merge dynamically discovered HTTP favorites into the live MQTT whitelist
+        # Seamlessly merge dynamically discovered HTTP favorites into the live MQTT whitelist
         idxs.update(self._dynamic_favorites_idxs)
         return idxs
 
@@ -105,7 +105,7 @@ class DomoticzHomeHubBridge(WanosComponent):
         user = dom_http.username
         pwd = dom_http.password
 
-        # ⚡ PRE-2023 LEGACY ENDPOINT ⚡
+        # PRE-2023 LEGACY ENDPOINT
         # Using type=devices ensures compatibility with older Domoticz C++ engines. (pre-2023) :: Smartastic
         url = f"http://{host}:{port}/json.htm?type=devices&filter=all&used=true"
         auth = aiohttp.BasicAuth(user, pwd) if user and pwd else None
@@ -133,14 +133,14 @@ class DomoticzHomeHubBridge(WanosComponent):
                         self._normalize_http_device(device)
 
         except asyncio.TimeoutError:
-            # ⚡ asyncio.TimeoutError renders as an empty string by default. This explicit catch
+            # asyncio.TimeoutError renders as an empty string by default. This explicit catch
             # translates it into a human-readable diagnosis of the network blockage.
             await self.logger.error(
                 "[Domoticz] HTTP sync exception: Connection timed out (15s). Is Domoticz offline or unreachable?")
         except aiohttp.ClientError as e:
             await self.logger.error(f"[Domoticz] HTTP sync exception: Network/Client error occurred: {repr(e)}")
         except Exception as e:
-            # ⚡ Fallback using repr(e) to guarantee the exact Python Class name is always printed,
+            # Fallback using repr(e) to guarantee the exact Python Class name is always printed,
             # preventing invisible ghost-errors.
             await self.logger.error(f"[Domoticz] HTTP sync exception: {repr(e)}")
 
@@ -152,19 +152,19 @@ class DomoticzHomeHubBridge(WanosComponent):
                 return
             idx = int(idx_str)
 
-            # ⚡ RESOLVE DASHBOARD SCOPE: Re-extract config_name at the top of the block
+            # RESOLVE DASHBOARD SCOPE: Re-extract config_name at the top of the block
             # to safely clear the NameError thrown by the normalization pipeline.
             config_name = self.state_manager._config.dashboard.get(idx)
             is_favorite = device.get("Favorite", 0) == 1
 
-            # ⚡ COMPREHENSIVE SYNC GATE: Only process devices starred in Domoticz OR explicitly monitored anywhere in config.yaml
+            # COMPREHENSIVE SYNC GATE: Only process devices starred in Domoticz OR explicitly monitored anywhere in config.yaml
             if not is_favorite and idx not in self.watched_idxs:
                 return
 
             # Dynamically register this so the MQTT listener watches it permanently
             self._dynamic_favorites_idxs.add(idx)
 
-            # ⚡ Prioritize config.yaml mapped names. Explicitly reject Domoticz "Unknown" default labels.
+            # Prioritize config.yaml mapped names. Explicitly reject Domoticz "Unknown" default labels.
             dom_name = device.get("Name")
             if dom_name and dom_name.lower() == "unknown":
                 dom_name = None
@@ -201,11 +201,11 @@ class DomoticzHomeHubBridge(WanosComponent):
 
             # 3. Temp / HumidityZ
             elif "Temp" in device_type or "Hum" in device_type:
-                self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
+                self._read_only_idxs.add(idx)  # Lock sensor to prevent outbound commands
                 temp = device.get("Temp")
                 hum = device.get("Humidity")
 
-                # ⚡ Detect if this is a single sensor or a compound Temp+Hum sensor
+                # Detect if this is a single sensor or a compound Temp+Hum sensor
                 dtype_tag = "temp_hum" if (temp is not None and hum is not None) else (
                     "temp" if temp is not None else "hum")
 
@@ -226,7 +226,7 @@ class DomoticzHomeHubBridge(WanosComponent):
 
             # 4. Power / Wattage Sensors
             elif "Usage" in device_type or "Watt" in device_type or "Power" in device_type or "Kwh" in switch_type:
-                self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
+                self._read_only_idxs.add(idx)  # Lock sensor to prevent outbound commands
                 try:
                     # Domoticz HTTP API typically returns power in the 'Usage' or 'Data' fields as a string like "0.0 Watt"
                     raw_power = str(device.get("Usage", device.get("Data", "0.0")))
@@ -249,7 +249,7 @@ class DomoticzHomeHubBridge(WanosComponent):
             asyncio.create_task(self.logger.error(f"[Domoticz] Normalization failed for device: {e}"))
 
     async def _parse_domoticz_inbound(self, topic: str, payload: str) -> None:
-        # ⚡ Master Lockout: Silently drop all incoming Domoticz messages if integration is disabled in the UI
+        # Master Lockout: Silently drop all incoming Domoticz messages if integration is disabled in the UI
         if not self.state_manager._state.system.domoticz_integration_enabled:
             return
 
@@ -291,14 +291,14 @@ class DomoticzHomeHubBridge(WanosComponent):
             if idx not in self.watched_idxs:
                 return
 
-            # ⚡ Prioritize config.yaml mapped names. Explicitly reject Domoticz "Unknown" default labels.
+            # Prioritize config.yaml mapped names. Explicitly reject Domoticz "Unknown" default labels.
             config_name = self.state_manager._config.dashboard.get(idx)
             dom_name = data.get("name")
             if dom_name and dom_name.lower() == "unknown":
                 dom_name = None
             device_name = config_name or dom_name or f"idx_{idx}"
 
-            # ⚡ EARLY GATE DUPLICATE FILTER ⚡
+            # EARLY GATE DUPLICATE FILTER
             nvalue = data.get("nvalue")
             svalue1 = data.get("svalue1")
             svalue2 = data.get("svalue2")
@@ -306,7 +306,7 @@ class DomoticzHomeHubBridge(WanosComponent):
 
             cache_state = {"nvalue": nvalue, "svalue1": svalue1, "svalue2": svalue2, "svalue": svalue}
 
-            # ⚡ PUSH BUTTON BYPASS: Momentary buttons send the exact same payload every time.
+            # PUSH BUTTON BYPASS: Momentary buttons send the exact same payload every time.
             # We MUST bypass the cache filter for these, otherwise only the first press works!
             switch_type = data.get("switchType", "")
             is_push_button = switch_type.split(" ")[0] == "Push"
@@ -333,7 +333,7 @@ class DomoticzHomeHubBridge(WanosComponent):
 
             # 1. Temp & Humidity Sensors
             if "Temp" in dtype or "Hum" in dtype:
-                self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
+                self._read_only_idxs.add(idx)  # Lock sensor to prevent outbound commands
                 svalue_str: str = str(data.get("svalue1", data.get("svalue", "")))
                 raw_temp: str | None = None
                 raw_hum: str | None = None
@@ -371,7 +371,7 @@ class DomoticzHomeHubBridge(WanosComponent):
 
                 # 2. Power Sensors
             elif "Usage" in dtype or "Watt" in dtype or "Power" in dtype:
-                self._read_only_idxs.add(idx)  # ⚡ Lock sensor to prevent outbound commands
+                self._read_only_idxs.add(idx)  # Lock sensor to prevent outbound commands
                 try:
                     raw_svalue = data.get("svalue1", "0.0")
                     wattage = float(raw_svalue)
@@ -415,7 +415,7 @@ class DomoticzHomeHubBridge(WanosComponent):
                         "device_type": dtype_tag,
                         "origin": "domoticz",
                         "is_push_button": is_push_button,
-                        "rfx_origin": None  # ⚡ Tag as UI/Internal origin
+                        "rfx_origin": None  # Tag as UI/Internal origin
                     }
                 ))
             if log_display:
@@ -432,7 +432,7 @@ class DomoticzHomeHubBridge(WanosComponent):
             if current_enabled and not getattr(self, '_integration_enabled', False):
                 self._integration_enabled = True
                 await self.logger.success("[Domoticz] Integration ENABLED via UI.")
-                # ⚡ CACHE PURGE: Wipe the internal bridge memory so the incoming sync echoes aren't silently dropped!
+                # CACHE PURGE: Wipe the internal bridge memory so the incoming sync echoes aren't silently dropped!
                 # This forces the bridge to pass the data to the Engine, triggering a clean is_initialization boot sequence.
                 self._raw_cache.clear()
                 self._last_known_states.clear()
@@ -456,7 +456,7 @@ class DomoticzHomeHubBridge(WanosComponent):
                     # Safely grab payload, defaulting to empty dict for events that don't have one
                     payload = event.payload or {}
 
-                    # ⚡ UNIVERSAL FLAG EXTRACTION ⚡
+                    # UNIVERSAL FLAG EXTRACTION
                     # Extract initialization tags across ALL event types (Temp, Hum, Power, Hub State)
                     if payload.get("is_initialization") and payload.get("idx") is not None:
                         initialized_devices.add(payload.get("idx"))
@@ -494,7 +494,7 @@ class DomoticzHomeHubBridge(WanosComponent):
                                     await self.mqtt_client.publish(self._out_topic, command_payload)
                                     await asyncio.sleep(0.05)
 
-            # ⚡ STRICT EVENT-DRIVEN ROUTING GUARD ⚡
+            # STRICT EVENT-DRIVEN ROUTING GUARD
             # If a full sweep macro runs, parse all physical hardware targets. Otherwise, exclusively
             # evaluate the explicit device indices mutated in this event transaction. This isolates
             # background metrics/telemetry ticks (SYSTEM_METRICS_UPDATED) and drops un-synced queue floods entirely.
@@ -508,7 +508,7 @@ class DomoticzHomeHubBridge(WanosComponent):
             for idx in idxs_to_check:
                 current_state = state.devices.get(idx)
 
-                # ⚡ READ-ONLY SENSOR GUARD ⚡
+                # READ-ONLY SENSOR GUARD
                 # Do not attempt to evaluate or transmit state changes for thermometers, humidity sensors or power meters!
                 if idx in self._read_only_idxs:
                     continue
@@ -518,11 +518,11 @@ class DomoticzHomeHubBridge(WanosComponent):
                     is_force = idx in forced_devices
                     is_init = idx in initialized_devices
 
-                    # ⚡ Fire if state changed OR if a force flag was passed!
+                    # Fire if state changed OR if a force flag was passed!
                     if current_state is not None and (
                             current_state != self._last_known_states.get(idx) or is_force):
 
-                        # ⚡ 100% DETERMINISTIC INITIALIZATION GUARD ⚡
+                        # 100% DETERMINISTIC INITIALIZATION GUARD
                         # If the core engine tagged this as its very first contact with this device (value went from None to string),
                         # we silently align our circuit-breaker cache and abort the outbound transmission.
                         # This natively absorbs boot storms and reconnect echoes without any arbitrary timers.
@@ -530,11 +530,11 @@ class DomoticzHomeHubBridge(WanosComponent):
                             self._last_known_states[idx] = current_state
                             continue
 
-                        # ⚡ HUB GUARD: Do not publish if network is down
+                        # HUB GUARD: Do not publish if network is down
                         if not getattr(self.mqtt_client, 'is_connected', False):
                             continue
 
-                        # ⚡ OUTBOUND SAFETY GUARD ⚡
+                        # OUTBOUND SAFETY GUARD
                         # If the UI sends an integer, it is controlling a blind. We dynamically swap to "Set Level".
                         if isinstance(current_state, int):
                             domoticz_command = {
@@ -553,7 +553,7 @@ class DomoticzHomeHubBridge(WanosComponent):
 
                         if is_force:
                             await self.logger.warning(
-                                f"⚡ [FORCED OVERRIDE] Command Sent: Target IDX {idx} -> {domoticz_command['switchcmd']}")
+                                f"[FORCED OVERRIDE] Command Sent: Target IDX {idx} -> {domoticz_command['switchcmd']}")
                         else:
                             await self.logger.info(
                                 f"[Domoticz] Command Sent: Target IDX {idx} -> {domoticz_command['switchcmd']}")

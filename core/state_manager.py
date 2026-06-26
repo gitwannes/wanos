@@ -22,6 +22,24 @@ except ImportError:
 
 
 class StateManager:
+    @staticmethod
+    def _remove_timer_robustly(active_timers: list[Any], target_timer_id: str) -> list[Any]:
+        """Safely parses and filters out a timer by its timer_id regardless of JSON string spacing."""
+        retained_timers = []
+        for t in active_timers:
+            if isinstance(t, dict) and t.get("timer_id") == target_timer_id:
+                continue
+            if isinstance(t, str):
+                try:
+                    parsed = json.loads(t)
+                    if isinstance(parsed, dict) and parsed.get("timer_id") == target_timer_id:
+                        continue
+                except json.JSONDecodeError:
+                    if t == target_timer_id:
+                        continue
+            retained_timers.append(t)
+        return retained_timers
+
     def __init__(self, mqtt_client: MqttClientManager, logger: WanosLogger) -> None:
         self._state: SystemState = SystemState()
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
@@ -374,7 +392,7 @@ class StateManager:
                 "event_payload": {}
             }))
 
-        logger.debug("🌍 Environmental Time-Series mathematically calculated and deployed.")
+        # logger.debug("🌍 Environmental Time-Series mathematically calculated and deployed.")
 
     async def _process_events(self) -> None:
         """
@@ -779,30 +797,47 @@ class StateManager:
                 changed_domains.add("hardware")
 
         elif event_name == "SHT11_TOGGLED":
-            self._state.hardware.sht11_enabled = payload.get("enabled", False)
-            state_changed = True
-            changed_domains.add("hardware")
+            is_enabled = payload.get("enabled", False)
+            if is_enabled and not self._state.hardware.sht11_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: SHT11 Sensor Bus is unplugged.")
+                state_changed |= ch
+                changed_domains |= dom
+            else:
+                self._state.hardware.sht11_enabled = is_enabled
+                state_changed = True
+                changed_domains.add("hardware")
 
         elif event_name == "GPIO_INPUT_TOGGLED":
-            self._state.hardware.gpio_input_enabled = payload.get("enabled", False)
-            state_changed = True
-            changed_domains.add("hardware")
+            is_enabled = payload.get("enabled", False)
+            if is_enabled and not self._state.hardware.gpio_input_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: GPIO Input Bus is offline.")
+                state_changed |= ch
+                changed_domains |= dom
+            else:
+                self._state.hardware.gpio_input_enabled = is_enabled
+                state_changed = True
+                changed_domains.add("hardware")
 
         elif event_name == "GPIO_OUTPUT_TOGGLED":
-            self._state.hardware.gpio_output_enabled = payload.get("enabled", False)
-            # Master Safety Gate Link: The safety contactor ONLY engages if outputs are armed.
-            # (Note: The actual sequence of driving the pins high/low is handled physically inside actuators.py)
-            self._set_hardware_safety_gate(self._state.hardware.gpio_output_enabled)
-            state_changed = True
-            changed_domains.add("hardware")
+            is_enabled = payload.get("enabled", False)
+            if is_enabled and not self._state.hardware.gpio_output_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: GPIO Output Bus is offline.")
+                state_changed |= ch
+                changed_domains |= dom
+            else:
+                self._state.hardware.gpio_output_enabled = is_enabled
+                # Master Safety Gate Link: The safety contactor ONLY engages if outputs are armed.
+                self._set_hardware_safety_gate(is_enabled)
+                state_changed = True
+                changed_domains.add("hardware")
 
-            # 🛡️ FATAL DROP PROTECTION: If the user drops outputs while the sauna is running,
-            # we must cascade the OFF signal to the software PID controller immediately!
-            if not self._state.hardware.gpio_output_enabled:
-                if self._state.sauna.active:
-                    self.dispatch(Event(type=EventType.SAUNA_OFF))
-                if self._state.ir.active:
-                    self.dispatch(Event(type=EventType.IR_OFF))
+                # 🛡️ FATAL DROP PROTECTION: If the user drops outputs while the sauna is running,
+                # we must cascade the OFF signal to the software PID controller immediately!
+                if not is_enabled:
+                    if self._state.sauna.active:
+                        self.dispatch(Event(type=EventType.SAUNA_OFF))
+                    if self._state.ir.active:
+                        self.dispatch(Event(type=EventType.IR_OFF))
 
         elif event_name == "AUTOMATIONS_TOGGLED":
             is_enabled = payload.get("enabled", True)
@@ -820,128 +855,156 @@ class StateManager:
 
         elif event_name == "DOMOTICZ_TOGGLED":
             is_enabled = payload.get("enabled", False)
-            state_str = "ON" if is_enabled else "OFF"
-            self._state.system.domoticz_integration_enabled = is_enabled
-            state_changed = True
-            changed_domains.add("system")
-
-            color = "🟢" if is_enabled else "🔴"
-            raw_error = payload.get("error_msg")
-            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} Domoticz polling turned {state_str}")
-            state_changed |= ch
-            changed_domains |= dom
-
-            # --- THE UX WIPE (NULLIFICATION) ---
-            if not is_enabled:
-                for idx in list(self._state.devices.keys()):
-                    if isinstance(idx, int) and idx < 10000:
-                        if self._state.devices[idx] is not None:
-                            self._state.devices[idx] = None
-                            state_changed = True
-                            changed_domains.add("devices")
+            if is_enabled and not self._state.system.domoticz_mqtt_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: Domoticz Hub is offline.")
+                state_changed |= ch
+                changed_domains |= dom
             else:
-                # DEBOUNCED AUTO-SWEEP SCHEDULER
-                # Only trigger sweeps if this was an automatic network recovery! Manual UI clicks stay silent.
-                if payload.get("is_auto_recovery", False):
-                    deadline = int(time.time()) + 10
-                    self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
-                                                 {"reason": "network_recovery"})
-                    logger.info("Domoticz Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+                state_str = "ON" if is_enabled else "OFF"
+                self._state.system.domoticz_integration_enabled = is_enabled
+                state_changed = True
+                changed_domains.add("system")
+
+                color = "🟢" if is_enabled else "🔴"
+                raw_error = payload.get("error_msg")
+                error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+                ch, dom = self._push_alert(error_alert, f"{color} Domoticz polling turned {state_str}")
+                state_changed |= ch
+                changed_domains |= dom
+
+                # --- THE UX WIPE (NULLIFICATION) ---
+                if not is_enabled:
+                    for idx in list(self._state.devices.keys()):
+                        if isinstance(idx, int) and idx < 10000:
+                            if self._state.devices[idx] is not None:
+                                self._state.devices[idx] = None
+                                state_changed = True
+                                changed_domains.add("devices")
+                else:
+                    if payload.get("is_auto_recovery", False):
+                        deadline = int(time.time()) + 10
+                        self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                                     {"reason": "network_recovery"})
+                        logger.info("Domoticz Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
         elif event_name == "RFXCOM_TOGGLED":
             is_enabled = payload.get("enabled", False)
-            state_str = "ON" if is_enabled else "OFF"
-            self._state.system.rfxcom_integration_enabled = is_enabled
-            state_changed = True
-            changed_domains.add("system")
+            if is_enabled and not self._state.system.rfxcom_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: RFXCOM Transceiver is offline.")
+                state_changed |= ch
+                changed_domains |= dom
+            else:
+                state_str = "ON" if is_enabled else "OFF"
+                self._state.system.rfxcom_integration_enabled = is_enabled
+                state_changed = True
+                changed_domains.add("system")
 
-            color = "🟢" if is_enabled else "🔴"
-            raw_error = payload.get("error_msg")
-            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} Native RFXCOM Engine turned {state_str}")
-            state_changed |= ch
-            changed_domains |= dom
+                color = "🟢" if is_enabled else "🔴"
+                raw_error = payload.get("error_msg")
+                error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+                ch, dom = self._push_alert(error_alert, f"{color} Native RFXCOM Engine turned {state_str}")
+                state_changed |= ch
+                changed_domains |= dom
 
-            if is_enabled and payload.get("is_auto_recovery", False):
-                deadline = int(time.time()) + 10
-                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
-                                             {"reason": "network_recovery"})
-                logger.info("RFXCOM Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+                if is_enabled and payload.get("is_auto_recovery", False):
+                    deadline = int(time.time()) + 10
+                    self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                                 {"reason": "network_recovery"})
+                    logger.info("RFXCOM Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
         elif event_name == "OWM_TOGGLED":
             is_enabled = payload.get("enabled", False)
-            state_str = "ON" if is_enabled else "OFF"
-            self._state.system.owm_integration_enabled = is_enabled
-            state_changed = True
-            changed_domains.add("system")
+            if is_enabled and not self._state.system.wanos_mqtt_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: WanOS Broker is offline.")
+                state_changed |= ch
+                changed_domains |= dom
+            else:
+                state_str = "ON" if is_enabled else "OFF"
+                self._state.system.owm_integration_enabled = is_enabled
+                state_changed = True
+                changed_domains.add("system")
 
-            color = "🟢" if is_enabled else "🔴"
-            raw_error = payload.get("error_msg")
-            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} OWM Integration turned {state_str}")
-            state_changed |= ch
-            changed_domains |= dom
+                color = "🟢" if is_enabled else "🔴"
+                raw_error = payload.get("error_msg")
+                error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+                ch, dom = self._push_alert(error_alert, f"{color} OWM Integration turned {state_str}")
+                state_changed |= ch
+                changed_domains |= dom
 
-            if is_enabled and payload.get("is_auto_recovery", False):
-                deadline = int(time.time()) + 10
-                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
-                                             {"reason": "network_recovery"})
-                logger.info("OWM Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+                if is_enabled and payload.get("is_auto_recovery", False):
+                    deadline = int(time.time()) + 10
+                    self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                                 {"reason": "network_recovery"})
+                    logger.info("OWM Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
         elif event_name == "HUE_TOGGLED":
             is_enabled = payload.get("enabled", False)
-            state_str = "ON" if is_enabled else "OFF"
-            self._state.system.hue_integration_enabled = is_enabled
-            state_changed = True
-            changed_domains.add("system")
+            if is_enabled and not self._state.system.hue_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: Hue Bridge is offline.")
+                state_changed |= ch
+                changed_domains |= dom
+            else:
+                state_str = "ON" if is_enabled else "OFF"
+                self._state.system.hue_integration_enabled = is_enabled
+                state_changed = True
+                changed_domains.add("system")
 
-            color = "🟢" if is_enabled else "🔴"
-            raw_error = payload.get("error_msg")
-            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} Hue Integration turned {state_str}")
-            state_changed |= ch
-            changed_domains |= dom
+                color = "🟢" if is_enabled else "🔴"
+                raw_error = payload.get("error_msg")
+                error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+                ch, dom = self._push_alert(error_alert, f"{color} Hue Integration turned {state_str}")
+                state_changed |= ch
+                changed_domains |= dom
 
-            if is_enabled and payload.get("is_auto_recovery", False):
-                deadline = int(time.time()) + 10
-                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
-                                             {"reason": "network_recovery"})
-                logger.info("Hue Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+                if is_enabled and payload.get("is_auto_recovery", False):
+                    deadline = int(time.time()) + 10
+                    self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                                 {"reason": "network_recovery"})
+                    logger.info("Hue Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
         elif event_name == "EPSON_TOGGLED":
             is_enabled = payload.get("enabled", False)
-            state_str = "ON" if is_enabled else "OFF"
-            self._state.system.epson_integration_enabled = is_enabled
-            state_changed = True
-            changed_domains.add("system")
+            if is_enabled and not self._state.system.epson_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: Epson Projector is offline.")
+                state_changed |= ch
+                changed_domains |= dom
+            else:
+                state_str = "ON" if is_enabled else "OFF"
+                self._state.system.epson_integration_enabled = is_enabled
+                state_changed = True
+                changed_domains.add("system")
 
-            color = "🟢" if is_enabled else "🔴"
-            raw_error = payload.get("error_msg")
-            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} Epson Integration turned {state_str}")
-            state_changed |= ch
-            changed_domains |= dom
+                color = "🟢" if is_enabled else "🔴"
+                raw_error = payload.get("error_msg")
+                error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+                ch, dom = self._push_alert(error_alert, f"{color} Epson Integration turned {state_str}")
+                state_changed |= ch
+                changed_domains |= dom
 
-            if is_enabled and payload.get("is_auto_recovery", False):
-                deadline = int(time.time()) + 10
-                self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
-                                             {"reason": "network_recovery"})
-                logger.info("Epson Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+                if is_enabled and payload.get("is_auto_recovery", False):
+                    deadline = int(time.time()) + 10
+                    self._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED",
+                                                 {"reason": "network_recovery"})
+                    logger.info("Epson Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
         elif event_name == "ZWAVE_TOGGLED":
             is_enabled = payload.get("enabled", False)
-            state_str = "ON" if is_enabled else "OFF"
-            self._state.system.zwave_integration_enabled = is_enabled
-            state_changed = True
-            changed_domains.add("system")
+            if is_enabled and not self._state.system.zwave_connected:
+                ch, dom = self._push_alert("🔴 Command rejected: Z-Wave Bridge is physically offline.")
+                state_changed |= ch
+                changed_domains |= dom
+            else:
+                state_str = "ON" if is_enabled else "OFF"
+                self._state.system.zwave_integration_enabled = is_enabled
+                state_changed = True
+                changed_domains.add("system")
 
-            color = "🟢" if is_enabled else "🔴"
-            raw_error = payload.get("error_msg")
-            error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-            ch, dom = self._push_alert(error_alert, f"{color} Z-Wave Integration turned {state_str}")
-            state_changed |= ch
-            changed_domains |= dom
+                color = "🟢" if is_enabled else "🔴"
+                raw_error = payload.get("error_msg")
+                error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+                ch, dom = self._push_alert(error_alert, f"{color} Z-Wave Integration turned {state_str}")
+                state_changed |= ch
+                changed_domains |= dom
 
         elif event_name == "SIMULATIONS_TOGGLED":
             self._state.hardware.simulations_enabled = payload.get("enabled", False)
@@ -1079,7 +1142,7 @@ class StateManager:
                     else:
                         self.dispatch(Event(type=EventType.TWILIGHT_EVENING_OFF_TRIGGER))
 
-            ch, dom = self._push_alert("🟢 System Sweeper complete. Environmental phases synchronized.")
+            ch, dom = self._push_alert("🟢 System Sweeper complete. Suntime-based events synchronized.")
             state_changed |= ch
             changed_domains |= dom
 
@@ -1098,11 +1161,7 @@ class StateManager:
                 active = self._state.system.active_timers
 
                 # Clear old instances of this timer_id safely before injecting new ones
-                self._state.system.active_timers = [
-                    t for t in active
-                    if not (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t))
-                       and not (isinstance(t, dict) and t.get("timer_id") == timer_id)
-                ]
+                self._state.system.active_timers = StateManager._remove_timer_robustly(active, timer_id)
 
                 # SUBSCRIBER FAN-OUT LOGIC
                 # If the timer targets a generic broadcast trigger, scan the automation rules
@@ -1161,11 +1220,7 @@ class StateManager:
                 active = self._state.system.active_timers
                 original_len = len(active)
 
-                self._state.system.active_timers = [
-                    t for t in active
-                    if not (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t))
-                       and not (isinstance(t, dict) and t.get("timer_id") == timer_id)
-                ]
+                self._state.system.active_timers = StateManager._remove_timer_robustly(active, timer_id)
 
                 if len(self._state.system.active_timers) < original_len:
                     state_changed = True
@@ -1178,11 +1233,7 @@ class StateManager:
                 active = self._state.system.active_timers
                 original_len = len(active)
 
-                self._state.system.active_timers = [
-                    t for t in active
-                    if not (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t))
-                       and not (isinstance(t, dict) and t.get("timer_id") == timer_id)
-                ]
+                self._state.system.active_timers = StateManager._remove_timer_robustly(active, timer_id)
 
                 if len(self._state.system.active_timers) < original_len:
                     state_changed = True

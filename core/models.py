@@ -15,7 +15,7 @@ class EventType(str, Enum):
     SENSOR_ERROR = "SENSOR_ERROR"
     BATH1_VENT_LOCK_EXPIRED = "BATH1_VENT_LOCK_EXPIRED"  # Fired when the bathroom vent minimum runtime ends
     ALERT_DISMISSED = "ALERT_DISMISSED"  # General error message on top of the UI
-    ALERT_CLEAR_NON_CRITICAL = "ALERT_CLEAR_NON_CRITICAL"  # ⚡ Clear all info/success alerts
+    ALERT_CLEAR_NON_CRITICAL = "ALERT_CLEAR_NON_CRITICAL"  # Clear all info/success alerts
     ALERT_INJECTED = "ALERT_INJECTED"  # to test the teneral error message on top of the UI
 
     # Dynamic Hardware Bus Health Pings
@@ -50,13 +50,13 @@ class EventType(str, Enum):
     AUTOMATIONS_TOGGLED = "AUTOMATIONS_TOGGLED"  # Automation Rules
     SIMULATIONS_TOGGLED = "SIMULATIONS_TOGGLED"  # Simulation Physics Engine
     DOMOTICZ_TOGGLED = "DOMOTICZ_TOGGLED"  # Listen to Domoticz messages
-    RFXCOM_TOGGLED = "RFXCOM_TOGGLED"  # ⚡ Added to allow UI HTTP events to pass validation!
+    RFXCOM_TOGGLED = "RFXCOM_TOGGLED"  # Added to allow UI HTTP events to pass validation!
     OWM_TOGGLED = "OWM_TOGGLED"  # get OWM weather
-    ZWAVE_TOGGLED = "ZWAVE_TOGGLED"  # ⚡ Z-Wave integration toggle
-    HUE_TOGGLED = "HUE_TOGGLED"  # ⚡ Listen to local Hue Bridge messages
-    EPSON_TOGGLED = "EPSON_TOGGLED"  # ⚡ Block/allow Epson projector network commands
+    ZWAVE_TOGGLED = "ZWAVE_TOGGLED"  # Z-Wave integration toggle
+    HUE_TOGGLED = "HUE_TOGGLED"  # Listen to local Hue Bridge messages
+    EPSON_TOGGLED = "EPSON_TOGGLED"  # Block/allow Epson projector network commands
 
-    # ⚡ NEW: Physical Hardware Isolation Toggles
+    # Physical Hardware Isolation Toggles
     SHT11_TOGGLED = "SHT11_TOGGLED"
     GPIO_INPUT_TOGGLED = "GPIO_INPUT_TOGGLED"
     GPIO_OUTPUT_TOGGLED = "GPIO_OUTPUT_TOGGLED"
@@ -84,30 +84,30 @@ class EventType(str, Enum):
 
 
 class SystemAdminState(BaseModel):
-    version_major: str = "v0.0"  # ⚡ Exposes major layout semantic configuration strings to dashboard layout
-    version_full: str = "v0.0-build_unknown"  # ⚡ Exposes consolidated full runtime version mapping strings to admin layout
+    version_major: str = "v0.0"  # Exposes major layout semantic configuration strings to dashboard layout
+    version_full: str = "v0.0-build_unknown"  # Exposes consolidated full runtime version mapping strings to admin layout
     wanos_mqtt_connected: bool = False
     domoticz_mqtt_connected: bool = False
-    rfxcom_connected: bool = False  # ⚡ Tracks native USB RFX transceiver health
-    rfxcom_integration_enabled: bool = False  # ⚡ Switch to block/allow native RFXCOM transmission/reception
-    zwave_connected: bool = False  # ⚡ Tracks Z-Wave JS UI MQTT health
-    zwave_integration_enabled: bool = False  # ⚡ Switch to block/allow Z-Wave processing
-    hue_connected: bool = False  # ⚡ Tracks local Hue API v2 connection
-    hue_integration_enabled: bool = False  # ⚡ Switch to block/allow Hue API v2 bidirectional commands
-    epson_connected: bool = False  # ⚡ Tracks physical TCP availability of the Epson Projector
-    epson_integration_enabled: bool = False  # ⚡ Master UI switch to block/allow Epson commands
+    rfxcom_connected: bool = False  # Tracks native USB RFX transceiver health
+    rfxcom_integration_enabled: bool = False  # Switch to block/allow native RFXCOM transmission/reception
+    zwave_connected: bool = False  # Tracks Z-Wave JS UI MQTT health
+    zwave_integration_enabled: bool = False  # Switch to block/allow Z-Wave processing
+    hue_connected: bool = False  # Tracks local Hue API v2 connection
+    hue_integration_enabled: bool = False  # Switch to block/allow Hue API v2 bidirectional commands
+    epson_connected: bool = False  # Tracks physical TCP availability of the Epson Projector
+    epson_integration_enabled: bool = False  # Master UI switch to block/allow Epson commands
     ip_address: str = "0.0.0.0"
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None
     automations_enabled: bool = False  # Master switch for the logic engine
-    domoticz_integration_enabled: bool = False  # ⚡ Default OFF, controls whether we process Domoticz messages
-    owm_integration_enabled: bool = False  # ⚡ Default OFF, controls OpenWeatherMap polling
-    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # ⚡ Upgraded to structured dicts {id, level, message, timestamp, count}
+    domoticz_integration_enabled: bool = False  # Default OFF, controls whether we process Domoticz messages
+    owm_integration_enabled: bool = False  # Default OFF, controls OpenWeatherMap polling
+    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # Upgraded to structured dicts {id, level, message, timestamp, count}
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
-    native_rfx_devices: list[dict] = Field(default_factory=list)  # ⚡ Pushed dynamically to UI panel
-    available_scenes: list[dict[str, str]] = Field(default_factory=list)  # ⚡ Extracted stateless triggers for UI
-    hidden_explorer_idxs: list[int] = Field(default_factory=list)  # ⚡ Devices explicitly hidden from Device Explorer
-    hue_presets: dict[str, Any] = Field(default_factory=dict)  # ⚡ UI Button Configurations pushed from YAML
+    native_rfx_devices: list[dict] = Field(default_factory=list)  # Pushed dynamically to UI panel
+    available_scenes: list[dict[str, str]] = Field(default_factory=list)  # Extracted stateless triggers for UI
+    hidden_explorer_idxs: list[int] = Field(default_factory=list)  # Devices explicitly hidden from Device Explorer
+    hue_presets: dict[str, Any] = Field(default_factory=dict)  # UI Button Configurations pushed from YAML
 
 
 class Event(BaseModel):
@@ -209,7 +209,7 @@ class SystemState(BaseModel):
     # The frontend parses this on boot.
     dashboard_map: Dict[int, str] = Field(default_factory=dict)
 
-    # ⚡ The dynamic device registry. Maps IDXs to a dictionary containing {name: str, type: str}
+    # The dynamic device registry. Maps IDXs to a dictionary containing {name: str, type: str}
     # to allow the frontend to know exactly how to render a dynamic list element.
     device_metadata: Dict[int, Dict[str, Any]] = Field(default_factory=dict)
 

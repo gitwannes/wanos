@@ -1,6 +1,7 @@
 # --- file: logic/automation_rules.py ---
 import time
-from typing import List, Optional
+import json
+from typing import List, Optional, Any
 
 from core.models import Event, EventType, SystemState
 from core.config import load_config
@@ -26,6 +27,22 @@ class AutomationEngine:
         if cls._config is None:
             cls._config = load_config()
         return cls._config
+
+    @staticmethod
+    def _timer_exists(active_timers: List[Any], target_timer_id: str) -> bool:
+        """Robustly checks if a timer exists by safely parsing serialized JSON strings."""
+        for t in active_timers:
+            if isinstance(t, dict) and t.get("timer_id") == target_timer_id:
+                return True
+            if isinstance(t, str):
+                try:
+                    parsed = json.loads(t)
+                    if isinstance(parsed, dict) and parsed.get("timer_id") == target_timer_id:
+                        return True
+                except json.JSONDecodeError:
+                    if t == target_timer_id:
+                        return True
+        return False
 
     @staticmethod
     def _is_dark(state: SystemState) -> bool:
@@ -129,8 +146,11 @@ class AutomationEngine:
 
                         # --- Condition Type 2: Hardware Device State ---
                         elif condition.type == "device_state" and condition.idx is not None:
-                            current_state = state.devices.get(condition.idx)
-                            if current_state != condition.condition_is:
+                            # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
+                            raw_state = state.devices.get(condition.idx)
+                            current_state = raw_state.get("state") if isinstance(raw_state, dict) else raw_state
+
+                            if str(current_state).upper() != str(condition.condition_is).upper():
                                 conditions_met = False
                                 automation_logger.debug(
                                     f"[X-RAY] -> ABORTED. Condition failed: Target IDX {condition.idx} is '{current_state}', but rule requires '{condition.condition_is}'.")
@@ -156,7 +176,10 @@ class AutomationEngine:
 
                         # --- Action Type A: Raw IDX Execution ---
                         if getattr(action, "idx", None) is not None:
-                            current_target_state = state.devices.get(action.idx)
+                            # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
+                            raw_target_state = state.devices.get(action.idx)
+                            current_target_state = raw_target_state.get("state") if isinstance(raw_target_state,
+                                                                                               dict) else raw_target_state
 
                             # ⚡ UNINITIALIZED STATE GUARD
                             if current_target_state is None:
@@ -267,11 +290,7 @@ class AutomationEngine:
                         timer_id = f"light_auto_off_{light_idx}"
 
                         # Secure parsing to detect JSON structured active_timers
-                        timer_exists = any(
-                            (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t)) or
-                            (isinstance(t, dict) and t.get("timer_id") == timer_id)
-                            for t in state.system.active_timers
-                        )
+                        timer_exists = AutomationEngine._timer_exists(state.system.active_timers, timer_id)
 
                         if not timer_exists:
                             delay_mins: int = config.lighting.auto_off_delays.get(light_idx,
@@ -327,7 +346,7 @@ class AutomationEngine:
             # Feedback Alert for the Web UI
             total_recovered: int = recovered_timers + recovered_vents
             if total_recovered == 0:
-                msg: str = "🟢 Sweeper complete: Lighting and HVAC are perfectly synced."
+                msg: str = "🟢 Sweeper complete: all synced."
             else:
                 parts: List[str] = []
                 if recovered_timers > 0: parts.append(f"{recovered_timers} timers")
@@ -428,11 +447,7 @@ class AutomationEngine:
                 elif safe_state == "OFF":
                     # Instantly cancel any pending countdowns for this light,
                     # but only if it's actually ticking (prevents phantom cancellations when the timer itself turned the light off)
-                    timer_exists = any(
-                        (isinstance(t, str) and (t == timer_id or f'"timer_id": "{timer_id}"' in t)) or
-                        (isinstance(t, dict) and t.get("timer_id") == timer_id)
-                        for t in state.system.active_timers
-                    )
+                    timer_exists = AutomationEngine._timer_exists(state.system.active_timers, timer_id)
 
                     if timer_exists:
                         follow_up_events.append(Event(
