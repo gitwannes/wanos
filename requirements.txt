@@ -1,6 +1,8 @@
 # --- file: requirements.txt ---
-## run this to install
 ## python3 -m pip install --upgrade pip setuptools wheel
+
+## run this to install, inside the venv
+## source /home/wannes/wanos/wanos_venv/bin/activate
 ## pip install -r requirements.txt
 
 ## to check version to install on current Debian version:
@@ -31,6 +33,9 @@ loguru==0.7.2
 # Native RFXCOM Hardware Integration
 pyRFXtrx==0.34.0
 pyserial-asyncio==0.6
+
+# Cryptographic Authentication
+PyJWT==2.8.0
 
 # GPIO Hardware - intentionally deferred for now
 # smbus2==0.4.3

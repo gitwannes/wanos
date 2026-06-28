@@ -174,6 +174,17 @@ class ZwaveConfig(BaseModel):
     device_map: Dict[int, str] = Field(default_factory=dict)
 
 
+class AuthConfig(BaseModel):
+    shared_pin: str
+    admin_pin: str
+    user_pin: str
+    secret_key: str
+    cookie_expiry_days: int
+    ban_timeout_mins: int
+    user_token: str
+    kiosk_token: str
+
+
 class AppConfig(BaseModel):
     version: str
     wanos: WanosConfig
@@ -184,7 +195,7 @@ class AppConfig(BaseModel):
     zwave: Optional[ZwaveConfig] = None
     dashboard: Dict[int, str]
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
-    auth: Dict[str, str]
+    auth: AuthConfig
     pins: PinMappingConfig
     sensors: Dict[str, SHT11SensorNode]
     sauna: SaunaRuntimeConfig
@@ -256,7 +267,16 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile
         "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
-        "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},
+        "auth": {
+            "shared_pin": os.getenv("AUTH_PIN", "0000"),
+            "admin_pin": os.getenv("ADMIN_PIN", "0000"),
+            "user_pin": os.getenv("USER_PIN", "1111"),
+            "secret_key": os.getenv("SECRET_KEY", "wanos_fallback_insecure_key_change_in_prod"),
+            "cookie_expiry_days": runtime_data.get("auth", {}).get("cookie_expiry_days", 30),
+            "ban_timeout_mins": runtime_data.get("auth", {}).get("ban_timeout_mins", 30),
+            "user_token": runtime_data.get("auth", {}).get("user_token", "default_user_token"),
+            "kiosk_token": runtime_data.get("auth", {}).get("kiosk_token", "default_kiosk_token")
+        },
         "pins": {
             "safety_gpio": hardware_data["gpio_output"]["safety_gpio"],
             "ir_relais": hardware_data["gpio_output"]["ir_relais"],

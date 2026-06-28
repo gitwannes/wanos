@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="WanOS" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
+    <title>WanOS Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-base-300 h-screen w-screen overflow-hidden flex items-center justify-center text-base-content">
+
+    <div x-data="loginApp()" @keyup.window="handleKeydown($event)" class="w-full max-w-xs">
+
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-base-100 border border-base-200 shadow-lg mb-4">
+                <span class="text-2xl font-black text-primary">⚡</span>
+            </div>
+            <h1 class="text-2xl font-black tracking-widest text-base-content uppercase">WanOS</h1>
+            <p class="text-xs font-mono text-base-content/50 mt-1 uppercase tracking-widest">Authentication</p>
+        </div>
+
+        <div class="bg-base-100 p-8 rounded-3xl shadow-2xl border border-base-200 relative overflow-hidden">
+
+            <div x-show="loading" class="absolute inset-0 bg-base-100/90 backdrop-blur flex flex-col items-center justify-center z-50">
+                <span class="loading loading-infinity loading-lg text-primary"></span>
+            </div>
+
+            <div x-show="errorMsg" x-cloak class="alert alert-error text-xs font-mono font-bold shadow-sm p-3 mb-6 animate-pulse border border-red-500">
+                <span x-text="errorMsg"></span>
+            </div>
+
+            <div class="flex justify-center gap-3 mb-8 h-8">
+                <template x-for="i in 4">
+                    <div class="w-4 h-4 rounded-full transition-all duration-200"
+                         :class="pin.length >= i ? 'bg-primary scale-110 shadow-[0_0_8px_rgba(var(--color-primary),0.5)]' : 'bg-base-300'"></div>
+                </template>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 md:gap-4">
+                <template x-for="n in [1, 2, 3, 4, 5, 6, 7, 8, 9]">
+                    <button @click="addNumber(n)" class="btn btn-lg btn-ghost bg-base-200 hover:bg-base-300 text-xl font-mono rounded-2xl active:scale-95 transition-transform" x-text="n"></button>
+                </template>
+                <button @click="clear()" class="btn btn-lg btn-ghost bg-base-200 hover:bg-base-300 text-xs font-black tracking-wider rounded-2xl active:scale-95 transition-transform text-error">CLR</button>
+                <button @click="addNumber(0)" class="btn btn-lg btn-ghost bg-base-200 hover:bg-base-300 text-xl font-mono rounded-2xl active:scale-95 transition-transform">0</button>
+                <button @click="submit()" class="btn btn-lg btn-primary text-primary-content text-xs font-black tracking-wider rounded-2xl active:scale-95 transition-transform shadow-lg shadow-primary/20">GO</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

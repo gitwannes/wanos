@@ -3,14 +3,15 @@ import asyncio
 import json
 import os
 import signal
-from fastapi import Response
+import jwt
 from contextlib import asynccontextmanager
-from typing import Union, Any, AsyncGenerator
+from typing import Union, Any, AsyncGenerator, Optional
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, JSONResponse
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from datetime import datetime, timedelta, timezone
 
 # WanOS specific
 from core.models import Event, EventType
@@ -293,6 +294,113 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app: FastAPI = FastAPI(lifespan=lifespan, title="WanOS Backend API")
 
 
+# Server-Side strike tracker for brute-force protection
+failed_attempts: dict[str, dict] = {}
+
+
+@app.middleware("http")
+async def rbac_security_middleware(request: Request, call_next):
+    """Universal Pre-Flight Interceptor enforcing RBAC via Tab-Isolated JWTs."""
+    path = request.url.path
+
+    # 1. Allow open access to all static assets AND HTML pages initially.
+    # The frontend JS will enforce redirection if its API calls fail.
+    if path.endswith((".js", ".css", ".png", ".ico", ".svg", ".html")) and not path.startswith("/api/"):
+        return await call_next(request)
+
+    # 2. Redirect root directly to login, preserving query params (magic links)
+    if path == "/":
+        query_string = request.url.query
+        target_url = f"/login.html?{query_string}" if query_string else "/login.html"
+        return RedirectResponse(url=target_url, status_code=302)
+
+    # 3. Allow public access to the login endpoint itself
+    if path == "/api/auth/login":
+        return await call_next(request)
+
+    # 4. EXTRACT TOKEN (From Header for standard API calls, or Query string for SSE stream)
+    token = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    elif request.query_params.get("jwt"):
+        token = request.query_params.get("jwt")
+
+    # 5. Verify the Token
+    role = None
+    if token:
+        try:
+            payload = jwt.decode(token, config.auth.secret_key, algorithms=["HS256"])
+            role = payload.get("role")
+        except Exception:
+            pass
+
+    # 6. Block unauthenticated access to the backend APIs
+    if not role and path.startswith("/api/"):
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized. Session expired."})
+
+    # Store role in request state so downstream endpoints can verify admin privileges
+    request.state.role = role
+    return await call_next(request)
+
+
+class LoginRequest(BaseModel):
+    pin: Optional[str] = None
+    token: Optional[str] = None
+
+
+@app.post("/api/auth/login")
+async def login(req: LoginRequest, request: Request):
+    client_ip = request.client.host
+    now = datetime.now(timezone.utc)
+
+    # 1. Check IP Ban Status
+    strike_record = failed_attempts.get(client_ip, {"strikes": 0, "lockout_until": None})
+    if strike_record["lockout_until"] and now < strike_record["lockout_until"]:
+        mins_left = int((strike_record["lockout_until"] - now).total_seconds() / 60) + 1
+        return JSONResponse(status_code=429, content={"error": f"Too many attempts. Locked out for {mins_left} minutes."})
+
+    # 2. Evaluate Credentials
+    role = None
+    if req.token:
+        if req.token == config.auth.user_token: role = "user"
+        elif req.token == config.auth.kiosk_token: role = "kiosk"
+    elif req.pin:
+        if req.pin == config.auth.admin_pin: role = "admin"
+        elif req.pin == config.auth.user_pin or req.pin == config.auth.shared_pin: role = "user"
+
+    # 3. Handle Failure
+    if not role:
+        strike_record["strikes"] += 1
+        if strike_record["strikes"] >= 3:
+            strike_record["lockout_until"] = now + timedelta(minutes=config.auth.ban_timeout_mins)
+            strike_record["strikes"] = 0
+            failed_attempts[client_ip] = strike_record
+            return JSONResponse(status_code=429, content={"error": f"Too many attempts. Locked out for {config.auth.ban_timeout_mins} minutes."})
+
+        failed_attempts[client_ip] = strike_record
+        return JSONResponse(status_code=401, content={"error": "Invalid PIN."})
+
+    # 4. Success -> Clear strikes & Issue JWT in Payload
+    if client_ip in failed_attempts:
+        del failed_attempts[client_ip]
+
+    expiration = now + timedelta(days=config.auth.cookie_expiry_days)
+    jwt_payload = {"role": role, "exp": expiration}
+    token = jwt.encode(jwt_payload, config.auth.secret_key, algorithm="HS256")
+
+    target_url = "/admin.html" if role == "admin" else ("/dashboard.html" if role == "user" else "/kiosk.html")
+
+    # Send the token directly in the JSON response body
+    return JSONResponse(content={"status": "Success", "role": role, "redirect": target_url, "token": token})
+
+
+@app.post("/api/auth/logout")
+async def logout():
+    # Cookie deletion removed. The frontend is now responsible for wiping its local tab memory.
+    return JSONResponse(content={"status": "Logged out"})
+
+
 class DummyTempRequest(BaseModel):
     temp: float
 
@@ -315,7 +423,15 @@ async def inject_dummy_temp(request: DummyTempRequest) -> dict[str, Union[str, E
 
 
 @app.post("/api/event")
-async def inject_event(request: GenericEventRequest) -> dict[str, Union[str, Event]]:
+async def inject_event(request: GenericEventRequest, req: Request) -> dict[str, Union[str, Event]]:
+    e_type_str = request.type.value if hasattr(request.type, 'value') else str(request.type)
+
+    # Block users/kiosks from performing system-level administration toggles
+    admin_only_events = ["CONFIG_RELOAD_REQUESTED", "SYSTEM_SWEEP_REQUESTED", "SIMULATIONS_TOGGLED"]
+    if req.state.role != "admin":
+        if e_type_str in admin_only_events or e_type_str.endswith("_TOGGLED"):
+            return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
     try:
         e_type = EventType(request.type)
     except ValueError:

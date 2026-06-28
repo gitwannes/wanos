@@ -8,6 +8,13 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
 
+    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="WanOS" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
     <title>WanOS Device Explorer</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -35,6 +42,12 @@
                 <span class="text-[9px] font-mono text-base-content/40 leading-none mt-0.5 tracking-wider select-none" x-text="state.system.version_major"></span>
             </div>
             <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" x-text="unifiedDeviceList.length + ' Nodes'"></span>
+        </div>
+
+        <div class="flex-none flex items-center">
+            <button @click="logout()" class="btn btn-ghost btn-xs text-base-content/30 hover:text-error" title="Logout">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
         </div>
     </header>
 

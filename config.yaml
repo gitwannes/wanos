@@ -1,7 +1,14 @@
 # ==============================================================================
 # WanOS Master Configuration File
 # ==============================================================================
-version: "5"
+version: "5.1"
+
+auth:
+  cookie_expiry_days: 30
+  ban_timeout_mins: 30
+  # Magic link tokens for bypassing the PIN pad (e.g. http://10.x.x.x/login.html?token=wall_tablet_123)
+  user_token: "user"
+  kiosk_token: "kiosk"
 
 # ==============================================================================
 # 1. INTEGRATIONS & NETWORK LAYER

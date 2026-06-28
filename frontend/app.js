@@ -381,6 +381,14 @@ function wanosApp() {
             return list;
         },
 
+        getAuthHeaders() {
+            const token = sessionStorage.getItem("wanos_jwt");
+            return {
+                "Content-Type": "application/json",
+                "Authorization": token ? `Bearer ${token}` : ""
+            };
+        },
+
         // ⚡ IR Snapping Matrix (Values & Legacy Frequencies)
         // Solid State Relays (SSRs) must align with the 50Hz European AC grid (100 zero-crossings per second).
         // Standard PWM causes severe light flickering. This array maps specific power percentages to exact zero-crossing frequencies:
@@ -447,9 +455,13 @@ function wanosApp() {
         },
 
         async fetchFullSnapshot() {
-            // Fetches the complete state from /api/state and replaces the local store.
             try {
-                const res = await fetch("/api/state");
+                // Attach the authorization headers to the request
+                const res = await fetch("/api/state", { headers: this.getAuthHeaders() });
+                if (res.status === 401 || res.status === 403) {
+                    window.location.href = '/login.html';
+                    return;
+                }
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const fullState = await res.json();
                 this._applyFullSnapshot(fullState);
@@ -561,12 +573,13 @@ function wanosApp() {
             // Fetch a full snapshot first, then open the delta stream.
             // This guarantees the store is coherent before any partial updates arrive.
             this.fetchFullSnapshot().then(() => {
-                // 🛡️ Prevent memory/connection leaks if connectSSE is called multiple times
                 if (this.eventSource) {
                     this.eventSource.close();
                 }
 
-                this.eventSource = new EventSource("/api/state/sse");
+                // Native EventSource doesn't support custom headers, so we pass the token in the URL
+                const token = sessionStorage.getItem("wanos_jwt") || "";
+                this.eventSource = new EventSource(`/api/state/sse?jwt=${token}`);
 
                 // ⏱️ Sliding Watchdog Guardian Loop
                 const resetWatchdog = () => {
@@ -766,14 +779,24 @@ function wanosApp() {
 
         async publishEvent(eventType, payload = {}) {
             try {
-                await fetch("/api/event", {
+                const res = await fetch("/api/event", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: this.getAuthHeaders(), // Inject headers here
                     body: JSON.stringify({ type: eventType, payload: payload })
                 });
+                if (res.status === 401 || res.status === 403) {
+                    window.location.href = '/login.html';
+                    return;
+                }
             } catch (error) {
                 console.error(`💥 Event transmission collapsed [${eventType}]:`, error);
             }
+        },
+
+        async logout() {
+            await fetch("/api/auth/logout", { method: "POST", headers: this.getAuthHeaders() });
+            sessionStorage.removeItem("wanos_jwt"); // Wipe the memory for this tab
+            window.location.href = "/login.html";
         },
 
         // 🛡️ LEGACY API WRAPPER: Prevents breaking existing HTML files that still call dispatchEvent directly
@@ -1204,4 +1227,107 @@ function wanosApp() {
             }, 10 * 1000);
         }
     };
+}
+
+// =========================================================================
+// 🔐 AUTHENTICATION & LOGIN UI LOGIC
+// =========================================================================
+function loginApp() {
+    return {
+        pin: "",
+        errorMsg: "",
+        loading: true,
+
+        async init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+
+            // Invisible Token Bypass Execution (For Kiosks / Magic Links)
+            if (token) {
+                await this.submitAuth({ token: token });
+            } else {
+                this.loading = false;
+            }
+        },
+
+        addNumber(n) {
+            if (this.pin.length < 4) {
+                this.pin += n;
+                this.errorMsg = "";
+                // Auto-submit when exactly 4 digits are entered
+                if (this.pin.length === 4) {
+                    this.submit();
+                }
+            }
+        },
+
+        clear() {
+            this.pin = "";
+            this.errorMsg = "";
+        },
+
+        deletePin() {
+            if (this.pin.length > 0) {
+                this.pin = this.pin.slice(0, -1);
+                this.errorMsg = "";
+            }
+        },
+
+        handleKeydown(e) {
+            if (this.loading) return;
+
+            // Capture numeric keys (0-9)
+            if (e.key >= '0' && e.key <= '9') {
+                this.addNumber(e.key);
+            }
+            // Capture Backspace to delete a single digit
+            else if (e.key === 'Backspace') {
+                this.deletePin();
+            }
+            // Capture 'C' or 'Escape' to clear the entire pad
+            else if (e.key.toLowerCase() === 'c' || e.key === 'Escape') {
+                this.clear();
+            }
+            // Capture Enter to submit
+            else if (e.key === 'Enter') {
+                if (this.pin.length === 4) {
+                    this.submit();
+                }
+            }
+        },
+
+        submit() {
+            if (this.pin.length > 0) {
+                this.loading = true;
+                this.errorMsg = "";
+                this.submitAuth({ pin: this.pin });
+            }
+        },
+
+        async submitAuth(payload) {
+            try {
+                const res = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+
+                if (res.status === 200) {
+                    // TAB ISOLATION: Save the token specifically to this browser tab
+                    sessionStorage.setItem("wanos_jwt", data.token);
+                    window.location.href = data.redirect;
+                } else {
+                    this.pin = "";
+                    this.errorMsg = data.detail || data.error || "Authentication failed.";
+                    this.loading = false;
+                }
+            } catch (error) {
+                this.errorMsg = "Server offline or unreachable.";
+                this.loading = false;
+                this.pin = "";
+            }
+        }
+    }
 }

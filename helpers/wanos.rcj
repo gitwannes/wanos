@@ -55,7 +55,6 @@
     * - Copy.py
 	*.zip
 	dhcpcd.conf
-	*.txt
 	*.bat      :: robocopy-sync.bat
 	wanos.rcj  :: configfile for Robocopy
 :: On Pi
