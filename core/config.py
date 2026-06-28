@@ -181,6 +181,7 @@ class AppConfig(BaseModel):
     rfxcom: Optional[RFXComSettings] = None
     hue: Optional[HueConfig] = None
     epson: Optional[EpsonConfig] = None
+    zwave: Optional[ZwaveConfig] = None
     dashboard: Dict[int, str]
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
     auth: Dict[str, str]

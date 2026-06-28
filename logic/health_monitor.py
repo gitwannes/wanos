@@ -4,6 +4,7 @@ import socket
 import os
 from typing import Any
 from core.models import Event, EventType, SystemState
+from loguru import logger
 
 
 class HealthMonitor:
@@ -14,7 +15,6 @@ class HealthMonitor:
 
     def __init__(self, state_manager: Any) -> None:
         self.state_manager = state_manager
-        self.config = state_manager._config
         self._task: asyncio.Task | None = None
 
         # Dedicated Strike Counters for Auto-Kill thresholds
@@ -40,12 +40,13 @@ class HealthMonitor:
         return False
 
     async def _ping_epson(self) -> bool:
-        if not getattr(self.config, "epson", None) or not self.config.epson.ip_address:
+        config = self.state_manager._config
+        if not getattr(config, "epson", None) or not config.epson.ip_address:
             return False
         try:
             # Non-blocking TCP ping to check if the projector's network stack is alive
             _, writer = await asyncio.wait_for(
-                asyncio.open_connection(self.config.epson.ip_address, 3629),
+                asyncio.open_connection(config.epson.ip_address, 3629),
                 timeout=1.0
             )
             writer.close()
@@ -61,6 +62,7 @@ class HealthMonitor:
                 await asyncio.sleep(2.0)
                 sm = self.state_manager
                 sys_state: SystemState = sm.get_state_snapshot()
+                config = sm._config  # Dynamically pull config to survive hot-reloads
 
                 wanos_conn = self._is_connected(sm.mqtt_client)
                 dom_conn = self._is_connected(sm.domoticz_client)
@@ -70,14 +72,12 @@ class HealthMonitor:
 
                 # Z-Wave health is a strict two-tiered check:
                 # 1. Physical USB stick presence (Tier 1)
-                # Safely access the Pydantic model attribute
-                zwave_conf = getattr(self.config, "zwave", None)
+                zwave_conf = getattr(config, "zwave", None)
                 zwave_usb_path = zwave_conf.usb_path if zwave_conf else ""
                 zwave_physical = os.path.exists(zwave_usb_path)
 
                 # 2. Z-Wave JS UI Engine MQTT presence (Tier 2)
-                zwave_engine = getattr(sm.zwave_bridge, "is_physically_connected", False)
-
+                zwave_engine = getattr(sm.zwave_bridge, "is_mqtt_engine_alive", False)
                 # Combined connection boolean
                 zwave_conn = zwave_physical and zwave_engine
 

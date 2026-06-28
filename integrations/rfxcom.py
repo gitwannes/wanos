@@ -172,7 +172,7 @@ class NativeRFXCOMBridge(WanosComponent):
         raw_hex = packet.hex().lower()
 
         # Bypass WanOS log filters so we can always see the firehose in consolelog!
-        print(f"📻 [ANTENNA FIREHOSE] {raw_hex}")
+        print(f"📻 [Native RFX] [ANTENNA FIREHOSE] {raw_hex}")
 
         if not self._integration_enabled:
             return

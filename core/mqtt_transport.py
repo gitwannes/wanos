@@ -121,13 +121,14 @@ class MqttClientManager:
 
         # Exception handling for MqttError is done in the parent _connection_manager_loop
         async for message in self.client.messages:
-            topic = str(message.topic)
+            topic_str = str(message.topic)
             # Decode the raw byte payload into a usable UTF-8 string
             payload = message.payload.decode('utf-8')
 
-            # Route the message to the registered callback for this topic
-            if topic in self._callbacks:
-                try:
-                    await self._callbacks[topic](topic, payload)
-                except Exception as cb_error:
-                    logger.error(f"Error executing callback for topic {topic}: {cb_error}")
+            # Route the message to the registered callback(s) supporting MQTT wildcards
+            for sub_topic, callback in self._callbacks.items():
+                if message.topic.matches(sub_topic):
+                    try:
+                        await callback(topic_str, payload)
+                    except Exception as cb_error:
+                        logger.error(f"Error executing callback for topic {sub_topic}: {cb_error}")
