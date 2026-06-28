@@ -90,7 +90,8 @@ class SystemAdminState(BaseModel):
     domoticz_mqtt_connected: bool = False
     rfxcom_connected: bool = False  # Tracks native USB RFX transceiver health
     rfxcom_integration_enabled: bool = False  # Switch to block/allow native RFXCOM transmission/reception
-    zwave_connected: bool = False  # Tracks Z-Wave JS UI MQTT health
+    zwave_hardware_connected: bool = False  # Tracks physical USB stick presence
+    zwave_mqtt_connected: bool = False  # Tracks Z-Wave JS UI MQTT health
     zwave_integration_enabled: bool = False  # Switch to block/allow Z-Wave processing
     hue_connected: bool = False  # Tracks local Hue API v2 connection
     hue_integration_enabled: bool = False  # Switch to block/allow Hue API v2 bidirectional commands

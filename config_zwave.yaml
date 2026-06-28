@@ -1,0 +1,7 @@
+zwave:
+  # The physical hardware path used by WanOS to verify the stick is plugged in
+  usb_path: "/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00"
+
+  device_map:
+    70001: "nodeID_5/37/0/targetValue" # The actual ON/OFF relay
+    70002: "nodeID_5/50/0/value"       # The Power (Watt) meter reading

@@ -812,7 +812,8 @@ automations:
         state: "ON"  # ON = Open, OFF = Closed
     actions:
       - target: "hue_scene"
-        scene: "hue_cinema_rm_tropische_schemering"
+        idx: 51004
+        scene: "cinema"
 
   - name: "test Hue2"
     trigger:
@@ -822,4 +823,5 @@ automations:
         state: "OFF"  # ON = Open, OFF = Closed
     actions:
       - target: "hue_scene"
-        scene: "hue_cinema_rm_helder"
+        idx: 51004
+        scene: "arctische_dageraad"

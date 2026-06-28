@@ -94,7 +94,9 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     rfx_conn = payload.get("rfxcom_connected", False)
     hue_conn = payload.get("hue_connected", False)
     epson_conn = payload.get("epson_connected", False)
-    zwave_conn = payload.get("zwave_connected", False)
+    zwave_hardware_conn = payload.get("zwave_hardware_connected", False)
+    zwave_mqtt_conn = payload.get("zwave_mqtt_connected", False)
+
     ip_addr = payload.get("ip_address", "0.0.0.0")
 
     prev_wanos = manager._state.system.wanos_mqtt_connected
@@ -102,7 +104,8 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     prev_rfx = manager._state.system.rfxcom_connected
     prev_hue = manager._state.system.hue_connected
     prev_epson = manager._state.system.epson_connected
-    prev_zwave = manager._state.system.zwave_connected
+    prev_zwave_hw = manager._state.system.zwave_hardware_connected
+    prev_zwave_mqtt = manager._state.system.zwave_mqtt_connected
 
     # --- UI CONNECTION TRANSITION ALERTS & RECOVERY ---
     if prev_wanos and not wanos_conn:
@@ -161,16 +164,37 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         if not manager._state.system.epson_integration_enabled:
             manager.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
-    if prev_zwave and not zwave_conn:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Z-Wave JS UI connection lost")
+    if prev_zwave_hw and not zwave_hardware_conn:
+        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Z-Wave USB Stick unplugged from the Pi!")
         state_changed |= ch
         changed_domains |= dom
-    elif not prev_zwave and zwave_conn and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Z-Wave JS UI connection active")
+    elif not prev_zwave_hw and zwave_hardware_conn and manager._state.system.app_boot_unix is not None:
+        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Z-Wave USB Stick mounted")
         state_changed |= ch
         changed_domains |= dom
-        if not manager._state.system.zwave_integration_enabled:
+
+    if prev_zwave_mqtt and not zwave_mqtt_conn:
+        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Z-Wave JS Engine MQTT connection lost")
+        state_changed |= ch
+        changed_domains |= dom
+    elif not prev_zwave_mqtt and zwave_mqtt_conn and manager._state.system.app_boot_unix is not None:
+        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Z-Wave JS Engine connection active")
+        state_changed |= ch
+        changed_domains |= dom
+        if not manager._state.system.zwave_integration_enabled and zwave_hardware_conn:
             manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
+
+    if prev_zwave_mqtt and not zwave_mqtt_conn:
+        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Z-Wave JS Engine MQTT connection lost")
+        state_changed |= ch
+        changed_domains |= dom
+    elif not prev_zwave_mqtt and zwave_mqtt_conn and manager._state.system.app_boot_unix is not None:
+        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Z-Wave JS Engine connection active")
+        state_changed |= ch
+        changed_domains |= dom
+        if not manager._state.system.zwave_integration_enabled and zwave_hardware_conn:
+            manager.dispatch(
+                Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
     if (prev_wanos != wanos_conn or
@@ -178,7 +202,8 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             prev_rfx != rfx_conn or
             prev_hue != hue_conn or
             prev_epson != epson_conn or
-            prev_zwave != zwave_conn or
+            prev_zwave_hw != zwave_hardware_conn or
+            prev_zwave_mqtt != zwave_mqtt_conn or
             manager._state.system.ip_address != ip_addr or
             manager._state.system.app_boot_unix is None):
         manager._state.system.wanos_mqtt_connected = wanos_conn
@@ -186,7 +211,8 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         manager._state.system.rfxcom_connected = rfx_conn
         manager._state.system.hue_connected = hue_conn
         manager._state.system.epson_connected = epson_conn
-        manager._state.system.zwave_connected = zwave_conn
+        manager._state.system.zwave_hardware_connected = zwave_hardware_conn
+        manager._state.system.zwave_mqtt_connected = zwave_mqtt_conn
         manager._state.system.ip_address = ip_addr
 
         # Capture static Unix boot times once during host identification

@@ -20,7 +20,8 @@ function wanosApp() {
                 owm_integration_enabled: false, // ⚡ Switch to block/allow OWM polling
                 rfxcom_connected: false, // ⚡ Live USB mounting health status
                 rfxcom_integration_enabled: false, // ⚡ Switch to block/allow native RFXCOM transmission/reception
-                zwave_connected: false, // ⚡ Tracks Z-Wave JS UI MQTT health
+                zwave_hardware_connected: false, // ⚡ Tracks physical USB stick presence
+                zwave_mqtt_connected: false, // ⚡ Tracks Z-Wave JS UI engine health
                 zwave_integration_enabled: false, // ⚡ Switch to block/allow Z-Wave processing
                 epson_connected: false, // ⚡ Tracks physical TCP availability of the Epson Projector
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
@@ -243,7 +244,7 @@ function wanosApp() {
             if (s.hue_connected && !s.hue_integration_enabled) return false;
             if (s.epson_connected && !s.epson_integration_enabled) return false;
             if (s.rfxcom_connected && !s.rfxcom_integration_enabled) return false;
-            if (s.zwave_connected && !s.zwave_integration_enabled) return false;
+            if (s.zwave_hardware_connected && s.zwave_mqtt_connected && !s.zwave_integration_enabled) return false;
             if (s.owm_integration_enabled && !s.owm_integration_enabled) return false;
             if (h.gpio_input_connected && !h.gpio_input_enabled) return false;
             if (h.sht11_connected && !h.sht11_enabled) return false;

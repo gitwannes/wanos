@@ -1,6 +1,7 @@
 # --- file: logic/health_monitor.py ---
 import asyncio
 import socket
+import os
 from typing import Any
 from core.models import Event, EventType, SystemState
 
@@ -67,14 +68,28 @@ class HealthMonitor:
                 hue_conn = self._is_connected(getattr(sm, "hue_bridge", None))
                 epson_conn = await self._ping_epson()
 
-                # Z-Wave physical health is tracked explicitly by the Z-Wave JS UI Bridge.
-                zwave_conn = getattr(sm.zwave_bridge, "is_physically_connected", False)
+                # Z-Wave health is a strict two-tiered check:
+                # 1. Physical USB stick presence (Tier 1)
+                # Safely access the Pydantic model attribute
+                zwave_conf = getattr(self.config, "zwave", None)
+                zwave_usb_path = zwave_conf.usb_path if zwave_conf else ""
+                zwave_physical = os.path.exists(zwave_usb_path)
+
+                # 2. Z-Wave JS UI Engine MQTT presence (Tier 2)
+                zwave_engine = getattr(sm.zwave_bridge, "is_physically_connected", False)
+
+                # Combined connection boolean
+                zwave_conn = zwave_physical and zwave_engine
 
                 # Update strike tracking based on physical socket availability
                 self.strikes["domoticz"] = 0 if dom_conn else self.strikes["domoticz"] + 1
                 self.strikes["hue"] = 0 if hue_conn else self.strikes["hue"] + 1
                 self.strikes["epson"] = 0 if epson_conn else self.strikes["epson"] + 1
                 self.strikes["rfxcom"] = 0 if rfx_conn else self.strikes["rfxcom"] + 1
+
+                # Z-Wave USB drop is fatal immediately (1 strike). The engine drop gets 3 strikes (network blips).
+                # We use a base variable so the auto-kill can format the correct UI error message.
+                zwave_fatal_usb = not zwave_physical
                 self.strikes["zwave"] = 0 if zwave_conn else self.strikes["zwave"] + 1
 
                 # Evaluate Auto-Kill thresholds against the live RAM state intent
@@ -98,10 +113,13 @@ class HealthMonitor:
                         "enabled": False,
                         "error_msg": "🔌 USB RFXCOM disconnected. Integration disabled."}))
 
-                if self.strikes["zwave"] >= 3 and sys_state.system.zwave_integration_enabled:
-                    sm.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={
-                        "enabled": False,
-                        "error_msg": "🔌 Z-Wave MQTT connection lost. Integration disabled."}))
+                # Tiered Z-Wave Auto-Kill Execution
+                if (zwave_fatal_usb and self.strikes["zwave"] >= 1) or (self.strikes["zwave"] >= 3):
+                    if sys_state.system.zwave_integration_enabled:
+                        error_reason = "USB Stick disconnected" if zwave_fatal_usb else "Z-Wave JS Engine offline"
+                        sm.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={
+                            "enabled": False,
+                            "error_msg": f"🔌 Z-Wave connection lost ({error_reason}). Integration disabled."}))
 
                 metrics_payload = {
                     "wanos_connected": wanos_conn,
@@ -109,7 +127,8 @@ class HealthMonitor:
                     "rfxcom_connected": rfx_conn,
                     "hue_connected": hue_conn,
                     "epson_connected": epson_conn,
-                    "zwave_connected": zwave_conn,
+                    "zwave_hardware_connected": zwave_physical,
+                    "zwave_mqtt_connected": zwave_engine,
                     "ip_address": self._get_ip()
                 }
                 sm.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))

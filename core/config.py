@@ -168,6 +168,12 @@ class EpsonConfig(BaseModel):
     ip_address: str
 
 
+class ZwaveConfig(BaseModel):
+    """Configuration mapping for the Z-Wave JS UI hardware stick and node map."""
+    usb_path: str
+    device_map: Dict[int, str] = Field(default_factory=dict)
+
+
 class AppConfig(BaseModel):
     version: str
     wanos: WanosConfig
@@ -198,6 +204,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     hardware_yaml_path = BASE_DIR / "hardware.yaml"
     lab_yaml_path = BASE_DIR / "config_lab.yaml"
     hue_yaml_path = BASE_DIR / "config_hue.yaml"  # ⚡ Segregated lighting profile path entry
+    zwave_yaml_path = BASE_DIR / "config_zwave.yaml"  # ⚡ Segregated Z-Wave profile path entry
 
     # STRICT CHECK 1: Ensure .env file physically exists
     if not env_path.exists():
@@ -229,6 +236,14 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
                         if hue_data.get(map_key) is None:
                             hue_data[map_key] = {}
 
+    # 3b. Read Segregated Z-Wave Config Profile if available
+    zwave_data: Optional[Dict[str, Any]] = None
+    if zwave_yaml_path.exists():
+        with open(zwave_yaml_path, "r", encoding="utf-8") as file:
+            zwave_file_raw = yaml.safe_load(file)
+            if isinstance(zwave_file_raw, dict):
+                zwave_data = zwave_file_raw.get("zwave", zwave_file_raw)
+
     # 4. Consolidate payloads for unified validation assembly
     compiled_data = {
         "version": runtime_data.get("version", "1.0"),  # ⚡ Pull semantic baseline from absolute file root
@@ -237,6 +252,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings
         "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
         "epson": runtime_data.get("epson"),
+        "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile
         "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
         "auth": {"shared_pin": os.getenv("AUTH_PIN", "0000")},

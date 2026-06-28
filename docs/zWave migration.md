@@ -14,7 +14,7 @@ Because we already possess the RaZberry NVM backup (`.bin`), we bypass the RaZbe
    Run `ls -l /dev/serial/by-id/` in your terminal.
 3. Power down your modern **WanOS Raspberry Pi**.
    Copy the path that points to the ZBT-2:
-	/dev/serial/by-id/usb-Nabu_Casa_ZBT-2_14C19FC70CC4-if00 -> ../../ttyACM0
+	/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00 -> ../../ttyACM0
 	/dev/ttyACM0
 
 ## Phase 1: Pre-Migration Data Extraction

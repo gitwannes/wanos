@@ -194,8 +194,16 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     changed_domains = set()
     is_enabled = payload.get("enabled", False)
 
-    if is_enabled and not manager._state.system.zwave_connected:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave Bridge is physically offline.")
+    # Tier 1 Intercept: Physical Stick Missing
+    if is_enabled and not manager._state.system.zwave_hardware_connected:
+        await manager.logger.warning("🔴 Bouncer rejected command: Z-Wave USB Stick is unplugged.")
+        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave USB Stick is unplugged.")
+        state_changed |= ch
+        changed_domains |= dom
+    # Tier 2 Intercept: Software Engine Offline
+    elif is_enabled and not manager._state.system.zwave_mqtt_connected:
+        await manager.logger.warning("🔴 Bouncer rejected command: Z-Wave JS Engine is offline.")
+        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave JS Engine is offline.")
         state_changed |= ch
         changed_domains |= dom
     else:
