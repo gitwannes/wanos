@@ -267,8 +267,17 @@ class StateManager:
         state_changed: bool = False
         changed_domains: Set[str] = set()
 
-        # DYNAMIC METADATA REGISTRY HOOK
+        # --- ⚡ UNIVERSAL NULL GUARD (BOOT STORM PROTECTOR) ⚡ ---
+        # Intercepts every single event before it hits the handlers.
+        # If the device is currently NULL in memory, this is its first heartbeat.
         meta_idx = payload.get("idx")
+        if meta_idx is not None:
+            if self._state.devices.get(meta_idx) is None:
+                payload["is_initialization"] = True
+            else:
+                payload["transitioned"] = True
+
+        # DYNAMIC METADATA REGISTRY HOOK
         meta_type = payload.get("device_type")
         meta_name = payload.get("name")
         meta_origin = payload.get("origin")

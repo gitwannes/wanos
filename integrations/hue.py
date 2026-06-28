@@ -110,7 +110,7 @@ class HueLocalBridge:
 
         # Start the continuous background listener for inbound physical switch events
         self._sse_task = asyncio.create_task(self._sse_listener_loop())
-        logger.info(f"🟢 [HUE] Integration bridging established targeting {self.bridge_ip}")
+        logger.info(f"[HUE] Integration bridging established targeting {self.bridge_ip}")
 
     async def stop(self) -> None:
         """Safely tears down open sockets and network streams."""
@@ -193,7 +193,7 @@ class HueLocalBridge:
                         scene_count += 1
 
                     logger.success(
-                        f"🟢 [HUE] Dynamically extracted and mapped {scene_count} native scenes to configured IDXs.")
+                        f"[HUE] Dynamically extracted and mapped {scene_count} native scenes to configured IDXs.")
 
             # =========================================================================
             # 2. 💡 DYNAMIC LIGHT & ROOM/ZONE GROUP EXTRACTION
@@ -254,7 +254,7 @@ class HueLocalBridge:
                                 payload=payload
                             ))
                         logger.success(
-                            f"🟢 [HUE] Initial sync complete for endpoint '{endpoint}'. Native names and statuses downloaded.")
+                            f"[HUE] Initial sync complete for endpoint '{endpoint}'. Native names and statuses downloaded.")
                     else:
                         logger.error(
                             f"🔴 [HUE] Failed to fetch initial names for endpoint '{endpoint}'. HTTP {resp.status}")

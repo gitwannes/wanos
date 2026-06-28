@@ -84,11 +84,6 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         state_changed = True
         changed_domains.add("devices")
 
-        if old_val is None:
-            payload["is_initialization"] = True
-        else:
-            payload["transitioned"] = True
-
         # Artificially inject 0.0W to instantly flush power graphs when switches turn off
         if state_val == "OFF":
             if idx == 8:  # pc
