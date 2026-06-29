@@ -97,7 +97,8 @@
             <ul class="flex flex-col w-full divide-y divide-base-200/50">
                 <template x-for="item in unifiedDeviceList" :key="item.id">
 
-                    <li class="flex flex-row items-center justify-between p-3 md:p-4 hover:bg-base-200/50 transition-colors gap-1 md:gap-6 overflow-hidden w-full">
+                    <li class="flex flex-row items-center justify-between p-3 md:p-4 hover:bg-base-200/50 transition-colors gap-1 md:gap-6 overflow-hidden w-full"
+                    :class="item.is_dead ? 'opacity-50 grayscale bg-base-200/30' : ''">
 
                         <div class="flex-1 min-w-0 pr-1 md:pr-2 flex flex-col justify-center">
                             <template x-if="item.is_hue">
@@ -120,10 +121,10 @@
                             <template x-if="item.type === 'switch' || item.type === 'light'">
                                 <div class="flex items-center justify-end gap-2 md:gap-3 shrink-0">
                                     <span class="font-mono text-[9px] md:text-xs"
-                                          :class="item.raw_value === null ? 'text-gray-500 italic' : (item.is_on ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                          x-text="item.raw_value === null ? 'SYNC...' : (item.is_on ? 'ON' : 'OFF')"></span>
+                                          :class="item.is_dead ? 'text-error font-bold' : (item.raw_value === null ? 'text-gray-500 italic' : (item.is_on ? 'text-warning font-bold animate-pulse' : 'text-base-500'))"
+                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value === null ? 'SYNC...' : (item.is_on ? 'ON' : 'OFF'))"></span>
                                     <input type="checkbox" class="toggle toggle-sm md:toggle-md toggle-warning shadow shrink-0"
-                                           :disabled="item.raw_value === null"
+                                           :disabled="item.raw_value === null || item.is_dead"
                                            :checked="item.is_on"
                                            @change="injectLabHubStateChange(item.id, $event.target.checked)" />
                                 </div>
@@ -131,12 +132,14 @@
 
                             <template x-if="item.type === 'blinds'">
                                 <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
-                                    <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1 py-0 h-4 md:h-5 shrink-0 min-w-[2.25rem] justify-center" x-text="item.raw_value !== null ? item.raw_value + '%' : '--'"></span>
+                                    <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1 py-0 h-4 md:h-5 shrink-0 min-w-[2.25rem] justify-center"
+                                          :class="item.is_dead ? 'text-error font-bold' : ''"
+                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value !== null ? item.raw_value + '%' : '--')"></span>
 
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-info">OPEN</span>
 
                                     <input type="range" min="0" max="100" step="1" class="range range-info range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0"
-                                           :disabled="item.raw_value === null"
+                                           :disabled="item.raw_value === null || item.is_dead"
                                            :value="item.raw_value !== null ? item.raw_value : 0"
                                            @change="dispatchEvent('HUB_STATE_CHANGED', { idx: item.id, state: parseInt($event.target.value, 10) })" />
 
@@ -146,27 +149,40 @@
 
                             <template x-if="item.type === 'temp'">
                                 <div class="flex justify-end shrink-0">
-                                    <span class="font-mono font-bold text-orange-400 text-xs md:text-sm whitespace-nowrap" x-text="item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C'"></span>
+                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                          :class="item.is_dead ? 'text-error' : 'text-orange-400'"
+                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C')"></span>
                                 </div>
                             </template>
 
                             <template x-if="item.type === 'hum'">
                                 <div class="flex justify-end shrink-0">
-                                    <span class="font-mono font-bold text-info text-xs md:text-sm whitespace-nowrap" x-text="item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %'"></span>
+                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                          :class="item.is_dead ? 'text-error' : 'text-info'"
+                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %')"></span>
                                 </div>
                             </template>
 
                             <template x-if="item.type === 'temp_hum'">
                                 <div class="flex justify-end font-mono text-[10px] md:text-sm whitespace-nowrap shrink-0">
-                                    <span class="font-bold text-orange-400" x-text="item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C'"></span>
-                                    <span class="mx-1 text-base-content/50">/</span>
-                                    <span class="font-bold text-info" x-text="item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %'"></span>
+                                    <template x-if="item.is_dead">
+                                        <span class="font-bold text-error">DEAD</span>
+                                    </template>
+                                    <template x-if="!item.is_dead">
+                                        <div>
+                                            <span class="font-bold text-orange-400" x-text="item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C'"></span>
+                                            <span class="mx-1 text-base-content/50">/</span>
+                                            <span class="font-bold text-info" x-text="item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %'"></span>
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
 
                             <template x-if="item.type === 'power'">
                                 <div class="flex justify-end shrink-0">
-                                    <span class="font-mono font-bold text-warning text-xs md:text-sm whitespace-nowrap" x-text="item.raw_value !== null ? parseFloat(item.raw_value).toFixed(1) + ' W' : '-- W'"></span>
+                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                          :class="item.is_dead ? 'text-error' : 'text-warning'"
+                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value !== null ? parseFloat(item.raw_value).toFixed(1) + ' W' : '-- W')"></span>
                                 </div>
                             </template>
 

@@ -171,6 +171,7 @@ class EpsonConfig(BaseModel):
 class ZwaveConfig(BaseModel):
     """Configuration mapping for the Z-Wave JS UI hardware stick and node map."""
     usb_path: str
+    mqtt_prefix: str = "zwave"  # ⚡ Global prefix for dynamic MQTT routing
     device_map: Dict[int, str] = Field(default_factory=dict)
 
 

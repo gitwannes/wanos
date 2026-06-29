@@ -108,7 +108,7 @@ dashboard:
 
 # ⚡ Devices explicitly hidden from the Device Explorer UI
 deviceexplorer_exclude:
-  - 8     # PC itself
+  - 72001     # PC itself # 8
   - 8567  # Wisc safety SSR
   - 7550  # Sauna
   - 7551  # IR

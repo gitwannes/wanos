@@ -293,12 +293,16 @@ function wanosApp() {
                 const rawValue = this.state.devices[idx];
                 let isOn = false;
 
-                if (meta.type === 'blinds') {
-                    // Shutters: > 0% = ON
-                    isOn = parseInt(rawValue, 10) > 0;
-                } else if (meta.type === 'switch' || meta.type === 'light') {
-                    // ⚡ RICH PAYLOAD SUPPORT: Parse "ON" state whether it's a flat string or a dictionary object
-                    isOn = (typeof rawValue === 'object' && rawValue !== null) ? rawValue.state === 'ON' : rawValue === 'ON';
+                const isDead = rawValue === 'DEAD';
+
+                if (!isDead) {
+                    if (meta.type === 'blinds') {
+                        // Shutters: > 0% = ON
+                        isOn = parseInt(rawValue, 10) > 0;
+                    } else if (meta.type === 'switch' || meta.type === 'light') {
+                        // ⚡ RICH PAYLOAD SUPPORT: Parse "ON" state whether it's a flat string or a dictionary object
+                        isOn = (typeof rawValue === 'object' && rawValue !== null) ? rawValue.state === 'ON' : rawValue === 'ON';
+                    }
                 }
 
                 list.push({
@@ -307,7 +311,8 @@ function wanosApp() {
                     type: meta.type,
                     raw_value: rawValue,
                     is_on: isOn,
-                    is_hue: meta.origin === 'hue'
+                    is_hue: meta.origin === 'hue',
+                    is_dead: isDead
                 });
             }
 

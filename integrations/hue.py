@@ -157,7 +157,8 @@ class HueLocalBridge:
                                 if service.get("rtype") == "grouped_light":
                                     gl_id = service.get("rid")
                                     # Prepend the specific resource type to distinguish Rooms from Zones in the UI
-                                    grouped_light_to_name[gl_id] = f"{endpoint}: {g_name}"
+                                    # grouped_light_to_name[gl_id] = f"{endpoint}: {g_name}"
+                                    grouped_light_to_name[gl_id] = f"{g_name.removesuffix('-rm')}"
 
                                     # ⚡ Reverse mapping: Find the WanOS IDX from the grouped_light UUID
                                     mapped_idx = self.group_uuid_to_idx.get(gl_id)

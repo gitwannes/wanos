@@ -3,5 +3,19 @@ zwave:
   usb_path: "/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00"
 
   device_map:
-    70001: "nodeID_5/37/0/targetValue" # The actual ON/OFF relay
-    70002: "nodeID_5/50/0/value"       # The Power (Watt) meter reading
+    # 71000: licht
+    # 72000: switch
+    # 73000: rolluik
+    # 74000: power
+
+    71001: "31/37/1 | buro licht"
+    71002: "31/37/2 | cinema licht"
+
+    72001: "5/37/0 | PC"
+    74001: "5/50/0 | PC power"
+    72002: "82/37/0 | PC aux"
+
+    73001: "52/38/0 | rolluik cinema"
+    73002: "50/38/0 | rolluik sauna"
+    73003: "12/38/0 | rolluik gv links"
+    73004: "18/38/0 | rolluik gv rechts"

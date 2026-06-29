@@ -940,14 +940,14 @@
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Run Sweeper</span>
-                                    <button class="btn btn-outline btn-primary btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="requestSystemSweep()" :disabled="!state.system.domoticz_mqtt_connected || !state.system.automations_enabled || sweepRunning">
+                                    <button class="btn btn-outline btn-primary btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="requestSystemSweep()" :disabled="!state.system.automations_enabled || sweepRunning">
                                         <span x-show="!sweepRunning">GO</span>
                                         <span x-show="sweepRunning" class="loading loading-spinner loading-xs"></span>
                                     </button>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Reload Config</span>
-                                    <button class="btn btn-outline btn-warning btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="requestConfigReload()" :disabled="!state.system.domoticz_mqtt_connected || configReloading">
+                                    <button class="btn btn-outline btn-warning btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="requestConfigReload()" :disabled="configReloading">
                                         <span x-show="!configReloading">GO</span>
                                         <span x-show="configReloading" class="loading loading-spinner loading-xs"></span>
                                     </button>

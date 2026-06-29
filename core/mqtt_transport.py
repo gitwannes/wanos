@@ -100,15 +100,17 @@ class MqttClientManager:
                 self.is_connected = False
                 self.client = None
                 self.failed_attempts += 1
-                logger.warning(
-                    f"MQTT Connection dropped ({self.broker_host}): {e}. Retry in 5s (Attempt {self.failed_attempts})")
+                if self.failed_attempts == 1:
+                    logger.warning(
+                        f"MQTT Connection dropped ({self.broker_host}): {e}. Retry in 5s (Attempt {self.failed_attempts})")
                 await asyncio.sleep(5.0)
             except Exception as e:
                 self.is_connected = False
                 self.client = None
                 self.failed_attempts += 1
-                logger.error(
-                    f"MQTT Unexpected Error ({self.broker_host}): {e}. Retry in 5s (Attempt {self.failed_attempts})")
+                if self.failed_attempts == 1:
+                    logger.error(
+                        f"MQTT Unexpected Error ({self.broker_host}): {e}. Retry in 5s (Attempt {self.failed_attempts})")
                 await asyncio.sleep(5.0)
             finally:
                 self.is_connected = False
