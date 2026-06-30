@@ -18,12 +18,17 @@
     </div>
 
     <header class="mb-8 flex justify-between items-center max-w-7xl mx-auto">
-        <div>
-            <h1 class="text-2xl font-black text-primary uppercase tracking-widest">⚡ Z-Wave Provisioning</h1>
-            <p class="text-xs text-base-content/50 font-mono mt-1">Unified Endpoint Editor</p>
+        <div class="flex items-center gap-4">
+            <a href="admin.html" class="btn btn-ghost btn-circle text-base-content/50 hover:text-primary transition-colors" title="Return to Admin">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+            </a>
+            <div>
+                <h1 class="text-2xl font-black text-primary uppercase tracking-widest">⚡ Z-Wave Provisioning</h1>
+                <p class="text-xs text-base-content/50 font-mono mt-1">Unified Endpoint Editor</p>
+            </div>
         </div>
         <div class="flex gap-4 items-center">
-            <span class="badge font-bold mr-2" :class="connected ? 'badge-success' : 'badge-error'" x-text="connected ? 'SSE CONNECTED' : 'OFFLINE'"></span>
+            <span class="badge font-bold mr-2 hidden md:inline-flex" :class="connected ? 'badge-success' : 'badge-error'" x-text="connected ? 'SSE CONNECTED' : 'OFFLINE'"></span>
 
             <button class="btn btn-outline btn-warning btn-sm font-bold tracking-widest shadow-sm shrink-0" @click="requestConfigReload()" :disabled="configReloading">
                 <span x-show="!configReloading">RELOAD CONFIG</span>
@@ -45,7 +50,7 @@
                 <div class="form-control flex-1 w-full">
                     <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 focus-within:outline-none focus-within:border-primary w-full">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
-                        <input type="text" class="grow font-mono text-xs w-full" placeholder="Search nodes or paths..." x-model="searchQuery" />
+                        <input type="text" class="grow font-mono text-xs w-full" placeholder="Search nodes, paths or IDXs..." x-model="searchQuery" />
                     </label>
                 </div>
                 <select class="select select-bordered select-sm w-full md:w-auto font-mono text-xs bg-base-200" x-model="typeFilter">
@@ -55,6 +60,12 @@
                     <option value="power">Power</option>
                     <option value="motion">Motion</option>
                     <option value="temp&hum">Temp & Hum</option>
+                </select>
+
+                <select class="select select-bordered select-sm w-full md:w-auto font-mono text-xs bg-base-200" x-model="sortMode">
+                    <option value="NODE">Sort by Node/Path</option>
+                    <option value="IDX">Sort by IDX</option>
+                    <option value="NAME">Sort by Name</option>
                 </select>
             </div>
         </div>
@@ -87,9 +98,25 @@
                                     </td>
                                     <td class="font-bold text-base-content/70" x-text="item.node"></td>
 
-                                    <td class="uppercase text-[10px] font-bold tracking-wider"
-                                        :class="item.type === 'power' ? 'text-warning' : (item.type === 'shutter' ? 'text-info' : (item.type === 'motion' ? 'text-error' : (item.type === 'temp&hum' ? 'text-success' : 'text-accent')))"
-                                        x-text="item.type"></td>
+                                    <td>
+                                        <template x-if="item.is_mapped">
+                                            <span class="uppercase text-[10px] font-bold tracking-wider opacity-70"
+                                                  :class="item.type === 'power' ? 'text-warning' : (item.type === 'shutter' ? 'text-info' : (item.type === 'motion' ? 'text-error' : (item.type === 'temp&hum' ? 'text-success' : 'text-accent')))"
+                                                  x-text="item.type"></span>
+                                        </template>
+                                        <template x-if="!item.is_mapped">
+                                            <select class="select select-bordered select-xs font-mono uppercase text-[9px] bg-base-200"
+                                                    x-model="item.type" @change="recalculateIDXs()" :disabled="!item.selected">
+                                                <option value="light">Light (71x)</option>
+                                                <option value="switch">Switch (72x)</option>
+                                                <option value="shutter">Shutter (73x)</option>
+                                                <option value="power">Power (74x)</option>
+                                                <option value="motion">Motion (75x)</option>
+                                                <option value="temp&hum">Temp&Hum (76x)</option>
+                                                <option value="sensor">Sensor (76x)</option>
+                                            </select>
+                                        </template>
+                                    </td>
 
                                     <td x-text="item.path" :class="item.selected ? 'text-primary font-bold' : ''"></td>
 

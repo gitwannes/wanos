@@ -447,7 +447,8 @@ function wanosApp() {
         },
 
         getAuthHeaders() {
-            const token = sessionStorage.getItem("wanos_jwt");
+            // Retrieve persistent token from localStorage
+            const token = localStorage.getItem("wanos_jwt");
             return {
                 "Content-Type": "application/json",
                 "Authorization": token ? `Bearer ${token}` : ""
@@ -496,8 +497,9 @@ function wanosApp() {
         init() {
             console.log("🚀 WanOS Web Controller initializing...");
 
-            // ⚡ Admin Gatekeeper: Decode JWT locally to enable secure Admin UI capabilities
-            const token = sessionStorage.getItem("wanos_jwt") || "";
+            // Admin Gatekeeper: Decode JWT locally to enable secure Admin UI capabilities
+            // Persistent storage across browser sessions/reboots via localStorage
+            const token = localStorage.getItem("wanos_jwt") || "";
             if (token) {
                 try {
                     const payloadStr = atob(token.split('.')[1]);
@@ -872,7 +874,8 @@ function wanosApp() {
 
         async logout() {
             await fetch("/api/auth/logout", { method: "POST", headers: this.getAuthHeaders() });
-            sessionStorage.removeItem("wanos_jwt"); // Wipe the memory for this tab
+            // Erase persistent credentials from storage
+            localStorage.removeItem("wanos_jwt");
             window.location.href = "/login.html";
         },
 
@@ -1392,8 +1395,8 @@ function loginApp() {
                 const data = await res.json();
 
                 if (res.status === 200) {
-                    // TAB ISOLATION: Save the token specifically to this browser tab
-                    sessionStorage.setItem("wanos_jwt", data.token);
+                    // PERSISTENT AUTHENTICATION: Save the token to survive tab closure and browser reboots
+                    localStorage.setItem("wanos_jwt", data.token);
                     window.location.href = data.redirect;
                 } else {
                     this.pin = "";

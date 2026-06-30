@@ -65,6 +65,19 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         manager._state.system.hidden_explorer_idxs = new_config.deviceexplorer_exclude
         manager._extract_scenes_from_config()
 
+        # GHOST BUSTER: Purge orphaned Z-Wave nodes from active RAM that were deleted from config_zwave.yaml
+        zwave_conf = getattr(new_config, "zwave", None)
+        new_zwave_idxs = set(zwave_conf.device_map.keys()) if zwave_conf and getattr(zwave_conf, "device_map",
+                                                                                     None) else set()
+
+        # Iterate over a static list of keys to safely mutate the underlying dictionary
+        for idx in list(manager._state.device_metadata.keys()):
+            meta = manager._state.device_metadata[idx]
+            if meta.get("origin") == "zwave" and idx not in new_zwave_idxs:
+                manager._state.device_metadata.pop(idx, None)
+                manager._state.devices.pop(idx, None)
+                manager._state.dashboard_map.pop(idx, None)
+
         # RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
         if manager.hue_bridge:
             await manager.hue_bridge.stop()

@@ -10,6 +10,7 @@ function zwaveApp() {
         configReloading: false,
         searchQuery: "",
         typeFilter: "ALL",
+        sortMode: "NODE", // "NODE", "IDX", "NAME"
 
         // ⚡ Reactive filtering pipeline
         get visibleDeviceList() {
@@ -28,15 +29,35 @@ function zwaveApp() {
                 if (this.typeFilter !== "ALL" && item.type !== this.typeFilter) return false;
                 if (this.searchQuery.trim() !== "") {
                     const q = this.searchQuery.toLowerCase();
-                    if (!item.name.toLowerCase().includes(q) && !item.path.toLowerCase().includes(q)) return false;
+                    // Track matches on the absolute index string representation if populated
+                    const matchesIdx = item.idx !== null && String(item.idx).includes(q);
+
+                    if (!item.name.toLowerCase().includes(q) && !item.path.toLowerCase().includes(q) && !matchesIdx) return false;
                 }
 
                 return true;
+            }).sort((a, b) => {
+                // ⚡ Reactive Sorting Logic
+                if (this.sortMode === "IDX") {
+                    const idxA = a.idx !== null ? a.idx : Number.MAX_SAFE_INTEGER;
+                    const idxB = b.idx !== null ? b.idx : Number.MAX_SAFE_INTEGER;
+                    if (idxA !== idxB) return idxA - idxB;
+                } else if (this.sortMode === "NAME") {
+                    return a.name.localeCompare(b.name);
+                }
+
+                // Default / Fallback: Sort by Node Number, then Type, then Path
+                const nodeA = parseInt(a.node, 10) || 0;
+                const nodeB = parseInt(b.node, 10) || 0;
+                if (nodeA !== nodeB) return nodeA - nodeB;
+                if (a.type !== b.type) return a.type.localeCompare(b.type);
+                return a.path.localeCompare(b.path);
             });
         },
 
         init() {
-            const token = sessionStorage.getItem("wanos_jwt") || "";
+            // Load persistent credential mapping from localStorage
+            const token = localStorage.getItem("wanos_jwt") || "";
             if (!token) {
                 window.location.href = '/login.html';
                 return;
@@ -180,6 +201,17 @@ function zwaveApp() {
 
             // 2. Unpack Transient Discovery Data Elements
             if (fullState.system.zwave_inbox) {
+                // ⚡ SMART DEFAULT HELPER: Scan inbox first to identify which physical nodes have Power telemetry
+                const nodesWithPower = new Set();
+                for (const [path, data] of Object.entries(fullState.system.zwave_inbox)) {
+                    const sn = data.node || data.node_name || path.split('/')[0];
+                    const cc = data.command_class;
+                    const lp = path.toLowerCase();
+                    if (cc === "50" || (cc === "49" && lp.includes("power"))) {
+                        nodesWithPower.add(sn);
+                    }
+                }
+
                 for (const [path, data] of Object.entries(fullState.system.zwave_inbox)) {
                     const safeNode = data.node || data.node_name || path.split('/')[0];
 
@@ -194,7 +226,10 @@ function zwaveApp() {
                         const cc = data.command_class;
                         const lowerPath = path.toLowerCase();
 
-                        if (cc === "37" || cc === "25") staticType = "switch";
+                        if (cc === "37" || cc === "25") {
+                            // ⚡ SMART DEFAULT: If a relay node also has power telemetry, guess Switch (72xxx), else Light (71xxx)
+                            staticType = nodesWithPower.has(safeNode) ? "switch" : "light";
+                        }
                         else if (cc === "38") staticType = "shutter";
                         else if (cc === "48") staticType = "motion";
                         else if (cc === "49") {
@@ -268,15 +303,6 @@ function zwaveApp() {
                     reservedIdxs.add(nextIdx);
                 }
             }
-
-            this.deviceList.sort((a, b) => {
-                const nodeA = parseInt(a.node, 10) || 0;
-                const nodeB = parseInt(b.node, 10) || 0;
-
-                if (nodeA !== nodeB) return nodeA - nodeB;
-                if (a.type !== b.type) return a.type.localeCompare(b.type);
-                return a.path.localeCompare(b.path);
-            });
         },
 
         async requestConfigReload() {
@@ -285,7 +311,8 @@ function zwaveApp() {
             this.errorMessage = "";
 
             try {
-                const token = sessionStorage.getItem("wanos_jwt") || "";
+                // Fetch credentials from persistent browser space
+                const token = localStorage.getItem("wanos_jwt") || "";
                 const res = await fetch("/api/event", {
                     method: "POST",
                     headers: {
@@ -338,6 +365,13 @@ function zwaveApp() {
             }
 
             let yamlLines = [];
+            yamlLines.push(``);
+            yamlLines.push(`  # ==============================================================================`);
+            yamlLines.push(`  # config_zwave.yaml`);
+            yamlLines.push(``);
+            yamlLines.push(`  # This file should NOT be edit manually: consult zwaveconfig.html.`);
+            yamlLines.push(`  # ==============================================================================`);
+            yamlLines.push(``);
             yamlLines.push(`zwave:`);
             yamlLines.push(`  # The physical hardware path used by WanOS to verify the stick is plugged in`);
             yamlLines.push(`  usb_path: "${this.usbPath}"`);
@@ -372,7 +406,8 @@ function zwaveApp() {
 
             try {
                 // 1. Inject Config into the Backend Directory
-                const token = sessionStorage.getItem("wanos_jwt") || "";
+                // Pull credentials from persistent container
+                const token = localStorage.getItem("wanos_jwt") || "";
                 const res = await fetch("/api/config/zwave", {
                     method: "POST",
                     headers: {

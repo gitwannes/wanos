@@ -45,6 +45,7 @@
 	backup*
 :: On Pi
 	wanos_venv
+	migration_venv
 	__pycache__
 
 :: --- Exclude Files
@@ -57,5 +58,6 @@
 	dhcpcd.conf
 	*.bat      :: robocopy-sync.bat
 	wanos.rcj  :: configfile for Robocopy
+	*.bak
 :: On Pi
 	wanos.console.log

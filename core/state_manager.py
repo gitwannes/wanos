@@ -269,10 +269,11 @@ class StateManager:
 
         # --- ⚡ UNIVERSAL NULL GUARD (BOOT STORM PROTECTOR) ⚡ ---
         # Intercepts every single event before it hits the handlers.
-        # If the device is currently NULL in memory, this is its first heartbeat.
+        # If the device is currently NULL or "Sync..." in memory, this is its first heartbeat.
         meta_idx = payload.get("idx")
         if meta_idx is not None:
-            if self._state.devices.get(meta_idx) is None:
+            current_cached_val: Any = self._state.devices.get(meta_idx)
+            if current_cached_val is None or current_cached_val == "Sync...":
                 payload["is_initialization"] = True
             else:
                 payload["transitioned"] = True
@@ -312,10 +313,21 @@ class StateManager:
             if is_simulation_action or is_boot_baseline_seed:
                 origin_tag = " [SIMULATION]" if is_simulation_action else " [BOOT_SEED]"
                 logger.debug(f"Event Received [{event_name}]{origin_tag}: {payload}")
-            elif event_name == "HUB_STATE_CHANGED" and payload.get("is_initialization") and payload.get("origin") == "domoticz":
-                logger.info(f"--> Domoticz sensor idx {payload.get('idx')} ({payload.get('name', 'Unknown')}): initial state received: {payload.get('state')}")
-            elif event_name != "POWER_UPDATED":
-                logger.info(f"Event Received [{event_name}]: {payload}")
+            elif event_name == "HUB_STATE_CHANGED" and payload.get("is_initialization") and payload.get(
+                    "origin") == "domoticz":
+                logger.info(
+                    f"--> Domoticz sensor idx {payload.get('idx')} ({payload.get('name', 'Unknown')}): initial state received: {payload.get('state')}")
+            else:
+                # TELEMETRY ROUTING GATEWAY: Move Power, lux, hum en temperature from INFO to DEBUG
+                is_telemetry = (
+                        event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED"] or
+                        (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power", "sensor"])
+                )
+
+                if is_telemetry:
+                    logger.debug(f"Event Received [{event_name}]: {payload}")
+                else:
+                    logger.info(f"Event Received [{event_name}]: {payload}")
 
         # ⚡ ROUTE TO STRATEGY PATTERN HANDLER
         handler = EVENT_ROUTERS.get(event_name)
