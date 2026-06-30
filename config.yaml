@@ -65,6 +65,11 @@ native_rfx:
     protocol: "Lighting4"
     on_id: "545455"
     off_id: "545454"
+  - name: "kerst voor"
+    virtual_idx: 40005  # RFX5
+    protocol: "Lighting4"
+    on_id: "0" # ToDo: lookup
+    off_id: "0" # ToDo: lookup
 
 
 # ==============================================================================
@@ -83,8 +88,6 @@ dashboard:
   30001: "outside TH"
 
   # --- Wellness & Sauna ---
-  7550: "sauna"  ## virtual idx: to check / to replace
-  7551: "ir"     ## virtual idx: to check / to replace
   72004: "sauna_zoutlamp"
   71038: "sauna_extrvent"
   10001: "door_sauna"
@@ -151,7 +154,7 @@ environmental_schedule:
 
 lighting:
   # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
-  managed_lights: [71003, 71004, 71005, 71006, 71007, 71008, 71001, 71002, 71014, 71012, 71017, 71021, 40001, 40002, 40003, 40004, 71023, 71025, 71027, 51006, 51003, 51005, 51008, 51004, 71043, 71044]
+  managed_lights: [71003, 71004, 71005, 71006, 71007, 71008, 71001, 71002, 71014, 71012, 71017, 71021, 40001, 40002, 40003, 71023, 71025, 71027, 51006, 51003, 51005, 51008, 51004, 71043, 71044]
   default_auto_off_minutes: 300
   # Specific delay overrides in minutes
   auto_off_delays:
@@ -215,7 +218,7 @@ automations:
         state: "ON"
       - idx: 72006 # kerstverl tuin achter
         state: "ON"
-      - idx: 40004 # kerstverl voortuin (Assuming duplicate IDX is intentional RFX bridging)
+      - idx: 40005 # kerstverl voortuin
         state: "ON"
 
   - name: "Tuinlichten & kerststuff uit 's avonds"
@@ -228,7 +231,7 @@ automations:
         state: "OFF"
       - idx: 72006 # kerstverl tuin achter
         state: "OFF"
-      - idx: 40004 # kerstverl voortuin
+      - idx: 40005 # kerstverl voortuin
         state: "OFF"
 
   - name: "Kerstverlichting voor & achter aan 's morgens"
@@ -237,7 +240,7 @@ automations:
     actions:
       - idx: 72006 # kerstverl tuin achter
         state: "ON"
-      - idx: 40004 # kerstverl voortuin
+      - idx: 40005 # kerstverl voortuin
         state: "ON"
 
   - name: "Kerstverlichting voor & achter uit 's morgens"
@@ -246,7 +249,7 @@ automations:
     actions:
       - idx: 72006 # kerstverl tuin achter
         state: "OFF"
-      - idx: 40004 # kerstverl voortuin
+      - idx: 40005 # kerstverl voortuin
         state: "OFF"
 
   - name: "Tuinlichten Evening ON"
@@ -605,11 +608,11 @@ automations:
   # 🛁 BATHROOM 2 (2e) LIGHTING & HUE SYNC
   # --------------------------------------------------------------------------
 
-  # 170   # groot buiten
-  # 1625  # groot binnen (unused)
+  # 71009   # groot buiten
+  # 71022  # groot binnen (unused)
   # 51007 # Hue
-  # 171   # wastafel
-  # 1622  # ventilator
+  # 71010   # wastafel
+  # 71021  # ventilator
 
   # --- Wastafel (Sink) Logic: Split into Day/Night context ---
   - name: "Badk 2e: Wastafel ON -> Hue White (If already in room)"

@@ -21,7 +21,10 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._sauna_timer_duration_secs = manager._config.sauna.default_timer * 60
     manager._state.sauna.session_end_time = manager._sauna_timer_duration_secs
 
-    return True, {"sauna"}
+    # ⚡ Mirror status to the virtual dashboard sensor
+    manager._state.devices[21001] = "ON"
+
+    return True, {"sauna", "devices"}
 
 
 async def handle_sauna_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
@@ -35,7 +38,10 @@ async def handle_sauna_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.sauna.ventilation_deadline = int(time.time()) + (manager._config.sauna.vent_delay_mins * 60)
     manager._timer_manager.schedule("vent_wait", manager._state.sauna.ventilation_deadline, "VENT_WAIT_EXPIRED")
 
-    return True, {"sauna"}
+    # ⚡ Mirror status to the virtual dashboard sensor
+    manager._state.devices[21001] = "OFF"
+
+    return True, {"sauna", "devices"}
 
 
 async def handle_sauna_timer_adjusted(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
@@ -97,13 +103,21 @@ async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.ir.session_end_time = now + (manager._config.ir.max_time_mins * 60)
 
     manager._timer_manager.schedule("ir_main", manager._state.ir.session_end_time, "IR_TIMER_EXPIRED")
-    return True, {"ir"}
+
+    # ⚡ Mirror status to the virtual dashboard sensor
+    manager._state.devices[21002] = "ON"
+
+    return True, {"ir", "devices"}
 
 
 async def handle_ir_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.ir.active = False
     manager._timer_manager.cancel("ir_main")
-    return True, {"ir"}
+
+    # ⚡ Mirror status to the virtual dashboard sensor
+    manager._state.devices[21002] = "OFF"
+
+    return True, {"ir", "devices"}
 
 
 async def handle_ir_timer_expired(event: Event, manager: Any) -> Tuple[bool, Set[str]]:

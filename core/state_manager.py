@@ -129,6 +129,15 @@ class StateManager:
             self._state.device_metadata[80001] = {"name": "Epson Projector", "type": "switch", "origin": "epson"}
             self._state.devices[80001] = "OFF"
 
+        # ⚡ Programmatic initialization for virtual read-only status sensors
+        self._state.dashboard_map[21001] = "Sauna status"
+        self._state.device_metadata[21001] = {"name": "Sauna status", "type": "sensor", "origin": "system"}
+        self._state.devices[21001] = "OFF"
+
+        self._state.dashboard_map[21002] = "IR status"
+        self._state.device_metadata[21002] = {"name": "IR status", "type": "sensor", "origin": "system"}
+        self._state.devices[21002] = "OFF"
+
         if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
             self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
 
