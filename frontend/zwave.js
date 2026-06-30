@@ -7,8 +7,33 @@ function zwaveApp() {
         usbPath: "",
         errorMessage: "",
         deviceList: [],
-        visibleDeviceList: [],
         configReloading: false,
+        searchQuery: "",
+        typeFilter: "ALL",
+
+        // ⚡ Reactive filtering pipeline
+        get visibleDeviceList() {
+            const shutterNodes = new Set(this.deviceList.filter(i => i.type === 'shutter').map(i => i.node));
+            const switchNodes = new Set(this.deviceList.filter(i => i.type === 'switch').map(i => i.node));
+
+            return this.deviceList.filter(item => {
+                // Rule 1: Drop dead probes
+                if (item.value === -999.9 || item.value === "-999.9") return false;
+                // Rule 2: Suppress aux endpoints on unmapped shutters
+                if (shutterNodes.has(item.node) && (item.type === 'switch' || item.type === 'power') && !item.is_mapped) return false;
+                // Rule 3: Suppress raw binary endpoints on standard switches
+                if (switchNodes.has(item.node) && item.type === 'motion' && !item.is_mapped) return false;
+
+                // User Filters
+                if (this.typeFilter !== "ALL" && item.type !== this.typeFilter) return false;
+                if (this.searchQuery.trim() !== "") {
+                    const q = this.searchQuery.toLowerCase();
+                    if (!item.name.toLowerCase().includes(q) && !item.path.toLowerCase().includes(q)) return false;
+                }
+
+                return true;
+            });
+        },
 
         init() {
             const token = sessionStorage.getItem("wanos_jwt") || "";
@@ -146,10 +171,10 @@ function zwaveApp() {
                             idx: idx,
                             name: name,
                             comment_str: commentStr,
-                            original_idx: idx
+                            original_idx: idx,
+                            is_hidden: fullState.system.hidden_explorer_idxs.includes(idx)
                         });
-                        listModified = true;
-                    }
+                        listModified = true;                    }
                 }
             }
 
@@ -189,7 +214,8 @@ function zwaveApp() {
                             idx: null,
                             name: "",
                             comment_str: "",
-                            original_idx: null
+                            original_idx: null,
+                            is_hidden: false
                         });
                         listModified = true;
                     }
@@ -251,26 +277,6 @@ function zwaveApp() {
                 if (a.type !== b.type) return a.type.localeCompare(b.type);
                 return a.path.localeCompare(b.path);
             });
-
-            this.applyFilters();
-        },
-
-        applyFilters() {
-            const shutterNodes = new Set(this.deviceList.filter(i => i.type === 'shutter').map(i => i.node));
-            const switchNodes = new Set(this.deviceList.filter(i => i.type === 'switch').map(i => i.node));
-
-            this.visibleDeviceList = this.deviceList.filter(item => {
-                if (item.value === -999.9 || item.value === "-999.9") {
-                    return false;
-                }
-                if (shutterNodes.has(item.node) && (item.type === 'switch' || item.type === 'power') && !item.is_mapped) {
-                    return false;
-                }
-                if (switchNodes.has(item.node) && item.type === 'motion' && !item.is_mapped) {
-                    return false;
-                }
-                return true;
-            });
         },
 
         async requestConfigReload() {
@@ -304,9 +310,14 @@ function zwaveApp() {
         async injectAndDownloadYAML() {
             this.errorMessage = "";
             let finalMap = [];
+            let hiddenNodes = [];
 
             for (const item of this.deviceList) {
                 if (item.selected) {
+                    if (item.is_hidden && item.idx !== null) {
+                        hiddenNodes.push(item.idx);
+                    }
+
                     if (item.name.trim() === "") {
                         this.errorMessage = `Validation Failed: Please provide a name for Node ${item.node} (${item.type})`;
                         return;
@@ -331,8 +342,13 @@ function zwaveApp() {
             yamlLines.push(`  # The physical hardware path used by WanOS to verify the stick is plugged in`);
             yamlLines.push(`  usb_path: "${this.usbPath}"`);
             yamlLines.push(``);
-            yamlLines.push(`  device_map:`);
 
+            if (hiddenNodes.length > 0) {
+                yamlLines.push(`  hidden_nodes: [${hiddenNodes.join(', ')}]`);
+                yamlLines.push(``);
+            }
+
+            yamlLines.push(`  device_map:`);
             yamlLines.push(`    # 71000: licht`);
             yamlLines.push(`    # 72000: switch`);
             yamlLines.push(`    # 73000: shutter`);

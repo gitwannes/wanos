@@ -173,6 +173,7 @@ class ZwaveConfig(BaseModel):
     usb_path: str
     mqtt_prefix: str = "zwave"  # ⚡ Global prefix for dynamic MQTT routing
     device_map: Dict[int, str] = Field(default_factory=dict)
+    hidden_nodes: List[int] = Field(default_factory=list)  # ⚡ Admin-only UI exclusions specifically for Z-Wave
 
 
 class AuthConfig(BaseModel):

@@ -90,6 +90,11 @@
                     <option value="NAME">Sort by Name</option>
                     <option value="STATUS">Sort by Status</option>
                 </select>
+
+                <div class="form-control col-span-2 md:col-auto flex flex-row items-center justify-center md:justify-end gap-2 px-2" x-show="isAdmin" x-cloak>
+                    <span class="text-[10px] font-bold text-base-content/70 uppercase">Hidden</span>
+                    <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenNodes" />
+                </div>
             </div>
         </div>
 

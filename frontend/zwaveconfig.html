@@ -40,6 +40,25 @@
             <span x-text="errorMessage"></span>
         </div>
 
+        <div class="bg-base-100 shadow-xl border border-base-200 rounded-box p-3">
+            <div class="flex flex-col md:flex-row gap-3 items-center w-full">
+                <div class="form-control flex-1 w-full">
+                    <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 focus-within:outline-none focus-within:border-primary w-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
+                        <input type="text" class="grow font-mono text-xs w-full" placeholder="Search nodes or paths..." x-model="searchQuery" />
+                    </label>
+                </div>
+                <select class="select select-bordered select-sm w-full md:w-auto font-mono text-xs bg-base-200" x-model="typeFilter">
+                    <option value="ALL">All Types</option>
+                    <option value="switch">Switch</option>
+                    <option value="shutter">Shutter</option>
+                    <option value="power">Power</option>
+                    <option value="motion">Motion</option>
+                    <option value="temp&hum">Temp & Hum</option>
+                </select>
+            </div>
+        </div>
+
         <section class="card bg-base-100 shadow-xl border border-base-200">
             <div class="card-body p-4">
                 <div class="overflow-x-auto">
@@ -47,6 +66,7 @@
                         <thead>
                             <tr class="text-base-400 font-mono text-[10px] uppercase tracking-wider">
                                 <th>Add</th>
+                                <th>Hide</th>
                                 <th>Node</th>
                                 <th>Type</th>
                                 <th>MQTT Path</th>
@@ -61,6 +81,9 @@
                                 <tr class="hover:bg-base-200/50 transition-colors" :class="item.selected ? (item.is_mapped ? 'bg-base-200/30' : 'bg-primary/10') : 'opacity-50'">
                                     <td>
                                         <input type="checkbox" class="checkbox checkbox-primary checkbox-sm" x-model="item.selected" @change="recalculateIDXs()">
+                                    </td>
+                                    <td>
+                                        <input type="checkbox" class="checkbox checkbox-error checkbox-xs" title="Hide from Dashboard" x-model="item.is_hidden" :disabled="!item.selected">
                                     </td>
                                     <td class="font-bold text-base-content/70" x-text="item.node"></td>
 

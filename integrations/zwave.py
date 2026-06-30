@@ -376,6 +376,12 @@ class ZWaveJSUIBridge(WanosComponent):
                 # Extract currently loaded baseline exclusions to seamlessly merge tracking lists
                 hidden_list: list[int] = list(self.state_manager._state.system.hidden_explorer_idxs)
 
+                # ⚡ Merge dedicated Z-Wave hidden nodes into the global UI exclusion list
+                zwave_hidden_nodes = getattr(zwave_conf, "hidden_nodes", [])
+                for h_idx in zwave_hidden_nodes:
+                    if h_idx not in hidden_list:
+                        hidden_list.append(h_idx)
+
                 self.idx_to_name.clear()
                 self.name_to_idx.clear()
 

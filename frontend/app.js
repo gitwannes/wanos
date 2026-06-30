@@ -3,6 +3,8 @@
 function wanosApp() {
     return {
         connected: false,
+        isAdmin: false,
+        showHiddenNodes: false,
 
         state: {
             system: {
@@ -285,10 +287,15 @@ function wanosApp() {
 
                 const idx = parseInt(idxStr, 10);
 
-                // ⚡ CONFIG EXCLUSION GUARD
-                // Automatically drop devices explicitly blacklisted in config.yaml
-                if (this.state.system.hidden_explorer_idxs.includes(idx))
-                    continue;
+                // ⚡ CONFIG EXCLUSION GUARD (Admin Exclusive View Logic)
+                const isHiddenDevice = this.state.system.hidden_explorer_idxs.includes(idx);
+                if (this.showHiddenNodes) {
+                    // Exclusive View: ONLY show hidden devices
+                    if (!isHiddenDevice) continue;
+                } else {
+                    // Normal View: Drop hidden devices
+                    if (isHiddenDevice) continue;
+                }
 
                 const rawValue = this.state.devices[idx];
                 let isOn = false;
@@ -488,6 +495,18 @@ function wanosApp() {
 
         init() {
             console.log("🚀 WanOS Web Controller initializing...");
+
+            // ⚡ Admin Gatekeeper: Decode JWT locally to enable secure Admin UI capabilities
+            const token = sessionStorage.getItem("wanos_jwt") || "";
+            if (token) {
+                try {
+                    const payloadStr = atob(token.split('.')[1]);
+                    const payload = JSON.parse(payloadStr);
+                    if (payload.role === "admin") {
+                        this.isAdmin = true;
+                    }
+                } catch (err) {}
+            }
 
             // ⚡ URL Query Parameters Parser
             // Automatically extracts and seeds filters on page boot, stripping literal quotes if passed
