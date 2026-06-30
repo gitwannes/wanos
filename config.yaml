@@ -108,7 +108,7 @@ dashboard:
 
 # ⚡ Devices explicitly hidden from the Device Explorer UI
 deviceexplorer_exclude:
-  - 72001     # PC itself # 8
+  - 72001 # PC itself # 8
   - 8567  # Wisc safety SSR
   - 7550  # Sauna
   - 7551  # IR
@@ -121,7 +121,6 @@ deviceexplorer_exclude:
   - 9627  # kerst achter
   - 40004 # kerstboom
   - 8577  # sauna extr vent
-  - 106   # garage motion
 
 
 # ==============================================================================

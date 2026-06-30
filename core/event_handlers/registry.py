@@ -26,7 +26,8 @@ from .sauna_handlers import (
 )
 from .system_handlers import (
     handle_system_ready, handle_alert_dismissed, handle_alert_clear_non_critical,
-    handle_alert_injected, handle_config_reload_requested, handle_system_sweep_requested
+    handle_alert_injected, handle_config_reload_requested, handle_system_sweep_requested,
+    handle_zwave_discovery
 )
 
 # Registry dictionary mapping event string identifiers to their asynchronous handler functions.
@@ -83,5 +84,6 @@ EVENT_ROUTERS = {
     "ALERT_CLEAR_NON_CRITICAL": handle_alert_clear_non_critical,
     "ALERT_INJECTED": handle_alert_injected,
     "CONFIG_RELOAD_REQUESTED": handle_config_reload_requested,
-    "SYSTEM_SWEEP_REQUESTED": handle_system_sweep_requested
+    "SYSTEM_SWEEP_REQUESTED": handle_system_sweep_requested,
+    "ZWAVE_DISCOVERY": handle_zwave_discovery
 }

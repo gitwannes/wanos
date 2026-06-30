@@ -401,25 +401,34 @@ async def logout():
     return JSONResponse(content={"status": "Logged out"})
 
 
-class DummyTempRequest(BaseModel):
-    temp: float
-
-
 class GenericEventRequest(BaseModel):
     type: Union[EventType, str]
     payload: dict[str, Any] = {}
 
 
+class ZwaveConfigRequest(BaseModel):
+    yaml_content: str
+
+
+@app.post("/api/config/zwave")
+async def update_zwave_config(request: ZwaveConfigRequest, req: Request):
+    """Directly injects the YAML payload from the UI into the local server file."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    try:
+        file_path = os.path.join(os.path.dirname(__file__), "config_zwave.yaml")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(request.yaml_content)
+        return {"status": "Success", "message": "Z-Wave configuration written to disk."}
+    except Exception as e:
+        logger.error(f"Failed to write Z-Wave config from UI: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to save configuration file on server."})
+
+
 @app.get("/api/state")
 async def get_state() -> dict[str, Any]:
     return state_manager.get_state_snapshot().model_dump()
-
-
-@app.post("/api/test/temp")
-async def inject_dummy_temp(request: DummyTempRequest) -> dict[str, Union[str, Event]]:
-    event: Event = Event(type=EventType.TEMP_UPDATED, payload={"value": request.temp})
-    state_manager.dispatch(event)
-    return {"status": "Event dispatched to queue", "event": event}
 
 
 @app.post("/api/event")

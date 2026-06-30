@@ -20,6 +20,7 @@ class ZWaveJSUIBridge(WanosComponent):
         self.is_mqtt_engine_alive: bool = False
         self._is_mapped: bool = False
         self._was_hardware_connected: bool = False
+        self._last_config_id: int = 0
 
     @property
     def mqtt_prefix(self) -> str:
@@ -103,25 +104,58 @@ class ZWaveJSUIBridge(WanosComponent):
                             ))
                 return
 
-            # 3. Intent vs State: Only process true hardware physical states
-            if not (mapped_path.endswith("/currentValue") or mapped_path.endswith("/value")):
+            # 3. Intent vs State: Ensure the payload contains a valid state object
+            raw_val = data.get("value")
+            if raw_val is None:
                 return
 
-            # Strip the suffix to match our YAML base dictionary (e.g., nodeID_31/37/1)
-            base_path = mapped_path.rsplit('/', 1)[0]
+            # Normalize path tracking strings to securely strip leaf node identifiers
+            if mapped_path.endswith("/currentValue"):
+                base_path = mapped_path[:-13]
+            elif mapped_path.endswith("/value"):
+                base_path = mapped_path[:-6]
+            else:
+                base_path = mapped_path
+
+            # Isolate network routing arrays
+            parts = base_path.split('/')
+            if len(parts) < 2:
+                return
+            node_name = parts[0]
+            command_class = parts[1]
+
+            # Suppress high-volume kWh history counters and accumulator resets from CC 50
+            if command_class == "50" and ("65537" in base_path or "66049" in base_path or "reset" in base_path):
+                return
 
             target_idx = self.name_to_idx.get(base_path)
+
             if not target_idx:
+                # ⚡ INBOX INTERCEPTOR ⚡
+                # Filter out Node 1 (Controller) and metadata/object configuration noise completely
+                if node_name == "1" or "duration" in mapped_path or "targetValue" in mapped_path:
+                    return
+
+                # Forward unmapped actionable classes (Switches, Shutters, Motion, Multilevel Sensors, Meters)
+                if command_class in ["25", "37", "38", "48", "49", "50"]:
+                    # Clean up the display value if it arrives encapsulated inside a dictionary object
+                    display_val = raw_val.get("value") if isinstance(raw_val, dict) else raw_val
+
+                    self.state_manager.dispatch(Event(
+                        type=EventType.ZWAVE_DISCOVERY,
+                        payload={
+                            "path": base_path,
+                            "node": node_name,
+                            "command_class": command_class,
+                            "value": display_val
+                        }
+                    ))
                 return
 
             # Safely extract routing info for logging and logic
-            node_name = base_path.split('/')[0]  # e.g. "31"
-            command_class = base_path.split('/')[1]  # "37", "38", or "50"
-
             # Fetch the custom name we pre-seeded, or fallback
             custom_name = self.state_manager._state.dashboard_map.get(target_idx, f"Z-Wave Node {node_name}")
 
-            raw_val = data.get("value")
             if raw_val is None:
                 return
 
@@ -169,7 +203,7 @@ class ZWaveJSUIBridge(WanosComponent):
                     }
                 ))
 
-            # CC 50: Power Meters
+            # CC 50: Power Meters (Fallback accumulated counters or legacy wattage paths)
             elif command_class == "50":
                 try:
                     wattage = float(raw_val)
@@ -183,6 +217,124 @@ class ZWaveJSUIBridge(WanosComponent):
                             "name": custom_name
                         }
                     ))
+                    # ⚡ DUAL-DISPATCH: Push formatted string directly to the Device Explorer UI
+                    self.state_manager.dispatch(Event(
+                        type=EventType.HUB_STATE_CHANGED,
+                        payload={
+                            "idx": target_idx,
+                            "state": f"{wattage} W",
+                            "name": custom_name,
+                            "device_type": "power",
+                            "origin": "zwave",
+                            "is_initialization": False
+                        }
+                    ))
+                except (ValueError, TypeError):
+                    pass
+
+            # CC 48: Binary Sensors (Physical Motion Transceivers / Tamper Flags)
+            elif command_class == "48":
+                state_str = "ON" if raw_val in [True, 1, "ON", "true", "Motion"] else "OFF"
+                if self._last_known_states.get(target_idx) == state_str:
+                    return
+                self._last_known_states[target_idx] = state_str
+
+                self.state_manager.dispatch(Event(
+                    type=EventType.HUB_STATE_CHANGED,
+                    payload={
+                        "idx": target_idx,
+                        "state": state_str,
+                        "name": custom_name,
+                        "device_type": "sensor",
+                        "origin": "zwave",
+                        "is_initialization": False
+                    }
+                ))
+
+            # CC 49: Multilevel Sensors (Live Wattage Power, Air Temperature, Illuminance Lux)
+            elif command_class == "49":
+                try:
+                    val_float = float(raw_val)
+                    lower_path = base_path.lower()
+
+                    if "power" in lower_path:
+                        self.state_manager.dispatch(Event(
+                            type=EventType.POWER_UPDATED,
+                            payload={
+                                "idx": target_idx,
+                                "value": val_float,
+                                "device_type": "power",
+                                "origin": "zwave",
+                                "name": custom_name
+                            }
+                        ))
+                        # ⚡ DUAL-DISPATCH: Push formatted string directly to the Device Explorer UI
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUB_STATE_CHANGED,
+                            payload={
+                                "idx": target_idx,
+                                "state": f"{val_float} W",
+                                "name": custom_name,
+                                "device_type": "power",
+                                "origin": "zwave",
+                                "is_initialization": False
+                            }
+                        ))
+                    elif "temp" in lower_path or "air" in lower_path:
+                        self.state_manager.dispatch(Event(
+                            type=EventType.TEMP_UPDATED,
+                            payload={
+                                "idx": target_idx,
+                                "value": val_float,
+                                "name": custom_name
+                            }
+                        ))
+                        # ⚡ DUAL-DISPATCH: Push formatted string directly to the Device Explorer UI
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUB_STATE_CHANGED,
+                            payload={
+                                "idx": target_idx,
+                                "state": f"{val_float} °C",
+                                "name": custom_name,
+                                "device_type": "sensor",
+                                "origin": "zwave",
+                                "is_initialization": False
+                            }
+                        ))
+                    elif "humid" in lower_path:
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUMIDITY_UPDATED,
+                            payload={
+                                "idx": target_idx,
+                                "value": int(val_float),
+                                "name": custom_name
+                            }
+                        ))
+                        # ⚡ DUAL-DISPATCH: Push formatted string directly to the Device Explorer UI
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUB_STATE_CHANGED,
+                            payload={
+                                "idx": target_idx,
+                                "state": f"{int(val_float)} %",
+                                "name": custom_name,
+                                "device_type": "sensor",
+                                "origin": "zwave",
+                                "is_initialization": False
+                            }
+                        ))
+                    elif "illuminance" in lower_path:
+                        # ⚡ DUAL-DISPATCH: Push formatted string directly to the Device Explorer UI
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUB_STATE_CHANGED,
+                            payload={
+                                "idx": target_idx,
+                                "state": f"{int(val_float)} Lux",
+                                "name": custom_name,
+                                "device_type": "sensor",
+                                "origin": "zwave",
+                                "is_initialization": False
+                            }
+                        ))
                 except (ValueError, TypeError):
                     pass
 
@@ -200,15 +352,43 @@ class ZWaveJSUIBridge(WanosComponent):
             self._was_hardware_connected = False
             await self.logger.error("🔴 [Z-Wave] Physical USB stick unplugged.")
 
+        current_config_id = id(self.state_manager._config)
+
+        # --- HOT-RELOAD DETECTOR ---
+        # Python magic methods (__setattr__) cannot be overridden on instances safely.
+        # We instead watch the memory address of the core config object to detect live reloads.
+        if self._is_mapped and self._last_config_id != 0 and self._last_config_id != current_config_id:
+            self._last_config_id = current_config_id
+            self._is_mapped = False  # Force the hardware mapper to rebuild the memory matrices immediately!
+            await self.logger.info("🔄 [Z-Wave] Core config reload detected. Rebuilding endpoint translations...")
+
         # --- LAZY BOOT & HARDWARE MAPPING ---
         # Only wake up and map nodes if Tier 1 (USB) and Tier 2 (MQTT LWT) are both verified
         if state.system.zwave_hardware_connected and self.is_mqtt_engine_alive and not self._is_mapped:
+            self._last_config_id = current_config_id
             zwave_conf = getattr(self.state_manager._config, "zwave", None)
+
             if zwave_conf and zwave_conf.device_map:
+                # Expose raw configuration mapping to the frontend's PERMANENT memory
+                self.state_manager._state.system.zwave_mapped = zwave_conf.device_map
+                self.state_manager._state.system.zwave_usb_path = getattr(zwave_conf, "usb_path", "")
+
+                # Extract currently loaded baseline exclusions to seamlessly merge tracking lists
+                hidden_list: list[int] = list(self.state_manager._state.system.hidden_explorer_idxs)
+
+                self.idx_to_name.clear()
+                self.name_to_idx.clear()
+
                 for idx, mapping_str in zwave_conf.device_map.items():
+                    # Automatically append motion sensor block keys to the hidden collection
+                    if 75000 <= idx < 76000 and idx not in hidden_list:
+                        hidden_list.append(idx)
+
                     # Parse the Pipe delimiter
                     if "|" in mapping_str:
-                        clean_path, custom_name = [s.strip() for s in mapping_str.split("|", 1)]
+                        parts = [s.strip() for s in mapping_str.split("|")]
+                        clean_path = parts[0]
+                        custom_name = parts[1] if len(parts) > 1 else f"Z-Wave Node {clean_path.split('/')[0]}"
                     else:
                         clean_path = mapping_str.strip()
                         custom_name = f"Z-Wave Node {clean_path.split('/')[0]}"
@@ -218,6 +398,23 @@ class ZWaveJSUIBridge(WanosComponent):
 
                     # Pre-seed the dashboard map so the UI knows the name before the first click!
                     self.state_manager._state.dashboard_map[idx] = custom_name
+
+                    # STATE SEEDING: Force the frontend to draw newly mapped devices instantly
+                    if idx not in self.state_manager._state.devices:
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUB_STATE_CHANGED,
+                            payload={
+                                "idx": idx,
+                                "state": "Sync...",
+                                "name": custom_name,
+                                "device_type": "sensor",
+                                "origin": "zwave",
+                                "is_initialization": True
+                            }
+                        ))
+
+                # This assignment perfectly bypasses the system_handlers.py list wipeout race condition
+                self.state_manager._state.system.hidden_explorer_idxs = hidden_list
 
             self._is_mapped = True
             await self.logger.info(

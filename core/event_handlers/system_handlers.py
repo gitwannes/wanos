@@ -134,3 +134,20 @@ async def handle_system_sweep_requested(event: Event, manager: Any) -> Tuple[boo
     changed_domains |= dom
 
     return state_changed, changed_domains
+
+
+async def handle_zwave_discovery(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Places newly discovered Z-Wave endpoints into the Inbox for UI provisioning."""
+    payload = event.payload or {}
+    path = payload.get("path")
+    if not path:
+        return False, set()
+
+    # Use the path as the unique key to deduplicate noise and instantly overwrite old values
+    manager._state.system.zwave_inbox[path] = {
+        "node_name": payload.get("node_name"),
+        "command_class": payload.get("command_class"),
+        "value": payload.get("value"),
+        "last_seen": int(time.time())
+    }
+    return True, {"system"}

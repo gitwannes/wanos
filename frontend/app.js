@@ -299,9 +299,54 @@ function wanosApp() {
                     if (meta.type === 'blinds') {
                         // Shutters: > 0% = ON
                         isOn = parseInt(rawValue, 10) > 0;
-                    } else if (meta.type === 'switch' || meta.type === 'light') {
-                        // ⚡ RICH PAYLOAD SUPPORT: Parse "ON" state whether it's a flat string or a dictionary object
-                        isOn = (typeof rawValue === 'object' && rawValue !== null) ? rawValue.state === 'ON' : rawValue === 'ON';
+                    } else if (meta.type === 'switch' || meta.type === 'light' || meta.type === 'sensor') {
+                        // ⚡ ANALOG vs BINARY DISTINCTION
+                        if (meta.type === 'sensor' && rawValue !== 'ON' && rawValue !== 'OFF' && rawValue !== null) {
+                            isOn = null; // Explicitly mark analog strings (e.g., "55 Lux") as having no binary state
+                        } else {
+                            // ⚡ RICH PAYLOAD SUPPORT: Parse "ON" state whether it's a flat string or a dictionary object
+                            isOn = (typeof rawValue === 'object' && rawValue !== null) ? rawValue.state === 'ON' : rawValue === 'ON';
+                        }
+                    }
+                }
+
+                // ⚡ Format Display Text for Analog Sensors to prevent [object Object] rendering
+                let displayText = rawValue;
+                if (isDead) {
+                    displayText = "DEAD";
+                } else if (rawValue === null) {
+                    displayText = "SYNC...";
+                } else if (typeof rawValue === 'object' && rawValue !== null) {
+                    if (meta.type === 'sensor' || meta.type === 'temp' || meta.type === 'hum' || meta.type === 'temp_hum') {
+                        if (rawValue.temp !== undefined && rawValue.hum !== undefined) {
+                            displayText = `${parseFloat(rawValue.temp).toFixed(1)} °C / ${rawValue.hum} %`;
+                        } else if (rawValue.temp !== undefined) {
+                            displayText = `${parseFloat(rawValue.temp).toFixed(1)} °C`;
+                        } else if (rawValue.hum !== undefined) {
+                            displayText = `${rawValue.hum} %`;
+                        } else if (rawValue.state !== undefined) {
+                            displayText = rawValue.state;
+                        } else {
+                            const keys = Object.keys(rawValue);
+                            if (keys.length > 0 && typeof rawValue[keys[0]] !== 'object') {
+                                let k = keys[0].toLowerCase();
+                                let unit = "";
+                                if (k.includes('temp') || k.includes('air')) unit = '°C';
+                                else if (k.includes('hum')) unit = '%';
+                                else if (k.includes('lux') || k.includes('illuminance')) unit = 'Lux';
+                                else if (k.includes('pow') || k.includes('watt') || k.includes('meter')) unit = 'W';
+                                else if (k.includes('volt')) unit = 'V';
+                                else if (k.includes('amp') || k.includes('current')) unit = 'A';
+
+                                displayText = unit ? `${rawValue[keys[0]]} ${unit}` : `${rawValue[keys[0]]} ${keys[0]}`;
+                            } else {
+                                displayText = JSON.stringify(rawValue);
+                            }
+                        }
+                    } else if (rawValue.state !== undefined) {
+                        displayText = rawValue.state;
+                    } else {
+                        displayText = JSON.stringify(rawValue);
                     }
                 }
 
@@ -310,6 +355,7 @@ function wanosApp() {
                     name: meta.name,
                     type: meta.type,
                     raw_value: rawValue,
+                    display_text: displayText,
                     is_on: isOn,
                     is_hue: meta.origin === 'hue',
                     is_dead: isDead
@@ -347,7 +393,7 @@ function wanosApp() {
                     if (this.typeFilter === "HUE") return item.is_hue;
                     if (this.typeFilter === "SCENE") return item.type === 'scene';
                     if (this.typeFilter === "BLINDS") return item.type === 'blinds';
-                    if (this.typeFilter === "SENSOR") return item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power';
+                    if (this.typeFilter === "SENSOR") return item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'sensor';
                     return true;
                 });
             }
@@ -355,11 +401,18 @@ function wanosApp() {
             // 5. Apply Status Filter (Hide sensors & scenes if ON/OFF is requested)
             if (this.statusFilter !== "ALL") {
                 list = list.filter(item => {
+                    // Instantly drop legacy analog sensors and scenes
                     if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'scene') {
-                        return false; // Safely drop elements that lack binary state
+                        return false;
                     }
-                    if (this.statusFilter === "ON") return item.is_on;
-                    if (this.statusFilter === "OFF") return !item.is_on;
+
+                    // ⚡ Analog String Filter: Safely drop environmental strings (like Lux/Temp) when filtering by binary states
+                    if (item.is_on === null) {
+                        return false;
+                    }
+
+                    if (this.statusFilter === "ON") return item.is_on === true;
+                    if (this.statusFilter === "OFF") return item.is_on === false;
                     return true;
                 });
             }

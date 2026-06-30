@@ -63,6 +63,7 @@ class EventType(str, Enum):
 
     SYSTEM_SWEEP_REQUESTED = "SYSTEM_SWEEP_REQUESTED"  # Manual Time & Environment Audit
     CONFIG_RELOAD_REQUESTED = "CONFIG_RELOAD_REQUESTED"  # Hot-reload config.yaml configuration
+    ZWAVE_DISCOVERY = "ZWAVE_DISCOVERY"  # Catch unmapped Z-Wave nodes
 
     # External Events
     HUB_STATE_CHANGED = "HUB_STATE_CHANGED"
@@ -109,6 +110,9 @@ class SystemAdminState(BaseModel):
     available_scenes: list[dict[str, str]] = Field(default_factory=list)  # Extracted stateless triggers for UI
     hidden_explorer_idxs: list[int] = Field(default_factory=list)  # Devices explicitly hidden from Device Explorer
     hue_presets: dict[str, Any] = Field(default_factory=dict)  # UI Button Configurations pushed from YAML
+    zwave_mapped: dict[int, str] = Field(default_factory=dict)  # ⚡ Existing config passed to UI to prevent overwrites
+    zwave_inbox: dict[str, dict[str, Any]] = Field(default_factory=dict)  # ⚡ Transient inbox for unmapped devices
+    zwave_usb_path: str = ""  # ⚡ Passed to UI for YAML generation
 
 
 class Event(BaseModel):

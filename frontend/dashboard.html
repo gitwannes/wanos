@@ -186,6 +186,14 @@
                                 </div>
                             </template>
 
+                            <template x-if="item.type === 'sensor'">
+                                <div class="flex items-center justify-end shrink-0">
+                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                          :class="item.is_dead ? 'text-error' : (item.is_on === true ? 'text-error animate-pulse' : (item.is_on === false ? 'text-base-500' : 'text-success'))"
+                                          x-text="item.display_text"></span>
+                                </div>
+                            </template>
+
                             <template x-if="item.type === 'scene'">
                                 <div class="flex justify-end shrink-0">
                                     <button class="btn btn-outline btn-accent btn-xs md:btn-sm font-mono tracking-widest text-[9px] md:text-xs px-3 md:px-6 shadow-sm"

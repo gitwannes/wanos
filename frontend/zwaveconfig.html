@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z-Wave Configuration Editor</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-base-300 min-h-screen text-base-content p-6" x-data="zwaveApp()">
+
+    <div x-show="!connected" x-cloak
+         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
+         <span class="loading loading-infinity w-16 text-error mb-4"></span>
+        <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
+        <p class="text-error mt-2 font-mono text-sm">Establishing connection stream to WanOS backend...</p>
+    </div>
+
+    <header class="mb-8 flex justify-between items-center max-w-7xl mx-auto">
+        <div>
+            <h1 class="text-2xl font-black text-primary uppercase tracking-widest">⚡ Z-Wave Provisioning</h1>
+            <p class="text-xs text-base-content/50 font-mono mt-1">Unified Endpoint Editor</p>
+        </div>
+        <div class="flex gap-4 items-center">
+            <span class="badge font-bold mr-2" :class="connected ? 'badge-success' : 'badge-error'" x-text="connected ? 'SSE CONNECTED' : 'OFFLINE'"></span>
+
+            <button class="btn btn-outline btn-warning btn-sm font-bold tracking-widest shadow-sm shrink-0" @click="requestConfigReload()" :disabled="configReloading">
+                <span x-show="!configReloading">RELOAD CONFIG</span>
+                <span x-show="configReloading" class="loading loading-spinner loading-xs"></span>
+            </button>
+            <button @click="injectAndDownloadYAML()" class="btn btn-primary btn-sm font-bold uppercase tracking-wider shadow-lg">Inject Config & Download</button>
+        </div>
+    </header>
+
+    <main class="flex flex-col gap-6 max-w-7xl mx-auto">
+
+        <div x-show="errorMessage" x-transition class="alert alert-error font-bold font-mono text-sm shadow-md border-red-500 py-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span x-text="errorMessage"></span>
+        </div>
+
+        <section class="card bg-base-100 shadow-xl border border-base-200">
+            <div class="card-body p-4">
+                <div class="overflow-x-auto">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr class="text-base-400 font-mono text-[10px] uppercase tracking-wider">
+                                <th>Add</th>
+                                <th>Node</th>
+                                <th>Type</th>
+                                <th>MQTT Path</th>
+                                <th>Latest Value</th>
+                                <th>IDX</th>
+                                <th>Name</th>
+                                <th>Comment</th>
+                            </tr>
+                        </thead>
+                        <tbody class="font-mono text-xs">
+                            <template x-for="item in visibleDeviceList" :key="item.path">
+                                <tr class="hover:bg-base-200/50 transition-colors" :class="item.selected ? (item.is_mapped ? 'bg-base-200/30' : 'bg-primary/10') : 'opacity-50'">
+                                    <td>
+                                        <input type="checkbox" class="checkbox checkbox-primary checkbox-sm" x-model="item.selected" @change="recalculateIDXs()">
+                                    </td>
+                                    <td class="font-bold text-base-content/70" x-text="item.node"></td>
+
+                                    <td class="uppercase text-[10px] font-bold tracking-wider"
+                                        :class="item.type === 'power' ? 'text-warning' : (item.type === 'shutter' ? 'text-info' : (item.type === 'motion' ? 'text-error' : (item.type === 'temp&hum' ? 'text-success' : 'text-accent')))"
+                                        x-text="item.type"></td>
+
+                                    <td x-text="item.path" :class="item.selected ? 'text-primary font-bold' : ''"></td>
+
+                                    <td class="text-warning font-bold" x-text="item.value"></td>
+
+                                    <td class="font-bold text-accent">
+                                        <span x-show="item.selected" x-text="item.idx"></span>
+                                        <span x-show="!item.selected" class="text-base-content/30">--</span>
+                                    </td>
+
+                                    <td>
+                                        <input type="text" class="input input-bordered input-xs w-48 bg-base-200 font-mono" placeholder="Required..." x-model="item.name" :disabled="!item.selected" :class="(item.selected && item.name.trim() === '') ? 'border-error' : ''">
+                                    </td>
+
+                                    <td>
+                                        <input type="text" class="input input-bordered input-xs w-20 bg-base-200 font-mono" placeholder="..." x-model="item.comment_str" :disabled="!item.selected">
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="visibleDeviceList.length === 0">
+                                <td colspan="8" class="text-center text-base-content/50 py-8 italic">
+                                    <span class="loading loading-dots loading-sm block mx-auto mb-2 text-primary"></span>
+                                    Synchronizing configuration matrices and listening for network telemetry updates...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="zwave.js?v=1.0"></script>
+
+</body>
+</html>
