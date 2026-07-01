@@ -37,6 +37,41 @@ pyserial-asyncio==0.6
 # Cryptographic Authentication
 PyJWT==2.8.0
 
-# GPIO Hardware - intentionally deferred for now
+# I2C devices (LCD screens)
 # smbus2==0.4.3
-# lgpio==0.2.2.0
+
+# SHT11 sensors
+RPi.GPIO==0.7.1  # pi-sht1x needs this
+pi-sht1x==1.0.10
+
+## GPIO Hardware dependencies
+# On Bullseye, compile this from source before installing requirements:
+# wget https://github.com/joan2937/lg/archive/master.zip
+# unzip master.zip
+# cd lg-master
+# make
+# sudo make install
+# rgpiod -v  # to check C-library version
+# sudo rm -rf lg-master master.zip
+# sudo apt install swig python3-dev -y  # install dependencies
+
+# ⚡ Force PIP to compile lgpio from source to match the local Bullseye GLIBC version
+--no-binary lgpio
+lgpio==0.2.2.0
+
+# =====================================================================
+# ⚠️ FUTURE OS UPGRADE NOTE (Debian 12 Bookworm)
+# =====================================================================
+# If you ever upgrade the Raspberry Pi OS to Debian 12 (Bookworm), 
+# RPi.GPIO will break due to the new gpiod kernel restrictions.
+# rpi-lgpio completely replaces it to bypass the Bookworm kernel block, it translates RPi.GPIO calls to modern lgpio
+# When that happens:
+# 1. Run: sudo apt install python3-lgpio
+#    (OS-level: this provides the underlying C-library liblgpio that the Python wrapper needs to function)
+# 2. Delete RPi.GPIO from this file.
+# 3. Add this line instead:
+#    rpi-lgpio==0.4
+# =====================================================================
+
+
+

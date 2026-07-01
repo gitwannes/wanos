@@ -15,12 +15,6 @@ from core.event_handlers.registry import EVENT_ROUTERS
 from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
 
-try:
-    import lgpio
-    LGPIO_AVAILABLE = True
-except ImportError:
-    LGPIO_AVAILABLE = False
-
 
 class StateManager:
     @staticmethod
@@ -184,14 +178,6 @@ class StateManager:
         self._sauna_timer_triggered = False
         self._sauna_timer_duration_secs = 0
 
-        self._gpio_chip = None
-        if LGPIO_AVAILABLE:
-            try:
-                self._gpio_chip = lgpio.gpiochip_open(0)
-                lgpio.gpio_claim_output(self._gpio_chip, self._config.pins.safety_gpio)
-            except Exception as e:
-                logger.error(f"Hardware Init Error: Safety Pin unavailable - {e}")
-
         self.sauna_logic = SaunaController(
             initial_target_temp=self._state.sauna.target_temp,
             kp=self._config.sauna.kp,
@@ -215,8 +201,6 @@ class StateManager:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
-        if self._gpio_chip and LGPIO_AVAILABLE:
-            lgpio.gpiochip_close(self._gpio_chip)
 
         await self.logger.warning("State Manager worker stopped.")
 
@@ -239,12 +223,6 @@ class StateManager:
 
     def _set_hardware_safety_gate(self, state: bool) -> None:
         self._state.hardware.safety_pin_active = state
-        if self._gpio_chip and LGPIO_AVAILABLE:
-            try:
-                val = 1 if state else 0
-                lgpio.gpio_write(self._gpio_chip, self._config.pins.safety_gpio, val)
-            except Exception as e:
-                logger.error(f"Safety Relay Error: Write failed - {e}")
 
     async def _process_events(self) -> None:
         pending_broadcast = False
@@ -322,13 +300,15 @@ class StateManager:
         is_simulation_action = payload.get("from_simulator", False)
         is_user_command = event_name in [
             "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "SAUNA_MODULATION_UPDATED",
-            "SAUNA_HOLD", "SAUNA_HOLD_TOGGLED", "SAUNA_TIMER_ADJUSTED", "IR_ON", "IR_OFF", "IR_MODULATION_UPDATED"
+            "SAUNA_HOLD", "SAUNA_HOLD_TOGGLED", "SAUNA_TIMER_ADJUSTED", "IR_ON", "IR_OFF",
+            "IR_MODULATION_UPDATED"
         ]
 
         if event_name == "SYSTEM_READY":
             logger.info("Internal Engine State validated and locked.")
             logger.info(f"Internal Event Processed: {event_name}")
-        elif (is_user_command or is_manual_lab_action) and not is_simulation_action and not is_boot_baseline_seed:
+        elif (
+                is_user_command or is_manual_lab_action) and not is_simulation_action and not is_boot_baseline_seed:
             logger.info(f"Lab Action Received: {event_name} | Payload: {payload}")
             await self.logger.info(f"User Action Processed: {event_name}")
         elif event_name != "SYSTEM_METRICS_UPDATED":
@@ -343,13 +323,31 @@ class StateManager:
                 # TELEMETRY ROUTING GATEWAY: Move Power, lux, hum en temperature from INFO to DEBUG
                 is_telemetry = (
                         event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED"] or
-                        (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power", "sensor"])
+                        (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power",
+                                                                                              "sensor"])
                 )
 
                 if is_telemetry:
                     logger.debug(f"Event Received [{event_name}]: {payload}")
                 else:
                     logger.info(f"Event Received [{event_name}]: {payload}")
+
+        # ⚡ EMERGENCY START GATE INTERCEPTOR (Prevention)
+        # Validates physical requirements BEFORE routing the command to the logic handlers
+        if event_name == "SAUNA_ON":
+            reasons = []
+            if self._state.sensors.sauna_calc_temp is None:
+                reasons.append("Telemetry offline")
+            if not self._state.hardware.gpio_output_enabled:
+                reasons.append("Outputs disarmed")
+            if self._state.devices.get(10001) == "OPEN":
+                reasons.append("Door open")
+
+            if reasons:
+                await self.logger.warning(f"SAUNA_ON explicitly blocked by Start Gate: {', '.join(reasons)}")
+                self.dispatch(Event(type=EventType.ALERT_INJECTED,
+                                    payload={"msg_text": f"⚠️ Sauna start blocked: {', '.join(reasons)}"}))
+                return state_changed, changed_domains
 
         # ⚡ ROUTE TO STRATEGY PATTERN HANDLER
         handler = EVENT_ROUTERS.get(event_name)
@@ -380,7 +378,7 @@ class StateManager:
         if event_name == "POWER_UPDATED":
             is_power_event = True
         elif event_name == "HUB_STATE_CHANGED" and p_idx is not None:
-            # BUGFIX: Z-Wave payloads often omit the type. We must cross-reference our metadata registry!
+            # Cross-reference our metadata registry to catch Z-Wave power payloads lacking explicit types
             meta_type = payload.get("device_type") or self._state.device_metadata.get(p_idx, {}).get("type")
             if meta_type in ["power", "energy"]:
                 is_power_event = True
@@ -401,21 +399,21 @@ class StateManager:
                 except (ValueError, TypeError):
                     pass
 
-        # ⚡ SAUNA COMPOSITE RECOVERY (Bypass Broken AuxiliaryController)
-        # Because we deleted hardcoded variables from models.py, external controllers crash.
-        # We manually calculate the 70/30 High/Low atmosphere split here based purely on IDXs.
+        # ⚡ SAUNA COMPOSITE RECOVERY & STRICT FAILURE REQUIREMENT
+        # Manually calculates the 70/30 High/Low atmosphere split here based purely on IDXs.
         if event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED"] or (
                 event_name == "HUB_STATE_CHANGED" and p_idx in [20001, 20002]):
             d_high = self._state.devices.get(20001)
             d_low = self._state.devices.get(20002)
-            if isinstance(d_high, dict) and d_high.get("temp") is not None:
+
+            # STRICT REQUIREMENT: BOTH probes must exist and report valid floats
+            if isinstance(d_high, dict) and d_high.get("temp") is not None and isinstance(d_low,
+                                                                                          dict) and d_low.get(
+                    "temp") is not None:
                 try:
                     t_high = float(d_high["temp"])
-                    if isinstance(d_low, dict) and d_low.get("temp") is not None:
-                        t_low = float(d_low["temp"])
-                        self._state.sensors.sauna_calc_temp = round((t_high * 0.7) + (t_low * 0.3), 1)
-                    else:
-                        self._state.sensors.sauna_calc_temp = round(t_high, 1)
+                    t_low = float(d_low["temp"])
+                    self._state.sensors.sauna_calc_temp = round((t_high * 0.7) + (t_low * 0.3), 1)
 
                     if d_high.get("hum") is not None:
                         self._state.sensors.sauna_calc_hum = int(float(d_high["hum"]))
@@ -424,10 +422,28 @@ class StateManager:
                     changed_domains.add("sensors")
                 except (ValueError, TypeError):
                     pass
+            else:
+                # ⚡ FAILSAFE: If EITHER probe drops, composite is instantly voided
+                if self._state.sensors.sauna_calc_temp is not None:
+                    self._state.sensors.sauna_calc_temp = None
+                    self._state.sensors.sauna_calc_hum = None
+                    state_changed = True
+                    changed_domains.add("sensors")
 
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "DOOR_CHANGED"]:
             current_temp = self._state.sensors.sauna_calc_temp
-            if current_temp is not None and self._state.sauna.active:
+
+            # ⚡ EMERGENCY THERMAL KILL SWITCH
+            # Checks every relevant tick. If the engine is currently firing the heaters but we lose telemetry, drop the axe.
+            if self._state.sauna.active and current_temp is None:
+                await self.logger.critical(
+                    "EMERGENCY SHUTDOWN: Temperature telemetry lost during active heating session!")
+                self.dispatch(Event(type=EventType.ALERT_INJECTED,
+                                    payload={"msg_text": "🚨 EMERGENCY SHUTDOWN: Sauna telemetry lost!",
+                                             "level": "critical"}))
+                self.dispatch(Event(type=EventType.SAUNA_OFF, payload={}))
+                # Bypass PID logic for this tick
+            elif current_temp is not None and self._state.sauna.active:
 
                 # ⏱️ CONFIGURABLE TIMER COUNTDOWN EVALUATION GATEWAY
                 offset = getattr(self._config.sauna, "timer_offset_temp", 7.0)

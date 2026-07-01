@@ -1,12 +1,11 @@
 # --- file: hardware/inputs.py ---
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from core.models import Event, EventType
 from core.state_manager import StateManager
 
 try:
     import lgpio
-
     HARDWARE_AVAILABLE = True
 except ImportError:
     HARDWARE_AVAILABLE = False
@@ -22,7 +21,7 @@ class HardwareInputs:
         self.state_manager = state_manager
         self.logger = state_manager.logger
         self.config = state_manager._config
-        self.loop = asyncio.get_event_loop()
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
 
         self.chip = None
         self.callbacks = []
@@ -35,20 +34,51 @@ class HardwareInputs:
             return
 
         try:
-            self.chip = lgpio.gpiochip_open(0)
+            # ⏱️ Active Event Loop Retrieval:
+            # Captures the running event loop instance managed by Uvicorn rather than an import-time loop.
+            self.loop = asyncio.get_running_loop()
+
+            # ⚡ Shared Chip Registry Pattern:
+            # Reuses an existing open chip handle from the state manager context to avoid resource conflicts.
+            # This completely circumvents libgpiod resource locks and eliminates the startup hang.
+            if hasattr(self.state_manager, "_shared_gpio_chip") and getattr(self.state_manager,
+                                                                            "_shared_gpio_chip") is not None:
+                self.chip = getattr(self.state_manager, "_shared_gpio_chip")
+            else:
+                self.chip = lgpio.gpiochip_open(0)
+                setattr(self.state_manager, "_shared_gpio_chip", self.chip)
+
+            # Track active references to the shared chip to prevent premature closure during shutdown
+            if not hasattr(self.state_manager, "_shared_chip_users"):
+                setattr(self.state_manager, "_shared_chip_users", set())
+            getattr(self.state_manager, "_shared_chip_users").add("inputs")
+
+            # Broadcast successful physical hardware connection immediately to satisfy the bouncer!
+            self.state_manager.dispatch(
+                Event(type=EventType.HARDWARE_BUS_HEALTH_UPDATED, payload={"bus": "gpio_input", "connected": True}))
 
             # The event loop listens to the UI toggle to actually arm/disarm the interrupts
             self.state_manager.register_listener(self._on_state_changed)
             await self.logger.success("🟢 Physical Input Layer initialized (Standby).")
 
         except Exception as e:
+            self.state_manager.dispatch(
+                Event(type=EventType.HARDWARE_BUS_HEALTH_UPDATED, payload={"bus": "gpio_input", "connected": False}))
             await self.logger.critical(f"Failed to initialize lgpio inputs: {e}")
 
     async def stop(self):
         """Gracefully releases resources to prevent memory leaks or locked pins on restart."""
         self._disarm_interrupts()
-        if self.chip is not None:
-            lgpio.gpiochip_close(self.chip)
+
+        # ⚡ Reference-Counting Teardown Strategy:
+        # Removes this component from the active user registry. The absolute last hardware component
+        # to stop takes responsibility for closing the shared kernel chip handle, preventing deadlocks.
+        if hasattr(self.state_manager, "_shared_chip_users"):
+            getattr(self.state_manager, "_shared_chip_users").discard("inputs")
+            if not getattr(self.state_manager, "_shared_chip_users"):
+                if self.chip is not None:
+                    lgpio.gpiochip_close(self.chip)
+                    setattr(self.state_manager, "_shared_gpio_chip", None)
 
     def _arm_interrupts(self):
         """Binds the high-speed background C-Thread edge detectors."""
@@ -80,13 +110,7 @@ class HardwareInputs:
 
             self._is_active = True
 
-            # Broadcast successful physical hardware connection!
-            self.state_manager.dispatch(
-                Event(type=EventType.HARDWARE_BUS_HEALTH_UPDATED, payload={"bus": "gpio_input", "connected": True}))
-
         except Exception as e:
-            self.state_manager.dispatch(
-                Event(type=EventType.HARDWARE_BUS_HEALTH_UPDATED, payload={"bus": "gpio_input", "connected": False}))
             asyncio.create_task(self.logger.error(f"Failed to arm GPIO inputs: {e}"))
 
     def _disarm_interrupts(self):

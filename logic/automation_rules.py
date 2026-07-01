@@ -216,7 +216,7 @@ class AutomationEngine:
                             # Coerced to uppercase strings to ensure integers (e.g., 100) and YAML strings (e.g., "100")
                             # or mixed-case status descriptors evaluate flawlessly, preventing duplicate command streams.
                             if str(current_target_state).upper() != str(target_action_state).upper() or is_force:
-                                # ⚡ BUGFIX: Use a distinct variable name to prevent shadowing the original event payload!
+                                # ⚡ Use a distinct variable name to prevent shadowing the original event payload!
                                 action_payload = {"idx": action.idx, "state": target_action_state,
                                                   "force": is_force}
                                 if bri is not None:
@@ -331,7 +331,8 @@ class AutomationEngine:
             if hasattr(config, "bathroom1"):
                 on_threshold: int = config.bathroom1.vent_on_humidity
                 off_threshold: int = config.bathroom1.vent_off_humidity
-                current_hum: Optional[int] = state.sensors.bathroom1_hum
+                d_bath = state.devices.get(20004)
+                current_hum: Optional[int] = d_bath.get("hum") if isinstance(d_bath, dict) else None
 
                 if current_hum is not None:
                     current_vent_state = state.devices.get(71034, "OFF")

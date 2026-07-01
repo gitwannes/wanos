@@ -244,7 +244,7 @@ function wanosApp() {
         // ⚡ Dynamically compiles a list of disabled backend integrations
         get disabledIntegrationsText() {
             let disabled = [];
-            if (!this.state.system.domoticz_integration_enabled) disabled.push("Domoticz");
+            // if (!this.state.system.domoticz_integration_enabled) disabled.push("Domoticz");
             if (!this.state.system.automations_enabled) disabled.push("Automation");
             if (!this.state.system.hue_integration_enabled) disabled.push("Hue");
             if (!this.state.system.epson_integration_enabled) disabled.push("Epson projector");

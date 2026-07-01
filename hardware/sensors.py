@@ -58,6 +58,13 @@ class HardwareSensors:
         last_readings = {}
         MAX_RETRIES = 2
 
+        # Helper method to run the blocking C-library code safely outside the asyncio loop
+        def _read_sensor_sync(d_pin: int, c_pin: int) -> tuple[float, float]:
+            s = SHT11(d_pin, c_pin, gpio_mode=GPIO.BCM, vdd='5V')
+            t = s.read_temperature()
+            h = s.read_humidity(t)
+            return t, h
+
         while True:
             state = self.state_manager.get_state_snapshot()
 
@@ -65,13 +72,12 @@ class HardwareSensors:
 
             for sensor_idx, (pin_d, pin_c, semantic_name, virtual_idx) in SENSOR_MAP.items():
                 try:
-                    # Instantiating the object natively touches the RPi.GPIO pins
-                    sensor = SHT11(pin_d, pin_c, gpio_mode=GPIO.BCM, vdd='5V')
-                    temp = sensor.read_temperature()
-                    humidity = sensor.read_humidity(temp)
+                    # ⚡ Offloaded blocking bit-bang operations to a background thread to prevent freezing the Asyncio Event Loop
+                    temp, humidity = await asyncio.to_thread(_read_sensor_sync, pin_d, pin_c)
 
                     # If we got this far without throwing an exception, the physical bus is alive!
                     any_sensor_replied = True
+                    await self.logger.info(f"SHT11 sensor active: {semantic_name} (idx {virtual_idx}).")
                     error_counters[sensor_idx] = 0
 
                     # ⚡ Only pass the data to the brain if the user armed the SHT11 system in the UI
@@ -88,14 +94,25 @@ class HardwareSensors:
                                                               payload={"idx": virtual_idx, "value": final_hum}))
 
                 except Exception as e:
+                    await self.logger.info(f"🛑 SHT11 sensor DEAD: {semantic_name} (idx {virtual_idx}).")
                     error_counters[sensor_idx] += 1
 
                     if error_counters[sensor_idx] >= MAX_RETRIES:
+                        # ⚡ FAILSAFE POISON PILL: Force the temperature to None so the State Manager instantly kills the sauna!
+                        if last_readings.get(virtual_idx) is not None:
+                            last_readings[virtual_idx] = None
+                            self.state_manager.dispatch(
+                                Event(type=EventType.TEMP_UPDATED, payload={"idx": virtual_idx, "value": None}))
+                            self.state_manager.dispatch(
+                                Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": virtual_idx, "value": None}))
+
                         # Only warn the user if they actually care about the sensors (enabled)
                         if state.hardware.sht11_enabled:
                             self.state_manager.dispatch(
-                                Event(type=EventType.SENSOR_ERROR, payload={"idx": virtual_idx, "error": str(e)}))
+                                Event(type=EventType.SENSOR_ERROR, payload={"idx": virtual_idx,
+                                                                            "error": f"Probe {semantic_name} unreachable: {str(e)}"}))
 
+                    # Yield back to the event loop so the web server can process other requests
                 await asyncio.sleep(0.5)
 
                 # ⚡ Dynamic Health Feedback: Alert the UI immediately if the physical wire gets unplugged

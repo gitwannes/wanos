@@ -1,7 +1,7 @@
 # --- file: hardware/actuators.py ---
 import asyncio
 from typing import List
-from core.models import Event, SystemState
+from core.models import Event, SystemState, EventType
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
@@ -15,7 +15,7 @@ except ImportError:
 
 class HardwareActuators(WanosComponent):
     """
-    Domain C: High-Voltage Outputs (The Muscle)
+    Domain C: GPIO Outputs (The Muscle)
     Pure lgpio output generation. Strictly enforces the Master Safety Contactor logic
     and safely distributes asymmetric PWM targets to U, V, W phases.
     """
@@ -40,7 +40,20 @@ class HardwareActuators(WanosComponent):
             return
 
         try:
-            self.chip = lgpio.gpiochip_open(0)
+            # ⚡ UNIFIED HARDWARE HANDLE REGISTRY PATTERN:
+            # Reuses an existing open chip handle stored on the state manager context if available.
+            # This eliminates libgpiod resource contentions and clears the boot deadlock.
+            if hasattr(self.state_manager, "_shared_gpio_chip") and getattr(self.state_manager,
+                                                                            "_shared_gpio_chip") is not None:
+                self.chip = getattr(self.state_manager, "_shared_gpio_chip")
+            else:
+                self.chip = lgpio.gpiochip_open(0)
+                setattr(self.state_manager, "_shared_gpio_chip", self.chip)
+
+            # Track active references to the shared chip to prevent premature closure during shutdown
+            if not hasattr(self.state_manager, "_shared_chip_users"):
+                setattr(self.state_manager, "_shared_chip_users", set())
+            getattr(self.state_manager, "_shared_chip_users").add("actuators")
 
             # Claim all output pins for exclusive control
             lgpio.gpio_claim_output(self.chip, self.pin_safety)
@@ -59,7 +72,7 @@ class HardwareActuators(WanosComponent):
             # Subscribe to the core WanOS state engine
             self.state_manager.register_listener(self._on_state_changed)
 
-            await self.logger.success("🟢 High-Voltage Physical Output Layer mounted.")
+            await self.logger.success("🟢 GPIO Physical Output Layer mounted.")
 
         except Exception as e:
             self.state_manager.dispatch(
@@ -106,13 +119,21 @@ class HardwareActuators(WanosComponent):
 
     async def stop(self):
         """Clean shutdown sequence with aggressive verification."""
-        await self.logger.warning("Shutting down high-voltage hardware actuators...")
+        await self.logger.warning("Shutting down GPIO hardware actuators...")
         self._force_all_off()
 
         if HARDWARE_AVAILABLE:
             await self._aggressive_failsafe_check()
-            if self.chip is not None:
-                lgpio.gpiochip_close(self.chip)
+
+            # ⚡ Reference-Counting Teardown Strategy:
+            # Removes this component from the active user registry. The absolute last hardware component
+            # to stop takes responsibility for closing the shared kernel chip handle, preventing deadlocks.
+            if hasattr(self.state_manager, "_shared_chip_users"):
+                getattr(self.state_manager, "_shared_chip_users").discard("actuators")
+                if not getattr(self.state_manager, "_shared_chip_users"):
+                    if self.chip is not None:
+                        lgpio.gpiochip_close(self.chip)
+                        setattr(self.state_manager, "_shared_gpio_chip", None)
 
     async def _on_state_changed(self, state: SystemState, events: List[Event] = None):
         """
@@ -127,7 +148,7 @@ class HardwareActuators(WanosComponent):
         is_armed = state.hardware.gpio_output_enabled
 
         if is_armed and not self.output_armed:
-            await self.logger.warning("⚠️ ARMING HIGH-VOLTAGE OUTPUT BUS! Driving Safety Contactor HIGH.")
+            await self.logger.warning("⚠️ ARMING GPIO OUTPUT BUS! Driving Safety Contactor HIGH.")
             # Sequence: Drive Pin 4 HIGH first to close the physical contactor
             lgpio.gpio_write(self.chip, self.pin_safety, 1)
             # Give the mechanical relay 100ms to click shut before allowing PWM to pass
@@ -135,7 +156,7 @@ class HardwareActuators(WanosComponent):
             self.output_armed = True
 
         elif not is_armed and self.output_armed:
-            await self.logger.warning("🛑 DISARMING HIGH-VOLTAGE OUTPUT BUS! Safely draining lines.")
+            await self.logger.warning("🛑 DISARMING GPIO OUTPUT BUS! Safely draining lines.")
             # Sequence: Stop all PWM and set SSR lines to 0V first to prevent arcing
             self.output_armed = False
             self._force_all_off()  # This also drops the Safety pin

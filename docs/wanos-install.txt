@@ -26,6 +26,13 @@ flash Raspberry Pi with Debian 13 (Trixie) Lite (64-Bit)
 insert SDcard and boot
 get IP and connect remotely with SSH
 
+for info: check Debian version:
+cat /etc/os-release
+cat /etc/debian_version  # version number only
+lsb_release -d  # distribution summary
+hostnamectl  #  hostname and OS info
+uname -r  # kernel version
+
 run wanos_bootstrap_phase1.sh
 
 ** setup SMB & copy all files

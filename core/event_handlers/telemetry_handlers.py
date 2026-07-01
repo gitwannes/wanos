@@ -248,31 +248,7 @@ async def handle_temp_updated(event: Event, manager: Any) -> Tuple[bool, Set[str
         changed_domains.add("devices")
 
     # --- CORE ENGINE TARGET ROUTING ---
-    if idx == 20001:
-        if sns.sauna_high_temp != val:
-            sns.sauna_high_temp = val
-            state_changed = True
-            changed_domains.add("sensors")
-            if SaunaController.recalculate_sauna_metrics(manager._state) or is_manual_lab_action:
-                changed_domains.add("sensors")
-    elif idx == 20002:
-        if sns.sauna_low_temp != val:
-            sns.sauna_low_temp = val
-            state_changed = True
-            changed_domains.add("sensors")
-            if SaunaController.recalculate_sauna_metrics(manager._state) or is_manual_lab_action:
-                changed_domains.add("sensors")
-    elif idx == 20003:
-        if sns.cinema_temp != val:
-            sns.cinema_temp = val
-            state_changed = True
-            changed_domains.add("sensors")
-    elif idx == 20004:
-        if sns.bathroom1_temp != val:
-            sns.bathroom1_temp = val
-            state_changed = True
-            changed_domains.add("sensors")
-    elif idx == 30001:
+    if idx == 30001:
         if sns.outside_temp != val:
             sns.outside_temp = val
             state_changed = True
@@ -307,31 +283,7 @@ async def handle_humidity_updated(event: Event, manager: Any) -> Tuple[bool, Set
         changed_domains.add("devices")
 
     # --- CORE ENGINE TARGET ROUTING ---
-    if idx == 20001:
-        if sns.sauna_high_hum != val:
-            sns.sauna_high_hum = val
-            state_changed = True
-            changed_domains.add("sensors")
-            if SaunaController.recalculate_sauna_metrics(manager._state) or is_manual_lab_action:
-                changed_domains.add("sensors")
-    elif idx == 20002:
-        if sns.sauna_low_hum != val:
-            sns.sauna_low_hum = val
-            state_changed = True
-            changed_domains.add("sensors")
-            if SaunaController.recalculate_sauna_metrics(manager._state) or is_manual_lab_action:
-                changed_domains.add("sensors")
-    elif idx == 20003:
-        if sns.cinema_hum != val:
-            sns.cinema_hum = val
-            state_changed = True
-            changed_domains.add("sensors")
-    elif idx == 20004:
-        if sns.bathroom1_hum != val:
-            sns.bathroom1_hum = val
-            state_changed = True
-            changed_domains.add("sensors")
-    elif idx == 30001:
+    if idx == 30001:
         if sns.outside_hum != val:
             sns.outside_hum = val
             state_changed = True
