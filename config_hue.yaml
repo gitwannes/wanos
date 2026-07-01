@@ -48,15 +48,16 @@ hue:
     51008: "803819b2-33ee-4ad6-a66d-a02eeefe137e"  # slpk Dries-rm
 
     ## general
-    # 51012: "79c68f91-fd90-4498-9498-fbe378138ada"  # verd 0
-    # 51010: "51a560b4-a930-452b-ad80-58041af59dd6"  # verd 1
-    # 51009: "8dba91e0-a59a-4f91-b100-e333b865ad30"  # verd 2
-    # 51011: "d96ecaf6-6a39-4641-9ce0-ee7547a48c25"  # alles in ons huisje
+    51100: "79c68f91-fd90-4498-9498-fbe378138ada"  # verd 0
+    51101: "51a560b4-a930-452b-ad80-58041af59dd6"  # verd 1
+    51102: "8dba91e0-a59a-4f91-b100-e333b865ad30"  # verd 2
+    51110: "d96ecaf6-6a39-4641-9ce0-ee7547a48c25"  # alles in ons huisje
 
 
   presets:
     # The 'name' field is automatically injected into the frontend UI preset buttons
-    relax_red: { name: "relax", xy: [ 0.6750, 0.3220 ], bri: 100 }
+    bathroom_red: { name: "badkamer_red", xy: [ 0.6750, 0.3220 ], bri: 254 }
+    relax_red: { name: "relax", xy: [ 0.96186, 0.3481 ], bri: 100 }
     my_white: { name: "helder", xy: [ 0.2901, 0.2479 ], bri: 100 }
 
     ## OLD Wisc

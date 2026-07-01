@@ -65,12 +65,6 @@ class AutomationEngine:
         payload = event.payload or {}
         config = AutomationEngine._get_config()
 
-        # 🛡️ THE GENERIC BOOT GUARD 🛡️
-        # Prevent "Boot Storms": Devices broadcasting their initial state when the system
-        # powers on should NOT trigger automations, otherwise the house goes crazy on reboot.
-        if payload.get("is_initialization", False):
-            return []
-
         follow_up_events: List[Event] = []
         event_name = event.type.value if hasattr(event.type, 'value') else str(event.type)
 
@@ -88,7 +82,13 @@ class AutomationEngine:
         # - "FORCE_" modifier: Bypasses the StateManager's duplicate-filter, forcing the RF/MQTT command to broadcast
         #   even if the backend thinks the device is already in that state.
         # =========================================================================
-        for rule in config.automations:
+
+        # 🛡️ THE GENERIC BOOT GUARD 🛡️
+        # Prevent "Boot Storms": We skip custom YAML rules if this is a boot initialization.
+        # We do NOT return early so System Timers and Hysteresis loops can safely arm on boot!
+        active_rules = [] if payload.get("is_initialization", False) else config.automations
+
+        for rule in active_rules:
             trigger_matched = False
             trigger_reason = ""
 
@@ -212,19 +212,21 @@ class AutomationEngine:
                             if meta_origin == "rfxcom":
                                 is_force = True
 
-                            # ⚡ STRING NORMALIZATION COMPARISON
+                            # STRING NORMALIZATION COMPARISON
                             # Coerced to uppercase strings to ensure integers (e.g., 100) and YAML strings (e.g., "100")
                             # or mixed-case status descriptors evaluate flawlessly, preventing duplicate command streams.
                             if str(current_target_state).upper() != str(target_action_state).upper() or is_force:
-                                payload = {"idx": action.idx, "state": target_action_state, "force": is_force}
+                                # ⚡ BUGFIX: Use a distinct variable name to prevent shadowing the original event payload!
+                                action_payload = {"idx": action.idx, "state": target_action_state,
+                                                  "force": is_force}
                                 if bri is not None:
-                                    payload["bri"] = bri
+                                    action_payload["bri"] = bri
                                 if xy is not None:
-                                    payload["xy"] = xy
+                                    action_payload["xy"] = xy
 
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
-                                    payload=payload
+                                    payload=action_payload
                                 ))
 
                                 # --- TIER C: The Action Audit Trail (INFO) ---
@@ -332,20 +334,20 @@ class AutomationEngine:
                 current_hum: Optional[int] = state.sensors.bathroom1_hum
 
                 if current_hum is not None:
-                    current_vent_state = state.devices.get(7558, "OFF")
+                    current_vent_state = state.devices.get(71034, "OFF")
                     is_locked: bool = state.devices.get(90001, False)
-                    semantic_name: str = state.dashboard_map.get(7558, "Unknown")
+                    semantic_name: str = state.dashboard_map.get(71034, "Unknown")
 
                     if current_hum >= on_threshold and current_vent_state != "ON":
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 7558, "state": "ON"})
+                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 71034, "state": "ON"})
                         )
                         automation_logger.info(
                             f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) >= Threshold ({on_threshold}%). Forced {semantic_name} ON.")
                         recovered_vents += 1
                     elif current_hum <= off_threshold and current_vent_state == "ON" and not is_locked:
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 7558, "state": "OFF"})
+                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 71034, "state": "OFF"})
                         )
                         automation_logger.info(
                             f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) <= Threshold ({off_threshold}%). Forced {semantic_name} OFF.")
@@ -388,25 +390,25 @@ class AutomationEngine:
                     on_threshold = config.bathroom1.vent_on_humidity
                     off_threshold = config.bathroom1.vent_off_humidity
 
-                    current_vent_state = state.devices.get(7558, "OFF")
+                    current_vent_state = state.devices.get(71034, "OFF")
                     is_locked = state.devices.get(90001, False)
 
                     if val >= on_threshold and current_vent_state != "ON":
                         # Humidity is high: Auto-engage ventilator
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 7558, "state": "ON"})
+                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 71034, "state": "ON"})
                         )
                         automation_logger.info(
-                            f"[Bathroom Climate] Humidity crossed upper threshold ({val}% >= {on_threshold}%). Auto-engaging extraction fan (IDX 7558).")
+                            f"[Bathroom Climate] Humidity crossed upper threshold ({val}% >= {on_threshold}%). Auto-engaging extraction fan.")
 
                     elif val <= off_threshold and current_vent_state == "ON":
                         # Humidity is low: Auto-disengage ventilator (ONLY IF 5-MIN LOCK EXPIRED)
                         if not is_locked:
                             follow_up_events.append(
-                                Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 7558, "state": "OFF"})
+                                Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 71034, "state": "OFF"})
                             )
                             automation_logger.info(
-                                f"[Bathroom Climate] Humidity dropped below lower threshold ({val}% <= {off_threshold}%). Auto-disengaging extraction fan (IDX 7558).")
+                                f"[Bathroom Climate] Humidity dropped below lower threshold ({val}% <= {off_threshold}%). Auto-disengaging extraction fan.")
                         else:
                             automation_logger.debug(
                                 f"[X-RAY] Bathroom humidity ({val}%) is low enough to turn off, but 5-minute safety lock is still engaged. Waiting.")

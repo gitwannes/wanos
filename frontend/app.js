@@ -103,21 +103,20 @@ function wanosApp() {
             devices: {
                 10001: "CLOSED", // Local GPIO (door_sauna)
                 10002: "CLOSED", // Local GPIO (door_bathroom1)
-                282: null, // buro
-                283: null, // cinema_main
+                71001: null, // buro
+                71002: null, // cinema_main
                 40001: null, // cinema_schemer
                 40002: null, // buro_schemer
-                7312: null, // cinema_hue
-                7561: null, // sauna_hue
-                1500: null, // sauna_zoutlamp
-                141: null, // bathroom1_main
-                7555: null, // bathroom1_wastafel
-                7558: null, // bathroom1_ventilator
-                8577: null, // sauna_extrvent
-                8567: null, // safety_ssr
-                8: null, // pc
-                9618: null, // pc_aux
-                169: null // gang_boven
+                71035: null, // sauna_hue -- ToDo: move to Hue idx
+                72004: null, // sauna_zoutlamp
+                71007: null, // bathroom1_main
+                71032: null, // bathroom1_wastafel
+                71034: null, // bathroom1_ventilator
+                71038: null, // sauna_extrvent
+                71036: null, // safety_ssr
+                72001: null, // pc
+                72002: null, // pc_aux
+                71008: null // gang_boven
             },
             dashboard_map: {}, // ⚡ Store the backend mapping dictionary for labels only
             device_metadata: {}, // ⚡ The dynamic registry powering dashboard.html
@@ -284,6 +283,11 @@ function wanosApp() {
                 if (meta.origin === 'rfxcom' && !this.state.system.rfxcom_integration_enabled) continue;
                 if (meta.origin === 'hue' && !this.state.system.hue_integration_enabled) continue;
                 if (meta.origin === 'zwave' && !this.state.system.zwave_integration_enabled) continue;
+
+                // Native Physical & Cloud Integrations
+                if (meta.origin === 'gpio_input' && !this.state.hardware.gpio_input_enabled) continue;
+                if (meta.origin === 'sht11' && !this.state.hardware.sht11_enabled) continue;
+                if (meta.origin === 'owm' && !this.state.system.owm_integration_enabled) continue;
 
                 const idx = parseInt(idxStr, 10);
 
@@ -657,7 +661,7 @@ function wanosApp() {
                 }
 
                 // Native EventSource doesn't support custom headers, so we pass the token in the URL
-                const token = sessionStorage.getItem("wanos_jwt") || "";
+                const token = localStorage.getItem("wanos_jwt") || "";
                 this.eventSource = new EventSource(`/api/state/sse?jwt=${token}`);
 
                 // ⏱️ Sliding Watchdog Guardian Loop
@@ -1213,8 +1217,8 @@ function wanosApp() {
         confirmPCPowerToggle() {
             document.getElementById('pc_power_modal').close();
             // 8 is the immutable IDX for the PC Power Relay
-            const isCurrentlyOn = this.state.devices[8] === 'ON';
-            this.injectLabHubStateChange(8, !isCurrentlyOn);
+            const isCurrentlyOn = this.state.devices[72001] === 'ON';
+            this.injectLabHubStateChange(72001, !isCurrentlyOn);
         },
 
         // 🛡️ Hardware Output Safety Interceptor

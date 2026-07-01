@@ -11,6 +11,18 @@ auth:
   kiosk_token: "kiosk"
 
 # ==============================================================================
+# IDX mapping
+# ==============================================================================
+# 100xx : GPIO inputs (doors / water / power pulses)
+# 200xx : SHT11 sensors
+# 2100x : Sauna & IR virtual
+# 30001 : OWM outside temp & hum
+# 400xx : RFX
+# 500xx : Hue (config_hue.taml)
+# 6xxxx : unused
+# 700xx : Z-Wave (config_zwave.yaml)
+
+# ==============================================================================
 # 1. INTEGRATIONS & NETWORK LAYER
 # ==============================================================================
 wanos:
@@ -43,8 +55,10 @@ rfxcom:
   # To find the exact USB port run: dmesg | grep tty OR lsusb
   serial_port: "/dev/rfxcom"
 
-# --- Declarative translation mapping for physical 433MHz signals ---
+# --- Declarative translation mapping for physical RFXCom 433MHz signals ---
 native_rfx:
+# RFXCOM is ID 0403:6001 (Vendor ID: 0403, Product ID: 6001).
+# Type & Subtype: Lighting 4, PT2262
   - name: "cinema schemer"
     virtual_idx: 40001  # RFX1
     protocol: "Lighting4"
@@ -68,8 +82,8 @@ native_rfx:
   - name: "kerst voor"
     virtual_idx: 40005  # RFX5
     protocol: "Lighting4"
-    on_id: "0" # ToDo: lookup
-    off_id: "0" # ToDo: lookup
+    on_id: "545511" # ToDo: lookup
+    off_id: "545514" # ToDo: lookup
 
 
 # ==============================================================================
@@ -81,7 +95,7 @@ dashboard:
   72001: "pc"
   74001: "pc_power"
   72002: "pc_aux"
-  72002: "pc_aux_power"
+  74003: "pc_aux_power"
   71036: "safety_ssr"
 
   # --- Environment ---
@@ -109,11 +123,23 @@ dashboard:
   71002: "cinema_main"
   20003: "cinema TH"
 
+hardware_links:
+  # ⚡ UNIVERSAL 0W INTERCEPTOR MAP
+  # Maps Switch IDXs to their associated Power Meter IDXs.
+  # When the switch turns OFF, the backend will auto-flush the power meter to 0.0W.
+  power_meters:
+    72001: 74001  # PC Switch -> PC Power
+    72002: 74003  # PC Aux Switch -> PC Aux Power
+
 # Devices explicitly hidden from the Device Explorer UI
 # Z-Wave devices exlusions via zwave_config.yaml
 deviceexplorer_exclude:
   - 80001 # Epson projector
   - 40004 # kerstboom
+  - 51100  # Hue verd 0
+  - 51101  # Hue verd 1
+  - 51102  # Hue verd 2
+  - 51110  # Hue alles
 
 
 # ==============================================================================
@@ -158,6 +184,8 @@ lighting:
   default_auto_off_minutes: 300
   # Specific delay overrides in minutes
   auto_off_delays:
+    51006: 90
+    51008: 30
     71006: 10
     71007: 120
     71008: 10
@@ -168,8 +196,6 @@ lighting:
     71023: 1
     71025: 30
     71027: 30
-    51006: 90
-    51008: 30
     71043: 15
     71044: 5
 
@@ -294,7 +320,7 @@ automations:
         state: "OFF"
       - idx: 72005    # licht tuin
         state: "OFF"
-      - idx: 51012 # Hue gv ALL OFF
+      - idx: 51100    # Hue gv ALL OFF
         state: "OFF"
 
   - name: "ALL OFF 1eV"
@@ -316,7 +342,7 @@ automations:
         state: "OFF"
       - idx: 71008 # gang_boven
         state: "OFF"
-      - idx: 51010 # Hue 1e V ALL OFF
+      - idx: 51101 # Hue 1e V ALL OFF
         state: "OFF"
 
   - name: "ALL OFF 2eV"
@@ -336,7 +362,7 @@ automations:
         state: "OFF"
       - idx: 71027 # slpk Wannes
         state: "OFF"
-      - idx: 51009 # Hue 2e V ALL OFF
+      - idx: 51102 # Hue 2e V ALL OFF
         state: "OFF"
 
   - name: "ALL OFF overal"
@@ -560,20 +586,7 @@ automations:
     actions:
       - idx: 51001
         state: "ON"
-        preset: "relax_red"
-
-  - name: "Badk 1e: Wastafel ON -> Hue Red (If room was dark)"
-    trigger:
-      idx: 71032
-      state: "ON"
-    conditions:
-      - type: "device_state"
-        idx: 51001
-        is: "ON"        # Fires if this is the first light turned on
-    actions:
-      - idx: 51001
-        state: "ON"
-        preset: "relax_red"
+        preset: "bathroom_red"
 
   # --- Main Bathroom Switch (141) Master Control ---
   - name: "Badk 1e: Main Switch ON -> Hue Red"
@@ -583,7 +596,7 @@ automations:
     actions:
       - idx: 51001       # badkamer 1e hue room
         state: "ON"
-        preset: "relax_red"
+        preset: "bathroom_red"
 
   - name: "Badk 1e: Main Switch OFF -> Hue & wastafel OFF"
     trigger:
@@ -639,20 +652,7 @@ automations:
     actions:
       - idx: 51001
         state: "ON"
-        preset: "relax_red"
-
-  - name: "Badk 1e: Wastafel ON -> Hue Red (If room was dark)"
-    trigger:
-      idx: 71010
-      state: "ON"
-    conditions:
-      - type: "device_state"
-        idx: 51007
-        is: "OFF"
-    actions:
-      - idx: 51007
-        state: "ON"
-        preset: "relax_red"
+        preset: "bathroom_red"
 
   # --- Main Bathroom Switch Master Control ---
   - name: "Badk 2e: Main Switch ON -> Hue Red"
@@ -662,7 +662,7 @@ automations:
     actions:
       - idx: 51007
         state: "ON"
-        preset: "relax_red"
+        preset: "bathroom_red"
 
   - name: "Badk 2e: Main Switch OFF -> Hue & wastafel OFF"
     trigger:

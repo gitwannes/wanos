@@ -36,21 +36,24 @@ class TimerManager:
 
     async def _sleep_and_fire(self, timer_id: str, deadline: int, event_type: str, payload: dict):
         """The internal worker that sleeps until the deadline and dispatches the event."""
+        # Capture the specific async task object running this execution
+        my_task = asyncio.current_task()
         try:
             now = int(time.time())
             sleep_duration = max(0, deadline - now)
-            
+
             if sleep_duration > 0:
                 await asyncio.sleep(sleep_duration)
-            
+
             # The sleep finished without being cancelled. The deadline is reached!
             logger.debug(f"Timer '{timer_id}' expired. Firing {event_type}.")
             await self._dispatch(event_type, payload)
-            
+
         except asyncio.CancelledError:
             # The task was cancelled intentionally (e.g., the user adjusted the time or turned the sauna off)
             pass
         finally:
-            # Clean up the task reference
-            if timer_id in self._tasks:
+            # Clean up the task reference, but ONLY if this exact task is still the active owner
+            # This prevents orphaned/cancelled tasks from deleting newly scheduled replacements!
+            if self._tasks.get(timer_id) == my_task:
                 del self._tasks[timer_id]

@@ -98,7 +98,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                 }))
 
         # Bathroom 1e ventilator timer lock
-        if idx == 7558 and state_val == "ON" and old_val != "ON":
+        if idx == 71034 and state_val == "ON" and old_val != "ON":
             manager._state.devices[90001] = True
             deadline = int(time.time()) + (manager._config.bathroom1.vent_min_runtime_mins * 60)
             manager._timer_manager.schedule("bath1_vent_lock", deadline, "BATH1_VENT_LOCK_EXPIRED")

@@ -100,6 +100,19 @@ class StateManager:
             if idx < 10000:
                 self._state.devices[idx] = None
 
+        # ⚡ Programmatic initialization for virtual physical/environment sensors
+        # Iterates through your config.yaml dashboard mappings to guarantee metadata creation!
+        for idx, name in self._config.dashboard.items():
+            if 10000 <= idx < 20000:  # Local GPIO Doors & Contacts
+                self._state.device_metadata[idx] = {"name": name, "type": "sensor", "origin": "gpio_input"}
+                self._state.devices[idx] = None
+            elif 20000 <= idx < 30000:  # SHT11 Temperature & Humidity Probes
+                self._state.device_metadata[idx] = {"name": name, "type": "temp_hum", "origin": "sht11"}
+                self._state.devices[idx] = None
+            elif 30000 <= idx < 40000:  # OpenWeatherMap Virtual Probes
+                self._state.device_metadata[idx] = {"name": name, "type": "temp_hum", "origin": "owm"}
+                self._state.devices[idx] = None
+
         if hasattr(self._config, "native_rfx"):
             for rfx_dev in self._config.native_rfx:
                 self._state.system.native_rfx_devices.append({

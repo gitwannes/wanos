@@ -200,21 +200,21 @@
 
                 <div class="grid grid-cols-4 grid-rows-3 gap-4 flex-1 min-h-0">
 
-                    <button @click="injectLabHubStateChange(141, !(state.devices[141] === 'ON'))"
+                    <button @click="injectLabHubStateChange(71007, !(state.devices[71007] === 'ON'))"
                             class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[141] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                            :class="state.devices[71007] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
                         <span class="font-black text-xs uppercase tracking-wider">Badkamer<br>Licht</span>
                     </button>
 
-                    <button @click="injectLabHubStateChange(7555, !(state.devices[7555] === 'ON'))"
+                    <button @click="injectLabHubStateChange(71032, !(state.devices[71032] === 'ON'))"
                             class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[7555] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                            :class="state.devices[71032] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
                         <span class="font-black text-xs uppercase tracking-wider">Lavabo<br>Licht</span>
                     </button>
 
-                    <button @click="injectLabHubStateChange(7558, !(state.devices[7558] === 'ON'))"
+                    <button @click="injectLabHubStateChange(71034, !(state.devices[71034] === 'ON'))"
                             class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[7558] === 'ON' ? 'bg-sky-300 border-sky-400 text-sky-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                            :class="state.devices[71034] === 'ON' ? 'bg-sky-300 border-sky-400 text-sky-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
                         <span class="font-black text-xs uppercase tracking-wider">Badkamer<br>Vent</span>
                     </button>
 
@@ -224,14 +224,14 @@
                     </button>
 
                     <div class="grid grid-rows-3 gap-1.5 h-full">
-                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 0 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">Rolluik Op</button>
-                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 75 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">3/4 Stand</button>
-                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 583, state: 100 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">Rolluik Neer</button>
+                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 73001, state: 0 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">Rolluik Op</button>
+                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 73001, state: 75 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">3/4 Stand</button>
+                        <button @click="dispatchEvent('HUB_STATE_CHANGED', { idx: 73001, state: 100 })" class="rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-[10px] font-black tracking-widest uppercase text-stone-500 shadow-sm active:bg-stone-100">Rolluik Neer</button>
                     </div>
 
-                    <button @click="injectLabHubStateChange(283, !(state.devices[283] === 'ON'))"
+                    <button @click="injectLabHubStateChange(71002, !(state.devices[71002] === 'ON'))"
                             class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[283] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                            :class="state.devices[71002] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
                         <span class="font-black text-xs uppercase tracking-wider">Cinema<br>Licht</span>
                     </button>
 
@@ -241,9 +241,9 @@
                         <span class="font-black text-xs uppercase tracking-wider">Cinema<br>Hue</span>
                     </button>
 
-                    <button @click="injectLabHubStateChange(282, !(state.devices[282] === 'ON'))"
+                    <button @click="injectLabHubStateChange(71001, !(state.devices[71001] === 'ON'))"
                             class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[282] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                            :class="state.devices[71001] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
                         <span class="font-black text-xs uppercase tracking-wider">Buro<br>Licht</span>
                     </button>
 
