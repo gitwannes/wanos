@@ -33,24 +33,11 @@ function wanosApp() {
                 hue_presets: {} // ⚡ Dynamically injected from config_hue.yaml
             },
             sensors: {
-                outside_temp: null,
-                outside_hum: null,
                 sunrise_unix: null,
                 sunset_unix: null,
-                bathroom1_temp: null,
-                bathroom1_hum: null,
-                cinema_temp: null,
-                cinema_hum: null,
-                sauna_high_temp: null,
-                sauna_high_hum: null,
-                sauna_low_temp: null,
-                sauna_low_hum: null,
                 sauna_calc_temp: null,
                 sauna_calc_hum: null,
-                pc_power: null,
-                pc_power_history: [],
-                pc_aux_power: null,
-                pc_aux_power_history: [],
+                sensor_history: {}, // ⚡ Universal dynamic history tracking
                 // Liters pre-rounded by the backend (1 decimal). No conversion needed here.
                 water_cold_liters: 0.0,
                 water_hot_liters: 0.0
@@ -119,7 +106,7 @@ function wanosApp() {
                 71008: null // gang_boven
             },
             dashboard_map: {}, // ⚡ Store the backend mapping dictionary for labels only
-            device_metadata: {}, // ⚡ The dynamic registry powering dashboard.html
+            device_metadata: {}, // ⚡ The dynamic registry powering deviceexplorer.html
             boot_seed: null
         },
 
@@ -139,7 +126,7 @@ function wanosApp() {
         activeLightHex: "#FFD180",
         colorPicker: null, // ⚡ Holds the iro.js UI instance
 
-        // ⚡ Dynamic Device Explorer (dashboard.html) UI States
+        // ⚡ Dynamic Device Explorer (deviceexplorer.html) UI States
         searchQuery: "",
         typeFilter: "ALL",   // "ALL", "SWITCH", "SCENE", "BLINDS", "SENSOR"
         statusFilter: "ALL", // "ALL", "ON", "OFF"
@@ -374,10 +361,8 @@ function wanosApp() {
             }
 
             // 2. Map Stateless Scenes
-            // ⚡ Only display scenes if both major action hubs (Domoticz & RFX) are online
-            if (this.state.system.available_scenes &&
-                this.state.system.domoticz_integration_enabled &&
-                this.state.system.rfxcom_integration_enabled) {
+            // ⚡ Display scenes as long as the Automation Engine is alive to process them
+            if (this.state.system.available_scenes && this.state.system.automations_enabled) {
                 for (const scene of this.state.system.available_scenes) {
                     list.push({
                         id: scene.event,
@@ -457,6 +442,20 @@ function wanosApp() {
                 "Content-Type": "application/json",
                 "Authorization": token ? `Bearer ${token}` : ""
             };
+        },
+
+        // ⚡ UNIVERSAL DEVICE ONLINE DECIPHER
+        // Dynamically checks if a device's parent integration is currently running.
+        isDeviceOnline(idx) {
+            const meta = this.state.device_metadata[idx];
+            if (!meta) return false;
+            if (meta.origin === 'zwave') return this.state.system.zwave_integration_enabled;
+            if (meta.origin === 'hue') return this.state.system.hue_integration_enabled;
+            if (meta.origin === 'domoticz') return this.state.system.domoticz_integration_enabled;
+            if (meta.origin === 'epson') return this.state.system.epson_integration_enabled;
+            if (meta.origin === 'gpio_input') return this.state.hardware.gpio_input_enabled;
+            if (meta.origin === 'sht11') return this.state.hardware.sht11_enabled;
+            return true; // Fallback for local macros/scenes
         },
 
         // ⚡ IR Snapping Matrix (Values & Legacy Frequencies)
@@ -843,21 +842,22 @@ function wanosApp() {
         },
 
         syncLabControls() {
-            const sns = this.state.sensors;
+            const devs = this.state.devices;
             const seed = this.state.boot_seed;
 
             if (!seed) return;
 
-            this.labSaunaHighTemp = sns.sauna_high_temp ?? seed.sauna_high_temp;
-            this.labSaunaHighHum  = sns.sauna_high_hum  ?? seed.sauna_high_hum;
-            this.labSaunaLowTemp  = sns.sauna_low_temp  ?? seed.sauna_low_temp;
-            this.labSaunaLowHum   = sns.sauna_low_hum   ?? seed.sauna_low_hum;
-            this.labBathroom1Temp = sns.bathroom1_temp  ?? seed.bathroom1_temp;
-            this.labBathroom1Hum  = sns.bathroom1_hum   ?? seed.bathroom1_hum;
-            this.labCinemaTemp    = sns.cinema_temp     ?? seed.cinema_temp;
-            this.labCinemaHum     = sns.cinema_hum      ?? seed.cinema_hum;
-            this.labOutsideTemp   = sns.outside_temp    ?? seed.outside_temp;
-            this.labOutsideHum    = sns.outside_hum     ?? seed.outside_hum;
+            // ⚡ Pulls directly from the unified device dictionary
+            this.labSaunaHighTemp = (devs[20001] && devs[20001].temp) ?? seed.sauna_high_temp;
+            this.labSaunaHighHum  = (devs[20001] && devs[20001].hum)  ?? seed.sauna_high_hum;
+            this.labSaunaLowTemp  = (devs[20002] && devs[20002].temp) ?? seed.sauna_low_temp;
+            this.labSaunaLowHum   = (devs[20002] && devs[20002].hum)  ?? seed.sauna_low_hum;
+            this.labBathroom1Temp = (devs[20004] && devs[20004].temp) ?? seed.bathroom1_temp;
+            this.labBathroom1Hum  = (devs[20004] && devs[20004].hum)  ?? seed.bathroom1_hum;
+            this.labCinemaTemp    = (devs[20003] && devs[20003].temp) ?? seed.cinema_temp;
+            this.labCinemaHum     = (devs[20003] && devs[20003].hum)  ?? seed.cinema_hum;
+            this.labOutsideTemp   = (devs[30001] && devs[30001].temp) ?? seed.outside_temp;
+            this.labOutsideHum    = (devs[30001] && devs[30001].hum)  ?? seed.outside_hum;
         },
 
         async publishEvent(eventType, payload = {}) {

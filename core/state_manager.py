@@ -359,8 +359,72 @@ class StateManager:
             changed_domains.update(dom)
 
         # --------------------------------------------------------
-        # CROSS-CUTTING CONCERNS (Timers & PID Logic)
+        # CROSS-CUTTING CONCERNS (Universal Hooks, Timers & PID Logic)
         # --------------------------------------------------------
+
+        # ⚡ UNIVERSAL 0.0W INTERCEPTOR
+        if event_name == "HUB_STATE_CHANGED" and payload.get("state") == "OFF":
+            switch_idx = payload.get("idx")
+            power_map = getattr(self._config, "hardware_links", {}).get("power_meters", {})
+            if switch_idx in power_map:
+                power_idx = power_map[switch_idx]
+                self.dispatch(Event(type=EventType.POWER_UPDATED, payload={
+                    "idx": power_idx, "value": 0.0, "device_type": "power", "origin": "system",
+                    "name": self._state.dashboard_map.get(power_idx, f"Power {power_idx}")
+                }))
+
+        # ⚡ UNIVERSAL SPARKLINE HISTORY AGGREGATOR
+        p_idx = payload.get("idx")
+        is_power_event: bool = False
+
+        if event_name == "POWER_UPDATED":
+            is_power_event = True
+        elif event_name == "HUB_STATE_CHANGED" and p_idx is not None:
+            # BUGFIX: Z-Wave payloads often omit the type. We must cross-reference our metadata registry!
+            meta_type = payload.get("device_type") or self._state.device_metadata.get(p_idx, {}).get("type")
+            if meta_type in ["power", "energy"]:
+                is_power_event = True
+
+        if is_power_event:
+            p_val = payload.get("value") if payload.get("value") is not None else payload.get("state")
+            if p_idx is not None and p_val is not None:
+                try:
+                    numeric_val = float(str(p_val).replace(" W", "").replace("W", "").strip())
+                    if p_idx not in self._state.sensors.sensor_history:
+                        self._state.sensors.sensor_history[p_idx] = []
+                    hist = self._state.sensors.sensor_history[p_idx]
+                    hist.append(numeric_val)
+                    if len(hist) > 20:
+                        hist.pop(0)
+                    state_changed = True
+                    changed_domains.add("sensors")
+                except (ValueError, TypeError):
+                    pass
+
+        # ⚡ SAUNA COMPOSITE RECOVERY (Bypass Broken AuxiliaryController)
+        # Because we deleted hardcoded variables from models.py, external controllers crash.
+        # We manually calculate the 70/30 High/Low atmosphere split here based purely on IDXs.
+        if event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED"] or (
+                event_name == "HUB_STATE_CHANGED" and p_idx in [20001, 20002]):
+            d_high = self._state.devices.get(20001)
+            d_low = self._state.devices.get(20002)
+            if isinstance(d_high, dict) and d_high.get("temp") is not None:
+                try:
+                    t_high = float(d_high["temp"])
+                    if isinstance(d_low, dict) and d_low.get("temp") is not None:
+                        t_low = float(d_low["temp"])
+                        self._state.sensors.sauna_calc_temp = round((t_high * 0.7) + (t_low * 0.3), 1)
+                    else:
+                        self._state.sensors.sauna_calc_temp = round(t_high, 1)
+
+                    if d_high.get("hum") is not None:
+                        self._state.sensors.sauna_calc_hum = int(float(d_high["hum"]))
+
+                    state_changed = True
+                    changed_domains.add("sensors")
+                except (ValueError, TypeError):
+                    pass
+
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "DOOR_CHANGED"]:
             current_temp = self._state.sensors.sauna_calc_temp
             if current_temp is not None and self._state.sauna.active:

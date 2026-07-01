@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WanOS 1st Commander</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="iro.min.js"></script>
+    <style>
+        /* Guaranteed fallback for the PC-only nav menu, independent of the
+           Tailwind CDN JIT engine (which may fail on older mobile browsers).
+           Hidden below 1024px, shown as flex at/above it. */
+        #pc-nav-menu { display: none; }
+        @media (min-width: 1024px) {
+            #pc-nav-menu { display: flex; }
+        }
+    </style>
+</head>
+<body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
+
+    <div x-show="!connected" class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
+         <span class="loading loading-infinity w-16 text-secondary mb-4"></span>
+        <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
+        <p class="text-secondary mt-2 font-mono text-sm">Establishing connection stream to WanOS backend...</p>
+    </div>
+
+    <header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center min-h-[3rem] relative z-[60]">
+        <div class="flex-1 flex items-center gap-2 min-w-0">
+            <div class="flex flex-col min-w-0 justify-center">
+                <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Commander</span>
+            </div>
+        </div>
+
+        <div id="pc-nav-menu" class="justify-center flex-1 min-w-0">
+            <div class="join bg-base-200 border border-base-300">
+                <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">Explorer</a>
+                <a href="/commander.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-secondary border-secondary bg-secondary/10">Commander</a>
+            </div>
+        </div>
+
+        <div class="flex-none flex items-center gap-2">
+            <div class="dropdown dropdown-end">
+                <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </div>
+                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
+                    <li><a href="/deviceexplorer.html">Device Explorer</a></li>
+                    <li><a href="/commander.html" class="text-secondary font-bold">Commander</a></li>
+                </ul>
+            </div>
+            <a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" x-show="isAdmin" x-cloak title="Return to Admin">                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </a>
+            <button @click="logout()" class="btn btn-ghost btn-xs text-base-content/30 hover:text-error" title="Logout">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 w-full max-w-[700px] pb-10 flex flex-col gap-6 items-center">
+
+    <div class="card bg-base-100 shadow-xl border border-base-200 w-full">
+            <div class="card-body">
+                    <h2 class="card-title text-base-400 uppercase text-[11px] md:text-xs tracking-widest mb-1 whitespace-nowrap">
+                        Sauna / IR Zone
+                    </h2>
+                    <div class="mb-3">
+                        <span class="badge font-mono text-[9px] md:text-[10px] tracking-wider px-1.5 md:px-2 py-2 md:py-3 whitespace-nowrap shadow-sm border border-base-200"
+                              :class="state.devices[10001] === 'OPEN' ? 'badge-error animate-pulse text-error-content border-error' : 'badge-neutral text-base-500'">
+                            <span x-text="state.devices[10001] === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
+                        </span>
+                    </div>
+                    <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-start mb-3 h-16 shadow-inner">                        <div class="font-mono text-green-500 text-sm md:text-md tracking-widest uppercase truncate" x-text="state.sauna.lcd_text || 'WanOS core standby'"></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mb-6 w-full">
+                        <button :class="state.sauna.active ? 'btn btn-error shadow-lg' : 'btn btn-outline'"
+                                :disabled="(!state.sauna.active && (state.devices[10001] === 'OPEN' || state.ir.active)) || state.sensors.sauna_calc_temp == null"
+                                @click="toggleSauna()">
+                            <span x-show="state.sauna.active" class="animate-pulse flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">🔥</span> Sauna ON</span>
+                            <span x-show="!state.sauna.active" class="flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">❄️</span> Sauna OFF</span>
+                        </button>
+                        <button :class="state.ir.active ? 'btn btn-error shadow-lg' : 'btn btn-outline'"
+                                :disabled="(!state.ir.active && state.sauna.active) || state.sensors.sauna_calc_temp == null"
+                                @click="toggleIR()">
+                            <span x-show="state.ir.active" class="animate-pulse flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">⚡</span> IR ON <span class="hidden sm:inline ml-1 text-white text-[9px] opacity-80" x-text="'[' + irRemainingText + ']'"></span></span>
+                            <span x-show="!state.ir.active" class="flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">❄️</span> IR OFF</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="flex-1 flex items-center min-w-0 pr-2">
+                                <button class="text-left flex items-center gap-3 w-full transition-colors hover:text-primary cursor-pointer"
+                                        @click="openLightModal({
+                                            id: 51002,
+                                            name: 'Hue Lighting',
+                                            raw_value: (state.devices[51002] && typeof state.devices[51002] === 'object')
+                                                ? { state: state.devices[51002].state, bri: state.devices[51002].bri ?? 100, xy: state.devices[51002].xy ?? [0.3127, 0.3290] }
+                                                : state.devices[51002]
+                                        })">
+                                    <div class="w-4 h-4 rounded-full border border-gray-600 shrink-0 transition-all duration-500"
+                                         :style="(!isDeviceOnline(51002) || state.devices[51002] === null) ? 'background-color: #333; opacity: 0.5;' : (((state.devices[51002]?.state || state.devices[51002]) === 'ON') ? `background-color: ${state.sauna.light_color}; box-shadow: 0 0 8px ${state.sauna.light_color};` : 'background-color: #333;')">
+                                    </div>
+                                    <span class="text-xs font-bold uppercase truncate text-base-400 underline decoration-dashed underline-offset-4 decoration-base-content/30">Hue Lighting</span>
+                                </button>
+                            </div>
+                            <div class="flex items-center gap-3 shrink-0">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!isDeviceOnline(51002) || state.devices[51002] === null ? 'text-gray-500 italic text-xs' : (((state.devices[51002]?.state || state.devices[51002]) === 'ON') ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!isDeviceOnline(51002) ? 'OFFLINE' : (state.devices[51002] === null ? 'SYNCING...' : (((state.devices[51002]?.state || state.devices[51002]) === 'ON') ? 'ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!isDeviceOnline(51002) || state.devices[51002] === null"
+                                       :checked="(state.devices[51002]?.state || state.devices[51002]) === 'ON'"
+                                       @change="injectLabHubStateChange(51002, $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-xs font-bold text-base-400 uppercase">Zoutlamp</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!isDeviceOnline(72004) || state.devices[72004] === null ? 'text-gray-500 italic text-xs' : (state.devices[72004] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!isDeviceOnline(72004) ? 'OFFLINE' : (state.devices[72004] === null ? 'SYNCING...' : (state.devices[72004] === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!isDeviceOnline(72004) || state.devices[72004] === null"
+                                       :checked="state.devices[72004] === 'ON'"
+                                       @change="injectLabHubStateChange(72004, $event.target.checked)" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center bg-base-200 p-3 mt-4 rounded-box border border-base-300">
+                        <div class="text-xs font-bold text-base-400 uppercase">Extraction Fan</div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono mt-0.5 transition-all duration-300"
+                                  :class="!isDeviceOnline(71038) || state.devices[71038] === null
+                                    ? 'text-gray-500 italic text-xs'
+                                    : (state.sauna.ventilation_state !== 'OFF'
+                                        ? 'text-info font-bold animate-pulse text-[10px] tracking-wider'
+                                        : (state.devices[71038] === 'ON'
+                                            ? 'text-info font-bold animate-pulse text-sm'
+                                            : 'text-base-500 text-sm'))"
+                                  x-text="!isDeviceOnline(71038) ? 'OFFLINE' : (state.devices[71038] === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices[71038] === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
+                            <input type="checkbox" class="toggle toggle-warning toggle-sm shadow" autocomplete="off"
+                                   :disabled="!isDeviceOnline(71038) || state.devices[71038] === null"
+                                   :checked="state.devices[71038] === 'ON'"
+                                   @change="injectLabHubStateChange(71038, $event.target.checked)" />
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mt-6 mb-6">
+                        <div>
+                            <div class="text-xs text-base-400 font-bold uppercase tracking-wider">Current Atmosphere</div>
+                            <div class="text-4xl md:text-5xl font-black font-mono tracking-tight mt-1 text-secondary flex items-baseline">
+                                <span x-text="(state.sensors.sauna_calc_temp !== null && state.sensors.sauna_calc_temp !== undefined) ? parseFloat(state.sensors.sauna_calc_temp).toFixed(1) + '°C' : '--.-°C'"></span>
+                                <span class="text-xl md:text-2xl text-info ml-2 md:ml-3 font-semibold" x-text="(state.sensors.sauna_calc_hum !== null && state.sensors.sauna_calc_hum !== undefined) ? parseFloat(state.sensors.sauna_calc_hum).toFixed(0) + '%' : '--%'"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-semibold tracking-wide">Temp. Setpoint Sauna</span>
+                                <div class="flex gap-2 items-center">
+                                    <button class="btn btn-sm font-mono font-black text-xs tracking-wider transition-all duration-200 shadow-sm border"
+                                            :class="!state.sauna.active ? 'bg-base-200 text-gray-500 border-gray-700 cursor-not-allowed opacity-40' :
+                                                    (state.sauna.hold_mode === 'hold' ? 'bg-amber-500 text-neutral-900 border-amber-500 hover:bg-amber-600 hover:border-amber-600' :
+                                                    (state.sauna.hold_mode === 'autohold' ? 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600' :
+                                                    'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700'))"
+                                            :disabled="!state.sauna.active"
+                                            @click="toggleSaunaHold()"
+                                            x-text="!state.sauna.active ? '--' : state.sauna.hold_mode.toUpperCase()">
+                                    </button>
+                                    <span class="badge badge-secondary font-mono text-md font-bold p-3" x-text="(state.sauna.target_temp !== null ? state.sauna.target_temp : '--') + '°C'"></span>
+                                </div>
+                            </div>
+                            <input type="range" min="40" :max="state.sauna.max_temp || 110" step="1"
+                                   class="range range-secondary"
+                                   :class="(!state.sauna.active || state.sauna.target_temp === null) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
+                                   :disabled="!state.sauna.active || state.sauna.target_temp === null"
+                                   x-model="state.sauna.target_temp"
+                                   @change="updateSaunaSetpoint()" />
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-semibold tracking-wide">IR Modulation</span>
+                                <div class="flex gap-2 items-center">
+                                    <span class="badge badge-error font-mono text-md font-bold p-3" x-text="state.ir.modulation_pwm + '%'"></span>
+                                </div>
+                            </div>
+                            <input type="range" min="0" max="6" step="1"
+                                   class="range range-error"
+                                   :class="!state.ir.active ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
+                                   :disabled="!state.ir.active"
+                                   x-model.number="irStepIndex"
+                                   @input="updateIRLocal()"
+                                   @change="updateIRSetpoint()" />
+                            <div class="w-full flex justify-between text-[10px] px-1 mt-1 font-mono text-base-400 opacity-70">
+                                <span>0</span><span>25</span><span>33</span><span>50</span><span>67</span><span>75</span><span>100</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 bg-base-200 p-4 rounded-box border border-base-300" x-show="state.sauna.active">
+                        <div class="flex justify-between items-center text-xs font-mono mb-2">
+                            <span class="text-base-400">Sauna Running Time: <span class="text-white font-bold" x-text="saunaElapsedText"></span></span>
+                            <span class="text-base-400">Sauna Timer: <span class="text-warning font-black animate-pulse" x-text="saunaRemainingText"></span></span>
+                        </div>
+                        <div class="w-full bg-neutral rounded-full h-2 mb-4 overflow-hidden border border-base-300 shadow-inner">
+                            <div class="bg-warning h-full transition-all duration-300 ease-out"
+                                 :style="`width: ${progressPercent}%`"></div>
+                        </div>
+                        <div class="flex justify-center gap-2">
+                            <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(-10)">-10 MINS</button>
+                            <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(10)">+10 MINS</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow-xl border border-base-200 w-full">
+            <div class="card-body p-4 flex flex-col justify-start">
+                <div class="card-body p-4 flex flex-col justify-start">
+                    <h2 class="card-title text-base-400 uppercase text-[11px] md:text-xs tracking-widest mb-1 whitespace-nowrap">
+                        Bathroom
+                    </h2>
+                    <div class="mb-4">
+                        <span class="badge font-mono text-[9px] md:text-[10px] tracking-wider px-1.5 md:px-2 py-2 md:py-3 whitespace-nowrap shadow-sm border border-base-200"
+                              :class="state.devices[10002] === 'OPEN' ? 'badge-warning text-warning-content border-warning' : 'badge-neutral text-base-500'">
+                            <span x-text="state.devices[10002] === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">                        <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
+                        <div class="text-right font-mono">
+                            <span class="text-white font-bold" x-text="(state.devices[20004] && state.devices[20004].temp !== undefined) ? state.devices[20004].temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                            <span class="text-info ml-1 text-xs" x-text="(state.devices[20004] && state.devices[20004].hum !== undefined) ? state.devices[20004].hum + '%' : '--%'"></span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                        <div class="text-xs font-bold text-base-400 uppercase">Ventilator</div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-sm mt-0.5"
+                                  :class="!isDeviceOnline(71034) || state.devices[71034] === null ? 'text-gray-500 italic text-xs' : (state.devices[71034] === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                  x-text="!isDeviceOnline(71034) ? 'OFFLINE' : (state.devices[71034] === null ? 'SYNCING...' : (state.devices[71034] === 'ON' ? '💨 RUNNING' : 'OFF'))"></span>
+                            <input type="checkbox" class="toggle toggle-info toggle-sm shadow"
+                                   :disabled="!isDeviceOnline(71034) || state.devices[71034] === null"
+                                   :checked="state.devices[71034] === 'ON'"
+                                   @change="injectLabHubStateChange(71034, $event.target.checked)" />
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                        <div class="text-xs font-bold text-base-400 uppercase">Main Light</div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-sm mt-0.5"
+                                  :class="!isDeviceOnline(71007) || state.devices[71007] === null ? 'text-gray-500 italic text-xs' : (state.devices[71007] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                  x-text="!isDeviceOnline(71007) ? 'OFFLINE' : (state.devices[71007] === null ? 'SYNCING...' : (state.devices[71007] === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                            <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                   :disabled="!isDeviceOnline(71007) || state.devices[71007] === null"
+                                   :checked="state.devices[71007] === 'ON'"
+                                   @change="injectLabHubStateChange(71007, $event.target.checked)" />
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300 mb-4">
+                        <div class="text-xs font-bold text-base-400 uppercase">Wastafel Light</div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-sm mt-0.5"
+                                  :class="!isDeviceOnline(71032) || state.devices[71032] === null ? 'text-gray-500 italic text-xs' : (state.devices[71032] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                  x-text="!isDeviceOnline(71032) ? 'OFFLINE' : (state.devices[71032] === null ? 'SYNCING...' : (state.devices[71032] === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                            <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                   :disabled="!isDeviceOnline(71032) || state.devices[71032] === null"
+                                   :checked="state.devices[71032] === 'ON'"
+                                   @change="injectLabHubStateChange(71032, $event.target.checked)" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 font-mono text-xs">
+                        <div class="bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Cold Water</div>
+                            <div class="text-lg font-black text-white" x-text="state.sensors.water_cold_liters.toFixed(1) + ' L'"></div>
+                        </div>
+                        <div class="bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Hot Water</div>
+                            <div class="text-lg font-black text-error" x-text="state.sensors.water_hot_liters.toFixed(1) + ' L'"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4 bg-neutral p-3 rounded-box border border-base-300 text-xs font-mono" x-show="state.metrics.douche_active || state.metrics.douche_water_liters > 0">
+                        <div class="font-bold text-accent uppercase tracking-wider mb-1.5 flex justify-between items-center">
+                            <span><span>🚿</span> Live Douche Tracker</span>
+                            <span class="badge badge-xs badge-accent animate-pulse" x-show="state.metrics.douche_active">ACTIVE RUN</span>
+                        </div>
+                        <div class="flex justify-between text-base-400">
+                            <span>Session Time:</span>
+                            <span class="text-white font-bold" x-text="doucheElapsedText"></span>
+                        </div>
+                        <div class="flex justify-between text-base-400 mt-1">
+                            <span>Water Usage:</span>
+                            <span class="text-white font-bold" x-text="state.metrics.douche_water_liters + ' L'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        <div class="card bg-base-100 shadow-xl border border-base-200 w-full">
+            <div class="card-body p-4 flex flex-col justify-start">
+                    <h2 class="card-title text-base-400 uppercase text-[11px] md:text-xs tracking-widest mb-3 whitespace-nowrap">🎬 Cinema & Buro</h2>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <span class="text-xs font-bold text-base-400 uppercase">Atmosphere</span>
+                            <div class="text-right font-mono">
+                                <span class="text-white font-bold" x-text="(state.devices[20003] && state.devices[20003].temp !== undefined) ? state.devices[20003].temp.toFixed(1) + '°C' : '--.-°C'"></span>
+                                <span class="text-info ml-1 text-xs" x-text="(state.devices[20003] && state.devices[20003].hum !== undefined) ? state.devices[20003].hum + '%' : '--%'"></span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-xs font-bold text-base-400 uppercase">Cinema Light</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!isDeviceOnline(71002) || state.devices[71002] === null ? 'text-gray-500 italic text-xs' : (state.devices[71002] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!isDeviceOnline(71002) ? 'OFFLINE' : (state.devices[71002] === null ? 'SYNCING...' : (state.devices[71002] === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!isDeviceOnline(71002) || state.devices[71002] === null"
+                                       :checked="state.devices[71002] === 'ON'"
+                                       @change="injectLabHubStateChange(71002, $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="flex-1 flex items-center min-w-0 pr-2">
+                                <button class="text-left flex items-center gap-3 w-full hover:text-primary transition-colors cursor-pointer"
+                                        @click="openLightModal({
+                                            id: 51004,
+                                            name: 'Cinema Hue',
+                                            raw_value: (state.devices[51004] && typeof state.devices[51004] === 'object')
+                                                ? { state: state.devices[51004].state, bri: state.devices[51004].bri ?? 100, xy: state.devices[51004].xy ?? [0.3127, 0.3290] }
+                                                : state.devices[51004]
+                                        })">
+                                    <div class="w-4 h-4 rounded-full border border-gray-600 shrink-0 transition-all duration-300"
+                                         :style="(!isDeviceOnline(51004) || state.devices[51004] === null) ? 'background-color: #333; opacity: 0.5;' : (((state.devices[51004]?.state || state.devices[51004]) === 'ON') ? `background-color: ${typeof state.devices[51004] === 'object' && state.devices[51004].xy ? xyToHex(state.devices[51004].xy[0], state.devices[51004].xy[1], state.devices[51004].bri) : '#FFD180'}; box-shadow: 0 0 8px ${typeof state.devices[51004] === 'object' && state.devices[51004].xy ? xyToHex(state.devices[51004].xy[0], state.devices[51004].xy[1], state.devices[51004].bri) : '#FFD180'};` : 'background-color: #333;')">
+                                    </div>
+                                    <span class="text-xs font-bold uppercase truncate text-base-400 underline decoration-dashed underline-offset-4 decoration-base-content/30">
+                                        Cinema Hue
+                                    </span>
+                                </button>
+                            </div>
+                            <div class="flex items-center gap-3 shrink-0">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!isDeviceOnline(51004) || state.devices[51004] === null ? 'text-gray-500 italic text-xs' : (((state.devices[51004]?.state || state.devices[51004]) === 'ON') ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!isDeviceOnline(51004) ? 'OFFLINE' : (state.devices[51004] === null ? 'SYNCING...' : (((state.devices[51004]?.state || state.devices[51004]) === 'ON') ? 'ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!isDeviceOnline(51004) || state.devices[51004] === null"
+                                       :checked="(state.devices[51004]?.state || state.devices[51004]) === 'ON'"
+                                       @change="injectLabHubStateChange(51004, $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-xs font-bold text-base-400 uppercase">Buro Light</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!isDeviceOnline(71001) || state.devices[71001] === null ? 'text-gray-500 italic text-xs' : (state.devices[71001] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!isDeviceOnline(71001) ? 'OFFLINE' : (state.devices[71001] === null ? 'SYNCING...' : (state.devices[71001] === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!isDeviceOnline(71001) || state.devices[71001] === null"
+                                       :checked="state.devices[71001] === 'ON'"
+                                       @change="injectLabHubStateChange(71001, $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-xs font-bold text-base-400 uppercase">Buro Schemer</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!isDeviceOnline(40002) || state.devices[40002] === null ? 'text-gray-500 italic text-xs' : (state.devices[40002] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!isDeviceOnline(40002) ? 'OFFLINE' : (state.devices[40002] === null ? 'SYNCING...' : (state.devices[40002] === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!isDeviceOnline(40002) || state.devices[40002] === null"
+                                       :checked="state.devices[40002] === 'ON'"
+                                       @change="injectLabHubStateChange(40002, $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-xs font-bold text-base-400 uppercase">Cinema Schemer</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!isDeviceOnline(40001) || state.devices[40001] === null ? 'text-gray-500 italic text-xs' : (state.devices[40001] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!isDeviceOnline(40001) ? 'OFFLINE' : (state.devices[40001] === null ? 'SYNCING...' : (state.devices[40001] === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                       :disabled="!isDeviceOnline(40001) || state.devices[40001] === null"
+                                       :checked="state.devices[40001] === 'ON'"
+                                       @change="injectLabHubStateChange(40001, $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="text-xs font-bold text-base-400 uppercase">PC Monitors</div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-sm mt-0.5"
+                                      :class="!isDeviceOnline(72002) || state.devices[72002] === null ? 'text-gray-500 italic text-xs' : (state.devices[72002] === 'ON' ? 'text-info font-bold animate-pulse' : 'text-base-500')"
+                                      x-text="!isDeviceOnline(72002) ? 'OFFLINE' : (state.devices[72002] === null ? 'SYNCING...' : (state.devices[72002] === 'ON' ? '⚡ ON' : 'OFF'))"></span>
+                                <input type="checkbox" class="toggle toggle-info toggle-sm shadow" autocomplete="off"
+                                       :disabled="!isDeviceOnline(72002) || state.devices[72002] === null || state.devices[72001] !== 'ON'"
+                                       :checked="state.devices[72002] === 'ON'"
+                                       @change="injectLabHubStateChange(72002, $event.target.checked)" />
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="flex justify-between items-center w-full">
+                                <span class="text-xs font-bold text-base-400 uppercase">PC Power Draw</span>
+                                <div class="text-right font-mono">
+                                    <span class="text-warning font-bold" x-text="state.devices[74001] !== null && state.devices[74001] !== undefined ? state.devices[74001] : '-- W'"></span>
+                                </div>
+                            </div>
+                            <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
+                                x-show="state.sensors.sensor_history && state.sensors.sensor_history[74001] && state.sensors.sensor_history[74001].length > 1" x-cloak>
+                                <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
+                                              :points="getSparkline(state.sensors.sensor_history[74001])"></polyline>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
+                            <div class="flex justify-between items-center w-full">
+                                <span class="text-xs font-bold text-base-400 uppercase">Monitors Power Draw</span>
+                                <div class="text-right font-mono">
+                                    <span class="text-warning font-bold" x-text="state.devices[74003] !== null && state.devices[74003] !== undefined ? state.devices[74003] : '-- W'"></span>
+                                </div>
+                            </div>
+                            <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
+                                x-show="state.sensors.sensor_history && state.sensors.sensor_history[74003] && state.sensors.sensor_history[74003].length > 1" x-cloak>
+                                <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
+                                              :points="getSparkline(state.sensors.sensor_history[74003])"></polyline>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <dialog id="light_control_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+            <div class="modal-box border border-primary/20 bg-base-300 shadow-2xl">
+                <h3 class="font-bold text-lg flex items-center gap-2 uppercase tracking-widest text-primary border-b border-base-200 pb-3 mb-4">
+                    <span x-text="activeLightName"></span>
+                </h3>
+
+                <div class="flex flex-col gap-6">
+                    <div>
+                        <div class="flex justify-between text-xs font-mono font-bold text-base-400 mb-2 uppercase tracking-wider">
+                            <span>Brightness</span>
+                            <span class="text-warning" x-text="(activeLightBri ?? 100) + '%'"></span>
+                        </div>
+                        <input type="range" min="1" max="100" class="range range-warning shadow-inner"
+                               x-model="activeLightBri"
+                               @input.debounce.100ms="updateActiveLightState()" />
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-mono font-bold text-base-400 mb-2 uppercase tracking-wider">
+                            <span>Color Output</span>
+                            <span class="text-info" x-text="activeLightHex || '#FFD180'"></span>
+                        </div>
+                        <div class="flex flex-col items-center justify-center bg-base-200 p-4 rounded-box border border-base-300">
+                            <div id="color-picker-container"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <template x-for="(preset, key) in state.system.hue_presets" :key="key">
+                            <button class="btn btn-sm btn-outline border-base-content/20 text-[10px] font-mono tracking-wide truncate shadow-sm hover:text-primary"
+                                    x-text="preset.name || key"
+                                    @click="applyPreset(preset)"></button>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="modal-action border-t border-base-200 pt-4 mt-6">
+                    <form method="dialog" class="w-full flex justify-between">
+                        <button class="btn btn-error btn-sm font-mono shadow-sm text-neutral-900" @click="injectLabHubStateChange(activeLightId, false)">TURN OFF</button>
+                        <button class="btn btn-outline btn-sm font-mono text-base-content/70">Close</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+    </main>
+    <script src="app.js?v=2.0"></script>
+</body>
+</html>

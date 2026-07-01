@@ -133,22 +133,14 @@ class SensorsState(BaseModel):
     env_schedule_twilight_morning_on_unix: Optional[int] = None
     env_schedule_twilight_morning_off_unix: Optional[int] = None
 
-    bathroom1_temp: Optional[float] = None
-    bathroom1_hum: Optional[int] = None
-    cinema_temp: Optional[float] = None
-    cinema_hum: Optional[int] = None
-
-    sauna_high_temp: Optional[float] = None
-    sauna_high_hum: Optional[int] = None
-    sauna_low_temp: Optional[float] = None
-    sauna_low_hum: Optional[int] = None
+    # ⚡ VIRTUAL COMPOSITE Sauna data (Preserved Exception)
     sauna_calc_temp: Optional[float] = None
     sauna_calc_hum: Optional[int] = None
 
-    pc_power: Optional[float] = None
-    pc_power_history: List[float] = Field(default_factory=list)
-    pc_aux_power: Optional[float] = None
-    pc_aux_power_history: List[float] = Field(default_factory=list)
+    # ⚡ UNIVERSAL HISTORY TRACKER
+    # Completely replaces hardcoded power/temperature history arrays.
+    # Automatically manages rolling windows for ANY idx that reports values.
+    sensor_history: Dict[int, List[float]] = Field(default_factory=dict)
 
     water_cold_liters: float = 0.0
     water_hot_liters: float = 0.0

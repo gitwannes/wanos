@@ -259,7 +259,7 @@ async def _process_incoming_zwave_message(self, topic: str, payload: dict[str, A
             if self._state.devices.get(target_idx) != target_state:
                 self._state.devices[target_idx] = target_state
                 
-                # Signal the SSE engine to push a partial delta frame to dashboard.html instantly
+                # Signal the SSE engine to push a partial delta frame to deviceexplorer.html instantly
                 self.publish_domain_update("devices", {target_idx: target_state})
                 logger.debug(f"⚡ Z-Wave Node Sync: '{node_name}' [IDX {target_idx}] updated to {target_state}")
                 

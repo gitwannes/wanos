@@ -68,8 +68,8 @@ function zwaveApp() {
                 const payloadStr = atob(token.split('.')[1]);
                 const payload = JSON.parse(payloadStr);
                 if (payload.role !== "admin") {
-                    console.warn("Unauthorized access attempt. Redirecting to dashboard.");
-                    window.location.href = '/dashboard.html';
+                    console.warn("Unauthorized access attempt. Redirecting to device explorer.");
+                    window.location.href = '/deviceexplorer.html';
                     return;
                 }
             } catch (err) {
@@ -370,6 +370,8 @@ function zwaveApp() {
             yamlLines.push(`  # config_zwave.yaml`);
             yamlLines.push(``);
             yamlLines.push(`  # This file should NOT be edit manually: consult zwaveconfig.html.`);
+            yamlLines.push(``);
+            yamlLines.push(`  # Z-Wave JS UI: http://10.32.251.30:8091`);
             yamlLines.push(`  # ==============================================================================`);
             yamlLines.push(``);
             yamlLines.push(`zwave:`);

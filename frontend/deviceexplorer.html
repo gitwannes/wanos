@@ -25,6 +25,15 @@
     Get js from web: https://raw.githubusercontent.com/jaames/iro.js/master/dist/iro.min.js
     -->
     <script src="iro.min.js"></script>
+    <style>
+        /* Guaranteed fallback for the PC-only nav menu, independent of the
+           Tailwind CDN JIT engine (which may fail/be blocked on some mobile browsers).
+           Hidden below 1024px, shown as flex at/above it. */
+        #pc-nav-menu { display: none; }
+        @media (min-width: 1024px) {
+            #pc-nav-menu { display: flex; }
+        }
+    </style>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
 
@@ -35,18 +44,32 @@
         <p class="text-error mt-2 font-mono text-sm">Establishing connection stream to WanOS backend...</p>
     </div>
 
-    <header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center overflow-hidden min-h-[3rem]">
+    <header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center min-h-[3rem] relative z-[60]">
         <div class="flex-1 flex items-center gap-2 min-w-0">
             <div class="flex flex-col min-w-0 justify-center">
-                <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-primary truncate">⚡ WANOS // DEVICE EXPLORER</span>
-                <span class="text-[9px] font-mono text-base-content/40 leading-none mt-0.5 tracking-wider select-none" x-text="state.system.version_major"></span>
+                <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-primary truncate">⚡ WanOS // Device Explorer</span>
+                <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" x-text="unifiedDeviceList.length + ' Nodes'"></span>
             </div>
-            <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" x-text="unifiedDeviceList.length + ' Nodes'"></span>
         </div>
 
-        <div class="flex-none flex items-center">
-            <a href="admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" x-show="isAdmin" x-cloak title="Return to Admin">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        <div id="pc-nav-menu" class="justify-center flex-1 min-w-0">
+            <div class="join bg-base-200 border border-base-300">
+                <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-primary border-primary bg-primary/10">EXplorer</a>
+                <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">Commander</a>
+            </div>
+        </div>
+
+        <div class="flex-none flex items-center gap-2">
+            <div class="dropdown dropdown-end">
+                <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </div>
+                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
+                    <li><a href="/deviceexplorer.html" class="text-primary font-bold">Device Explorer</a></li>
+                    <li><a href="/commander.html">Commander</a></li>
+                </ul>
+            </div>
+            <a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" x-show="isAdmin" x-cloak title="Return to Admin">                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             </a>
             <button @click="logout()" class="btn btn-ghost btn-xs text-base-content/30 hover:text-error" title="Logout">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
