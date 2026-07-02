@@ -194,10 +194,17 @@ class AutomationEngine:
 
                             # Load preset if specified
                             if preset_name and hasattr(config, "hue") and hasattr(config.hue, "presets"):
-                                preset = getattr(config.hue.presets, preset_name, None)
+                                presets_col = config.hue.presets
+                                # Safely extract from Pydantic dictionary or object
+                                preset = presets_col.get(preset_name) if isinstance(presets_col, dict) else getattr(
+                                    presets_col, preset_name, None)
+
                                 if preset:
-                                    bri = getattr(preset, "bri", bri)
-                                    xy = getattr(preset, "xy", xy)
+                                    # Support both dict and Pydantic model access for the payload claims
+                                    bri = getattr(preset, "bri", bri) if hasattr(preset, "bri") else preset.get(
+                                        "bri", bri)
+                                    xy = getattr(preset, "xy", xy) if hasattr(preset, "xy") else preset.get("xy",
+                                                                                                            xy)
 
                             # If rich attributes are provided, we must force the command because the power state
                             # might already be "ON", but we still need to send the new color/brightness payload.

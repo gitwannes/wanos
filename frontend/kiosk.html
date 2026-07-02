@@ -141,13 +141,13 @@
 
                     <div class="flex flex-col gap-4 h-full">
                         <button @click="toggleSauna()"
-                                :disabled="(!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON' || state.sensors.sauna_calc_temp == null || (!state.sauna.active && (state.devices[10001] === 'OPEN' || state.ir.active)))"
+                                :disabled="((!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON')) || state.sensors.sauna_calc_temp == null || (!state.sauna.active && (state.devices[10001] === 'OPEN' || state.ir.active)))"
                                 class="flex-1 rounded-3xl border-2 flex flex-col items-center justify-center transition-all duration-300 relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                                 :class="state.sauna.active ? 'bg-orange-400 border-orange-500 shadow-md text-white' : 'bg-white border-stone-200 shadow-sm text-stone-500'">
                             <span class="text-2xl font-black tracking-widest uppercase">Sauna <span x-text="state.sauna.active ? 'ON' : 'OFF'"></span></span>
                             <span class="text-[11px] font-mono mt-1 font-bold text-center px-2"
                                   :class="state.sauna.active ? 'text-orange-100' : 'text-stone-400'"
-                                  x-html="state.sauna.active ? 'ACTIVE ELEMENT LOAD' : (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON' ? '<span class=\'text-red-500\'>NOT ARMED, CONTACT ADMIN</span>' : (state.sensors.sauna_calc_temp == null ? '<span class=\'text-red-500\'>SENSORS OFFLINE</span>' : (state.devices[10001] === 'OPEN' ? '<span class=\'text-orange-500\'>PLEASE CLOSE DOOR</span>' : 'TAP TO SWITCH')))">
+                                  x-html="state.sauna.active ? 'ACTIVE ELEMENT LOAD' : (!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON') ? '<span class=\'text-red-500\'>NOT ARMED, CONTACT ADMIN</span>' : (state.sensors.sauna_calc_temp == null ? '<span class=\'text-red-500\'>SENSORS OFFLINE</span>' : (state.devices[10001] === 'OPEN' ? '<span class=\'text-orange-500\'>PLEASE CLOSE DOOR</span>' : 'TAP TO SWITCH')))">
                             </span>
                         </button>
 
@@ -173,13 +173,13 @@
 
                     <div class="flex flex-col gap-4 h-full">
                         <button @click="toggleIR()"
-                                :disabled="(!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON' || state.sensors.sauna_calc_temp == null || (!state.ir.active && state.sauna.active))"
+                                :disabled="((!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON')) || state.sensors.sauna_calc_temp == null || (!state.ir.active && state.sauna.active))"
                                 class="flex-1 rounded-3xl border-2 flex flex-col items-center justify-center transition-all duration-300 relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                                 :class="state.ir.active ? 'bg-emerald-400 border-emerald-500 shadow-md text-white' : 'bg-white border-stone-200 shadow-sm text-stone-500'">
                             <span class="text-2xl font-black tracking-widest uppercase">IR <span x-text="state.ir.active ? 'ON' : 'OFF'"></span></span>
                             <span class="text-[11px] font-mono mt-1 font-bold text-center px-2"
                                   :class="state.ir.active ? 'text-emerald-100' : 'text-stone-400'"
-                                  x-html="state.ir.active ? 'GRID MODULATION' : (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON' ? '<span class=\'text-red-500\'>NOT ARMED, CONTACT ADMIN</span>' : (state.sensors.sauna_calc_temp == null ? '<span class=\'text-red-500\'>SENSORS OFFLINE</span>' : 'TAP TO SWITCH'))">
+                                  x-html="state.ir.active ? 'GRID MODULATION' : (!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON') ? '<span class=\'text-red-500\'>NOT ARMED, CONTACT ADMIN</span>' : (state.sensors.sauna_calc_temp == null ? '<span class=\'text-red-500\'>SENSORS OFFLINE</span>' : 'TAP TO SWITCH'))">
                             </span>
                         </button>
 

@@ -572,6 +572,13 @@ function wanosApp() {
                 this.syncLabControls();
             }
 
+            // ⚡ RESTORE LAB UI STATE
+            // If the user refreshes the page while the backend physics engine is still running,
+            // automatically snap the Lab Controls panel open so it isn't hidden in the dark.
+            if (this.state.hardware && this.state.hardware.simulations_enabled) {
+                this.labControlsEnabled = true;
+            }
+
             // ⚡ Instantly drop the loading screen so the user sees the populated data
             this.connected = true;
         },
@@ -825,25 +832,6 @@ function wanosApp() {
 
             if (!seed) return;
 
-            // ⚡ Pulls directly from the unified device dictionary
-            this.labSaunaHighTemp = (devs[20001] && devs[20001].temp) ?? seed.sauna_high_temp;
-            this.labSaunaHighHum  = (devs[20001] && devs[20001].hum)  ?? seed.sauna_high_hum;
-            this.labSaunaLowTemp  = (devs[20002] && devs[20002].temp) ?? seed.sauna_low_temp;
-            this.labSaunaLowHum   = (devs[20002] && devs[20002].hum)  ?? seed.sauna_low_hum;
-            this.labBathroom1Temp = (devs[20004] && devs[20004].temp) ?? seed.bathroom1_temp;
-            this.labBathroom1Hum  = (devs[20004] && devs[20004].hum)  ?? seed.bathroom1_hum;
-            this.labCinemaTemp    = (devs[20003] && devs[20003].temp) ?? seed.cinema_temp;
-            this.labCinemaHum     = (devs[20003] && devs[20003].hum)  ?? seed.cinema_hum;
-            this.labOutsideTemp   = (devs[30001] && devs[30001].temp) ?? seed.outside_temp;
-            this.labOutsideHum    = (devs[30001] && devs[30001].hum)  ?? seed.outside_hum;
-        },
-
-        syncLabControls() {
-            const devs = this.state.devices;
-            const seed = this.state.boot_seed;
-
-            if (!seed) return;
-
             // ⚡ DYNAMIC LAB SEEDING:
             // Safely parses the boot_seed dictionary by integer IDX.
             // If real hardware is online, `devs[idx].temp` exists and overrides the seed.
@@ -1004,6 +992,19 @@ function wanosApp() {
         toggleSimulations() {
             const nextState = !this.state.hardware.simulations_enabled;
             this.publishEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
+
+            // ⚡ VIRTUAL SENSOR BOOT-STRAP
+            // When spinning up the physics engine, instantly push the initial lab slider
+            // states so the backend has a baseline temperature to satisfy the PID controller
+            // and unlock the sauna UI automatically.
+            if (nextState) {
+                setTimeout(() => {
+                    this.injectLabMetric("TEMP_UPDATED", 20001, this.labSaunaHighTemp || 21.0);
+                    this.injectLabMetric("HUMIDITY_UPDATED", 20001, this.labSaunaHighHum || 45);
+                    this.injectLabMetric("TEMP_UPDATED", 20002, this.labSaunaLowTemp || 20.0);
+                    this.injectLabMetric("HUMIDITY_UPDATED", 20002, this.labSaunaLowHum || 48);
+                }, 250); // Tiny delay to ensure the backend processed the SIMULATIONS_TOGGLED event first
+            }
         },
 
         async enableAllIntegrations() {
@@ -1325,6 +1326,35 @@ function loginApp() {
         loading: true,
 
         async init() {
+            // ⚡ ROLE-AWARE SESSION AUTO-RESTORE:
+            // Inspects localStorage for existing authorization signatures before rendering the keypad.
+            // This guarantees standard user roles are never accidentally misrouted to administrative pages.
+            const persistentToken = localStorage.getItem("wanos_jwt");
+            if (persistentToken) {
+                try {
+                    const claimsPayload = JSON.parse(atob(persistentToken.split('.')[1]));
+                    const currentUnixTimestamp = Math.floor(Date.now() / 1000);
+
+                    // Validate session expiration timeline parameters before allowing a bypass redirect
+                    if (claimsPayload.exp && currentUnixTimestamp < claimsPayload.exp) {
+                        if (claimsPayload.role === "admin") {
+                            window.location.href = "/admin.html";
+                            return;
+                        } else if (claimsPayload.role === "user") {
+                            window.location.href = "/deviceexplorer.html";
+                            return;
+                        } else if (claimsPayload.role === "kiosk") {
+                            window.location.href = "/kiosk.html";
+                            return;
+                        }
+                    } else {
+                        localStorage.removeItem("wanos_jwt"); // Session expired clean-up
+                    }
+                } catch (authError) {
+                    localStorage.removeItem("wanos_jwt"); // Evict malformed context tokens
+                }
+            }
+
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
 

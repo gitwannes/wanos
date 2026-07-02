@@ -7,53 +7,53 @@ hue:
   bridge_ip: "10.32.251.73"
   device_map:
     ## gv
-    # 50003: "0ffbbd27-3410-4230-9208-8bef3d93db58"  # eetkamer
-    # 50011: "83c7cfcb-20e5-4c8d-93f1-080ae3760769"  # living e14
-    # 50021: "f2a1c1ee-a814-44a1-bba8-7bb278543d79"  # living strip
+    # 50003: "0ffbbd27-3410-4230-9208-8bef3d93db58 | eetkamer"
+    # 50011: "83c7cfcb-20e5-4c8d-93f1-080ae3760769 | living e14"
+    # 50021: "f2a1c1ee-a814-44a1-bba8-7bb278543d79 | living strip"
 
     ## 1eV
-    # 50006: "2fdbfdf9-16b9-430b-a57d-29bb4e694cb9"  # sauna1
-    # 50001: "04c524c1-5c19-4566-a258-a9d86c34291d"  # sauna2
-    # 50002: "06530974-f2de-4a84-a034-6ede3ed3f16d"  # sauna strip
-    # 50008: "5b876d99-b3d8-449a-8e98-b26dbbf0813f"  # cinema strip
-    # 50017: "cd39f413-081e-46ba-b4d6-f13611ea5c99"  # cinema sfeer L
-    # 50020: "e800319f-1c48-490d-a643-6a3e6b10f741"  # cinema sfeer R
-    # 50013: "8d02f577-10fc-402d-81b7-968e3c29d655"  # badk1-1
-    # 50019: "ddd45fda-6079-4993-b4ed-dda330cd04d5"  # badk1-3
-    # 50018: "d72ec1ba-c851-4888-9d41-8cdda6103244"  # badk1-4
-    # 50016: "cbaec156-2fbb-4d64-9c40-810ceeea6e0e"  # badk1-5
+    # 50006: "2fdbfdf9-16b9-430b-a57d-29bb4e694cb9 | sauna1"
+    # 50001: "04c524c1-5c19-4566-a258-a9d86c34291d | sauna2"
+    # 50002: "06530974-f2de-4a84-a034-6ede3ed3f16d | sauna strip"
+    # 50008: "5b876d99-b3d8-449a-8e98-b26dbbf0813f | cinema strip"
+    # 50017: "cd39f413-081e-46ba-b4d6-f13611ea5c99 | cinema sfeer L"
+    # 50020: "e800319f-1c48-490d-a643-6a3e6b10f741 | cinema sfeer R"
+    # 50013: "8d02f577-10fc-402d-81b7-968e3c29d655 | badk1-1"
+    # 50019: "ddd45fda-6079-4993-b4ed-dda330cd04d5 | badk1-3"
+    # 50018: "d72ec1ba-c851-4888-9d41-8cdda6103244 | badk1-4""
+    # 50016: "cbaec156-2fbb-4d64-9c40-810ceeea6e0e | badk1-5"
 
     ## 2eV
-    # 50010: "6c26a9fd-3440-409e-a179-84f635fe8563"  # lavabo2-raam
-    # 50004: "1756cf8b-fb0a-4c7c-8522-7a177bdb14f7"  # lavabo2-deur
-    # 50007: "583a606a-8a63-4e7b-adf5-c15a4e284cd4"  # toilet2
-    # 50014: "bfc119c2-5677-408b-b3f5-e940ca1b955b"  # douche2
-    # 50005: "2a375de3-1ae5-45a2-8168-2fda1a3abb8b"  # slpkW-nachtW
-    # 50012: "85322630-ab28-42e1-b795-59d36223a7ad"  # slpkW-nachtG
-    # 50015: "c12d21a0-b450-4c72-9678-6d27c50529da"  # slpkW-sfeer
-    # 51008: "803819b2-33ee-4ad6-a66d-a02eeefe137e"  # slpk Dries-rm
-    # 50009: "69a415b3-658d-4ed4-a9f6-3c441933ae2b"  # slpk D strip
+    # 50010: "6c26a9fd-3440-409e-a179-84f635fe8563 | lavabo2-raam"
+    # 50004: "1756cf8b-fb0a-4c7c-8522-7a177bdb14f7 | lavabo2-deur"
+    # 50007: "583a606a-8a63-4e7b-adf5-c15a4e284cd4 | toilet2"
+    # 50014: "bfc119c2-5677-408b-b3f5-e940ca1b955b | douche2"
+    # 50005: "2a375de3-1ae5-45a2-8168-2fda1a3abb8b | slpkW-nachtW"
+    # 50012: "85322630-ab28-42e1-b795-59d36223a7ad | slpkW-nachtG"
+    # 50015: "c12d21a0-b450-4c72-9678-6d27c50529da | slpkW-sfeer"
+    # 51008: "803819b2-33ee-4ad6-a66d-a02eeefe137e | slpk Dries-rm"
+    # 50009: "69a415b3-658d-4ed4-a9f6-3c441933ae2b | slpk D strip"
 
   group_map:
     ## gv
-    51003: "5a15c1c9-04db-4e28-954b-e7207594c8de"  # eetkamer-rm
-    51005: "c7bf6cb1-8de2-47cf-8f1f-9a87cee7a40a"  # living-rm
+    51003: "5a15c1c9-04db-4e28-954b-e7207594c8de | eetkamer Hue"
+    51005: "c7bf6cb1-8de2-47cf-8f1f-9a87cee7a40a | living Hue"
 
     ## 1eV
-    51002: "29563e2d-4c5f-44ff-9cdd-f72108d77bf8"  # sauna-rm
-    51004: "73eb3804-f52c-40e5-a0ef-f3929f2872e3"  # cinema-rm
-    51001: "94c02aac-2534-4891-add2-bee2bdc7826d"  # badkamer1-rm
+    51002: "29563e2d-4c5f-44ff-9cdd-f72108d77bf8 | sauna Hue"
+    51004: "73eb3804-f52c-40e5-a0ef-f3929f2872e3 | cinema Hue"
+    51001: "94c02aac-2534-4891-add2-bee2bdc7826d | badk 1e Hue"
 
     ## 2eV
-    51007: "f00f22ca-86b6-425f-8b5d-402aa3df956e"  # badkamer2-rm
-    51006: "9c3958fa-e6b2-4ab2-a578-e6dbdeefff22"  # slpk Wannes-rm
-    51008: "803819b2-33ee-4ad6-a66d-a02eeefe137e"  # slpk Dries-rm
+    51007: "f00f22ca-86b6-425f-8b5d-402aa3df956e | badk 2e Hue"
+    51006: "9c3958fa-e6b2-4ab2-a578-e6dbdeefff22 | slpk Wannes Hue"
+    51008: "803819b2-33ee-4ad6-a66d-a02eeefe137e | slpk Dries Hue"
 
     ## general
-    51100: "79c68f91-fd90-4498-9498-fbe378138ada"  # verd 0
-    51101: "51a560b4-a930-452b-ad80-58041af59dd6"  # verd 1
-    51102: "8dba91e0-a59a-4f91-b100-e333b865ad30"  # verd 2
-    # 51110: "d96ecaf6-6a39-4641-9ce0-ee7547a48c25"  # alles in ons huisje
+    51100: "79c68f91-fd90-4498-9498-fbe378138ada | verd 0 Hue"
+    51101: "51a560b4-a930-452b-ad80-58041af59dd6 | verd 1 Hue"
+    51102: "8dba91e0-a59a-4f91-b100-e333b865ad30 | verd 2 Hue"
+    # 51110: "d96ecaf6-6a39-4641-9ce0-ee7547a48c25 | Hue overal"
 
   presets:
     # The 'name' field is automatically injected into the frontend UI preset buttons

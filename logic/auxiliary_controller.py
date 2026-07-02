@@ -44,7 +44,7 @@ class AuxiliaryController:
             # Format the target string, defaulting if physical sensors are detached
             temp_display: str = f"{int(current_temp)}°C" if current_temp is not None else "--°C"
 
-            if door_open:
+            if door_sauna_open:
                 sauna.lcd_text = f"CLOSE DOOR | {temp_display}"
             elif sauna.hold_mode == "hold":
                 sauna.lcd_text = f"SAUNA HOLD | {temp_display}"

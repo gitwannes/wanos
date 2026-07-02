@@ -139,19 +139,45 @@ class StateManager:
                 self._state.device_metadata[rfx_dev.virtual_idx] = {"name": rfx_dev.name, "type": "switch", "origin": "rfxcom"}
                 self._state.devices[rfx_dev.virtual_idx] = "OFF"
 
-        if hasattr(self._config, "hue") and getattr(self._config, "hue", None):
-            for idx_int in self._config.hue.device_map.keys():
-                semantic_name = self._state.dashboard_map.get(idx_int, f"Hue Light {idx_int}")
-                self._state.dashboard_map[idx_int] = semantic_name
-                self._state.device_metadata[idx_int] = {"name": semantic_name, "type": "light", "origin": "hue"}
-                self._state.devices[idx_int] = None
+        hue_conf = getattr(self._config, "hue", None)
+        if hue_conf:
+            # Safely extract the device map
+            device_map = getattr(hue_conf, "device_map", {}) or {}
+            for idx_key, raw_val in device_map.items():
+                try:
+                    idx_int = int(idx_key)
+                    self._state.devices[idx_int] = None
 
-            group_map = getattr(self._config, "hue").group_map if hasattr(getattr(self._config, "hue"), "group_map") else {}
-            for idx_int in group_map.keys():
-                semantic_name = self._state.dashboard_map.get(idx_int, f"Hue Group {idx_int}")
-                self._state.dashboard_map[idx_int] = semantic_name
-                self._state.device_metadata[idx_int] = {"name": semantic_name, "type": "light", "origin": "hue"}
-                self._state.devices[idx_int] = None
+                    # ⚡ Safely extract Pydantic SecretStr objects to prevent masking ("**********")
+                    val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
+                    if "|" in val_str:
+                        friendly_name = val_str.split("|", 1)[1].strip()
+                        self._state.dashboard_map[idx_int] = friendly_name
+                        self._state.device_metadata[idx_int] = {"name": friendly_name, "type": "light", "origin": "hue"}
+                    else:
+                        self._state.device_metadata[idx_int] = {"name": f"Hue Light {idx_int}", "type": "light",
+                                                                "origin": "hue"}
+                except Exception:
+                    pass
+
+            # Safely extract the group map without clunky nested hasattr checks
+            group_map = getattr(hue_conf, "group_map", {}) or {}
+            for idx_key, raw_val in group_map.items():
+                try:
+                    idx_int = int(idx_key)
+                    self._state.devices[idx_int] = None
+
+                    # ⚡ Safely extract Pydantic SecretStr objects to prevent masking ("**********")
+                    val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
+                    if "|" in val_str:
+                        friendly_name = val_str.split("|", 1)[1].strip()
+                        self._state.dashboard_map[idx_int] = friendly_name
+                        self._state.device_metadata[idx_int] = {"name": friendly_name, "type": "light", "origin": "hue"}
+                    else:
+                        self._state.device_metadata[idx_int] = {"name": f"Hue Group {idx_int}", "type": "light",
+                                                                "origin": "hue"}
+                except Exception:
+                    pass
 
         if getattr(self._config, "epson", None):
             self._state.dashboard_map[80001] = "Epson Projector"
@@ -380,14 +406,15 @@ class StateManager:
         # Validates physical requirements BEFORE routing the command to the logic handlers
         if event_name in ["SAUNA_ON", "IR_ON"]:
             reasons = []
+            is_sim = self._state.hardware.simulations_enabled
 
-            # Rule 1: 5V Master Safety Relay
-            if self._state.devices.get(71036) != "ON":
+            # Rule 1: 5V Master Safety Relay (Bypassed during physics simulation)
+            if not is_sim and self._state.devices.get(71036) != "ON":
                 reasons.append("5V Safety Relay OFF")
-            # Rule 2: Output Bus Armed Status
-            if not self._state.hardware.gpio_output_enabled:
+            # Rule 2: Output Bus Armed Status (Bypassed during physics simulation)
+            if not is_sim and not self._state.hardware.gpio_output_enabled:
                 reasons.append("Outputs disarmed")
-            # Rule 3: Telemetry Health
+            # Rule 3: Telemetry Health (Always required, even if it's simulated telemetry)
             if self._state.sensors.sauna_calc_temp is None:
                 reasons.append("Telemetry offline")
             # Rule 4: Physical Door (Sauna Only)

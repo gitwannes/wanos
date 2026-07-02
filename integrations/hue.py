@@ -45,7 +45,8 @@ class HueLocalBridge:
 
     def _initialize_mappings(self) -> None:
         """Parses the configuration to build fast in-memory translation maps."""
-        if not hasattr(self._config, "hue") or self._config.hue is None:
+        hue_conf = getattr(self._config, "hue", None)
+        if not hue_conf:
             return
 
         # Clear existing maps to prevent translation state contamination on configuration reloads
@@ -55,23 +56,29 @@ class HueLocalBridge:
         self.group_uuid_to_idx.clear()
         self.room_scenes.clear()
 
-        device_map: Dict[Any, str] = getattr(self._config.hue, "device_map", {})
-        for idx_str, uuid in device_map.items():
+        device_map: Dict[Any, Any] = getattr(hue_conf, "device_map", {}) or {}
+        for idx_str, raw_val in device_map.items():
             try:
                 idx = int(idx_str)
-                self.idx_to_uuid[idx] = uuid
-                self.uuid_to_idx[uuid] = idx
-            except ValueError:
-                logger.error(f"[HUE] Invalid non-integer IDX in config.yaml device_map: {idx_str}")
+                # Safely peel Pydantic SecretStr proxy wrappers to reveal the true UUID
+                val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
+                clean_uuid = val_str.split("|")[0].strip() if "|" in val_str else val_str.strip()
+                self.idx_to_uuid[idx] = clean_uuid
+                self.uuid_to_idx[clean_uuid] = idx
+            except Exception:
+                logger.error(f"[HUE] Invalid configuration in device_map for IDX: {idx_str}")
 
-        group_map: Dict[Any, str] = getattr(self._config.hue, "group_map", {})
-        for idx_str, uuid in group_map.items():
+        group_map: Dict[Any, Any] = getattr(hue_conf, "group_map", {}) or {}
+        for idx_str, raw_val in group_map.items():
             try:
                 idx = int(idx_str)
-                self.idx_to_group_uuid[idx] = uuid
-                self.group_uuid_to_idx[uuid] = idx
-            except ValueError:
-                logger.error(f"[HUE] Invalid non-integer IDX in config.yaml group_map: {idx_str}")
+                # Safely peel Pydantic SecretStr proxy wrappers to reveal the true UUID
+                val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
+                clean_uuid = val_str.split("|")[0].strip() if "|" in val_str else val_str.strip()
+                self.idx_to_group_uuid[idx] = clean_uuid
+                self.group_uuid_to_idx[clean_uuid] = idx
+            except Exception:
+                logger.error(f"[HUE] Invalid configuration in group_map for IDX: {idx_str}")
 
         # The room_scenes dict is left intentionally blank here. It will be dynamically populated
         # from the physical Hue Bridge during the _sync_initial_state() boot routine.
@@ -149,21 +156,26 @@ class HueLocalBridge:
                     if resp.status == 200:
                         data = await resp.json()
                         for item in data.get("data", []):
+                            room_uuid = item["id"]
                             g_name = item.get("metadata", {}).get("name", "unknown")
-                            group_names[item["id"]] = g_name
+                            group_names[room_uuid] = g_name
+
+                            # ⚡ Check if this specific Room UUID was mapped in config_hue.yaml
+                            mapped_idx = self.group_uuid_to_idx.get(room_uuid)
 
                             # Crawl internal services to map the anonymous grouped_light reference
                             for service in item.get("services", []):
                                 if service.get("rtype") == "grouped_light":
                                     gl_id = service.get("rid")
-                                    # Prepend the specific resource type to distinguish Rooms from Zones in the UI
-                                    # grouped_light_to_name[gl_id] = f"{endpoint}: {g_name}"
                                     grouped_light_to_name[gl_id] = f"{g_name.removesuffix('-rm')}"
 
-                                    # ⚡ Reverse mapping: Find the WanOS IDX from the grouped_light UUID
-                                    mapped_idx = self.group_uuid_to_idx.get(gl_id)
                                     if mapped_idx:
-                                        room_uuid_to_idx[item["id"]] = mapped_idx
+                                        room_uuid_to_idx[room_uuid] = mapped_idx
+                                        # ⚡ DYNAMIC UUID BRIDGING:
+                                        # The Hue App gives users the Room UUID, but live telemetry uses the Grouped Light UUID.
+                                        # We instantly inject the hidden gl_id into our translation maps so telemetry routes flawlessly!
+                                        self.group_uuid_to_idx[gl_id] = mapped_idx
+                                        self.idx_to_group_uuid[mapped_idx] = gl_id
 
             # Fetch all native Scenes
             url = f"https://{self.bridge_ip}/clip/v2/resource/scene"

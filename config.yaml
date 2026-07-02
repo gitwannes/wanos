@@ -114,6 +114,9 @@ deviceexplorer_exclude:
   - 51100  # Hue verd 0
   - 51101  # Hue verd 1
   - 51102  # Hue verd 2
+  - 11001  # kWh
+  - 11002  # cold water
+  - 11003  # warm water
 
 
 # ==============================================================================
@@ -407,6 +410,14 @@ automations:
       - idx: 71006 # licht garage
         state: "ON"
 
+  - name: "toilet_motion"
+    trigger:
+      idx: 75002
+      state: "ON"
+    actions:
+      - idx: 71043 # licht toilet
+        state: "ON"
+
   - name: "achterdeur_waskot"
     ## !! NEW doorsensor to install
     trigger:
@@ -532,8 +543,18 @@ automations:
       - event: SCENE_GOCOSY
 
 # --------------------------------------------------------------------------
-  # 🛁 BATHROOM 1 (1e) LIGHTING & HUE SYNC
-  # --------------------------------------------------------------------------
+# 🛁 BATHROOM 1 (1e) LIGHTING & HUE SYNC
+# --------------------------------------------------------------------------
+
+  # --- Main Bathroom Switch (141) Master Control ---
+  - name: "Badk 1e: Main Switch ON -> Hue Red"
+    trigger:
+      idx: 71007         # badkamer 1e groot switch
+      state: "ON"
+    actions:
+      - idx: 51001       # badkamer 1e hue room
+        state: "ON"
+        preset: "bathroom_red"
 
   # --- Wastafel (Sink) Logic: Split into Day/Night context ---
   - name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
@@ -559,16 +580,6 @@ automations:
         is: "ON"         # Only fires if the room is already lit
     actions:
       - idx: 51001
-        state: "ON"
-        preset: "bathroom_red"
-
-  # --- Main Bathroom Switch (141) Master Control ---
-  - name: "Badk 1e: Main Switch ON -> Hue Red"
-    trigger:
-      idx: 71007         # badkamer 1e groot switch
-      state: "ON"
-    actions:
-      - idx: 51001       # badkamer 1e hue room
         state: "ON"
         preset: "bathroom_red"
 

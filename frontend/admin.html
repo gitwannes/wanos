@@ -154,7 +154,7 @@
                                 <input type="checkbox" class="toggle toggle-warning toggle-sm shadow shrink-0"
                                        :disabled="(state.hardware.gpio_input_enabled && state.hardware.sht11_enabled) || state.hardware.gpio_output_enabled"
                                        x-model="labControlsEnabled"
-                                       @change="syncLabControls()" />
+                                       @change="if(!labControlsEnabled && state.hardware.simulations_enabled) publishEvent('SIMULATIONS_TOGGLED', {enabled: false}); syncLabControls()" />
                             </div>
                         </h2>
 

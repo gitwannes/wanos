@@ -359,20 +359,23 @@ class ZWaveJSUIBridge(WanosComponent):
             self._was_hardware_connected = False
             await self.logger.error("🔴 [Z-Wave] Physical USB stick unplugged.")
 
-        current_config_id = id(self.state_manager._config)
-
         # --- HOT-RELOAD DETECTOR ---
-        # Python magic methods (__setattr__) cannot be overridden on instances safely.
-        # We instead watch the memory address of the core config object to detect live reloads.
-        if self._is_mapped and self._last_config_id != 0 and self._last_config_id != current_config_id:
-            self._last_config_id = current_config_id
-            self._is_mapped = False  # Force the hardware mapper to rebuild the memory matrices immediately!
+        # Natively inspects the event batch for an explicit reload request to eliminate fragile memory address hacks
+        is_config_reload = False
+        if events:
+            for event in events:
+                if event.type == EventType.CONFIG_RELOAD_REQUESTED:
+                    is_config_reload = True
+                    break
+
+        if is_config_reload and self._is_mapped:
+            self._is_mapped = False
+            self._integration_enabled = False  # Reset to force a clean, synchronous MQTT re-subscription cycle
             await self.logger.info("🔄 [Z-Wave] Core config reload detected. Rebuilding endpoint translations...")
 
         # --- LAZY BOOT & HARDWARE MAPPING ---
         # Only wake up and map nodes if Tier 1 (USB) and Tier 2 (MQTT LWT) are both verified
         if state.system.zwave_hardware_connected and self.is_mqtt_engine_alive and not self._is_mapped:
-            self._last_config_id = current_config_id
             zwave_conf = getattr(self.state_manager._config, "zwave", None)
 
             if zwave_conf and zwave_conf.device_map:
