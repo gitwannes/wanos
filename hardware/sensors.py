@@ -49,6 +49,7 @@ class HardwareSensors:
         """
         error_counters = {}
         last_readings = {}
+        sensor_status = {}  # ⚡ Tracks explicit ALIVE/DEAD state for clean logging
         MAX_RETRIES = 2
 
         # Helper method to run the blocking C-library code safely outside the asyncio loop
@@ -75,9 +76,10 @@ class HardwareSensors:
                         # If we got this far without throwing an exception, the physical bus is alive!
                         any_sensor_replied = True
 
-                        # Only log once on recovery/boot to prevent log spam every 60 seconds
-                        if error_counters[node.idx] != 0 or node.idx not in last_readings:
-                            await self.logger.info(f"SHT11 sensor active: {node.name} (idx {node.idx}).")
+                        # ⚡ STATE-CHANGE LOGGING: Only log on initial boot or recovery transition
+                        if sensor_status.get(node.idx) is not True:
+                            await self.logger.info(f"🟢 SHT11 sensor active: {node.name} (idx {node.idx}).")
+                            sensor_status[node.idx] = True
 
                         error_counters[node.idx] = 0
 
@@ -96,9 +98,10 @@ class HardwareSensors:
                                                                   payload={"idx": node.idx, "value": final_hum}))
 
                     except Exception as e:
-                        # Log failure cleanly once
-                        if error_counters[node.idx] == 0:
+                        # ⚡ STATE-CHANGE LOGGING: Only log on initial boot or failure transition
+                        if sensor_status.get(node.idx) is not False:
                             await self.logger.info(f"🛑 SHT11 sensor DEAD: {node.name} (idx {node.idx}).")
+                            sensor_status[node.idx] = False
 
                         error_counters[node.idx] += 1
 

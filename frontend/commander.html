@@ -74,19 +74,34 @@
                     <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-start mb-3 h-16 shadow-inner">                        <div class="font-mono text-green-500 text-sm md:text-md tracking-widest uppercase truncate" x-text="state.sauna.lcd_text || 'WanOS core standby'"></div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2 mb-6 w-full">
+                    <div class="grid grid-cols-2 gap-2 mb-2 w-full">
                         <button :class="state.sauna.active ? 'btn btn-error shadow-lg' : 'btn btn-outline'"
-                                :disabled="(!state.sauna.active && (state.devices[10001] === 'OPEN' || state.ir.active)) || state.sensors.sauna_calc_temp == null"
+                                :disabled="(!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON' || state.sensors.sauna_calc_temp == null || (!state.sauna.active && (state.devices[10001] === 'OPEN' || state.ir.active)))"
                                 @click="toggleSauna()">
                             <span x-show="state.sauna.active" class="animate-pulse flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">🔥</span> Sauna ON</span>
                             <span x-show="!state.sauna.active" class="flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">❄️</span> Sauna OFF</span>
                         </button>
                         <button :class="state.ir.active ? 'btn btn-error shadow-lg' : 'btn btn-outline'"
-                                :disabled="(!state.ir.active && state.sauna.active) || state.sensors.sauna_calc_temp == null"
+                                :disabled="(!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON' || state.sensors.sauna_calc_temp == null || (!state.ir.active && state.sauna.active))"
                                 @click="toggleIR()">
                             <span x-show="state.ir.active" class="animate-pulse flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">⚡</span> IR ON <span class="hidden sm:inline ml-1 text-white text-[9px] opacity-80" x-text="'[' + irRemainingText + ']'"></span></span>
                             <span x-show="!state.ir.active" class="flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">❄️</span> IR OFF</span>
                         </button>
+                    </div>
+
+                    <div class="mb-6 w-full text-center h-4">
+                        <span class="text-[10px] md:text-xs font-bold text-error animate-pulse"
+                              x-show="!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON'" x-cloak>
+                              Sauna & IR not armed, contact administrator
+                        </span>
+                        <span class="text-[10px] md:text-xs font-bold text-error animate-pulse"
+                              x-show="state.hardware.gpio_output_enabled && state.devices[71036] === 'ON' && state.sensors.sauna_calc_temp == null" x-cloak>
+                              Cannot start, temperature sensors offline
+                        </span>
+                        <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
+                              x-show="state.hardware.gpio_output_enabled && state.devices[71036] === 'ON' && state.sensors.sauna_calc_temp != null && !state.sauna.active && state.devices[10001] === 'OPEN'" x-cloak>
+                              Cannot start sauna, please close door
+                        </span>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

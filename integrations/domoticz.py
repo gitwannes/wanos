@@ -86,7 +86,6 @@ class DomoticzHomeHubBridge(WanosComponent):
         # 3. Only run cold-boot sync if the switch is ON at startup
         if self._integration_enabled:
             asyncio.create_task(self._fetch_initial_states_http())
-)
         await self.logger.info("[Domoticz] Bridge class loaded. Standing by for remote broker connection.")
 
     async def stop(self) -> None:

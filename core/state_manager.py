@@ -356,19 +356,28 @@ class StateManager:
 
         # ⚡ EMERGENCY START GATE INTERCEPTOR (Prevention)
         # Validates physical requirements BEFORE routing the command to the logic handlers
-        if event_name == "SAUNA_ON":
+        if event_name in ["SAUNA_ON", "IR_ON"]:
             reasons = []
-            if self._state.sensors.sauna_calc_temp is None:
-                reasons.append("Telemetry offline")
+
+            # Rule 1: 5V Master Safety Relay
+            if self._state.devices.get(71036) != "ON":
+                reasons.append("5V Safety Relay OFF")
+            # Rule 2: Output Bus Armed Status
             if not self._state.hardware.gpio_output_enabled:
                 reasons.append("Outputs disarmed")
-            if self._state.devices.get(10001) == "OPEN":
+            # Rule 3: Telemetry Health
+            if self._state.sensors.sauna_calc_temp is None:
+                reasons.append("Telemetry offline")
+            # Rule 4: Physical Door (Sauna Only)
+            if event_name == "SAUNA_ON" and self._state.devices.get(10001) == "OPEN":
                 reasons.append("Door open")
 
             if reasons:
-                await self.logger.warning(f"SAUNA_ON explicitly blocked by Start Gate: {', '.join(reasons)}")
+                sys_name = "Sauna" if event_name == "SAUNA_ON" else "IR"
+                await self.logger.warning(
+                    f"🔴 {sys_name} explicitly blocked by Start Gate: {', '.join(reasons)}")
                 self.dispatch(Event(type=EventType.ALERT_INJECTED,
-                                    payload={"msg_text": f"⚠️ Sauna start blocked: {', '.join(reasons)}"}))
+                                    payload={"msg_text": f"⚠️ {sys_name} start blocked: {', '.join(reasons)}"}))
                 return state_changed, changed_domains
 
         # ⚡ ROUTE TO STRATEGY PATTERN HANDLER
@@ -382,6 +391,16 @@ class StateManager:
         # CROSS-CUTTING CONCERNS (Universal Hooks, Timers & PID Logic)
         # --------------------------------------------------------
 
+        p_idx = payload.get("idx")
+
+        # ⚡ MASTER Z-WAVE SAFETY CASCADE (Phase B)
+        # If the 5V Master Safety Relay drops, we must instantly cut the software outputs.
+        if event_name == "HUB_STATE_CHANGED" and p_idx == 71036 and payload.get("state") != "ON":
+            if self._state.hardware.gpio_output_enabled:
+                await self.logger.critical(
+                    "🚨 Master 5V Safety Relay (71036) dropped! Cascading emergency output disarm.")
+                self.dispatch(Event(type=EventType.GPIO_OUTPUT_TOGGLED, payload={"enabled": False}))
+
         # ⚡ UNIVERSAL 0.0W INTERCEPTOR
         if event_name == "HUB_STATE_CHANGED" and payload.get("state") == "OFF":
             switch_idx = payload.get("idx")
@@ -394,7 +413,6 @@ class StateManager:
                 }))
 
         # ⚡ UNIVERSAL SPARKLINE HISTORY AGGREGATOR
-        p_idx = payload.get("idx")
         is_power_event: bool = False
 
         if event_name == "POWER_UPDATED":
