@@ -1,5 +1,7 @@
 # --- file: config_hue.yaml ---
 
+# names for the Hue lights come from the Hue app
+
 # Philips Hue Local Network Bridge
 hue:
   bridge_ip: "10.32.251.73"
@@ -51,8 +53,7 @@ hue:
     51100: "79c68f91-fd90-4498-9498-fbe378138ada"  # verd 0
     51101: "51a560b4-a930-452b-ad80-58041af59dd6"  # verd 1
     51102: "8dba91e0-a59a-4f91-b100-e333b865ad30"  # verd 2
-    51110: "d96ecaf6-6a39-4641-9ce0-ee7547a48c25"  # alles in ons huisje
-
+    # 51110: "d96ecaf6-6a39-4641-9ce0-ee7547a48c25"  # alles in ons huisje
 
   presets:
     # The 'name' field is automatically injected into the frontend UI preset buttons

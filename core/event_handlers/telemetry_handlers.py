@@ -300,27 +300,62 @@ async def handle_humidity_updated(event: Event, manager: Any) -> Tuple[bool, Set
 
 async def handle_water_pulse(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
-    wtype = payload.get("fluid", "cold")
+    idx = payload.get("idx")
     count = payload.get("count", 1)
 
-    for _ in range(count):
-        if wtype == "cold":
-            manager._state.sensors.water_cold_liters += (1.0 / 396.0)
-        else:
-            manager._state.sensors.water_hot_liters += (1.0 / 396.0)
+    state_changed = False
+    changed_domains = set()
 
+    if idx is not None:
+        # 1. Fetch current liters from the universal device registry
+        current_liters = manager._state.devices.get(idx)
+        if not isinstance(current_liters, (float, int)):
+            current_liters = 0.0
+
+        # 2. Convert raw hardware pulses to physical units (396 pulses = 1 liter)
+        added_liters = count / 396.0
+        manager._state.devices[idx] = round(current_liters + added_liters, 3)
+
+        state_changed = True
+        changed_domains.add("devices")
+
+        # 3. Maintain legacy Douche logic (Adding pulse ticks to the active session)
         if manager._state.metrics.douche_active:
-            manager._state.metrics.douche_water_liters += 1
+            manager._state.metrics.douche_water_liters += count
+            changed_domains.add("metrics")
 
-    if manager.mqtt_publisher:
-        manager.mqtt_publisher.accumulate_water(wtype, count)
+        # 4. Forward to MQTT Publisher (Mapping IDX back to fluid type for legacy topics)
+        if manager.mqtt_publisher:
+            wtype = "cold" if idx == 11002 else "hot"
+            manager.mqtt_publisher.accumulate_water(wtype, count)
 
-    return True, {"sensors", "metrics"}
+    return state_changed, changed_domains
 
 
 async def handle_kwh_pulse(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    payload = event.payload or {}
+    idx = payload.get("idx")
+
+    state_changed = False
+    changed_domains = set()
+
+    if idx is not None:
+        # 1. Fetch current accumulated Watt-hours
+        current_wh = manager._state.devices.get(idx)
+        if not isinstance(current_wh, (float, int)):
+            current_wh = 0.0
+
+        # 2. Add raw pulse (1 pulse = 1 Wh)
+        manager._state.devices[idx] = current_wh + 1.0
+
+        state_changed = True
+        changed_domains.add("devices")
+
+    # 3. Maintain legacy Kiosk/UI metrics
     manager._state.metrics.kwh_wh_ticks += 1
+    changed_domains.add("metrics")
+
     if manager.mqtt_publisher:
         manager.mqtt_publisher.accumulate_kwh(1)
 
-    return True, {"metrics"}
+    return state_changed, changed_domains

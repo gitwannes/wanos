@@ -44,6 +44,7 @@ async def handle_sht11_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.hardware.sht11_connected:
+        await manager.logger.warning("🟡 [SHT11] Autostart rejected: SHT11 Sensor Bus is unplugged.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: SHT11 Sensor Bus is unplugged.")
         state_changed |= ch
         changed_domains |= dom
@@ -62,6 +63,7 @@ async def handle_gpio_input_toggled(event: Event, manager: Any) -> Tuple[bool, S
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.hardware.gpio_input_connected:
+        await manager.logger.warning("🟡 [GPIO Input] Autostart rejected: GPIO Input Bus is offline.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: GPIO Input Bus is offline.")
         state_changed |= ch
         changed_domains |= dom
@@ -80,6 +82,7 @@ async def handle_gpio_output_toggled(event: Event, manager: Any) -> Tuple[bool, 
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.hardware.gpio_output_connected:
+        await manager.logger.warning("🟡 [GPIO Output] Autostart rejected: GPIO Output Bus is offline.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: GPIO Output Bus is offline.")
         state_changed |= ch
         changed_domains |= dom

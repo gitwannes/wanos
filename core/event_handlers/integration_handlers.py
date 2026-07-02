@@ -31,6 +31,7 @@ async def handle_domoticz_toggled(event: Event, manager: Any) -> Tuple[bool, Set
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.domoticz_mqtt_connected:
+        await manager.logger.warning("🟡 [Domoticz] Autostart rejected: Remote broker is offline.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Domoticz Hub is offline.")
         state_changed |= ch
         changed_domains |= dom
@@ -71,6 +72,7 @@ async def handle_rfxcom_toggled(event: Event, manager: Any) -> Tuple[bool, Set[s
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.rfxcom_connected:
+        await manager.logger.warning("🟡 [Native RFX] Autostart rejected: USB Transceiver is offline or unplugged.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: RFXCOM Transceiver is offline.")
         state_changed |= ch
         changed_domains |= dom
@@ -102,6 +104,7 @@ async def handle_owm_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.wanos_mqtt_connected:
+        await manager.logger.warning("🟡 [OWM] Autostart rejected: Local WanOS broker is offline.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: WanOS Broker is offline.")
         state_changed |= ch
         changed_domains |= dom
@@ -133,6 +136,7 @@ async def handle_hue_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.hue_connected:
+        await manager.logger.warning("🟡 [Hue] Autostart rejected: Hue Bridge is offline.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Hue Bridge is offline.")
         state_changed |= ch
         changed_domains |= dom
@@ -164,6 +168,7 @@ async def handle_epson_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.epson_connected:
+        await manager.logger.warning("🟡 [Epson] Autostart rejected: Epson Projector is offline.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Epson Projector is offline.")
         state_changed |= ch
         changed_domains |= dom

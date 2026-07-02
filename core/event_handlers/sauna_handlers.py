@@ -14,6 +14,13 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
         await manager.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Temperature data is currently missing (NULL).")
         return False, set()
 
+    # ⚡ Master Z-Wave Safety Interlock
+    # Verifies the 5V power supply to the SSRs is actively engaged by the Z-Wave network
+    if manager._state.devices.get(71036) != "ON":
+        await manager.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Master relay (71036) is OFF.")
+        manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={"msg_text": "🚨 Sauna start blocked: Master relay is disengaged!", "level": "critical"}))
+        return False, set()
+
     manager._state.sauna.active = True
     manager._state.sauna.hold_mode = "autohold"
     manager._state.sauna.session_start_time = int(time.time())

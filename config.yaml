@@ -79,49 +79,22 @@ native_rfx:
     protocol: "Lighting4"
     on_id: "545455"
     off_id: "545454"
-  - name: "kerst voor"
+  - name: "kerst lichten voor"
     virtual_idx: 40005  # RFX5
     protocol: "Lighting4"
-    on_id: "545511" # ToDo: lookup
-    off_id: "545514" # ToDo: lookup
+    on_id: "545511"
+    off_id: "545514"
 
 
 # ==============================================================================
-# 2. PRESENTATION LAYER (UI MAPPINGS)
+#
 # ==============================================================================
-# Maps raw numeric IDXs to semantic names for the frontend UI.
-dashboard:
-  # --- Core System & Hardware ---
-  72001: "pc"
-  74001: "pc_power"
-  72002: "pc_aux"
-  74003: "pc_aux_power"
-  71036: "safety_ssr"
 
-  # --- Environment ---
-  30001: "outside TH"
-
-  # --- Wellness & Sauna ---
-  72004: "sauna_zoutlamp"
-  71038: "sauna_extrvent"
-  10001: "door_sauna"
-  20001: "sauna_high TH"
-  20002: "sauna_low TH"
-
-  # --- Bathroom 1 ---
-  71007: "bathroom1_main"
-  71032: "bathroom1_wastafel"
-  71034: "bathroom1_ventilator"
-  10002: "door_bathroom1"
-  20004: "bathroom1 TH"
-
-  # --- Ground Floor ---
-  71005: "gang_beneden"
-
-  # --- First Floor ---
-  71001: "buro"
-  71002: "cinema_main"
-  20003: "cinema TH"
+weather:
+  idx: 30001
+  name: "Outside temp & hum"
+  location: "Borsbeek,BE"
+  poll_interval_mins: 30
 
 hardware_links:
   # ⚡ UNIVERSAL 0W INTERCEPTOR MAP
@@ -136,10 +109,11 @@ hardware_links:
 deviceexplorer_exclude:
   - 80001 # Epson projector
   - 40004 # kerstboom
+  - 40005 # kerst lichten voor
+  - 72006 # kerst lichten tuin
   - 51100  # Hue verd 0
   - 51101  # Hue verd 1
   - 51102  # Hue verd 2
-  - 51110  # Hue alles
 
 
 # ==============================================================================
@@ -743,7 +717,7 @@ automations:
   # 🍿 CINEMA MODE SCENES
   # --------------------------------------------------------------------------
 
-  - name: "CINEMA ON"
+  - name: "--- CINEMA ON"
     scene: true
     trigger:
       event: "SCENE_CINEMA_ON"
@@ -771,7 +745,7 @@ automations:
         preset: "relax_red"
 
   # --- CINEMA OFF: SPLIT INTO TWO RULES FOR IF/ELSE LOGIC ---
-  - name: "CINEMA OFF"
+  - name: "--- CINEMA OFF"
     # This one makes it to the dashboard.trigger:
     # It fires the event "SCENE_CINEMA_OFF", both this and "CINEMA OFF (Day)" are then evaluated.
     scene: true

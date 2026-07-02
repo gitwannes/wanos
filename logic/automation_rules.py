@@ -331,6 +331,7 @@ class AutomationEngine:
             if hasattr(config, "bathroom1"):
                 on_threshold: int = config.bathroom1.vent_on_humidity
                 off_threshold: int = config.bathroom1.vent_off_humidity
+
                 d_bath = state.devices.get(20004)
                 current_hum: Optional[int] = d_bath.get("hum") if isinstance(d_bath, dict) else None
 

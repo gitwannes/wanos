@@ -242,9 +242,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 state_manager.dispatch(Event(type=EventType.SHT11_TOGGLED, payload={"enabled": True}))
                 # Phase 7: Wait for stabilization (Give SHT11 loop time to parse real-world temps)
                 await asyncio.sleep(2.0)
-                # Phase 8: Arm High-Power Outputs
-                state_manager.dispatch(Event(type=EventType.GPIO_OUTPUT_TOGGLED, payload={"enabled": True}))
-                # Phase 9: Synchronization Sweep
+                # Phase 8: Synchronization Sweep (Outputs remain safely disarmed until UI manual intervention)
                 state_manager.dispatch(Event(type=EventType.SYSTEM_SWEEP_REQUESTED, payload={}))
 
             asyncio.create_task(delayed_autostart())

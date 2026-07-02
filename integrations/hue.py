@@ -219,8 +219,9 @@ class HueLocalBridge:
                             else:
                                 default_name = grouped_light_to_name.get(uuid, f"Hue Group {idx}")
 
-                            # Prioritize user dashboard definitions, fallback to generated bridge names
-                            name = self._config.dashboard.get(idx, default_name)
+                            # ⚡ Resolve the UI name by checking the global state manager map,
+                            # ensuring we don't try to access the old deprecated config.dashboard block.
+                            name = self.state_manager._state.dashboard_map.get(idx, default_name)
 
                             # Push resolved names back into state managers to maintain UI parity
                             self.state_manager._state.dashboard_map[idx] = name

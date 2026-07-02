@@ -1,5 +1,6 @@
 # --- file: hardware/inputs.py ---
 import asyncio
+import functools
 from typing import Dict, Any, Optional
 from core.models import Event, EventType
 from core.state_manager import StateManager
@@ -81,32 +82,35 @@ class HardwareInputs:
                     setattr(self.state_manager, "_shared_gpio_chip", None)
 
     def _arm_interrupts(self):
-        """Binds the high-speed background C-Thread edge detectors."""
-        if not self.chip or self._is_active:
+        """Binds the high-speed background C-Thread edge detectors dynamically from config."""
+        # ⚡ ZERO-EVALUATION FIX: Explicitly check for None so valid handles of `0` are not skipped
+        if self.chip is None or self._is_active:
             return
 
         try:
-            pin_cold = self.config.pins.water_cold
-            pin_hot = self.config.pins.water_hot
-            lgpio.gpio_claim_alert(self.chip, pin_cold, lgpio.FALLING_EDGE, lgpio.SET_PULL_UP)
-            lgpio.gpio_claim_alert(self.chip, pin_hot, lgpio.FALLING_EDGE, lgpio.SET_PULL_UP)
-            self.callbacks.append(lgpio.callback(self.chip, pin_cold, lgpio.FALLING_EDGE, self._on_water_cold))
-            self.callbacks.append(lgpio.callback(self.chip, pin_hot, lgpio.FALLING_EDGE, self._on_water_hot))
+            # ⚡ DYNAMIC CALLBACK FACTORY
+            # Loops through the declarative config and binds C-thread interrupts using functools.partial
+            # to safely lock the specific IDX into the memory of the callback.
+            if hasattr(self.config, "gpio_inputs") and self.config.gpio_inputs:
+                for key, node in self.config.gpio_inputs.items():
+                    if node.idx is None:
+                        continue
 
-            pin_kwh = self.config.pins.kwh_pin
-            lgpio.gpio_claim_alert(self.chip, pin_kwh, lgpio.FALLING_EDGE, lgpio.SET_PULL_UP)
-            self.callbacks.append(lgpio.callback(self.chip, pin_kwh, lgpio.FALLING_EDGE, self._on_kwh))
+                    # 1. Determine electrical edge requirement based on semantic type
+                    # Doors need both edges (open/close). Pulse meters only need the falling edge.
+                    edge = lgpio.BOTH_EDGES if node.type == "door" else lgpio.FALLING_EDGE
 
-            pin_door_sauna = self.config.pins.door_sauna
-            pin_door_bath = self.config.pins.door_bathroom1
-            lgpio.gpio_claim_alert(self.chip, pin_door_sauna, lgpio.BOTH_EDGES, lgpio.SET_PULL_UP)
-            lgpio.gpio_claim_alert(self.chip, pin_door_bath, lgpio.BOTH_EDGES, lgpio.SET_PULL_UP)
-            self.callbacks.append(lgpio.callback(self.chip, pin_door_sauna, lgpio.BOTH_EDGES, self._on_door_sauna))
-            self.callbacks.append(lgpio.callback(self.chip, pin_door_bath, lgpio.BOTH_EDGES, self._on_door_bath))
+                    # 2. Claim the pin
+                    lgpio.gpio_claim_alert(self.chip, node.pin, edge, lgpio.SET_PULL_UP)
 
-            # Dispatch initial door states so the UI knows exactly how they stand upon arming
-            self._dispatch_door(10001, lgpio.gpio_read(self.chip, pin_door_sauna))
-            self._dispatch_door(10002, lgpio.gpio_read(self.chip, pin_door_bath))
+                    # 3. Bind and store the callback
+                    cb_func = functools.partial(self._on_gpio_edge, idx=node.idx, node_type=node.type)
+                    self.callbacks.append(lgpio.callback(self.chip, node.pin, edge, cb_func))
+
+                    # 4. If it's a stateful door, instantly read and dispatch its physical baseline
+                    if node.type == "door":
+                        initial_level = lgpio.gpio_read(self.chip, node.pin)
+                        self._dispatch_door(node.idx, initial_level)
 
             self._is_active = True
 
@@ -135,24 +139,18 @@ class HardwareInputs:
     # LGPIO Interrupt Handlers (Running in Background C-Thread)
     # MUST push via threadsafe!
     # =========================================================================
-    def _on_water_cold(self, chip, gpio, level, tick):
-        self.loop.call_soon_threadsafe(self.state_manager.dispatch,
-                                       Event(type=EventType.WATER_PULSE, payload={"fluid": "cold", "count": 1}))
+    def _on_gpio_edge(self, chip: int, gpio: int, level: int, tick: int, idx: int, node_type: str) -> None:
+        """Universal edge handler bound to specific IDXs via functools.partial."""
+        if node_type == "door":
+            self._dispatch_door(idx, level)
+        elif node_type == "fluid":
+            self.loop.call_soon_threadsafe(self.state_manager.dispatch,
+                                           Event(type=EventType.WATER_PULSE, payload={"idx": idx, "count": 1}))
+        elif node_type == "energy":
+            self.loop.call_soon_threadsafe(self.state_manager.dispatch,
+                                           Event(type=EventType.KWH_PULSE, payload={"idx": idx}))
 
-    def _on_water_hot(self, chip, gpio, level, tick):
-        self.loop.call_soon_threadsafe(self.state_manager.dispatch,
-                                       Event(type=EventType.WATER_PULSE, payload={"fluid": "hot", "count": 1}))
-
-    def _on_kwh(self, chip, gpio, level, tick):
-        self.loop.call_soon_threadsafe(self.state_manager.dispatch, Event(type=EventType.KWH_PULSE, payload={}))
-
-    def _on_door_sauna(self, chip, gpio, level, tick):
-        self._dispatch_door(10001, level)
-
-    def _on_door_bath(self, chip, gpio, level, tick):
-        self._dispatch_door(10002, level)
-
-    def _dispatch_door(self, idx: int, level: int):
+    def _dispatch_door(self, idx: int, level: int) -> None:
         is_open = bool(level)
         self.loop.call_soon_threadsafe(self.state_manager.dispatch,
                                        Event(type=EventType.DOOR_CHANGED, payload={"idx": idx, "is_open": is_open}))

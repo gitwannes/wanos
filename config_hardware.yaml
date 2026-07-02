@@ -1,0 +1,58 @@
+# --- file: config_hardware.yaml ---
+# STRICT PHYSICAL LAYER & ENTITY MAPPING
+
+gpio_input:
+  kwh_meter:
+    idx: 11001
+    name: "kWh meter"
+    pin: 12
+    type: "energy"
+  water_cold:
+    idx: 11002
+    name: "koud water"
+    pin: 6
+    type: "fluid"
+  water_hot:
+    idx: 11003
+    name: "warm water"
+    pin: 5
+    type: "fluid"
+  door_sauna:
+    idx: 10001
+    name: "sauna deur"
+    pin: 27
+    type: "door"
+  door_bathroom1:
+    idx: 10002
+    name: "badkamer deur"
+    pin: 22
+    type: "door"
+
+gpio_output:
+  ir_relais: 14
+  sauna_relais_phase_U: 15 # 3500 W
+  sauna_relais_phase_V: 17 # 3500 W
+  sauna_relais_phase_W: 18 # 2000 W
+  safety_gpio: 4
+
+sht11_sensors:
+  bathroom1:
+    idx: 20004
+    name: "badkamer 1e temp & hum"
+    pin_d: 24
+    pin_c: 23
+  cinema:
+    idx: 20003
+    name: "cinema temp & hum"
+    pin_d: 9
+    pin_c: 10
+  sauna_high:
+    idx: 20001
+    name: "sauna high temp & hum"
+    pin_d: 11
+    pin_c: 25
+  sauna_low:
+    idx: 20002
+    name: "sauna low temp & hum"
+    pin_d: 7
+    pin_c: 8

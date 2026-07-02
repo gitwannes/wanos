@@ -37,10 +37,7 @@ function wanosApp() {
                 sunset_unix: null,
                 sauna_calc_temp: null,
                 sauna_calc_hum: null,
-                sensor_history: {}, // ⚡ Universal dynamic history tracking
-                // Liters pre-rounded by the backend (1 decimal). No conversion needed here.
-                water_cold_liters: 0.0,
-                water_hot_liters: 0.0
+                sensor_history: {} // ⚡ Universal dynamic history tracking
             },
             sauna: {
                 active: false,
@@ -65,9 +62,6 @@ function wanosApp() {
                 session_end_time: null
             },
             metrics: {
-                // Raw Wh tick counter kept in state for internal tracking.
-                // Divide by 1000 at display time to show kWh.
-                kwh_wh_ticks: 0,
                 douche_active: false,
                 douche_start_time: null,
                 douche_duration_secs: 0,
@@ -84,27 +78,11 @@ function wanosApp() {
                 safety_pin_active: false, // Hardwired GPIO. Instantly verified locally, safe to default false.
                 sensor_errors: []
             },
-            // PESSIMISTIC UI ARCHITECTURE: All Domoticz-driven relays are initialized
-            // strictly to `null`. This keeps the UI buttons disabled and grayed out
-            // until the Python backend explicitly pushes their verified state.
-            devices: {
-                10001: "CLOSED", // Local GPIO (door_sauna)
-                10002: "CLOSED", // Local GPIO (door_bathroom1)
-                71001: null, // buro
-                71002: null, // cinema_main
-                40001: null, // cinema_schemer
-                40002: null, // buro_schemer
-                71035: null, // sauna_hue -- ToDo: move to Hue idx
-                72004: null, // sauna_zoutlamp
-                71007: null, // bathroom1_main
-                71032: null, // bathroom1_wastafel
-                71034: null, // bathroom1_ventilator
-                71038: null, // sauna_extrvent
-                71036: null, // safety_ssr
-                72001: null, // pc
-                72002: null, // pc_aux
-                71008: null // gang_boven
-            },
+            // PESSIMISTIC UI ARCHITECTURE: All devices are initialized empty.
+            // The Frontend remains completely agnostic until the Python backend
+            // explicitly pushes the RAM dictionary over the boot sync.
+            // ⚡ DYNAMIC REGISTRY: Devices are dynamically injected by the backend.
+            devices: {},
             dashboard_map: {}, // ⚡ Store the backend mapping dictionary for labels only
             device_metadata: {}, // ⚡ The dynamic registry powering deviceexplorer.html
             boot_seed: null
@@ -1235,7 +1213,9 @@ function wanosApp() {
 
         injectWaterPulse(fluidType) {
             // Injects 396 pulses = exactly 1 liter for lab testing
-            this.publishEvent("WATER_PULSE", { fluid: fluidType, count: 396, lab_override: true });
+            // ⚡ DYNAMIC ROUTING: Resolves the semantic fluid type to its strict hardware IDX
+            const targetIdx = fluidType === 'cold' ? 11002 : 11003;
+            this.publishEvent("WATER_PULSE", { idx: targetIdx, count: 396, lab_override: true });
         },
 
         formatUnixTime(unixTime) {

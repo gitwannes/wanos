@@ -65,6 +65,13 @@ class ZWaveJSUIBridge(WanosComponent):
 
         try:
             data: dict[str, Any] = json.loads(payload)
+
+            # ⚡ DATA TYPE GUARD
+            # Z-Wave JS UI sometimes broadcasts raw scalar values (like true/false) on root topics.
+            # If it's not a JSON dictionary object, we drop it to prevent attribute errors.
+            if not isinstance(data, dict):
+                return
+
             prefix = self.mqtt_prefix
 
             # 1. Strip the prefix to match internal routing logic
@@ -473,6 +480,17 @@ class ZWaveJSUIBridge(WanosComponent):
 
             # Prevent infinite loops: Don't echo commands back to Z-Wave if Z-Wave sent them
             if origin == "zwave" and not is_force:
+                continue
+
+            # ⚡ READ-ONLY MASTER SAFETY INTERLOCK:
+            # Hard-block outbound state changes to our foundational 5V power supply modules.
+            # Even if a user bypasses the UI and forces an API event, the bridge will silently
+            # drop the command to preserve the physical hardware AND-gate interlock.
+            if idx in [71036, 71040]:
+                # 71036 = safety 12V = SSR
+                # 71040 = safety 5V = Pi itself - without this this code cannot run :-)
+                await self.logger.warning(
+                    f"🛡️ Z-Wave Bridge intercepted and dropped an unauthorized outbound command to Master Safety Relay (IDX {idx}).")
                 continue
 
             prop_path = self.idx_to_name.get(idx)

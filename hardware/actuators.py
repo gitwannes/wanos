@@ -72,7 +72,7 @@ class HardwareActuators(WanosComponent):
             # Subscribe to the core WanOS state engine
             self.state_manager.register_listener(self._on_state_changed)
 
-            await self.logger.success("🟢 GPIO Physical Output Layer mounted.")
+            await self.logger.success("🟢 GPIO Output pins claimed (Bus is safely DISARMED).")
 
         except Exception as e:
             self.state_manager.dispatch(

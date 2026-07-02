@@ -100,6 +100,8 @@ class NativeRFXCOMBridge(WanosComponent):
             self.state_manager.register_listener(self._on_state_changed)
             self._listener_registered = True
 
+        await self.logger.info("[Native RFX] Bridge class loaded. Standing by for USB mount.")
+
         if not os.path.exists(self.serial_port):
             await self.logger.error(f"[Native RFX] Port {self.serial_port} not found. Waiting for watchdog...")
         else:

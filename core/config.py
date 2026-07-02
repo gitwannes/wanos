@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 
 class WeatherConfig(BaseModel):
+    idx: int
+    name: str
     location: str
     poll_interval_mins: int
     api_key: Optional[str] = None
@@ -39,23 +41,27 @@ class DomoticzConfig(BaseModel):
     http: HTTPConfig
 
 
+class GPIOInputNode(BaseModel):
+    idx: Optional[int] = None
+    name: Optional[str] = None
+    pin: int
+    type: str  # "door", "fluid", "energy"
+
+
+class SHT11SensorNode(BaseModel):
+    idx: int
+    name: str
+    pin_d: int
+    pin_c: int
+
+
 class PinMappingConfig(BaseModel):
-    # ⚡ Explicit Semantic Hardware Keys directly mapping to hardware.yaml
+    # ⚡ Explicit Semantic Hardware Keys directly mapping to config_hardware.yaml
     safety_gpio: int
-    kwh_pin: int
     ir_relais: int
     sauna_relais_phase_U: int
     sauna_relais_phase_V: int
     sauna_relais_phase_W: int
-    water_cold: int
-    water_hot: int
-    door_sauna: int
-    door_bathroom1: int
-
-
-class SHT11SensorNode(BaseModel):
-    pin_d: int
-    pin_c: int
 
 
 class SaunaRuntimeConfig(BaseModel):
@@ -195,11 +201,11 @@ class AppConfig(BaseModel):
     hue: Optional[HueConfig] = None
     epson: Optional[EpsonConfig] = None
     zwave: Optional[ZwaveConfig] = None
-    dashboard: Dict[int, str]
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
     auth: AuthConfig
     pins: PinMappingConfig
-    sensors: Dict[str, SHT11SensorNode]
+    gpio_inputs: Dict[str, GPIOInputNode]
+    sht11_sensors: Dict[str, SHT11SensorNode]
     sauna: SaunaRuntimeConfig
     ir: IRRuntimeConfig
     bathroom1: BathroomConfig
@@ -215,7 +221,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     BASE_DIR = Path(__file__).resolve().parent.parent
     env_path = BASE_DIR / ".env"
     runtime_yaml_path = Path(config_path) if Path(config_path).is_absolute() else BASE_DIR / config_path
-    hardware_yaml_path = BASE_DIR / "hardware.yaml"
+    hardware_yaml_path = BASE_DIR / "config_hardware.yaml"
     lab_yaml_path = BASE_DIR / "config_lab.yaml"
     hue_yaml_path = BASE_DIR / "config_hue.yaml"  # ⚡ Segregated lighting profile path entry
     zwave_yaml_path = BASE_DIR / "config_zwave.yaml"  # ⚡ Segregated Z-Wave profile path entry
@@ -267,7 +273,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
         "epson": runtime_data.get("epson"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile
-        "dashboard": runtime_data.get("dashboard", {}), # Load the UI mapping dictionary
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
         "auth": {
             "shared_pin": os.getenv("AUTH_PIN", "0000"),
@@ -284,15 +289,10 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             "ir_relais": hardware_data["gpio_output"]["ir_relais"],
             "sauna_relais_phase_U": hardware_data["gpio_output"]["sauna_relais_phase_U"],
             "sauna_relais_phase_V": hardware_data["gpio_output"]["sauna_relais_phase_V"],
-            "sauna_relais_phase_W": hardware_data["gpio_output"]["sauna_relais_phase_W"],
-            "kwh_pin": hardware_data["gpio_input"]["kwh_pin"],
-            "water_cold": hardware_data["gpio_input"]["water_cold"],
-            "water_hot": hardware_data["gpio_input"]["water_hot"],
-            "door_sauna": hardware_data["gpio_input"]["door_sauna"],
-            "door_bathroom1": hardware_data["gpio_input"]["door_bathroom1"]
+            "sauna_relais_phase_W": hardware_data["gpio_output"]["sauna_relais_phase_W"]
         },
-        "sensors": hardware_data["sht11_sensors"],
-
+        "gpio_inputs": hardware_data.get("gpio_input", {}),
+        "sht11_sensors": hardware_data.get("sht11_sensors", {}),
         "sauna": runtime_data["sauna"],
         "ir": runtime_data["ir"],
         "bathroom1": runtime_data["bathroom1"],

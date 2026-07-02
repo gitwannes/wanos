@@ -69,14 +69,48 @@ class StateManager:
         self._state.system.version_major = f"v{self._config.version}"
         self._state.system.version_full = f"v{self._config.version}-build_{self._build_timestamp}"
 
-        # Transfer the parsed dictionary from the static config into the live SystemState 
-        self._state.dashboard_map = self._config.dashboard
+        # ⚡ DYNAMIC METADATA REGISTRY & RAM ALLOCATOR
         self._state.system.hidden_explorer_idxs = self._config.deviceexplorer_exclude
-
-        # STALE CACHE PURGE & COMPREHENSIVE ALLOCATION
         all_config_idxs = set()
-        if hasattr(self._config, "dashboard"):
-            all_config_idxs.update(k for k in self._config.dashboard.keys() if isinstance(k, int))
+
+        # 1. Parse GPIO Inputs
+        if hasattr(self._config, "gpio_inputs") and self._config.gpio_inputs:
+            for key, node in self._config.gpio_inputs.items():
+                if node.idx is not None:
+                    self._state.dashboard_map[node.idx] = node.name
+                    node_type = "sensor" if node.type == "door" else ("power" if node.type == "energy" else "sensor")
+                    self._state.device_metadata[node.idx] = {"name": node.name, "type": node_type,
+                                                             "origin": "gpio_input"}
+
+                    # ⚡ DYNAMIC PESSIMISTIC INITIALIZATION
+                    # Seeds the RAM allocator with the correct data types so the UI doesn't flicker on boot
+                    if node.type == "door":
+                        self._state.devices[node.idx] = "CLOSED"
+                    elif node.type in ["fluid", "energy"]:
+                        self._state.devices[node.idx] = 0.0
+                    else:
+                        self._state.devices[node.idx] = None
+
+                    all_config_idxs.add(node.idx)
+
+        # 2. Parse SHT11 Sensors
+        if hasattr(self._config, "sht11_sensors"):
+            for key, node in self._config.sht11_sensors.items():
+                self._state.dashboard_map[node.idx] = node.name
+                self._state.device_metadata[node.idx] = {"name": node.name, "type": "temp_hum", "origin": "sht11"}
+                self._state.devices[node.idx] = None
+                all_config_idxs.add(node.idx)
+
+        # 3. Parse OpenWeatherMap
+        if hasattr(self._config, "weather") and getattr(self._config.weather, "idx", None):
+            w_idx = self._config.weather.idx
+            w_name = self._config.weather.name
+            self._state.dashboard_map[w_idx] = w_name
+            self._state.device_metadata[w_idx] = {"name": w_name, "type": "temp_hum", "origin": "owm"}
+            self._state.devices[w_idx] = None
+            all_config_idxs.add(w_idx)
+
+        # 4. Automations & Lighting cache allocations
         if hasattr(self._config, "lighting") and self._config.lighting.managed_lights:
             all_config_idxs.update(idx for idx in self._config.lighting.managed_lights if isinstance(idx, int))
         if hasattr(self._config, "automations"):
@@ -90,21 +124,9 @@ class StateManager:
                         if action.idx is not None:
                             all_config_idxs.add(action.idx)
 
+        # Initialize remaining implicit NULL states for generic nodes
         for idx in all_config_idxs:
-            if idx < 10000:
-                self._state.devices[idx] = None
-
-        # ⚡ Programmatic initialization for virtual physical/environment sensors
-        # Iterates through your config.yaml dashboard mappings to guarantee metadata creation!
-        for idx, name in self._config.dashboard.items():
-            if 10000 <= idx < 20000:  # Local GPIO Doors & Contacts
-                self._state.device_metadata[idx] = {"name": name, "type": "sensor", "origin": "gpio_input"}
-                self._state.devices[idx] = None
-            elif 20000 <= idx < 30000:  # SHT11 Temperature & Humidity Probes
-                self._state.device_metadata[idx] = {"name": name, "type": "temp_hum", "origin": "sht11"}
-                self._state.devices[idx] = None
-            elif 30000 <= idx < 40000:  # OpenWeatherMap Virtual Probes
-                self._state.device_metadata[idx] = {"name": name, "type": "temp_hum", "origin": "owm"}
+            if idx < 10000 and idx not in self._state.devices:
                 self._state.devices[idx] = None
 
         if hasattr(self._config, "native_rfx"):
