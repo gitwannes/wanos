@@ -37,8 +37,8 @@ zwave:
     71018: "57/37/2 | slpk Dries 2e?"
     71019: "59/37/1 | toilet ventilatie motor | 1612"
     71020: "59/37/2 | toilet ventilatie motor 2e?"
-    71021: "60/37/1 | badkamer 2e ventilatie | 1622"
-    71022: "60/37/2 | badkamer 2e binnen (unused) | 1625"
+    71021: "60/37/1 | badk 2e ventilatie | 1622"
+    71022: "60/37/2 | badk 2e binnen (unused) | 1625"
     71023: "66/37/1 | berging | 6051"
     71024: "66/37/2 | slpk Liene | 6048"
     71025: "67/37/1 | eetkamer | 6060"
@@ -75,6 +75,8 @@ zwave:
     74003: "82/49/0/Power | PC aux power"
 
     75001: "23/48/0/Any | garage motion | 106"
+    75002: "87/48/0/Any | toilet motion"
 
-    76001: "23/49/0/Illuminance | garage lux | 135"
     76002: "23/49/0/Air_temperature | garage temp | 108"
+    76003: "87/49/0/Air_temperature | toilet temp"
+

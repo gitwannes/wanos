@@ -385,7 +385,7 @@ function zwaveApp() {
             }
 
             yamlLines.push(`  device_map:`);
-            yamlLines.push(`    # 71000: licht`);
+            yamlLines.push(`    # 71000: light`);
             yamlLines.push(`    # 72000: switch`);
             yamlLines.push(`    # 73000: shutter`);
             yamlLines.push(`    # 74000: power`);

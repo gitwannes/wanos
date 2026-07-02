@@ -838,6 +838,28 @@ function wanosApp() {
             this.labOutsideHum    = (devs[30001] && devs[30001].hum)  ?? seed.outside_hum;
         },
 
+        syncLabControls() {
+            const devs = this.state.devices;
+            const seed = this.state.boot_seed;
+
+            if (!seed) return;
+
+            // ⚡ DYNAMIC LAB SEEDING:
+            // Safely parses the boot_seed dictionary by integer IDX.
+            // If real hardware is online, `devs[idx].temp` exists and overrides the seed.
+            // If hardware is offline, `devs[idx]` is null, falling back to the seed.
+            this.labSaunaHighTemp = (devs[20001] && devs[20001].temp) ?? (seed['20001'] ? seed['20001'].temp : 21.0);
+            this.labSaunaHighHum  = (devs[20001] && devs[20001].hum)  ?? (seed['20001'] ? seed['20001'].hum : 45);
+            this.labSaunaLowTemp  = (devs[20002] && devs[20002].temp) ?? (seed['20002'] ? seed['20002'].temp : 20.0);
+            this.labSaunaLowHum   = (devs[20002] && devs[20002].hum)  ?? (seed['20002'] ? seed['20002'].hum : 48);
+            this.labBathroom1Temp = (devs[20004] && devs[20004].temp) ?? (seed['20004'] ? seed['20004'].temp : 20.0);
+            this.labBathroom1Hum  = (devs[20004] && devs[20004].hum)  ?? (seed['20004'] ? seed['20004'].hum : 45);
+            this.labCinemaTemp    = (devs[20003] && devs[20003].temp) ?? (seed['20003'] ? seed['20003'].temp : 20.0);
+            this.labCinemaHum     = (devs[20003] && devs[20003].hum)  ?? (seed['20003'] ? seed['20003'].hum : 45);
+            this.labOutsideTemp   = (devs[30001] && devs[30001].temp) ?? (seed['30001'] ? seed['30001'].temp : 15.0);
+            this.labOutsideHum    = (devs[30001] && devs[30001].hum)  ?? (seed['30001'] ? seed['30001'].hum : 60);
+        },
+
         async publishEvent(eventType, payload = {}) {
             try {
                 const res = await fetch("/api/event", {

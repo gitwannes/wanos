@@ -33,6 +33,7 @@ class EventType(str, Enum):
     SAUNA_TIMER_ADJUSTED = "SAUNA_TIMER_ADJUSTED"
     VENT_WAIT_EXPIRED = "VENT_WAIT_EXPIRED"
     VENT_RUN_EXPIRED = "VENT_RUN_EXPIRED"
+    SAUNA_DOOR_GRACE_EXPIRED = "SAUNA_DOOR_GRACE_EXPIRED"  # Fired when the door remains open past the allowed threshold
 
     # IR Events
     IR_ON = "IR_ON"
@@ -160,6 +161,8 @@ class SaunaState(BaseModel):
     ventilation_deadline: Optional[int] = None
     light_color: str = "#FFD180"  # Warm White Baseline
     lcd_text: str = ""
+    is_paused: bool = False  # Track safety cutout state independently from manual overrides
+    last_light_temp: Optional[float] = None  # Enforces a 1.0°C quantization throttle to prevent Zigbee mesh DDoS storms
 
 
 class IRState(BaseModel):

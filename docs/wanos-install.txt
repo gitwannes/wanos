@@ -15,6 +15,12 @@
 - http://rfxcom.com
 
 
+######
+IEC standard 61511
+EN 60335-2-53		the European safety standard for automated sauna heating appliances
+######
+
+
 
 flash Raspberry Pi with Debian 13 (Trixie) Lite (64-Bit)
 	hostname wanos

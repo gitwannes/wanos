@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="WanOS" />
     <link rel="manifest" href="/favicon/site.webmanifest" />
 
-    <title>WanOS Device Explorer</title>
+    <title>WanOS - Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
@@ -138,111 +138,121 @@
                 </template>
             </div>
 
-            <div class="w-full mt-6" :class="(state.hardware.gpio_input_enabled || state.hardware.sht11_enabled || state.hardware.gpio_output_enabled) ? 'opacity-40 grayscale pointer-events-none' : ''">
+            <div class="w-full mt-6 transition-all duration-300"
+                 x-effect="if((state.hardware.gpio_input_enabled && state.hardware.sht11_enabled) || state.hardware.gpio_output_enabled) {
+                              labControlsEnabled = false;
+                              if(state.hardware.simulations_enabled) {
+                                  publishEvent('SIMULATIONS_TOGGLED', {enabled: false});
+                              }
+                           }">
                 <div class="card bg-base-100 shadow-xl border border-base-200">
                     <div class="card-body">
-                        <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <span class="whitespace-nowrap">🧪 Lab Mode Simulation</span>
-                            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full md:w-auto justify-start md:justify-end">
-                                <div class="flex justify-between items-center gap-2 w-full sm:w-auto">
-                                    <span class="text-[10px] text-base-400">ENABLE SIMULATIONS (physics engine)</span>
-                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow shrink-0"
-                                           :disabled="state.hardware.gpio_input_enabled || state.hardware.sht11_enabled || state.hardware.gpio_output_enabled"
-                                           :checked="state.hardware.simulations_enabled"
-                                           @change="toggleSimulations()" />
-                                </div>
-                                <div class="flex justify-between items-center gap-2 w-full sm:w-auto sm:border-l sm:border-base-300 sm:pl-4">
-                                    <span class="text-[10px] text-base-400">ENABLE LAB CONTROLS</span>
-                                    <input type="checkbox" class="toggle toggle-warning toggle-sm shadow shrink-0"
-                                           :disabled="state.hardware.gpio_input_enabled || state.hardware.sht11_enabled || state.hardware.gpio_output_enabled"
-                                           x-model="labControlsEnabled"
-                                           @change="syncLabControls()" />
-                                </div>
+                        <h2 class="card-title text-warning uppercase text-xs tracking-widest border-b border-base-200 pb-2 mb-4 flex justify-between items-center w-full">
+                            <span class="whitespace-nowrap">🧪 Lab Mode Manual Simulator</span>
+                            <div class="flex justify-end items-center gap-2">
+                                <span class="text-[10px] text-base-400">ENABLE LAB CONTROLS</span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow shrink-0"
+                                       :disabled="(state.hardware.gpio_input_enabled && state.hardware.sht11_enabled) || state.hardware.gpio_output_enabled"
+                                       x-model="labControlsEnabled"
+                                       @change="syncLabControls()" />
                             </div>
                         </h2>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" x-show="labControlsEnabled" x-transition>
+                        <div class="flex flex-col gap-6" x-show="labControlsEnabled" x-transition x-cloak>
 
-                            <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                                <h3 class="text-xs font-bold text-orange-400 uppercase tracking-wider border-b border-base-300 pb-1">Sauna</h3>
-                                <div>
-                                    <div class="flex justify-between text-[11px] mb-1">
-                                        <span class="text-gray-400 font-medium">Ceiling Probe (High)</span>
-                                        <span class="text-warning font-mono font-bold" x-text="labSaunaHighTemp !== null ? parseFloat(labSaunaHighTemp).toFixed(1) + '°C / ' + labSaunaHighHum + '%' : '--.-°C / --%'"></span>
-                                    </div>
-                                    <input type="range" min="15" max="110" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaHighTemp" @input="labSaunaHighTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20001, labSaunaHighTemp)" />
-                                    <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaHighHum" @input="labSaunaHighHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20001, labSaunaHighHum)" />
-                                </div>
-                                <div class="pt-2 border-t border-dashed border-base-300">
-                                    <div class="flex justify-between text-[11px] mb-1">
-                                        <span class="text-gray-400 font-medium">Bench Probe (Low)</span>
-                                        <span class="text-warning font-mono font-bold" x-text="labSaunaLowTemp !== null ? parseFloat(labSaunaLowTemp).toFixed(1) + '°C / ' + labSaunaLowHum + '%' : '--.-°C / --%'"></span>
-                                    </div>
-                                    <input type="range" min="15" max="100" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labSaunaLowTemp" @input="labSaunaLowTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20002, labSaunaLowTemp)" />
-                                    <input type="range" min="5" max="100" step="1" class="range range-info range-xs lab-slider" :value="labSaunaLowHum" @input="labSaunaLowHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20002, labSaunaLowHum)" />
-                                </div>
-                                <div class="pt-2 border-t border-base-300 space-y-2.5">
-                                    <div class="flex items-center justify-between text-xs font-mono">
-                                        <span class="text-gray-400 font-medium">Sauna Door:</span>
-                                        <input type="checkbox" class="toggle toggle-error toggle-sm shadow"
-                                               :checked="state.devices[10001] === 'OPEN'"
-                                               @change="injectLabDoorChange(10001, $event.target.checked)" />
-                                    </div>
-                                </div>
+                            <div class="flex items-center justify-end gap-3 px-2 border-b border-base-200/50 pb-4">
+                                <span class="text-[10px] font-bold uppercase" :class="state.hardware.simulations_enabled ? 'text-warning animate-pulse' : 'text-base-400'">Simulations Physics Engine</span>
+                                <input type="checkbox" class="toggle toggle-warning toggle-sm shadow shrink-0"
+                                       :disabled="(state.hardware.gpio_input_enabled && state.hardware.sht11_enabled) || state.hardware.gpio_output_enabled"
+                                       :checked="state.hardware.simulations_enabled"
+                                       @change="toggleSimulations()" />
                             </div>
 
-                            <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                                <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Bathroom</h3>
-                                <div>
-                                    <div class="flex justify-between text-[11px] mb-1">
-                                        <span class="text-gray-400 font-medium">Atmosphere</span>
-                                        <span class="text-accent font-mono font-bold" x-text="labBathroom1Temp !== null ? parseFloat(labBathroom1Temp).toFixed(1) + '°C / ' + labBathroom1Hum + '%' : '--.-°C / --%'"></span>
-                                    </div>
-                                    <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labBathroom1Temp" @input="labBathroom1Temp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20004, labBathroom1Temp)" />
-                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labBathroom1Hum" @input="labBathroom1Hum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20004, labBathroom1Hum)" />
-                                </div>
-                                <div class="pt-2 border-t border-base-300 space-y-2.5">
-                                    <div class="flex items-center justify-between text-xs font-mono">
-                                        <span class="text-gray-400 font-medium">Bathroom Door:</span>
-                                        <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                               :checked="state.devices[10002] === 'OPEN'"
-                                               @change="injectLabDoorChange(10002, $event.target.checked)" />
-                                    </div>
-                                </div>
-                                <div class="pt-2 border-t border-dashed border-base-300 space-y-2">
-                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Water Injectors</span>
-                                    <div class="flex flex-col gap-2">
-                                        <button class="btn btn-outline btn-xs btn-info font-mono text-[10px] tracking-wide" @click="injectWaterPulse('cold')">
-                                            💧 1L Cold Water
-                                        </button>
-                                        <button class="btn btn-outline btn-xs btn-error font-mono text-[10px] tracking-wide" @click="injectWaterPulse('hot')">
-                                            🔥 1L Hot Water
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
-                            <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                                <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Cinema Lounge</h3>
-                                <div>
-                                    <div class="flex justify-between text-[11px] mb-1">
-                                        <span class="text-gray-400 font-medium">Atmosphere</span>
-                                        <span class="text-accent font-mono font-bold" x-text="labCinemaTemp !== null ? parseFloat(labCinemaTemp).toFixed(1) + '°C / ' + labCinemaHum + '%' : '--.-°C / --%'"></span>
+                                <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                                    <h3 class="text-xs font-bold text-orange-400 uppercase tracking-wider border-b border-base-300 pb-1">Sauna</h3>
+                                    <div>
+                                        <div class="flex justify-between text-[11px] mb-1">
+                                            <span class="font-medium" :class="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled ? 'text-gray-600 line-through' : 'text-gray-400'">Ceiling Probe (High)</span>
+                                            <span class="text-warning font-mono font-bold" :class="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled ? 'text-gray-500' : ''" x-text="labSaunaHighTemp !== null ? parseFloat(labSaunaHighTemp).toFixed(1) + '°C / ' + labSaunaHighHum + '%' : '--.-°C / --%'"></span>
+                                        </div>
+                                        <input type="range" min="15" max="110" step="0.5" class="range range-xs mb-1.5 lab-slider" :class="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled ? 'range-neutral grayscale' : 'range-warning'" :value="labSaunaHighTemp" :disabled="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled" @input="labSaunaHighTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20001, labSaunaHighTemp)" />
+                                        <input type="range" min="5" max="100" step="1" class="range range-xs lab-slider" :class="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled ? 'range-neutral grayscale' : 'range-info'" :value="labSaunaHighHum" :disabled="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled" @input="labSaunaHighHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20001, labSaunaHighHum)" />
                                     </div>
-                                    <input type="range" min="10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labCinemaTemp" @input="labCinemaTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20003, labCinemaTemp)" />
-                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labCinemaHum" @input="labCinemaHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20003, labCinemaHum)" />
+                                    <div class="pt-2 border-t border-dashed border-base-300">
+                                        <div class="flex justify-between text-[11px] mb-1">
+                                            <span class="font-medium" :class="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled ? 'text-gray-600 line-through' : 'text-gray-400'">Bench Probe (Low)</span>
+                                            <span class="text-warning font-mono font-bold" :class="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled ? 'text-gray-500' : ''" x-text="labSaunaLowTemp !== null ? parseFloat(labSaunaLowTemp).toFixed(1) + '°C / ' + labSaunaLowHum + '%' : '--.-°C / --%'"></span>
+                                        </div>
+                                        <input type="range" min="15" max="100" step="0.5" class="range range-xs mb-1.5 lab-slider" :class="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled ? 'range-neutral grayscale' : 'range-warning'" :value="labSaunaLowTemp" :disabled="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled" @input="labSaunaLowTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20002, labSaunaLowTemp)" />
+                                        <input type="range" min="5" max="100" step="1" class="range range-xs lab-slider" :class="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled ? 'range-neutral grayscale' : 'range-info'" :value="labSaunaLowHum" :disabled="state.hardware.sht11_enabled || state.hardware.gpio_output_enabled" @input="labSaunaLowHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20002, labSaunaLowHum)" />
+                                    </div>
+                                    <div class="pt-2 border-t border-base-300 space-y-2.5">
+                                        <div class="flex items-center justify-between text-xs font-mono">
+                                            <span class="font-medium" :class="state.hardware.gpio_input_enabled ? 'text-gray-600 line-through' : 'text-gray-400'">Sauna Door:</span>
+                                            <input type="checkbox" class="toggle toggle-error toggle-sm shadow"
+                                                   :disabled="state.hardware.gpio_input_enabled"
+                                                   :checked="state.devices[10001] === 'OPEN'"
+                                                   @change="injectLabDoorChange(10001, $event.target.checked)" />
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
-                                <h3 class="text-xs font-bold text-info uppercase tracking-wider border-b border-base-300 pb-1">Outside Atmosphere</h3>
-                                <div>
-                                    <div class="flex justify-between text-[11px] mb-1">
-                                        <span class="text-gray-400 font-medium">Outside</span>
-                                        <span class="text-info font-mono font-bold" x-text="labOutsideTemp !== null ? parseFloat(labOutsideTemp).toFixed(1) + '°C / ' + labOutsideHum + '%' : '--.-°C / --%'"></span>
+                                <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                                    <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Bathroom</h3>
+                                    <div>
+                                        <div class="flex justify-between text-[11px] mb-1">
+                                            <span class="font-medium" :class="state.hardware.sht11_enabled ? 'text-gray-600 line-through' : 'text-gray-400'">Atmosphere</span>
+                                            <span class="text-accent font-mono font-bold" :class="state.hardware.sht11_enabled ? 'text-gray-500' : ''" x-text="labBathroom1Temp !== null ? parseFloat(labBathroom1Temp).toFixed(1) + '°C / ' + labBathroom1Hum + '%' : '--.-°C / --%'"></span>
+                                        </div>
+                                        <input type="range" min="10" max="45" step="0.5" class="range range-xs mb-1.5 lab-slider" :class="state.hardware.sht11_enabled ? 'range-neutral grayscale' : 'range-warning'" :value="labBathroom1Temp" :disabled="state.hardware.sht11_enabled" @input="labBathroom1Temp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20004, labBathroom1Temp)" />
+                                        <input type="range" min="10" max="100" step="1" class="range range-xs lab-slider" :class="state.hardware.sht11_enabled ? 'range-neutral grayscale' : 'range-info'" :value="labBathroom1Hum" :disabled="state.hardware.sht11_enabled" @input="labBathroom1Hum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20004, labBathroom1Hum)" />
                                     </div>
-                                    <input type="range" min="-10" max="45" step="0.5" class="range range-warning range-xs mb-1.5 lab-slider" :value="labOutsideTemp" @input="labOutsideTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 30001, labOutsideTemp)" />
-                                    <input type="range" min="10" max="100" step="1" class="range range-info range-xs lab-slider" :value="labOutsideHum" @input="labOutsideHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 30001, labOutsideHum)" />
+                                    <div class="pt-2 border-t border-base-300 space-y-2.5">
+                                        <div class="flex items-center justify-between text-xs font-mono">
+                                            <span class="font-medium" :class="state.hardware.gpio_input_enabled ? 'text-gray-600 line-through' : 'text-gray-400'">Bathroom Door:</span>
+                                            <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
+                                                   :disabled="state.hardware.gpio_input_enabled"
+                                                   :checked="state.devices[10002] === 'OPEN'"
+                                                   @change="injectLabDoorChange(10002, $event.target.checked)" />
+                                        </div>
+                                    </div>
+                                    <div class="pt-2 border-t border-dashed border-base-300 space-y-2">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider" :class="state.hardware.gpio_input_enabled ? 'text-gray-600 line-through' : 'text-gray-400'">Water Injectors</span>
+                                        <div class="flex flex-col gap-2">
+                                            <button class="btn btn-outline btn-xs btn-info font-mono text-[10px] tracking-wide" :disabled="state.hardware.gpio_input_enabled" @click="injectWaterPulse('cold')">
+                                                💧 1L Cold Water
+                                            </button>
+                                            <button class="btn btn-outline btn-xs btn-error font-mono text-[10px] tracking-wide" :disabled="state.hardware.gpio_input_enabled" @click="injectWaterPulse('hot')">
+                                                🔥 1L Hot Water
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                                    <h3 class="text-xs font-bold text-accent uppercase tracking-wider border-b border-base-300 pb-1">Cinema Lounge</h3>
+                                    <div>
+                                        <div class="flex justify-between text-[11px] mb-1">
+                                            <span class="font-medium" :class="state.hardware.sht11_enabled ? 'text-gray-600 line-through' : 'text-gray-400'">Atmosphere</span>
+                                            <span class="text-accent font-mono font-bold" :class="state.hardware.sht11_enabled ? 'text-gray-500' : ''" x-text="labCinemaTemp !== null ? parseFloat(labCinemaTemp).toFixed(1) + '°C / ' + labCinemaHum + '%' : '--.-°C / --%'"></span>
+                                        </div>
+                                        <input type="range" min="10" max="45" step="0.5" class="range range-xs mb-1.5 lab-slider" :class="state.hardware.sht11_enabled ? 'range-neutral grayscale' : 'range-warning'" :value="labCinemaTemp" :disabled="state.hardware.sht11_enabled" @input="labCinemaTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 20003, labCinemaTemp)" />
+                                        <input type="range" min="10" max="100" step="1" class="range range-xs lab-slider" :class="state.hardware.sht11_enabled ? 'range-neutral grayscale' : 'range-info'" :value="labCinemaHum" :disabled="state.hardware.sht11_enabled" @input="labCinemaHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 20003, labCinemaHum)" />
+                                    </div>
+                                </div>
+
+                                <div class="bg-base-200 p-4 rounded-box border border-base-300 space-y-4">
+                                    <h3 class="text-xs font-bold text-info uppercase tracking-wider border-b border-base-300 pb-1">Outside Atmosphere</h3>
+                                    <div>
+                                        <div class="flex justify-between text-[11px] mb-1">
+                                            <span class="font-medium" :class="state.system.owm_integration_enabled ? 'text-gray-600 line-through' : 'text-gray-400'">Outside</span>
+                                            <span class="text-info font-mono font-bold" :class="state.system.owm_integration_enabled ? 'text-gray-500' : ''" x-text="labOutsideTemp !== null ? parseFloat(labOutsideTemp).toFixed(1) + '°C / ' + labOutsideHum + '%' : '--.-°C / --%'"></span>
+                                        </div>
+                                        <input type="range" min="-10" max="45" step="0.5" class="range range-xs mb-1.5 lab-slider" :class="state.system.owm_integration_enabled ? 'range-neutral grayscale' : 'range-warning'" :value="labOutsideTemp" :disabled="state.system.owm_integration_enabled" @input="labOutsideTemp = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('TEMP_UPDATED', 30001, labOutsideTemp)" />
+                                        <input type="range" min="10" max="100" step="1" class="range range-xs lab-slider" :class="state.system.owm_integration_enabled ? 'range-neutral grayscale' : 'range-info'" :value="labOutsideHum" :disabled="state.system.owm_integration_enabled" @input="labOutsideHum = $event.target.value" @change="$event.target.blur()" @input.debounce.250ms="injectLabMetric('HUMIDITY_UPDATED', 30001, labOutsideHum)" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -382,7 +392,7 @@
                                               :class="state.hardware.gpio_output_connected ? (state.hardware.gpio_output_enabled ? 'text-error animate-pulse' : 'text-warning') : 'text-gray-500'"
                                               x-text="!state.hardware.gpio_output_connected ? 'OFFLINE' : (state.hardware.gpio_output_enabled ? 'ARMED' : 'DISABLED')"></span>
                                         <input type="checkbox" class="toggle toggle-error toggle-sm shadow" autocomplete="off"
-                                           :disabled="!state.hardware.gpio_output_connected"
+                                           :disabled="!state.hardware.gpio_output_connected || !state.hardware.gpio_input_enabled || !state.hardware.sht11_enabled || state.sensors.sauna_calc_temp == null"
                                            :checked="state.hardware.gpio_output_connected && state.hardware.gpio_output_enabled"
                                            @click="handleOutputToggleClick($event)" />
                                     </div>

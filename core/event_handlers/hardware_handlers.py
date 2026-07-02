@@ -81,9 +81,19 @@ async def handle_gpio_output_toggled(event: Event, manager: Any) -> Tuple[bool, 
     changed_domains = set()
     is_enabled = payload.get("enabled", False)
 
+    # ⚡ PRE-FLIGHT CHECK 1: Is the physical chip alive?
     if is_enabled and not manager._state.hardware.gpio_output_connected:
         await manager.logger.warning("🟡 [GPIO Output] Autostart rejected: GPIO Output Bus is offline.")
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: GPIO Output Bus is offline.")
+        state_changed |= ch
+        changed_domains |= dom
+    # ⚡ PRE-FLIGHT CHECK 2: Hardware Interlock Chain (Eyes & Ears must be verified)
+    elif is_enabled and (
+            not manager._state.hardware.gpio_input_enabled or manager._state.sensors.sauna_calc_temp is None):
+        await manager.logger.warning(
+            "🟡 [GPIO Output] Pre-Flight Interlock Failed: Cannot arm high-voltage outputs while flying blind (Inputs or Telemetry offline).")
+        ch, dom = AlertManager.process_alert(manager._state,
+                                             "🔴 Safety Interlock: Cannot arm outputs without active sensors.")
         state_changed |= ch
         changed_domains |= dom
     else:

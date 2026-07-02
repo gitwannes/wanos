@@ -65,26 +65,7 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
     wh_accumulator: float = 0.0
 
     # -------------------------------------------------------------------------
-    # 3. DYNAMIC BOOT SEED INJECTION
-    # -------------------------------------------------------------------------
-    # Loops through the entire config file. If the key is an IDX (integer),
-    # it instantly pushes its baseline states to the UI!
-    for key, config_val in seed_dict.items():
-        try:
-            idx = int(key)  # If it safely casts to int, it's a device/sensor!
-            if isinstance(config_val, dict):
-                if "temp" in config_val:
-                    state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"idx": idx, "value": float(config_val["temp"]), "boot_seed": True}))
-                if "hum" in config_val:
-                    state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": idx, "value": int(config_val["hum"]), "boot_seed": True}))
-                if "is_open" in config_val:
-                    state_mgr.dispatch(Event(type=EventType.DOOR_CHANGED, payload={"idx": idx, "is_open": bool(config_val["is_open"]), "boot_seed": True}))
-        except (ValueError, TypeError):
-            # Ignore metadata string keys like 'outside_tick'
-            pass
-
-    # -------------------------------------------------------------------------
-    # 4. CONTINUOUS PHYSICS LOOP
+    # 3. CONTINUOUS PHYSICS LOOP
     # -------------------------------------------------------------------------
     while True:
         try:
@@ -92,14 +73,20 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
 
             state = state_mgr.get_state_snapshot()
 
-            # ⚡ Master Simulator Override Gate
-            # If any of the 3 physical hardware buses are armed by the user, OR if the simulation engine
-            # is explicitly toggled off in the UI, we skip physics evaluation entirely.
-            hardware_live = state.hardware.gpio_input_enabled or state.hardware.sht11_enabled or state.hardware.gpio_output_enabled
-            if hardware_live or not state.hardware.simulations_enabled:
+            # Master Simulator Power Switch
+            if not state.hardware.simulations_enabled:
+                continue
+
+            # ⚡ Auto-Kill Engine Gate
+            # If BOTH primary hardware sensor buses are armed, the automated physics engine
+            # has no test surface left to manipulate. It self-terminates to preserve CPU.
+            if state.hardware.gpio_input_enabled and state.hardware.sht11_enabled:
+                state_mgr.dispatch(Event(type=EventType.SIMULATIONS_TOGGLED, payload={"enabled": False}))
                 continue
 
             # --- LIVE UI INTERCEPT SYNCHRONIZER ---
+            # Automatically pulls from local state variable (initialized by the seed_dict)
+            # if the master state is completely None.
             if state.sensors.sauna_high_temp is not None and round(sauna_high, 1) != round(state.sensors.sauna_high_temp, 1):
                 sauna_high = state.sensors.sauna_high_temp
             if state.sensors.sauna_low_temp is not None and round(sauna_low, 1) != round(state.sensors.sauna_low_temp, 1):

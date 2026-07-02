@@ -354,6 +354,28 @@ class StateManager:
                 else:
                     logger.info(f"Event Received [{event_name}]: {payload}")
 
+            # ⚡ ZERO-TRUST BACKEND FIREWALL (Granular HITL Isolation)
+            # Prevents lab simulators from injecting ghost data into active physical control loops.
+        if is_manual_lab_action or is_simulation_action:
+            target_idx = payload.get("idx")
+
+            # Conflict 1: Fake weather vs Active OpenWeatherMap polling
+            if target_idx == 30001 and self._state.system.owm_integration_enabled:
+                return False, set()
+
+            # Conflict 2: Fake doors & water vs Active GPIO Input hardware
+            if event_name in ["DOOR_CHANGED", "WATER_PULSE"] and self._state.hardware.gpio_input_enabled:
+                return False, set()
+
+            # Conflict 3: Fake temps vs Active SHT11 Probes AND Active 9kW Heaters
+            if event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED"]:
+                if target_idx in [20001, 20002, 20003, 20004] and self._state.hardware.sht11_enabled:
+                    return False, set()
+                # CRITICAL: We strictly drop fake sauna temps if the actual high-voltage outputs are armed
+                # to prevent the real PID loop from snapping physical relays based on slider movements!
+                if target_idx in [20001, 20002] and self._state.hardware.gpio_output_enabled:
+                    return False, set()
+
         # ⚡ EMERGENCY START GATE INTERCEPTOR (Prevention)
         # Validates physical requirements BEFORE routing the command to the logic handlers
         if event_name in ["SAUNA_ON", "IR_ON"]:
@@ -544,5 +566,88 @@ class StateManager:
         if self._state.system.automations_enabled:
             for auto_event in AutomationEngine.evaluate(event, self._state):
                 self.dispatch(auto_event)
+
+        # ---------------------------------------------------------------------
+        # ⚡ CRITICAL INTERLOCK & SCADA VISUAL ANNUNCIATOR CONCERNS
+        # ---------------------------------------------------------------------
+        safety_conf = getattr(self._config, "sauna_safety", None)
+        grace_period: int = getattr(safety_conf, "door_grace_period_secs", 30) if safety_conf else 30
+        indicator_lights: list[int] = getattr(safety_conf, "indicator_lights",
+                                              [51002, 51004, 51005]) if safety_conf else [51002, 51004, 51005]
+
+        # 1. Door Interlock State Machine
+        if event_name in ["DOOR_CHANGED", "HUB_STATE_CHANGED"] and p_idx == 10001:
+            door_state = self._state.devices.get(10001)
+            if door_state == "OPEN":
+                if self._state.sauna.active and not self._state.sauna.is_paused:
+                    if not self._timer_manager.is_scheduled("sauna_door_grace"):
+                        deadline = int(time.time()) + grace_period
+                        self._timer_manager.schedule("sauna_door_grace", deadline, "SAUNA_DOOR_GRACE_EXPIRED")
+                        await self.logger.warning(
+                            f"⏳ Sauna door opened! Starting silent {grace_period}s safety countdown.")
+            elif door_state == "CLOSED":
+                if self._timer_manager.is_scheduled("sauna_door_grace"):
+                    self._timer_manager.cancel("sauna_door_grace")
+                    await self.logger.success("🟢 Sauna door closed within grace window. Heaters unaffected.")
+                if self._state.sauna.is_paused:
+                    self._state.sauna.is_paused = False
+                    self._state.sauna.last_light_temp = None  # Evict throttle cache to enforce instant visual re-evaluation
+                    await self.logger.success("🟢 Sauna door closed. Resuming active heating session automatically.")
+                    state_changed = True
+                    changed_domains.add("sauna")
+
+        # 2. Door Grace Period Expiry Trip
+        if event_name == "SAUNA_DOOR_GRACE_EXPIRED":
+            if self._state.sauna.active and self._state.devices.get(10001) == "OPEN":
+                self._state.sauna.is_paused = True
+                await self.logger.critical(
+                    "🚨 Sauna door grace period expired! Forcefully cutting heaters and entering PAUSE state.")
+
+                # Force vibrant SCADA Green to notify occupants of an unsealed thermal environment
+                for l_idx in indicator_lights:
+                    self.dispatch(Event(type=EventType.HUB_STATE_CHANGED, payload={
+                        "idx": l_idx, "state": "ON", "xy": [0.1700, 0.7000], "force": True, "origin": "system"
+                    }))
+                state_changed = True
+                changed_domains.add("sauna")
+
+        # 3. Clean Session Interlock Teardown
+        if event_name == "SAUNA_OFF":
+            if self._timer_manager.is_scheduled("sauna_door_grace"):
+                self._timer_manager.cancel("sauna_door_grace")
+            self._state.sauna.is_paused = False
+            self._state.sauna.last_light_temp = None
+
+        # 4. Proportional Thermal Lighting Gradient (Blue ➔ Red)
+        if self._state.sauna.active and not self._state.sauna.is_paused and self._state.sensors.sauna_calc_temp is not None:
+            last_t = self._state.sauna.last_light_temp
+            curr_t = self._state.sensors.sauna_calc_temp
+
+            # Enforce 1°C quantization steps to shield Zigbee mesh from telemetry stream congestion
+            if last_t is None or abs(curr_t - last_t) >= 1.0:
+                self._state.sauna.last_light_temp = curr_t
+                target_t = self._state.sauna.target_temp or 80.0
+                min_t = 20.0
+
+                # Math: Calculate linear scalar interpolation parameter clamped between 0.0 and 1.0
+                clamped_t = max(min_t, min(target_t, curr_t))
+                factor = (clamped_t - min_t) / max(1.0, (target_t - min_t))
+
+                # Linear cross-fade RGB weights
+                r_factor = factor
+                g_factor = 0.0
+                b_factor = 1.0 - factor
+
+                # CIE 1931 color space transformation matrix mapping
+                X = r_factor * 0.664511 + g_factor * 0.154324 + b_factor * 0.162028
+                Y = r_factor * 0.283881 + g_factor * 0.668433 + b_factor * 0.047685
+                Z = r_factor * 0.000088 + g_factor * 0.072310 + b_factor * 0.986039
+                xyz_sum = X + Y + Z
+                xy = [round(X / xyz_sum, 4), round(Y / xyz_sum, 4)] if xyz_sum > 0 else [0.3127, 0.3290]
+
+                for l_idx in indicator_lights:
+                    self.dispatch(Event(type=EventType.HUB_STATE_CHANGED, payload={
+                        "idx": l_idx, "state": "ON", "xy": xy, "force": True, "origin": "system"
+                    }))
 
         return state_changed, changed_domains

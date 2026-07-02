@@ -35,6 +35,10 @@ gpio_output:
   sauna_relais_phase_W: 18 # 2000 W
   safety_gpio: 4
 
+sauna_safety:
+  door_grace_period_secs: 30
+  indicator_lights: [51002, 51004, 51005]
+
 sht11_sensors:
   bathroom1:
     idx: 20004

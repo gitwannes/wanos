@@ -170,14 +170,14 @@ class SaunaController:
         return changed
 
     def evaluate(self, state: 'SystemState') -> Optional[Dict[str, Any]]:
-        door_sauna_open = state.devices.get(10001) == "OPEN"
-
         # --- Safety & Hold Interlocks ---
-        if door_sauna_open or state.sauna.hold_mode == "hold" or not state.sauna.active:
+        # ⚡ EN 60335-2-53 Compliance: Evaluates the soft pause flag rather than raw door state.
+        # This keeps elements active during brief exits while instantly dumping load if the grace window expires.
+        if state.sauna.is_paused or state.sauna.hold_mode == "hold" or not state.sauna.active:
             if self.current_total_pwm != 0:
                 self.current_total_pwm = 0
                 self.current_phases = {"U": 0, "V": 0, "W": 0}
-                self.pid.reset()
+                self.pid.reset()  # Flushes integral memory to guarantee no windup spikes upon auto-resume
                 return {"pwm": 0, "phases": {"U": 0, "V": 0, "W": 0}}
             return None
 
