@@ -165,6 +165,8 @@ class SaunaState(BaseModel):
     lcd_text: str = ""
     is_paused: bool = False  # Track safety cutout state independently from manual overrides
     last_light_temp: Optional[float] = None  # Enforces a 1.0°C quantization throttle to prevent Zigbee mesh DDoS storms
+    absolute_cutoff_unix: Optional[int] = None  # ⚡ EN 60335-2-53 hard 6-hour limit epoch wall
+    last_heartbeat_unix: Optional[int] = None  # ⚡ Active SHT11 bus reception timestamp marker
 
 
 class IRState(BaseModel):

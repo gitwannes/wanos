@@ -586,6 +586,12 @@ class StateManager:
                 except (ValueError, TypeError):
                     pass
             else:
+                # ⚡ OUT-OF-BAND SAFETY HEARTBEAT TRACKER
+                # Refreshes the active communication timestamp anytime local SHT11 sauna probes (20001/20002) publish data,
+                # completely independent of whether the underlying temperature digits shifted or remained flat.
+                if p_idx in [20001, 20002]:
+                    self._state.sauna.last_heartbeat_unix = int(time.time())
+
                 # ⚡ FAILSAFE: If EITHER probe drops, composite is instantly voided
                 if self._state.sensors.sauna_calc_temp is not None:
                     self._state.sensors.sauna_calc_temp = None
@@ -718,6 +724,12 @@ class StateManager:
                 self._timer_manager.cancel("sauna_door_grace")
             self._state.sauna.is_paused = False
             self._state.sauna.last_light_temp = None
+
+        # ⚡ EN 60335-2-53 ABSOLUTE LIMIT TRACKER
+        # Instantiates an un-bypassable 6-hour absolute running boundary the exact moment an active
+        # heating session successfully transitions through the Start Gate verification interlocks.
+        if event_name == "SAUNA_ON" and self._state.sauna.active:
+            self._state.sauna.absolute_cutoff_unix = int(time.time()) + 6 * 3600
 
         # 4. Proportional Thermal Lighting Gradient (Blue ➔ Red)
         if self._state.sauna.active and not self._state.sauna.is_paused and self._state.sensors.sauna_calc_temp is not None:

@@ -119,7 +119,33 @@ class HealthMonitor:
                         error_reason = "USB Stick disconnected" if zwave_fatal_usb else "Z-Wave JS Engine offline"
                         sm.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={
                             "enabled": False,
-                            "error_msg": f"🔌 Z-Wave connection lost ({error_reason}). Integration disabled."}))
+                            "error_msg": f"伯 Z-Wave connection lost ({error_reason}). Integration disabled."}))
+
+                # ⚡ ACTIVE OUT-OF-BAND SAUNA SAFETY WATCHDOG (EN 60335-2-53 Compliance)
+                # Operates completely separate from the core event queue loop to intercept frozen process blocks.
+                if sys_state.sauna.active:
+                    now_ts = int(time.time())
+
+                    # Watchdog Check A: 6-Hour Cumulative Maximum Continuous Running Limit Wall
+                    if sys_state.sauna.absolute_cutoff_unix and now_ts > sys_state.sauna.absolute_cutoff_unix:
+                        logger.critical(
+                            "🚨 EN 60335-2-53 Violation: Sauna exceeded continuous 6-hour limit! Tripping circuit breaker.")
+                        sm.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                            "msg_text": "🚨 EMERGENCY SHUTDOWN: Absolute 6-hour safety run limit exceeded!",
+                            "level": "critical"
+                        }))
+                        sm.dispatch(Event(type=EventType.SAUNA_OFF, payload={}))
+
+                    # Watchdog Check B: 10-Second Hardware Communication Link Staleness Guard
+                    elif sys_state.sauna.last_heartbeat_unix and (
+                            now_ts - sys_state.sauna.last_heartbeat_unix) > 10:
+                        logger.critical(
+                            "🚨 EMERGENCY SHUTDOWN: Sauna SHT11 sensor bus frozen or dropped for >10 seconds! Cutting power.")
+                        sm.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                            "msg_text": "🚨 EMERGENCY SHUTDOWN: Sauna sensor communication link failure!",
+                            "level": "critical"
+                        }))
+                        sm.dispatch(Event(type=EventType.SAUNA_OFF, payload={}))
 
                 metrics_payload = {
                     "wanos_connected": wanos_conn,
