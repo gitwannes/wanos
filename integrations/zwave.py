@@ -191,8 +191,14 @@ class ZWaveJSUIBridge(WanosComponent):
             elif command_class == "38":
                 try:
                     state_val = int(raw_val)
+                    # ⚡ INBOUND CLAMP: Map hardware limit (99) back to clean UI metric (100)
+                    if state_val == 99:
+                        state_val = 100
                 except ValueError:
                     state_val = 0
+
+                if self._last_known_states.get(target_idx) == state_val:
+                    return
 
                 if self._last_known_states.get(target_idx) == state_val:
                     return
@@ -507,14 +513,14 @@ class ZWaveJSUIBridge(WanosComponent):
             # Z-Wave JS UI uses /targetValue/set to receive intent payloads
             target_topic = f"{self.mqtt_prefix}/{prop_path}/targetValue/set"
 
-            # ⚡ MULTILEVEL INTENT PARSING
+            # ⚡ MULTILEVEL INTENT PARSING (100% Clamping)
             # Safely route payload translation based on data type (blinds vs switches).
-            # We explicitly test strings to see if they contain valid numeric shutter positions (e.g. "100")
-            # to prevent fallback binary booleans from breaking multilevel Z-Wave hardware.
+            # We explicitly clamp '100' down to '99' to respect the Z-Wave CC 38 byte limit.
             if isinstance(new_state, int):
-                zwave_payload = {"value": new_state}
+                zwave_payload = {"value": 99 if new_state == 100 else new_state}
             elif isinstance(new_state, str) and new_state.isdigit():
-                zwave_payload = {"value": int(new_state)}
+                num_val = int(new_state)
+                zwave_payload = {"value": 99 if num_val == 100 else num_val}
             else:
                 zwave_payload = {"value": True if new_state == "ON" else False}
 

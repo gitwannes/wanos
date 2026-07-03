@@ -143,8 +143,12 @@
                                 </button>
                             </template>
                             <template x-if="!item.is_hue">
-                                <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate w-full" x-text="item.name"></div>
+                                <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate w-full"
+                                     :class="(item.type === 'blinds' && !item.is_dead && item.raw_value !== null) ? 'cursor-pointer hover:text-primary transition-colors' : ''"
+                                     @click="if(item.type === 'blinds') handleShutterNameClick(item)"
+                                     x-text="item.name"></div>
                             </template>
+                        </div>
                         </div>
 
                         <div class="shrink-0 flex items-center justify-end">
@@ -167,14 +171,17 @@
                                           :class="item.is_dead ? 'text-error font-bold' : ''"
                                           x-text="item.is_dead ? 'DEAD' : (item.raw_value !== null ? item.raw_value + '%' : '--')"></span>
 
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-info">OPEN</span>
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-info cursor-pointer hover:text-primary transition-colors"
+                                          @click="setShutterState(item.id, 0)">OPEN</span>
 
                                     <input type="range" min="0" max="100" step="1" class="range range-info range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0"
                                            :disabled="item.raw_value === null || item.is_dead"
                                            :value="item.raw_value !== null ? item.raw_value : 0"
-                                           @change="dispatchEvent('HUB_STATE_CHANGED', { idx: item.id, state: parseInt($event.target.value, 10) })" />
+                                           @input="updateShutterOptimistic(item.id, $event.target.value)"
+                                           @change="setShutterState(item.id, parseInt($event.target.value, 10))" />
 
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error">CLOSED</span>
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"
+                                          @click="setShutterState(item.id, 100)">CLOSED</span>
                                 </div>
                             </template>
 
@@ -228,7 +235,7 @@
                             <template x-if="item.type === 'scene'">
                                 <div class="flex justify-end shrink-0">
                                     <button class="btn btn-outline btn-accent btn-xs md:btn-sm font-mono tracking-widest text-[9px] md:text-xs px-3 md:px-6 shadow-sm"
-                                            @click="dispatchEvent(item.id)">
+                                            @click="item.require_confirmation ? openSceneModal(item) : dispatchEvent(item.id)">
                                         GO
                                     </button>
                                 </div>
@@ -284,6 +291,23 @@
                     <form method="dialog" class="w-full flex justify-between">
                         <button class="btn btn-error btn-sm font-mono shadow-sm text-neutral-900" @click="injectLabHubStateChange(activeLightId, false)">TURN OFF</button>
                         <button class="btn btn-outline btn-sm font-mono text-base-content/70">Close</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <dialog id="scene_confirm_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+            <div class="modal-box border border-accent/20 bg-base-300 shadow-2xl text-center flex flex-col gap-4">
+                <h3 class="font-black text-xl text-base-content tracking-wider">Execute Scene?</h3>
+                <p class="text-accent font-mono font-bold text-lg p-4 bg-base-200 rounded-box shadow-inner uppercase tracking-widest truncate" x-text="activeSceneName"></p>
+
+                <div class="modal-action border-t border-base-200 pt-4 mt-2">
+                    <form method="dialog" class="w-full flex justify-between gap-4">
+                        <button class="btn btn-outline flex-1 font-mono text-base-content/70">Cancel</button>
+                        <button type="button" class="btn btn-accent flex-1 font-mono shadow-md text-neutral-900 font-bold tracking-wider" @click="confirmSceneExecution()">CONFIRM & EXECUTE</button>
                     </form>
                 </div>
             </div>

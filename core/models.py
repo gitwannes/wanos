@@ -108,7 +108,8 @@ class SystemAdminState(BaseModel):
     system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # Upgraded to structured dicts {id, level, message, timestamp, count}
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
     native_rfx_devices: list[dict] = Field(default_factory=list)  # Pushed dynamically to UI panel
-    available_scenes: list[dict[str, str]] = Field(default_factory=list)  # Extracted stateless triggers for UI
+    available_scenes: list[dict[str, Any]] = Field(
+        default_factory=list)  # Extracted stateless triggers for UI (Allows boolean values)
     hidden_explorer_idxs: list[int] = Field(default_factory=list)  # Devices explicitly hidden from Device Explorer
     hue_presets: dict[str, Any] = Field(default_factory=dict)  # UI Button Configurations pushed from YAML
     zwave_mapped: dict[int, str] = Field(default_factory=dict)  # ⚡ Existing config passed to UI to prevent overwrites

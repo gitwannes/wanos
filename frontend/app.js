@@ -97,12 +97,19 @@ function wanosApp() {
         // Tracks the execution state of the configuration hot-reload loop
         configReloading: false,
 
+        // ⚡ Optimistic UI Locks (Anti-Rubberbanding)
+        // Tracks timestamp of last user action per IDX: { idx: expiration_timestamp }
+        shutterLocks: {},
+
         // ⚡ Light Control Modal State
         activeLightId: null,
         activeLightName: "",
         activeLightBri: 100,
         activeLightHex: "#FFD180",
         colorPicker: null, // ⚡ Holds the iro.js UI instance
+        // ⚡ Scene Confirmation Modal State
+        activeSceneId: null,
+        activeSceneName: "",
 
         // ⚡ Dynamic Device Explorer (deviceexplorer.html) UI States
         searchQuery: "",
@@ -352,14 +359,16 @@ function wanosApp() {
 
             // 2. Map Stateless Scenes
             // ⚡ Display scenes as long as the Automation Engine is alive to process them
-            if (this.state.system.available_scenes && this.state.system.automations_enabled) {
+            // ⚡ Admin Guard: Hide stateless software scenes from the diagnostic "Hidden Nodes" view
+            if (!this.showHiddenNodes && this.state.system.available_scenes && this.state.system.automations_enabled) {
                 for (const scene of this.state.system.available_scenes) {
                     list.push({
                         id: scene.event,
                         name: scene.name,
                         type: 'scene',
                         raw_value: null,
-                        is_on: null // Stateless element
+                        is_on: null, // Stateless element
+                        require_confirmation: scene.require_confirmation === true // Mapped from backend config
                     });
                 }
             }
@@ -618,8 +627,23 @@ function wanosApp() {
                 if (!payload.sensor_errors) payload.sensor_errors = [];
             }
             if (domain === "devices") {
+                // ⚡ OPTIMISTIC UI LOCK GUARD (Anti-Rubberbanding)
+                // Filter out incoming telemetry for sliders we recently touched to prevent snapping
+                const filteredPayload = {};
+                const now = Date.now();
+
+                for (const [idx, val] of Object.entries(payload)) {
+                    if (this.shutterLocks[idx] && now < this.shutterLocks[idx]) {
+                        // ⚡ Calculate remaining lock time for the console log
+                        const remaining = Math.round((this.shutterLocks[idx] - now) / 1000);
+                        console.info(`[UI Guard] Event ignored for Shutter IDX ${idx}: locked for ${remaining} more seconds to prevent rubberbanding.`);
+                        continue;
+                    }
+                    filteredPayload[idx] = val;
+                }
+
                 // Merge device keys individually natively!
-                this.state.devices = Object.assign({}, this.state.devices, payload);
+                this.state.devices = Object.assign({}, this.state.devices, filteredPayload);
                 if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
                     this.syncLabControls();
                 }
@@ -1086,9 +1110,57 @@ function wanosApp() {
             this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
         },
 
+        handleShutterNameClick(item) {
+            if (item.type !== 'blinds' || item.is_dead || item.raw_value === null) return;
+            // ⚡ Binary Toggle Logic: If > 0, assume user wants it OPEN (0). Else CLOSED (100).
+            const targetState = item.raw_value > 0 ? 0 : 100;
+            this.setShutterState(item.id, targetState);
+        },
+
+        // ⚡ Helper function to fetch the lock time to keep code DRY
+        getShutterLockTime() {
+            // state.system.shutter_rubberbanding is not defined at this time
+            // maybe later, we will put this in config.yaml
+            // -> changes to config.py, models.py & state_manager.py needed
+            const lockTime = 7; // seconds that incoming events for this shutter are ignored
+            return (this.state.system.shutter_rubberbanding || lockTime) * 1000;
+        },
+
+        setShutterState(idx, targetState) {
+            // Set Optimistic UI Lock expiration to ignore incoming Z-Wave state updates
+            this.shutterLocks[idx] = Date.now() + this.getShutterLockTime();
+
+            // ⚡ Instantly mutate local state so OPEN/CLOSED text clicks don't flicker
+            this.state.devices[idx] = targetState;
+
+            // Dispatch command to backend
+            this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
+        },
+
+        updateShutterOptimistic(idx, val) {
+            const numVal = parseInt(val, 10);
+            this.shutterLocks[idx] = Date.now() + this.getShutterLockTime();
+
+            // ⚡ Immediately update the reactive dictionary so the slider and % text move live with the mouse pointer
+            this.state.devices[idx] = numVal;
+        },
+
         // =========================================================================
         // 🎨 NATIVE LIGHTING CONTROL MATHEMATICS & DISPATCHERS
         // =========================================================================
+
+        openSceneModal(item) {
+            this.activeSceneId = item.id;
+            this.activeSceneName = item.name;
+            document.getElementById('scene_confirm_modal').showModal();
+        },
+
+        confirmSceneExecution() {
+            if (this.activeSceneId) {
+                this.dispatchEvent(this.activeSceneId);
+            }
+            document.getElementById('scene_confirm_modal').close();
+        },
 
         openLightModal(item) {
             this.activeLightId = item.id;

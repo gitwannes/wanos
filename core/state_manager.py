@@ -217,10 +217,12 @@ class StateManager:
                 triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
                 for t in triggers:
                     if t.event:
-                        if not any(s["event"] == t.event for s in self._state.system.available_scenes):
+                        # ⚡ Safely use .get() since values are now mixed types (strings and booleans)
+                        if not any(s.get("event") == t.event for s in self._state.system.available_scenes):
                             self._state.system.available_scenes.append({
                                 "name": rule.name,
-                                "event": t.event
+                                "event": t.event,
+                                "require_confirmation": getattr(rule, "require_confirmation", False)
                             })
 
     def register_listener(self, callback: Any) -> None:

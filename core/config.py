@@ -150,6 +150,7 @@ class ActionConfig(BaseModel):
 class AutomationRuleConfig(BaseModel):
     name: str
     scene: bool = False  # ⚡ Expose this automation rule as a manually triggerable scene in the UI
+    require_confirmation: bool = False  # ⚡ Prevents accidental misclicks by requiring a modal confirmation
     trigger: Union[TriggerConfig, List[TriggerConfig]]
     conditions: Optional[List[ConditionConfig]] = None
     actions: List[ActionConfig]

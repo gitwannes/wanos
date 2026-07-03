@@ -115,8 +115,8 @@ deviceexplorer_exclude:
   - 51101  # Hue verd 1
   - 51102  # Hue verd 2
   - 11001  # kWh
-  - 11002  # cold water
-  - 11003  # warm water
+#  - 11002  # cold water
+#  - 11003  # warm water
 
 
 # ==============================================================================
@@ -344,6 +344,7 @@ automations:
 
   - name: "ALL OFF overal"
     scene: true
+    require_confirmation: true  # ⚡ High impact macro: pop up confirmation modal
     trigger:
       event: "SCENE_ALL_OFF"
     actions:
@@ -390,6 +391,7 @@ automations:
         state: "ON"
 
   - name: "BuroCinemaPC_cosy"
+    scene: true
     trigger:
       - idx: 71001 # Buro
         state: "ON"
@@ -730,6 +732,7 @@ automations:
 
   - name: "--- CINEMA ON"
     scene: true
+    require_confirmation: true  # ⚡ High impact macro: pop up confirmation modal
     trigger:
       event: "SCENE_CINEMA_ON"
     actions:
@@ -760,6 +763,7 @@ automations:
     # This one makes it to the dashboard.trigger:
     # It fires the event "SCENE_CINEMA_OFF", both this and "CINEMA OFF (Day)" are then evaluated.
     scene: true
+    require_confirmation: true  # ⚡ High impact macro: pop up confirmation modal
     trigger:
       event: "SCENE_CINEMA_OFF"
     conditions:
