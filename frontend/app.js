@@ -89,7 +89,8 @@ function wanosApp() {
         },
 
         // Dedicated UI Toggle to lock/unlock manual manipulation of the physics simulator
-        labControlsEnabled: false,
+        // ⚡ Reads the previous layout state from the browser's local storage immediately on boot
+        labControlsEnabled: localStorage.getItem('wanos_lab_open') === 'true',
 
         // Tracks the execution state of the Sweeper
         sweepRunning: false,
@@ -499,17 +500,34 @@ function wanosApp() {
         init() {
             console.log("🚀 WanOS Web Controller initializing...");
 
-            // Admin Gatekeeper: Decode JWT locally to enable secure Admin UI capabilities
-            // Persistent storage across browser sessions/reboots via localStorage
+            // ⚡ VISUAL STATE PERSISTENCE
+            // Automatically saves the lab panel toggle state to the browser whenever you click it
+            this.$watch('labControlsEnabled', value => {
+                localStorage.setItem('wanos_lab_open', value);
+            });
+
+            // Admin Gatekeeper & Strict Page Bouncer
             const token = localStorage.getItem("wanos_jwt") || "";
             if (token) {
                 try {
                     const payloadStr = atob(token.split('.')[1]);
                     const payload = JSON.parse(payloadStr);
+
                     if (payload.role === "admin") {
                         this.isAdmin = true;
+                    } else if (payload.role === "user" && window.location.pathname.includes("admin.html")) {
+                        // ⚡ THE BOUNCER: If a smartphone browser auto-completes to admin.html, kick them out
+                        console.warn("Unauthorized access attempt to admin.html. Redirecting...");
+                        window.location.href = "/deviceexplorer.html";
+                        return;
                     }
-                } catch (err) {}
+                } catch (err) {
+                    localStorage.removeItem("wanos_jwt");
+                }
+            } else if (!window.location.pathname.includes("login.html")) {
+                // Failsafe: Evict completely unauthenticated users who bypass the root routing
+                window.location.href = "/login.html";
+                return;
             }
 
             // ⚡ URL Query Parameters Parser
@@ -1111,6 +1129,11 @@ function wanosApp() {
         },
 
         handleShutterNameClick(item) {
+            // ⚡ MOBILE UX FIX: Force the browser to drop focus so the color doesn't "stick" after tapping
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+
             if (item.type !== 'blinds' || item.is_dead || item.raw_value === null) return;
             // ⚡ Binary Toggle Logic: If > 0, assume user wants it OPEN (0). Else CLOSED (100).
             const targetState = item.raw_value > 0 ? 0 : 100;

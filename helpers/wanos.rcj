@@ -62,3 +62,6 @@
 	*.bak
 :: On Pi
 	wanos.console.log
+	wanos-nvram.json
+	wanos-nvram.json.tmp
+	.lgd-nfy0

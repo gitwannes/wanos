@@ -359,3 +359,28 @@ async def handle_kwh_pulse(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
         manager.mqtt_publisher.accumulate_kwh(1)
 
     return state_changed, changed_domains
+
+async def handle_nvram_flush_trigger(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """
+    Periodic 5-minute heartbeat to flush active 11xxx counters to physical storage.
+    """
+    import time
+
+    # Extract only the targeted cumulative metric counters (11000 - 11999)
+    nvm_payload = {
+        k: v for k, v in manager._state.devices.items()
+        if isinstance(k, int) and 11000 <= k < 12000
+    }
+
+    # Execute the Atomic Swap disk I/O
+    manager.nvm.flush(nvm_payload)
+
+    # Reschedule the next heartbeat
+    manager._timer_manager.schedule(
+        "nvram_flush",
+        int(time.time()) + 300,  # every 5 minutes: check if flushing is needed
+        EventType.NVRAM_FLUSH_TRIGGER.value
+    )
+
+    # Disk I/O does not mutate reactive UI state, so we stay completely silent
+    return False, set()

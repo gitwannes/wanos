@@ -10,7 +10,8 @@ from .hardware_handlers import (
 )
 from .telemetry_handlers import (
     handle_power_updated, handle_external_weather_updated, handle_system_metrics_updated,
-    handle_temp_updated, handle_humidity_updated, handle_water_pulse, handle_kwh_pulse
+    handle_temp_updated, handle_humidity_updated, handle_water_pulse, handle_kwh_pulse,
+    handle_nvram_flush_trigger
 )
 from .timer_handlers import (
     handle_timer_scheduled, handle_timer_cancelled, handle_light_timer_expired,
@@ -46,6 +47,7 @@ EVENT_ROUTERS = {
     "GPIO_INPUT_TOGGLED": handle_gpio_input_toggled,
     "GPIO_OUTPUT_TOGGLED": handle_gpio_output_toggled,
     "SENSOR_ERROR": handle_sensor_error,
+    "NVRAM_FLUSH_TRIGGER": handle_nvram_flush_trigger,
 
     "POWER_UPDATED": handle_power_updated,
     "EXTERNAL_WEATHER_UPDATED": handle_external_weather_updated,

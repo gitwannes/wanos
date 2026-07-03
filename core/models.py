@@ -83,6 +83,7 @@ class EventType(str, Enum):
     TIMER_SCHEDULED = "TIMER_SCHEDULED"
     TIMER_CANCELLED = "TIMER_CANCELLED"
     LIGHT_TIMER_EXPIRED = "LIGHT_TIMER_EXPIRED"
+    NVRAM_FLUSH_TRIGGER = "NVRAM_FLUSH_TRIGGER"  # ⚡ 5-minute heartbeat to flush counters to disk
 
 
 class SystemAdminState(BaseModel):

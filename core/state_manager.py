@@ -11,6 +11,7 @@ from .mqtt_transport import MqttClientManager
 from .logger import WanosLogger
 from .config import load_config
 from core.event_handlers.registry import EVENT_ROUTERS
+from core.nvm_manager import NVRAMManager
 
 from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
@@ -48,6 +49,9 @@ class StateManager:
         self.zwave_bridge: Optional[Any] = None  
         self.logger: WanosLogger = logger
 
+        # ⚡ Initialize Non-Volatile Memory Disk I/O Controller
+        self.nvm = NVRAMManager()
+
         # Optional reference to the MqttPublisher, injected after construction.
         self.mqtt_publisher: Optional[Any] = None
 
@@ -58,6 +62,10 @@ class StateManager:
 
         # Track rolling data windows for moving averages
         self._sensor_history: dict[int, list[float]] = {}
+
+        # ⚡ FIRST-SYNC TRACKING SET (Boot Storm Protector)
+        # An immutable ledger tracking which IDXs have reported their physical state at least once since the Python process started.
+        self._initialized_idxs: set[int] = set()
 
         # Load centralized configuration profiles
         self._config = load_config()
@@ -206,7 +214,20 @@ class StateManager:
         if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
             self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
 
+            # ⚡ NVRAM BOOT SEEDING
+            # Loads preserved cumulative counters from disk and injects them directly into RAM
+        nvram_data = self.nvm.load()
+        for nv_idx, nv_val in nvram_data.items():
+            self._state.devices[nv_idx] = nv_val
+            # Ensure they exist in the dashboard map so the UI knows their semantic origin
+            if nv_idx not in self._state.dashboard_map:
+                self._state.dashboard_map[nv_idx] = f"Counter {nv_idx}"
+
         self._extract_scenes_from_config()
+
+        # ⚡ Timer Manager placeholder.
+        # Instantiation has been moved to start() to safely bind to the asyncio loop!
+        self._timer_manager = None
 
     def _extract_scenes_from_config(self) -> None:
         self._state.system.available_scenes.clear()
@@ -227,29 +248,43 @@ class StateManager:
 
     def register_listener(self, callback: Any) -> None:
         self._state_listeners.append(callback)
-        self._state.sauna.target_temp = float(self._config.sauna.default_sauna_setpoint)
-        self._state.sauna.max_temp = float(self._config.sauna.max_temp)
-        self._state.boot_seed = self._config.boot_seed
 
-        self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
-        freq_map = {0: 0, 25: 25, 33: 33, 50: 50, 67: 33, 75: 25, 100: 5}
-        self._state.ir.frequency = freq_map.get(self._state.ir.modulation_pwm, 0)
+        # 🛡️ ONE-TIME INITIALIZATION GUARD
+        # Ensures internal runtime states and control loops are configured exactly once on the first registration hook.
+        # This prevents follow-up integration bridge setups from wiping running metrics or resetting active loops.
+        if not hasattr(self, "sauna_logic"):
+            self._state.sauna.target_temp = float(self._config.sauna.default_sauna_setpoint)
+            self._state.sauna.max_temp = float(self._config.sauna.max_temp)
+            self._state.boot_seed = self._config.boot_seed
 
-        self._sauna_timer_triggered = False
-        self._sauna_timer_duration_secs = 0
+            self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
+            freq_map = {0: 0, 25: 25, 33: 33, 50: 50, 67: 33, 75: 25, 100: 5}
+            self._state.ir.frequency = freq_map.get(self._state.ir.modulation_pwm, 0)
 
-        self.sauna_logic = SaunaController(
-            initial_target_temp=self._state.sauna.target_temp,
-            kp=self._config.sauna.kp,
-            ki=self._config.sauna.ki,
-            kd=self._config.sauna.kd
-        )
-        from logic.timers import TimerManager
-        self._timer_manager = TimerManager(dispatch_callback=self._dispatch_from_timer)
+            self._sauna_timer_triggered = False
+            self._sauna_timer_duration_secs = 0
+
+            self.sauna_logic = SaunaController(
+                initial_target_temp=self._state.sauna.target_temp,
+                kp=self._config.sauna.kp,
+                ki=self._config.sauna.ki,
+                kd=self._config.sauna.kd
+            )
 
     async def start(self) -> None:
         self._worker_task = asyncio.create_task(self._process_events())
         self._health_monitor.start()
+
+        # ⚡ SINGLETON TIMER INSTANTIATION (Event Loop Safe)
+        # Must be initialized inside an async context so its internal background tasks bind to the running loop!
+        if self._timer_manager is None:
+            from logic.timers import TimerManager
+            self._timer_manager = TimerManager(dispatch_callback=self._dispatch_from_timer)
+            # ⚡ KICK-OFF NVRAM FLUSH LOOP
+            # Schedules the very first disk save. Once this fires (5 minutes after boot), the handler in
+            # telemetry_handlers.py will continuously reschedule itself to create the infinite loop.
+            self._timer_manager.schedule("nvram_flush", int(time.time()) + 300, EventType.NVRAM_FLUSH_TRIGGER.value)
+
         await self.logger.success("State Manager worker started.")
 
     async def stop(self) -> None:
@@ -261,6 +296,12 @@ class StateManager:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
+
+            # ⚡ FINAL NVRAM SHUTDOWN FLUSH
+            # Guaranteed save cycle when the WanOS process shuts down gracefully
+            nvm_payload = {k: v for k, v in self._state.devices.items() if
+                           isinstance(k, int) and 11000 <= k < 12000}
+            self.nvm.flush(nvm_payload)
 
         await self.logger.warning("State Manager worker stopped.")
 
@@ -332,6 +373,9 @@ class StateManager:
         # If the device is currently NULL or "Sync..." in memory, this is its first heartbeat.
         meta_idx = payload.get("idx")
         if meta_idx is not None:
+            if meta_idx not in self._initialized_idxs:
+                payload["is_initialization"] = True
+                self._initialized_idxs.add(meta_idx)
             current_cached_val: Any = self._state.devices.get(meta_idx)
             if current_cached_val is None or current_cached_val == "Sync...":
                 payload["is_initialization"] = True
