@@ -65,7 +65,8 @@ function wanosApp() {
                 douche_active: false,
                 douche_start_time: null,
                 douche_duration_secs: 0,
-                douche_water_liters: 0
+                douche_water_liters: 0,
+                motion_triggers: {} // ⚡ Ephemeral diagnostic tally
             },
             hardware: {
                 sht11_connected: false,
@@ -265,8 +266,10 @@ function wanosApp() {
                 const idx = parseInt(idxStr, 10);
 
                 // ⚡ CONFIG EXCLUSION GUARD (Admin Exclusive View Logic)
-                // Reads the explicitly injected hidden flag from the metadata dict to bypass Pydantic stripping
-                const isHiddenDevice = meta.hidden === true || (this.state.system.hidden_explorer_idxs && this.state.system.hidden_explorer_idxs.includes(idx));
+                // Reads the explicitly injected hidden flag from the metadata dict to bypass Pydantic stripping.
+                // ⚡ Automatically forces all 75xxx motion sensors into the hidden administrative view.
+                const isHiddenDevice = meta.hidden === true || idxStr.startsWith('75') || (this.state.system.hidden_explorer_idxs && this.state.system.hidden_explorer_idxs.includes(idx));
+
                 if (this.showHiddenNodes) {
                     // Exclusive View: ONLY show hidden devices
                     if (!isHiddenDevice) continue;
@@ -295,12 +298,17 @@ function wanosApp() {
                     }
                 }
 
-                // ⚡ Format Display Text for Analog Sensors to prevent [object Object] rendering
+                // ⚡ Format Display Text
                 let displayText = rawValue;
                 if (isDead) {
                     displayText = "DEAD";
                 } else if (rawValue === null) {
                     displayText = "SYNC...";
+                } else if (idxStr.startsWith('75')) {
+                    // ⚡ MOTION SENSOR DIAGNOSTIC LEDGER (Admin Only)
+                    // Ignore raw binary states. Pull the ephemeral trigger tally directly from the metrics ledger.
+                    const tally = this.state.metrics.motion_triggers?.[idx] || 0;
+                    displayText = `${tally}x`;
                 } else if (typeof rawValue === 'object' && rawValue !== null) {
                     if (meta.type === 'sensor' || meta.type === 'temp' || meta.type === 'hum' || meta.type === 'temp_hum') {
                         if (rawValue.temp !== undefined && rawValue.hum !== undefined) {

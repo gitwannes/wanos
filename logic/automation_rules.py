@@ -174,6 +174,15 @@ class AutomationEngine:
                         else:
                             target_action_state = raw_action_state
 
+                        # ⚡ STRICT STATE FILTER: Prevent 'None' states from propagating to physical hardware.
+                        # Drops ghost payloads (e.g., Hue brightness slides without binary power states)
+                        # before they hit the execution blocks.
+                        if target_action_state is None:
+                            automation_logger.debug(
+                                f"[X-RAY] -> Action SKIPPED: Target state resolved to None (Ghost Payload)."
+                            )
+                            continue
+
                         # --- Action Type A: Raw IDX Execution ---
                         if getattr(action, "idx", None) is not None and getattr(action, "target", None) != "hue_scene":
                             # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary

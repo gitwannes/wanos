@@ -507,6 +507,15 @@ class StateManager:
 
         p_idx = payload.get("idx")
 
+        # ⚡ EPHEMERAL MOTION LEDGER (Admin Diagnostics)
+        # Tracks how many times a motion sensor (75xxx) trips per boot session.
+        if event_name == "HUB_STATE_CHANGED" and p_idx is not None:
+            if str(p_idx).startswith("75") and payload.get("state") == "ON":
+                current_tally = self._state.metrics.motion_triggers.get(p_idx, 0)
+                self._state.metrics.motion_triggers[p_idx] = current_tally + 1
+                state_changed = True
+                changed_domains.add("metrics")
+
         # ⚡ MASTER Z-WAVE SAFETY CASCADE (Phase B)
         # If the 5V Master Safety Relay drops, we must instantly cut the software outputs.
         if event_name == "HUB_STATE_CHANGED" and p_idx == 71036 and payload.get("state") != "ON":

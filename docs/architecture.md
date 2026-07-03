@@ -135,3 +135,16 @@ During the initial 3 minutes (180 seconds) of the application's process life, al
 
 ### The Catch-Up Sweeper Protection
 The maintenance sweeper (`SYSTEM_SWEEP_REQUESTED`) performs an environmental health audit by analyzing your daily 6-point time-series profiles via the `EnvironmentScheduler`. To ensure a manual administrative click or an automatic reconnection sweep does not cause physical roller shutter movements across your rooms, the loop evaluates an explicit `is_passive_sweep` validation rule. If the sweep reason matches a network recovery or configuration hot-reload, the fan and climate parameters synchronize, but the physical blinds are bypassed.
+
+
+### Sauna safety - to complete
+
+Core State Sandbox ]                        [ Out-of-Band Guard ]
+  (StateManager)                                (HealthMonitor Loop)
+        │                                                │
+        ├──> Sets absolute_cutoff = now + 6 * 3600       │ Every 2s:
+        │                                                ├─> Is cutoff exceeded?
+        └──> Refreshes last_sensor_heartbeat ───> ───────┼─> Is heartbeat > 10s old?
+                                                         │       │
+                                                         ▼       ▼
+                                                  [ Hard Emergency Shutdown ]

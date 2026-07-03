@@ -553,6 +553,10 @@ automations:
     trigger:
       idx: 71007         # badkamer 1e groot switch
       state: "ON"
+    conditions:
+      - type: "device_state"
+        idx: 51001       # badkamer 1e hue room
+        is: "OFF"        # Only applies Red if the room was off
     actions:
       - idx: 51001       # badkamer 1e hue room
         state: "ON"
@@ -646,6 +650,10 @@ automations:
     trigger:
       idx: 71009
       state: "ON"
+    conditions:
+      - type: "device_state"
+        idx: 51007       # badkamer 2e hue room
+        is: "OFF"        # Only applies Red if the room was off
     actions:
       - idx: 51007
         state: "ON"
@@ -789,28 +797,3 @@ automations:
         state: "OFF"
       - idx: 73001    # 1eV schuifraam (blinds)
         state: "0"
-
-  # --------------------------------------------------------------------------
-  # 🧪 TEST & DEBUG MACROS
-  # --------------------------------------------------------------------------
-  - name: "test Hue1"
-    trigger:
-      - idx: 72005 # tuinlicht
-        state: "ON"
-      - idx: 10001 # deur sauna
-        state: "ON"  # ON = Open, OFF = Closed
-    actions:
-      - target: "hue_scene"
-        idx: 51004
-        scene: "cinema"
-
-  - name: "test Hue2"
-    trigger:
-      - idx: 72005 # tuinlicht
-        state: "OFF"
-      - idx: 10001 # deur sauna
-        state: "OFF"  # ON = Open, OFF = Closed
-    actions:
-      - target: "hue_scene"
-        idx: 51004
-        scene: "arctische_dageraad"

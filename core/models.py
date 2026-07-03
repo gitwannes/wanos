@@ -181,6 +181,10 @@ class MetricsState(BaseModel):
     douche_start_time: Optional[int] = None
     douche_duration_secs: int = 0
     douche_water_liters: int = 0
+    # ⚡ EPHEMERAL MOTION LEDGER
+    # Tracks the number of times 75xxx motion sensors fire per boot session.
+    # Data lives purely in RAM and intentionally does not survive reboots.
+    motion_triggers: Dict[int, int] = Field(default_factory=dict)
 
 
 class HardwareState(BaseModel):
