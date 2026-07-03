@@ -507,9 +507,14 @@ class ZWaveJSUIBridge(WanosComponent):
             # Z-Wave JS UI uses /targetValue/set to receive intent payloads
             target_topic = f"{self.mqtt_prefix}/{prop_path}/targetValue/set"
 
-            # Route payload translation based on data type (blinds vs switches)
+            # ⚡ MULTILEVEL INTENT PARSING
+            # Safely route payload translation based on data type (blinds vs switches).
+            # We explicitly test strings to see if they contain valid numeric shutter positions (e.g. "100")
+            # to prevent fallback binary booleans from breaking multilevel Z-Wave hardware.
             if isinstance(new_state, int):
                 zwave_payload = {"value": new_state}
+            elif isinstance(new_state, str) and new_state.isdigit():
+                zwave_payload = {"value": int(new_state)}
             else:
                 zwave_payload = {"value": True if new_state == "ON" else False}
 

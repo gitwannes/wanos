@@ -39,7 +39,7 @@ zwave:
     71020: "59/37/2 | toilet ventilatie motor 2e?"
     71021: "60/37/1 | badk 2e ventilatie | 1622"
     71022: "60/37/2 | badk 2e binnen (unused) | 1625"
-    71023: "66/37/1 | berging | 6051"
+    71023: "66/37/1 | berging 2e | 6051"
     71024: "66/37/2 | slpk Liene | 6048"
     71025: "67/37/1 | eetkamer | 6060"
     71026: "67/37/2 | eetkamer 2e?"

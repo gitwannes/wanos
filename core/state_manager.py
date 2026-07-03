@@ -129,6 +129,16 @@ class StateManager:
             if idx < 10000 and idx not in self._state.devices:
                 self._state.devices[idx] = None
 
+        # ⚡ METADATA INJECTION: Flag hidden devices directly in the metadata dictionary
+        # This completely bypasses Pydantic's strict model serialization stripping
+        exclusions = getattr(self._config, "deviceexplorer_exclude", [])
+        for idx in exclusions:
+            if idx in self._state.device_metadata:
+                self._state.device_metadata[idx]["hidden"] = True
+            else:
+                self._state.device_metadata[idx] = {"name": f"Hidden {idx}", "type": "unknown",
+                                                    "origin": "system", "hidden": True}
+
         if hasattr(self._config, "native_rfx"):
             for rfx_dev in self._config.native_rfx:
                 self._state.system.native_rfx_devices.append({
@@ -333,11 +343,13 @@ class StateManager:
 
         if meta_idx is not None and meta_type is not None:
             existing = self._state.device_metadata.get(meta_idx)
-            if not existing or existing.get("type") != meta_type or existing.get("name") != meta_name or existing.get("origin") != meta_origin:
+            if not existing or existing.get("type") != meta_type or existing.get(
+                    "name") != meta_name or existing.get("origin") != meta_origin:
                 self._state.device_metadata[meta_idx] = {
                     "name": meta_name or f"idx_{meta_idx}",
                     "type": meta_type,
-                    "origin": meta_origin
+                    "origin": meta_origin,
+                    "hidden": meta_idx in getattr(self._config, "deviceexplorer_exclude", [])
                 }
                 state_changed = True
                 changed_domains.add("device_metadata")
@@ -373,6 +385,13 @@ class StateManager:
                         event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED"] or
                         (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power",
                                                                                               "sensor"])
+                )
+                is_telemetry = (
+                        event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED"] or
+                        (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power", "sensor"]) or
+                        (event_name == "ZWAVE_DISCOVERY" and payload.get("command_class") in ["48", "49"])
+                        # 48 = motion
+                        # 49 = sensor (power, illuminance, temperature)
                 )
 
                 if is_telemetry:

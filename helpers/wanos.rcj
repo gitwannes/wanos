@@ -46,6 +46,7 @@
 :: On Pi
 	wanos_venv
 	migration_venv
+	billit_venv
 	__pycache__
 
 :: --- Exclude Files

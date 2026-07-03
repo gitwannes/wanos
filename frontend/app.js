@@ -257,7 +257,8 @@ function wanosApp() {
                 const idx = parseInt(idxStr, 10);
 
                 // ⚡ CONFIG EXCLUSION GUARD (Admin Exclusive View Logic)
-                const isHiddenDevice = this.state.system.hidden_explorer_idxs.includes(idx);
+                // Reads the explicitly injected hidden flag from the metadata dict to bypass Pydantic stripping
+                const isHiddenDevice = meta.hidden === true || (this.state.system.hidden_explorer_idxs && this.state.system.hidden_explorer_idxs.includes(idx));
                 if (this.showHiddenNodes) {
                     // Exclusive View: ONLY show hidden devices
                     if (!isHiddenDevice) continue;
@@ -313,6 +314,7 @@ function wanosApp() {
                                 else if (k.includes('pow') || k.includes('watt') || k.includes('meter')) unit = 'W';
                                 else if (k.includes('volt')) unit = 'V';
                                 else if (k.includes('amp') || k.includes('current')) unit = 'A';
+                                else if (k.includes('water') || k.includes('liter') || k.includes('volume')) unit = 'L';
 
                                 displayText = unit ? `${rawValue[keys[0]]} ${unit}` : `${rawValue[keys[0]]} ${keys[0]}`;
                             } else {
@@ -324,6 +326,16 @@ function wanosApp() {
                     } else {
                         displayText = JSON.stringify(rawValue);
                     }
+                } else if (typeof rawValue === 'number' || (!isNaN(parseFloat(rawValue)) && isFinite(rawValue))) {
+                    // ⚡ NATIVE FLOAT/INT FORMATTING
+                    // Assign units to raw numbers based on their semantic metadata name
+                    const n = meta.name.toLowerCase();
+                    if (n.includes('water') || n.includes('liter')) displayText = `${rawValue} L`;
+                    else if (n.includes('kwh') || n.includes('energy')) displayText = `${rawValue} kWh`;
+                    else if (n.includes('power') || n.includes('watt')) displayText = `${rawValue} W`;
+                    else if (n.includes('temp')) displayText = `${rawValue} °C`;
+                    else if (n.includes('hum')) displayText = `${rawValue} %`;
+                    else if (n.includes('lux')) displayText = `${rawValue} Lux`;
                 }
 
                 list.push({
