@@ -28,7 +28,6 @@
 * network connection rule: iw dev wlan0 set power_save off
 * use swayidle for DSI power cutoff
 
-
 ---
 
 ## 1. Topography & Node Topology
@@ -44,8 +43,8 @@ The system operates on an isolated local network, separating intensive backgroun
 
 WanOS is built from a 100% clean-slate modular architecture adhering strictly to object separation patterns and clean type hinting conventions:
 
-* **The Core Backend Sandbox:** Built on Python 3.9+ (running production-validated Python 3.11+ patterns) utilizing **FastAPI**. It enforces strict data validation contracts through **Pydantic** structures and coordinates non-blocking background routines using the `asyncio` event loop engine.
-* **The Presentation Interface:** Powered by **Alpine.js**. Paired with **TailwindCSS** and **DaisyUI**, it allows for instant reactive UI updates and theme matching without relying on intensive, long-compile node build bundles.
+* **The Core Backend Sandbox:** Built on Python 3.9+ (running production-validated Python 3.11+ patterns) utilizing **FastAPI**. It enforces strict data validation contracts through **Pydantic** structures and coordinates non-blocking background routines using the `asyncio` event loop engine. 
+* **The Presentation Interface:** Powered by **Alpine.js**. Paired with **TailwindCSS** and **DaisyUI**, it allows for instant reactive UI updates and theme matching without relying on intensive, long-compile node build bundles. The interface utilizes `localStorage` to persist dynamic UX layouts (like the Lab Control panels) and JWT Session roles independently of the backend.
 * **The Communication Layer:** Employs **Server-Sent Events (SSE)** for unidirectional backend-to-browser telemetry streams, and utilizes a **Dual MQTT Broker Architecture** to maintain clean network boundaries:
   1. A Local `localhost` Mosquitto broker handles high-frequency administrative diagnostic metrics and terminal log monitors.
   2. A Remote client bridge targets your secondary home hub node to handle long-distance external data exchanges.
@@ -81,32 +80,40 @@ All internal transitions follow a strictly structured event routing path. Outbou
 To prevent the `StateManager` from becoming a monolithic "God Object", it utilizes the **Strategy Pattern**. When an event is pulled from the queue, the StateManager acts as an ultra-fast proxy, instantly mapping the payload to an isolated function in the `core/event_handlers/` registry. This cleanly separates routing from business execution.
 
 ### Single Responsibility Background Services
-Heavy, non-blocking operational tasks are extracted into dedicated service classes under the `logic/` directory:
+Heavy, non-blocking operational tasks are extracted into dedicated service classes under the `logic/` directory, supported by specific memory managers in the `core/` directory:
 * **The Health Monitor:** Pings sockets and external bridges continuously, dispatching Auto-Kill commands if hardware is dropped.
 * **The Environment Scheduler:** Performs mathematical bounds clamping for sun cycles.
-* **The Alert Manager:** Centralizes all UI notification generation and deduplication.
+* **The NVRAM Manager:** Operates an isolated disk I/O class executing atomic file swaps for cumulative hardware meters.
 
-### Thin Client Architecture
-The frontend web browser holds zero business or processing logic. All mathematical filtering, time thresholds, hysteresis loops, and scheduler parameters exist purely inside the backend Python environment. The client simply receives the processed data snapshot and prints it to the viewport frames.
+### The NVM Buffer-and-Flush Architecture (Atomic Swaps)
+To protect the Raspberry Pi's physical SD card from wear-leveling death caused by high-frequency water and power pulses, WanOS actively bypasses `log2ram`. 
+1. The engine buffers incoming meter pulses in high-speed RAM. 
+2. A recurring 5-minute `NVRAM_FLUSH_TRIGGER` heartbeat analyzes the memory. 
+3. If the math has changed, it writes to a temporary file (`wanos-nvram.json.tmp`) and executes a native `os.replace` to atomically swap it. This mathematically guarantees data cannot be corrupted if the Pi loses power mid-write.
+
+### Client-Side State Memory & Route Bouncing
+The backend serves raw HTML assets openly, relying on JWT verification only for API endpoint hits. To prevent broken views when a smartphone auto-completes to a previously visited URL (e.g., `/admin.html`), the `app.js` initialization loop acts as a Role-Based Bouncer. It inspects the JWT stored in the browser's `localStorage` and forcibly redirects unauthorized users to their correct layout scope before rendering the DOM.
 
 ### Noisy Metric Smoothing (Rolling Average Buffers)
-To combat network pollution caused by highly erratic device telemetry (such as high-frequency electrical plug updates), the system uses a **RAM Moving Average Array**. Incoming telemetry metrics (like raw computer power draw) are collected into a rolling 10-point window. The backend processes a smoothed aggregate value and suppresses downstream SSE updates unless the final rounded value shifts, preventing UI flashing.
+To combat network pollution caused by highly erratic device telemetry (such as high-frequency electrical plug updates), the system uses a **RAM Moving Average Array**. Incoming telemetry metrics (like raw computer power draw) are collected into a rolling window. The backend processes a smoothed aggregate value and suppresses downstream SSE updates unless the final rounded value shifts, preventing UI flashing.
 
 ### Logic-to-Hardware Decoupling (The Boundary Rule)
-Core software algorithms have no direct awareness of physical circuit links. They calculate target metrics and update state models. Outbound actions are separated into clean directory paths: `hardware/` modules manage local GPIO lines (relays and local SHT11 probes), while `integrations/` handle the networking protocols for external platforms like your Hue Bridge, Domoticz instance, and the Epson Projector TCP socket.
+Core software algorithms have no direct awareness of physical circuit links. They calculate target metrics and update state models. Outbound actions are separated into clean directory paths: `hardware/` modules manage local GPIO lines (relays and local SHT11 probes), while `integrations/` handle the networking protocols for external platforms.
 
-### Pessimistic Presentation Rendering & Permissive Interlocks
-The web dashboard follows a pessimistic update path. When a toggle is clicked, the switch locks and changes to a "SYNCING..." loading state until the verified state pushes back down the SSE telemetry stream. Furthermore, the backend employs **Permissive Interlocks** (ICS standards): if a user attempts to arm an integration whose physical socket is offline, the handlers immediately reject the payload and trigger a red UI alert before state corruption can occur.
+### Boot Storm Protector (The First-Sync Tracking Set)
+When the system boots, hardware integrations dump their current states into the event queue (The "Boot Storm"). To prevent automation rules from misfiring during this chaos, WanOS decouples boot logic from raw RAM values. 
+The engine maintains a definitive **First-Sync Tracking Set** (`_initialized_idxs`). When an event arrives, the engine queries the set. If the IDX is missing, it is flagged as `is_initialization` to block automations and then added to the ledger, allowing the UI to safely pre-seed default values without triggering ghost actions.
 
 ---
 
 ## 4. Life-Cycle Telemetry, Version Tracking & Security
 
-### Hot/Warm/Cold Data Lifecycles
+### Hot/Warm/Cold/Persistent Data Lifecycles
 System operations use an tiered storage structure based on performance demands:
 * **Hot Storage (RAM):** The active event queue and moving average history windows process inputs at microsecond speeds.
 * **Warm Storage (Local Filesystem):** Critical system states and structural configuration models read directly from highly readable YAML profiles (`config.yaml`, `hardware.yaml`, `config_lab.yaml`).
-* **Cold Storage (System Logs):** Structured diagnostic traces are handled via a multi-sink Loguru wrapper that splits inputs into three distinct file outputs (`wanos.log`, `wanos_debug.log`, `wanos_automations.log`) using non-blocking background worker threads to keep disk execution from freezing the runtime loops.
+* **Persistent State (NVRAM):** Cumulative, irreversible home metrics (Liters, kWh) are saved via explicit Atomic Swaps to the root directory to survive hard power cuts.
+* **Cold Storage (System Logs):** Structured diagnostic traces are handled via a multi-sink Loguru wrapper that splits inputs into distinct file outputs using non-blocking background worker threads to keep disk execution from freezing the runtime loops.
 
 ### Option C Lifecycle Tracking
 To trace exactly what version of the code is executing across your deployment pipelines without incurring constant SD-card wear, WanOS implements an intelligent runtime string builder pattern:

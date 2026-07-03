@@ -15,6 +15,7 @@ This document serves as the master blueprint and reference guide for the directo
 * `monitor.py`: A local hacker-style Textual TUI split-screen console client used to watch high-frequency telemetry logs across both brokers simultaneously.
 * `requirements.txt`: Master Python package configuration file locking dependencies for strict type validation and async execution.
 * `wanos_boot.sh`: Universal production Bash infrastructure utility script handling process control loops, graceful termination sequences, and multi-file tail debugging routing.
+* `wanos-nvram.json`: Atomic Non-Volatile Memory (NVM) store bypassing `log2ram` to persist cumulative hardware metrics (e.g., liters, kWh) across unexpected power losses.
 
 **core/** (Central Coordination Kernel)
 * `__init__.py`: Package initialization contract.
@@ -23,20 +24,21 @@ This document serves as the master blueprint and reference guide for the directo
 * `models.py`: House-wide data structures storing the unified `SystemState`, system administration parameters, sensor arrays, and device matrices.
 * `mqtt_transport.py`: Pure, transport-agnostic client wrapper managing network sockets, keep-alives, subscriptions, and automatic hardware retry loops.
 * `mqtt_publisher.py`: The domain-scoped MQTT correspondent. Monitors the coordination worker and transforms state updates into target broker topics.
+* `nvm_manager.py`: Dedicated I/O engine managing atomic file swaps (`.tmp` to `.json`) for zero-corruption data persistence on the physical SD card.
 * `state_manager.py`: The ultra-fast core engine driving the unidirectional event execution loop. It acts as a pure memory router, delegating payload processing to the Strategy Pattern registry.
 
 **core/event_handlers/** (Strategy Pattern Routers)
 * `registry.py`: The central dictionary mapping linking string EventTypes to their asynchronous handler functions.
 * `integration_handlers.py`: Manages network toggles, including permissive interlocks that reject commands if hardware is offline.
 * `hardware_handlers.py`: Processes GPIO, SHT11, and physical bus health state mutations.
-* `telemetry_handlers.py`: Handles high-frequency data streams, rolling power buffers, and weather synchronization.
+* `telemetry_handlers.py`: Handles high-frequency data streams, rolling power buffers, weather synchronization, and NVM buffer flushing loops.
 * `timer_handlers.py`: Routes scheduled structural events, expiration boundaries, and time-series automation drops.
 * `hub_handlers.py`: Handles generic device state mutations and advanced Hue color payload dictionaries.
 * `sauna_handlers.py`: Dedicated routers for high-voltage heating activation, setpoints, and element modulation tracking.
 * `system_handlers.py`: Oversees boot lifecycles, configuration hot-reloads, and UI alert routing.
 
 **frontend/** (Dumb Asset Interfaces)
-* `app.js`: Master Alpine.js reactive interface store managing SSE channel bindings, connection watchdogs, dynamic client-side uptimes, and inline sparkline calculations.
+* `app.js`: Master Alpine.js reactive interface store managing SSE channel bindings, connection watchdogs, dynamic client-side uptimes, local UI layout persistence, and JWT role routing.
 * `dashboard.html`: The Device Explorer panel. Implements search query matrices, type exclusions, and cascading alphanumeric sorting algorithms.
 * `index.html`: Primary operational web interface layout structured around side-by-side grids, 4-column responsive admin panels, and physical action safety interceptors.
 
@@ -46,7 +48,7 @@ This document serves as the master blueprint and reference guide for the directo
 
 **logic/** (Pure Business Rules & Background Services)
 * `alert_manager.py`: Centralized UI Notification Engine handling timestamping, deduplication, and severity classification of frontend banners.
-* `automation_rules.py`: Dynamically evaluates declarative YAML rules and implements uninitialized state filters to trap boot storms.
+* `automation_rules.py`: Dynamically evaluates declarative YAML rules.
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
 * `environment_scheduler.py`: Calculates mathematical bounds clamping and dynamically schedules blind/twilight timers based on external weather.
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets and executing auto-kill strike protocols on failed hardware.
@@ -54,7 +56,7 @@ This document serves as the master blueprint and reference guide for the directo
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)
-* `domoticz.py`: Bilingual translation bridge transforming external incoming JSON payloads into unified internal events, and converting outbound adjustments to hardware commands.
+* `domoticz.py`: Bilingual translation bridge transforming external incoming JSON payloads into unified internal events, and converting outbound adjustments to hardware commands. *(Note: Integration entering deprecation phase as WanOS transitions to the primary Master of Truth).*
 * `open_weather.py`: REST polling framework capturing outside climate metrics and tripwiring integrations off if connections fail.
 * `rfxcom.py`: Direct asyncio serial protocol driving the 433MHz antenna transceiver, utilizing custom packet generation blocks to protect against library crashes.
 
@@ -139,11 +141,12 @@ WanOS operates on an Event-Driven Delta Architecture utilizing two separate clie
 
 The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer on port `8000`:
 
-* **`GET /`** | Serves static UI views with aggressive no-cache response headers to bypass browser caching.
+* **`GET /`** | Serves static UI views with aggressive no-cache response headers to bypass browser caching. Redirects to `/login.html` via middleware.
+* **`POST /api/auth/login`** | Authenticates PINs/Tokens, implements strike-based IP bans, and issues signed JWT payload objects.
+* **`POST /api/auth/logout`** | Nullifies the backend session route (Client is responsible for wiping `localStorage` tab memory).
 * **`GET /api/state`** | Compiles a full, read-only system snapshot used by Alpine.js to bootstrap the client memory.
 * **`GET /api/state/sse`** | Persistent HTTP stream channel pushing partial domain JSON frames (`system`, `sensors`, `sauna`, `ir`, `metrics`, `hardware`, `devices`) immediately upon queue draining. Fires a `domain: ping` block if quiet for 5 seconds.
-* **`POST /api/event`** | Universal application entry point. Accepts standard `type` and `payload` properties to inject commands onto the async bus.
-* **`POST /api/test/temp`** | Specialized lab injection route allowing automated testing modules to instantly force virtual probe inputs.
+* **`POST /api/event`** | Universal application entry point. Accepts standard `type` and `payload` properties to inject commands onto the async bus. Protects admin-only payloads via RBAC token inspection.
 
 ---
 
@@ -170,7 +173,7 @@ To communicate with the system, payloads must align with the exact structural da
   ```
 
 ### 🔌 Physical Peripheral & Sensor Intercepts
-* All physical hardware devices, digital probes, switches, and relays are addressed using their unique, raw integer **`idx`** derived from the dashboard hardware map.
+* All physical hardware devices, digital probes, switches, relays, and cumulative fluid/power meters are addressed using their unique, raw integer **`idx`** derived from the dashboard hardware map.
 * **Temperature Update:**
   ```json
   { "type": "TEMP_UPDATED", "payload": { "idx": 20001, "value": 24.5 } }
@@ -187,9 +190,13 @@ To communicate with the system, payloads must align with the exact structural da
   ```json
   { "type": "POWER_UPDATED", "payload": { "idx": 9, "value": 185.2 } }
   ```
-* **Water Meter Analog Pulse Injection:**
+* **Water Meter Analog Pulse Injection (Translates pulses directly to liters via internal math):**
   ```json
-  { "type": "WATER_PULSE", "payload": { "fluid": "cold", "count": 396, "lab_override": true } }
+  { "type": "WATER_PULSE", "payload": { "idx": 11002, "count": 396, "lab_override": true } }
+  ```
+* **Cumulative Grid Pulse Injection (1 Pulse = 1 Wh):**
+  ```json
+  { "type": "KWH_PULSE", "payload": { "idx": 11001 } }
   ```
 * **Universal Hardware State Control:**
   ```json
