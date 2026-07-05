@@ -591,18 +591,18 @@
         <dialog id="hardware_output_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm">
             <div class="modal-box border border-error bg-base-300 shadow-2xl">
                 <h3 class="font-bold text-lg text-error flex items-center gap-2 uppercase tracking-widest">
-                    <span>⚠️</span> High-Voltage Warning
+                    <span>⚠️</span> Sauna & IR SSR Warning
                 </h3>
                 <p class="py-4 text-base-400 font-mono text-sm leading-relaxed">
                     You are about to switch the Master Output Contactor.
                     <br><br>
 
                     <span x-show="state.hardware.gpio_output_enabled">
-                        You are <span class="text-warning font-bold">DISARMING</span> the high-voltage SSRs. The physical hardware contactor will open and cut power to all heaters.
+                        You are <span class="text-warning font-bold">DISARMING</span> the sauna & IR SSRs. The physical hardware contactor will open and cut power to all heaters.
                     </span>
 
                     <span x-show="!state.hardware.gpio_output_enabled">
-                        You are <span class="text-error font-bold">ARMING</span> the high-voltage output bus! The physical contactor will snap shut, allowing the software PID logic to pass live AC power to the 9kW heater elements.
+                        You are <span class="text-error font-bold">ARMING</span> the sauna & IR output bus! The physical contactor will snap shut, allowing the software PID logic to pass live AC power to the 9kW heater elements.
                     </span>
 
                     <br><br>

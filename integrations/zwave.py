@@ -398,6 +398,27 @@ class ZWaveJSUIBridge(WanosComponent):
                 self.state_manager._state.system.zwave_mapped = zwave_conf.device_map
                 self.state_manager._state.system.zwave_usb_path = getattr(zwave_conf, "usb_path", "")
 
+                # ⚡ PURGE ORPHANED NODES
+                # Identify IDXs that were mapped previously but are absent from the new config.
+                new_idxs = [int(k) for k in zwave_conf.device_map.keys()]
+                for old_idx in list(self.idx_to_name.keys()):
+                    if old_idx not in new_idxs:
+                        # Explicitly nullify the state in RAM
+                        if old_idx in self.state_manager._state.device_metadata:
+                            self.state_manager._state.device_metadata[old_idx] = None
+                        if old_idx in self.state_manager._state.dashboard_map:
+                            self.state_manager._state.dashboard_map[old_idx] = None
+                        if old_idx in self.state_manager._state.devices:
+                            self.state_manager._state.devices[old_idx] = None
+
+                        # Dispatch a dummy event to guarantee the SSE stream pushes the 'null' payloads to the UI
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUB_STATE_CHANGED,
+                            payload={"idx": old_idx, "state": None, "device_type": "unknown", "origin": "zwave",
+                                     "is_initialization": False}
+                        ))
+                        await self.logger.warning(f"[Z-Wave] Orphaned node (IDX {old_idx}) purged from RAM.")
+
                 # Extract currently loaded baseline exclusions to seamlessly merge tracking lists
                 hidden_list: list[int] = list(self.state_manager._state.system.hidden_explorer_idxs)
 

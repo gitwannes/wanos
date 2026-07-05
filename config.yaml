@@ -115,8 +115,10 @@ deviceexplorer_exclude:
   - 51101  # Hue verd 1
   - 51102  # Hue verd 2
   - 11001  # kWh
-#  - 11002  # cold water
-#  - 11003  # warm water
+  - 11002  # cold water
+  - 11003  # warm water
+  - 10001  # sauna deur
+  - 10002  # badk deur
 
 
 # ==============================================================================

@@ -137,11 +137,15 @@ async def handle_bath1_vent_lock_expired(event: Event, manager: Any) -> Tuple[bo
     state_changed = True
     changed_domains = {"devices"}
 
+    # Safely pull current humidity from the universal dictionary registry for SHT11 IDX 20004
+    d_bath = manager._state.devices.get(20004)
+    current_hum = d_bath.get("hum") if isinstance(d_bath, dict) else None
+
     # Immediately force an artificial humidity update to evaluate if it should turn off NOW
-    if manager._state.sensors.bathroom1_hum is not None:
+    if current_hum is not None:
         manager.dispatch(Event(
             type=EventType.HUMIDITY_UPDATED,
-            payload={"idx": 20004, "value": manager._state.sensors.bathroom1_hum}
+            payload={"idx": 20004, "value": int(current_hum)}
         ))
 
     return state_changed, changed_domains

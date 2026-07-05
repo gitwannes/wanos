@@ -85,18 +85,30 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
                 continue
 
             # --- LIVE UI INTERCEPT SYNCHRONIZER ---
-            # Automatically pulls from local state variable (initialized by the seed_dict)
-            # if the master state is completely None.
-            if state.sensors.sauna_high_temp is not None and round(sauna_high, 1) != round(state.sensors.sauna_high_temp, 1):
-                sauna_high = state.sensors.sauna_high_temp
-            if state.sensors.sauna_low_temp is not None and round(sauna_low, 1) != round(state.sensors.sauna_low_temp, 1):
-                sauna_low = state.sensors.sauna_low_temp
-            if state.sensors.sauna_high_hum is not None and int(sauna_high_hum) != state.sensors.sauna_high_hum:
-                sauna_high_hum = float(state.sensors.sauna_high_hum)
-            if state.sensors.sauna_low_hum is not None and int(sauna_low_hum) != state.sensors.sauna_low_hum:
-                sauna_low_hum = float(state.sensors.sauna_low_hum)
-            if state.sensors.bathroom1_hum is not None and int(bathroom1_hum) != state.sensors.bathroom1_hum:
-                bathroom1_hum = float(state.sensors.bathroom1_hum)
+            # Intercepts manual lab slider manipulations by parsing the unified nested device registry.
+            d_20001 = state.devices.get(20001)
+            if isinstance(d_20001, dict):
+                t_20001 = d_20001.get("temp")
+                h_20001 = d_20001.get("hum")
+                if t_20001 is not None and round(sauna_high, 1) != round(t_20001, 1):
+                    sauna_high = float(t_20001)
+                if h_20001 is not None and int(sauna_high_hum) != int(h_20001):
+                    sauna_high_hum = float(h_20001)
+
+            d_20002 = state.devices.get(20002)
+            if isinstance(d_20002, dict):
+                t_20002 = d_20002.get("temp")
+                h_20002 = d_20002.get("hum")
+                if t_20002 is not None and round(sauna_low, 1) != round(t_20002, 1):
+                    sauna_low = float(t_20002)
+                if h_20002 is not None and int(sauna_low_hum) != int(h_20002):
+                    sauna_low_hum = float(h_20002)
+
+            d_20004 = state.devices.get(20004)
+            if isinstance(d_20004, dict):
+                h_20004 = d_20004.get("hum")
+                if h_20004 is not None and int(bathroom1_hum) != int(h_20004):
+                    bathroom1_hum = float(h_20004)
 
             # Dynamic re-anchoring for outside atmosphere sliders
             if last_calculated_out_temp is not None and state.sensors.outside_temp is not None:

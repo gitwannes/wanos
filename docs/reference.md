@@ -34,7 +34,7 @@ This document serves as the master blueprint and reference guide for the directo
 * `telemetry_handlers.py`: Handles high-frequency data streams, rolling power buffers, weather synchronization, and NVM buffer flushing loops.
 * `timer_handlers.py`: Routes scheduled structural events, expiration boundaries, and time-series automation drops.
 * `hub_handlers.py`: Handles generic device state mutations and advanced Hue color payload dictionaries.
-* `sauna_handlers.py`: Dedicated routers for high-voltage heating activation, setpoints, and element modulation tracking.
+* `sauna_handlers.py`: Dedicated routers for sauna heating activation, setpoints, and element modulation tracking.
 * `system_handlers.py`: Oversees boot lifecycles, configuration hot-reloads, and UI alert routing.
 
 **frontend/** (Dumb Asset Interfaces)

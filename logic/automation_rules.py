@@ -22,6 +22,9 @@ class AutomationEngine:
     # Cache the config so we don't parse the YAML file on every single event iteration
     _config = None
 
+    # Rolling array tracking absolute timestamps of hot water pulses for sensory debouncing
+    _hot_water_pulses: List[float] = []
+
     @classmethod
     def _get_config(cls):
         if cls._config is None:
@@ -62,6 +65,8 @@ class AutomationEngine:
 
     @staticmethod
     def evaluate(event: Event, state: SystemState) -> List[Event]:
+        BATHROOM_VENT_IDX: int = 71034
+
         payload = event.payload or {}
         config = AutomationEngine._get_config()
 
@@ -352,20 +357,20 @@ class AutomationEngine:
                 current_hum: Optional[int] = d_bath.get("hum") if isinstance(d_bath, dict) else None
 
                 if current_hum is not None:
-                    current_vent_state = state.devices.get(71034, "OFF")
+                    current_vent_state = state.devices.get(BATHROOM_VENT_IDX, "OFF")
                     is_locked: bool = state.devices.get(90001, False)
-                    semantic_name: str = state.dashboard_map.get(71034, "Unknown")
+                    semantic_name: str = state.dashboard_map.get(BATHROOM_VENT_IDX, "Unknown")
 
                     if current_hum >= on_threshold and current_vent_state != "ON":
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 71034, "state": "ON"})
+                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": BATHROOM_VENT_IDX, "state": "ON"})
                         )
                         automation_logger.info(
                             f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) >= Threshold ({on_threshold}%). Forced {semantic_name} ON.")
                         recovered_vents += 1
                     elif current_hum <= off_threshold and current_vent_state == "ON" and not is_locked:
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 71034, "state": "OFF"})
+                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": BATHROOM_VENT_IDX, "state": "OFF"})
                         )
                         automation_logger.info(
                             f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) <= Threshold ({off_threshold}%). Forced {semantic_name} OFF.")
@@ -408,13 +413,13 @@ class AutomationEngine:
                     on_threshold = config.bathroom1.vent_on_humidity
                     off_threshold = config.bathroom1.vent_off_humidity
 
-                    current_vent_state = state.devices.get(71034, "OFF")
+                    current_vent_state = state.devices.get(BATHROOM_VENT_IDX, "OFF")
                     is_locked = state.devices.get(90001, False)
 
                     if val >= on_threshold and current_vent_state != "ON":
                         # Humidity is high: Auto-engage ventilator
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 71034, "state": "ON"})
+                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": BATHROOM_VENT_IDX, "state": "ON"})
                         )
                         automation_logger.info(
                             f"[Bathroom Climate] Humidity crossed upper threshold ({val}% >= {on_threshold}%). Auto-engaging extraction fan.")
@@ -423,7 +428,7 @@ class AutomationEngine:
                         # Humidity is low: Auto-disengage ventilator (ONLY IF 5-MIN LOCK EXPIRED)
                         if not is_locked:
                             follow_up_events.append(
-                                Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 71034, "state": "OFF"})
+                                Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": BATHROOM_VENT_IDX, "state": "OFF"})
                             )
                             automation_logger.info(
                                 f"[Bathroom Climate] Humidity dropped below lower threshold ({val}% <= {off_threshold}%). Auto-disengaging extraction fan.")
@@ -488,5 +493,61 @@ class AutomationEngine:
                         ))
                         automation_logger.info(
                             f"[Lighting Auto-Off] Device IDX {idx} ({semantic_name}) turned OFF. Cancelled pending auto-off timer.")
+
+            # =========================================================================
+            # 5. SHOWER VENTILATION WATCHDOG (Hot Water Overrun)
+            # =========================================================================
+            # Automatically activates the bathroom ventilator when a shower
+            # is detected, filtering out transient spikes (hand washing) and extending
+            # the runtime as a rolling debounced watchdog.
+            # =========================================================================
+            if event_name == "WATER_PULSE":
+                idx = payload.get("idx")
+                if idx == 11003:  # Hot Water Meter IDX
+                    now_ts = time.time()
+                    # Record current pulse timestamp
+                    AutomationEngine._hot_water_pulses.append(now_ts)
+                    # Evict pulse entries older than 10 seconds (Sliding Window filter)
+                    AutomationEngine._hot_water_pulses = [
+                        t for t in AutomationEngine._hot_water_pulses if now_ts - t <= 10.0
+                    ]
+
+                    # Enforce Hand-Washing Filter: Requires a minimum velocity of 5 pulses within 10 seconds
+                    if len(AutomationEngine._hot_water_pulses) >= 5:
+                        current_vent_state = state.devices.get(BATHROOM_VENT_IDX, "OFF")
+                        semantic_name = state.dashboard_map.get(BATHROOM_VENT_IDX, "Unknown")
+
+                        # Phase A: Force-engage the fan if it is currently offline
+                        if current_vent_state != "ON":
+                            follow_up_events.append(Event(
+                                type=EventType.HUB_STATE_CHANGED,
+                                payload={"idx": BATHROOM_VENT_IDX, "state": "ON"}
+                            ))
+                            automation_logger.info(
+                                f"[Shower Automation] Hot water sustained flow verified ({len(AutomationEngine._hot_water_pulses)} pulses/10s). Auto-engaging {semantic_name}."
+                            )
+
+                        # Phase B: Manual Override Hijack & Rolling Overrun Extension
+                        # Dynamically pushes the 5-minute safety lock deadline forward into the future.
+                        # This establishes the rolling高度 debounce loop until the flow completely halts.
+                        deadline = int(now_ts) + 300  # 5 minutes from the current pulse tick
+                        follow_up_events.append(Event(
+                            type=EventType.TIMER_SCHEDULED,
+                            payload={
+                                "timer_id": "bath1_vent_lock",
+                                "deadline": deadline,
+                                "event_type": "BATH1_VENT_LOCK_EXPIRED",
+                                "event_payload": {
+                                    "idx": BATHROOM_VENT_IDX,
+                                    "name": semantic_name,
+                                    "type": "switch",
+                                    "target_state": "Climate Safe"
+                                }
+                            }
+                        ))
+                        # Downgrade rolling watchdog logs to DEBUG to protect the terminal from high-frequency pulse text noise
+                        automation_logger.debug(
+                            f"[X-RAY] Shower active. Extended ventilator tracking lock 'bath1_vent_lock' deadline to absolute UNIX: {deadline}."
+                        )
 
         return follow_up_events

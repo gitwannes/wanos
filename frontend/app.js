@@ -1105,7 +1105,7 @@ function wanosApp() {
             this.publishEvent("ALERT_INJECTED", { msg_text: "⏳ Waiting 2 seconds for sensor bus stabilization..." });
             await new Promise(resolve => setTimeout(resolve, 2000));
 
-            // Phase 8: Arm High-Voltage Physical Outputs
+            // Phase 8: Arm GPIO Outputs
             await this.publishEvent("GPIO_OUTPUT_TOGGLED", { enabled: true });
 
             // Phase 9: Ensure Time-Series & Auto-Timers are synchronized

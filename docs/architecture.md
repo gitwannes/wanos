@@ -184,7 +184,7 @@ Hardware loops are linked via strict programmatic dependencies. If the physical 
 if event_name == "HUB_STATE_CHANGED" and p_idx == 71036 and payload.get("state") != "ON":
     # Cascades emergency output disarm
 ```
-This forces a clean software fallback shutdown, locking out high-voltage commands until the core infrastructure resets.
+This forces a clean software fallback shutdown, locking out sauna GPIO output commands until the core infrastructure resets.
 
 ### 7. Zero-State Hardware Sanitization Pass (Cold Boot Guard)
 To eliminate the threat of a "Split-Brain" ghost runtime—where physical relays remain hardware-latched `ON` after an unexpected application crash while new software memory registers default to a dormant `OFF` state—the system mandates a hardware-level sanitization phase at boot.

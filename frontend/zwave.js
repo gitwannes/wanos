@@ -148,54 +148,72 @@ function zwaveApp() {
 
             // 1. Unpack Mapped System Configuration
             if (fullState.system.zwave_mapped) {
-                for (const [idxStr, rawStr] of Object.entries(fullState.system.zwave_mapped)) {
-                    const idx = parseInt(idxStr, 10);
-                    let path = rawStr;
-                    let name = `Node ${rawStr.split('/')[0]}`;
-                    let commentStr = "";
+                // ⚡ INTENT PRESERVATION GUARD
+                // Only reconstruct the configuration matrix on initial boot or during an explicit config reload.
+                // This prevents continuous background SSE ticks (like telemetry or uptime) from ruthlessly overwriting
+                // checkboxes and text fields while the user is actively making configuration changes!
+                if (!this._initialMapDone || this.configReloading) {
 
-                    if (rawStr.includes('|')) {
-                        const parts = rawStr.split('|');
-                        path = parts[0].trim();
-                        name = parts[1] ? parts[1].trim() : name;
-                        commentStr = parts[2] ? parts[2].trim() : "";
+                    // ⚡ PURGE LOCAL UI CACHE
+                    for (const item of this.deviceList) {
+                        if (item.is_mapped) {
+                            item.is_mapped = false;
+                            item.selected = false;
+                            item.idx = null;
+                            item.original_idx = null;
+                        }
                     }
 
-                    const safeNode = path.split('/')[0];
-                    if (safeNode === "1") continue; // Force drop primary controller stick
+                    for (const [idxStr, rawStr] of Object.entries(fullState.system.zwave_mapped)) {
+                        const idx = parseInt(idxStr, 10);
+                        let path = rawStr;
+                        let name = `Node ${rawStr.split('/')[0]}`;
+                        let commentStr = "";
 
-                    // Dynamic Update Overwrite Gate
-                    const existing = this.deviceList.find(i => i.path === path);
-                    if (existing) {
-                        existing.is_mapped = true;
-                        existing.idx = idx;
-                        existing.name = name;
-                        existing.comment_str = commentStr;
-                        existing.original_idx = idx;
-                        existing.selected = true;
-                    } else {
-                        // Extract semantic type definitions from active IDX prefix ranges
-                        let type = "switch";
-                        if (idx >= 71000 && idx < 73000) type = "switch";
-                        else if (idx >= 73000 && idx < 74000) type = "shutter";
-                        else if (idx >= 74000 && idx < 75000) type = "power";
-                        else if (idx >= 75000 && idx < 76000) type = "motion";
-                        else if (idx >= 76000 && idx < 77000) type = "temp&hum";
+                        if (rawStr.includes('|')) {
+                            const parts = rawStr.split('|');
+                            path = parts[0].trim();
+                            name = parts[1] ? parts[1].trim() : name;
+                            commentStr = parts[2] ? parts[2].trim() : "";
+                        }
 
-                        this.deviceList.push({
-                            path: path,
-                            node: safeNode,
-                            value: "Mapped",
-                            selected: true,
-                            is_mapped: true,
-                            type: type,
-                            idx: idx,
-                            name: name,
-                            comment_str: commentStr,
-                            original_idx: idx,
-                            is_hidden: fullState.system.hidden_explorer_idxs.includes(idx)
-                        });
-                        listModified = true;                    }
+                        const safeNode = path.split('/')[0];
+                        if (safeNode === "1") continue;
+
+                        const existing = this.deviceList.find(i => i.path === path);
+                        if (existing) {
+                            existing.is_mapped = true;
+                            existing.idx = idx;
+                            existing.name = name;
+                            existing.comment_str = commentStr;
+                            existing.original_idx = idx;
+                            // We can safely restore the auto-select because this block ONLY runs on fresh boots or manual reloads.
+                            existing.selected = true;
+                        } else {
+                            let type = "switch";
+                            if (idx >= 71000 && idx < 73000) type = "switch";
+                            else if (idx >= 73000 && idx < 74000) type = "shutter";
+                            else if (idx >= 74000 && idx < 75000) type = "power";
+                            else if (idx >= 75000 && idx < 76000) type = "motion";
+                            else if (idx >= 76000 && idx < 77000) type = "temp&hum";
+
+                            this.deviceList.push({
+                                path: path,
+                                node: safeNode,
+                                value: "Mapped",
+                                selected: true,
+                                is_mapped: true,
+                                type: type,
+                                idx: idx,
+                                name: name,
+                                comment_str: commentStr,
+                                original_idx: idx,
+                                is_hidden: fullState.system.hidden_explorer_idxs.includes(idx)
+                            });
+                            listModified = true;
+                        }
+                    }
+                    this._initialMapDone = true;
                 }
             }
 
@@ -429,7 +447,7 @@ function zwaveApp() {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = "config_zwave.yaml";
+                a.download = "config_zwave.yaml.txt";
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);

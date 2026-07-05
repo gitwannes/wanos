@@ -473,7 +473,7 @@ class StateManager:
             if event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED"]:
                 if target_idx in [20001, 20002, 20003, 20004] and self._state.hardware.sht11_enabled:
                     return False, set()
-                # CRITICAL: We strictly drop fake sauna temps if the actual high-voltage outputs are armed
+                # CRITICAL: We strictly drop fake sauna temps if the actual GPIO outputs are armed
                 # to prevent the real PID loop from snapping physical relays based on slider movements!
                 if target_idx in [20001, 20002] and self._state.hardware.gpio_output_enabled:
                     return False, set()
