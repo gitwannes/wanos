@@ -288,10 +288,11 @@ function wanosApp() {
                     if (meta.type === 'blinds') {
                         // Shutters: > 0% = ON
                         isOn = parseInt(rawValue, 10) > 0;
-                    } else if (meta.type === 'switch' || meta.type === 'light' || meta.type === 'sensor') {
+                    } else if (meta.type === 'switch' || meta.type === 'light' || meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy') {
                         // ⚡ ANALOG vs BINARY DISTINCTION
-                        if (meta.type === 'sensor' && rawValue !== 'ON' && rawValue !== 'OFF' && rawValue !== null) {
-                            isOn = null; // Explicitly mark analog strings (e.g., "55 Lux") as having no binary state
+                        // Ensure power (W) and energy (kWh) natively map to analog UI elements rather than binary switches
+                        if ((meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy') && rawValue !== 'ON' && rawValue !== 'OFF' && rawValue !== null) {
+                            isOn = null; // Explicitly mark analog strings (e.g., "55 Lux", "150 W") as having no binary state
                         } else {
                             // ⚡ RICH PAYLOAD SUPPORT: Parse "ON" state whether it's a flat string or a dictionary object
                             isOn = (typeof rawValue === 'object' && rawValue !== null) ? rawValue.state === 'ON' : rawValue === 'ON';
@@ -311,7 +312,7 @@ function wanosApp() {
                     const tally = this.state.metrics.motion_triggers?.[idx] || 0;
                     displayText = `${tally}x`;
                 } else if (typeof rawValue === 'object' && rawValue !== null) {
-                    if (meta.type === 'sensor' || meta.type === 'temp' || meta.type === 'hum' || meta.type === 'temp_hum') {
+                    if (meta.type === 'sensor' || meta.type === 'temp' || meta.type === 'hum' || meta.type === 'temp_hum' || meta.type === 'power' || meta.type === 'energy') {
                         if (rawValue.temp !== undefined && rawValue.hum !== undefined) {
                             displayText = `${parseFloat(rawValue.temp).toFixed(1)} °C / ${rawValue.hum} %`;
                         } else if (rawValue.temp !== undefined) {
@@ -332,6 +333,7 @@ function wanosApp() {
                                 else if (k.includes('volt')) unit = 'V';
                                 else if (k.includes('amp') || k.includes('current')) unit = 'A';
                                 else if (k.includes('water') || k.includes('liter') || k.includes('volume')) unit = 'L';
+                                else if (k.includes('kwh') || k.includes('energy')) unit = 'kWh';
 
                                 displayText = unit ? `${rawValue[keys[0]]} ${unit}` : `${rawValue[keys[0]]} ${keys[0]}`;
                             } else {
@@ -345,11 +347,19 @@ function wanosApp() {
                     }
                 } else if (typeof rawValue === 'number' || (!isNaN(parseFloat(rawValue)) && isFinite(rawValue))) {
                     // ⚡ NATIVE FLOAT/INT FORMATTING
-                    // Assign units to raw numbers based on their semantic metadata name
+                    // Assign units to raw numbers based on strict metadata type first, then fallback to semantic names
                     const n = meta.name.toLowerCase();
-                    if (n.includes('water') || n.includes('liter')) displayText = `${parseFloat(rawValue).toFixed(1)} L`;
-                    else if (n.includes('kwh') || n.includes('energy')) displayText = `${rawValue} kWh`;
-                    else if (n.includes('power') || n.includes('watt')) displayText = `${rawValue} W`;
+
+                    if (meta.type === 'energy' || n.includes('kwh') || n.includes('energy')) {
+                        // ⚡ Smart Scaling: Physical GPIO pulses (Wh) require division. Third-party integrations (Domoticz/ZWave) are natively pre-scaled.
+                        if (meta.origin === 'gpio_input') {
+                            displayText = `${(parseFloat(rawValue) / 1000).toFixed(3)} kWh`;
+                        } else {
+                            displayText = `${parseFloat(rawValue).toFixed(3)} kWh`;
+                        }
+                    }
+                    else if (meta.type === 'power' || n.includes('power') || n.includes('watt')) displayText = `${rawValue} W`;
+                    else if (n.includes('water') || n.includes('liter')) displayText = `${parseFloat(rawValue).toFixed(1)} L`;
                     else if (n.includes('temp')) displayText = `${rawValue} °C`;
                     else if (n.includes('hum')) displayText = `${rawValue} %`;
                     else if (n.includes('lux')) displayText = `${rawValue} Lux`;
@@ -359,7 +369,7 @@ function wanosApp() {
                     id: idx,
                     name: meta.name,
                     type: meta.type,
-                    raw_value: rawValue,
+                    raw_value: rawValue === 0 ? "0" : rawValue,
                     display_text: displayText,
                     is_on: isOn,
                     is_hue: meta.origin === 'hue',
@@ -398,7 +408,7 @@ function wanosApp() {
                     if (this.typeFilter === "HUE") return item.is_hue;
                     if (this.typeFilter === "SCENE") return item.type === 'scene';
                     if (this.typeFilter === "BLINDS") return item.type === 'blinds';
-                    if (this.typeFilter === "SENSOR") return item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'sensor';
+                    if (this.typeFilter === "SENSOR") return item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'energy' || item.type === 'sensor';
                     return true;
                 });
             }
@@ -407,7 +417,7 @@ function wanosApp() {
             if (this.statusFilter !== "ALL") {
                 list = list.filter(item => {
                     // Instantly drop legacy analog sensors and scenes
-                    if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'scene') {
+                    if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'energy' || item.type === 'scene') {
                         return false;
                     }
 

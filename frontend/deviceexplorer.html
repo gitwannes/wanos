@@ -216,11 +216,11 @@
                                 </div>
                             </template>
 
-                            <template x-if="item.type === 'power'">
+                            <template x-if="item.type === 'power' || item.type === 'energy'">
                                 <div class="flex justify-end shrink-0">
                                     <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
-                                          :class="item.is_dead ? 'text-error' : 'text-warning'"
-                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value !== null ? parseFloat(item.raw_value).toFixed(1) + ' W' : '-- W')"></span>
+                                          :class="item.is_dead ? 'text-error' : (item.type === 'energy' ? 'text-success' : 'text-warning')"
+                                          x-text="item.display_text"></span>
                                 </div>
                             </template>
 

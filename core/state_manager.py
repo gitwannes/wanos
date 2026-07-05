@@ -89,7 +89,7 @@ class StateManager:
             for key, node in self._config.gpio_inputs.items():
                 if node.idx is not None:
                     self._state.dashboard_map[node.idx] = node.name
-                    node_type = "sensor" if node.type == "door" else ("power" if node.type == "energy" else "sensor")
+                    node_type = "energy" if node.type == "energy" else "sensor"
                     self._state.device_metadata[node.idx] = {"name": node.name, "type": node_type,
                                                              "origin": "gpio_input"}
 
