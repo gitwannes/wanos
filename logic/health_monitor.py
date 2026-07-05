@@ -1,7 +1,10 @@
 # --- file: logic/health_monitor.py ---
+from __future__ import annotations
+
 import asyncio
 import socket
 import os
+import time
 from typing import Any
 from core.models import Event, EventType, SystemState
 from loguru import logger
@@ -39,6 +42,23 @@ class HealthMonitor:
             return client_mgr.is_connected
         return False
 
+    async def _ping_zwave_web(self) -> bool:
+        """
+        Asynchronously checks if the local Z-Wave JS UI web server (Port 8091) is responsive.
+        This serves as the Control Plane verification without needing Docker socket privileges.
+        """
+        try:
+            # Non-blocking TCP ping to 127.0.0.1:8091
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", 8091),
+                timeout=1.0
+            )
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except Exception:
+            return False
+
     async def _ping_epson(self) -> bool:
         config = self.state_manager._config
         if not getattr(config, "epson", None) or not config.epson.ip_address:
@@ -70,16 +90,29 @@ class HealthMonitor:
                 hue_conn = self._is_connected(getattr(sm, "hue_bridge", None))
                 epson_conn = await self._ping_epson()
 
-                # Z-Wave health is a strict two-tiered check:
-                # 1. Physical USB stick presence (Tier 1)
+                # Z-Wave health is a multi-tiered verification matrix:
+                # 1. Physical USB stick presence (Tier 1 - Physical)
                 zwave_conf = getattr(config, "zwave", None)
                 zwave_usb_path = zwave_conf.usb_path if zwave_conf else ""
                 zwave_physical = os.path.exists(zwave_usb_path)
 
-                # 2. Z-Wave JS UI Engine MQTT presence (Tier 2)
+                # 2. Control Plane: Z-Wave JS UI Web Server responding on port 8091
+                zwave_web = await self._ping_zwave_web()
+
+                # 3. Data Plane: MQTT Engine & Heartbeat Check
+                # First, ensure the internal bridge claims MQTT is up
                 zwave_engine = getattr(sm.zwave_bridge, "is_mqtt_engine_alive", False)
-                # Combined connection boolean
-                zwave_conn = zwave_physical and zwave_engine
+
+                # Check for heartbeat staleness (e.g., frozen driver despite a running container)
+                now_ts = int(time.time())
+                last_hb = sys_state.system.last_zwave_heartbeat_unix
+
+                # Assume data plane is active if we received a heartbeat within the last 90 seconds.
+                # If last_hb is None, we haven't received a heartbeat yet since boot.
+                zwave_data = zwave_engine and (last_hb is not None and (now_ts - last_hb) <= 90)
+
+                # Combined connection boolean for overall logic flow
+                zwave_conn = zwave_physical and zwave_web and zwave_data
 
                 # Update strike tracking based on physical socket availability
                 self.strikes["domoticz"] = 0 if dom_conn else self.strikes["domoticz"] + 1
@@ -87,9 +120,7 @@ class HealthMonitor:
                 self.strikes["epson"] = 0 if epson_conn else self.strikes["epson"] + 1
                 self.strikes["rfxcom"] = 0 if rfx_conn else self.strikes["rfxcom"] + 1
 
-                # Z-Wave USB drop is fatal immediately (1 strike). The engine drop gets 3 strikes (network blips).
-                # We use a base variable so the auto-kill can format the correct UI error message.
-                zwave_fatal_usb = not zwave_physical
+                # Z-Wave USB drop is fatal immediately (1 strike). Web/Data drops get 3 strikes (network blips).
                 self.strikes["zwave"] = 0 if zwave_conn else self.strikes["zwave"] + 1
 
                 # Evaluate Auto-Kill thresholds against the live RAM state intent
@@ -114,9 +145,15 @@ class HealthMonitor:
                         "error_msg": "🔌 USB RFXCOM disconnected. Integration disabled."}))
 
                 # Tiered Z-Wave Auto-Kill Execution
-                if (zwave_fatal_usb and self.strikes["zwave"] >= 1) or (self.strikes["zwave"] >= 3):
+                if (not zwave_physical and self.strikes["zwave"] >= 1) or (self.strikes["zwave"] >= 3):
                     if sys_state.system.zwave_integration_enabled:
-                        error_reason = "USB Stick disconnected" if zwave_fatal_usb else "Z-Wave JS Engine offline"
+                        if not zwave_physical:
+                            error_reason = "USB Stick disconnected"
+                        elif not zwave_web:
+                            error_reason = "Z-Wave JS Web UI Offline"
+                        else:
+                            error_reason = "Z-Wave Data Stream Frozen"
+
                         sm.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={
                             "enabled": False,
                             "error_msg": f"伯 Z-Wave connection lost ({error_reason}). Integration disabled."}))
@@ -136,11 +173,11 @@ class HealthMonitor:
                         }))
                         sm.dispatch(Event(type=EventType.SAUNA_OFF, payload={}))
 
-                    # Watchdog Check B: 10-Second Hardware Communication Link Staleness Guard
+                    # Watchdog Check B: 90-Second Hardware Communication Link Staleness Guard
                     elif sys_state.sauna.last_heartbeat_unix and (
-                            now_ts - sys_state.sauna.last_heartbeat_unix) > 10:
+                            now_ts - sys_state.sauna.last_heartbeat_unix) > 90:
                         logger.critical(
-                            "🚨 EMERGENCY SHUTDOWN: Sauna SHT11 sensor bus frozen or dropped for >10 seconds! Cutting power.")
+                            "🚨 EMERGENCY SHUTDOWN: Sauna SHT11 sensor bus frozen or dropped for >90 seconds! Cutting power.")
                         sm.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
                             "msg_text": "🚨 EMERGENCY SHUTDOWN: Sauna sensor communication link failure!",
                             "level": "critical"
@@ -154,7 +191,8 @@ class HealthMonitor:
                     "hue_connected": hue_conn,
                     "epson_connected": epson_conn,
                     "zwave_hardware_connected": zwave_physical,
-                    "zwave_mqtt_connected": zwave_engine,
+                    "zwave_web_alive": zwave_web,
+                    "zwave_data_alive": zwave_data,
                     "ip_address": self._get_ip()
                 }
                 sm.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED, payload=metrics_payload))

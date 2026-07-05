@@ -34,6 +34,12 @@ class TimerManager:
             del self._tasks[timer_id]
             logger.debug(f"Timer '{timer_id}' cancelled.")
 
+    def is_scheduled(self, timer_id: str) -> bool:
+        """Checks if a timer is actively scheduled and has not yet completed."""
+        task = self._tasks.get(timer_id)
+        # Verify the key exists and that the async task hasn't finished execution
+        return task is not None and not task.done()
+
     async def _sleep_and_fire(self, timer_id: str, deadline: int, event_type: str, payload: dict):
         """The internal worker that sleeps until the deadline and dispatches the event."""
         # Capture the specific async task object running this execution

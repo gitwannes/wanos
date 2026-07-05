@@ -1,0 +1,12 @@
+services:
+  zwave-js-ui:
+    container_name: zwave-js-ui
+    image: zwavejs/zwave-js-ui:latest
+    restart: always
+    privileged: true
+    network_mode: host
+    volumes:
+      - /opt/zwave-js-ui:/usr/src/app/store
+    devices:
+      # Explicit mapping to your validated physical Z-Wave Connect Controller
+      - /dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00:/dev/zwave

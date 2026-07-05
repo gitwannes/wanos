@@ -336,13 +336,14 @@
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Z-Wave</span>
                                     <div class="flex items-center gap-2 shrink-0">
-                                        <span class="font-bold text-[10px]"
-                                              :class="!state.system.zwave_hardware_connected ? 'text-error animate-pulse' : (!state.system.zwave_mqtt_connected ? 'text-gray-500' : (state.system.zwave_integration_enabled ? 'text-success' : 'text-warning'))"
-                                              x-text="!state.system.zwave_hardware_connected ? 'UNPLUGGED' : (!state.system.zwave_mqtt_connected ? 'OFFLINE' : (state.system.zwave_integration_enabled ? 'LIVE' : 'DISABLED'))"></span>
+                                        <span class="font-bold text-[10px] shrink-0 cursor-pointer hover:opacity-70 transition-opacity"
+                                              :class="!state.system.zwave_hardware_connected ? 'text-error animate-pulse' : (!(state.system.zwave_web_alive && state.system.zwave_data_alive) ? 'text-error' : (state.system.zwave_integration_enabled ? 'text-success' : 'text-warning'))"
+                                              @click="document.getElementById('zwave_diagnostics_modal').showModal()"
+                                              x-text="!state.system.zwave_hardware_connected ? 'UNPLUGGED' : (!(state.system.zwave_web_alive && state.system.zwave_data_alive) ? 'OFFLINE' : (state.system.zwave_integration_enabled ? 'LIVE' : 'DISABLED'))"></span>
                                         <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
-                                               :disabled="!state.system.zwave_hardware_connected || !state.system.zwave_mqtt_connected"
-                                               :class="(!state.system.zwave_hardware_connected || !state.system.zwave_mqtt_connected) ? 'opacity-50 cursor-not-allowed' : ''"
-                                               :checked="state.system.zwave_hardware_connected && state.system.zwave_mqtt_connected && state.system.zwave_integration_enabled"
+                                               :disabled="!state.system.zwave_hardware_connected || !state.system.zwave_web_alive || !state.system.zwave_data_alive"
+                                               :class="(!state.system.zwave_hardware_connected || !state.system.zwave_web_alive || !state.system.zwave_data_alive) ? 'opacity-50 cursor-not-allowed' : ''"
+                                               :checked="state.system.zwave_hardware_connected && state.system.zwave_web_alive && state.system.zwave_data_alive && state.system.zwave_integration_enabled"
                                                @change="toggleZwave()" />
                                     </div>
                                 </div>
@@ -669,7 +670,43 @@
                 <button>close</button>
             </form>
         </dialog>
+
+        <dialog id="zwave_diagnostics_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+            <div class="modal-box border bg-base-300 shadow-2xl border-base-content/20">
+                <h3 class="font-bold text-lg flex items-center gap-2 uppercase tracking-widest text-base-content border-b border-base-200 pb-3 mb-4">
+                    <span>📡 Z-Wave Diagnostics</span>
+                </h3>
+
+                <div class="flex flex-col gap-4 font-mono text-xs">
+                    <div class="flex justify-between items-center p-3 rounded-box" :class="state.system.zwave_hardware_connected ? 'bg-success/10 border border-success/30' : 'bg-error/10 border border-error/30'">
+                        <span class="text-base-content/80 uppercase font-bold tracking-wider">Tier 1: USB Transceiver</span>
+                        <span class="badge badge-sm font-bold" :class="state.system.zwave_hardware_connected ? 'badge-success text-neutral-900' : 'badge-error text-neutral-900'" x-text="state.system.zwave_hardware_connected ? 'MOUNTED' : 'MISSING'"></span>
+                    </div>
+
+                    <div class="flex justify-between items-center p-3 rounded-box" :class="state.system.zwave_web_alive ? 'bg-success/10 border border-success/30' : 'bg-error/10 border border-error/30'">
+                        <span class="text-base-content/80 uppercase font-bold tracking-wider">Tier 2: Web Server (8091)</span>
+                        <span class="badge badge-sm font-bold" :class="state.system.zwave_web_alive ? 'badge-success text-neutral-900' : 'badge-error text-neutral-900'" x-text="state.system.zwave_web_alive ? 'ONLINE' : 'UNREACHABLE'"></span>
+                    </div>
+
+                    <div class="flex justify-between items-center p-3 rounded-box" :class="state.system.zwave_data_alive ? 'bg-success/10 border border-success/30' : 'bg-error/10 border border-error/30'">
+                        <span class="text-base-content/80 uppercase font-bold tracking-wider">Tier 3: MQTT Data Stream</span>
+                        <span class="badge badge-sm font-bold" :class="state.system.zwave_data_alive ? 'badge-success text-neutral-900' : 'badge-error text-neutral-900'" x-text="state.system.zwave_data_alive ? 'ACTIVE' : 'FROZEN'"></span>
+                    </div>
+
+                    <p class="text-base-content/60 text-[10px] mt-2 italic text-center">
+                        All three tiers must pass verification to unlock the master integration switch.
+                    </p>
+                </div>
+
+                <div class="modal-action border-t border-base-200 pt-4 mt-6">
+                    <form method="dialog" class="w-full text-right">
+                        <button class="btn btn-outline btn-sm font-mono text-base-content/70">Close</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
     </main>
     <script src="app.js?v=2.0"></script>
-</body>
-</html>

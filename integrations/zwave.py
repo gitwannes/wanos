@@ -32,11 +32,20 @@ class ZWaveJSUIBridge(WanosComponent):
         # SILENT STANDBY: Only listen for the Z-Wave JS UI authoritative driver status
         await self.mqtt_client.subscribe(f"{self.mqtt_prefix}/driver/status", self._parse_hardware_status)
 
+        # ⚡ OUT-OF-BAND DATA PLANE WATCHDOG
+        # Subscribes to the heartbeat immediately so it bypasses the integration ON/OFF deadlock
+        await self.mqtt_client.subscribe(f"{self.mqtt_prefix}/_EVENTS/+/controller/statistics_updated",
+                                         self._parse_heartbeat)
+
         # Listen to internal state changes to detect when the USB stick is plugged in
         self.state_manager.register_listener(self._on_state_changed)
 
         await self.logger.info(
             f"[Z-Wave] Bridge in Silent Standby. Prefix '{self.mqtt_prefix}'. Waiting for hardware detection.")
+
+    async def _parse_heartbeat(self, topic: str, payload: str) -> None:
+        """Dedicated out-of-band interceptor for the MQTT Data Plane heartbeat."""
+        self.state_manager.dispatch(Event(type=EventType.ZWAVE_HEARTBEAT, payload={}))
 
     async def _parse_hardware_status(self, topic: str, payload: str) -> None:
         """

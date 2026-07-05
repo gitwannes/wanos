@@ -205,10 +205,16 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
         ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave USB Stick is unplugged.")
         state_changed |= ch
         changed_domains |= dom
-    # Tier 2 Intercept: Software Engine Offline
-    elif is_enabled and not manager._state.system.zwave_mqtt_connected:
-        await manager.logger.warning("🔴 Bouncer rejected command: Z-Wave JS Engine is offline.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave JS Engine is offline.")
+    # Tier 2 Intercept: Control Plane (Web Server) Offline
+    elif is_enabled and not manager._state.system.zwave_web_alive:
+        await manager.logger.warning("🔴 Bouncer rejected command: Z-Wave JS Web Panel (8091) is unreachable.")
+        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave JS Web Panel is offline.")
+        state_changed |= ch
+        changed_domains |= dom
+    # Tier 3 Intercept: Data Plane (MQTT Data) Frozen
+    elif is_enabled and not manager._state.system.zwave_data_alive:
+        await manager.logger.warning("🔴 Bouncer rejected command: Z-Wave MQTT Data stream is frozen.")
+        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave Data stream is frozen.")
         state_changed |= ch
         changed_domains |= dom
     else:

@@ -23,7 +23,8 @@ function wanosApp() {
                 rfxcom_connected: false, // ⚡ Live USB mounting health status
                 rfxcom_integration_enabled: false, // ⚡ Switch to block/allow native RFXCOM transmission/reception
                 zwave_hardware_connected: false, // ⚡ Tracks physical USB stick presence
-                zwave_mqtt_connected: false, // ⚡ Tracks Z-Wave JS UI engine health
+                zwave_web_alive: false, // ⚡ Tracks Z-Wave JS UI Web Panel health
+                zwave_data_alive: false, // ⚡ Tracks Z-Wave JS UI MQTT data stream
                 zwave_integration_enabled: false, // ⚡ Switch to block/allow Z-Wave processing
                 epson_connected: false, // ⚡ Tracks physical TCP availability of the Epson Projector
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
@@ -219,7 +220,7 @@ function wanosApp() {
             if (s.hue_connected && !s.hue_integration_enabled) return false;
             if (s.epson_connected && !s.epson_integration_enabled) return false;
             if (s.rfxcom_connected && !s.rfxcom_integration_enabled) return false;
-            if (s.zwave_hardware_connected && s.zwave_mqtt_connected && !s.zwave_integration_enabled) return false;
+            if (s.zwave_hardware_connected && s.zwave_web_alive && s.zwave_data_alive && !s.zwave_integration_enabled) return false;
             if (s.owm_integration_enabled && !s.owm_integration_enabled) return false;
             if (h.gpio_input_connected && !h.gpio_input_enabled) return false;
             if (h.sht11_connected && !h.sht11_enabled) return false;
@@ -346,7 +347,7 @@ function wanosApp() {
                     // ⚡ NATIVE FLOAT/INT FORMATTING
                     // Assign units to raw numbers based on their semantic metadata name
                     const n = meta.name.toLowerCase();
-                    if (n.includes('water') || n.includes('liter')) displayText = `${rawValue} L`;
+                    if (n.includes('water') || n.includes('liter')) displayText = `${parseFloat(rawValue).toFixed(1)} L`;
                     else if (n.includes('kwh') || n.includes('energy')) displayText = `${rawValue} kWh`;
                     else if (n.includes('power') || n.includes('watt')) displayText = `${rawValue} W`;
                     else if (n.includes('temp')) displayText = `${rawValue} °C`;

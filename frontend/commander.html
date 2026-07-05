@@ -302,11 +302,11 @@
                     <div class="grid grid-cols-2 gap-4 font-mono text-xs">
                         <div class="bg-base-200 p-3 rounded-box border border-base-300">
                             <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Cold Water</div>
-                            <div class="text-lg font-black text-white" x-text="state.sensors.water_cold_liters.toFixed(1) + ' L'"></div>
+                            <div class="text-lg font-black text-white" x-text="(state.devices[11002] || 0).toFixed(1) + ' L'"></div>
                         </div>
                         <div class="bg-base-200 p-3 rounded-box border border-base-300">
                             <div class="text-[10px] uppercase font-bold text-base-400 mb-1">Hot Water</div>
-                            <div class="text-lg font-black text-error" x-text="state.sensors.water_hot_liters.toFixed(1) + ' L'"></div>
+                            <div class="text-lg font-black text-error" x-text="(state.devices[11003] || 0).toFixed(1) + ' L'"></div>
                         </div>
                     </div>
                     <div class="mt-4 bg-neutral p-3 rounded-box border border-base-300 text-xs font-mono" x-show="state.metrics.douche_active || state.metrics.douche_water_liters > 0">

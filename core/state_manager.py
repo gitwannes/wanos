@@ -63,6 +63,9 @@ class StateManager:
         # Track rolling data windows for moving averages
         self._sensor_history: dict[int, list[float]] = {}
 
+        # Transient counter to prevent high-frequency hardware pulses from flooding the terminal
+        self._pulse_log_counters: dict[int, int] = {}
+
         # ⚡ FIRST-SYNC TRACKING SET (Boot Storm Protector)
         # An immutable ledger tracking which IDXs have reported their physical state at least once since the Python process started.
         self._initialized_idxs: set[int] = set()
@@ -379,7 +382,8 @@ class StateManager:
             current_cached_val: Any = self._state.devices.get(meta_idx)
             if current_cached_val is None or current_cached_val == "Sync...":
                 payload["is_initialization"] = True
-            else:
+            elif not payload.get("is_initialization"):
+                # Only flag as transitioned if it's explicitly not an initialization phase
                 payload["transitioned"] = True
 
         # DYNAMIC METADATA REGISTRY HOOK
@@ -410,6 +414,12 @@ class StateManager:
             "IR_MODULATION_UPDATED"
         ]
 
+        # ⚡ DATA PLANE WATCHDOG HOOK
+        # Updates the rolling timestamp but does NOT flag state_changed to avoid
+        # spamming the SSE stream with unnecessary broadcasts every heartbeat.
+        if event_name == "ZWAVE_HEARTBEAT":
+            self._state.system.last_zwave_heartbeat_unix = int(time.time())
+
         if event_name == "SYSTEM_READY":
             logger.info("Internal Engine State validated and locked.")
             logger.info(f"Internal Event Processed: {event_name}")
@@ -428,19 +438,20 @@ class StateManager:
             else:
                 # TELEMETRY ROUTING GATEWAY: Move Power, lux, hum en temperature from INFO to DEBUG
                 is_telemetry = (
-                        event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED"] or
-                        (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power",
-                                                                                              "sensor"])
-                )
-                is_telemetry = (
-                        event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED"] or
+                        event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED", "ZWAVE_HEARTBEAT"] or
                         (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power", "sensor"]) or
                         (event_name == "ZWAVE_DISCOVERY" and payload.get("command_class") in ["48", "49"])
-                        # 48 = motion
-                        # 49 = sensor (power, illuminance, temperature)
+                    # 48 = motion
+                    # 49 = sensor (power, illuminance, temperature)
                 )
 
-                if is_telemetry:
+                # HARDWARE PULSE GUARD: Only log 1 in 10 pulses to prevent terminal I/O saturation
+                if event_name == "WATER_PULSE":
+                    target_idx = payload.get("idx")
+                    self._pulse_log_counters[target_idx] = self._pulse_log_counters.get(target_idx, 0) + 1
+                    if self._pulse_log_counters[target_idx] % 10 == 0:
+                        logger.debug(f"Event Received [{event_name}] (Every 10th pulse): {payload}")
+                elif is_telemetry:
                     logger.debug(f"Event Received [{event_name}]: {payload}")
                 else:
                     logger.info(f"Event Received [{event_name}]: {payload}")

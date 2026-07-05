@@ -20,6 +20,7 @@ class EventType(str, Enum):
 
     # Dynamic Hardware Bus Health Pings
     HARDWARE_BUS_HEALTH_UPDATED = "HARDWARE_BUS_HEALTH_UPDATED"
+    ZWAVE_HEARTBEAT = "ZWAVE_HEARTBEAT"  # ⚡ Z-Wave JS UI Data Plane heartbeat
 
     # Sauna & Logic Events
     SAUNA_ON = "SAUNA_ON"
@@ -94,7 +95,9 @@ class SystemAdminState(BaseModel):
     rfxcom_connected: bool = False  # Tracks native USB RFX transceiver health
     rfxcom_integration_enabled: bool = False  # Switch to block/allow native RFXCOM transmission/reception
     zwave_hardware_connected: bool = False  # Tracks physical USB stick presence
-    zwave_mqtt_connected: bool = False  # Tracks Z-Wave JS UI MQTT health
+    zwave_web_alive: bool = False  # ⚡ Tracks if Z-Wave JS UI web server answers on port 8091 (Control Plane)
+    zwave_data_alive: bool = False  # ⚡ Tracks if Z-Wave JS UI is broadcasting data (Data Plane)
+    last_zwave_heartbeat_unix: Optional[int] = None  # ⚡ Tracks the Z-Wave JS UI MQTT data stream staleness
     zwave_integration_enabled: bool = False  # Switch to block/allow Z-Wave processing
     hue_connected: bool = False  # Tracks local Hue API v2 connection
     hue_integration_enabled: bool = False  # Switch to block/allow Hue API v2 bidirectional commands

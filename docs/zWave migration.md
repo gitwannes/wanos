@@ -108,6 +108,17 @@ Server: Docker Engine - Community
 ```
 ---
 
+
+create ~/wanos/docker-compose.yml
+
+
+Docker reads the YAML file, verifies the hardware paths, handles the race conditions at boot, and launches the container reliably every single time the Pi restarts.
+```
+docker compose up -d
+
+```
+
+
 Execute the following deployment block on your WanOS Pi terminal to spin up the middleware container:
 
 ```bash
@@ -117,9 +128,27 @@ docker run -d \
   --privileged \
   --network host \
   -v /opt/zwave-js-ui:/usr/src/app/store \
-  --device /dev/serial/by-id/usb-Nabu_Casa_ZBT-2_14C19FC70CC4-if00:/dev/zwave \
+  --device /dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00:/dev/zwave \
   zwavejs/zwave-js-ui:latest
 ```
+
+### checks
+
+```
+ss -tulpn | grep 8091  # To see if port 8091 is open
+
+docker ps  # To check if the zwave-js-ui is running
+
+ls -l /dev/serial/by-id/*  # check all USB devices
+```
+
+To see where logs are written
+```
+docker inspect zwavejs-ui | grep -A 11 '"Mounts":'  # look for the real source path
+docker logs zwave-js-ui
+tail /opt/zwave-js-ui/logs/zwavejs_current.log -n 50 -f
+```
+
 
 ### 2. Initializing Hardware Integration
 1. Open a web browser window and navigate to your dashboard host endpoint on port `8091`: http://10.32.251.30:8091
