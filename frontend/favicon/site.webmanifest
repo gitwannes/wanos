@@ -1,6 +1,7 @@
 {
   "name": "WanOS",
   "short_name": "WanOS",
+  "start_url": "/deviceexplorer.html",
   "icons": [
     {
       "src": "/favicon/web-app-manifest-192x192.png",
@@ -15,7 +16,7 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
+  "theme_color": "#1d232a",
+  "background_color": "#1d232a",
   "display": "standalone"
 }

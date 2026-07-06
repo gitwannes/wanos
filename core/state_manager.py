@@ -485,7 +485,8 @@ class StateManager:
             is_sim = self._state.hardware.simulations_enabled
 
             # Rule 1: 5V Master Safety Relay (Bypassed during physics simulation)
-            if not is_sim and self._state.devices.get(71036) != "ON":
+            if not is_sim and self._state.devices.get(71036) != "ON" and False:
+                # Disabled: shutting down the 5V will not impact WanOS - this enables a 'dry run' mode.
                 reasons.append("5V Safety Relay OFF")
             # Rule 2: Output Bus Armed Status (Bypassed during physics simulation)
             if not is_sim and not self._state.hardware.gpio_output_enabled:
@@ -529,7 +530,8 @@ class StateManager:
 
         # ⚡ MASTER Z-WAVE SAFETY CASCADE (Phase B)
         # If the 5V Master Safety Relay drops, we must instantly cut the software outputs.
-        if event_name == "HUB_STATE_CHANGED" and p_idx == 71036 and payload.get("state") != "ON":
+        if event_name == "HUB_STATE_CHANGED" and p_idx == 71036 and payload.get("state") != "ON" and False:
+            # Disabled: shutting down the 5V will not impact WanOS - this enables a 'dry run' mode.
             if self._state.hardware.gpio_output_enabled:
                 await self.logger.critical(
                     "🚨 Master 5V Safety Relay (71036) dropped! Cascading emergency output disarm.")

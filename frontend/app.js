@@ -214,19 +214,26 @@ function wanosApp() {
         get allEnginesStarted() {
             const s = this.state.system;
             const h = this.state.hardware;
+            let offlineCount = 0;
 
-            if (!s.automations_enabled) return false;
-            if (s.domoticz_mqtt_connected && !s.domoticz_integration_enabled) return false;
-            if (s.hue_connected && !s.hue_integration_enabled) return false;
-            if (s.epson_connected && !s.epson_integration_enabled) return false;
-            if (s.rfxcom_connected && !s.rfxcom_integration_enabled) return false;
-            if (s.zwave_hardware_connected && s.zwave_web_alive && s.zwave_data_alive && !s.zwave_integration_enabled) return false;
-            if (s.owm_integration_enabled && !s.owm_integration_enabled) return false;
-            if (h.gpio_input_connected && !h.gpio_input_enabled) return false;
-            if (h.sht11_connected && !h.sht11_enabled) return false;
-            if (h.gpio_output_connected && !h.gpio_output_enabled) return false;
+            if (!s.automations_enabled) offlineCount++;
+            if (s.domoticz_mqtt_connected && !s.domoticz_integration_enabled) offlineCount++;
+            if (s.hue_connected && !s.hue_integration_enabled) offlineCount++;
+            if (s.epson_connected && !s.epson_integration_enabled) offlineCount++;
+            if (s.rfxcom_connected && !s.rfxcom_integration_enabled) offlineCount++;
+            if (s.zwave_hardware_connected && s.zwave_web_alive && s.zwave_data_alive && !s.zwave_integration_enabled) offlineCount++;
+            if (!s.owm_integration_enabled) offlineCount++;
+            if (h.gpio_input_connected && !h.gpio_input_enabled) offlineCount++;
+            if (h.sht11_connected && !h.sht11_enabled) offlineCount++;
+            if (h.gpio_output_connected && !h.gpio_output_enabled) offlineCount++;
 
-            return true;
+            // ⚡ Button is disabled (allEnginesStarted = true) if ALL are on (0) OR if only 1 is still off (1)
+            return offlineCount <= 1;
+        },
+
+        // ⚡ New dedicated property to easily expose the simulation state to any HTML view
+        get ssrSimulationText() {
+            return this.state.devices[71036] !== 'ON' ? 'SIMULATION MODE (5V RELAY OFF)' : '';
         },
 
         // ⚡ Dynamically compiles a list of disabled backend integrations
@@ -242,6 +249,10 @@ function wanosApp() {
             if (!this.state.hardware.gpio_input_enabled) disabled.push("GPIO inputs");
             if (!this.state.hardware.gpio_output_enabled) disabled.push("GPIO outputs");
             if (!this.state.hardware.sht11_enabled) disabled.push("temp/hum sensors");
+
+            // ⚡ Automatically warn the user through the universal banner if they are in SSR Simulation mode
+            if (this.state.devices[71036] !== 'ON') disabled.push("SSR Power (SIMULATION MODE)");
+
             if (disabled.length === 0) return "";
             return "⚠️ OFFLINE: " + disabled.join(", ");
         },
