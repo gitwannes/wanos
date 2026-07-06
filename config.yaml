@@ -19,7 +19,7 @@ auth:
 # 30001 : OWM outside temp & hum
 # 400xx : RFX
 # 500xx : Hue (config_hue.taml)
-# 6xxxx : unused
+# 600xx : Sonos
 # 700xx : Z-Wave (config_zwave.yaml)
 
 # ==============================================================================
@@ -50,6 +50,29 @@ epson:
 weather:
   location: "Borsbeek,BE"
   poll_interval_mins: 30
+
+sonos:
+  device_map:
+    60001:
+      ip: "10.32.251.121"
+      name: "Badkamer boven"
+    60002:
+      ip: "10.32.251.122"
+      name: "Living"
+    60003:
+      ip: "10.32.251.123"
+      name: "Badkamer sauna"
+    60004:
+      ip: "10.32.251.124"
+      name: "Slpk Wannes"
+    60005:
+      ip: "10.32.251.125"
+      name: "Slpk Dries"
+    60006:
+      ip: "10.32.251.126"
+      name: "Buro"
+  stations:
+    qmaxhits: "x-sonosapi-stream:tunein%3a208746?sid=303&flags=8232&sn=1"
 
 rfxcom:
   # To find the exact USB port run: dmesg | grep tty OR lsusb
@@ -301,6 +324,8 @@ automations:
         state: "OFF"
       - idx: 51100    # Hue gv ALL OFF
         state: "OFF"
+      - idx: 60002    # Sonos living
+        state: "OFF"
 
   - name: "ALL OFF 1eV"
     scene: true
@@ -323,6 +348,10 @@ automations:
         state: "OFF"
       - idx: 51101 # Hue 1e V ALL OFF
         state: "OFF"
+      - idx: 60003    # Sonos badk 1e
+        state: "OFF"
+      - idx: 60006    # Sonos buro
+        state: "OFF"
 
   - name: "ALL OFF 2eV"
     scene: true
@@ -342,6 +371,12 @@ automations:
       - idx: 71027 # slpk Wannes
         state: "OFF"
       - idx: 51102 # Hue 2e V ALL OFF
+        state: "OFF"
+      - idx: 60001    # Sonos badk 2e
+        state: "OFF"
+      - idx: 60004    # Sonos slpk Wannes
+        state: "OFF"
+      - idx: 60005    # Sonos slpk Dries
         state: "OFF"
 
   - name: "ALL OFF overal"
@@ -512,13 +547,17 @@ automations:
       - idx: 72002
         state: "SYNC"
 
-  - name: "PC Aux ON -> Buro Schemer ON (#Only if Dark)"
+  - name: "PC Aux ON -> Buro Schemer ON"
     trigger:
       idx: 72002
       state: "ON"
     actions:
       - idx: 40002
         state: "ON"
+      - idx: 60006  # Sonos buro
+        state: "ON"
+        volume: 6
+        station: "qmaxhits"
 
   - name: "PC Aux OFF -> Buro Schemer OFF"
     trigger:
@@ -526,6 +565,8 @@ automations:
       state: "OFF"
     actions:
       - idx: 40002
+        state: "OFF"
+      - idx: 60006  # Sonos buro
         state: "OFF"
 
   - name: "toilet_gv_ventilatie_on"
@@ -563,6 +604,9 @@ automations:
       - idx: 51001       # badkamer 1e hue room
         state: "ON"
         preset: "bathroom_red"
+      - idx: 60003       # Sonos badk 1e
+        state: "ON"
+        volume: 10
 
   # --- Wastafel (Sink) Logic: Split into Day/Night context ---
   - name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
@@ -598,37 +642,63 @@ automations:
     actions:
       - idx: 51001
         state: "OFF"
-      - idx: 71032 # badkamer wastafel
+      - idx: 71032       # badkamer wastafel
+        state: "OFF"
+      - idx: 60003       # Sonos badk 1e
         state: "OFF"
 
   # --- Hue App Override Sync (Bidirectional support) ---
-  - name: "Badk 1e: Hue App Syncs to Main Switch"
+  - name: "Badk 1e: Hue App Syncs to Main Switch-ON"
     trigger:
       idx: 51001         # If someone uses the Hue app/remote...
-      state: "SYNC"
+      state: "ON"
     actions:
       - idx: 71007       # ...the Domoticz relay physically follows suit.
-        state: "SYNC"
+        state: "ON"
+      - idx: 60003       # Sonos badk 1e
+        state: "ON"
+        volume: 10
 
-  # --------------------------------------------------------------------------
-  # 🛁 BATHROOM 2 (2e) LIGHTING & HUE SYNC
-  # --------------------------------------------------------------------------
+  - name: "Badk 1e: Hue App Syncs to Main Switch-OFF"
+    trigger:
+      idx: 51001         # If someone uses the Hue app/remote...
+      state: "OFF"
+    actions:
+      - idx: 71007       # ...the Domoticz relay physically follows suit.
+        state: "OFF"
+      - idx: 60003       # Sonos badk 1e
+        state: "OFF"
 
-  # 71009   # groot buiten
-  # 71022  # groot binnen (unused)
-  # 51007 # Hue
-  # 71010   # wastafel
-  # 71021  # ventilator
+# --------------------------------------------------------------------------
+# 🛁 BATHROOM 2 (2e) LIGHTING & HUE SYNC
+# --------------------------------------------------------------------------
+
+  # --- Main Bathroom Switch Master Control ---
+  - name: "Badk 2e: Main Switch ON -> Hue Red"
+    trigger:
+      idx: 71009         # badkamer 2e groot switch
+      state: "ON"
+    conditions:
+      - type: "device_state"
+        idx: 51007       # badkamer 2e hue room
+        is: "OFF"        # Only applies Red if the room was off
+    actions:
+      - idx: 51007       # badkamer 2e hue room
+        state: "ON"
+        preset: "bathroom_red"
+      - idx: 60001       # Sonos badk 2e
+        state: "ON"
+        volume: 10
 
   # --- Wastafel (Sink) Logic: Split into Day/Night context ---
   - name: "Badk 2e: Wastafel ON -> Hue White (If already in room)"
     trigger:
-      idx: 71010
+      idx: 71010         # badkamer 2e wastafel
       state: "ON"
     conditions:
       - type: "device_state"
-        idx: 51007
-        is: "ON"
+        idx: 51007       # badkamer 2e hue room
+        is: "ON"         # Only fires if the room is already lit
     actions:
       - idx: 51007
         state: "ON"
@@ -636,28 +706,14 @@ automations:
 
   - name: "Badk 2e: Wastafel OFF -> Hue Red (If already in room)"
     trigger:
-      idx: 71010
+      idx: 71010         # badkamer 2e wastafel
       state: "OFF"
     conditions:
       - type: "device_state"
-        idx: 51007
-        is: "ON"
-    actions:
-      - idx: 51001
-        state: "ON"
-        preset: "bathroom_red"
-
-  # --- Main Bathroom Switch Master Control ---
-  - name: "Badk 2e: Main Switch ON -> Hue Red"
-    trigger:
-      idx: 71009
-      state: "ON"
-    conditions:
-      - type: "device_state"
         idx: 51007       # badkamer 2e hue room
-        is: "OFF"        # Only applies Red if the room was off
+        is: "ON"         # Only fires if the room is already lit
     actions:
-      - idx: 51007
+      - idx: 51007       # Fixed: Linked cleanly to Badk 2e room registry
         state: "ON"
         preset: "bathroom_red"
 
@@ -670,15 +726,30 @@ automations:
         state: "OFF"
       - idx: 71010
         state: "OFF"
+      - idx: 60001       # Sonos badk 2e
+        state: "OFF"
 
   # --- Hue App Override Sync (Bidirectional support) ---
-  - name: "Badk 2e: Hue App Syncs to Main Switch"
+  - name: "Badk 2e: Hue App Syncs to Main Switch-ON"
     trigger:
       idx: 51007         # If someone uses the Hue app/remote...
-      state: "SYNC"
+      state: "ON"
+    actions:
+      - idx: 71009       # Fixed: Misspelling resolved and synced state corrected to ON
+        state: "ON"
+      - idx: 60001       # Sonos badk 2e
+        state: "ON"
+        volume: 10
+
+  - name: "Badk 2e: Hue App Syncs to Main Switch-OFF"
+    trigger:
+      idx: 51007         # If someone uses the Hue app/remote...
+      state: "OFF"
     actions:
       - idx: 71009       # ...the Domoticz relay physically follows suit.
-        state: "SYNC"
+        state: "OFF"
+      - idx: 60001       # Sonos badk 2e
+        state: "OFF"
 
   # --------------------------------------------------------------------------
   # 🛏️ SLPK WANNES LIGHTING & HUE SYNC

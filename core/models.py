@@ -57,6 +57,10 @@ class EventType(str, Enum):
     ZWAVE_TOGGLED = "ZWAVE_TOGGLED"  # Z-Wave integration toggle
     HUE_TOGGLED = "HUE_TOGGLED"  # Listen to local Hue Bridge messages
     EPSON_TOGGLED = "EPSON_TOGGLED"  # Block/allow Epson projector network commands
+    SONOS_TOGGLED = "SONOS_TOGGLED"  # Block/allow local Sonos API control
+
+    # Integration Specific Commands
+    SONOS_COMMAND = "SONOS_COMMAND"  # Rich payloads for automations (volume, station uri)
 
     # Physical Hardware Isolation Toggles
     SHT11_TOGGLED = "SHT11_TOGGLED"
@@ -103,6 +107,7 @@ class SystemAdminState(BaseModel):
     hue_integration_enabled: bool = False  # Switch to block/allow Hue API v2 bidirectional commands
     epson_connected: bool = False  # Tracks physical TCP availability of the Epson Projector
     epson_integration_enabled: bool = False  # Master UI switch to block/allow Epson commands
+    sonos_integration_enabled: bool = False  # Master UI switch to block/allow Sonos commands
     ip_address: str = "0.0.0.0"
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None

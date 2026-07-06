@@ -2,7 +2,7 @@
 from .integration_handlers import (
     handle_automations_toggled, handle_domoticz_toggled, handle_rfxcom_toggled,
     handle_owm_toggled, handle_hue_toggled, handle_epson_toggled, handle_zwave_toggled,
-    handle_simulations_toggled
+    handle_simulations_toggled, handle_sonos_toggled, handle_sonos_command
 )
 from .hardware_handlers import (
     handle_hardware_bus_health_updated, handle_sht11_toggled, handle_gpio_input_toggled,
@@ -40,6 +40,8 @@ EVENT_ROUTERS = {
     "HUE_TOGGLED": handle_hue_toggled,
     "EPSON_TOGGLED": handle_epson_toggled,
     "ZWAVE_TOGGLED": handle_zwave_toggled,
+    "SONOS_TOGGLED": handle_sonos_toggled,
+    "SONOS_COMMAND": handle_sonos_command,
     "SIMULATIONS_TOGGLED": handle_simulations_toggled,
 
     "HARDWARE_BUS_HEALTH_UPDATED": handle_hardware_bus_health_updated,

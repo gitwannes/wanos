@@ -46,6 +46,7 @@ class StateManager:
         self.rfxcom_bridge: Optional[Any] = None  
         self.hue_bridge: Optional[Any] = None  
         self.epson_bridge: Optional[Any] = None
+        self.sonos_bridge: Optional[Any] = None
         self.zwave_bridge: Optional[Any] = None  
         self.logger: WanosLogger = logger
 
@@ -205,8 +206,17 @@ class StateManager:
             self._state.device_metadata[80001] = {"name": "Epson Projector", "type": "switch", "origin": "epson"}
             self._state.devices[80001] = "OFF"
 
+        # Parse Sonos Speakers
+        if getattr(self._config, "sonos", None):
+            for idx, node in self._config.sonos.device_map.items():
+                self._state.dashboard_map[idx] = node.name
+                # Tagged explicitly as "speaker" to unlock native volume sliders in the Device Explorer
+                self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "sonos"}
+                self._state.devices[idx] = None
+                all_config_idxs.add(idx)
+
         # ⚡ Programmatic initialization for virtual read-only status sensors
-        self._state.dashboard_map[21001] = "Sauna status"
+        self._state.dashboard_map[21001] = "sauna status"
         self._state.device_metadata[21001] = {"name": "Sauna status", "type": "sensor", "origin": "system"}
         self._state.devices[21001] = "OFF"
 
@@ -288,11 +298,19 @@ class StateManager:
             # telemetry_handlers.py will continuously reschedule itself to create the infinite loop.
             self._timer_manager.schedule("nvram_flush", int(time.time()) + 300, EventType.NVRAM_FLUSH_TRIGGER.value)
 
+        # Start integration bridges if they were persistently enabled
+        if getattr(self._state.system, "sonos_integration_enabled", False):
+            from integrations.sonos import SonosBridge
+            self.sonos_bridge = SonosBridge(self)
+            await self.sonos_bridge.start()
+
         await self.logger.success("State Manager worker started.")
 
     async def stop(self) -> None:
         self._set_hardware_safety_gate(False)
         await self._health_monitor.stop()
+        if self.sonos_bridge:
+            await self.sonos_bridge.stop()
         if self._worker_task:
             self._worker_task.cancel()
             try:

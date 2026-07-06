@@ -233,6 +233,54 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     return state_changed, changed_domains
 
 
+async def handle_sonos_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Handles the UI master switch to enable/disable the local Sonos integration."""
+    payload = event.payload or {}
+    state_changed = False
+    changed_domains = set()
+    is_enabled = payload.get("enabled", False)
+
+    state_str = "ON" if is_enabled else "OFF"
+    manager._state.system.sonos_integration_enabled = is_enabled
+    state_changed = True
+    changed_domains.add("system")
+
+    color = "🟢" if is_enabled else "🔴"
+    raw_error = payload.get("error_msg")
+    error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+
+    # Notify the dashboard via AlertManager
+    ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Sonos Integration turned {state_str}")
+    state_changed |= ch
+    changed_domains |= dom
+
+    # Dynamically spin up or tear down the async polling bridge
+    if is_enabled:
+        if not getattr(manager, "sonos_bridge", None):
+            from integrations.sonos import SonosBridge
+            manager.sonos_bridge = SonosBridge(manager)
+        await manager.sonos_bridge.start()
+    else:
+        if getattr(manager, "sonos_bridge", None):
+            await manager.sonos_bridge.stop()
+
+    return state_changed, changed_domains
+
+
+async def handle_sonos_command(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Routes rich automation payloads (volume, radio station URI) to the Sonos bridge."""
+    import asyncio
+
+    if manager._state.system.sonos_integration_enabled and getattr(manager, "sonos_bridge", None):
+        # Offload execution to prevent blocking the WanOS event loop
+        asyncio.create_task(manager.sonos_bridge.execute_command(event.payload))
+    else:
+        from core.logger import automation_logger
+        automation_logger.warning("Sonos command dropped: Integration is disabled in UI.")
+
+    return False, set()
+
+
 async def handle_simulations_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
     manager._state.hardware.simulations_enabled = payload.get("enabled", False)

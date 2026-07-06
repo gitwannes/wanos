@@ -105,6 +105,7 @@
                     <option value="SWITCH" class="text-base-content bg-base-200 font-normal">Switches</option>
                     <option value="HUE" class="text-base-content bg-base-200 font-normal">Hue</option>
                     <option value="BLINDS" class="text-base-content bg-base-200 font-normal">Rolluiken</option>
+                    <option value="SPEAKER" class="text-base-content bg-base-200 font-normal">Sonos</option>
                     <option value="SENSOR" class="text-base-content bg-base-200 font-normal">Sensors</option>
                     <option value="SCENE" class="text-base-content bg-base-200 font-normal">Scenes</option>
                 </select>
@@ -148,10 +149,25 @@
                                 </button>
                             </template>
                             <template x-if="!item.is_hue">
-                                <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate w-full"
-                                     :class="(item.type === 'blinds' && !item.is_dead && item.raw_value !== null) ? 'cursor-pointer hover:text-primary transition-colors' : ''"
-                                     @click="if(item.type === 'blinds') handleShutterNameClick(item)"
-                                     x-text="item.name"></div>
+                                <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate w-full flex items-center gap-1.5 select-none"
+                                     :class="((item.type === 'blinds' || item.type === 'speaker') && !item.is_dead && item.raw_value !== null) ? 'cursor-pointer hover:text-primary transition-colors' : ''"
+                                     @click="if(item.type === 'blinds') handleShutterNameClick(item); if(item.type === 'speaker') handleSpeakerNameClick(item)">
+                                    <template x-if="item.type === 'speaker'">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><circle cx="12" cy="14" r="4"></circle><line x1="12" y1="6" x2="12.01" y2="6"></line></svg>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">Sonos</span>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'scene'">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <svg class="w-3.5 h-3.5 text-accent shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"></path><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"></path><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"></path></svg>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">Scene</span>
+                                        </div>
+                                    </template>
+
+                                    <span class="truncate" x-text="item.name"></span>
+                                </div>
                             </template>
                         </div>
                         </div>
@@ -187,6 +203,26 @@
 
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"
                                           @click="setShutterState(item.id, 100)">CLOSED</span>
+                                </div>
+                            </template>
+
+                            <template x-if="item.type === 'speaker'">
+                                <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
+                                    <span class="badge font-mono text-[9px] md:text-xs px-1 py-0 h-4 md:h-5 shrink-0 min-w-[2.25rem] justify-center transition-colors"
+                                          :class="item.is_dead ? 'badge-neutral text-error font-bold' : (item.is_on ? 'badge-success text-neutral-900 shadow-sm' : 'badge-neutral text-base-content/50')"
+                                          x-text="item.is_dead ? 'DEAD' : (item.display_text !== null ? item.display_text : '--')"></span>
+
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
+                                          @click="injectLabHubStateChange(item.id, true)">PLAY</span>
+
+                                    <input type="range" min="0" max="100" step="1" class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer"
+                                           :disabled="item.raw_value === null || item.is_dead"
+                                           :value="item.ui_volume !== undefined ? item.ui_volume : 0"
+                                           @input="updateSpeakerOptimistic(item.id, $event.target.value)"
+                                           @change="setSpeakerVolume(item.id, parseInt($event.target.value, 10))" />
+
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-warning cursor-pointer hover:text-primary transition-colors"
+                                          @click="injectLabHubStateChange(item.id, false)">PAUSE</span>
                                 </div>
                             </template>
 

@@ -145,6 +145,8 @@ class ActionConfig(BaseModel):
     preset: Optional[str] = None
     bri: Optional[int] = None
     xy: Optional[List[float]] = None
+    volume: Optional[int] = None  # Sonos
+    station: Optional[str] = None  # Sonos
 
 
 class AutomationRuleConfig(BaseModel):
@@ -175,6 +177,16 @@ class EpsonConfig(BaseModel):
     ip_address: str
 
 
+class SonosDeviceNode(BaseModel):
+    ip: str
+    name: str
+
+
+class SonosConfig(BaseModel):
+    device_map: Dict[int, SonosDeviceNode] = Field(default_factory=dict)
+    stations: Dict[str, str] = Field(default_factory=dict)
+
+
 class ZwaveConfig(BaseModel):
     """Configuration mapping for the Z-Wave JS UI hardware stick and node map."""
     usb_path: str
@@ -201,6 +213,7 @@ class AppConfig(BaseModel):
     rfxcom: Optional[RFXComSettings] = None
     hue: Optional[HueConfig] = None
     epson: Optional[EpsonConfig] = None
+    sonos: Optional[SonosConfig] = None
     zwave: Optional[ZwaveConfig] = None
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
     auth: AuthConfig
@@ -273,6 +286,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings
         "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
         "epson": runtime_data.get("epson"),
+        "sonos": runtime_data.get("sonos"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
         "auth": {

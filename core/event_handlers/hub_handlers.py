@@ -44,8 +44,8 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
     old_val = manager._state.devices.get(idx)
     is_init = payload.get("is_initialization", False)
 
-    # RICH PAYLOAD MERGE FOR HUE/ADVANCED LIGHTING
-    is_rich_payload = "bri" in payload or "xy" in payload
+    # RICH PAYLOAD MERGE FOR ADVANCED DEVICES (Hue, Sonos)
+    is_rich_payload = "bri" in payload or "xy" in payload or "volume" in payload
     new_val = state_val
 
     if isinstance(old_val, dict):
@@ -56,12 +56,16 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
             new_val["bri"] = payload["bri"]
         if "xy" in payload:
             new_val["xy"] = payload["xy"]
+        if "volume" in payload:
+            new_val["volume"] = payload["volume"]
     elif is_rich_payload:
         new_val = {"state": state_val}
         if "bri" in payload:
             new_val["bri"] = payload["bri"]
         if "xy" in payload:
             new_val["xy"] = payload["xy"]
+        if "volume" in payload:
+            new_val["volume"] = payload["volume"]
 
     # Hybrid Learning: Cache semantic names from Domoticz
     device_name = payload.get("name")
@@ -109,10 +113,29 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                 if getattr(manager, "epson_bridge", None):
                     asyncio.create_task(manager.epson_bridge.power(state_val))
                 else:
-                    automation_logger.error("Tried to trigger Epson projector, but bridge is offline or misconfigured.")
+                    automation_logger.error(
+                        "Tried to trigger Epson projector, but bridge is offline or misconfigured.")
             else:
                 automation_logger.warning("Epson command dropped: Integration is disabled in UI.")
-                ch, dom = AlertManager.process_alert(manager._state, "🔴 Epson command dropped: Integration is disabled.")
+                ch, dom = AlertManager.process_alert(manager._state,
+                                                     "🔴 Epson command dropped: Integration is disabled.")
+                state_changed |= ch
+                changed_domains |= dom
+
+        # SONOS INTERCEPTOR
+        meta_origin = manager._state.device_metadata.get(idx, {}).get("origin", "")
+        if meta_origin == "sonos" and (old_val != state_val or is_force):
+            if manager._state.system.sonos_integration_enabled:
+                if getattr(manager, "sonos_bridge", None):
+                    # Route the entire rich payload containing volume and station parameters
+                    asyncio.create_task(manager.sonos_bridge.execute_command(payload))
+                else:
+                    automation_logger.error(
+                        "Tried to trigger Sonos speaker, but bridge is offline or misconfigured.")
+            else:
+                automation_logger.warning("Sonos command dropped: Integration is disabled in UI.")
+                ch, dom = AlertManager.process_alert(manager._state,
+                                                     "🔴 Sonos command dropped: Integration is disabled.")
                 state_changed |= ch
                 changed_domains |= dom
 

@@ -11,7 +11,7 @@ zwave:
   # The physical hardware path used by WanOS to verify the stick is plugged in
   usb_path: "/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00"
 
-  hidden_nodes: [72001, 75001, 76001, 71007, 71009, 71011, 71013, 71015, 71018, 71019, 71020, 71022, 71026, 71028, 71030, 71033, 71035, 71036, 71037, 71039, 71040, 71041]
+  hidden_nodes: [72001, 75001, 76001, 74001, 74003, 71007, 71009, 71011, 71013, 71015, 71018, 71019, 71020, 71022, 71026, 71028, 71029, 71030, 71033, 71035, 71036, 71037, 71039, 71040, 71041, 71045]
 
   device_map:
     # 71000: light
@@ -46,14 +46,14 @@ zwave:
     71034: "76/37/1 | badk 1e ventilatie | 7558"
     71035: "76/37/2 | sauna hue physical | 7561"
     71036: "78/37/1 | safety SSR (12V) | 8567 = SSR"
-    71038: "79/37/1 | sauna extractor ventilator | 8577"
+    71038: "79/37/1 | sauna ventilator | 8577"
     71040: "80/37/1 | safety Wisc (5V) | 8668 = power to the Pi itself - if this is OFF, this code cannot run :-)"
     71043: "84/37/1 | toilet | 9645"
     71044: "84/37/2 | toilet ventilatie | 9648"
     71045: "53/37/0 | 53?"
 
     72001: "5/37/0 | PC | 8"
-    72002: "82/37/0 | PC aux | 9618"
+    72002: "82/37/0 | PC monitors | 9618"
     72004: "55/37/0 | sauna zoutlamp | 1500"
     72005: "74/37/0 | tuin | 7396"
     72006: "83/37/0 | kerst lichten tuin | 9627"
@@ -64,7 +64,7 @@ zwave:
     73004: "18/38/0 | rolluik gv rechts | 71"
 
     74001: "5/49/0/Power | PC power | 9"
-    74003: "82/49/0/Power | PC aux power"
+    74003: "82/49/0/Power | PC monitors power"
 
     75001: "23/48/0/Any | garage motion | 106"
     75002: "87/48/0/Any | toilet motion"

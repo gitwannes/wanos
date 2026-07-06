@@ -28,6 +28,7 @@ function wanosApp() {
                 zwave_integration_enabled: false, // ⚡ Switch to block/allow Z-Wave processing
                 epson_connected: false, // ⚡ Tracks physical TCP availability of the Epson Projector
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
+                sonos_integration_enabled: false, // ⚡ Master UI switch to block/allow Sonos commands
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
                 available_scenes: [], // ⚡ Holds dynamically extracted stateless automations
                 hidden_explorer_idxs: [], // ⚡ Devices to hide from the Device Explorer
@@ -210,6 +211,25 @@ function wanosApp() {
             return this.nonCriticalAlerts.length;
         },
 
+        // ⚡ Dynamically extracts all configured Sonos speakers for the diagnostic modal
+        get sonosDevices() {
+            let list = [];
+            for (const [idxStr, meta] of Object.entries(this.state.device_metadata)) {
+                if (meta.origin === 'sonos') {
+                    const idx = parseInt(idxStr, 10);
+                    const rawValue = this.state.devices[idx];
+                    // Map DEAD explicitly to OFFLINE for clearer diagnostics
+                    const displayState = rawValue === 'DEAD' ? 'OFFLINE' : (rawValue === null ? 'SYNCING' : 'ONLINE');
+                    list.push({
+                        id: idx,
+                        name: meta.name,
+                        state: displayState
+                    });
+                }
+            }
+            return list.sort((a, b) => a.name.localeCompare(b.name));
+        },
+
         // ⚡ Intelligently evaluates if all capable engines are currently running
         get allEnginesStarted() {
             const s = this.state.system;
@@ -223,6 +243,7 @@ function wanosApp() {
             if (s.rfxcom_connected && !s.rfxcom_integration_enabled) offlineCount++;
             if (s.zwave_hardware_connected && s.zwave_web_alive && s.zwave_data_alive && !s.zwave_integration_enabled) offlineCount++;
             if (!s.owm_integration_enabled) offlineCount++;
+            if (!s.sonos_integration_enabled) offlineCount++;
             if (h.gpio_input_connected && !h.gpio_input_enabled) offlineCount++;
             if (h.sht11_connected && !h.sht11_enabled) offlineCount++;
             if (h.gpio_output_connected && !h.gpio_output_enabled) offlineCount++;
@@ -246,6 +267,7 @@ function wanosApp() {
             if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
             if (!this.state.system.zwave_integration_enabled) disabled.push("Z-Wave");
             if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
+            if (!this.state.system.sonos_integration_enabled) disabled.push("Sonos");
             if (!this.state.hardware.gpio_input_enabled) disabled.push("GPIO inputs");
             if (!this.state.hardware.gpio_output_enabled) disabled.push("GPIO outputs");
             if (!this.state.hardware.sht11_enabled) disabled.push("temp/hum sensors");
@@ -269,6 +291,7 @@ function wanosApp() {
                 if (meta.origin === 'rfxcom' && !this.state.system.rfxcom_integration_enabled) continue;
                 if (meta.origin === 'hue' && !this.state.system.hue_integration_enabled) continue;
                 if (meta.origin === 'zwave' && !this.state.system.zwave_integration_enabled) continue;
+                if (meta.origin === 'sonos' && !this.state.system.sonos_integration_enabled) continue;
 
                 // Native Physical & Cloud Integrations
                 if (meta.origin === 'gpio_input' && !this.state.hardware.gpio_input_enabled) continue;
@@ -299,7 +322,7 @@ function wanosApp() {
                     if (meta.type === 'blinds') {
                         // Shutters: > 0% = ON
                         isOn = parseInt(rawValue, 10) > 0;
-                    } else if (meta.type === 'switch' || meta.type === 'light' || meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy') {
+                    } else if (meta.type === 'switch' || meta.type === 'light' || meta.type === 'speaker' || meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy') {
                         // ⚡ ANALOG vs BINARY DISTINCTION
                         // Ensure power (W) and energy (kWh) natively map to analog UI elements rather than binary switches
                         if ((meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy') && rawValue !== 'ON' && rawValue !== 'OFF' && rawValue !== null) {
@@ -323,7 +346,10 @@ function wanosApp() {
                     const tally = this.state.metrics.motion_triggers?.[idx] || 0;
                     displayText = `${tally}x`;
                 } else if (typeof rawValue === 'object' && rawValue !== null) {
-                    if (meta.type === 'sensor' || meta.type === 'temp' || meta.type === 'hum' || meta.type === 'temp_hum' || meta.type === 'power' || meta.type === 'energy') {
+                    if (meta.type === 'speaker') {
+                        const vol = rawValue.volume !== undefined ? rawValue.volume : 0;
+                        displayText = `${vol}%`;
+                    } else if (meta.type === 'sensor' || meta.type === 'temp' || meta.type === 'hum' || meta.type === 'temp_hum' || meta.type === 'power' || meta.type === 'energy') {
                         if (rawValue.temp !== undefined && rawValue.hum !== undefined) {
                             displayText = `${parseFloat(rawValue.temp).toFixed(1)} °C / ${rawValue.hum} %`;
                         } else if (rawValue.temp !== undefined) {
@@ -376,12 +402,19 @@ function wanosApp() {
                     else if (n.includes('lux')) displayText = `${rawValue} Lux`;
                 }
 
+                let uiVolume = undefined;
+                if (meta.type === 'speaker' && !isDead && typeof rawValue === 'object' && rawValue !== null && rawValue.volume !== undefined) {
+                    // ⚡ AUDIO TAPER: Convert linear Sonos volume (0-100) to logarithmic UI slider position (0-100)
+                    uiVolume = Math.round(Math.sqrt(rawValue.volume / 100) * 100);
+                }
+
                 list.push({
                     id: idx,
                     name: meta.name,
                     type: meta.type,
                     raw_value: rawValue === 0 ? "0" : rawValue,
                     display_text: displayText,
+                    ui_volume: uiVolume, // ⚡ Added for the logarithmic slider UI
                     is_on: isOn,
                     is_hue: meta.origin === 'hue',
                     is_dead: isDead
@@ -417,6 +450,7 @@ function wanosApp() {
                     if (this.typeFilter === "SWITCH") return item.type === 'switch' && !item.is_hue;
                     // Isolates advanced local API Hue mesh channels, rooms, and zones (IDX >= 50000)
                     if (this.typeFilter === "HUE") return item.is_hue;
+                    if (this.typeFilter === "SPEAKER") return item.type === 'speaker';
                     if (this.typeFilter === "SCENE") return item.type === 'scene';
                     if (this.typeFilter === "BLINDS") return item.type === 'blinds';
                     if (this.typeFilter === "SENSOR") return item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'energy' || item.type === 'sensor';
@@ -483,6 +517,7 @@ function wanosApp() {
             if (meta.origin === 'hue') return this.state.system.hue_integration_enabled;
             if (meta.origin === 'domoticz') return this.state.system.domoticz_integration_enabled;
             if (meta.origin === 'epson') return this.state.system.epson_integration_enabled;
+            if (meta.origin === 'sonos') return this.state.system.sonos_integration_enabled;
             if (meta.origin === 'gpio_input') return this.state.hardware.gpio_input_enabled;
             if (meta.origin === 'sht11') return this.state.hardware.sht11_enabled;
             return true; // Fallback for local macros/scenes
@@ -1073,6 +1108,11 @@ function wanosApp() {
             this.publishEvent("EPSON_TOGGLED", { enabled: nextState });
         },
 
+        toggleSonos() {
+            const nextState = !this.state.system.sonos_integration_enabled;
+            this.publishEvent("SONOS_TOGGLED", { enabled: nextState });
+        },
+
         toggleSimulations() {
             const nextState = !this.state.hardware.simulations_enabled;
             this.publishEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
@@ -1105,6 +1145,7 @@ function wanosApp() {
             // Phase 2: Power the Actuators (Hardware Bridges & Displays)
             await this.publishEvent("HUE_TOGGLED", { enabled: true });
             await this.publishEvent("EPSON_TOGGLED", { enabled: true });
+            await this.publishEvent("SONOS_TOGGLED", { enabled: true });
             await this.publishEvent("RFXCOM_TOGGLED", { enabled: true });
 
             // Phase 3: Enable Domoticz (State Database Sync)
@@ -1159,7 +1200,7 @@ function wanosApp() {
         },
 
         handleShutterNameClick(item) {
-            // ⚡ MOBILE UX FIX: Force the browser to drop focus so the color doesn't "stick" after tapping
+            // ⚡ MOBILE UX: Force the browser to drop focus so the color doesn't "stick" after tapping
             if (document.activeElement) {
                 document.activeElement.blur();
             }
@@ -1168,6 +1209,17 @@ function wanosApp() {
             // ⚡ Binary Toggle Logic: If > 0, assume user wants it OPEN (0). Else CLOSED (100).
             const targetState = item.raw_value > 0 ? 0 : 100;
             this.setShutterState(item.id, targetState);
+        },
+
+        handleSpeakerNameClick(item) {
+            // ⚡ MOBILE UX: Force the browser to drop focus so the color doesn't "stick" after tapping
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+
+            if (item.type !== 'speaker' || item.is_dead || item.raw_value === null) return;
+            // Toggle the target playback state smoothly on smartphone row touches
+            this.injectLabHubStateChange(item.id, !item.is_on);
         },
 
         // ⚡ Helper function to fetch the lock time to keep code DRY
@@ -1188,6 +1240,31 @@ function wanosApp() {
 
             // Dispatch command to backend
             this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
+        },
+
+        setSpeakerVolume(idx, uiVol) {
+            this.shutterLocks[idx] = Date.now() + this.getShutterLockTime();
+            let current = this.state.devices[idx] || { state: 'ON' };
+            if (typeof current !== 'object') current = { state: current };
+
+            // ⚡ AUDIO TAPER: Convert logarithmic UI slider position (0-100) back to linear Sonos volume (0-100)
+            const linearVol = Math.round(Math.pow(parseInt(uiVol, 10) / 100, 2) * 100);
+            current.volume = linearVol;
+            this.state.devices[idx] = current;
+
+            // Fires rich automation payload to the backend
+            this.publishEvent("SONOS_COMMAND", { idx: parseInt(idx, 10), volume: linearVol });
+        },
+
+        updateSpeakerOptimistic(idx, uiVol) {
+            this.shutterLocks[idx] = Date.now() + this.getShutterLockTime();
+            let current = this.state.devices[idx] || { state: 'ON' };
+            if (typeof current !== 'object') current = { state: current };
+
+            // ⚡ Optimistically update the real volume using the same logarithmic math so the UI text stays in sync while dragging
+            const linearVol = Math.round(Math.pow(parseInt(uiVol, 10) / 100, 2) * 100);
+            current.volume = linearVol;
+            this.state.devices[idx] = current;
         },
 
         updateShutterOptimistic(idx, val) {

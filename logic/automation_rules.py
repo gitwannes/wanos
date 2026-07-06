@@ -220,9 +220,13 @@ class AutomationEngine:
                                     xy = getattr(preset, "xy", xy) if hasattr(preset, "xy") else preset.get("xy",
                                                                                                             xy)
 
+                            # Extract Sonos rich parameters if provided in the YAML rule
+                            volume = getattr(action, "volume", None)
+                            station = getattr(action, "station", None)
+
                             # If rich attributes are provided, we must force the command because the power state
-                            # might already be "ON", but we still need to send the new color/brightness payload.
-                            is_rich_action = bri is not None or xy is not None
+                            # might already be "ON", but we still need to apply the changes.
+                            is_rich_action = bri is not None or xy is not None or volume is not None or station is not None
                             if is_rich_action:
                                 is_force = True
 
@@ -236,7 +240,8 @@ class AutomationEngine:
                             # STRING NORMALIZATION COMPARISON
                             # Coerced to uppercase strings to ensure integers (e.g., 100) and YAML strings (e.g., "100")
                             # or mixed-case status descriptors evaluate flawlessly, preventing duplicate command streams.
-                            if str(current_target_state).upper() != str(target_action_state).upper() or is_force:
+                            if str(current_target_state).upper() != str(
+                                    target_action_state).upper() or is_force:
                                 # ⚡ Use a distinct variable name to prevent shadowing the original event payload!
                                 action_payload = {"idx": action.idx, "state": target_action_state,
                                                   "force": is_force}
@@ -244,6 +249,10 @@ class AutomationEngine:
                                     action_payload["bri"] = bri
                                 if xy is not None:
                                     action_payload["xy"] = xy
+                                if volume is not None:
+                                    action_payload["volume"] = volume
+                                if station is not None:
+                                    action_payload["station"] = station
 
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
@@ -288,12 +297,22 @@ class AutomationEngine:
                                 automation_logger.error(
                                     f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: '{action.event}' is not a valid EventType Enum.")
 
+                            # ⚡ DYNAMIC PAYLOAD INJECTION
+                            # Automatically map all provided YAML keys (idx, volume, station, etc.) into the event payload
+                            action_payload = {}
+                            if hasattr(action, "model_dump"):
+                                action_payload = action.model_dump(exclude_none=True)
+                                action_payload.pop("event",
+                                                   None)  # Strip the event type itself out of the payload body
+
                             follow_up_events.append(Event(
                                 type=evt_type,
-                                payload={}
+                                payload=action_payload
                             ))
+
+                            payload_str = f" with payload: {action_payload}" if action_payload else ""
                             automation_logger.info(
-                                f"[ACTION] '{rule.name}' -> Dispatched Internal Event [{action.event}]")
+                                f"[ACTION] '{rule.name}' -> Dispatched Internal Event [{action.event}]{payload_str}")
 
         # =========================================================================
         # 2. SYSTEM SWEEPER: Time & Environment Audit (Option B Enforcer)
