@@ -225,32 +225,48 @@ class ZWaveJSUIBridge(WanosComponent):
                     }
                 ))
 
-            # CC 50: Power Meters (Fallback accumulated counters or legacy wattage paths)
+            # CC 50: Power Meters, Electric Meters, and Line Voltage Monitors
             elif command_class == "50":
                 try:
-                    wattage = float(raw_val)
-                    self.state_manager.dispatch(Event(
-                        type=EventType.POWER_UPDATED,
-                        payload={
-                            "idx": target_idx,
-                            "value": wattage,
-                            "device_type": "power",
-                            "origin": "zwave",
-                            "name": custom_name
-                        }
-                    ))
-                    # ⚡ DUAL-DISPATCH: Push formatted string directly to the Device Explorer UI
-                    self.state_manager.dispatch(Event(
-                        type=EventType.HUB_STATE_CHANGED,
-                        payload={
-                            "idx": target_idx,
-                            "state": f"{wattage} W",
-                            "name": custom_name,
-                            "device_type": "power",
-                            "origin": "zwave",
-                            "is_initialization": False
-                        }
-                    ))
+                    val_float = float(raw_val)
+
+                    # ⚡ LINE VOLTAGE INTERCEPTOR: Node 50 Endpoint 0 Value 66561 reports AC Mains Voltage
+                    if "66561" in base_path:
+                        voltage_rounded: int = int(round(val_float))
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUB_STATE_CHANGED,
+                            payload={
+                                "idx": target_idx,
+                                "state": f"{voltage_rounded} V",
+                                "name": custom_name,
+                                "device_type": "sensor",
+                                "origin": "zwave",
+                                "is_initialization": False
+                            }
+                        ))
+                    else:
+                        self.state_manager.dispatch(Event(
+                            type=EventType.POWER_UPDATED,
+                            payload={
+                                "idx": target_idx,
+                                "value": val_float,
+                                "device_type": "power",
+                                "origin": "zwave",
+                                "name": custom_name
+                            }
+                        ))
+                        # ⚡ DUAL-DISPATCH: Push formatted string directly to the Device Explorer UI
+                        self.state_manager.dispatch(Event(
+                            type=EventType.HUB_STATE_CHANGED,
+                            payload={
+                                "idx": target_idx,
+                                "state": f"{val_float} W",
+                                "name": custom_name,
+                                "device_type": "power",
+                                "origin": "zwave",
+                                "is_initialization": False
+                            }
+                        ))
                 except (ValueError, TypeError):
                     pass
 
@@ -454,7 +470,10 @@ class ZWaveJSUIBridge(WanosComponent):
                     # METADATA SEEDING: Explicitly declare hardware semantics so the UI renders toggles correctly!
                     if idx not in self.state_manager._state.device_metadata:
                         hw_type = "sensor"
-                        if 71000 <= idx < 73000:
+                        # Explicit path check prevents voltage monitors under index 71xxx from being misclassified as switches
+                        if "66561" in clean_path:
+                            hw_type = "sensor"
+                        elif 71000 <= idx < 73000:
                             hw_type = "switch"
                         elif 73000 <= idx < 74000:
                             hw_type = "blinds"

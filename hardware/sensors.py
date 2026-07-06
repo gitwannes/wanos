@@ -130,4 +130,7 @@ class HardwareSensors:
                 self.state_manager.dispatch(Event(type=EventType.HARDWARE_BUS_HEALTH_UPDATED,
                                                   payload={"bus": "sht11", "connected": any_sensor_replied}))
 
-            await asyncio.sleep(60.0)
+            # ⚡ DYNAMIC CADENCE: Poll faster (every 10s) when the sauna is active to survive transient EMI noise frames
+            # and fallback to a relaxed cadence (60s) during idle hours to minimize CPU/GPIO wake cycles.
+            sleep_cadence: float = 10.0 if state.sauna.active else 60.0
+            await asyncio.sleep(sleep_cadence)

@@ -597,13 +597,20 @@ class StateManager:
         # Manually calculates the 70/30 High/Low atmosphere split here based purely on IDXs.
         if event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED"] or (
                 event_name == "HUB_STATE_CHANGED" and p_idx in [20001, 20002]):
+
+            # ⚡ OUT-OF-BAND SAFETY HEARTBEAT TRACKER
+            # Refreshes the active communication timestamp anytime local SHT11 sauna probes (20001/20002) publish data,
+            # completely independent of whether the underlying temperature digits shifted or remained flat.
+            if p_idx in [20001, 20002]:
+                self._state.sauna.last_heartbeat_unix = int(time.time())
+
             d_high = self._state.devices.get(20001)
             d_low = self._state.devices.get(20002)
 
             # STRICT REQUIREMENT: BOTH probes must exist and report valid floats
             if isinstance(d_high, dict) and d_high.get("temp") is not None and isinstance(d_low,
                                                                                           dict) and d_low.get(
-                    "temp") is not None:
+                "temp") is not None:
                 try:
                     t_high = float(d_high["temp"])
                     t_low = float(d_low["temp"])
@@ -617,12 +624,6 @@ class StateManager:
                 except (ValueError, TypeError):
                     pass
             else:
-                # ⚡ OUT-OF-BAND SAFETY HEARTBEAT TRACKER
-                # Refreshes the active communication timestamp anytime local SHT11 sauna probes (20001/20002) publish data,
-                # completely independent of whether the underlying temperature digits shifted or remained flat.
-                if p_idx in [20001, 20002]:
-                    self._state.sauna.last_heartbeat_unix = int(time.time())
-
                 # ⚡ FAILSAFE: If EITHER probe drops, composite is instantly voided
                 if self._state.sensors.sauna_calc_temp is not None:
                     self._state.sensors.sauna_calc_temp = None

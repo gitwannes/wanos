@@ -234,7 +234,8 @@ function zwaveApp() {
                     const safeNode = data.node || data.node_name || path.split('/')[0];
 
                     if (safeNode === "1" || path.includes("duration") || path.includes("targetValue")) continue;
-                    if (path.includes("/50/") && path.includes("/value/")) continue;
+                    // Bypass the generic CC 50 suppression rule specifically for the line voltage sensor token path
+                    if (path.includes("/50/") && path.includes("/value/") && !path.includes("66561")) continue;
 
                     const existing = this.deviceList.find(i => i.path === path);
                     if (existing) {
@@ -255,7 +256,10 @@ function zwaveApp() {
                             else if (lowerPath.includes("temp") || lowerPath.includes("humid") || lowerPath.includes("air")) staticType = "temp&hum";
                             else staticType = "sensor";
                         }
-                        else if (cc === "50") staticType = "power";
+                        // Default CC 50 entries to power endpoints, unless they contain the line voltage signature
+                        else if (cc === "50") {
+                            staticType = path.includes("66561") ? "sensor" : "power";
+                        }
 
                         this.deviceList.push({
                             path: path,
