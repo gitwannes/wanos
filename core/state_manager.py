@@ -15,6 +15,7 @@ from core.nvm_manager import NVRAMManager
 
 from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
+from logic.power_analytics import PowerAnalytics
 
 
 class StateManager:
@@ -76,6 +77,9 @@ class StateManager:
 
         # Extract health monitor to pure background task manager
         self._health_monitor = HealthMonitor(self)
+
+        # Instantiate isolated mathematical telemetry and logging engine
+        self._power_analytics = PowerAnalytics(self)
 
         # Assemble initial structural application lifecycle tags inside live RAM state
         self._state.system.version_major = f"v{self._config.version}"
@@ -287,6 +291,7 @@ class StateManager:
     async def start(self) -> None:
         self._worker_task = asyncio.create_task(self._process_events())
         self._health_monitor.start()
+        self._power_analytics.start()
 
         # ⚡ SINGLETON TIMER INSTANTIATION (Event Loop Safe)
         # Must be initialized inside an async context so its internal background tasks bind to the running loop!
@@ -309,6 +314,7 @@ class StateManager:
     async def stop(self) -> None:
         self._set_hardware_safety_gate(False)
         await self._health_monitor.stop()
+        await self._power_analytics.stop()
         if self.sonos_bridge:
             await self.sonos_bridge.stop()
         if self._worker_task:
@@ -566,6 +572,11 @@ class StateManager:
                     "name": self._state.dashboard_map.get(power_idx, f"Power {power_idx}")
                 }))
 
+        # ⚡ ISOLATED HIGH-FREQUENCY HARDWARE EVENT ROUTING
+        # Intercepts physical pulse meter ticks directly from GPIO and routes them straight to the math engine
+        if event_name == "KWH_PULSE" and p_idx == 11001:
+            await self._power_analytics.process_pulse_tick()
+
         # ⚡ UNIVERSAL SPARKLINE HISTORY AGGREGATOR
         is_power_event: bool = False
 
@@ -750,12 +761,16 @@ class StateManager:
                 state_changed = True
                 changed_domains.add("sauna")
 
-        # 3. Clean Session Interlock Teardown
+        # 3. Clean Session Interlock Teardown & Analytic SQL Flushes
         if event_name == "SAUNA_OFF":
             if self._timer_manager.is_scheduled("sauna_door_grace"):
                 self._timer_manager.cancel("sauna_door_grace")
             self._state.sauna.is_paused = False
             self._state.sauna.last_light_temp = None
+            await self._power_analytics.terminate_session("sauna")
+
+        if event_name == "IR_OFF":
+            await self._power_analytics.terminate_session("ir")
 
         # ⚡ EN 60335-2-53 ABSOLUTE LIMIT TRACKER
         # Instantiates an un-bypassable 6-hour absolute running boundary the exact moment an active

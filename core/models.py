@@ -185,16 +185,89 @@ class IRState(BaseModel):
     session_end_time: Optional[int] = None
 
 
+class SaunaSessionRecord(BaseModel):
+    """Structured Pydantic model for SQLite session storage validation"""
+    session_id: Optional[int] = None
+    start_timestamp: int
+    total_runtime_secs: int
+    runtime_u_secs: int
+    runtime_v_secs: int
+    runtime_w_secs: int
+    temp_start: float
+    temp_end: float
+    temp_min: float
+    temp_max: float
+    temp_avg: float
+    hum_start: int
+    hum_end: int
+    hum_min: int
+    hum_max: int
+    hum_avg: int
+    mod_system_min: float
+    mod_system_max: float
+    mod_system_avg: float
+    mod_u_min: float
+    mod_u_max: float
+    mod_u_avg: float
+    mod_v_min: float
+    mod_v_max: float
+    mod_v_avg: float
+    mod_w_min: float
+    mod_w_max: float
+    mod_w_avg: float
+    energy_real_wh: float
+    energy_calc_wh: float
+    extracted_p_u: float
+    extracted_p_v: float
+    extracted_p_w: float
+
+
+class IrSessionRecord(BaseModel):
+    """Structured Pydantic model for SQLite IR session storage validation"""
+    session_id: Optional[int] = None
+    start_timestamp: int
+    total_runtime_secs: int
+    temp_start: float
+    temp_end: float
+    hum_start: int
+    hum_end: int
+    mod_min: float
+    mod_max: float
+    mod_avg: float
+    energy_real_wh: float
+    energy_calc_wh: float
+
+
 class MetricsState(BaseModel):
     kwh_wh_ticks: int = 0
     douche_active: bool = False
     douche_start_time: Optional[int] = None
     douche_duration_secs: int = 0
     douche_water_liters: int = 0
+
     # ⚡ EPHEMERAL MOTION LEDGER
     # Tracks the number of times 75xxx motion sensors fire per boot session.
     # Data lives purely in RAM and intentionally does not survive reboots.
     motion_triggers: Dict[int, int] = Field(default_factory=dict)
+
+    # ⚡ DYNAMIC POWER DISAGGREGATION TRACKERS
+    # Retains isolated variables in RAM for frontend real-time reactivity
+    p_leak_baseline_watts: float = 0.0
+    p_elements_real_watts: float = 0.0
+    r_th_insulation_coefficient: Optional[float] = None
+    # Optimistically initialized to factory nominals until the background matrix proves degradation
+    extracted_p_u: Optional[float] = 3500.0
+    extracted_p_v: Optional[float] = 3500.0
+    extracted_p_w: Optional[float] = 2000.0
+
+    # ⚡ LIVE ENERGY ACCUMULATORS
+    running_energy_real_wh: float = 0.0
+    running_energy_calc_wh: float = 0.0
+    total_energy_real_wh: float = 0.0  # Cumulative tracking across all sessions
+
+    # ⚡ HISTORICAL READBACK CACHES
+    last_sauna_session: Optional[Dict[str, Any]] = None
+    last_ir_session: Optional[Dict[str, Any]] = None
 
 
 class HardwareState(BaseModel):

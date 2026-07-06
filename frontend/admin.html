@@ -567,6 +567,106 @@
                     </div>
                 </div>
             </div>
+
+            <div class="w-full mt-6">
+                <div class="card bg-base-100 shadow-xl border border-base-200">
+                    <div class="card-body">
+                        <h2 class="card-title text-base-400 uppercase text-xs tracking-widest mb-4 flex justify-between items-center w-full border-b border-base-200 pb-2">
+                            <span>⚡ Power & Thermal Analytics</span>
+                        </h2>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 w-full items-start">
+
+                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Grid Health & Baseline</div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Mains Voltage</span>
+                                    <span class="font-bold text-[11px]" :class="state.devices[71046] ? 'text-info' : 'text-error animate-pulse'" x-text="state.devices[71046] ? state.devices[71046] : 'AWAITING VOLTAGE'"></span>
+                                </div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Background Leak</span>
+                                    <span class="font-bold text-[11px] text-accent" x-text="(state.metrics.p_leak_baseline_watts || 0).toFixed(1) + ' W'"></span>
+                                </div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Total Element kWh</span>
+                                    <span class="font-bold text-[11px] text-success" x-text="((state.metrics.total_energy_real_wh || 0) / 1000).toFixed(3) + ' kWh'"></span>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Active Session Load</div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Live Element Draw</span>
+                                    <span class="font-bold text-[11px] text-warning" x-text="(state.metrics.p_elements_real_watts || 0).toFixed(1) + ' W'"></span>
+                                </div>
+
+                                <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-base-400 uppercase font-bold text-[10px]">Session Energy</span>
+                                        <span class="font-bold text-[10px] text-base-content/50">Real vs Calc</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <progress class="progress progress-warning w-1/2" :value="state.metrics.running_energy_real_wh || 0" :max="Math.max(10, state.metrics.running_energy_calc_wh, state.metrics.running_energy_real_wh)"></progress>
+                                        <progress class="progress progress-info w-1/2" :value="state.metrics.running_energy_calc_wh || 0" :max="Math.max(10, state.metrics.running_energy_calc_wh, state.metrics.running_energy_real_wh)"></progress>
+                                    </div>
+                                    <div class="flex justify-between text-[10px] font-bold">
+                                        <span class="text-warning" x-text="((state.metrics.running_energy_real_wh || 0) / 1000).toFixed(3) + ' kWh'"></span>
+                                        <span class="text-info" x-text="((state.metrics.running_energy_calc_wh || 0) / 1000).toFixed(3) + ' kWh'"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Disaggregation Matrix</div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Phase U (3500W)</span>
+                                    <span class="font-bold text-[11px]" :class="(!state.metrics.extracted_p_u || state.metrics.extracted_p_u >= 3150) ? 'text-success' : 'text-error animate-pulse'" x-text="state.metrics.extracted_p_u ? state.metrics.extracted_p_u.toFixed(0) + ' W' : (state.devices[71046] ? 'CALCULATING...' : 'AWAITING VOLTAGE')"></span>
+                                </div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Phase V (3500W)</span>
+                                    <span class="font-bold text-[11px]" :class="(!state.metrics.extracted_p_v || state.metrics.extracted_p_v >= 3150) ? 'text-success' : 'text-error animate-pulse'" x-text="state.metrics.extracted_p_v ? state.metrics.extracted_p_v.toFixed(0) + ' W' : (state.devices[71046] ? 'CALCULATING...' : 'AWAITING VOLTAGE')"></span>
+                                </div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Phase W (2000W)</span>
+                                    <span class="font-bold text-[11px]" :class="(!state.metrics.extracted_p_w || state.metrics.extracted_p_w >= 1800) ? 'text-success' : 'text-error animate-pulse'" x-text="state.metrics.extracted_p_w ? state.metrics.extracted_p_w.toFixed(0) + ' W' : (state.devices[71046] ? 'CALCULATING...' : 'AWAITING VOLTAGE')"></span>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Cabin Integrity & History</div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
+                                    <span class="text-base-400 uppercase font-bold text-[10px]">Thermal Index (R_th)</span>
+                                    <span class="font-bold text-[11px] text-purple-400" x-text="state.metrics.r_th_insulation_coefficient !== null ? state.metrics.r_th_insulation_coefficient.toExponential(3) : 'CALCULATING...'"></span>
+                                </div>
+
+                                <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-1 cursor-help group relative">
+                                    <span class="text-base-400 uppercase font-bold text-[10px] border-b border-base-300 pb-1 mb-1">Last Sauna Session</span>
+                                    <template x-if="state.metrics.last_sauna_session">
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex justify-between text-[10px]"><span class="text-base-content/50">Date:</span> <span class="text-white" x-text="formatUnixTime(state.metrics.last_sauna_session.start_timestamp)"></span></div>
+                                            <div class="flex justify-between text-[10px]"><span class="text-base-content/50">Duration:</span> <span class="text-white" x-text="formatTime(state.metrics.last_sauna_session.total_runtime_secs)"></span></div>
+                                            <div class="flex justify-between text-[10px]"><span class="text-base-content/50">Max Temp:</span> <span class="text-white" x-text="state.metrics.last_sauna_session.temp_max + ' °C'"></span></div>
+                                            <div class="flex justify-between text-[10px]"><span class="text-base-content/50">Energy:</span> <span class="text-warning" x-text="(state.metrics.last_sauna_session.energy_real_wh / 1000).toFixed(3) + ' kWh'"></span></div>
+                                        </div>
+                                    </template>
+                                    <template x-if="!state.metrics.last_sauna_session">
+                                        <span class="text-[10px] italic text-base-content/50 text-center py-2">No data available</span>
+                                    </template>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         <dialog id="pc_power_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm">
             <div class="modal-box border bg-base-300 shadow-2xl"

@@ -184,6 +184,22 @@ class HealthMonitor:
                         }))
                         sm.dispatch(Event(type=EventType.SAUNA_OFF, payload={}))
 
+                        # Watchdog Check C: Disaggregated Heating Element Health Anomalies
+                        # Compares the active phase wattages solved by the RLS regression against the 10% drift threshold
+                    p_u = sys_state.metrics.extracted_p_u
+                    p_v = sys_state.metrics.extracted_p_v
+                    p_w = sys_state.metrics.extracted_p_w
+
+                    if p_u is not None and p_v is not None and p_w is not None:
+                        # Baseline power constants defined in structural system spec
+                        if p_u < 3150.0 or p_v < 3150.0 or p_w < 1800.0:
+                            logger.warning(
+                                "⚠️ HARDWARE DEGRADATION: Solving matrices indicate one or more elements have dropped >10% nominal power capacity!")
+                            sm.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                                "msg_text": "⚠️ Element Fatigue Detected: Internal regression models indicate phase rating drift.",
+                                "level": "warning"
+                            }))
+
                 metrics_payload = {
                     "wanos_connected": wanos_conn,
                     "domoticz_connected": dom_conn,

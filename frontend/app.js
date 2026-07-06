@@ -68,7 +68,18 @@ function wanosApp() {
                 douche_start_time: null,
                 douche_duration_secs: 0,
                 douche_water_liters: 0,
-                motion_triggers: {} // ⚡ Ephemeral diagnostic tally
+                motion_triggers: {}, // ⚡ Ephemeral diagnostic tally
+                p_leak_baseline_watts: 0.0,
+                p_elements_real_watts: 0.0,
+                r_th_insulation_coefficient: null,
+                extracted_p_u: 3500.0,
+                extracted_p_v: 3500.0,
+                extracted_p_w: 2000.0,
+                running_energy_real_wh: 0.0,
+                running_energy_calc_wh: 0.0,
+                total_energy_real_wh: 0.0,
+                last_sauna_session: null,
+                last_ir_session: null
             },
             hardware: {
                 sht11_connected: false,
