@@ -60,7 +60,7 @@
         <div id="pc-nav-menu" class="justify-center flex-1 min-w-0">
             <div class="join bg-base-200 border border-base-300">
                 <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-primary border-primary bg-primary/10">EXplorer</a>
-                <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">Commander</a>
+                <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">WISC</a>
             </div>
         </div>
 
@@ -71,7 +71,7 @@
                 </div>
                 <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
                     <li><a href="/deviceexplorer.html" class="text-primary font-bold">Device Explorer</a></li>
-                    <li><a href="/commander.html">Commander</a></li>
+                    <li><a href="/commander.html">WISC</a></li>
                 </ul>
             </div>
             <a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" x-show="isAdmin" x-cloak title="Return to Admin">                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -134,9 +134,8 @@
             <ul class="flex flex-col w-full divide-y divide-base-200/50">
                 <template x-for="item in unifiedDeviceList" :key="item.id">
 
-                    <li class="flex flex-row items-center justify-between p-3 md:p-4 hover:bg-base-200/50 transition-colors gap-1 md:gap-6 overflow-hidden w-full"
+                    <li class="flex flex-row items-center justify-between py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-1 md:gap-6 overflow-hidden w-full"
                     :class="item.is_dead ? 'opacity-50 grayscale bg-base-200/30' : ''">
-
                         <div class="flex-1 min-w-0 pr-1 md:pr-2 flex flex-col justify-center">
                             <template x-if="item.is_hue">
                                 <button class="text-left hover:text-primary transition-colors flex items-center gap-3 w-full" @click="openLightModal(item)">
@@ -195,14 +194,27 @@
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-info cursor-pointer hover:text-primary transition-colors"
                                           @click="setShutterState(item.id, 0)">OPEN</span>
 
-                                    <input type="range" min="0" max="100" step="1" class="range range-info range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0"
+                                    <input type="range" min="0" max="100" step="1" class="range range-info range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 touch-pan-y"
                                            :disabled="item.raw_value === null || item.is_dead"
                                            :value="item.raw_value !== null ? item.raw_value : 0"
-                                           @input="updateShutterOptimistic(item.id, $event.target.value)"
-                                           @change="setShutterState(item.id, parseInt($event.target.value, 10))" />
+                                           @pointerdown="let t = $event.touches ? $event.touches[0] : $event; $el._startX = t.clientX; $el._startY = t.clientY; $el._verified = false; $el._orig = $el.value;"
+                                           @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
+                                           @input="
+                                               if (!$el._verified) {
+                                                   $event.target.value = $el._orig;
+                                                   return;
+                                               }
+                                               updateShutterOptimistic(item.id, $event.target.value);
+                                           "
+                                           @change="
+                                               if (!$el._verified) {
+                                                   $event.target.value = $el._orig;
+                                                   return;
+                                               }
+                                               setShutterState(item.id, parseInt($event.target.value, 10));
+                                           " />
 
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"
-                                          @click="setShutterState(item.id, 100)">CLOSED</span>
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"                                          @click="setShutterState(item.id, 100)">CLOSED</span>
                                 </div>
                             </template>
 
@@ -215,14 +227,26 @@
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
                                           @click="injectLabHubStateChange(item.id, true)">PLAY</span>
 
-                                    <input type="range" min="0" max="100" step="1" class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer"
+                                    <input type="range" min="0" max="100" step="1" class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer touch-pan-y"
                                            :disabled="item.raw_value === null || item.is_dead"
                                            :value="item.ui_volume !== undefined ? item.ui_volume : 0"
-                                           @input="updateSpeakerOptimistic(item.id, $event.target.value)"
-                                           @change="setSpeakerVolume(item.id, parseInt($event.target.value, 10))" />
-
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-warning cursor-pointer hover:text-primary transition-colors"
-                                          @click="injectLabHubStateChange(item.id, false)">PAUSE</span>
+                                           @pointerdown="let t = $event.touches ? $event.touches[0] : $event; $el._startX = t.clientX; $el._startY = t.clientY; $el._verified = false; $el._orig = $el.value;"
+                                           @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
+                                           @input="
+                                               if (!$el._verified) {
+                                                   $event.target.value = $el._orig;
+                                                   return;
+                                               }
+                                               updateSpeakerOptimistic(item.id, $event.target.value);
+                                           "
+                                           @change="
+                                               if (!$el._verified) {
+                                                   $event.target.value = $el._orig;
+                                                   return;
+                                               }
+                                               setSpeakerVolume(item.id, parseInt($event.target.value, 10));
+                                           " />
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-warning cursor-pointer hover:text-primary transition-colors"                                          @click="injectLabHubStateChange(item.id, false)">PAUSE</span>
                                 </div>
                             </template>
 
