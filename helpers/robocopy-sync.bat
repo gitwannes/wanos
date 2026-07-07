@@ -1,20 +1,24 @@
 @echo off
 REM robocopy-sync.bat
 REM Modes: test | run | runlocal
-REM Normalizes all .sh files in one or more SRC_DIRS then runs robocopy.
-REM This file preserves your original robocopy /JOB: usage and RCJ file.
+REM Normalizes all .sh files in one or more SRC_DIRS then runs two robocopy jobs:
+REM 1) Local → Pi (mirror)
+REM 2) Pi → Local (stats / include-only)
 
 setlocal ENABLEDELAYEDEXPANSION
 
 REM ---------- configure ----------
-REM Edit this line only to list your source directories (one quoted path per directory)
-REM Example (no extra outer quotes):
-REM set SRC_DIRS="C:\data\git\wanos" "C:\data\git\wanos\helpers"
+REM Local source directories for normalization
 set SRC_DIRS="C:\data\git\wanos" "C:\data\git\wanos\helpers"
 
+REM Destinations (passed to robocopy, NOT stored in RCJ files)
 set "TARGET_Z=Z:"
 set "CODE_IMPORT=C:\data\git\wanos\code-import"
-set "RCJ=wanos.rcj"
+set "STATS_DEST=C:\data\OneDrive\data\professional\wanos\logs"
+
+REM RCJ job files (sources are inside the RCJs)
+set "RCJ_LOCAL_TO_PI=wanos.rcj"
+set "RCJ_PI_TO_LOCAL=wanos-stats.rcj"
 REM -------------------------------
 
 echo.
@@ -28,11 +32,11 @@ echo.
 REM ---------- argument parsing ----------
 if "%~1"=="" goto :show_help
 set "MODE=%~1"
+
 if /I "%MODE%"=="test"     set "MODE=test"
 if /I "%MODE%"=="run"      set "MODE=run"
 if /I "%MODE%"=="runlocal" set "MODE=runlocal"
 
-REM Validate mode explicitly and jump to the handler
 if /I "%MODE%"=="test" goto :mode_test
 if /I "%MODE%"=="run" goto :mode_run
 if /I "%MODE%"=="runlocal" goto :mode_runlocal
@@ -62,7 +66,7 @@ if "%SRC_DIRS%"=="" (
 
 echo Checking CodeFolder...
 if exist "%CODE_IMPORT%\" (
-    echo CodeFolder ^(for use with AI^) exists
+    echo CodeFolder exists
 ) else (
     echo CodeFolder NOT found - will attempt to create when needed
 )
@@ -71,13 +75,14 @@ echo ================================
 echo Mode selected: %MODE%
 echo ================================
 echo.
+goto :eof
 
 REM ---------- HELP ----------
 :show_help
 echo.
 echo Usage:
 echo     robocopy-sync.bat test      ^> Dry-run, show what WOULD be copied (requires Z:)
-echo     robocopy-sync.bat run       ^> Perform full sync (Z: + CodeFolder) (requires Z:)
+echo     robocopy-sync.bat run       ^> Perform full sync (Local→Pi + Pi→Local) (requires Z:)
 echo     robocopy-sync.bat runlocal  ^> Sync ONLY to CodeFolder (no Z:)
 echo.
 echo Configure SRC_DIRS at the top of this script as quoted paths separated by spaces.
@@ -87,7 +92,7 @@ echo.
 echo No actions performed.
 exit /b 1
 
-REM ---------- helper: normalize .sh files in a single directory ----------
+REM ---------- helper: normalize .sh files ----------
 :normalize_dir
 REM %1 = directory (quoted or unquoted)
 set "THIS_DIR=%~1"
@@ -124,7 +129,7 @@ for %%F in (*.sh) do (
 popd
 exit /b 0
 
-REM ---------- process all configured source directories ----------
+REM ---------- normalize all configured source directories ----------
 :normalize_sh_files
 echo.
 echo ================================
@@ -150,7 +155,7 @@ echo Normalization complete.
 echo.
 goto :eof
 
-REM ---------- MODE IMPLEMENTATIONS (preserve original robocopy /JOB: behavior) ----------
+REM ---------- MODE IMPLEMENTATIONS ----------
 :mode_test
 call :check_z_and_paths
 echo ================================
@@ -159,10 +164,13 @@ echo No files will be copied or deleted.
 echo ================================
 echo.
 
-call :normalize_sh_files
+echo --- TEST: Local to Pi (mirror) ---
+robocopy /JOB:"%RCJ_LOCAL_TO_PI%" "%TARGET_Z%" /L
 
-echo --- Starting robocopy to Pi (Z:\) [DRY RUN] ...
-robocopy /JOB:"%RCJ%" "%TARGET_Z%" /L
+echo.
+echo --- TEST: Pi to Local (stats include-only) ---
+echo .......doens't work for now
+REM robocopy /JOB:"%RCJ_PI_TO_LOCAL%" "%STATS_DEST%" /IF *.db /IF wanos.console.log /IF wanos-nvram.json /IF wanos-nvram.json.tmp /IF wanos* /L
 
 echo.
 echo Test run complete.
@@ -178,29 +186,31 @@ echo.
 
 call :normalize_sh_files
 
-echo --- Starting robocopy to Pi (Z:\) ...
-robocopy /JOB:"%RCJ%" "%TARGET_Z%"
+echo --- RUN: Local → Pi (mirror) ---
+robocopy /JOB:"%RCJ_LOCAL_TO_PI%" "%TARGET_Z%"
 
 echo.
-echo --- Starting robocopy to CodeFolder ...
-robocopy /JOB:"%RCJ%" "%CODE_IMPORT%"
+echo --- RUN: Local → CodeFolder ---
+robocopy /JOB:"%RCJ_LOCAL_TO_PI%" "%CODE_IMPORT%"
+
+echo.
+echo --- RUN: Pi → Local (stats include-only) ---
+echo .......doens't work for now
+REM robocopy /JOB:"%RCJ_PI_TO_LOCAL%" "%STATS_DEST%" /IF *.db /IF wanos.console.log /IF wanos-nvram.json /IF wanos-nvram.json.tmp /IF wanos*
 
 echo.
 echo Sync complete.
 exit /b 0
 
 :mode_runlocal
-REM runlocal skips Z: check
 echo ================================
 echo Running in RUNLOCAL MODE
 echo Only syncing to CodeFolder
 echo ================================
 echo.
 
-call :normalize_sh_files
-
-echo --- Starting robocopy to CodeFolder (RUNLOCAL) ...
-robocopy /JOB:"%RCJ%" "%CODE_IMPORT%"
+echo --- RUNLOCAL: Local → CodeFolder ---
+robocopy /JOB:"%RCJ_LOCAL_TO_PI%" "%CODE_IMPORT%"
 
 echo.
 echo Local-only sync complete.

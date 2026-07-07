@@ -5,14 +5,19 @@
 ::/L                  :: List Only: Dry run - don't do anything
 
 :: Source Directory
-/SD:C:\data\git\wanos\
+/SD:Z:\
 
 :: Destination Directory - moved to command line
-:: /DD:Z:\
+:: /DD:C:\data\OneDrive\data\professional\wanos\logs
+
+
+:: Copy newer only (no deletes)
+/E                  :: Copy new files only
+/XO                 :: No deletes
 
 :: --- Copy Options ---
 ::/S                  :: Copy subdirectories, but do NOT delete anything at the destination
-/MIR                :: Mirror
+::/MIR                :: Mirror
 ::/V                  :: Verbose
 /R:2                :: Number of Retries on failed files
 /W:5                :: Wait time between retries (in seconds)
@@ -33,36 +38,12 @@
 /FFT                :: Assumes FAT file times (2-second precision) to fix Samba mismatch
 /DST                :: Compensates for 1-hour DST time differences
 
-:: --- Exclude Directories
-/XD
-:: On local
-    .git
-    .idea
-    .venv
-    docs
-	code-import
-	bootstrap
-	backup*
-:: On Pi
-	wanos_venv
-	migration_venv
-	billit_venv
-	__pycache__
 
-:: --- Exclude Files
-/XF
-:: On local
-	.env*
-    .gitignore
-    * - Copy.py
-	*.zip
-	dhcpcd.conf
-	*.bat      :: robocopy-sync.bat
-	wanos.rcj  :: configfile for Robocopy
-	*.bak
-:: On Pi
-	wanos.console.log
-	wanos-nvram.json
-	wanos-nvram.json.tmp
-	.lgd-nfy0
-	*.db
+:: Exclude everything
+:: /XF *            :: Assumed by RoboCopy
+
+:: Include only these
+:: command-line only (in .bat file)
+
+:: Include Pi log directory
+/XD /var/log/wanos

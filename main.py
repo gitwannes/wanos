@@ -387,7 +387,7 @@ async def login(req: LoginRequest, request: Request):
     jwt_payload = {"role": role, "exp": expiration}
     token = jwt.encode(jwt_payload, config.auth.secret_key, algorithm="HS256")
 
-    target_url = "/admin.html" if role == "admin" else ("/deviceexplorer.html" if role == "user" else "/kiosk.html")
+    target_url = "/deviceexplorer.html" if role in ["admin", "user"] else "/kiosk.html"
 
     # Send the token directly in the JSON response body
     return JSONResponse(content={"status": "Success", "role": role, "redirect": target_url, "token": token})

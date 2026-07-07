@@ -7,6 +7,7 @@ from core.models import Event, EventType
 from core.logger import automation_logger
 from logic.alert_manager import AlertManager
 
+_shutter_debounce_tasks = {}
 
 async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
@@ -53,7 +54,12 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         if state_val is not None:
             new_val["state"] = state_val
         if "bri" in payload:
-            new_val["bri"] = payload["bri"]
+            # ⚡ HUE NORMALIZER: Compress legacy 0-254 integers into 0-100% metrics to prevent Echo bounces
+            raw_bri = payload["bri"]
+            if isinstance(raw_bri, (int, float)) and raw_bri > 100:
+                new_val["bri"] = round((raw_bri / 254.0) * 100.0)
+            else:
+                new_val["bri"] = raw_bri
         if "xy" in payload:
             new_val["xy"] = payload["xy"]
         if "volume" in payload:
@@ -61,7 +67,11 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
     elif is_rich_payload:
         new_val = {"state": state_val}
         if "bri" in payload:
-            new_val["bri"] = payload["bri"]
+            raw_bri = payload["bri"]
+            if isinstance(raw_bri, (int, float)) and raw_bri > 100:
+                new_val["bri"] = round((raw_bri / 254.0) * 100.0)
+            else:
+                new_val["bri"] = raw_bri
         if "xy" in payload:
             new_val["xy"] = payload["xy"]
         if "volume" in payload:
@@ -87,6 +97,40 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         manager._state.devices[idx] = new_val
         state_changed = True
         changed_domains.add("devices")
+
+        # --- ⚡ DEVICE INSIGHTS HISTORY LOGGING ---
+        if not is_init and hasattr(manager, "history_manager"):
+            device_meta = manager._state.device_metadata.get(idx, {})
+            dev_type = device_meta.get("type", "")
+
+            # Explicitly include hardware doors as binary switches, ignore other passive sensors
+            if dev_type not in ["temp", "hum", "temp_hum", "motion", "scene"] or idx in [10001, 10002]:
+                is_analog = dev_type in ["blinds", "shutter"] or isinstance(state_val, (int, float))
+
+                # Check if the fundamental binary power state actually changed
+                old_log_state = old_val.get("state") if isinstance(old_val, dict) else old_val
+
+                if old_log_state != state_val or is_push_button:
+                    if is_analog:
+                        # Debounce analog slider values: Wait 30 seconds of no movement before committing
+                        if idx in _shutter_debounce_tasks:
+                            _shutter_debounce_tasks[idx].cancel()
+
+                        async def debounced_log(target_idx, val):
+                            try:
+                                await asyncio.sleep(30.0)
+                                manager.history_manager.log_event(target_idx, str(val))
+                                # Trigger frontend SSE update via dummy injection
+                                manager.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED,
+                                                       payload={"insights_trigger": True}))
+                            except asyncio.CancelledError:
+                                pass
+
+                        _shutter_debounce_tasks[idx] = asyncio.create_task(debounced_log(idx, state_val))
+                    else:
+                        # Binary switches (ON/OFF) commit immediately without debounce
+                        manager.history_manager.log_event(idx, str(state_val))
+                        changed_domains.add("metrics")
 
         # Artificially inject 0.0W to instantly flush power graphs when switches turn off
         if state_val == "OFF":

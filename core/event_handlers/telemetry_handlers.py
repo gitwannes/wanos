@@ -86,6 +86,11 @@ async def handle_external_weather_updated(event: Event, manager: Any) -> Tuple[b
 
 async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
+
+    # ⚡ Trap the custom insights trigger to push debounced historical data up the SSE stream
+    if payload.get("insights_trigger", False):
+        return True, {"metrics"}
+
     state_changed = False
     changed_domains = set()
 

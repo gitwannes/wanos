@@ -16,6 +16,7 @@ from core.nvm_manager import NVRAMManager
 from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
 from logic.power_analytics import PowerAnalytics
+from logic.history_manager import DeviceHistoryManager
 
 
 class StateManager:
@@ -80,6 +81,7 @@ class StateManager:
 
         # Instantiate isolated mathematical telemetry and logging engine
         self._power_analytics = PowerAnalytics(self)
+        self.history_manager = DeviceHistoryManager(self)
 
         # Assemble initial structural application lifecycle tags inside live RAM state
         self._state.system.version_major = f"v{self._config.version}"
@@ -295,6 +297,7 @@ class StateManager:
         self._worker_task = asyncio.create_task(self._process_events())
         self._health_monitor.start()
         self._power_analytics.start()
+        self.history_manager.start()
 
         # ⚡ SINGLETON TIMER INSTANTIATION (Event Loop Safe)
         # Must be initialized inside an async context so its internal background tasks bind to the running loop!
@@ -318,6 +321,7 @@ class StateManager:
         self._set_hardware_safety_gate(False)
         await self._health_monitor.stop()
         await self._power_analytics.stop()
+        await self.history_manager.stop()
         if self.sonos_bridge:
             await self.sonos_bridge.stop()
         if self._worker_task:

@@ -20,6 +20,7 @@ auth:
 # 400xx : RFX
 # 500xx : Hue (config_hue.taml)
 # 600xx : Sonos
+# 610xx : Onkyo
 # 700xx : Z-Wave (config_zwave.yaml)
 
 # ==============================================================================

@@ -516,6 +516,36 @@ function wanosApp() {
             return list;
         },
 
+        // Evaluates the exact same filters/sort logic as unifiedDeviceList, but permanently drops transient/history-less items
+        get insightsDeviceList() {
+            return this.unifiedDeviceList.filter(item => {
+                if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'motion' || item.type === 'scene') {
+                    return false;
+                }
+                return true;
+            });
+        },
+
+        // ⏱️ Mathematical duration translator for the Insights page
+        getDurationString(unixTimestamp) {
+            if (!unixTimestamp) return "--";
+            const diff = Math.floor(Date.now() / 1000) - unixTimestamp;
+            if (diff < 60) return `${diff}s ago`;
+            const mins = Math.floor(diff / 60);
+            if (mins < 60) return `${mins}m ago`;
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return `${hrs}h ${mins % 60}m ago`;
+            const days = Math.floor(hrs / 24);
+            return `${days}d ${hrs % 24}h ago`;
+        },
+
+        // ⏱️ Human-readable short date formatter for the Insights page
+        formatDateShort(unixTimestamp) {
+            if (!unixTimestamp) return "--:--";
+            const d = new Date(unixTimestamp * 1000);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        },
+
         getAuthHeaders() {
             // Retrieve persistent token from localStorage
             const token = localStorage.getItem("wanos_jwt");
@@ -612,9 +642,9 @@ function wanosApp() {
 
                     if (payload.role === "admin") {
                         this.isAdmin = true;
-                    } else if (payload.role === "user" && window.location.pathname.includes("admin.html")) {
-                        // ⚡ THE BOUNCER: If a smartphone browser auto-completes to admin.html, kick them out
-                        console.warn("Unauthorized access attempt to admin.html. Redirecting...");
+                    } else if (payload.role === "user" && (window.location.pathname.includes("admin.html") || window.location.pathname.includes("deviceinsights.html"))) {
+                        // ⚡ THE BOUNCER: If a smartphone browser auto-completes to an admin page, kick them out
+                        console.warn("Unauthorized access attempt. Redirecting...");
                         window.location.href = "/deviceexplorer.html";
                         return;
                     }
@@ -646,8 +676,37 @@ function wanosApp() {
                 }
             }
 
+            // ⚡ RESTORE FILTERS FROM SESSION
+            // Seamlessly maintains active filter contexts when moving between the Explorer and Insights pages
+            const savedFilters = sessionStorage.getItem('wanos_active_filters');
+            if (savedFilters) {
+                try {
+                    const parsed = JSON.parse(savedFilters);
+                    this.searchQuery = parsed.searchQuery !== undefined ? parsed.searchQuery : "";
+                    this.typeFilter = parsed.typeFilter || "ALL";
+                    this.statusFilter = parsed.statusFilter || "ALL";
+                    this.sortMode = parsed.sortMode || "NAME";
+                } catch (e) {}
+            }
+
+            // Bind watchers to actively save filters as the user navigates
+            this.$watch('searchQuery', () => this.saveFilters());
+            this.$watch('typeFilter', () => this.saveFilters());
+            this.$watch('statusFilter', () => this.saveFilters());
+            this.$watch('sortMode', () => this.saveFilters());
+
             this.connectSSE();
             setInterval(this.ticker.bind(this), 1000);
+        },
+
+        // Helper to push current layout filters to sessionStorage
+        saveFilters() {
+            sessionStorage.setItem('wanos_active_filters', JSON.stringify({
+                searchQuery: this.searchQuery,
+                typeFilter: this.typeFilter,
+                statusFilter: this.statusFilter,
+                sortMode: this.sortMode
+            }));
         },
 
         async fetchFullSnapshot() {

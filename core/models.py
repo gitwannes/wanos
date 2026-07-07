@@ -269,6 +269,10 @@ class MetricsState(BaseModel):
     last_sauna_session: Optional[Dict[str, Any]] = None
     last_ir_session: Optional[Dict[str, Any]] = None
 
+    # ⚡ DEVICE INSIGHTS
+    # Persisted ledger for UI analysis (last changed timestamp, daily switches, averages)
+    device_insights: Dict[int, Dict[str, Any]] = Field(default_factory=dict)
+
 
 class HardwareState(BaseModel):
     sht11_connected: bool = False
