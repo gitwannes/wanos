@@ -88,6 +88,32 @@
             <span x-text="disabledIntegrationsText"></span>
         </div>
 
+        <div class="flex items-center justify-between bg-base-100 shadow-md border border-base-200 rounded-box py-1.5 px-3">
+            <div class="flex items-center gap-3">
+                <button class="btn btn-xs btn-circle btn-ghost text-error/70 hover:text-error hover:bg-error/20 mr-3 md:mr-5 border border-error/10"
+                        title="Clear all filters"
+                        @click="clearAllFilters()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+
+                <div class="flex gap-2">
+                    <template x-for="(preset, index) in presets" :key="index">
+                        <button class="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold font-mono text-[11px] md:text-sm transition-colors duration-200 border border-base-content/20"
+                                :class="preset !== null ? 'bg-primary text-primary-content border-primary shadow-md' : 'bg-transparent text-base-content/40 hover:border-primary/50'"
+                                @click="handlePresetClick(index)">
+                            <span x-text="index + 1"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <button class="btn btn-sm btn-ghost text-lg hover:bg-base-200"
+                    title="Manage Presets"
+                    @click="document.getElementById('preset_edit_modal').showModal()">
+                ✏️
+            </button>
+        </div>
+
         <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3">
             <div class="grid grid-cols-2 md:flex md:flex-row gap-2 md:gap-3 items-center w-full">
 
@@ -119,6 +145,7 @@
                 </select>
 
                 <select class="select select-bordered select-sm col-span-2 md:col-auto md:w-auto min-w-[120px] font-mono text-[10px] md:text-xs bg-base-200 w-full px-2" x-model="sortMode">
+                    <option value="TYPE">Sort by Type</option>
                     <option value="NAME">Sort by Name</option>
                     <option value="STATUS">Sort by Status</option>
                 </select>
@@ -151,6 +178,7 @@
                                 <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate w-full flex items-center gap-1.5 select-none"
                                      :class="((item.type === 'blinds' || item.type === 'speaker') && !item.is_dead && item.raw_value !== null) ? 'cursor-pointer hover:text-primary transition-colors' : ''"
                                      @click="if(item.type === 'blinds') handleShutterNameClick(item); if(item.type === 'speaker') handleSpeakerNameClick(item)">
+
                                     <template x-if="item.type === 'speaker'">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><circle cx="12" cy="14" r="4"></circle><line x1="12" y1="6" x2="12.01" y2="6"></line></svg>
@@ -162,6 +190,95 @@
                                         <div class="flex items-center gap-1 shrink-0">
                                             <svg class="w-3.5 h-3.5 text-accent shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"></path><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"></path><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"></path></svg>
                                             <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">Scene</span>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'blinds'">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm">↕️</span>
+                                            <!--
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">shutter</span>
+                                            -->
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.name.toLowerCase().includes('water') || item.name.toLowerCase().includes('liter')">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm">💧</span>
+                                            <!--
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">water</span>
+                                            -->
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'temp_hum' && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-[10px] md:text-xs">🌡️💧</span>
+                                            <!--
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">climate</span>
+                                            -->
+                                        </div>
+                                    </template>
+
+                                    <template x-if="(item.type === 'temp' || (item.type === 'sensor' && item.name.toLowerCase().includes('temp'))) && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm">🌡️</span>
+                                            <!--
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">temp</span>
+                                            -->
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'energy' && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm opacity-80">🔌</span>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">energy</span>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'power' && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm text-warning">⚡</span>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">power</span>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'sensor' && item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('water')">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm text-info">⚡</span>
+                                            <!--
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">voltage</span>
+                                            -->
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'sensor' && item.name.toLowerCase().includes('motion')">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm">🏃</span>
+                                            <!--
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">motion</span>
+                                            -->
+                                        </div>
+                                    </template>
+
+                                    <template x-if="(item.name.toLowerCase().includes('cinema') || item.name.toLowerCase().includes('epson') || item.name.toLowerCase().includes('projector')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'temp_hum' && item.type !== 'temp' && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm">🎬</span>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">cinema</span>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="(item.name.toLowerCase().includes('sauna') || item.name.toLowerCase().includes('zoutlamp')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'temp_hum' && item.type !== 'temp' && item.type !== 'power' && item.type !== 'energy' && !item.name.toLowerCase().includes('cinema') && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm">♨️</span>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">sauna</span>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="(item.name.toLowerCase().includes(' ir ') || item.name.toLowerCase().startsWith('ir ') || item.name.toLowerCase() === 'ir' || item.name.toLowerCase().includes('infrarood')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'temp_hum' && item.type !== 'temp' && item.type !== 'power' && item.type !== 'energy' && !item.name.toLowerCase().includes('sauna') && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="text-sm">🟥</span>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">IR</span>
                                         </div>
                                     </template>
 
@@ -380,6 +497,64 @@
                 <button>close</button>
             </form>
         </dialog>
+
+        <dialog id="preset_save_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+            <div class="modal-box border border-primary/20 bg-base-300 shadow-2xl text-center">
+                <h3 class="font-black text-lg text-base-content tracking-wider mb-2">Save Preset</h3>
+                <p class="text-sm text-base-content/70 mb-6">Wil je de huidige filters bewaren in <span class="font-bold text-primary">preset <span x-text="(activePresetSlot !== null ? activePresetSlot + 1 : '')"></span></span>?</p>
+                <div class="modal-action">
+                    <form method="dialog" class="w-full flex justify-between gap-4">
+                        <button class="btn btn-outline flex-1 font-mono text-base-content/70" @click="activePresetSlot = null">Cancel</button>
+                        <button type="button" class="btn btn-primary flex-1 font-mono shadow-md text-primary-content font-bold" @click="confirmSavePreset()">SAVE PRESET</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button @click="activePresetSlot = null">close</button>
+            </form>
+        </dialog>
+
+        <dialog id="preset_edit_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+            <div class="modal-box border border-base-content/10 bg-base-300 shadow-2xl">
+                <h3 class="font-bold text-lg border-b border-base-200 pb-2 mb-4">Manage Presets</h3>
+
+                <div class="flex flex-col gap-3">
+                    <template x-for="(preset, index) in presets" :key="index">
+                        <div class="flex items-center justify-between p-3 bg-base-200 rounded-box border border-base-300">
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                                      :class="preset !== null ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content/30'"
+                                      x-text="index + 1"></span>
+                                <span class="font-mono text-xs truncate"
+                                      :class="preset === null ? 'text-base-content/40 italic' : 'text-base-content/90'"
+                                      x-text="getPresetSummary(index)"></span>
+                            </div>
+                            <button class="btn btn-xs btn-circle btn-error btn-outline shrink-0 ml-2"
+                                    x-show="preset !== null"
+                                    title="Remove Preset"
+                                    @click="removePreset(index)">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="modal-action border-t border-base-200 pt-4 mt-6">
+                    <form method="dialog" class="w-full">
+                        <button class="btn btn-outline btn-block btn-sm font-mono text-base-content/70">Close</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <div class="toast toast-bottom toast-center z-[99999]" x-show="toastMessage !== ''" x-transition x-cloak>
+            <div class="alert alert-error shadow-lg">
+                <span class="font-mono text-xs font-bold text-error-content" x-text="toastMessage"></span>
+            </div>
+        </div>
 
     </main>
     <script src="app.js?v=2.0"></script>

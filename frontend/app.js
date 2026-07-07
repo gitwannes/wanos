@@ -132,6 +132,12 @@ function wanosApp() {
         statusFilter: "ALL", // "ALL", "ON", "OFF"
         sortMode: "NAME",    // "NAME", "STATUS"
 
+        // ⚡ View Presets State
+        presets: [null, null, null, null, null], // Array of 5 slots to hold view filter dictionaries
+        activePresetSlot: null, // Tracks which slot is currently being saved
+        toastMessage: "", // Ephemeral UI feedback message
+        toastTimeout: null,
+
         // ⚡ Reactive Time Heartbeat
         nowUnix: Math.floor(Date.now() / 1000),
 
@@ -497,13 +503,13 @@ function wanosApp() {
                     if (statusA !== statusB) {
                         return statusB - statusA;
                     }
-                } else if (this.sortMode === "NAME") {
+                } else if (this.sortMode === "TYPE") {
                     // Sort primarily by Type (Groups items logically)
                     if (a.type !== b.type) {
                         return a.type.localeCompare(b.type);
                     }
                 }
-                // Universal Fallback: Alphabetical by Name
+                // Universal Fallback: Alphabetical by Name (Used purely for "NAME", or as secondary for "STATUS"/"TYPE")
                 return a.name.localeCompare(b.name);
             });
 
@@ -575,6 +581,21 @@ function wanosApp() {
 
         init() {
             console.log("🚀 WanOS Web Controller initializing...");
+
+            // ⚡ RESTORE VIEW PRESETS
+            // Loads saved filter/sort configurations from the browser's persistent local storage
+            try {
+                const savedPresets = localStorage.getItem('wanos_view_presets');
+                if (savedPresets) {
+                    const parsed = JSON.parse(savedPresets);
+                    if (Array.isArray(parsed)) {
+                        // Safe migration: Pads existing 4-slot arrays to 5 slots, or truncates if somehow longer
+                        this.presets = [...parsed, null, null, null, null, null].slice(0, 5);
+                    }
+                }
+            } catch (err) {
+                console.warn("⚠️ Failed to parse view presets from localStorage. Reverting to default array.");
+            }
 
             // ⚡ VISUAL STATE PERSISTENCE
             // Automatically saves the lab panel toggle state to the browser whenever you click it
@@ -1537,6 +1558,90 @@ function wanosApp() {
                     console.warn("UI Guard: Config reload lock released via timeout failsafe.");
                 }
             }, 10 * 1000);
+        },
+
+        // =========================================================================
+        // 🗂️ PRESET FILTER MANAGEMENT
+        // =========================================================================
+
+        // Determines if the current view state differs from the system defaults
+        isFilterActive() {
+            return this.searchQuery.trim() !== "" || this.typeFilter !== "ALL" || this.statusFilter !== "ALL" || this.sortMode !== "NAME";
+        },
+
+        // Rapidly clears all UI filters and sort modes back to their base defaults
+        clearAllFilters() {
+            this.searchQuery = "";
+            this.typeFilter = "ALL";
+            this.statusFilter = "ALL";
+            this.sortMode = "NAME";
+        },
+
+        // Router for when a user clicks one of the 1-4 preset circles
+        handlePresetClick(index) {
+            if (this.presets[index] !== null) {
+                // APPLY PRESET: Slot is filled, instantly map the saved payload to the reactive filters
+                const p = this.presets[index];
+                this.searchQuery = p.searchQuery;
+                this.typeFilter = p.typeFilter;
+                this.statusFilter = p.statusFilter;
+                this.sortMode = p.sortMode;
+            } else {
+                // SAVE PRESET: Slot is empty, verify if there is actually a modified view to save
+                if (!this.isFilterActive()) {
+                    this.showToast("Kan filter niet bewaren: er is geen filter of sortering.");
+                } else {
+                    this.activePresetSlot = index;
+                    document.getElementById('preset_save_modal').showModal();
+                }
+            }
+        },
+
+        // Invoked via the modal to permanently commit the current view state to the active slot
+        confirmSavePreset() {
+            if (this.activePresetSlot !== null) {
+                const payload = {
+                    searchQuery: this.searchQuery,
+                    typeFilter: this.typeFilter,
+                    statusFilter: this.statusFilter,
+                    sortMode: this.sortMode
+                };
+                this.presets[this.activePresetSlot] = payload;
+                localStorage.setItem('wanos_view_presets', JSON.stringify(this.presets));
+                this.activePresetSlot = null; // Release the lock
+                document.getElementById('preset_save_modal').close();
+            }
+        },
+
+        // Clears a specific slot and flushes the deletion to persistent storage
+        removePreset(index) {
+            this.presets[index] = null;
+            localStorage.setItem('wanos_view_presets', JSON.stringify(this.presets));
+        },
+
+        // Compiles a human-readable summary of the payload for the edit menu
+        getPresetSummary(index) {
+            const p = this.presets[index];
+            if (!p) return "Empty";
+
+            let parts = [];
+            if (p.searchQuery) parts.push(`"${p.searchQuery}"`);
+            if (p.typeFilter !== "ALL") parts.push(p.typeFilter);
+            if (p.statusFilter !== "ALL") parts.push(p.statusFilter);
+
+            if (p.sortMode === "STATUS") parts.push("Sort: Status");
+            else if (p.sortMode === "TYPE") parts.push("Sort: Type, Name");
+            else if (p.sortMode === "NAME") parts.push("Sort: Name");
+
+            // Fallback for edge cases, though isFilterActive normally guards against saving empty states
+            return parts.length > 0 ? parts.join(" • ") : "Default View";
+        },
+
+        // Simple ephemeral UI feedback manager
+        showToast(msg) {
+            this.toastMessage = msg;
+            if (this.toastTimeout) clearTimeout(this.toastTimeout);
+            this.toastTimeout = setTimeout(() => { this.toastMessage = ""; }, 3000);
         }
     };
 }

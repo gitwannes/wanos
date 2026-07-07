@@ -130,7 +130,7 @@ hardware_links:
 # Devices explicitly hidden from the Device Explorer UI
 # Z-Wave devices exlusions via zwave_config.yaml
 deviceexplorer_exclude:
-  - 80001 # Epson projector
+  # - 80001 # Epson projector
   - 40004 # kerstboom
   - 40005 # kerst lichten voor
   - 72006 # kerst lichten tuin

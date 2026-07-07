@@ -179,10 +179,14 @@ class AutomationEngine:
                         else:
                             target_action_state = raw_action_state
 
-                        # ⚡ STRICT STATE FILTER: Prevent 'None' states from propagating to physical hardware.
-                        # Drops ghost payloads (e.g., Hue brightness slides without binary power states)
-                        # before they hit the execution blocks.
-                        if target_action_state is None:
+                            # ⚡ STRICT STATE FILTER: Prevent 'None' states from propagating to physical hardware.
+                            # Drops ghost payloads (e.g., Hue brightness slides without binary power states)
+                            # before they hit the execution blocks.
+                            # We safely bypass this filter for Native Events and Hue Scenes which inherently do not require binary states.
+                        is_pure_event: bool = getattr(action, "event", None) is not None
+                        is_hue_scene: bool = getattr(action, "target", None) == "hue_scene"
+
+                        if target_action_state is None and not is_pure_event and not is_hue_scene:
                             automation_logger.debug(
                                 f"[X-RAY] -> Action SKIPPED: Target state resolved to None (Ghost Payload)."
                             )
