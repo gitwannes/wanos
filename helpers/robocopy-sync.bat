@@ -2,8 +2,8 @@
 REM robocopy-sync.bat
 REM Modes: test | run | runlocal
 REM Normalizes all .sh files in one or more SRC_DIRS then runs two robocopy jobs:
-REM 1) Local → Pi (mirror)
-REM 2) Pi → Local (stats / include-only)
+REM 1) Local to Pi (mirror)
+REM 2) Pi to Local (stats / include-only)
 
 setlocal ENABLEDELAYEDEXPANSION
 
@@ -82,7 +82,7 @@ REM ---------- HELP ----------
 echo.
 echo Usage:
 echo     robocopy-sync.bat test      ^> Dry-run, show what WOULD be copied (requires Z:)
-echo     robocopy-sync.bat run       ^> Perform full sync (Local→Pi + Pi→Local) (requires Z:)
+echo     robocopy-sync.bat run       ^> Perform full sync (LocaltoPi + PitoLocal) (requires Z:)
 echo     robocopy-sync.bat runlocal  ^> Sync ONLY to CodeFolder (no Z:)
 echo.
 echo Configure SRC_DIRS at the top of this script as quoted paths separated by spaces.
@@ -186,15 +186,15 @@ echo.
 
 call :normalize_sh_files
 
-echo --- RUN: Local → Pi (mirror) ---
+echo --- RUN: Local to Pi (mirror) ---
 robocopy /JOB:"%RCJ_LOCAL_TO_PI%" "%TARGET_Z%"
 
 echo.
-echo --- RUN: Local → CodeFolder ---
+echo --- RUN: Local to CodeFolder ---
 robocopy /JOB:"%RCJ_LOCAL_TO_PI%" "%CODE_IMPORT%"
 
 echo.
-echo --- RUN: Pi → Local (stats include-only) ---
+echo --- RUN: Pi to Local (stats include-only) ---
 echo .......doens't work for now
 REM robocopy /JOB:"%RCJ_PI_TO_LOCAL%" "%STATS_DEST%" /IF *.db /IF wanos.console.log /IF wanos-nvram.json /IF wanos-nvram.json.tmp /IF wanos*
 
@@ -209,7 +209,7 @@ echo Only syncing to CodeFolder
 echo ================================
 echo.
 
-echo --- RUNLOCAL: Local → CodeFolder ---
+echo --- RUNLOCAL: Local to CodeFolder ---
 robocopy /JOB:"%RCJ_LOCAL_TO_PI%" "%CODE_IMPORT%"
 
 echo.

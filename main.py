@@ -231,8 +231,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 state_manager.dispatch(Event(type=EventType.HUE_TOGGLED, payload={"enabled": True}))
                 state_manager.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True}))
                 state_manager.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={"enabled": True}))
-                # Phase 3: Enable Sonos
+                # Phase 3: Enable Sonos & Onkyo
                 state_manager.dispatch(Event(type=EventType.SONOS_TOGGLED, payload={"enabled": True}))
+                state_manager.dispatch(Event(type=EventType.ONKYO_TOGGLED, payload={"enabled": True}))
                 # Phase 4: Enable Z-Wave
                 state_manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True}))
                 # Phase 5: The OWM Cloud

@@ -75,8 +75,18 @@ sonos:
   stations:
     qmaxhits: "x-sonosapi-stream:tunein%3a208746?sid=303&flags=8232&sn=1"
 
+onkyo:
+  max_volume: 60
+  device_map:
+    61001:
+      ip: "10.32.251.35"
+      name: "Cinema Onkyo (TX-NR575E)"
+    61002:
+      ip: "10.32.251.78"
+      name: "Living Onkyo (TX-NR616)"
+
 rfxcom:
-  # To find the exact USB port run: dmesg | grep tty OR lsusb
+  # To find the exact USB port run: dmesg | grep tty OR lsusb --> update
   serial_port: "/dev/rfxcom"
 
 # --- Declarative translation mapping for physical RFXCom 433MHz signals ---

@@ -267,6 +267,39 @@ async def handle_sonos_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     return state_changed, changed_domains
 
 
+async def handle_onkyo_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Handles the UI master switch to enable/disable the local Onkyo integration."""
+    payload = event.payload or {}
+    state_changed = False
+    changed_domains = set()
+    is_enabled = payload.get("enabled", False)
+
+    state_str = "ON" if is_enabled else "OFF"
+    manager._state.system.onkyo_integration_enabled = is_enabled
+    state_changed = True
+    changed_domains.add("system")
+
+    color = "🟢" if is_enabled else "🔴"
+    raw_error = payload.get("error_msg")
+    error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+
+    ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Onkyo Integration turned {state_str}")
+    state_changed |= ch
+    changed_domains |= dom
+
+    # Dynamically spin up or tear down the async polling bridge
+    if is_enabled:
+        if not getattr(manager, "onkyo_bridge", None):
+            from integrations.onkyo import OnkyoBridge
+            manager.onkyo_bridge = OnkyoBridge(manager)
+        await manager.onkyo_bridge.start()
+    else:
+        if getattr(manager, "onkyo_bridge", None):
+            await manager.onkyo_bridge.stop()
+
+    return state_changed, changed_domains
+
+
 async def handle_sonos_command(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     """Routes rich automation payloads (volume, radio station URI) to the Sonos bridge."""
     import asyncio

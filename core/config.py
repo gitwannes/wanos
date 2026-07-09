@@ -187,6 +187,16 @@ class SonosConfig(BaseModel):
     stations: Dict[str, str] = Field(default_factory=dict)
 
 
+class OnkyoDeviceNode(BaseModel):
+    ip: str
+    name: str
+
+
+class OnkyoConfig(BaseModel):
+    max_volume: int = 60
+    device_map: Dict[int, OnkyoDeviceNode] = Field(default_factory=dict)
+
+
 class ZwaveConfig(BaseModel):
     """Configuration mapping for the Z-Wave JS UI hardware stick and node map."""
     usb_path: str
@@ -214,6 +224,7 @@ class AppConfig(BaseModel):
     hue: Optional[HueConfig] = None
     epson: Optional[EpsonConfig] = None
     sonos: Optional[SonosConfig] = None
+    onkyo: Optional[OnkyoConfig] = None
     zwave: Optional[ZwaveConfig] = None
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
     auth: AuthConfig
@@ -287,6 +298,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
         "epson": runtime_data.get("epson"),
         "sonos": runtime_data.get("sonos"),
+        "onkyo": runtime_data.get("onkyo"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
         "auth": {

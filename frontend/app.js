@@ -29,6 +29,8 @@ function wanosApp() {
                 epson_connected: false, // ⚡ Tracks physical TCP availability of the Epson Projector
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
                 sonos_integration_enabled: false, // ⚡ Master UI switch to block/allow Sonos commands
+                onkyo_connected: false, // ⚡ Tracks physical TCP availability of Onkyo Receivers
+                onkyo_integration_enabled: false, // ⚡ Master UI switch to block/allow Onkyo Receivers
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
                 available_scenes: [], // ⚡ Holds dynamically extracted stateless automations
                 hidden_explorer_idxs: [], // ⚡ Devices to hide from the Device Explorer
@@ -247,6 +249,23 @@ function wanosApp() {
             return list.sort((a, b) => a.name.localeCompare(b.name));
         },
 
+        get onkyoDevices() {
+            let list = [];
+            for (const [idxStr, meta] of Object.entries(this.state.device_metadata)) {
+                if (meta.origin === 'onkyo') {
+                    const idx = parseInt(idxStr, 10);
+                    const rawValue = this.state.devices[idx];
+                    const displayState = rawValue === 'DEAD' ? 'OFFLINE' : (rawValue === null ? 'SYNCING' : 'ONLINE');
+                    list.push({
+                        id: idx,
+                        name: meta.name,
+                        state: displayState
+                    });
+                }
+            }
+            return list.sort((a, b) => a.name.localeCompare(b.name));
+        },
+
         // ⚡ Intelligently evaluates if all capable engines are currently running
         get allEnginesStarted() {
             const s = this.state.system;
@@ -261,6 +280,7 @@ function wanosApp() {
             if (s.zwave_hardware_connected && s.zwave_web_alive && s.zwave_data_alive && !s.zwave_integration_enabled) offlineCount++;
             if (!s.owm_integration_enabled) offlineCount++;
             if (!s.sonos_integration_enabled) offlineCount++;
+            if (s.onkyo_connected && !s.onkyo_integration_enabled) offlineCount++;
             if (h.gpio_input_connected && !h.gpio_input_enabled) offlineCount++;
             if (h.sht11_connected && !h.sht11_enabled) offlineCount++;
             if (h.gpio_output_connected && !h.gpio_output_enabled) offlineCount++;
@@ -285,6 +305,7 @@ function wanosApp() {
             if (!this.state.system.zwave_integration_enabled) disabled.push("Z-Wave");
             if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
             if (!this.state.system.sonos_integration_enabled) disabled.push("Sonos");
+            if (!this.state.system.onkyo_integration_enabled) disabled.push("Onkyo");
             if (!this.state.hardware.gpio_input_enabled) disabled.push("GPIO inputs");
             if (!this.state.hardware.gpio_output_enabled) disabled.push("GPIO outputs");
             if (!this.state.hardware.sht11_enabled) disabled.push("temp/hum sensors");
@@ -309,6 +330,7 @@ function wanosApp() {
                 if (meta.origin === 'hue' && !this.state.system.hue_integration_enabled) continue;
                 if (meta.origin === 'zwave' && !this.state.system.zwave_integration_enabled) continue;
                 if (meta.origin === 'sonos' && !this.state.system.sonos_integration_enabled) continue;
+                if (meta.origin === 'onkyo' && !this.state.system.onkyo_integration_enabled) continue;
 
                 // Native Physical & Cloud Integrations
                 if (meta.origin === 'gpio_input' && !this.state.hardware.gpio_input_enabled) continue;
@@ -429,9 +451,10 @@ function wanosApp() {
                     id: idx,
                     name: meta.name,
                     type: meta.type,
+                    origin: meta.origin, // dynamically label Sonos vs Onkyo
                     raw_value: rawValue === 0 ? "0" : rawValue,
                     display_text: displayText,
-                    ui_volume: uiVolume, // ⚡ Added for the logarithmic slider UI
+                    ui_volume: uiVolume, // logarithmic slider UI
                     is_on: isOn,
                     is_hue: meta.origin === 'hue',
                     is_dead: isDead
@@ -565,6 +588,7 @@ function wanosApp() {
             if (meta.origin === 'domoticz') return this.state.system.domoticz_integration_enabled;
             if (meta.origin === 'epson') return this.state.system.epson_integration_enabled;
             if (meta.origin === 'sonos') return this.state.system.sonos_integration_enabled;
+            if (meta.origin === 'onkyo') return this.state.system.onkyo_integration_enabled;
             if (meta.origin === 'gpio_input') return this.state.hardware.gpio_input_enabled;
             if (meta.origin === 'sht11') return this.state.hardware.sht11_enabled;
             return true; // Fallback for local macros/scenes
@@ -1204,6 +1228,11 @@ function wanosApp() {
             this.publishEvent("SONOS_TOGGLED", { enabled: nextState });
         },
 
+        toggleOnkyo() {
+            const nextState = !this.state.system.onkyo_integration_enabled;
+            this.publishEvent("ONKYO_TOGGLED", { enabled: nextState });
+        },
+
         toggleSimulations() {
             const nextState = !this.state.hardware.simulations_enabled;
             this.publishEvent("SIMULATIONS_TOGGLED", { enabled: nextState });
@@ -1237,6 +1266,7 @@ function wanosApp() {
             await this.publishEvent("HUE_TOGGLED", { enabled: true });
             await this.publishEvent("EPSON_TOGGLED", { enabled: true });
             await this.publishEvent("SONOS_TOGGLED", { enabled: true });
+            await this.publishEvent("ONKYO_TOGGLED", { enabled: true });
             await this.publishEvent("RFXCOM_TOGGLED", { enabled: true });
 
             // Phase 3: Enable Domoticz (State Database Sync)
@@ -1343,8 +1373,13 @@ function wanosApp() {
             current.volume = linearVol;
             this.state.devices[idx] = current;
 
-            // Fires rich automation payload to the backend
-            this.publishEvent("SONOS_COMMAND", { idx: parseInt(idx, 10), volume: linearVol });
+            // ⚡ DYNAMIC ROUTING: Dispatch to the correct integration based on the origin
+            const meta = this.state.device_metadata[idx];
+            if (meta && meta.origin === 'onkyo') {
+                this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), volume: linearVol });
+            } else {
+                this.publishEvent("SONOS_COMMAND", { idx: parseInt(idx, 10), volume: linearVol });
+            }
         },
 
         updateSpeakerOptimistic(idx, uiVol) {

@@ -99,6 +99,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     rfx_conn = payload.get("rfxcom_connected", False)
     hue_conn = payload.get("hue_connected", False)
     epson_conn = payload.get("epson_connected", False)
+    onkyo_conn = payload.get("onkyo_connected", False)
     zwave_hardware_conn = payload.get("zwave_hardware_connected", False)
     zwave_web_alive = payload.get("zwave_web_alive", False)
     zwave_data_alive = payload.get("zwave_data_alive", False)
@@ -110,6 +111,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     prev_rfx = manager._state.system.rfxcom_connected
     prev_hue = manager._state.system.hue_connected
     prev_epson = manager._state.system.epson_connected
+    prev_onkyo = manager._state.system.onkyo_connected
     prev_zwave_hw = manager._state.system.zwave_hardware_connected
     prev_zwave_web = manager._state.system.zwave_web_alive
     prev_zwave_data = manager._state.system.zwave_data_alive
@@ -173,6 +175,17 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         if not manager._state.system.epson_integration_enabled:
             manager.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
+    if prev_onkyo and not onkyo_conn:
+        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Onkyo Receivers unreachable")
+        state_changed |= ch
+        changed_domains |= dom
+    elif not prev_onkyo and onkyo_conn and manager._state.system.app_boot_unix is not None:
+        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Onkyo Receivers online")
+        state_changed |= ch
+        changed_domains |= dom
+        if not manager._state.system.onkyo_integration_enabled:
+            manager.dispatch(Event(type=EventType.ONKYO_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
+
     if prev_zwave_hw and not zwave_hardware_conn:
         ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Z-Wave USB Stick unplugged from the Pi!")
         state_changed |= ch
@@ -212,6 +225,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             prev_rfx != rfx_conn or
             prev_hue != hue_conn or
             prev_epson != epson_conn or
+            prev_onkyo != onkyo_conn or
             prev_zwave_hw != zwave_hardware_conn or
             prev_zwave_web != zwave_web_alive or
             prev_zwave_data != zwave_data_alive or
@@ -222,6 +236,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         manager._state.system.rfxcom_connected = rfx_conn
         manager._state.system.hue_connected = hue_conn
         manager._state.system.epson_connected = epson_conn
+        manager._state.system.onkyo_connected = onkyo_conn
         manager._state.system.zwave_hardware_connected = zwave_hardware_conn
         manager._state.system.zwave_web_alive = zwave_web_alive
         manager._state.system.zwave_data_alive = zwave_data_alive

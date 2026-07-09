@@ -183,6 +183,21 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                 state_changed |= ch
                 changed_domains |= dom
 
+        # ONKYO INTERCEPTOR
+        if meta_origin == "onkyo" and (old_val != state_val or is_force or "volume" in payload):
+            if manager._state.system.onkyo_integration_enabled:
+                if getattr(manager, "onkyo_bridge", None):
+                    asyncio.create_task(manager.onkyo_bridge.execute_command(payload))
+                else:
+                    automation_logger.error(
+                        "Tried to trigger Onkyo Receiver, but bridge is offline or misconfigured.")
+            else:
+                automation_logger.warning("Onkyo command dropped: Integration is disabled in UI.")
+                ch, dom = AlertManager.process_alert(manager._state,
+                                                     "🔴 Onkyo command dropped: Integration is disabled.")
+                state_changed |= ch
+                changed_domains |= dom
+
     return state_changed, changed_domains
 
 

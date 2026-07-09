@@ -222,6 +222,14 @@ class StateManager:
                 self._state.devices[idx] = None
                 all_config_idxs.add(idx)
 
+        # Parse Onkyo Receivers
+        if getattr(self._config, "onkyo", None):
+            for idx, node in self._config.onkyo.device_map.items():
+                self._state.dashboard_map[idx] = node.name
+                self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "onkyo"}
+                self._state.devices[idx] = None
+                all_config_idxs.add(idx)
+
         # ⚡ Programmatic initialization for virtual read-only status sensors
         sauna_name = "sauna status"
         self._state.dashboard_map[21001] = sauna_name
@@ -315,6 +323,11 @@ class StateManager:
             self.sonos_bridge = SonosBridge(self)
             await self.sonos_bridge.start()
 
+        if getattr(self._state.system, "onkyo_integration_enabled", False):
+            from integrations.onkyo import OnkyoBridge
+            self.onkyo_bridge = OnkyoBridge(self)
+            await self.onkyo_bridge.start()
+
         await self.logger.success("State Manager worker started.")
 
     async def stop(self) -> None:
@@ -324,6 +337,8 @@ class StateManager:
         await self.history_manager.stop()
         if self.sonos_bridge:
             await self.sonos_bridge.stop()
+        if getattr(self, "onkyo_bridge", None):
+            await self.onkyo_bridge.stop()
         if self._worker_task:
             self._worker_task.cancel()
             try:

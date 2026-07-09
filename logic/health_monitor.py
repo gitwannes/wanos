@@ -23,7 +23,7 @@ class HealthMonitor:
         # Dedicated Strike Counters for Auto-Kill thresholds
         # Network integrations get 3 strikes (6 seconds) to survive minor TCP blips.
         # USB hardware gets 1 strike (2 seconds) because a missing /dev/tty is immediately fatal.
-        self.strikes = {"domoticz": 0, "hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0}
+        self.strikes = {"domoticz": 0, "hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0}
 
     @staticmethod
     def _get_ip() -> str:
@@ -75,6 +75,37 @@ class HealthMonitor:
         except Exception:
             return False
 
+    async def _ping_onkyo(self) -> bool:
+        config = self.state_manager._config
+        if not getattr(config, "onkyo", None) or not config.onkyo.device_map:
+            return False
+
+        # If the integration is enabled, DO NOT steal the TCP socket.
+        # Just check if the bridge currently holds active connections.
+        if self.state_manager._state.system.onkyo_integration_enabled:
+            bridge = getattr(self.state_manager, "onkyo_bridge", None)
+            if bridge and getattr(bridge, "_running", False):
+                if bridge.receivers:
+                    return True
+                # Grace period: prevent instant "Offline" alert while sockets are handshaking
+                import time
+                if time.time() - getattr(bridge, "start_time", 0) < 8:
+                    return True  # Assume healthy during the 8s boot window
+            return False
+
+        # If disabled, safely TCP ping to see if they are online
+        for idx, node in config.onkyo.device_map.items():
+            try:
+                _, writer = await asyncio.wait_for(
+                    asyncio.open_connection(node.ip, 60128), timeout=1.0
+                )
+                writer.close()
+                await writer.wait_closed()
+                return True
+            except Exception:
+                pass
+        return False
+
     async def _telemetry_loop(self) -> None:
         """Continuous polling loop executing every 2 seconds."""
         while True:
@@ -89,6 +120,7 @@ class HealthMonitor:
                 rfx_conn = self._is_connected(sm.rfxcom_bridge)
                 hue_conn = self._is_connected(getattr(sm, "hue_bridge", None))
                 epson_conn = await self._ping_epson()
+                onkyo_conn = await self._ping_onkyo()
 
                 # Z-Wave health is a multi-tiered verification matrix:
                 # 1. Physical USB stick presence (Tier 1 - Physical)
@@ -118,6 +150,7 @@ class HealthMonitor:
                 self.strikes["domoticz"] = 0 if dom_conn else self.strikes["domoticz"] + 1
                 self.strikes["hue"] = 0 if hue_conn else self.strikes["hue"] + 1
                 self.strikes["epson"] = 0 if epson_conn else self.strikes["epson"] + 1
+                self.strikes["onkyo"] = 0 if onkyo_conn else self.strikes["onkyo"] + 1
                 self.strikes["rfxcom"] = 0 if rfx_conn else self.strikes["rfxcom"] + 1
 
                 # Z-Wave USB drop is fatal immediately (1 strike). Web/Data drops get 3 strikes (network blips).
@@ -138,6 +171,11 @@ class HealthMonitor:
                     sm.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={
                         "enabled": False,
                         "error_msg": "🔌 Epson Projector connection lost after 3 retries. Integration disabled."}))
+
+                if self.strikes["onkyo"] >= 3 and sys_state.system.onkyo_integration_enabled:
+                    sm.dispatch(Event(type=EventType.ONKYO_TOGGLED, payload={
+                        "enabled": False,
+                        "error_msg": "🔌 Onkyo connection lost after 3 retries. Integration disabled."}))
 
                 if self.strikes["rfxcom"] >= 1 and sys_state.system.rfxcom_integration_enabled:
                     sm.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={
@@ -206,6 +244,7 @@ class HealthMonitor:
                     "rfxcom_connected": rfx_conn,
                     "hue_connected": hue_conn,
                     "epson_connected": epson_conn,
+                    "onkyo_connected": onkyo_conn,
                     "zwave_hardware_connected": zwave_physical,
                     "zwave_web_alive": zwave_web,
                     "zwave_data_alive": zwave_data,

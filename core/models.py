@@ -58,6 +58,7 @@ class EventType(str, Enum):
     HUE_TOGGLED = "HUE_TOGGLED"  # Listen to local Hue Bridge messages
     EPSON_TOGGLED = "EPSON_TOGGLED"  # Block/allow Epson projector network commands
     SONOS_TOGGLED = "SONOS_TOGGLED"  # Block/allow local Sonos API control
+    ONKYO_TOGGLED = "ONKYO_TOGGLED"  # Block/allow Onkyo TCP streaming
 
     # Integration Specific Commands
     SONOS_COMMAND = "SONOS_COMMAND"  # Rich payloads for automations (volume, station uri)
@@ -108,6 +109,8 @@ class SystemAdminState(BaseModel):
     epson_connected: bool = False  # Tracks physical TCP availability of the Epson Projector
     epson_integration_enabled: bool = False  # Master UI switch to block/allow Epson commands
     sonos_integration_enabled: bool = False  # Master UI switch to block/allow Sonos commands
+    onkyo_connected: bool = False  # Tracks physical TCP availability of Onkyo Receivers
+    onkyo_integration_enabled: bool = False  # Master UI switch to block/allow Onkyo Receivers
     ip_address: str = "0.0.0.0"
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None
