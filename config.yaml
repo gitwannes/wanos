@@ -80,10 +80,12 @@ onkyo:
   device_map:
     61001:
       ip: "10.32.251.35"
-      name: "Cinema Onkyo (TX-NR575E)"
+      name: "Receiver cinema (Onkyo TX-NR575E)"
+      legacy: false
     61002:
       ip: "10.32.251.78"
-      name: "Living Onkyo (TX-NR616)"
+      name: "Receiver living (Onkyo TX-NR616)"
+      legacy: true  # Instructs the engine to use the malformed header and 2.0s TCP pacing
 
 rfxcom:
   # To find the exact USB port run: dmesg | grep tty OR lsusb --> update
@@ -131,7 +133,6 @@ weather:
   poll_interval_mins: 30
 
 hardware_links:
-  # ⚡ UNIVERSAL 0W INTERCEPTOR MAP
   # Maps Switch IDXs to their associated Power Meter IDXs.
   # When the switch turns OFF, the backend will auto-flush the power meter to 0.0W.
   power_meters:
@@ -193,7 +194,7 @@ environmental_schedule:
 
 lighting:
   # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
-  managed_lights: [71003, 71004, 71005, 71006, 71007, 71008, 71001, 71002, 71014, 71012, 71017, 71021, 40001, 40002, 40003, 71023, 71025, 71027, 51006, 51003, 51005, 51008, 51004, 71043, 71044]
+  managed_lights: [71003, 71004, 71005, 71006, 71007, 71008, 71001, 71002, 71014, 71012, 71017, 71021, 40001, 40002, 40003, 71024, 71025, 71027, 51006, 51003, 51005, 51008, 51004, 71043, 71044]
   default_auto_off_minutes: 300
   # Specific delay overrides in minutes
   auto_off_delays:
@@ -206,7 +207,7 @@ lighting:
     71012: 1
     71017: 30
     71021: 30
-    71023: 1
+    71024: 1
     71025: 30
     71027: 30
     71043: 10
@@ -375,9 +376,9 @@ automations:
         state: "OFF"
       - idx: 71017 # slpk Dries
         state: "OFF"
-      - idx: 71024 # slpk Liene
+      - idx: 71023 # slpk Liene
         state: "OFF"
-      - idx: 71023 # berging
+      - idx: 71024 # berging
         state: "OFF"
       - idx: 71027 # slpk Wannes
         state: "OFF"
@@ -392,7 +393,7 @@ automations:
 
   - name: "ALL OFF overal"
     scene: true
-    require_confirmation: true  # ⚡ High impact macro: pop up confirmation modal
+    require_confirmation: true
     trigger:
       event: "SCENE_ALL_OFF"
     actions:
@@ -724,7 +725,7 @@ automations:
         idx: 51007       # badkamer 2e hue room
         is: "ON"         # Only fires if the room is already lit
     actions:
-      - idx: 51007       # Fixed: Linked cleanly to Badk 2e room registry
+      - idx: 51007
         state: "ON"
         preset: "bathroom_red"
 
@@ -746,7 +747,7 @@ automations:
       idx: 51007         # If someone uses the Hue app/remote...
       state: "ON"
     actions:
-      - idx: 71009       # Fixed: Misspelling resolved and synced state corrected to ON
+      - idx: 71009
         state: "ON"
       - idx: 60001       # Sonos badk 2e
         state: "ON"
@@ -830,7 +831,7 @@ automations:
 
   - name: "--- CINEMA ON"
     scene: true
-    require_confirmation: true  # ⚡ High impact macro: pop up confirmation modal
+    require_confirmation: true
     trigger:
       event: "SCENE_CINEMA_ON"
     actions:

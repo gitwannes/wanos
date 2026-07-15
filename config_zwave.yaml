@@ -11,7 +11,7 @@ zwave:
   # The physical hardware path used by WanOS to verify the stick is plugged in
   usb_path: "/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00"
 
-  hidden_nodes: [72001, 75001, 76001, 74001, 74003, 71007, 71009, 71011, 71013, 71015, 71018, 71019, 71020, 71022, 71026, 71028, 71029, 71030, 71033, 71035, 71036, 71037, 71039, 71040, 71041, 71045, 71046]
+  hidden_nodes: [71007, 71009, 71019, 71022, 71028, 71029, 71035, 71036, 71040, 71045, 71046, 72001, 72006, 74001, 74003, 75001, 75002]
 
   device_map:
     # 71000: light
@@ -25,7 +25,6 @@ zwave:
     71003: "10/37/1 | licht living | 52"
     71004: "10/37/2 | licht keuken | 53"
     71005: "17/37/0 | gang beneden | 60"
-    71046: "17/50/0/value/66561 | mains voltage"
     71006: "22/37/0 | licht garage | 100"
     71007: "26/37/0 | badk 1e Hue physical | 141"
     71008: "27/37/1 | gang boven | 169"
@@ -37,8 +36,8 @@ zwave:
     71019: "59/37/1 | toilet ventilatie motor | 1612"
     71021: "60/37/1 | badk 2e ventilatie | 1622"
     71022: "60/37/2 | badk 2e binnen (unused) | 1625"
-    71023: "66/37/1 | berging 2e | 6051"
-    71024: "66/37/2 | slpk Liene | 6048"
+    71023: "66/37/1 | slpk Liene | 6051"
+    71024: "66/37/2 | berging 2e | 6048"
     71025: "67/37/1 | eetkamer | 6060"
     71027: "68/37/1 | slpk Wannes | 6067"
     71028: "68/37/2 | slpk Wannes Hue physical | 6070"
@@ -52,6 +51,7 @@ zwave:
     71043: "84/37/1 | toilet | 9645"
     71044: "84/37/2 | toilet ventilatie | 9648"
     71045: "53/37/0 | 53?"
+    71046: "17/50/0/value/66561 | mains voltage"
 
     72001: "5/37/0 | PC | 8"
     72002: "82/37/0 | PC monitors | 9618"

@@ -25,7 +25,7 @@ from integrations.domoticz import DomoticzHomeHubBridge
 from integrations.open_weather import weather_polling_loop
 from integrations.zwave import ZWaveJSUIBridge
 
-# ⚡ Physical Hardware Imports
+# Physical Hardware Imports
 from hardware.inputs import HardwareInputs
 from hardware.sensors import HardwareSensors
 from hardware.actuators import HardwareActuators
@@ -138,7 +138,7 @@ if getattr(config, "epson", None) and getattr(config.epson, "ip_address", None):
     except Exception as e:
         logger.exception(f"CRITICAL: Crash loading EpsonProjector: {e}")
 
-# 10. Bind the Physical Hardware Layer ⚡
+# 10. Bind the Physical Hardware Layer
 hw_inputs = HardwareInputs(state_manager=state_manager)
 hw_sensors = HardwareSensors(state_manager=state_manager)
 hw_actuators = HardwareActuators(state_manager=state_manager)
@@ -208,7 +208,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 import traceback
                 traceback.print_exc()
 
-        # ⚡ Start Physical Hardware Layer
+        # Start Physical Hardware Layer
         logger.info("Initializing Raspberry Pi Hardware Layer...")
         await hw_inputs.start()
         await hw_sensors.start()
@@ -218,7 +218,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         state_manager.dispatch(Event(type=EventType.SYSTEM_READY))
         logger.info("Core systems online. Base state ready.")
 
-        # ⚡ AUTOSTART SEQUENCE ⚡
+        # AUTOSTART SEQUENCE
         # Evaluates .env configuration. Spawns a non-blocking background task to wait
         # 5 seconds for local network sockets to stabilize, then fires the Master Start Sequence.
         if os.getenv("WANOS_AUTOSTART", "False").lower() == "true":
@@ -272,7 +272,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     weather_task.cancel()
     mqtt_publisher.stop()
 
-    # ⚡ Stop the physical hardware layer gracefully
+    # Stop the physical hardware layer gracefully
     await hw_inputs.stop()
     await hw_sensors.stop()
     await hw_actuators.stop()
@@ -511,7 +511,7 @@ async def sse_state_stream(request: Request):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-# ⚡ TIER 3 CACHE-BUSTING MIDDLEWARE ⚡
+# TIER 3 CACHE-BUSTING MIDDLEWARE
 # Intercepts every outgoing HTTP request. If the browser is asking for a frontend asset
 # (HTML, JS, CSS), we forcefully inject HTTP headers forbidding the browser from caching it.
 @app.middleware("http")

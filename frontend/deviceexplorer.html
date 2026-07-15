@@ -333,7 +333,8 @@
                                                setShutterState(item.id, parseInt($event.target.value, 10));
                                            " />
 
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"                                          @click="setShutterState(item.id, 100)">CLOSED</span>
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"
+                                          @click="setShutterState(item.id, 100)">CLOSED</span>
                                 </div>
                             </template>
 
@@ -344,13 +345,14 @@
                                           x-text="item.is_dead ? 'DEAD' : (item.display_text !== null ? item.display_text : '--')"></span>
 
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
-                                          @click="injectLabHubStateChange(item.id, true)">PLAY</span>
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
+                                          @click="toggleSpeakerPower(item.id, true)">PLAY</span>
 
-                                    <input type="range" min="0" max="100" step="1" class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer touch-pan-y"
-                                           :disabled="item.raw_value === null || item.is_dead"
-                                           :value="item.ui_volume !== undefined ? item.ui_volume : 0"
+                                    <input type="range" min="0" :max="item.max_volume" step="1" class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer touch-pan-y"
+                                           :disabled="item.is_syncing || item.is_dead || !item.is_on"
+                                           :value="(!item.is_syncing && item.is_on && item.ui_volume !== undefined) ? item.ui_volume : 0"
                                            @pointerdown="let t = $event.touches ? $event.touches[0] : $event; $el._startX = t.clientX; $el._startY = t.clientY; $el._verified = false; $el._orig = $el.value;"
-                                           @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
+                                            @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"                                           @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
                                            @input="
                                                if (!$el._verified) {
                                                    $event.target.value = $el._orig;
@@ -365,8 +367,8 @@
                                                }
                                                setSpeakerVolume(item.id, parseInt($event.target.value, 10));
                                            " />
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-warning cursor-pointer hover:text-primary transition-colors"                                          @click="injectLabHubStateChange(item.id, false)">PAUSE</span>
-                                </div>
+                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-warning cursor-pointer hover:text-primary transition-colors"
+                                          @click="toggleSpeakerPower(item.id, false)">PAUSE</span>                                </div>
                             </template>
 
                             <template x-if="item.type === 'temp'">

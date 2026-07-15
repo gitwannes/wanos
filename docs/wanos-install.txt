@@ -44,7 +44,7 @@ sudo apt update && sudo apt install samba -y
 sudo vi /etc/samba/smb.conf
 sudo systemctl restart smbd
 # on Windows
-net use Z: "\\10.32.251.28\wanos_share" /user:wannes
+net use Z: "\\10.32.251.30\wanos_share" /user:wannes
 
 run wanos_bootstrap_phase2.sh
 

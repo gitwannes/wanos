@@ -190,6 +190,7 @@ class SonosConfig(BaseModel):
 class OnkyoDeviceNode(BaseModel):
     ip: str
     name: str
+    legacy: bool = False  # ⚡ Flag to enable the legacy 2012 malformed packet dialect and strict TCP pacing
 
 
 class OnkyoConfig(BaseModel):

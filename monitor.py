@@ -179,7 +179,7 @@ class LogMonitorApp(App):
                         data = json.loads(payload)
                         idx = data.get("idx")
 
-                        # ⚡ FIXED: Silently drop any IDX not explicitly declared in hardware.yaml
+                        # ⚡ Silently drop any IDX not explicitly declared in hardware.yaml
                         if idx not in cfg.get("valid_idxs", []):
                             continue
 

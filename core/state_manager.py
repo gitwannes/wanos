@@ -224,9 +224,16 @@ class StateManager:
 
         # Parse Onkyo Receivers
         if getattr(self._config, "onkyo", None):
+            max_vol = getattr(self._config.onkyo, "max_volume", 60)
             for idx, node in self._config.onkyo.device_map.items():
                 self._state.dashboard_map[idx] = node.name
-                self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "onkyo"}
+                # ⚡ Inject max_volume directly into metadata so the frontend UI knows how to scale the slider
+                self._state.device_metadata[idx] = {
+                    "name": node.name,
+                    "type": "speaker",
+                    "origin": "onkyo",
+                    "max_volume": max_vol
+                }
                 self._state.devices[idx] = None
                 all_config_idxs.add(idx)
 

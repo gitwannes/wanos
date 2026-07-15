@@ -116,7 +116,7 @@ function wanosApp() {
 
         // ⚡ Optimistic UI Locks (Anti-Rubberbanding)
         // Tracks timestamp of last user action per IDX: { idx: expiration_timestamp }
-        shutterLocks: {},
+        uiLocks: {},
 
         // ⚡ Light Control Modal State
         activeLightId: null,
@@ -373,11 +373,14 @@ function wanosApp() {
                     }
                 }
 
+                // ⚡ STATE INVALIDATION GUARD: Check if the entire node or specifically its volume is still booting
+                let isSyncing = (rawValue === null);
+
                 // ⚡ Format Display Text
                 let displayText = rawValue;
                 if (isDead) {
                     displayText = "DEAD";
-                } else if (rawValue === null) {
+                } else if (isSyncing) {
                     displayText = "SYNC...";
                 } else if (idxStr.startsWith('75')) {
                     // ⚡ MOTION SENSOR DIAGNOSTIC LEDGER (Admin Only)
@@ -386,8 +389,19 @@ function wanosApp() {
                     displayText = `${tally}x`;
                 } else if (typeof rawValue === 'object' && rawValue !== null) {
                     if (meta.type === 'speaker') {
-                        const vol = rawValue.volume !== undefined ? rawValue.volume : 0;
-                        displayText = `${vol}%`;
+                        // ⚡ EXPLICIT SYNC CHECK: If the volume key is explicitly null, the hardware is answering the power command but volume is still fetching
+                        if (rawValue.volume === null) {
+                            isSyncing = true;
+                            displayText = "SYNC...";
+                        }
+                        // ⚡ Smart Badge Text: Display 'OFF' if the power state is down,
+                        // otherwise show the raw hardware integer without the % symbol.
+                        else if (!isOn) {
+                            displayText = "OFF";
+                        } else {
+                            const vol = rawValue.volume !== undefined ? rawValue.volume : 0;
+                            displayText = `${vol}`;
+                        }
                     } else if (meta.type === 'sensor' || meta.type === 'temp' || meta.type === 'hum' || meta.type === 'temp_hum' || meta.type === 'power' || meta.type === 'energy') {
                         if (rawValue.temp !== undefined && rawValue.hum !== undefined) {
                             displayText = `${parseFloat(rawValue.temp).toFixed(1)} °C / ${rawValue.hum} %`;
@@ -443,8 +457,8 @@ function wanosApp() {
 
                 let uiVolume = undefined;
                 if (meta.type === 'speaker' && !isDead && typeof rawValue === 'object' && rawValue !== null && rawValue.volume !== undefined) {
-                    // ⚡ AUDIO TAPER: Convert linear Sonos volume (0-100) to logarithmic UI slider position (0-100)
-                    uiVolume = Math.round(Math.sqrt(rawValue.volume / 100) * 100);
+                    // ⚡ Direct mapping to hardware integers. Logarithmic taper removed.
+                    uiVolume = rawValue.volume;
                 }
 
                 list.push({
@@ -452,10 +466,12 @@ function wanosApp() {
                     name: meta.name,
                     type: meta.type,
                     origin: meta.origin, // dynamically label Sonos vs Onkyo
+                    max_volume: meta.max_volume !== undefined ? meta.max_volume : 100, // ⚡ Natively extract max_volume to avoid Alpine HTML evaluation race conditions
                     raw_value: rawValue === 0 ? "0" : rawValue,
                     display_text: displayText,
-                    ui_volume: uiVolume, // logarithmic slider UI
+                    ui_volume: uiVolume, // direct hardware integer slider UI
                     is_on: isOn,
+                    is_syncing: isSyncing, // ⚡ Exposed explicitly to lock UI elements during hardware handshakes
                     is_hue: meta.origin === 'hue',
                     is_dead: isDead
                 });
@@ -831,10 +847,10 @@ function wanosApp() {
                 const now = Date.now();
 
                 for (const [idx, val] of Object.entries(payload)) {
-                    if (this.shutterLocks[idx] && now < this.shutterLocks[idx]) {
+                    if (this.uiLocks[idx] && now < this.uiLocks[idx]) {
                         // ⚡ Calculate remaining lock time for the console log
-                        const remaining = Math.round((this.shutterLocks[idx] - now) / 1000);
-                        console.info(`[UI Guard] Event ignored for Shutter IDX ${idx}: locked for ${remaining} more seconds to prevent rubberbanding.`);
+                        const remaining = Math.round((this.uiLocks[idx] - now) / 1000);
+                        console.info(`[UI Guard] Event ignored for IDX ${idx}: locked for ${remaining} more seconds to prevent rubberbanding.`);
                         continue;
                     }
                     filteredPayload[idx] = val;
@@ -1320,6 +1336,34 @@ function wanosApp() {
             this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
         },
 
+        toggleSpeakerPower(idx, isOn) {
+            // 🛡️ GHOST CLICK GUARD:
+            if (this.state.devices[idx] === null) return;
+
+            const targetState = isOn ? "ON" : "OFF";
+            let current = this.state.devices[idx] || { state: 'OFF' };
+            if (typeof current !== 'object') current = { state: current };
+
+            if (current.state === targetState) return;
+
+            current.state = targetState;
+
+            // ⚡ CONTEXTUAL CACHE INVALIDATION:
+            // Only wipe the volume cache when turning ON (so we can fetch the boot volume).
+            // When turning OFF, the volume is irrelevant, and keeping the cached value avoids the "SYNC..." text.
+            if (targetState === "ON") {
+                current.volume = null;
+            }
+
+            this.state.devices[idx] = current;
+
+            // ⚡ LOCK REMOVAL: Do NOT apply uiLocks here. We want the blazing fast 0.2s network
+            // reply to be accepted instantly by the frontend. The slider is already visually protected
+            // by the HTML :disabled="item.is_syncing" attribute during boot!
+
+            this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
+        },
+
         handleShutterNameClick(item) {
             // ⚡ MOBILE UX: Force the browser to drop focus so the color doesn't "stick" after tapping
             if (document.activeElement) {
@@ -1339,22 +1383,30 @@ function wanosApp() {
             }
 
             if (item.type !== 'speaker' || item.is_dead || item.raw_value === null) return;
-            // Toggle the target playback state smoothly on smartphone row touches
-            this.injectLabHubStateChange(item.id, !item.is_on);
+            // Toggle the target playback state smoothly on smartphone row touches using the dedicated invalidator
+            this.toggleSpeakerPower(item.id, !item.is_on);
         },
 
-        // ⚡ Helper function to fetch the lock time to keep code DRY
-        getShutterLockTime() {
-            // state.system.shutter_rubberbanding is not defined at this time
-            // maybe later, we will put this in config.yaml
-            // -> changes to config.py, models.py & state_manager.py needed
-            const lockTime = 7; // seconds that incoming events for this shutter are ignored
-            return (this.state.system.shutter_rubberbanding || lockTime) * 1000;
+        // ⚡ Smart Protocol-Aware UI Lock TTL Calculator
+        getUiLockTime(deviceType, isDragging = false) {
+            if (deviceType === 'blinds') {
+                // Mechanical mesh blinds take time to physically roll and report back
+                const lockTime = 7; // seconds
+                return (this.state.system.shutter_rubberbanding || lockTime) * 1000;
+            }
+            if (deviceType === 'speaker') {
+                // Speakers run on instant local TCP/API.
+                // Give a short lock while dragging to prevent fighting the finger,
+                // but drop the lock to 0ms instantly upon release!
+                return isDragging ? 2000 : 0;
+            }
+            // Default fallback
+            return 1000;
         },
 
         setShutterState(idx, targetState) {
             // Set Optimistic UI Lock expiration to ignore incoming Z-Wave state updates
-            this.shutterLocks[idx] = Date.now() + this.getShutterLockTime();
+            this.uiLocks[idx] = Date.now() + this.getUiLockTime('blinds', false);
 
             // ⚡ Instantly mutate local state so OPEN/CLOSED text clicks don't flicker
             this.state.devices[idx] = targetState;
@@ -1364,38 +1416,47 @@ function wanosApp() {
         },
 
         setSpeakerVolume(idx, uiVol) {
-            this.shutterLocks[idx] = Date.now() + this.getShutterLockTime();
+            // ⚡ CLEAR THE LOCK: The user released the slider.
+            // We instantly lift the block so the 0.2s network reply from the receiver is accepted!
+            this.uiLocks[idx] = 0;
+
             let current = this.state.devices[idx] || { state: 'ON' };
             if (typeof current !== 'object') current = { state: current };
 
-            // ⚡ AUDIO TAPER: Convert logarithmic UI slider position (0-100) back to linear Sonos volume (0-100)
-            const linearVol = Math.round(Math.pow(parseInt(uiVol, 10) / 100, 2) * 100);
-            current.volume = linearVol;
+            // ⚡ Use pure hardware value directly without logarithmic translation
+            const rawVol = parseInt(uiVol, 10);
+            current.volume = rawVol;
             this.state.devices[idx] = current;
 
             // ⚡ DYNAMIC ROUTING: Dispatch to the correct integration based on the origin
             const meta = this.state.device_metadata[idx];
             if (meta && meta.origin === 'onkyo') {
-                this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), volume: linearVol });
+                // ⚡ Optimistic UI Lock: Instantly force the "SYNC..." state in Alpine to disable the slider
+                // until the physical receiver answers back with the true volume value.
+                this.state.devices[idx] = null;
+                this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), volume: rawVol });
             } else {
-                this.publishEvent("SONOS_COMMAND", { idx: parseInt(idx, 10), volume: linearVol });
+                this.publishEvent("SONOS_COMMAND", { idx: parseInt(idx, 10), volume: rawVol });
             }
         },
 
         updateSpeakerOptimistic(idx, uiVol) {
-            this.shutterLocks[idx] = Date.now() + this.getShutterLockTime();
+            // ⚡ SHORT LOCK: Keep a 2-second lock while actively dragging so network
+            // echoes don't rip the slider out from under the user's finger.
+            this.uiLocks[idx] = Date.now() + this.getUiLockTime('speaker', true);
+
             let current = this.state.devices[idx] || { state: 'ON' };
             if (typeof current !== 'object') current = { state: current };
 
-            // ⚡ Optimistically update the real volume using the same logarithmic math so the UI text stays in sync while dragging
-            const linearVol = Math.round(Math.pow(parseInt(uiVol, 10) / 100, 2) * 100);
-            current.volume = linearVol;
+            // ⚡ Optimistically update the real volume directly without logarithmic translation
+            const rawVol = parseInt(uiVol, 10);
+            current.volume = rawVol;
             this.state.devices[idx] = current;
         },
 
         updateShutterOptimistic(idx, val) {
             const numVal = parseInt(val, 10);
-            this.shutterLocks[idx] = Date.now() + this.getShutterLockTime();
+            this.uiLocks[idx] = Date.now() + this.getUiLockTime('blinds', true);
 
             // ⚡ Immediately update the reactive dictionary so the slider and % text move live with the mouse pointer
             this.state.devices[idx] = numVal;
