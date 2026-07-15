@@ -56,22 +56,22 @@ sonos:
   device_map:
     60001:
       ip: "10.32.251.121"
-      name: "Badkamer boven"
+      name: "badk boven"
     60002:
       ip: "10.32.251.122"
-      name: "Living"
+      name: "living"
     60003:
       ip: "10.32.251.123"
-      name: "Badkamer sauna"
+      name: "badk sauna"
     60004:
       ip: "10.32.251.124"
-      name: "Slpk Wannes"
+      name: "slpk Wannes"
     60005:
       ip: "10.32.251.125"
-      name: "Slpk Dries"
+      name: "slpk Dries"
     60006:
       ip: "10.32.251.126"
-      name: "Buro"
+      name: "buro"
   stations:
     qmaxhits: "x-sonosapi-stream:tunein%3a208746?sid=303&flags=8232&sn=1"
 
@@ -80,11 +80,11 @@ onkyo:
   device_map:
     61001:
       ip: "10.32.251.35"
-      name: "Receiver cinema (Onkyo TX-NR575E)"
+      name: "receiver cinema" #  (Onkyo TX-NR575E)"
       legacy: false
     61002:
       ip: "10.32.251.78"
-      name: "Receiver living (Onkyo TX-NR616)"
+      name: "receiver living" #  (Onkyo TX-NR616)"
       legacy: true  # Instructs the engine to use the malformed header and 2.0s TCP pacing
 
 rfxcom:
@@ -142,7 +142,7 @@ hardware_links:
 # Devices explicitly hidden from the Device Explorer UI
 # Z-Wave devices exlusions via zwave_config.yaml
 deviceexplorer_exclude:
-  # - 80001 # Epson projector
+  - 80001 # Epson projector
   - 40004 # kerstboom
   - 40005 # kerst lichten voor
   - 72006 # kerst lichten tuin
@@ -352,7 +352,7 @@ automations:
         state: "OFF"
       - idx: 40002 # buro_schemer
         state: "OFF"
-      - idx: 72002  # pc_aux
+      - idx: 72002  # pc_aux monitors
         state: "OFF"
       - idx: 71007 # bathroom1_main
         state: "OFF"
@@ -559,15 +559,15 @@ automations:
       - idx: 72002
         state: "SYNC"
 
-  - name: "PC Aux ON -> Buro Schemer ON"
+  - name: "PC Aux ON/OFF -> Buro Schemer ON/OFF"
     trigger:
       idx: 72002
-      state: "ON"
+      state: "SYNC"
     actions:
       - idx: 40002
-        state: "ON"
+        state: "SYNC"
       - idx: 60006  # Sonos buro
-        state: "ON"
+        state: "SYNC"
         volume: 6
         station: "qmaxhits"
 
@@ -615,10 +615,11 @@ automations:
     actions:
       - idx: 51001       # badkamer 1e hue room
         state: "ON"
-        preset: "bathroom_red"
+        preset: "relax_red"
       - idx: 60003       # Sonos badk 1e
         state: "ON"
         volume: 10
+        station: "qmaxhits"
 
   # --- Wastafel (Sink) Logic: Split into Day/Night context ---
   - name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
@@ -645,7 +646,7 @@ automations:
     actions:
       - idx: 51001
         state: "ON"
-        preset: "bathroom_red"
+        preset: "relax_red"
 
   - name: "Badk 1e: Main Switch OFF -> Hue & wastafel OFF"
     trigger:
@@ -670,6 +671,7 @@ automations:
       - idx: 60003       # Sonos badk 1e
         state: "ON"
         volume: 10
+        station: "qmaxhits"
 
   - name: "Badk 1e: Hue App Syncs to Main Switch-OFF"
     trigger:
@@ -697,10 +699,11 @@ automations:
     actions:
       - idx: 51007       # badkamer 2e hue room
         state: "ON"
-        preset: "bathroom_red"
+        preset: "relax_red"
       - idx: 60001       # Sonos badk 2e
         state: "ON"
         volume: 10
+        station: "qmaxhits"
 
   # --- Wastafel (Sink) Logic: Split into Day/Night context ---
   - name: "Badk 2e: Wastafel ON -> Hue White (If already in room)"
@@ -727,7 +730,7 @@ automations:
     actions:
       - idx: 51007
         state: "ON"
-        preset: "bathroom_red"
+        preset: "relax_red"
 
   - name: "Badk 2e: Main Switch OFF -> Hue & wastafel OFF"
     trigger:
@@ -752,6 +755,7 @@ automations:
       - idx: 60001       # Sonos badk 2e
         state: "ON"
         volume: 10
+        station: "qmaxhits"
 
   - name: "Badk 2e: Hue App Syncs to Main Switch-OFF"
     trigger:

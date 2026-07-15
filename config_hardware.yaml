@@ -42,21 +42,21 @@ sauna_safety:
 sht11_sensors:
   bathroom1:
     idx: 20004
-    name: "badkamer 1e temp & hum"
+    name: "badk 1e"
     pin_d: 24
     pin_c: 23
   cinema:
     idx: 20003
-    name: "cinema temp & hum"
+    name: "cinema"
     pin_d: 9
     pin_c: 10
   sauna_high:
     idx: 20001
-    name: "sauna high temp & hum"
+    name: "sauna high"
     pin_d: 11
     pin_c: 25
   sauna_low:
     idx: 20002
-    name: "sauna low temp & hum"
+    name: "sauna low"
     pin_d: 7
     pin_c: 8
