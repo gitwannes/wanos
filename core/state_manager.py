@@ -248,6 +248,28 @@ class StateManager:
         self._state.device_metadata[21002] = {"name": ir_name, "type": "sensor", "origin": "system"}
         self._state.devices[21002] = "OFF"
 
+        # ⚡ SYSTEM TELEMETRY VIRTUAL SENSORS
+        # Binds the physical host machine health metrics natively to the Device Explorer
+        sys_metrics_map = {
+            22001: "Host CPU Temperature",
+            22002: "Host CPU Usage",
+            22003: "Host Memory Free",
+            22004: "Host Disk Free (Root)",
+            22005: "Host Log2Ram Free",
+            22006: "Host Load Average (1m)",
+            22007: "Host Load Average (5m)",
+            22008: "Host Load Average (15m)"
+        }
+        for s_idx, s_name in sys_metrics_map.items():
+            self._state.dashboard_map[s_idx] = s_name
+            self._state.device_metadata[s_idx] = {
+                "name": s_name,
+                "type": "sensor",
+                "origin": "system",
+                "hidden": True  # Explicitly tag system telemetry as hidden so it only appears in Admin diagnostics
+            }
+            self._state.devices[s_idx] = None
+
         if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
             self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
 

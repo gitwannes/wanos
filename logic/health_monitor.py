@@ -5,6 +5,7 @@ import asyncio
 import socket
 import os
 import time
+import psutil
 from typing import Any
 from core.models import Event, EventType, SystemState
 from loguru import logger
@@ -24,6 +25,16 @@ class HealthMonitor:
         # Network integrations get 3 strikes (6 seconds) to survive minor TCP blips.
         # USB hardware gets 1 strike (2 seconds) because a missing /dev/tty is immediately fatal.
         self.strikes = {"domoticz": 0, "hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0}
+
+        # ⚡ Stateful Hysteresis Tracker for System Telemetry
+        # Debounces alerts so the UI isn't spammed every 60 seconds during a persistent load spike.
+        self._alert_states = {
+            "cpu_temp": "normal",
+            "mem_free": "normal",
+            "disk_free": "normal",
+            "log2ram_free": "normal",
+            "load_15m": "normal"
+        }
 
     @staticmethod
     def _get_ip() -> str:
@@ -258,9 +269,139 @@ class HealthMonitor:
                 # Silently absorb minor loop crashes to prevent total health engine failure
                 print(f"Health Monitor Loop Exception: {e}")
 
+    async def _system_hardware_loop(self) -> None:
+        """Isolated 60-second polling loop reading native Linux kernel telemetry via psutil."""
+        while True:
+            try:
+                # 1. CPU Usage
+                cpu_perc = psutil.cpu_percent(interval=None)
+                self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
+                                                  payload={"idx": 22002, "state": f"{round(cpu_perc)} %",
+                                                           "origin": "system"}))
+
+                # 2. RAM Free %
+                ram_free_perc = 100.0 - psutil.virtual_memory().percent
+                self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
+                                                  payload={"idx": 22003, "state": f"{round(ram_free_perc)} %",
+                                                           "origin": "system"}))
+
+                # ⚡ Hysteresis Evaluation: RAM Free
+                if ram_free_perc <= 5.0 and self._alert_states["mem_free"] != "critical":
+                    self._alert_states["mem_free"] = "critical"
+                    self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                        "msg_text": "🚨 Host Memory CRITICALLY low (< 5% Free)!", "level": "critical"}))
+                elif ram_free_perc <= 10.0 and ram_free_perc > 5.0 and self._alert_states["mem_free"] == "normal":
+                    self._alert_states["mem_free"] = "warning"
+                    self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                        "msg_text": "⚠️ Host Memory running low (< 10% Free).", "level": "warning"}))
+                elif ram_free_perc >= 15.0:
+                    self._alert_states["mem_free"] = "normal"
+
+                # 3. Disk Free % (Root)
+                disk_free_perc = 100.0 - psutil.disk_usage('/').percent
+                self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
+                                                  payload={"idx": 22004, "state": f"{round(disk_free_perc)} %",
+                                                           "origin": "system"}))
+
+                # ⚡ Hysteresis Evaluation: Disk Free
+                if disk_free_perc <= 5.0 and self._alert_states["disk_free"] != "critical":
+                    self._alert_states["disk_free"] = "critical"
+                    self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                        "msg_text": "🚨 Root SD Card CRITICALLY full (< 5% Free)!", "level": "critical"}))
+                elif disk_free_perc <= 10.0 and disk_free_perc > 5.0 and self._alert_states[
+                    "disk_free"] == "normal":
+                    self._alert_states["disk_free"] = "warning"
+                    self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                        "msg_text": "⚠️ Root SD Card running out of space (< 10% Free).", "level": "warning"}))
+                elif disk_free_perc >= 15.0:
+                    self._alert_states["disk_free"] = "normal"
+
+                # 4. Log2Ram Free % (Mounts directly to /var/log)
+                try:
+                    log2ram_free_perc = 100.0 - psutil.disk_usage('/var/log').percent
+                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 22005,
+                                                                                                 "state": f"{round(log2ram_free_perc)} %",
+                                                                                                 "origin": "system"}))
+                    # ⚡ Hysteresis Evaluation: Log2Ram
+                    if log2ram_free_perc <= 5.0 and self._alert_states["log2ram_free"] != "critical":
+                        self._alert_states["log2ram_free"] = "critical"
+                        self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                            "msg_text": "🚨 Log2Ram partition CRITICALLY full (< 5% Free)!", "level": "critical"}))
+                    elif log2ram_free_perc <= 10.0 and log2ram_free_perc > 5.0 and self._alert_states[
+                        "log2ram_free"] == "normal":
+                        self._alert_states["log2ram_free"] = "warning"
+                        self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                            "msg_text": "⚠️ Log2Ram partition filling up (< 10% Free).", "level": "warning"}))
+                    elif log2ram_free_perc >= 15.0:
+                        self._alert_states["log2ram_free"] = "normal"
+                except Exception:
+                    pass  # Fail silently if log2ram is completely unmounted
+
+                # 5. Load Averages (1m, 5m, 15m)
+                # os.getloadavg() returns a tuple: (1m, 5m, 15m)
+                try:
+                    load1, load5, load15 = os.getloadavg()
+                    # ⚡ The Math Fix: Multiply by 100 BEFORE rounding to correctly calculate percentages based on a 4-core processor
+                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
+                                                      payload={"idx": 22006,
+                                                               "state": f"{round((load1 / 4) * 100)} %",
+                                                               "origin": "system"}))
+                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
+                                                      payload={"idx": 22007,
+                                                               "state": f"{round((load5 / 4) * 100)} %",
+                                                               "origin": "system"}))
+                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
+                                                      payload={"idx": 22008,
+                                                               "state": f"{round((load15 / 4) * 100)} %",
+                                                               "origin": "system"}))
+
+                    # ⚡ Hysteresis Evaluation: 15-Minute Load Average
+                    if load15 >= 4.0 and self._alert_states["load_15m"] == "normal":
+                        self._alert_states["load_15m"] = "warning"
+                        self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                            "msg_text": f"⚠️ System CPU chronically overloaded (15m Load: {round(load15, 2)}).",
+                            "level": "warning"}))
+                    elif load15 <= 3.0:
+                        self._alert_states["load_15m"] = "normal"
+                except Exception:
+                    pass
+
+                # 6. CPU Temperature
+                # Reads natively from the Pi's hardware thermal zone without executing a bash shell
+                try:
+                    with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                        temp_c = int(f.read()) / 1000.0
+                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
+                                                      payload={"idx": 22001, "state": f"{round(temp_c)} °C",
+                                                               "origin": "system"}))
+
+                    # ⚡ Hysteresis Evaluation: CPU Temp
+                    if temp_c >= 85.0 and self._alert_states["cpu_temp"] != "critical":
+                        self._alert_states["cpu_temp"] = "critical"
+                        self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                            "msg_text": f"🚨 CPU Hard Thermal Limit ({round(temp_c)} °C)! Device at risk.",
+                            "level": "critical"}))
+                    elif temp_c >= 80.0 and temp_c < 85.0 and self._alert_states["cpu_temp"] == "normal":
+                        self._alert_states["cpu_temp"] = "warning"
+                        self.state_manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={
+                            "msg_text": f"⚠️ CPU Soft Thermal Throttle active ({round(temp_c)} °C).",
+                            "level": "warning"}))
+                    elif temp_c <= 75.0:
+                        self._alert_states["cpu_temp"] = "normal"
+                except Exception:
+                    pass
+
+            except Exception as e:
+                logger.error(f"Hardware Telemetry Loop Exception: {e}")
+
+            await asyncio.sleep(60.0)
+
     def start(self) -> None:
         if not self._task:
             self._task = asyncio.create_task(self._telemetry_loop())
+        # Spin up the isolated hardware loop
+        if not hasattr(self, "_hardware_task") or self._hardware_task is None:
+            self._hardware_task = asyncio.create_task(self._system_hardware_loop())
 
     async def stop(self) -> None:
         if self._task:
@@ -270,3 +411,11 @@ class HealthMonitor:
             except asyncio.CancelledError:
                 pass
             self._task = None
+
+        if hasattr(self, "_hardware_task") and self._hardware_task:
+            self._hardware_task.cancel()
+            try:
+                await self._hardware_task
+            except asyncio.CancelledError:
+                pass
+            self._hardware_task = None

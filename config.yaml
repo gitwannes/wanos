@@ -16,6 +16,7 @@ auth:
 # 100xx : GPIO inputs (doors / water / power pulses)
 # 200xx : SHT11 sensors
 # 2100x : Sauna & IR virtual
+# 220xx : Pi internal sensors
 # 30001 : OWM outside temp & hum
 # 400xx : RFX
 # 500xx : Hue (config_hue.taml)
