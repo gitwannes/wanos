@@ -476,24 +476,23 @@ class ZWaveJSUIBridge(WanosComponent):
                     # Pre-seed the dashboard map so the UI knows the name before the first click!
                     self.state_manager._state.dashboard_map[idx] = custom_name
 
-                    # METADATA SEEDING: Explicitly declare hardware semantics so the UI renders toggles correctly!
-                    if idx not in self.state_manager._state.device_metadata:
+                    # ATOMIC METADATA SEEDING: Ruthlessly overwrite existing metadata to guarantee parity on hot-reloads
+                    hw_type = "sensor"
+                    # Explicit path check prevents voltage monitors under index 71xxx from being misclassified as switches
+                    if "66561" in clean_path:
                         hw_type = "sensor"
-                        # Explicit path check prevents voltage monitors under index 71xxx from being misclassified as switches
-                        if "66561" in clean_path:
-                            hw_type = "sensor"
-                        elif 71000 <= idx < 73000:
-                            hw_type = "switch"
-                        elif 73000 <= idx < 74000:
-                            hw_type = "blinds"
-                        elif 74000 <= idx < 75000:
-                            hw_type = "power"
+                    elif 71000 <= idx < 73000:
+                        hw_type = "switch"
+                    elif 73000 <= idx < 74000:
+                        hw_type = "blinds"
+                    elif 74000 <= idx < 75000:
+                        hw_type = "power"
 
-                        self.state_manager._state.device_metadata[idx] = {
-                            "name": custom_name,
-                            "type": hw_type,
-                            "origin": "zwave"
-                        }
+                    self.state_manager._state.device_metadata[idx] = {
+                        "name": custom_name,
+                        "type": hw_type,
+                        "origin": "zwave"
+                    }
 
                     # STATE SEEDING: Force the frontend to draw newly mapped devices instantly
                     if idx not in self.state_manager._state.devices:

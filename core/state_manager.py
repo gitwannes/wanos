@@ -52,7 +52,7 @@ class StateManager:
         self.zwave_bridge: Optional[Any] = None  
         self.logger: WanosLogger = logger
 
-        # ⚡ Initialize Non-Volatile Memory Disk I/O Controller
+        # Initialize Non-Volatile Memory Disk I/O Controller
         self.nvm = NVRAMManager()
 
         # Optional reference to the MqttPublisher, injected after construction.
@@ -69,7 +69,7 @@ class StateManager:
         # Transient counter to prevent high-frequency hardware pulses from flooding the terminal
         self._pulse_log_counters: dict[int, int] = {}
 
-        # ⚡ FIRST-SYNC TRACKING SET (Boot Storm Protector)
+        # FIRST-SYNC TRACKING SET (Boot Storm Protector)
         # An immutable ledger tracking which IDXs have reported their physical state at least once since the Python process started.
         self._initialized_idxs: set[int] = set()
 
@@ -83,11 +83,28 @@ class StateManager:
         self._power_analytics = PowerAnalytics(self)
         self.history_manager = DeviceHistoryManager(self)
 
+        # ATOMIC RECONCILIATION: Delegate metadata assembly to the atomic rebuilder
+        self.rebuild_core_metadata()
+
+        # Timer Manager placeholder.
+        # Instantiation has been moved to start() to safely bind to the asyncio loop!
+        self._timer_manager = None
+
+    def rebuild_core_metadata(self) -> None:
+        """
+        Ruthlessly rebuilds the semantic Source of Truth (names, types) directly from YAML.
+        Called on initial boot and hot-reloads to guarantee 100% parity and prevent ghost nodes.
+        """
         # Assemble initial structural application lifecycle tags inside live RAM state
         self._state.system.version_major = f"v{self._config.version}"
         self._state.system.version_full = f"v{self._config.version}-build_{self._build_timestamp}"
 
-        # ⚡ DYNAMIC METADATA REGISTRY & RAM ALLOCATOR
+        # ATOMIC RECONCILIATION: Wipe old metadata for core integrations (Keep Z-Wave as it lazy-loads)
+        keys_to_purge = [k for k, v in self._state.device_metadata.items() if v.get("origin") != "zwave"]
+        for k in keys_to_purge:
+            self._state.device_metadata.pop(k, None)
+            self._state.dashboard_map.pop(k, None)
+
         self._state.system.hidden_explorer_idxs = self._config.deviceexplorer_exclude
         all_config_idxs = set()
 
@@ -100,14 +117,14 @@ class StateManager:
                     self._state.device_metadata[node.idx] = {"name": node.name, "type": node_type,
                                                              "origin": "gpio_input"}
 
-                    # ⚡ DYNAMIC PESSIMISTIC INITIALIZATION
-                    # Seeds the RAM allocator with the correct data types so the UI doesn't flicker on boot
-                    if node.type == "door":
-                        self._state.devices[node.idx] = "CLOSED"
-                    elif node.type in ["fluid", "energy"]:
-                        self._state.devices[node.idx] = 0.0
-                    else:
-                        self._state.devices[node.idx] = None
+                    # DYNAMIC PESSIMISTIC INITIALIZATION
+                    if node.idx not in self._state.devices:
+                        if node.type == "door":
+                            self._state.devices[node.idx] = "CLOSED"
+                        elif node.type in ["fluid", "energy"]:
+                            self._state.devices[node.idx] = 0.0
+                        else:
+                            self._state.devices[node.idx] = None
 
                     all_config_idxs.add(node.idx)
 
@@ -116,7 +133,8 @@ class StateManager:
             for key, node in self._config.sht11_sensors.items():
                 self._state.dashboard_map[node.idx] = node.name
                 self._state.device_metadata[node.idx] = {"name": node.name, "type": "temp_hum", "origin": "sht11"}
-                self._state.devices[node.idx] = None
+                if node.idx not in self._state.devices:
+                    self._state.devices[node.idx] = None
                 all_config_idxs.add(node.idx)
 
         # 3. Parse OpenWeatherMap
@@ -125,7 +143,8 @@ class StateManager:
             w_name = self._config.weather.name
             self._state.dashboard_map[w_idx] = w_name
             self._state.device_metadata[w_idx] = {"name": w_name, "type": "temp_hum", "origin": "owm"}
-            self._state.devices[w_idx] = None
+            if w_idx not in self._state.devices:
+                self._state.devices[w_idx] = None
             all_config_idxs.add(w_idx)
 
         # 4. Automations & Lighting cache allocations
@@ -147,8 +166,7 @@ class StateManager:
             if idx < 10000 and idx not in self._state.devices:
                 self._state.devices[idx] = None
 
-        # ⚡ METADATA INJECTION: Flag hidden devices directly in the metadata dictionary
-        # This completely bypasses Pydantic's strict model serialization stripping
+        # METADATA INJECTION: Flag hidden devices directly in the metadata dictionary
         exclusions = getattr(self._config, "deviceexplorer_exclude", [])
         for idx in exclusions:
             if idx in self._state.device_metadata:
@@ -158,25 +176,27 @@ class StateManager:
                                                     "origin": "system", "hidden": True}
 
         if hasattr(self._config, "native_rfx"):
+            self._state.system.native_rfx_devices.clear()
             for rfx_dev in self._config.native_rfx:
                 self._state.system.native_rfx_devices.append({
                     "name": rfx_dev.name,
                     "virtual_idx": rfx_dev.virtual_idx
                 })
                 self._state.dashboard_map[rfx_dev.virtual_idx] = rfx_dev.name
-                self._state.device_metadata[rfx_dev.virtual_idx] = {"name": rfx_dev.name, "type": "switch", "origin": "rfxcom"}
-                self._state.devices[rfx_dev.virtual_idx] = "OFF"
+                self._state.device_metadata[rfx_dev.virtual_idx] = {"name": rfx_dev.name, "type": "switch",
+                                                                    "origin": "rfxcom"}
+                if rfx_dev.virtual_idx not in self._state.devices:
+                    self._state.devices[rfx_dev.virtual_idx] = "OFF"
+                all_config_idxs.add(rfx_dev.virtual_idx)
 
         hue_conf = getattr(self._config, "hue", None)
         if hue_conf:
-            # Safely extract the device map
             device_map = getattr(hue_conf, "device_map", {}) or {}
             for idx_key, raw_val in device_map.items():
                 try:
                     idx_int = int(idx_key)
-                    self._state.devices[idx_int] = None
-
-                    # ⚡ Safely extract Pydantic SecretStr objects to prevent masking ("**********")
+                    if idx_int not in self._state.devices:
+                        self._state.devices[idx_int] = None
                     val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
                     if "|" in val_str:
                         friendly_name = val_str.split("|", 1)[1].strip()
@@ -185,17 +205,16 @@ class StateManager:
                     else:
                         self._state.device_metadata[idx_int] = {"name": f"Hue Light {idx_int}", "type": "light",
                                                                 "origin": "hue"}
+                    all_config_idxs.add(idx_int)
                 except Exception:
                     pass
 
-            # Safely extract the group map without clunky nested hasattr checks
             group_map = getattr(hue_conf, "group_map", {}) or {}
             for idx_key, raw_val in group_map.items():
                 try:
                     idx_int = int(idx_key)
-                    self._state.devices[idx_int] = None
-
-                    # ⚡ Safely extract Pydantic SecretStr objects to prevent masking ("**********")
+                    if idx_int not in self._state.devices:
+                        self._state.devices[idx_int] = None
                     val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
                     if "|" in val_str:
                         friendly_name = val_str.split("|", 1)[1].strip()
@@ -204,6 +223,7 @@ class StateManager:
                     else:
                         self._state.device_metadata[idx_int] = {"name": f"Hue Group {idx_int}", "type": "light",
                                                                 "origin": "hue"}
+                    all_config_idxs.add(idx_int)
                 except Exception:
                     pass
 
@@ -211,45 +231,42 @@ class StateManager:
             epson_name = "cinema projector"
             self._state.dashboard_map[80001] = epson_name
             self._state.device_metadata[80001] = {"name": epson_name, "type": "switch", "origin": "epson"}
-            self._state.devices[80001] = "OFF"
+            if 80001 not in self._state.devices:
+                self._state.devices[80001] = "OFF"
+            all_config_idxs.add(80001)
 
-        # Parse Sonos Speakers
         if getattr(self._config, "sonos", None):
             for idx, node in self._config.sonos.device_map.items():
                 self._state.dashboard_map[idx] = node.name
-                # Tagged explicitly as "speaker" to unlock native volume sliders in the Device Explorer
                 self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "sonos"}
-                self._state.devices[idx] = None
+                if idx not in self._state.devices:
+                    self._state.devices[idx] = None
                 all_config_idxs.add(idx)
 
-        # Parse Onkyo Receivers
         if getattr(self._config, "onkyo", None):
             max_vol = getattr(self._config.onkyo, "max_volume", 60)
             for idx, node in self._config.onkyo.device_map.items():
                 self._state.dashboard_map[idx] = node.name
-                # ⚡ Inject max_volume directly into metadata so the frontend UI knows how to scale the slider
-                self._state.device_metadata[idx] = {
-                    "name": node.name,
-                    "type": "speaker",
-                    "origin": "onkyo",
-                    "max_volume": max_vol
-                }
-                self._state.devices[idx] = None
+                self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "onkyo",
+                                                    "max_volume": max_vol}
+                if idx not in self._state.devices:
+                    self._state.devices[idx] = None
                 all_config_idxs.add(idx)
 
-        # ⚡ Programmatic initialization for virtual read-only status sensors
         sauna_name = "sauna status"
         self._state.dashboard_map[21001] = sauna_name
         self._state.device_metadata[21001] = {"name": sauna_name, "type": "sensor", "origin": "system"}
-        self._state.devices[21001] = "OFF"
+        if 21001 not in self._state.devices:
+            self._state.devices[21001] = "OFF"
+        all_config_idxs.add(21001)
 
         ir_name = "IR status"
         self._state.dashboard_map[21002] = ir_name
         self._state.device_metadata[21002] = {"name": ir_name, "type": "sensor", "origin": "system"}
-        self._state.devices[21002] = "OFF"
+        if 21002 not in self._state.devices:
+            self._state.devices[21002] = "OFF"
+        all_config_idxs.add(21002)
 
-        # ⚡ SYSTEM TELEMETRY VIRTUAL SENSORS
-        # Binds the physical host machine health metrics natively to the Device Explorer
         sys_metrics_map = {
             22001: "Host CPU Temperature",
             22002: "Host CPU Usage",
@@ -262,31 +279,38 @@ class StateManager:
         }
         for s_idx, s_name in sys_metrics_map.items():
             self._state.dashboard_map[s_idx] = s_name
-            self._state.device_metadata[s_idx] = {
-                "name": s_name,
-                "type": "sensor",
-                "origin": "system",
-                "hidden": True  # Explicitly tag system telemetry as hidden so it only appears in Admin diagnostics
-            }
-            self._state.devices[s_idx] = None
+            self._state.device_metadata[s_idx] = {"name": s_name, "type": "sensor", "origin": "system", "hidden": True}
+            if s_idx not in self._state.devices:
+                self._state.devices[s_idx] = None
+            all_config_idxs.add(s_idx)
 
         if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
             self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
 
-            # ⚡ NVRAM BOOT SEEDING
-            # Loads preserved cumulative counters from disk and injects them directly into RAM
         nvram_data = self.nvm.load()
         for nv_idx, nv_val in nvram_data.items():
             self._state.devices[nv_idx] = nv_val
-            # Ensure they exist in the dashboard map so the UI knows their semantic origin
             if nv_idx not in self._state.dashboard_map:
                 self._state.dashboard_map[nv_idx] = f"Counter {nv_idx}"
+            all_config_idxs.add(nv_idx)
+
+        # Explicitly pull in manual Dashboard configurations
+        if hasattr(self._config, "dashboard"):
+            for idx, name in self._config.dashboard.items():
+                self._state.dashboard_map[idx] = name
+                all_config_idxs.add(idx)
 
         self._extract_scenes_from_config()
 
-        # ⚡ Timer Manager placeholder.
-        # Instantiation has been moved to start() to safely bind to the asyncio loop!
-        self._timer_manager = None
+        # ORPHAN PURGE: Remove legacy devices from RAM that no longer exist in the config
+        # (Z-Wave manages its own orphans inside zwave.py)
+        orphans = [idx for idx in list(self._state.devices.keys()) if
+                   isinstance(idx, int) and idx < 10000 and idx not in all_config_idxs]
+        for orphan in orphans:
+            if self._state.device_metadata.get(orphan, {}).get("origin") != "zwave":
+                self._state.device_metadata.pop(orphan, None)
+                self._state.dashboard_map.pop(orphan, None)
+                self._state.devices.pop(orphan, None)
 
     def _extract_scenes_from_config(self) -> None:
         self._state.system.available_scenes.clear()
@@ -297,7 +321,7 @@ class StateManager:
                 triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
                 for t in triggers:
                     if t.event:
-                        # ⚡ Safely use .get() since values are now mixed types (strings and booleans)
+                        # Safely use .get() since values are now mixed types (strings and booleans)
                         if not any(s.get("event") == t.event for s in self._state.system.available_scenes):
                             self._state.system.available_scenes.append({
                                 "name": rule.name,
@@ -336,12 +360,12 @@ class StateManager:
         self._power_analytics.start()
         self.history_manager.start()
 
-        # ⚡ SINGLETON TIMER INSTANTIATION (Event Loop Safe)
+        # SINGLETON TIMER INSTANTIATION (Event Loop Safe)
         # Must be initialized inside an async context so its internal background tasks bind to the running loop!
         if self._timer_manager is None:
             from logic.timers import TimerManager
             self._timer_manager = TimerManager(dispatch_callback=self._dispatch_from_timer)
-            # ⚡ KICK-OFF NVRAM FLUSH LOOP
+            # KICK-OFF NVRAM FLUSH LOOP
             # Schedules the very first disk save. Once this fires (5 minutes after boot), the handler in
             # telemetry_handlers.py will continuously reschedule itself to create the infinite loop.
             self._timer_manager.schedule("nvram_flush", int(time.time()) + 300, EventType.NVRAM_FLUSH_TRIGGER.value)
@@ -375,7 +399,7 @@ class StateManager:
             except asyncio.CancelledError:
                 pass
 
-            # ⚡ FINAL NVRAM SHUTDOWN FLUSH
+            # FINAL NVRAM SHUTDOWN FLUSH
             # Guaranteed save cycle when the WanOS process shuts down gracefully
             nvm_payload = {k: v for k, v in self._state.devices.items() if
                            isinstance(k, int) and 11000 <= k < 12000}
@@ -446,7 +470,7 @@ class StateManager:
         state_changed: bool = False
         changed_domains: Set[str] = set()
 
-        # --- ⚡ UNIVERSAL NULL GUARD (BOOT STORM PROTECTOR) ⚡ ---
+        # --- UNIVERSAL NULL GUARD (BOOT STORM PROTECTOR) ---
         # Intercepts every single event before it hits the handlers.
         # If the device is currently NULL or "Sync..." in memory, this is its first heartbeat.
         meta_idx = payload.get("idx")
@@ -489,7 +513,7 @@ class StateManager:
             "IR_MODULATION_UPDATED"
         ]
 
-        # ⚡ DATA PLANE WATCHDOG HOOK
+        # DATA PLANE WATCHDOG HOOK
         # Updates the rolling timestamp but does NOT flag state_changed to avoid
         # spamming the SSE stream with unnecessary broadcasts every heartbeat.
         if event_name == "ZWAVE_HEARTBEAT":
@@ -534,7 +558,7 @@ class StateManager:
                 else:
                     logger.info(f"Event Received [{event_name}]: {payload}")
 
-            # ⚡ ZERO-TRUST BACKEND FIREWALL (Granular HITL Isolation)
+            # ZERO-TRUST BACKEND FIREWALL (Granular HITL Isolation)
             # Prevents lab simulators from injecting ghost data into active physical control loops.
         if is_manual_lab_action or is_simulation_action:
             target_idx = payload.get("idx")
@@ -556,7 +580,7 @@ class StateManager:
                 if target_idx in [20001, 20002] and self._state.hardware.gpio_output_enabled:
                     return False, set()
 
-        # ⚡ EMERGENCY START GATE INTERCEPTOR (Prevention)
+        # EMERGENCY START GATE INTERCEPTOR (Prevention)
         # Validates physical requirements BEFORE routing the command to the logic handlers
         if event_name in ["SAUNA_ON", "IR_ON"]:
             reasons = []
@@ -584,7 +608,7 @@ class StateManager:
                                     payload={"msg_text": f"⚠️ {sys_name} start blocked: {', '.join(reasons)}"}))
                 return state_changed, changed_domains
 
-        # ⚡ ROUTE TO STRATEGY PATTERN HANDLER
+        # ROUTE TO STRATEGY PATTERN HANDLER
         handler = EVENT_ROUTERS.get(event_name)
         if handler:
             ch, dom = await handler(event, self)
@@ -597,7 +621,7 @@ class StateManager:
 
         p_idx = payload.get("idx")
 
-        # ⚡ EPHEMERAL MOTION LEDGER (Admin Diagnostics)
+        # EPHEMERAL MOTION LEDGER (Admin Diagnostics)
         # Tracks how many times a motion sensor (75xxx) trips per boot session.
         if event_name == "HUB_STATE_CHANGED" and p_idx is not None:
             if str(p_idx).startswith("75") and payload.get("state") == "ON":
@@ -606,7 +630,7 @@ class StateManager:
                 state_changed = True
                 changed_domains.add("metrics")
 
-        # ⚡ MASTER Z-WAVE SAFETY CASCADE (Phase B)
+        # MASTER Z-WAVE SAFETY CASCADE (Phase B)
         # If the 5V Master Safety Relay drops, we must instantly cut the software outputs.
         if event_name == "HUB_STATE_CHANGED" and p_idx == 71036 and payload.get("state") != "ON" and False:
             # Disabled: shutting down the 5V will not impact WanOS - this enables a 'dry run' mode.
@@ -615,7 +639,7 @@ class StateManager:
                     "🚨 Master 5V Safety Relay (71036) dropped! Cascading emergency output disarm.")
                 self.dispatch(Event(type=EventType.GPIO_OUTPUT_TOGGLED, payload={"enabled": False}))
 
-        # ⚡ UNIVERSAL 0.0W INTERCEPTOR
+        # UNIVERSAL 0.0W INTERCEPTOR
         if event_name == "HUB_STATE_CHANGED" and payload.get("state") == "OFF":
             switch_idx = payload.get("idx")
             power_map = getattr(self._config, "hardware_links", {}).get("power_meters", {})
@@ -626,12 +650,12 @@ class StateManager:
                     "name": self._state.dashboard_map.get(power_idx, f"Power {power_idx}")
                 }))
 
-        # ⚡ ISOLATED HIGH-FREQUENCY HARDWARE EVENT ROUTING
+        # ISOLATED HIGH-FREQUENCY HARDWARE EVENT ROUTING
         # Intercepts physical pulse meter ticks directly from GPIO and routes them straight to the math engine
         if event_name == "KWH_PULSE" and p_idx == 11001:
             await self._power_analytics.process_pulse_tick()
 
-        # ⚡ UNIVERSAL SPARKLINE HISTORY AGGREGATOR
+        # UNIVERSAL SPARKLINE HISTORY AGGREGATOR
         is_power_event: bool = False
 
         if event_name == "POWER_UPDATED":
@@ -658,12 +682,12 @@ class StateManager:
                 except (ValueError, TypeError):
                     pass
 
-        # ⚡ SAUNA COMPOSITE RECOVERY & STRICT FAILURE REQUIREMENT
+        # SAUNA COMPOSITE RECOVERY & STRICT FAILURE REQUIREMENT
         # Manually calculates the 70/30 High/Low atmosphere split here based purely on IDXs.
         if event_name in ["TEMP_UPDATED", "HUMIDITY_UPDATED"] or (
                 event_name == "HUB_STATE_CHANGED" and p_idx in [20001, 20002]):
 
-            # ⚡ OUT-OF-BAND SAFETY HEARTBEAT TRACKER
+            # OUT-OF-BAND SAFETY HEARTBEAT TRACKER
             # Refreshes the active communication timestamp anytime local SHT11 sauna probes (20001/20002) publish data,
             # completely independent of whether the underlying temperature digits shifted or remained flat.
             if p_idx in [20001, 20002]:
@@ -689,7 +713,7 @@ class StateManager:
                 except (ValueError, TypeError):
                     pass
             else:
-                # ⚡ FAILSAFE: If EITHER probe drops, composite is instantly voided
+                # FAILSAFE: If EITHER probe drops, composite is instantly voided
                 if self._state.sensors.sauna_calc_temp is not None:
                     self._state.sensors.sauna_calc_temp = None
                     self._state.sensors.sauna_calc_hum = None
@@ -699,7 +723,7 @@ class StateManager:
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "DOOR_CHANGED"]:
             current_temp = self._state.sensors.sauna_calc_temp
 
-            # ⚡ EMERGENCY THERMAL KILL SWITCH
+            # EMERGENCY THERMAL KILL SWITCH
             # Checks every relevant tick. If the engine is currently firing the heaters but we lose telemetry, drop the axe.
             if self._state.sauna.active and current_temp is None:
                 await self.logger.critical(
@@ -772,7 +796,7 @@ class StateManager:
                 self.dispatch(auto_event)
 
         # ---------------------------------------------------------------------
-        # ⚡ CRITICAL INTERLOCK & SCADA VISUAL ANNUNCIATOR CONCERNS
+        # CRITICAL INTERLOCK & SCADA VISUAL ANNUNCIATOR CONCERNS
         # ---------------------------------------------------------------------
         safety_conf = getattr(self._config, "sauna_safety", None)
         grace_period: int = getattr(safety_conf, "door_grace_period_secs", 30) if safety_conf else 30
@@ -826,7 +850,7 @@ class StateManager:
         if event_name == "IR_OFF":
             await self._power_analytics.terminate_session("ir")
 
-        # ⚡ EN 60335-2-53 ABSOLUTE LIMIT TRACKER
+        # EN 60335-2-53 ABSOLUTE LIMIT TRACKER
         # Instantiates an un-bypassable 6-hour absolute running boundary the exact moment an active
         # heating session successfully transitions through the Start Gate verification interlocks.
         if event_name == "SAUNA_ON" and self._state.sauna.active:

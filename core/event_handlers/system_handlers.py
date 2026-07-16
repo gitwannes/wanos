@@ -48,35 +48,8 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         manager._config = new_config
         AutomationEngine._config = None  # Reset rules engine cached reference copy
 
-        # Update metadata metrics on reload while safely locking down the original immutable process timestamp
-        manager._state.system.version_major = f"v{new_config.version}"
-        manager._state.system.version_full = f"v{new_config.version}-build_{manager._build_timestamp}"
-
-        # Sync the Hue Presets dynamically if YAML was changed
-        if hasattr(new_config, "hue") and getattr(new_config.hue, "presets", None):
-            manager._state.system.hue_presets = {k: v.model_dump() for k, v in new_config.hue.presets.items()}
-        else:
-            manager._state.system.hue_presets = {}
-
-        # Hybrid Learning Option B: Cumulative map update preserving dynamic allocations
-        for idx, name in new_config.dashboard.items():
-            manager._state.dashboard_map[idx] = name
-
-        manager._state.system.hidden_explorer_idxs = new_config.deviceexplorer_exclude
-        manager._extract_scenes_from_config()
-
-        # GHOST BUSTER: Purge orphaned Z-Wave nodes from active RAM that were deleted from config_zwave.yaml
-        zwave_conf = getattr(new_config, "zwave", None)
-        new_zwave_idxs = set(zwave_conf.device_map.keys()) if zwave_conf and getattr(zwave_conf, "device_map",
-                                                                                     None) else set()
-
-        # Iterate over a static list of keys to safely mutate the underlying dictionary
-        for idx in list(manager._state.device_metadata.keys()):
-            meta = manager._state.device_metadata[idx]
-            if meta.get("origin") == "zwave" and idx not in new_zwave_idxs:
-                manager._state.device_metadata.pop(idx, None)
-                manager._state.devices.pop(idx, None)
-                manager._state.dashboard_map.pop(idx, None)
+        # Delegate metadata assembly to the atomic rebuilder
+        manager.rebuild_core_metadata()
 
         # RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
         if manager.hue_bridge:
