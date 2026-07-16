@@ -1,5 +1,3 @@
-# --- file: reference.md ---
-
 # WanOS Codebase, API, and MQTT Reference
 
 This document serves as the master blueprint and reference guide for the directory layouts, inbound/outbound communications, API endpoints, and Event-Driven payload schemas for the WanOS ecosystem.
@@ -51,14 +49,16 @@ This document serves as the master blueprint and reference guide for the directo
 * `automation_rules.py`: Dynamically evaluates declarative YAML rules.
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
 * `environment_scheduler.py`: Calculates mathematical bounds clamping and dynamically schedules blind/twilight timers based on external weather.
-* `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets and executing auto-kill strike protocols on failed hardware.
+* `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`.
 * `sauna_controller.py`: Manages element priority wear-leveling algorithms, probe math aggregation, and handles anti-windup loops for high thermal mass zones.
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)
 * `domoticz.py`: Bilingual translation bridge transforming external incoming JSON payloads into unified internal events, and converting outbound adjustments to hardware commands. *(Note: Integration entering deprecation phase as WanOS transitions to the primary Master of Truth).*
 * `open_weather.py`: REST polling framework capturing outside climate metrics and tripwiring integrations off if connections fail.
+* `onkyo.py`: Persistent asynchronous bridge maintaining zero-latency TCP sockets with Onkyo/Pioneer AV receivers, handling legacy hardware protocol variations.
 * `rfxcom.py`: Direct asyncio serial protocol driving the 433MHz antenna transceiver, utilizing custom packet generation blocks to protect against library crashes.
+* `sonos.py`: Asynchronous network integration tracking UPnP/HTTP topologies for Sonos speakers.
 
 ---
 
@@ -174,6 +174,9 @@ To communicate with the system, payloads must align with the exact structural da
 
 ### 🔌 Physical Peripheral & Sensor Intercepts
 * All physical hardware devices, digital probes, switches, relays, and cumulative fluid/power meters are addressed using their unique, raw integer **`idx`** derived from the dashboard hardware map.
+* **System Telemetry / Virtual Sensors (IDXs 22001-22008):**
+  * Internally reserved block for host machine health. Hidden natively from standard UI view.
+  * E.g., `{ "type": "HUB_STATE_CHANGED", "payload": { "idx": 22002, "state": "20.0 %", "origin": "system" } }`
 * **Temperature Update:**
   ```json
   { "type": "TEMP_UPDATED", "payload": { "idx": 20001, "value": 24.5 } }

@@ -1,5 +1,3 @@
-# --- file: architecture.md ---
-
 # WanOS Home Control System - Architecture Blueprint
 
 **Repository Link:** https://bitbucket.org/bitwannes/wanos  
@@ -81,7 +79,7 @@ To prevent the `StateManager` from becoming a monolithic "God Object", it utiliz
 
 ### Single Responsibility Background Services
 Heavy, non-blocking operational tasks are extracted into dedicated service classes under the `logic/` directory, supported by specific memory managers in the `core/` directory:
-* **The Health Monitor:** Pings sockets and external bridges continuously, dispatching Auto-Kill commands if hardware is dropped.
+* **The Health Monitor:** Pings sockets and external bridges continuously, dispatching Auto-Kill commands if hardware is dropped. It also implements a **Stateful Hysteresis Tracker** to monitor native OS telemetry (CPU, RAM, Disk), using a latch-and-release mechanism to prevent UI alert spam during transient load spikes.
 * **The Environment Scheduler:** Performs mathematical bounds clamping for sun cycles.
 * **The NVRAM Manager:** Operates an isolated disk I/O class executing atomic file swaps for cumulative hardware meters.
 
@@ -161,14 +159,14 @@ This limit runs continuously from the second of activation and executes an immed
 
 ### 4. Out-of-Band Data Link Staleness Watchdog
 If the low-level physical I/O threads hook or freeze due to electrical noise, values in the system registry can lock onto their last valid numbers, blinding the event-gated emergency cuts. 
-To mitigate this, the isolated `HealthMonitor` task loop monitors data age out-of-band every 2 seconds. Every incoming packet from the SHT11 probes refreshes `last_heartbeat_unix` even if the temperature digits stay flat. If the sauna is active and this timestamp ages past 10 seconds, the monitor steps in, bypasses the main event queue, kills the heater relays, and logs a critical emergency system alarm.
+To mitigate this, the isolated `HealthMonitor` task loop monitors data age out-of-band every 2 seconds. Every incoming packet from the SHT11 probes refreshes `last_heartbeat_unix` even if the temperature digits stay flat. If the sauna is active and this timestamp ages past 90 seconds, the monitor steps in, bypasses the main event queue, kills the heater relays, and logs a critical emergency system alarm.
 
 Core State Sandbox ]                        [ Out-of-Band Guard ]
   (StateManager)                                (HealthMonitor Loop)
         │                                                │
         ├──> Sets absolute_cutoff = now + 6 * 3600       │ Every 2s:
         │                                                ├─> Is cutoff exceeded?
-        └──> Refreshes last_sensor_heartbeat ───> ───────┼─> Is heartbeat > 10s old?
+        └──> Refreshes last_sensor_heartbeat ───> ───────┼─> Is heartbeat > 90s old?
                                                          │       │
                                                          ▼       ▼
                                                   [ Hard Emergency Shutdown ]
