@@ -246,9 +246,10 @@ class AutomationEngine:
                             # or mixed-case status descriptors evaluate flawlessly, preventing duplicate command streams.
                             if str(current_target_state).upper() != str(
                                     target_action_state).upper() or is_force:
-                                # ⚡ Use a distinct variable name to prevent shadowing the original event payload!
+                                # Use a distinct variable name to prevent shadowing the original event payload!
+                                # Explicitly tags the origin as "automation" for the IWHW Ledger
                                 action_payload = {"idx": action.idx, "state": target_action_state,
-                                                  "force": is_force}
+                                                  "force": is_force, "origin": "automation"}
                                 if bri is not None:
                                     action_payload["bri"] = bri
                                 if xy is not None:
@@ -363,7 +364,8 @@ class AutomationEngine:
                                         "idx": light_idx,
                                         "name": semantic_name,
                                         "type": "switch",
-                                        "target_state": "OFF"
+                                        "target_state": "OFF",
+                                        "origin": "timer"
                                     }
                                 }
                             ))
@@ -386,14 +388,16 @@ class AutomationEngine:
 
                     if current_hum >= on_threshold and current_vent_state != "ON":
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": BATHROOM_VENT_IDX, "state": "ON"})
+                            Event(type=EventType.HUB_STATE_CHANGED,
+                                  payload={"idx": BATHROOM_VENT_IDX, "state": "ON", "origin": "automation"})
                         )
                         automation_logger.info(
                             f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) >= Threshold ({on_threshold}%). Forced {semantic_name} ON.")
                         recovered_vents += 1
                     elif current_hum <= off_threshold and current_vent_state == "ON" and not is_locked:
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": BATHROOM_VENT_IDX, "state": "OFF"})
+                            Event(type=EventType.HUB_STATE_CHANGED,
+                                  payload={"idx": BATHROOM_VENT_IDX, "state": "OFF", "origin": "automation"})
                         )
                         automation_logger.info(
                             f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) <= Threshold ({off_threshold}%). Forced {semantic_name} OFF.")
@@ -442,7 +446,8 @@ class AutomationEngine:
                     if val >= on_threshold and current_vent_state != "ON":
                         # Humidity is high: Auto-engage ventilator
                         follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": BATHROOM_VENT_IDX, "state": "ON"})
+                            Event(type=EventType.HUB_STATE_CHANGED,
+                                  payload={"idx": BATHROOM_VENT_IDX, "state": "ON", "origin": "automation"})
                         )
                         automation_logger.info(
                             f"[Bathroom Climate] Humidity crossed upper threshold ({val}% >= {on_threshold}%). Auto-engaging extraction fan.")
@@ -451,7 +456,8 @@ class AutomationEngine:
                         # Humidity is low: Auto-disengage ventilator (ONLY IF 5-MIN LOCK EXPIRED)
                         if not is_locked:
                             follow_up_events.append(
-                                Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": BATHROOM_VENT_IDX, "state": "OFF"})
+                                Event(type=EventType.HUB_STATE_CHANGED,
+                                      payload={"idx": BATHROOM_VENT_IDX, "state": "OFF", "origin": "automation"})
                             )
                             automation_logger.info(
                                 f"[Bathroom Climate] Humidity dropped below lower threshold ({val}% <= {off_threshold}%). Auto-disengaging extraction fan.")
@@ -497,7 +503,8 @@ class AutomationEngine:
                                 "idx": idx,
                                 "name": semantic_name,
                                 "type": "switch",
-                                "target_state": "OFF"
+                                "target_state": "OFF",
+                                "origin": "timer"
                             }
                         }
                     ))
@@ -544,7 +551,7 @@ class AutomationEngine:
                         if current_vent_state != "ON":
                             follow_up_events.append(Event(
                                 type=EventType.HUB_STATE_CHANGED,
-                                payload={"idx": BATHROOM_VENT_IDX, "state": "ON"}
+                                payload = {"idx": BATHROOM_VENT_IDX, "state": "ON", "origin": "automation"}
                             ))
                             automation_logger.info(
                                 f"[Shower Automation] Hot water sustained flow verified ({len(AutomationEngine._hot_water_pulses)} pulses/10s). Auto-engaging {semantic_name}."

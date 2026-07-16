@@ -12,6 +12,10 @@ if TYPE_CHECKING:
 # Any message sent through this instance gets the 'is_automation' tag attached to it.
 automation_logger = sys_logger.bind(is_automation=True)
 
+# ⚡ Expose the bound logger globally for the synchronous IWHW (State Transition) Ledger
+# Any message sent through this instance gets the 'iwhw' tag attached to it.
+iwhw_logger = sys_logger.bind(iwhw=True)
+
 
 class WanosComponent:
     """Base class for all system components to ensure state/logger access."""
@@ -87,7 +91,7 @@ def setup_wanos_logging() -> None:
     # Ensure directory exists
     os.makedirs(log_dir, exist_ok=True)
 
-    # 2. Sink 1: Main System Log (Filter out DEBUG and Automations)
+    # 2. Sink 1: Main System Log (Filter out DEBUG, Automations, and IWHW)
     sys_logger.add(
         f"{log_dir}/wanos.log",
         rotation="5 MB",
@@ -95,10 +99,10 @@ def setup_wanos_logging() -> None:
         format=custom_format,
         level="INFO",
         enqueue=True,  # Write via safe background thread
-        filter=lambda record: record["level"].name != "DEBUG" and not record["extra"].get("is_automation", False)
+        filter=lambda record: record["level"].name != "DEBUG" and not record["extra"].get("is_automation", False) and not record["extra"].get("iwhw", False)
     )
 
-    # 3. Sink 2: Debug Log (Filter specifically for DEBUG, exclude Automations)
+    # 3. Sink 2: Debug Log (Filter specifically for DEBUG, exclude Automations and IWHW)
     sys_logger.add(
         f"{log_dir}/wanos_debug.log",
         rotation="5 MB",
@@ -106,7 +110,7 @@ def setup_wanos_logging() -> None:
         format=custom_format,
         level="DEBUG",
         enqueue=True,  # Write via safe background thread
-        filter=lambda record: record["level"].name == "DEBUG" and not record["extra"].get("is_automation", False)
+        filter=lambda record: record["level"].name == "DEBUG" and not record["extra"].get("is_automation", False) and not record["extra"].get("iwhw", False)
     )
 
     # 4. Sink 3: Unified Automation Log (Dynamically captures both INFO and DEBUG lines)
@@ -118,4 +122,16 @@ def setup_wanos_logging() -> None:
         level="DEBUG",
         enqueue=True,  # Write via safe background thread without blocking physics engine!
         filter=lambda record: record["extra"].get("is_automation", False)
+    )
+
+    # 5. Sink 4: IWHW (Ik Wil Het Weten) Ledger (State Transition Log)
+    # The format string relies purely on the message payload to guarantee bulletproof column rendering.
+    sys_logger.add(
+        f"{log_dir}/wanos_iwhw.log",
+        rotation="10 MB",
+        retention=3,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {message}",
+        level="INFO",
+        enqueue=True,
+        filter=lambda record: record["extra"].get("iwhw", False)
     )

@@ -1,15 +1,14 @@
-# --------------------------------------------------------------------------------
-# CODE TO REPLACE IT WITH
-# --------------------------------------------------------------------------------
 #!/usr/bin/env bash
 # wanoslog.sh
 # Universal log-tailing multiplexer for the WanOS Systemd service.
 #
-# Usage: 
+# Usage:
 #   ./wanoslog.sh consolelog      -> Tails live Systemd Journal (stdout/stderr)
 #   ./wanoslog.sh applog          -> Tails high-level business logic
 #   ./wanoslog.sh applogdebug     -> Tails low-level debug chatter
 #   ./wanoslog.sh automationlog   -> Tails declarative automation actions
+#   ./wanoslog.sh powerlog        -> Tails power analytics data
+#   ./wanoslog.sh iwhwlog         -> Tails IWHW subsystem log
 #   ./wanoslog.sh log             -> Interactive menu
 set -euo pipefail
 
@@ -19,6 +18,8 @@ set -euo pipefail
 APP_LOG_FILE="/var/log/wanos/wanos.log"
 APP_DEBUG_LOG_FILE="/var/log/wanos/wanos_debug.log"
 AUTOM_LOG_FILE="/var/log/wanos/wanos_automations.log"
+POWER_LOG_FILE="/var/log/wanos/wanos_power.log"
+IWHW_LOG_FILE="/var/log/wanos/wanos_iwhw.log"   # Newly added IWHW subsystem log
 TAIL_LINES=20     # default number of lines to show initially for tails
 
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*"; }
@@ -32,6 +33,8 @@ Commands:
   applog          (Tails /var/log/wanos/wanos.log)
   applogdebug     (Tails /var/log/wanos/wanos_debug.log)
   automationlog   (Tails /var/log/wanos/wanos_automations.log)
+  powerlog        (Tails /var/log/wanos/wanos_power.log)
+  iwhwlog         (Tails /var/log/wanos/wanos_iwhw.log)
   log [choice] [lines]
 
 log choices:
@@ -39,6 +42,8 @@ log choices:
   2 = app         (/var/log/wanos/wanos.log)
   3 = app-debug   (/var/log/wanos/wanos_debug.log)
   4 = automation  (/var/log/wanos/wanos_automations.log)
+  5 = power       (/var/log/wanos/wanos_power.log)
+  6 = iwhw        (/var/log/wanos/wanos_iwhw.log)
 
 Examples:
   $0 consolelog
@@ -112,12 +117,32 @@ if [ "$CMD" = "automationlog" ]; then
 fi
 
 # -------------------------
+# Power log tailing
+# -------------------------
+if [ "$CMD" = "powerlog" ]; then
+  ensure_readable_file_or_exit "$POWER_LOG_FILE"
+  log "Tailing power log ($POWER_LOG_FILE). Showing last $TAIL_LINES lines then following."
+  exec tail -n "$TAIL_LINES" -F "$POWER_LOG_FILE"
+fi
+
+# -------------------------
+# IWHW log tailing (new)
+# -------------------------
+if [ "$CMD" = "iwhwlog" ]; then
+  ensure_readable_file_or_exit "$IWHW_LOG_FILE"
+  log "Tailing IWHW log ($IWHW_LOG_FILE). Showing last $TAIL_LINES lines then following."
+  exec tail -n "$TAIL_LINES" -F "$IWHW_LOG_FILE"
+fi
+
+# -------------------------
 # Log chooser (interactive or non-interactive)
 # -------------------------
 if [ "$CMD" = "log" ]; then
   choice=""
   lines="$TAIL_LINES"
-  if [ ${#REMAINING_ARGS[@]} -ge 1 ] && [[ "${REMAINING_ARGS[0]}" =~ ^[1-4]$ ]]; then
+
+  # Validate that the argument passed matches 1 through 6
+  if [ ${#REMAINING_ARGS[@]} -ge 1 ] && [[ "${REMAINING_ARGS[0]}" =~ ^[1-6]$ ]]; then
     choice="${REMAINING_ARGS[0]}"
     if [ ${#REMAINING_ARGS[@]} -ge 2 ] && [[ "${REMAINING_ARGS[1]}" =~ ^[0-9]+$ ]]; then
       lines="${REMAINING_ARGS[1]}"
@@ -129,7 +154,9 @@ Which log do you want to tail?
   2) app        (/var/log/wanos/wanos.log)
   3) app-debug  (/var/log/wanos/wanos_debug.log)
   4) automation (/var/log/wanos/wanos_automations.log)
-Enter choice [1-4]:
+  5) power      (/var/log/wanos/wanos_power.log)
+  6) iwhw       (/var/log/wanos/wanos_iwhw.log)
+Enter choice [1-6]:
 EOF
     read -r choice
     echo "Number of lines to show initially (press Enter for default $TAIL_LINES):"
@@ -163,6 +190,16 @@ EOF
       ensure_readable_file_or_exit "$AUTOM_LOG_FILE"
       log "Tailing automation log ($AUTOM_LOG_FILE). Showing last $lines lines then following."
       exec tail -n "$lines" -F "$AUTOM_LOG_FILE"
+      ;;
+    5)
+      ensure_readable_file_or_exit "$POWER_LOG_FILE"
+      log "Tailing power log ($POWER_LOG_FILE). Showing last $lines lines then following."
+      exec tail -n "$lines" -F "$POWER_LOG_FILE"
+      ;;
+    6)
+      ensure_readable_file_or_exit "$IWHW_LOG_FILE"
+      log "Tailing IWHW log ($IWHW_LOG_FILE). Showing last $lines lines then following."
+      exec tail -n "$lines" -F "$IWHW_LOG_FILE"
       ;;
     *)
       log "Invalid choice: $choice"

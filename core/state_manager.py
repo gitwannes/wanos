@@ -8,7 +8,7 @@ from loguru import logger
 
 from .models import SystemState, Event, EventType
 from .mqtt_transport import MqttClientManager
-from .logger import WanosLogger
+from .logger import WanosLogger, iwhw_logger
 from .config import load_config
 from core.event_handlers.registry import EVENT_ROUTERS
 from core.nvm_manager import NVRAMManager
@@ -608,12 +608,77 @@ class StateManager:
                                     payload={"msg_text": f"⚠️ {sys_name} start blocked: {', '.join(reasons)}"}))
                 return state_changed, changed_domains
 
+        # SCENE EXECUTION INTERCEPTOR (IWHW Ledger)
+        for scene in self._state.system.available_scenes:
+            if scene.get("event") == event_name:
+                name = scene.get("name", "Unknown")
+                # Format is explicitly handled in Python to guarantee vertical column alignment
+                iwhw_logger.info(f"{'SCENE':<9} | {name:<15}")
+                break
+
+        # IWHW LEDGER: Capture baseline state before mathematical mutation
+        old_state_raw = None
+        if meta_idx is not None:
+            old_state_raw = self._state.devices.get(meta_idx)
+            # If the state is a rich dict (e.g., Hue/Sonos), clone it to prevent memory reference mutation
+            if isinstance(old_state_raw, dict):
+                old_state_raw = old_state_raw.copy()
+
         # ROUTE TO STRATEGY PATTERN HANDLER
         handler = EVENT_ROUTERS.get(event_name)
         if handler:
             ch, dom = await handler(event, self)
             state_changed |= ch
             changed_domains.update(dom)
+
+        # IWHW LEDGER: Evaluate binary state mutations behind the duplicate filter
+        if meta_idx is not None and state_changed:
+            meta = self._state.device_metadata.get(meta_idx, {})
+            dev_type = meta.get("type", "")
+
+            # Only log physical actuators and switches, ignore passive sensors and metrics
+            if dev_type in ["switch", "light", "blinds", "speaker"]:
+                new_state_raw = self._state.devices.get(meta_idx)
+
+                # Extract strict binary core state, ignoring colors/brightness/volume
+                old_bin = old_state_raw.get("state") if isinstance(old_state_raw, dict) else old_state_raw
+                new_bin = new_state_raw.get("state") if isinstance(new_state_raw, dict) else new_state_raw
+
+                if dev_type == "blinds":
+                    def format_blind(val):
+                        if val == 100: return "CLOSED"
+                        if val == 0: return "OPEN"
+                        return f"{val}%"
+
+                    old_bin = format_blind(old_bin) if isinstance(old_bin, (int, float)) else old_bin
+                    new_bin = format_blind(new_bin) if isinstance(new_bin, (int, float)) else new_bin
+
+                # ⚡ SILENCE BOOT STORMS: Ignore events explicitly flagged as initialization,
+                # or transitions involving None / 'Sync...' as either the origin or destination.
+                is_init = payload.get("is_initialization", False)
+                is_valid_transition = (
+                    old_bin != new_bin
+                    and new_bin is not None
+                    and new_bin != "Sync..."
+                    and old_bin is not None
+                    and old_bin != "Sync..."
+                    and not is_init
+                )
+                # If the core binary state transitioned safely, write to the dedicated log
+                if is_valid_transition:
+                    origin = meta.get("origin", "")
+                    prefix = origin.upper() if origin in ["hue", "sonos", "onkyo"] else dev_type.upper()
+
+                    # Normalize semantic aliases
+                    if prefix == "BLINDS": prefix = "SHUTTER"
+                    if prefix == "LIGHT": prefix = "SWITCH"
+
+                    name = meta.get("name", f"idx_{meta_idx}")
+                    origin_tag = payload.get("origin", "")
+                    origin_str = f" ({origin_tag})" if origin_tag in ["timer", "automation"] else ""
+
+                    # Format is explicitly handled in Python to guarantee vertical column alignment
+                    iwhw_logger.info(f"{prefix:<9} | {name:<25} | {new_bin}{origin_str}")
 
         # --------------------------------------------------------
         # CROSS-CUTTING CONCERNS (Universal Hooks, Timers & PID Logic)
