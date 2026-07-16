@@ -67,7 +67,3 @@ sudo raspi-config
 Install I²C and modern GPIO tools:
 sudo apt install -y i2c-tools python3-libgpiod
 to test I²C Active: Run i2cdetect -y 1. You should see the grid and the address of your connected LCD (e.g., 27 or 26).
-
-
-** setup Z-Wave JS middleware
-cfr zwave migration.md

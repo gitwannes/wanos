@@ -7,13 +7,13 @@ This plain-text document contains your complete operational blueprint to safely 
 ** ADDITION
 Because we already possess the RaZberry NVM backup (`.bin`), we bypass the RaZberry entirely on the new host.
 ### Physical Relocation
-1. **Plug in the ZBT-2:** Insert the Home Assistant ZBT-2 USB stick into the WanOS Raspberry Pi (preferably using a short USB extension cable to reduce EMF interference).
+1. **Plug in the ZWA-2:** Insert the Home Assistant ZWA-2 USB stick into the WanOS Raspberry Pi (preferably using a short USB extension cable to reduce EMF interference).
 1. Gracefully shut down your ancient Debian Jessie Raspberry Pi.
 2. **Find the persistent USB Path:**
 2. Unplug the power source and unseat the physical **RaZberry Plus** GPIO expansion card from the motherboard.
    Run `ls -l /dev/serial/by-id/` in your terminal.
 3. Power down your modern **WanOS Raspberry Pi**.
-   Copy the path that points to the ZBT-2:
+   Copy the path that points to the ZWA-2:
 	/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00 -> ../../ttyACM0
 	/dev/ttyACM0
 

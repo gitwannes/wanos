@@ -248,10 +248,3 @@ systemctl status seatd
 lsb_release -a
 cat /etc/*-release
 cat /proc/version
-
-
-## Part 6: other snippets & code info
-
-ls /dev/serial/by-id/
-lrwxrwxrwx 1 root root 13 Jun 25 10:12 usb-Nabu_Casa_ZBT-2_14C19FC70CC4-if00 -> ../../ttyACM0
-lrwxrwxrwx 1 root root 13 Jun 25 08:17 usb-RFXCOM_RFXtrx433_A1Z68UAV-if00-port0 -> ../../ttyUSB0
