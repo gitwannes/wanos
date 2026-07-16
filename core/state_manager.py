@@ -510,6 +510,9 @@ class StateManager:
                     "origin") == "domoticz":
                 logger.info(
                     f"--> Domoticz sensor idx {payload.get('idx')} ({payload.get('name', 'Unknown')}): initial state received: {payload.get('state')}")
+            elif event_name == "HUB_STATE_CHANGED" and payload.get("origin") == "system":
+                # COMPLETE SILENCE: Do not log high-frequency host stats (CPU, RAM, Load) at all
+                pass
             else:
                 # TELEMETRY ROUTING GATEWAY: Move Power, lux, hum en temperature from INFO to DEBUG
                 is_telemetry = (

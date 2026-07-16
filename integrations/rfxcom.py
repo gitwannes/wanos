@@ -12,7 +12,8 @@ try:
     import RFXtrx.lowlevel as lowlevel
     DEPENDENCIES_AVAILABLE = True
 except ImportError as lib_err:
-    print(f"⚠️ [Native RFX] Required library missing: {lib_err}")
+    from loguru import logger
+    logger.critical(f"⚠️ [Native RFX] Required library missing: {lib_err}")
     DEPENDENCIES_AVAILABLE = False
 
 
@@ -165,7 +166,7 @@ class NativeRFXCOMBridge(WanosComponent):
                         await self._mount_serial()
 
                 except Exception as inner_e:
-                    print(f"[Native RFX Watchdog] Inner loop error safely caught: {inner_e}")
+                    await self.logger.error(f"[Native RFX Watchdog] Inner loop error safely caught: {inner_e}")
         except asyncio.CancelledError:
             pass
 
@@ -174,7 +175,7 @@ class NativeRFXCOMBridge(WanosComponent):
         raw_hex = packet.hex().lower()
 
         # Bypass WanOS log filters so we can always see the firehose in consolelog!
-        print(f"📻 [Native RFX] [ANTENNA FIREHOSE] {raw_hex}")
+        # print(f"📻 [Native RFX] [ANTENNA FIREHOSE] {raw_hex}")
 
         if not self._integration_enabled:
             return

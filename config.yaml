@@ -81,15 +81,15 @@ onkyo:
   device_map:
     61001:
       ip: "10.32.251.35"
-      name: "receiver cinema" #  (Onkyo TX-NR575E)"
+      name: "cinema" #  (Onkyo TX-NR575E)"
       legacy: false
     61002:
       ip: "10.32.251.78"
-      name: "receiver living" #  (Onkyo TX-NR616)"
+      name: "living" #  (Onkyo TX-NR616)"
       legacy: true  # Instructs the engine to use the malformed header and 2.0s TCP pacing
 
 rfxcom:
-  # To find the exact USB port run: dmesg | grep tty OR lsusb --> update
+  # To find the exact USB port run: ls -l /dev/serial/by-id/
   serial_port: "/dev/rfxcom"
 
 # --- Declarative translation mapping for physical RFXCom 433MHz signals ---

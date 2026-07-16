@@ -181,9 +181,17 @@
                                      :class="((item.type === 'blinds' || item.type === 'speaker') && !item.is_dead && item.raw_value !== null) ? 'cursor-pointer hover:text-primary transition-colors' : ''"
                                      @click="if(item.type === 'blinds') handleShutterNameClick(item); if(item.type === 'speaker') handleSpeakerNameClick(item)">
 
-                                    <template x-if="item.type === 'speaker'">
+                                    <template x-if="item.type === 'speaker' && item.origin !== 'onkyo'">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><circle cx="12" cy="14" r="4"></circle><line x1="12" y1="6" x2="12.01" y2="6"></line></svg>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider" x-text="item.origin"></span>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'speaker' && item.origin === 'onkyo'">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <!-- ⚡ Custom AV Receiver Icon: Wide box, right volume dial, left digital display line -->
+                                            <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="1.5"></rect><circle cx="17" cy="12" r="2"></circle><line x1="6" y1="12" x2="10" y2="12"></line></svg>
                                             <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider" x-text="item.origin"></span>
                                         </div>
                                     </template>
@@ -306,10 +314,9 @@
 
                             <template x-if="item.type === 'blinds'">
                                 <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
-                                    <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1 py-0 h-4 md:h-5 shrink-0 min-w-[2.25rem] justify-center"
+                                    <span class="badge badge-neutral font-mono text-[8px] md:text-[11px] px-1 py-0 h-3.5 md:h-4 shrink-0 min-w-[1.75rem] justify-center"
                                           :class="item.is_dead ? 'text-error font-bold' : ''"
                                           x-text="item.is_dead ? 'DEAD' : (item.raw_value !== null ? item.raw_value + '%' : '--')"></span>
-
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-info cursor-pointer hover:text-primary transition-colors"
                                           @click="setShutterState(item.id, 0)">OPEN</span>
 
@@ -340,10 +347,9 @@
 
                             <template x-if="item.type === 'speaker'">
                                 <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
-                                    <span class="badge font-mono text-[9px] md:text-xs px-1 py-0 h-4 md:h-5 shrink-0 min-w-[2.25rem] justify-center transition-colors"
+                                    <span class="badge font-mono text-[8px] md:text-[11px] px-1 py-0 h-3.5 md:h-4 shrink-0 min-w-[1.75rem] justify-center transition-colors"
                                           :class="item.is_dead ? 'badge-neutral text-error font-bold' : (item.is_on ? 'badge-success text-neutral-900 shadow-sm' : 'badge-neutral text-base-content/50')"
                                           x-text="item.is_dead ? 'DEAD' : (item.display_text !== null ? item.display_text : '--')"></span>
-
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
                                           @click="toggleSpeakerPower(item.id, true)">PLAY</span>

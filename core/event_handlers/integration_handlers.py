@@ -14,7 +14,7 @@ async def handle_automations_toggled(event: Event, manager: Any) -> Tuple[bool, 
     state_changed = True
     changed_domains = {"system"}
 
-    color = "🟢" if is_enabled else "🔴"
+    color = "🟢" if is_enabled else "⚪"
     ch, dom = AlertManager.process_alert(manager._state, f"{color} Automations engine turned {state_str}")
     state_changed |= ch
     changed_domains |= dom
@@ -31,8 +31,8 @@ async def handle_domoticz_toggled(event: Event, manager: Any) -> Tuple[bool, Set
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.domoticz_mqtt_connected:
-        await manager.logger.warning("🟡 [Domoticz] Autostart rejected: Remote broker is offline.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Domoticz Hub is offline.")
+        await manager.logger.warning("🟡 [Domoticz] Command rejected: Remote broker is offline.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Domoticz Hub is offline.")
         state_changed |= ch
         changed_domains |= dom
     else:
@@ -41,7 +41,7 @@ async def handle_domoticz_toggled(event: Event, manager: Any) -> Tuple[bool, Set
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "🔴"
+        color = "🟢" if is_enabled else "⚪"
         raw_error = payload.get("error_msg")
         error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
         ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Domoticz polling turned {state_str}")
@@ -72,8 +72,8 @@ async def handle_rfxcom_toggled(event: Event, manager: Any) -> Tuple[bool, Set[s
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.rfxcom_connected:
-        await manager.logger.warning("🟡 [Native RFX] Autostart rejected: USB Transceiver is offline or unplugged.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: RFXCOM Transceiver is offline.")
+        await manager.logger.warning("🟡 [Native RFX] Command rejected: USB Transceiver is offline or unplugged.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: RFXCOM Transceiver is offline.")
         state_changed |= ch
         changed_domains |= dom
     else:
@@ -82,7 +82,7 @@ async def handle_rfxcom_toggled(event: Event, manager: Any) -> Tuple[bool, Set[s
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "🔴"
+        color = "🟢" if is_enabled else "⚪"
         raw_error = payload.get("error_msg")
         error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
         ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Native RFXCOM Engine turned {state_str}")
@@ -104,8 +104,8 @@ async def handle_owm_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.wanos_mqtt_connected:
-        await manager.logger.warning("🟡 [OWM] Autostart rejected: Local WanOS broker is offline.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: WanOS Broker is offline.")
+        await manager.logger.warning("🟡 [OWM] Command rejected: Local WanOS broker is offline.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: WanOS Broker is offline.")
         state_changed |= ch
         changed_domains |= dom
     else:
@@ -114,7 +114,7 @@ async def handle_owm_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "🔴"
+        color = "🟢" if is_enabled else "⚪"
         raw_error = payload.get("error_msg")
         error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
         ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} OWM Integration turned {state_str}")
@@ -136,8 +136,8 @@ async def handle_hue_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.hue_connected:
-        await manager.logger.warning("🟡 [Hue] Autostart rejected: Hue Bridge is offline.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Hue Bridge is offline.")
+        await manager.logger.warning("🟡 [Hue] Command rejected: Hue Bridge is offline.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Hue Bridge is offline.")
         state_changed |= ch
         changed_domains |= dom
     else:
@@ -146,7 +146,7 @@ async def handle_hue_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "🔴"
+        color = "🟢" if is_enabled else "⚪"
         raw_error = payload.get("error_msg")
         error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
         ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Hue Integration turned {state_str}")
@@ -168,8 +168,8 @@ async def handle_epson_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     is_enabled = payload.get("enabled", False)
 
     if is_enabled and not manager._state.system.epson_connected:
-        await manager.logger.warning("🟡 [Epson] Autostart rejected: Epson Projector is offline.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Epson Projector is offline.")
+        await manager.logger.warning("🟡 [Epson] Command rejected: Epson Projector is offline.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Epson Projector is offline.")
         state_changed |= ch
         changed_domains |= dom
     else:
@@ -178,7 +178,7 @@ async def handle_epson_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "🔴"
+        color = "🟢" if is_enabled else "⚪"
         raw_error = payload.get("error_msg")
         error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
         ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Epson Integration turned {state_str}")
@@ -201,20 +201,20 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
 
     # Tier 1 Intercept: Physical Stick Missing
     if is_enabled and not manager._state.system.zwave_hardware_connected:
-        await manager.logger.warning("🔴 Bouncer rejected command: Z-Wave USB Stick is unplugged.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave USB Stick is unplugged.")
+        await manager.logger.warning("🟡 [Z-Wave] Command rejected: USB Stick is unplugged.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Z-Wave USB Stick is unplugged.")
         state_changed |= ch
         changed_domains |= dom
     # Tier 2 Intercept: Control Plane (Web Server) Offline
     elif is_enabled and not manager._state.system.zwave_web_alive:
-        await manager.logger.warning("🔴 Bouncer rejected command: Z-Wave JS Web Panel (8091) is unreachable.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave JS Web Panel is offline.")
+        await manager.logger.warning("🟡 [Z-Wave] Command rejected: JS Web Panel (8091) is unreachable.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Z-Wave JS Web Panel is offline.")
         state_changed |= ch
         changed_domains |= dom
     # Tier 3 Intercept: Data Plane (MQTT Data) Frozen
     elif is_enabled and not manager._state.system.zwave_data_alive:
-        await manager.logger.warning("🔴 Bouncer rejected command: Z-Wave MQTT Data stream is frozen.")
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 Command rejected: Z-Wave Data stream is frozen.")
+        await manager.logger.warning("🟡 [Z-Wave] Command rejected: MQTT Data stream is frozen.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Z-Wave Data stream is frozen.")
         state_changed |= ch
         changed_domains |= dom
     else:
@@ -223,7 +223,7 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "🔴"
+        color = "🟢" if is_enabled else "⚪"
         raw_error = payload.get("error_msg")
         error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
         ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Z-Wave Integration turned {state_str}")
@@ -245,7 +245,7 @@ async def handle_sonos_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     state_changed = True
     changed_domains.add("system")
 
-    color = "🟢" if is_enabled else "🔴"
+    color = "🟢" if is_enabled else "⚪"
     raw_error = payload.get("error_msg")
     error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
 
@@ -279,7 +279,7 @@ async def handle_onkyo_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     state_changed = True
     changed_domains.add("system")
 
-    color = "🟢" if is_enabled else "🔴"
+    color = "🟢" if is_enabled else "⚪"
     raw_error = payload.get("error_msg")
     error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
 
@@ -309,7 +309,7 @@ async def handle_sonos_command(event: Event, manager: Any) -> Tuple[bool, Set[st
         asyncio.create_task(manager.sonos_bridge.execute_command(event.payload))
     else:
         from core.logger import automation_logger
-        automation_logger.warning("Sonos command dropped: Integration is disabled in UI.")
+        automation_logger.warning("🟡 [Sonos] Command rejected: Integration is disabled in UI.")
 
     return False, set()
 

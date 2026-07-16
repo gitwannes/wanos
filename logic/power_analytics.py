@@ -39,6 +39,9 @@ class PowerAnalytics:
         self._session_mod_v_history: List[float] = []
         self._session_mod_w_history: List[float] = []
 
+        # Deduplication tracker to prevent identical consecutive log lines
+        self._last_log_content: str = ""
+
         self._init_sqlite()
 
     def _init_sqlite(self) -> None:
@@ -395,9 +398,19 @@ class PowerAnalytics:
 
                 # Append strictly to our specialized file stream
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                log_entry = (f"[{now_str}] [DEBUG] P_Leak: {round(self._locked_leak_watts, 1)}W | "
-                             f"P_Real: {round(real_power, 1)}W | V_Line: {round(v_live, 1)}V | "
-                             f"R_th: {r_th} | Extracted [U:{round(self._p_u_extracted)}W V:{round(self._p_v_extracted)}W W:{round(self._p_w_extracted)}W]\n")
+
+                # Extract the raw content without the timestamp to evaluate for duplicates
+                # Note: Safely parse v_live just in case the Z-Wave network drops and returns the "AWAITING" string
+                v_display = round(v_live, 1) if isinstance(v_live, float) else v_live
+                log_content = (f"[DEBUG] P_Leak: {round(self._locked_leak_watts, 1)}W | "
+                               f"P_Real: {round(real_power, 1)}W | V_Line: {v_display}V | "
+                               f"R_th: {r_th} | Extracted [U:{round(self._p_u_extracted)}W V:{round(self._p_v_extracted)}W W:{round(self._p_w_extracted)}W]\n")
+
+                if log_content == self._last_log_content:
+                    continue  # Silently skip logging if the exact same physics parameters were just logged
+
+                self._last_log_content = log_content
+                log_entry = f"[{now_str}] {log_content}"
 
                 try:
                     with open(self._log_path, "a") as f:

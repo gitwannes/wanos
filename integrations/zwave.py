@@ -22,6 +22,9 @@ class ZWaveJSUIBridge(WanosComponent):
         self._was_hardware_connected: bool = False
         self._last_config_id: int = 0
 
+        # Debounce Tracker for MQTT Heartbeats
+        self._last_heartbeat_processed: float = 0.0
+
     @property
     def mqtt_prefix(self) -> str:
         """Dynamically pulls the MQTT prefix from config (defaults to 'zwave')"""
@@ -45,7 +48,13 @@ class ZWaveJSUIBridge(WanosComponent):
 
     async def _parse_heartbeat(self, topic: str, payload: str) -> None:
         """Dedicated out-of-band interceptor for the MQTT Data Plane heartbeat."""
-        self.state_manager.dispatch(Event(type=EventType.ZWAVE_HEARTBEAT, payload={}))
+        import time
+        now = time.time()
+
+        # Throttle Guard: Ignore duplicate heartbeats arriving within 2 seconds of each other
+        if now - self._last_heartbeat_processed > 2.0:
+            self._last_heartbeat_processed = now
+            self.state_manager.dispatch(Event(type=EventType.ZWAVE_HEARTBEAT, payload={}))
 
     async def _parse_hardware_status(self, topic: str, payload: str) -> None:
         """

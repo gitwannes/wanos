@@ -2,7 +2,6 @@
 import uuid
 from datetime import datetime
 from typing import Optional, Set, Tuple
-
 from core.models import SystemState
 
 
@@ -27,28 +26,25 @@ class AlertManager:
             if not raw_msg:
                 continue
 
-            # Auto-classify severity and strip legacy emojis for clean JSON delivery
+            # Auto-classify severity and strip visual indicators for clean JSON delivery
             level = "info"
             clean_msg = raw_msg
 
-            if "🔴 CRITICAL" in raw_msg:
+            if "🔴" in raw_msg or "CRITICAL" in raw_msg.upper():
                 level = "critical"
-                clean_msg = raw_msg.replace("🔴 CRITICAL:", "").replace("🔴 CRITICAL", "").strip()
-            elif "🔴" in raw_msg:
+                clean_msg = clean_msg.replace("🔴", "").replace("CRITICAL:", "").replace("CRITICAL", "")
+            elif "🟡" in raw_msg or "⚠️" in raw_msg:
                 level = "warning"
-                clean_msg = raw_msg.replace("🔴", "").strip()
-            elif "🟢 SUCCESS" in raw_msg:
+                clean_msg = clean_msg.replace("🟡", "").replace("⚠️", "")
+            elif "🟢" in raw_msg or "SUCCESS" in raw_msg.upper():
                 level = "success"
-                clean_msg = raw_msg.replace("🟢 SUCCESS:", "").replace("🟢 SUCCESS", "").strip()
-            elif "🟢" in raw_msg:
-                level = "success"
-                clean_msg = raw_msg.replace("🟢", "").strip()
-            elif "🧹" in raw_msg:
-                level = "info"
-                clean_msg = raw_msg.replace("🧹", "").strip()
-            elif "🔄" in raw_msg:
-                level = "info"
-                clean_msg = raw_msg.replace("🔄", "").strip()
+                clean_msg = clean_msg.replace("🟢", "").replace("SUCCESS:", "").replace("SUCCESS", "")
+
+            # Strip out common UI formatting emojis so the text looks perfectly clean in the toast notification
+            for emoji in ["⚪", "🔵", "ℹ️", "🧹", "🔄", "🚀", "⏳"]:
+                clean_msg = clean_msg.replace(emoji, "")
+
+            clean_msg = clean_msg.strip()
 
             timestamp: str = datetime.now().strftime("%-d/%b %H:%M:%S")
             msg_handled = False

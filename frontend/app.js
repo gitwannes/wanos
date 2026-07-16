@@ -28,6 +28,7 @@ function wanosApp() {
                 zwave_integration_enabled: false, // ⚡ Switch to block/allow Z-Wave processing
                 epson_connected: false, // ⚡ Tracks physical TCP availability of the Epson Projector
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
+                sonos_connected: false, // ⚡ Tracks physical availability of Sonos network
                 sonos_integration_enabled: false, // ⚡ Master UI switch to block/allow Sonos commands
                 onkyo_connected: false, // ⚡ Tracks physical TCP availability of Onkyo Receivers
                 onkyo_integration_enabled: false, // ⚡ Master UI switch to block/allow Onkyo Receivers
@@ -280,6 +281,7 @@ function wanosApp() {
             if (s.zwave_hardware_connected && s.zwave_web_alive && s.zwave_data_alive && !s.zwave_integration_enabled) offlineCount++;
             if (!s.owm_integration_enabled) offlineCount++;
             if (!s.sonos_integration_enabled) offlineCount++;
+            if (s.sonos_connected && !s.sonos_integration_enabled) offlineCount++;
             if (s.onkyo_connected && !s.onkyo_integration_enabled) offlineCount++;
             if (h.gpio_input_connected && !h.gpio_input_enabled) offlineCount++;
             if (h.sht11_connected && !h.sht11_enabled) offlineCount++;
