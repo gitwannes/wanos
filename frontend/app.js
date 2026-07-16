@@ -463,6 +463,38 @@ function wanosApp() {
                     uiVolume = rawValue.volume;
                 }
 
+                // ⏱️ CLIENT-SIDE COUNTDOWN MODELER
+                // Iterates over active timers to compute any matching absolute auto-off deadlines
+                let autoOffCountdown = null;
+                if (this.state.system.active_timers) {
+                    const targetTimerId = `light_auto_off_${idx}`;
+                    for (const itemStr of this.state.system.active_timers) {
+                        if (!itemStr) continue;
+                        let t = typeof itemStr === 'object' ? itemStr : null;
+                        if (!t) {
+                            try { t = JSON.parse(itemStr); } catch (e) {}
+                        }
+                        if (t && t.timer_id === targetTimerId) {
+                            const diff = t.deadline - this.nowUnix;
+                            if (diff > 0) {
+                                const hrs = Math.floor(diff / 3600);
+                                const mins = Math.floor((diff % 3600) / 60);
+                                const secs = diff % 60;
+
+                                // Dynamically drop format components based on remaining duration thresholds
+                                if (hrs > 0) {
+                                    autoOffCountdown = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                                } else if (mins > 0) {
+                                    autoOffCountdown = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                                } else {
+                                    autoOffCountdown = `${secs.toString().padStart(2, '0')}`;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+
                 list.push({
                     id: idx,
                     name: meta.name,
@@ -475,7 +507,8 @@ function wanosApp() {
                     is_on: isOn,
                     is_syncing: isSyncing, // ⚡ Exposed explicitly to lock UI elements during hardware handshakes
                     is_hue: meta.origin === 'hue',
-                    is_dead: isDead
+                    is_dead: isDead,
+                    auto_off_countdown: autoOffCountdown // ⚡ Injected for role-restricted desktop layout timer badges
                 });
             }
 
