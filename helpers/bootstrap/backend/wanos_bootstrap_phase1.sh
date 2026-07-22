@@ -157,47 +157,27 @@ else
     echo "Log2Ram is already installed. Skipping."
 fi
 
-# 7. Configure Samba
-echo "[7/7] Configuring Samba..."
+# 7. Configure Samba using external smb.conf
+echo "[7/7] Configuring Samba from external smb.conf..."
 mkdir -p "$WANNES_HOME/wanos"
 chown -R wannes:wannes "$WANNES_HOME/wanos"
 
-cat << 'EOF' > /etc/samba/smb.conf
-[global]
-    workgroup = WORKGROUP
-    server string = WanOS Storage
-    server role = standalone server
-    security = user
+# Locate external smb.conf helper file
+SMB_SRC=""
+if [ -f "$WANNES_HOME/smb.conf" ]; then
+    SMB_SRC="$WANNES_HOME/smb.conf"
+elif [ -f "./smb.conf" ]; then
+    SMB_SRC="./smb.conf"
+fi
 
-    # Logging
-    log file = /var/log/samba/log.%m
-    max log size = 1000
-    logging = file
-    panic action = /usr/share/samba/panic-action %d
-
-    # Disable printer subsystem (improves performance and limits noise)
-    load printers = no
-    printing = bsd
-    printcap name = /dev/null
-    disable spoolss = yes
-
-    # Guest handling
-    map to guest = bad user
-
-[wanos_share]
-    comment = WanOS Application Share
-    path = /home/wannes/wanos
-    valid users = wannes
-    browseable = yes
-    read only = no
-    guest ok = no
-
-    # Permissions: Ensures files and folders are immediately executable (rwxrwxr-x)
-    create mask = 0775
-    force create mode = 0775
-    directory mask = 0775
-    force directory mode = 0775
-EOF
+if [ -n "$SMB_SRC" ]; then
+    echo "Copying $SMB_SRC to /etc/samba/smb.conf..."
+    cp "$SMB_SRC" /etc/samba/smb.conf
+else
+    echo "ERROR: External smb.conf not found in $WANNES_HOME/ or current directory!" >&2
+    echo "Please copy smb.conf to the Raspberry Pi before running Phase 1." >&2
+    exit 1
+fi
 
 systemctl enable --now smbd
 
