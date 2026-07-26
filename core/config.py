@@ -94,6 +94,11 @@ class LightingConfig(BaseModel):
     auto_off_delays: Dict[int, int]
 
 
+class BlindsConfig(BaseModel):
+    default_travel_time_secs: int = 35
+    travel_times: Dict[int, int] = Field(default_factory=dict)
+
+
 class BlindsScheduleConfig(BaseModel):
     morning_open_earliest: str
     morning_open_latest: str
@@ -236,6 +241,7 @@ class AppConfig(BaseModel):
     ir: IRRuntimeConfig
     bathroom1: BathroomConfig
     lighting: LightingConfig
+    blinds: Optional[BlindsConfig] = None
     environmental_schedule: Optional[EnvironmentalScheduleConfig] = None
     weather: WeatherConfig
     boot_seed: Dict[Union[int, str], Any] = {}
@@ -325,6 +331,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "ir": runtime_data["ir"],
         "bathroom1": runtime_data["bathroom1"],
         "lighting": runtime_data.get("lighting", {}),
+        "blinds": runtime_data.get("blinds"),
         "environmental_schedule": runtime_data.get("environmental_schedule"),
         "weather": runtime_data["weather"],
         "native_rfx": runtime_data.get("native_rfx", []),

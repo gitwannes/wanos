@@ -181,6 +181,14 @@ bathroom1:
   vent_off_humidity: 74          # Auto-disengage fan below this %
   vent_min_runtime_mins: 5       # Minimum time the fan must run before auto-disengaging
 
+blinds:
+  default_travel_time_secs: 35
+  travel_times:
+    73001: 30  # cinema
+    73002: 20  # sauna
+    73003: 35  # gv links
+    73004: 34  # gv rechts
+
 # 🌍 The Daily Time-Series Engine (Environmental Bounds)
 environmental_schedule:
   blinds:

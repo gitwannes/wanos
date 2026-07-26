@@ -6,6 +6,7 @@ from loguru import logger
 from core.models import Event, EventType
 from core.logger import automation_logger
 from logic.alert_manager import AlertManager
+from core.logger import iwhw_logger
 
 _shutter_debounce_tasks = {}
 
@@ -112,21 +113,114 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
 
                 if old_log_state != state_val or is_push_button:
                     if is_analog:
-                        # Debounce analog slider values: Wait 30 seconds of no movement before committing
-                        if idx in _shutter_debounce_tasks:
-                            _shutter_debounce_tasks[idx].cancel()
+                        if dev_type in ["blinds", "shutter"]:
+                            def get_shutter_val(v) -> Optional[int]:
+                                if v == "OPEN": return 0
+                                if v == "CLOSED": return 100
+                                if isinstance(v, str) and "%" in v: return int(v.replace("%", ""))
+                                try:
+                                    return int(v)
+                                except (ValueError, TypeError):
+                                    return None
 
-                        async def debounced_log(target_idx, val):
-                            try:
-                                await asyncio.sleep(30.0)
-                                manager.history_manager.log_event(target_idx, str(val))
-                                # Trigger frontend SSE update via dummy injection
-                                manager.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED,
-                                                       payload={"insights_trigger": True}))
-                            except asyncio.CancelledError:
-                                pass
+                            def format_blind(v: int) -> str:
+                                if v == 100: return "CLOSED"
+                                if v == 0: return "OPEN"
+                                return f"{v}%"
 
-                        _shutter_debounce_tasks[idx] = asyncio.create_task(debounced_log(idx, state_val))
+                            new_int = get_shutter_val(state_val)
+                            old_int = get_shutter_val(old_log_state) if old_log_state is not None else 100
+
+                            if new_int is not None:
+                                # Resolve Origin Payload for IWHW
+                                raw_origin = payload.get("origin")
+                                if not raw_origin:
+                                    raw_origin = "SYSTEM" if is_init else "MANUAL"
+                                origin_tag = str(raw_origin).upper()[:10]
+
+                                active_job = _shutter_debounce_tasks.get(idx)
+
+                                # Early Release Check: Did the Z-Wave mesh report reaching our target before the timer expired?
+                                if active_job and active_job.get("target") == new_int:
+                                    active_job["task"].cancel()
+                                    del _shutter_debounce_tasks[idx]
+
+                                    # Log to History DB
+                                    manager.history_manager.log_event(idx, str(state_val))
+
+                                    # Log to IWHW Terminal
+                                    name = device_meta.get("name", f"idx_{idx}")
+                                    idx_str = str(idx)[:5]
+                                    new_bin_str = format_blind(new_int)[:10]
+                                    iwhw_logger.info(
+                                        f"{'SHUTTER':<10} | {origin_tag:<10} | {new_bin_str:<10} | {idx_str:<5} | {name}")
+
+                                    manager.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED,
+                                                           payload={"insights_trigger": True}))
+                                else:
+                                    # Calculate dynamic proportional delay based on specific travel limits
+                                    delta = abs((old_int if old_int is not None else 100) - new_int)
+
+                                    blinds_cfg = getattr(manager._config, "blinds", None)
+                                    if blinds_cfg and hasattr(blinds_cfg, "travel_times"):
+                                        base_time = blinds_cfg.travel_times.get(idx, getattr(blinds_cfg,
+                                                                                             "default_travel_time_secs",
+                                                                                             35))
+                                    else:
+                                        base_time = 35  # Failsafe
+
+                                    # Proportional time + 10% safety margin dead-reckoning
+                                    delay_seconds = int(round((delta / 100.0) * base_time * 1.10))
+                                    delay_seconds = max(1, delay_seconds)
+
+                                    if active_job:
+                                        active_job["task"].cancel()
+
+                                    async def proportional_debounced_log(target_idx: int, val: Any, delay: int,
+                                                                         origin: str, target_int: int):
+                                        try:
+                                            await asyncio.sleep(delay)
+                                            # TTL Expiry (Time-Driven Fallback)
+                                            manager.history_manager.log_event(target_idx, str(val))
+
+                                            # Log to IWHW
+                                            meta = manager._state.device_metadata.get(target_idx, {})
+                                            name = meta.get("name", f"idx_{target_idx}")
+                                            idx_str = str(target_idx)[:5]
+                                            new_bin_str = format_blind(target_int)[:10]
+                                            iwhw_logger.info(
+                                                f"{'SHUTTER':<10} | {origin:<10} | {new_bin_str:<10} | {idx_str:<5} | {name}")
+
+                                            manager.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED,
+                                                                   payload={"insights_trigger": True}))
+                                        except asyncio.CancelledError:
+                                            pass
+                                        finally:
+                                            # Clean up the dictionary if this exact task is the one finishing
+                                            if target_idx in _shutter_debounce_tasks and _shutter_debounce_tasks[
+                                                target_idx].get("target") == target_int:
+                                                del _shutter_debounce_tasks[target_idx]
+
+                                    new_task = asyncio.create_task(
+                                        proportional_debounced_log(idx, state_val, delay_seconds, origin_tag, new_int))
+                                    _shutter_debounce_tasks[idx] = {"task": new_task, "target": new_int,
+                                                                    "origin": origin_tag}
+                        else:
+                            # Standard 30s Debounce for other generic analog sensors (e.g. Generic Dimmers without travel time logic)
+                            if idx in _shutter_debounce_tasks:
+                                _shutter_debounce_tasks[idx]["task"].cancel()
+
+                            async def generic_debounced_log(target_idx, val):
+                                try:
+                                    await asyncio.sleep(30.0)
+                                    manager.history_manager.log_event(target_idx, str(val))
+                                    manager.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED,
+                                                           payload={"insights_trigger": True}))
+                                except asyncio.CancelledError:
+                                    pass
+
+                            task = asyncio.create_task(generic_debounced_log(idx, state_val))
+                            _shutter_debounce_tasks[idx] = {"task": task, "target": state_val}
                     else:
                         # Binary switches (ON/OFF) commit immediately without debounce
                         manager.history_manager.log_event(idx, str(state_val))

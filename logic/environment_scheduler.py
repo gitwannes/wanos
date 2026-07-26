@@ -1,5 +1,6 @@
 # --- file: logic/environment_scheduler.py ---
 import time
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -71,43 +72,70 @@ class EnvironmentScheduler:
         now_unix = int(time.time())
         uptime = now_unix - start_time
 
+        def _is_redundant(timer_id: str, deadline: int) -> bool:
+            """
+            Checks if a timer with the exact ID and deadline is already in the active UI registry.
+            This prevents the OWM 30-minute polling loop from flooding the event queue with identical timers.
+            """
+            for t_item in state.system.active_timers:
+                # Timer objects can exist as dicts or serialized JSON strings in the active_timers list
+                if isinstance(t_item, dict):
+                    t_dict = t_item
+                elif isinstance(t_item, str):
+                    try:
+                        t_dict = json.loads(t_item)
+                    except json.JSONDecodeError:
+                        continue
+                else:
+                    continue
+
+                if t_dict.get("timer_id") == timer_id and t_dict.get("deadline") == deadline:
+                    return True
+            return False
+
         # Anti-NTP Jump Guard: Safely absorb Pi fake-hwclock skews during boot.
         # Only schedule time-series timers if they are safely in the future (> 5s),
         # or if the system has fully stabilized past its 3-minute boot window.
-        def _should_schedule(target_unix: Optional[int]) -> bool:
+        # Enforces deduplication to prevent 30-minute OWM polling loops from flooding the event queue.
+        def _should_schedule(timer_id: str, target_unix: Optional[int]) -> bool:
             if not target_unix:
                 return False
-            return target_unix > now_unix and (target_unix - now_unix > 5 or uptime > 180)
+
+            is_valid_future = target_unix > now_unix and (target_unix - now_unix > 5 or uptime > 180)
+            if not is_valid_future:
+                return False
+
+            return not _is_redundant(timer_id, target_unix)
 
         # Dispatched dynamically to the bus so the Glass-Box Timeline UI registers them instantly.
-        if _should_schedule(blinds_open):
+        if _should_schedule("env_blinds_open", blinds_open):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_blinds_open", "deadline": blinds_open, "event_type": "BLINDS_OPEN_TRIGGER",
                 "event_payload": {}
             }))
-        if _should_schedule(blinds_close):
+        if _should_schedule("env_blinds_close", blinds_close):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_blinds_close", "deadline": blinds_close, "event_type": "BLINDS_CLOSE_TRIGGER",
                 "event_payload": {}
             }))
-        if _should_schedule(twi_eve_on):
+        if _should_schedule("env_twi_eve_on", twi_eve_on):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_eve_on", "deadline": twi_eve_on, "event_type": "TWILIGHT_EVENING_ON_TRIGGER",
                 "event_payload": {}
             }))
-        if _should_schedule(twi_eve_off):
+        if _should_schedule("env_twi_eve_off", twi_eve_off):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_eve_off", "deadline": twi_eve_off,
                 "event_type": "TWILIGHT_EVENING_OFF_TRIGGER",
                 "event_payload": {}
             }))
-        if _should_schedule(sns.env_schedule_twilight_morning_on_unix):
+        if _should_schedule("env_twi_morn_on", sns.env_schedule_twilight_morning_on_unix):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_morn_on", "deadline": sns.env_schedule_twilight_morning_on_unix,
                 "event_type": "TWILIGHT_MORNING_ON_TRIGGER",
                 "event_payload": {}
             }))
-        if _should_schedule(sns.env_schedule_twilight_morning_off_unix):
+        if _should_schedule("env_twi_morn_off", sns.env_schedule_twilight_morning_off_unix):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_morn_off", "deadline": sns.env_schedule_twilight_morning_off_unix,
                 "event_type": "TWILIGHT_MORNING_OFF_TRIGGER",

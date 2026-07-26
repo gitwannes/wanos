@@ -641,7 +641,8 @@ class StateManager:
             dev_type = meta.get("type", "")
 
             # Only log physical actuators and switches, ignore passive sensors and metrics
-            if dev_type in ["switch", "light", "blinds", "speaker"]:
+            # Note: 'blinds' and 'shutter' are explicitly excluded here; they are handled by the async proportional debounce engine in hub_handlers.py
+            if dev_type in ["switch", "light", "speaker"]:
                 new_state_raw = self._state.devices.get(meta_idx)
 
                 # Extract strict binary core state, ignoring colors/brightness/volume
