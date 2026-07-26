@@ -299,7 +299,7 @@
                             <!-- ⏱️ ROLE-RESTRICTED DESKTOP TIMER BADGE -->
                             <!-- Only instantiates if the session is Admin and an active auto-off countdown is ticking -->
                             <template x-if="isAdmin && item.auto_off_countdown">
-                                <span class="hidden md:inline-flex text-[10px] font-mono font-bold text-error/80 mt-0.5 select-none tracking-wider uppercase"
+                                <span class="inline-flex text-[10px] font-mono font-bold text-error/80 mt-0.5 select-none tracking-wider uppercase"
                                       x-text="'auto off in ' + item.auto_off_countdown"></span>
                             </template>
                         </div>

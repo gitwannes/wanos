@@ -538,9 +538,10 @@ class StateManager:
                 # COMPLETE SILENCE: Do not log high-frequency host stats (CPU, RAM, Load) at all
                 pass
             else:
-                # TELEMETRY ROUTING GATEWAY: Move Power, lux, hum en temperature from INFO to DEBUG
+                # TELEMETRY ROUTING GATEWAY: Move Power, lux, hum, temperature, and background flushes from INFO to DEBUG
                 is_telemetry = (
-                        event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED", "ZWAVE_HEARTBEAT"] or
+                        event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED", "ZWAVE_HEARTBEAT",
+                                       "NVRAM_FLUSH_TRIGGER"] or
                         (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power", "sensor"]) or
                         (event_name == "ZWAVE_DISCOVERY" and payload.get("command_class") in ["48", "49"])
                     # 48 = motion
@@ -611,9 +612,12 @@ class StateManager:
         # SCENE EXECUTION INTERCEPTOR (IWHW Ledger)
         for scene in self._state.system.available_scenes:
             if scene.get("event") == event_name:
-                name = scene.get("name", "Unknown")
+                name: str = scene.get("name", "Unknown")
+                origin_tag: str = str(payload.get("origin", "MANUAL")).upper()[:10]
+
                 # Format is explicitly handled in Python to guarantee vertical column alignment
-                iwhw_logger.info(f"{'SCENE':<9} | {name:<15}")
+                # 10 chars type | 10 chars origin | 10 chars setting | 5 chars IDX | name
+                iwhw_logger.info(f"{'SCENE':<10} | {origin_tag:<10} | {'EXECUTED':<10} | {'-----':<5} | {name}")
                 break
 
         # IWHW LEDGER: Capture baseline state before mathematical mutation
@@ -659,26 +663,35 @@ class StateManager:
                 is_valid_transition = (
                     old_bin != new_bin
                     and new_bin is not None
-                    and new_bin != "Sync..."
+                    and new_bin not in ["Sync...", "DEAD"]
                     and old_bin is not None
-                    and old_bin != "Sync..."
+                    and old_bin not in ["Sync...", "DEAD"]
                     and not is_init
                 )
                 # If the core binary state transitioned safely, write to the dedicated log
                 if is_valid_transition:
-                    origin = meta.get("origin", "")
-                    prefix = origin.upper() if origin in ["hue", "sonos", "onkyo"] else dev_type.upper()
+                    origin: str = meta.get("origin", "")
+                    prefix: str = origin.upper() if origin in ["hue", "sonos", "onkyo"] else dev_type.upper()
 
                     # Normalize semantic aliases
                     if prefix == "BLINDS": prefix = "SHUTTER"
                     if prefix == "LIGHT": prefix = "SWITCH"
+                    prefix = prefix[:10]
 
-                    name = meta.get("name", f"idx_{meta_idx}")
-                    origin_tag = payload.get("origin", "")
-                    origin_str = f" ({origin_tag})" if origin_tag in ["timer", "automation"] else ""
+                    name: str = meta.get("name", f"idx_{meta_idx}")
+
+                    # Resolve Origin Payload
+                    raw_origin = payload.get("origin")
+                    if not raw_origin:
+                        raw_origin = "SYSTEM" if is_init else "MANUAL"
+                    origin_tag: str = str(raw_origin).upper()[:10]
+
+                    new_bin_str: str = str(new_bin)[:10]
+                    idx_str: str = str(meta_idx)[:5]
 
                     # Format is explicitly handled in Python to guarantee vertical column alignment
-                    iwhw_logger.info(f"{prefix:<9} | {name:<25} | {new_bin}{origin_str}")
+                    # 10 chars type | 10 chars origin | 10 chars setting | 5 chars IDX | name
+                    iwhw_logger.info(f"{prefix:<10} | {origin_tag:<10} | {new_bin_str:<10} | {idx_str:<5} | {name}")
 
         # --------------------------------------------------------
         # CROSS-CUTTING CONCERNS (Universal Hooks, Timers & PID Logic)

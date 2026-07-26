@@ -110,7 +110,9 @@ async def handle_light_timer_expired(event: Event, manager: Any) -> Tuple[bool, 
         automation_logger.info(f"Auto-off timer expired for light IDX {idx}, turning off light.")
         manager.dispatch(Event(
             type=EventType.HUB_STATE_CHANGED,
-            payload={"idx": idx, "state": "OFF", "force": True}
+            # Explicitly inject the origin context into the new payload so the
+            # downstream State Manager and IWHW Ledger do not default to "MANUAL".
+            payload={"idx": idx, "state": "OFF", "force": True, "origin": "TIMER"}
         ))
 
     return state_changed, changed_domains

@@ -508,7 +508,7 @@ function wanosApp() {
                     is_syncing: isSyncing, // ⚡ Exposed explicitly to lock UI elements during hardware handshakes
                     is_hue: meta.origin === 'hue',
                     is_dead: isDead,
-                    auto_off_countdown: autoOffCountdown // ⚡ Injected for role-restricted desktop layout timer badges
+                    auto_off_countdown: autoOffCountdown // ⚡ Injected for role-restricted layout timer badges
                 });
             }
 
@@ -1134,6 +1134,11 @@ function wanosApp() {
         },
 
         async publishEvent(eventType, payload = {}) {
+            // Automatically inject the MANUAL origin for all UI-driven interactions
+            if (typeof payload === 'object' && payload !== null && !payload.origin) {
+                payload.origin = "MANUAL";
+            }
+
             try {
                 const res = await fetch("/api/event", {
                     method: "POST",
