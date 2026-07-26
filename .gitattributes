@@ -1,0 +1,6 @@
+# Force Linux line endings (LF) for all shell scripts
+*.sh text eol=lf
+
+# Force LF for other execution or configuration scripts if you have them
+*.bash text eol=lf
+*.py text eol=lf

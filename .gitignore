@@ -2,8 +2,12 @@
 # WanOS backend .gitignore
 # =========================
 
-# hidden files & directories
+# Ignore all dotfiles...
 .*
+
+# ...EXCEPT these specific repository config files:
+!.gitignore
+!.gitattributes
 
 # 1. Secrets & Environment Variables
 # (CRITICAL: Never commit the actual .env file containing the MQTT password or PIN)
