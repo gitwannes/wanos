@@ -1,11 +1,15 @@
 # --- file: core/event_handlers/hub_handlers.py ---
 import time
 import asyncio
-from typing import Any, Set, Tuple
-from loguru import logger
+from typing import Any, Set, Tuple, Optional
 from core.models import Event, EventType
-from core.logger import automation_logger
 from logic.alert_manager import AlertManager
+
+# 1. Standard System Logger: Handles general INFO, DEBUG, and ERROR terminal outputs and system health
+from loguru import logger as system_logger
+# 2. Automation Logger: Dedicated stream for tracing background logic engine decisions
+from core.logger import automation_logger
+# 3. IWHW Ledger: "Ik Wil Het Weten" - Dedicated behavioral audit trail for physical state transitions
 from core.logger import iwhw_logger
 
 _shutter_debounce_tasks = {}
@@ -31,7 +35,7 @@ async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str
             manager._state.sauna.phases_pwm = [0, 0, 0]
             manager._state.sauna.ventilation_state = "OFF"
             changed_domains.add("sauna")
-            asyncio.create_task(logger.warning("🚪 Sauna door opened while active! Emergency cutoff triggered."))
+            asyncio.create_task(system_logger.warning("🚪 Sauna door opened while active! Emergency cutoff triggered."))
 
     return state_changed, changed_domains
 
@@ -83,7 +87,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
     if device_name and idx not in manager._state.dashboard_map and str(idx) not in manager._state.dashboard_map:
         manager._state.dashboard_map[idx] = device_name
         if not is_init:
-            logger.info(f"Name for {idx} added to the dashboard map: {device_name}.")
+            system.logger.info(f"Name for {idx} added to the dashboard map: {device_name}.")
 
     is_push_button = payload.get("is_push_button", False)
     is_force = payload.get("force", False)
@@ -172,6 +176,13 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                                     # Proportional time + 10% safety margin dead-reckoning
                                     delay_seconds = int(round((delta / 100.0) * base_time * 1.10))
                                     delay_seconds = max(1, delay_seconds)
+
+                                    # Emit detailed diagnostic log to system debug log stream (/var/log/wanos/wanos_debug.log)
+                                    shutter_name: str = device_meta.get("name", f"idx_{idx}")
+                                    system_logger.debug(
+                                        f"Shutter [{idx} | {shutter_name}] debounce scheduled: {delay_seconds}s (max: {base_time}s) | "
+                                        f"moving from {old_int}% to {new_int}% (Δ{delta}%)"
+                                    )
 
                                     if active_job:
                                         active_job["task"].cancel()

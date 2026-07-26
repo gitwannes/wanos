@@ -17,12 +17,29 @@ echo "=========================================="
 echo " Starting WanOS Phase 1 Setup..."
 echo "=========================================="
 
-# 1. Update system and install core tools
-echo "[1/7] Updating system packages & installing dependencies..."
+# 1. Update system and install core tools from external apt-packages.txt
+echo "[1/7] Updating system packages & installing dependencies from apt-packages.txt..."
 apt-get update && apt-get upgrade -y
-# NOTE: The package is named 'bat', but Debian renames its binary to 'batcat' to avoid conflicts
-apt-get install -y vim bat samba i2c-tools python3-venv python3-pip python3-libgpiod udev curl git
 
+# Locate external apt-packages.txt helper file
+APT_PKG_SRC=""
+if [ -f "$WANNES_HOME/apt-packages.txt" ]; then
+    APT_PKG_SRC="$WANNES_HOME/apt-packages.txt"
+elif [ -f "./apt-packages.txt" ]; then
+    APT_PKG_SRC="./apt-packages.txt"
+fi
+
+if [ -n "$APT_PKG_SRC" ]; then
+    echo "Installing OS dependencies from $APT_PKG_SRC..."
+    # Filter out comments (#) and blank lines, then pass package names to apt-get
+    grep -vE '^\s*#|^\s*$' "$APT_PKG_SRC" | xargs apt-get install -y --no-install-recommends
+else
+    echo "ERROR: External apt-packages.txt not found in $WANNES_HOME/ or current directory!" >&2
+    echo "Please copy apt-packages.txt to the Raspberry Pi before running Phase 1." >&2
+    exit 1
+fi
+
+# NOTE: The package is named 'bat', but Debian renames its binary to 'batcat' to avoid conflicts
 # Verify the 'batcat' binary was properly installed by the 'bat' package
 command -v batcat &>/dev/null || echo "WARNING: batcat binary not found after package installation."
 

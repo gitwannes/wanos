@@ -1,3 +1,4 @@
+# --- file: docs/integration_zwave.md ---
 # WanOS Z-Wave Integration: Lifecycle & Architecture
 
 Based on the WanOS backend architecture, the Z-Wave integration acts as a **lazy, event-driven MQTT bridge**. Rather than actively polling devices over TCP or HTTP, it relies entirely on the local Z-Wave JS UI MQTT broker to push state changes. Below is the step-by-step lifecycle of how WanOS manages the Z-Wave network.
@@ -13,7 +14,7 @@ When the WanOS backend boots, the `ZWaveJSUIBridge` is instantiated, but it does
 Unlike integrations that abstract device complexity, the Z-Wave bridge natively parses raw Z-Wave Command Classes (CC):
 
 *   **CC 37:** Binary Switches.
-*   **CC 38:** Multilevel Switches (Blinds / Dimmers).
+*   **CC 38:** Multilevel Switches (Blinds / Dimmers / Roller Shutters).
 *   **CC 48:** Binary Sensors (Physical Motion Transceivers / Tamper Flags).
 *   **CC 49:** Multilevel Sensors (Live Wattage Power, Air Temperature, Illuminance Lux).
 *   **CC 50:** Meters (Electric Meters and Line Voltage Monitors).
@@ -150,7 +151,7 @@ To upgrade from an old RaZberry card to a modern 700/800-series USB Stick withou
      ```
      Edit `NVM_backup.json` to strip out orphaned `nodeId` sub-trees, then recompile:
      ```bash
-     npx @zwave-js/nvmedit json2nvm --in /opt/zwave-js-ui/NVM_backup.json --out /opt/zwave-js-ui/NVM_clean.bin --protocolVersion <SDK_VERSION>
+     npx @zwave-js/nvmedit json2nvm --in /opt/zwave-js-ui/NVM_backup.json --out /opt/zwave-js-ui/NVM_backup.json --protocolVersion <SDK_VERSION>
      ```
 4. **Swap Hardware:** Power down, remove the old GPIO card, insert the modern USB stick (using a short USB extension cable to reduce EMF interference), and power back on.
 5. **Restore:** In **Settings > Z-Wave**, update the serial port path, then go to **NVM Management > Restore** and upload the cleaned `.bin` file. Import `nodes.json` to restore friendly names across all nodes.
@@ -218,4 +219,90 @@ async def _process_incoming_zwave_message(self, topic: str, payload: dict[str, A
                 
     except Exception as err:
         logger.error(f"Failed processing incoming Z-Wave data packet: {err}")
+```
+
+---
+
+## 11. Proportional Dynamic Shutter Debouncing & IWHW Ledger Mechanics
+
+Motorized Z-Wave shutter controllers (CC 38 Multilevel Switches) are inherently chatty. As a tubular motor rolls, the Z-Wave node periodically broadcasts intermediate positional reports (e.g., `85%`, `74%`) back to the controller before hitting its internal limit switch and reporting `OPEN` or `CLOSED`. 
+
+To prevent terminal log spam and database bloat, WanOS implements an **Optimistic Dead-Reckoning Debounce Engine** with **Event-Driven Early Release**.
+
+### 11.1 Physical Travel Time Calibration
+Physical travel times vary based on window height and roller diameter (opening against gravity takes longer than closing). Based on empirical timing measurements (+5% safety buffer, rounded up), physical motor limits are mapped in `config.yaml`:
+
+| Device IDX | Friendly Name | Max Physical Travel | Configured Max Timeout |
+| :--- | :--- | :--- | :--- |
+| `73001` | Cinema | 28.2s | **30s** |
+| `73002` | Sauna | 18.9s | **20s** |
+| `73003` | GV Links | 32.6s | **35s** |
+| `73004` | GV Rechts | 31.8s | **34s** |
+| *Fallback* | *Unmapped Node* | — | **35s** |
+
+### 11.2 Proportional Math & Dead-Reckoning Formula
+Instead of applying a static block, WanOS dynamically computes the expected travel window based on the travel distance delta ($\Delta\%$).
+
+1. **Travel Distance Delta:**
+   $$\Delta = |\text{Target State} - \text{Current State}|$$
+   *(If the initial origin state is `None` or uninitialized, $\Delta$ defaults to $100\%$).*
+
+2. **Proportional Window with Safety Margin:**
+   Applying a +10% dynamic safety margin to absorb non-linear roll circumference variation:
+   $$t_{\text{delay}} = \max\left(1, \text{round}\left(\frac{\Delta}{100} \cdot t_{\text{max}} \cdot 1.10\right)\right)$$
+
+   *Example:* Moving `gv links` (`73003`, $t_{\text{max}} = 35\text{s}$) from $0\%$ to $50\%$ ($\Delta = 50\%$):
+   $$t_{\text{delay}} = \text{round}\left(0.50 \cdot 35 \cdot 1.10\right) = \text{round}(19.25) = \mathbf{19\text{s}}$$
+
+### 11.3 Dual-Driven Clearing Mechanics
+When a shutter adjustment command is issued, `core/event_handlers/hub_handlers.py` spawns an asynchronous tracking job stored in `_shutter_debounce_tasks[idx]`:
+
+```text
+  [Z-Wave Motion Trigger]
+            │
+            ▼
+┌──────────────────────────────┐
+│ Calculate Dynamic Timeout    │
+│ (e.g., delay_seconds = 19s)  │
+└───────────┬──────────────────┘
+            │
+            ├──► Z-Wave arrives WITH target_state before TTL ──► [Early Release] ──┐
+            │                                                                      │
+            └──► Timer expires after delay_seconds (TTL) ───────► [Time Fallback] ──┤
+                                                                                   │
+                                                                                   ▼
+                                                                  ┌──────────────────────────────┐
+                                                                  │  1. Log to SQLite History    │
+                                                                  │  2. Log to IWHW Terminal     │
+                                                                  │  3. Trigger Frontend SSE     │
+                                                                  └──────────────────────────────┘
+```
+
+* **Early Release (Event-Driven):** If the Z-Wave mesh reports that `currentValue == target_state` before the timer expires, the pending task is cancelled immediately. The lock releases, and the final state is committed without waiting out the remaining sleep cycle.
+* **TTL Expiry (Time-Driven Fallback):** If the final Z-Wave packet is dropped by the mesh, the proportional timer acts as a maximum failsafe. Once expired, it forces the last known position into the database and terminal ledger.
+* **Mid-Flight Reversals:** If a user reverses or stops a blind mid-motion, any existing debouncing task for that IDX is cancelled, and a new dynamic timer is instantiated for the new trajectory.
+
+### 11.4 Source Exclusion in StateManager (`IWHW` Ledger)
+To enforce strict single-source logging, `core/state_manager.py` explicitly excludes `blinds` and `shutter` device types from its synchronous IWHW execution pass:
+
+```python
+# In core/state_manager.py:
+# Intermediate chatter is blocked at the source. 'blinds' and 'shutter' types
+# are delegated exclusively to the async proportional debounce engine in hub_handlers.py.
+if dev_type in ["switch", "light", "speaker"]:
+    iwhw_logger.info(f"{prefix:<10} | {origin_tag:<10} | {new_bin_str:<10} | {idx_str:<5} | {name}")
+```
+
+Logging responsibility is handed off entirely to `hub_handlers.py`, guaranteeing that intermediate values like `85%` never hit the terminal ledger. When travel completes, `hub_handlers.py` writes the clean, formatted entry to `iwhw_logger`:
+
+```text
+SHUTTER    | AUTOMATION | OPEN       | 73003 | gv links
+SHUTTER    | MANUAL     | CLOSED     | 73001 | cinema
+```
+
+### 11.5 Diagnostic Logging Stream
+Every time a shutter motion is intercepted, the engine emits a diagnostic tracing entry via `system_logger.debug(...)`, routed directly to `/var/log/wanos/wanos_debug.log`:
+
+```text
+2026-07-26 13:46:25.193 | DEBUG | Shutter [73003 | gv links] debounce scheduled: 19s (max: 35s) | moving from 0% to 50% (Δ50%)
 ```

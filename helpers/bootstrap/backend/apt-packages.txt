@@ -1,0 +1,21 @@
+# ==============================================================================
+# WanOS OS-Level Package Dependencies (Debian 13 Trixie / Raspberry Pi OS)
+# Parsed by wanos_bootstrap_phase1.sh during Phase 1 System Bootstrapping
+# ==============================================================================
+
+# --- Core Terminal Utilities & Editors ---
+vim               # Advanced text editor for manual configuration edits
+bat               # Syntax-highlighting cat clone (provides 'batcat' binary on Debian)
+curl              # Command-line utility for transferring data over URLs
+git               # Version control client required for log2ram installation and repository management
+
+# --- System & Hardware Access Tools ---
+samba             # SMB/CIFS file-sharing server for remote workstation access
+i2c-tools         # Bus diagnostics suite (i2cdetect, i2cget, i2cset) for hardware debugging
+udev              # Dynamic device node manager for handling serial symlinks (e.g., /dev/rfxcom)
+avahi-daemon      # mDNS/DNS-SD service for .local hostname resolution and zero-conf IoT discovery
+
+# --- Python Environment & Hardware Prerequisites ---
+python3-venv      # Module for building isolated Python virtual environments
+python3-pip       # Python package installer for PyPI dependencies
+python3-libgpiod  # Native C-bindings for direct Linux GPIO character device interaction
