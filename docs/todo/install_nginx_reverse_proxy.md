@@ -1,6 +1,7 @@
+# --- file: docs/install_nginx_reverse_proxy.md ---
 # WanOS: NGINX Reverse Proxy & SSL Migration Guide
 
-This document outlines the exact steps to securely migrate WanOS behind an NGINX reverse proxy. This allows to serve encrypted HTTPS on port 443, automatically redirect legacy port 8000 traffic, and protect the Python Uvicorn engine from direct external access.
+This document outlines the exact steps to securely migrate WanOS behind an NGINX reverse proxy. This allows serving encrypted HTTPS on port 443, automatically redirecting legacy port 8000 traffic, and protecting the Python Uvicorn engine from direct external access.
 
 ---
 
@@ -16,10 +17,39 @@ sudo apt update && sudo apt install nginx -y
 sudo openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
   -keyout /etc/ssl/private/wanos.key \
   -out /etc/ssl/certs/wanos.crt \
-  -subj "/C=BE/ST=Flanders/L=Ghent/O=WanOS/CN=wanos.local"
+  -subj "/C=BE/ST=Flanders/L=Antwerp/O=WanOS/CN=wanos.local"
 ```
 
-## [ ] Step 2: Create the NGINX Configuration File
+## [ ] Step 2: Lock Down Uvicorn First (Modify `wanos.service`)
+Before configuring NGINX to listen on port 8000, we must move Uvicorn to `127.0.0.1:8080`. This frees up port 8000 for NGINX's redirect rule and prevents port binding collisions (`bind() failed: Address already in use`).
+
+```bash
+# Edit the Systemd service file
+sudo vi /etc/systemd/system/wanos.service
+```
+
+**Find the `ExecStart` line and modify the host and port arguments:**
+
+```ini
+# Force Uvicorn to listen ONLY to internal localhost traffic on port 8080
+ExecStart=/home/wannes/wanos/wanos_venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8080
+# NOTE: --reload is only for development: it forces Uvicorn to constantly monitor the hard drive for file changes and restart the engine if it sees one
+```
+
+**Reload Systemd and restart WanOS to free port 8000:**
+
+```bash
+# Reload the systemd daemon
+sudo systemctl daemon-reload
+
+# Restart WanOS to move it off port 8000
+sudo systemctl restart wanos.service
+
+# Verify WanOS is running on 127.0.0.1:8080
+sudo systemctl status wanos.service
+```
+
+## [ ] Step 3: Create the NGINX Configuration File
 We need to tell NGINX how to route traffic, handle the SSL certificates, and—most importantly—how to keep the Server-Sent Events (SSE) stream open for the Alpine.js frontend.
 
 ```bash
@@ -90,8 +120,8 @@ server {
 }
 ```
 
-## [ ] Step 3: Enable the Configuration & Restart NGINX
-Now we link the configuration file to the "enabled" folder, remove the default NGINX welcome page, and restart the service to apply the changes.
+## [ ] Step 4: Enable the Configuration & Start NGINX
+Now we link the configuration file to the "enabled" folder, remove the default NGINX welcome page, test syntax, and start the service to apply the changes.
 
 ```bash
 # Create a symbolic link to enable the site
@@ -105,36 +135,9 @@ sudo nginx -t
 
 # Restart NGINX to apply the new proxy rules
 sudo systemctl restart nginx
-```
 
-## [ ] Step 4: Lock Down Uvicorn (Modify `wanos.service`)
-Right now, Uvicorn is bound to `0.0.0.0:8000`. We need to lock it to `127.0.0.1:8080` so that it ONLY accepts traffic coming from the NGINX proxy.
-
-```bash
-# Edit the Systemd service file
-sudo vi /etc/systemd/system/wanos.service
-```
-
-**Find the `ExecStart` line and modify the host and port arguments:**
-
-```ini
-# Force Uvicorn to listen ONLY to internal localhost traffic on port 8080
-ExecStart=/home/wannes/wanos/wanos_venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8080
-# NOTE: --reload is only for development: it forces Uvicorn to constantly monitor the hard drive for file changes and restart the engine if it sees one
-```
-
-## [ ] Step 5: Reload Systemd & Restart WanOS
-Tell the Linux kernel that the service file has changed, and bounce WanOS.
-
-```bash
-# Reload the systemd daemon to read the updated wanos.service file
-sudo systemctl daemon-reload
-
-# Restart WanOS
-sudo systemctl restart wanos.service
-
-# Verify WanOS is running securely on 127.0.0.1:8080
-sudo systemctl status wanos.service
+# Check that all services are bound to their correct ports
+sudo ss -tulpn | grep -E '8000|8080|443|80'
 ```
 
 ### Completion
