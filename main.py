@@ -1,7 +1,7 @@
 # --- file: main.py ---
 
 # WanOS - Smart Home OS & Sauna Controller
-# Copyright (C) 2026
+# Copyright (C) 2026 Johan Wannes Hofmans (https://github.com/gitwannes)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

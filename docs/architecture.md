@@ -89,6 +89,37 @@ To protect the Raspberry Pi's physical SD card from wear-leveling death caused b
 2. A recurring 5-minute `NVRAM_FLUSH_TRIGGER` heartbeat analyzes the memory. 
 3. If the math has changed, it writes to a temporary file (`wanos-nvram.json.tmp`) and executes a native `os.replace` to atomically swap it. This mathematically guarantees data cannot be corrupted if the Pi loses power mid-write.
 
+### The SQLite Time-Series Batching Engine (WAL & Atomic Swaps)
+To manage the persistent 30-day device history without degrading the Raspberry Pi's SD card through excessive disk I/O, WanOS implements a decoupled, in-memory, thread-safe time-series engine for SQLite. 
+
+The architecture guarantees data integrity and UI responsiveness through a 5-pillar batching pattern:
+1. **SQLite WAL Mode (`PRAGMA journal_mode=WAL;`):** Write-Ahead Logging is enabled on the database to allow simultaneous read and write operations, completely preventing `database is locked` exceptions when the background thread flushes data while the dashboard is querying historical charts.
+2. **Hybrid In-Memory Insights Engine:** To bypass slow `SELECT COUNT(*)` disk queries on every state change, historical baselines are loaded directly into RAM on system boot. Live device toggles directly increment these RAM dictionaries (`+1`), providing instantaneous state syncs to the frontend UI.
+3. **Atomic "List-Swap" Pattern:** To eliminate race conditions and data loss between threads, the engine uses an atomic Python variable assignment to swap the active `_write_queue` with a fresh, empty list immediately before handing the batch to the background writer thread.
+4. **Dual-Trigger Batch Flusher:** The RAM buffer flushes to disk either on a timer (every 60 seconds) OR immediately if a volumetric threshold is hit (e.g., `>= 500` items). This dual-trigger acts as a failsafe against RAM bloat during unexpected hardware event storms.
+5. **Non-Blocking Async Teardown:** During a system shutdown, the final RAM queue flush is safely wrapped in an `await asyncio.to_thread()` execution, ensuring the main asyncio event loop remains perfectly unblocked to gracefully shut down surrounding network integrations.
+
+```text
+[Hardware Event / State Change]
+              │
+              ▼
+    log_event(idx, state)
+              │
+              ├──────► 1. In-Memory Insight Counter (+1) ──► Instant UI State Sync (0 Disk Reads)
+              │
+              └──────► 2. Append to RAM Queue (_write_queue)
+                             │
+                             ├─── Threshold Reached? (e.g. >= 500 items) ───┐
+                             │                                              ▼
+                             └─── Timer Expired? (60 seconds) ──────────► [Atomic List Swap]
+                                                                            │ (Main Thread Free)
+                                                                            ▼
+                                                                  [asyncio.to_thread]
+                                                                            │
+                                                                            ▼
+                                                                 SQLite (WAL Mode) Bulk Insert
+```
+
 ### Client-Side State Memory & Route Bouncing
 The backend serves raw HTML assets openly, relying on JWT verification only for API endpoint hits. To prevent broken views when a smartphone auto-completes to a previously visited URL (e.g., `/admin.html`), the `app.js` initialization loop acts as a Role-Based Bouncer. It inspects the JWT stored in the browser's `localStorage` and forcibly redirects unauthorized users to their correct layout scope before rendering the DOM.
 

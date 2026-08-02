@@ -63,7 +63,7 @@ sonos:
       name: "living"
     60003:
       ip: "10.32.251.123"
-      name: "badk sauna"
+      name: "badk 1e"
     60004:
       ip: "10.32.251.124"
       name: "slpk Wannes"
@@ -203,7 +203,7 @@ environmental_schedule:
 
 lighting:
   # The engine will ONLY apply auto-off rules to IDXs explicitly listed here
-  managed_lights: [71003, 71004, 71005, 71006, 71007, 71008, 71001, 71002, 71014, 71012, 71017, 71021, 40001, 40002, 40003, 71024, 71025, 71027, 51006, 51003, 51005, 51008, 51004, 71043, 71044]
+  managed_lights: [71003, 71004, 71005, 71006, 71007, 71008, 71001, 71002, 71014, 71012, 71017, 71021, 40001, 40002, 40003, 71023, 71024, 71025, 71027, 51006, 51003, 51005, 51008, 51004, 71043, 71044]
   default_auto_off_minutes: 300
   # Specific delay overrides in minutes
   auto_off_delays:
