@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import jwt
+import yaml
 from contextlib import asynccontextmanager
 from typing import Union, Any, AsyncGenerator, Optional
 from fastapi import FastAPI, Request
@@ -350,8 +351,19 @@ class LoginRequest(BaseModel):
 
 @app.post("/api/auth/login")
 async def login(req: LoginRequest, request: Request):
-    client_ip = request.client.host
+    # Use X-Forwarded-For if available to get the true client IP
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        client_ip = forwarded_for.split(",")[0].strip()
+    else:
+        client_ip = request.client.host
+
     now = datetime.now(timezone.utc)
+
+    # Lazy cleanup: remove expired bans to prevent memory leaks
+    expired_ips = [ip for ip, record in failed_attempts.items() if record["lockout_until"] and record["lockout_until"] < now]
+    for ip in expired_ips:
+        del failed_attempts[ip]
 
     # 1. Check IP Ban Status
     strike_record = failed_attempts.get(client_ip, {"strikes": 0, "lockout_until": None})
@@ -414,6 +426,13 @@ async def update_zwave_config(request: ZwaveConfigRequest, req: Request):
     """Directly injects the YAML payload from the UI into the local server file."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    # Validate YAML content before saving
+    try:
+        yaml.safe_load(request.yaml_content)
+    except yaml.YAMLError as e:
+        logger.error(f"Invalid YAML payload received: {e}")
+        return JSONResponse(status_code=400, content={"error": "Invalid YAML format."})
 
     try:
         file_path = os.path.join(os.path.dirname(__file__), "config_zwave.yaml")

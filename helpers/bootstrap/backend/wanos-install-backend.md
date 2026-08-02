@@ -504,22 +504,23 @@ Low-power SPI E-Paper modules display system health statistics.
 Below is the standard toolkit used to develop, manage, and debug the WanOS ecosystem:
 
 * **Text Editors & IDEs:**
-  * Notepad++ (Quick file editing & Unix EOL conversion)
-  * PyCharm (Python core development & async debugging)
+  * Notepad++                            (Quick file editing & Unix EOL conversion)
+  * PyCharm                              (Python core development & async debugging)
 * **File Search & Management:**
-  * Everything (Instant local desktop file search)
-  * Super Finder XT (Advanced pattern search utility)
-  * Robocopy (Command-line file mirroring)
+  * Everything                           (Instant local desktop file search)
+  * Super Finder XT                      (Advanced pattern search utility)
+  * Robocopy                             (Command-line file mirroring)
 * **Version Control & File Transfer:**
-  * SmartGit (Git GUI repository client)
-  * FileZilla (SFTP/FTP file management)
+  * SmartGit                             (Git GUI repository client)
+  * FileZilla                            (SFTP/FTP file management)
 * **Terminal & Protocol Diagnostics:**
-  * SecureCRT / SSH Client (Linux terminal management)
-  * MQTT Explorer (Real-time MQTT topic debugging)
-  * Google Chrome (Web UI and browser DevTools)
+  * SecureCRT / SSH Client               (Linux terminal management)
+  * MQTT Explorer                        (Real-time MQTT topic debugging)
+  * Google Chrome                        (Web UI and browser DevTools)
 * **Online Reference Utilities:**
-  * [JSON Formatter & Validator](https://jsonformatter.org)
-  * [Text Compare Tool](https://text-compare.com)
-  * [RFXcom Hardware Documentation](http://rfxcom.com)
-  * [Raspberry Pi Software & Imager](https://www.raspberrypi.com/software)
-  * [Balena Etcher](https://etcher.balena.io)
+  * [JSON Formatter & Validator]         (https://jsonformatter.org)
+  * [Text Compare Tool]                  (https://text-compare.com)
+  * [RFXcom Hardware Documentation]      (http://rfxcom.com)
+  * [Raspberry Pi Software & Imager]     (https://www.raspberrypi.com/software)
+  * [Balena Etcher]                      (https://etcher.balena.io)
+  * [Rich Text to Markdown converter]    (https://www.rich-text-to-markdown.com)
