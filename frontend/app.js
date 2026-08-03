@@ -147,6 +147,7 @@ function wanosApp() {
         historyMonthTitle: "Usage last month",
         historyYearTitle: "Usage last year",
         _historyCharts: { day: null, month: null, year: null },
+        _historyRefreshTimer: null,
         sessionHistoryType: "sauna",
         sessionHistoryRows: [],
         sessionHistoryTotal: 0,
@@ -1174,6 +1175,23 @@ function wanosApp() {
             await this.loadHistorySensors();
             await this.reloadHistoryCharts();
             await this.loadSessionHistory();
+
+            // Auto-refresh every minute while the tab is visible
+            if (this._historyRefreshTimer) {
+                clearInterval(this._historyRefreshTimer);
+            }
+            this._historyRefreshTimer = setInterval(() => {
+                if (document.visibilityState !== "visible" || this.historyLoading) return;
+                this.reloadHistoryCharts();
+                this.loadSessionHistory();
+            }, 60_000);
+
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible" && !this.historyLoading) {
+                    this.reloadHistoryCharts();
+                    this.loadSessionHistory();
+                }
+            });
         },
 
         async loadHistorySensors() {
