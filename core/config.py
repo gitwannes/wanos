@@ -2,7 +2,7 @@
 import os
 import yaml
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, List, Union, Any
 from dotenv import load_dotenv
 
@@ -211,6 +211,13 @@ class AuthConfig(BaseModel):
 class HardwareLinksConfig(BaseModel):
     """Maps switches to linked hardware (e.g. power meters flushed to 0W on OFF)."""
     power_meters: Dict[int, int] = Field(default_factory=dict)
+
+    @field_validator("power_meters", mode="before")
+    @classmethod
+    def coerce_int_keys(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        return {int(k): int(v) for k, v in value.items()}
 
 
 class AppConfig(BaseModel):

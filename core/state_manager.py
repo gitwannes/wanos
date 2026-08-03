@@ -99,12 +99,17 @@ class StateManager:
         self._state.system.version_full = f"v{self._config.version}-build_{self._build_timestamp}"
 
         # ATOMIC RECONCILIATION: Wipe old metadata for core integrations (Keep Z-Wave as it lazy-loads)
-        keys_to_purge = [k for k, v in self._state.device_metadata.items() if v.get("origin") != "zwave"]
+        # Skip null placeholders (Z-Wave orphan tombstones) and anything tagged origin=zwave.
+        keys_to_purge = [
+            k for k, v in self._state.device_metadata.items()
+            if isinstance(v, dict) and v.get("origin") != "zwave"
+        ]
         for k in keys_to_purge:
             self._state.device_metadata.pop(k, None)
             self._state.dashboard_map.pop(k, None)
 
         self._state.system.hidden_explorer_idxs = self._config.deviceexplorer_exclude
+        yaml_idxs: set[int] = set()
 
         # 1. Parse GPIO Inputs
         if hasattr(self._config, "gpio_inputs") and self._config.gpio_inputs:
@@ -114,6 +119,7 @@ class StateManager:
                     node_type = "energy" if node.type == "energy" else "sensor"
                     self._state.device_metadata[node.idx] = {"name": node.name, "type": node_type,
                                                              "origin": "gpio_input"}
+                    yaml_idxs.add(node.idx)
 
                     # DYNAMIC PESSIMISTIC INITIALIZATION
                     if node.idx not in self._state.devices:
@@ -129,6 +135,7 @@ class StateManager:
             for key, node in self._config.sht11_sensors.items():
                 self._state.dashboard_map[node.idx] = node.name
                 self._state.device_metadata[node.idx] = {"name": node.name, "type": "temp_hum", "origin": "sht11"}
+                yaml_idxs.add(node.idx)
                 if node.idx not in self._state.devices:
                     self._state.devices[node.idx] = None
 
@@ -138,15 +145,17 @@ class StateManager:
             w_name = self._config.weather.name
             self._state.dashboard_map[w_idx] = w_name
             self._state.device_metadata[w_idx] = {"name": w_name, "type": "temp_hum", "origin": "owm"}
+            yaml_idxs.add(w_idx)
             if w_idx not in self._state.devices:
                 self._state.devices[w_idx] = None
 
         # METADATA INJECTION: Flag hidden devices directly in the metadata dictionary
         exclusions = getattr(self._config, "deviceexplorer_exclude", [])
         for idx in exclusions:
-            if idx in self._state.device_metadata:
+            yaml_idxs.add(idx)
+            if idx in self._state.device_metadata and isinstance(self._state.device_metadata[idx], dict):
                 self._state.device_metadata[idx]["hidden"] = True
-            else:
+            elif idx not in self._state.device_metadata:
                 self._state.device_metadata[idx] = {"name": f"Hidden {idx}", "type": "unknown",
                                                     "origin": "system", "hidden": True}
 
@@ -160,6 +169,7 @@ class StateManager:
                 self._state.dashboard_map[rfx_dev.virtual_idx] = rfx_dev.name
                 self._state.device_metadata[rfx_dev.virtual_idx] = {"name": rfx_dev.name, "type": "switch",
                                                                     "origin": "rfxcom"}
+                yaml_idxs.add(rfx_dev.virtual_idx)
                 if rfx_dev.virtual_idx not in self._state.devices:
                     self._state.devices[rfx_dev.virtual_idx] = "OFF"
 
@@ -169,6 +179,7 @@ class StateManager:
             for idx_key, raw_val in device_map.items():
                 try:
                     idx_int = int(idx_key)
+                    yaml_idxs.add(idx_int)
                     if idx_int not in self._state.devices:
                         self._state.devices[idx_int] = None
                     val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
@@ -186,6 +197,7 @@ class StateManager:
             for idx_key, raw_val in group_map.items():
                 try:
                     idx_int = int(idx_key)
+                    yaml_idxs.add(idx_int)
                     if idx_int not in self._state.devices:
                         self._state.devices[idx_int] = None
                     val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
@@ -203,6 +215,7 @@ class StateManager:
             epson_name = "cinema projector"
             self._state.dashboard_map[80001] = epson_name
             self._state.device_metadata[80001] = {"name": epson_name, "type": "switch", "origin": "epson"}
+            yaml_idxs.add(80001)
             if 80001 not in self._state.devices:
                 self._state.devices[80001] = "OFF"
 
@@ -210,6 +223,7 @@ class StateManager:
             for idx, node in self._config.sonos.device_map.items():
                 self._state.dashboard_map[idx] = node.name
                 self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "sonos"}
+                yaml_idxs.add(idx)
                 if idx not in self._state.devices:
                     self._state.devices[idx] = None
 
@@ -219,18 +233,21 @@ class StateManager:
                 self._state.dashboard_map[idx] = node.name
                 self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "onkyo",
                                                     "max_volume": max_vol}
+                yaml_idxs.add(idx)
                 if idx not in self._state.devices:
                     self._state.devices[idx] = None
 
         sauna_name = "sauna status"
         self._state.dashboard_map[21001] = sauna_name
         self._state.device_metadata[21001] = {"name": sauna_name, "type": "sensor", "origin": "system"}
+        yaml_idxs.add(21001)
         if 21001 not in self._state.devices:
             self._state.devices[21001] = "OFF"
 
         ir_name = "IR status"
         self._state.dashboard_map[21002] = ir_name
         self._state.device_metadata[21002] = {"name": ir_name, "type": "sensor", "origin": "system"}
+        yaml_idxs.add(21002)
         if 21002 not in self._state.devices:
             self._state.devices[21002] = "OFF"
 
@@ -247,6 +264,7 @@ class StateManager:
         for s_idx, s_name in sys_metrics_map.items():
             self._state.dashboard_map[s_idx] = s_name
             self._state.device_metadata[s_idx] = {"name": s_name, "type": "sensor", "origin": "system", "hidden": True}
+            yaml_idxs.add(s_idx)
             if s_idx not in self._state.devices:
                 self._state.devices[s_idx] = None
 
@@ -256,6 +274,7 @@ class StateManager:
         nvram_data = self.nvm.load()
         for nv_idx, nv_val in nvram_data.items():
             self._state.devices[nv_idx] = nv_val
+            yaml_idxs.add(nv_idx)
             if nv_idx not in self._state.dashboard_map:
                 self._state.dashboard_map[nv_idx] = f"Counter {nv_idx}"
 
@@ -263,8 +282,40 @@ class StateManager:
         if hasattr(self._config, "dashboard"):
             for idx, name in self._config.dashboard.items():
                 self._state.dashboard_map[idx] = name
+                yaml_idxs.add(idx)
 
         self._extract_scenes_from_config()
+
+        # UNIVERSAL ORPHAN EVICTION (non-Z-Wave)
+        # Nullify RAM for devices removed from YAML so SSE Object.assign clears the UI.
+        # Z-Wave orphans are handled exclusively by integrations/zwave.py.
+        candidate_idxs = (
+            set(self._state.devices.keys())
+            | set(self._state.device_metadata.keys())
+            | set(self._state.dashboard_map.keys())
+        )
+        for idx in list(candidate_idxs):
+            if not isinstance(idx, int):
+                continue
+            meta = self._state.device_metadata.get(idx)
+            if isinstance(meta, dict) and meta.get("origin") == "zwave":
+                continue
+            if idx in yaml_idxs:
+                continue
+
+            self._state.devices[idx] = None
+            self._state.device_metadata[idx] = None
+            self._state.dashboard_map[idx] = None
+            self.dispatch(Event(
+                type=EventType.HUB_STATE_CHANGED,
+                payload={
+                    "idx": idx,
+                    "state": None,
+                    "device_type": "unknown",
+                    "origin": "system",
+                    "is_initialization": True,
+                }
+            ))
 
     def _extract_scenes_from_config(self) -> None:
         self._state.system.available_scenes.clear()

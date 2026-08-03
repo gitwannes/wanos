@@ -233,6 +233,7 @@ function wanosApp() {
         get sonosDevices() {
             let list = [];
             for (const [idxStr, meta] of Object.entries(this.state.device_metadata)) {
+                if (!meta) continue;
                 if (meta.origin === 'sonos') {
                     const idx = parseInt(idxStr, 10);
                     const rawValue = this.state.devices[idx];
@@ -251,6 +252,7 @@ function wanosApp() {
         get onkyoDevices() {
             let list = [];
             for (const [idxStr, meta] of Object.entries(this.state.device_metadata)) {
+                if (!meta) continue;
                 if (meta.origin === 'onkyo') {
                     const idx = parseInt(idxStr, 10);
                     const rawValue = this.state.devices[idx];
@@ -320,6 +322,7 @@ function wanosApp() {
 
             // 1. Map actual devices from the backend metadata registry
             for (const [idxStr, meta] of Object.entries(this.state.device_metadata)) {
+                if (!meta) continue;
 
                 // ⚡ INTEGRATION ORIGIN GUARD
                 // Automatically drop devices from the UI if their parent integration is disabled.

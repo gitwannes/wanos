@@ -58,8 +58,43 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
             manager.hue_bridge._initialize_mappings()
             await manager.hue_bridge.start()
 
+        # Rebuild RFX hex translation maps from the new native_rfx list
+        if getattr(manager, "rfxcom_bridge", None):
+            manager.rfxcom_bridge._outbound_map.clear()
+            manager.rfxcom_bridge._inbound_map.clear()
+            manager.rfxcom_bridge._last_known_states.clear()
+            manager.rfxcom_bridge._build_translation_maps()
+
+        # Refresh Sonos device/station maps and speaker sockets
+        if getattr(manager, "sonos_bridge", None):
+            import soco
+            bridge = manager.sonos_bridge
+            sonos_cfg = new_config.sonos
+            bridge.device_map = sonos_cfg.device_map if sonos_cfg else {}
+            bridge.stations = sonos_cfg.stations if sonos_cfg else {}
+            new_speakers = {}
+            for idx, node in bridge.device_map.items():
+                existing = bridge.speakers.get(idx)
+                new_speakers[idx] = existing if existing is not None else soco.SoCo(node.ip)
+            bridge.speakers = new_speakers
+
+        # Recycle Onkyo TCP listeners against the new device map
+        if getattr(manager, "onkyo_bridge", None):
+            was_running = getattr(manager.onkyo_bridge, "_running", False)
+            if was_running:
+                await manager.onkyo_bridge.stop()
+            manager.onkyo_bridge.config = new_config.onkyo
+            manager.onkyo_bridge.device_map = (
+                new_config.onkyo.device_map if new_config.onkyo else {}
+            )
+            manager.onkyo_bridge.max_vol = (
+                new_config.onkyo.max_volume if new_config.onkyo else 60
+            )
+            if was_running and manager._state.system.onkyo_integration_enabled:
+                await manager.onkyo_bridge.start()
+
         state_changed = True
-        changed_domains.add("system")
+        changed_domains.update({"system", "devices", "device_metadata"})
 
         msg: str = f"🟢 Config reloaded."
         ch, dom = AlertManager.process_alert(manager._state, msg)
