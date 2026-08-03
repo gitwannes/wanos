@@ -3,7 +3,7 @@ import time
 import json
 from typing import List, Optional, Any
 
-from core.models import Event, EventType, SystemState
+from core.models import Event, EventType, SystemState, device_name
 from core.config import load_config
 from core.logger import automation_logger  # explicitly isolated logger for logic rules
 
@@ -11,7 +11,8 @@ from core.logger import automation_logger  # explicitly isolated logger for logi
 class AutomationEngine:
     """
     Centralized Rule Engine for WanOS automations.
-    YAML device refs use stable entity_id (resolved to idx via device_metadata).
+    YAML device refs use stable entity_id only (resolved to idx via device_metadata).
+    Unresolved entity_id → log + skip; never crash the engine.
 
     Logging Hierarchy:
     - Tier A (Invisible): If an event does not match a trigger, the engine remains 100% silent.
@@ -64,21 +65,15 @@ class AutomationEngine:
 
     @staticmethod
     def resolve_device_ref(obj: Any, state: SystemState) -> Optional[int]:
-        """Resolve a trigger/condition/action device ref (prefer entity_id, legacy idx fallback)."""
+        """Resolve a trigger/condition/action device ref by entity_id only."""
         eid = getattr(obj, "entity_id", None)
-        if eid:
-            idx = AutomationEngine.resolve_entity_id(state, eid)
-            if idx is None:
-                automation_logger.warning(
-                    f"[AUTOMATION] Unresolved entity_id '{eid}' — skipping device ref.")
-            return idx
-        raw = getattr(obj, "idx", None)
-        if raw is not None:
-            try:
-                return int(raw)
-            except (TypeError, ValueError):
-                return None
-        return None
+        if not eid:
+            return None
+        idx = AutomationEngine.resolve_entity_id(state, eid)
+        if idx is None:
+            automation_logger.warning(
+                f"[AUTOMATION] Unresolved entity_id '{eid}' — skipping device ref.")
+        return idx
 
     @staticmethod
     def _timer_exists(active_timers: List[Any], target_timer_id: str) -> bool:
@@ -156,7 +151,7 @@ class AutomationEngine:
 
             for t in triggers:
                 trigger_idx = AutomationEngine.resolve_device_ref(t, state)
-                # Trigger Type A: Device State Change (entity_id or legacy idx)
+                # Trigger Type A: Device State Change (entity_id → idx)
                 if trigger_idx is not None and t.state:
                     if event_name == "HUB_STATE_CHANGED" and is_transition:
                         if trigger_idx == event_idx and (t.state == "SYNC" or t.state == new_state):
@@ -270,7 +265,7 @@ class AutomationEngine:
                             )
                             continue
 
-                        # --- Action Type A: Device Execution (entity_id / legacy idx) ---
+                        # --- Action Type A: Device Execution (entity_id → idx) ---
                         action_idx = AutomationEngine.resolve_device_ref(action, state)
                         if action_idx is not None and getattr(action, "target", None) != "hue_scene":
                             # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
@@ -347,7 +342,7 @@ class AutomationEngine:
                                 # --- TIER C: The Action Audit Trail (INFO) ---
                                 semantic_name = (
                                     (meta.get("name") if isinstance(meta, dict) else None)
-                                    or state.dashboard_map.get(action_idx, "Unknown")
+                                    or device_name(state, action_idx, "Unknown")
                                 )
                                 final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
                                 preset_str = f" [Rich Payload]" if is_rich_action else ""
@@ -437,7 +432,7 @@ class AutomationEngine:
                             delay_mins: int = config.lighting.auto_off_delays.get(
                                 light_eid, config.lighting.default_auto_off_minutes)
                             deadline: int = int(time.time()) + delay_mins * 60
-                            semantic_name: str = state.dashboard_map.get(light_idx, "Unknown")
+                            semantic_name: str = device_name(state, light_idx, "Unknown")
 
                             # ⚡ Structured Payload for UI Timeline Processing
                             follow_up_events.append(Event(
@@ -471,7 +466,7 @@ class AutomationEngine:
                 if current_hum is not None and bathroom_vent_idx is not None:
                     current_vent_state = state.devices.get(bathroom_vent_idx, "OFF")
                     is_locked: bool = state.devices.get(90001, False)
-                    semantic_name: str = state.dashboard_map.get(bathroom_vent_idx, "Unknown")
+                    semantic_name: str = device_name(state, bathroom_vent_idx, "Unknown")
 
                     if current_hum >= on_threshold and current_vent_state != "ON":
                         follow_up_events.append(
@@ -562,7 +557,7 @@ class AutomationEngine:
         # =========================================================================
         if event_name == "HUB_STATE_CHANGED":
             idx = payload.get("idx")
-            semantic_name: str = state.dashboard_map.get(idx, "Unknown")
+            semantic_name: str = device_name(state, idx, "Unknown")
             light_eid = AutomationEngine.entity_id_for(state, idx)
 
             # Only track devices that are explicitly registered in the lighting YAML config
@@ -637,7 +632,7 @@ class AutomationEngine:
                     # Enforce Hand-Washing Filter: Requires a minimum velocity of 5 pulses within 10 seconds
                     if len(AutomationEngine._hot_water_pulses) >= 5 and bathroom_vent_idx is not None:
                         current_vent_state = state.devices.get(bathroom_vent_idx, "OFF")
-                        semantic_name = state.dashboard_map.get(bathroom_vent_idx, "Unknown")
+                        semantic_name = device_name(state, bathroom_vent_idx, "Unknown")
 
                         # Phase A: Force-engage the fan if it is currently offline
                         if current_vent_state != "ON":

@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 from loguru import logger
 
-from core.models import Event, EventType, SystemState
+from core.models import Event, EventType, SystemState, device_name
 from core.state_manager import StateManager
 from core.config import AppConfig
 
@@ -233,12 +233,15 @@ class HueLocalBridge:
 
                             # ⚡ Resolve the UI name by checking the global state manager map,
                             # ensuring we don't try to access the old deprecated config.dashboard block.
-                            name = self.state_manager._state.dashboard_map.get(idx, default_name)
+                            name = device_name(self.state_manager._state, idx, default_name)
 
-                            # Push resolved names back into state managers to maintain UI parity
-                            self.state_manager._state.dashboard_map[idx] = name
+                            # Push resolved names into device_metadata to maintain UI parity
                             if idx in self.state_manager._state.device_metadata:
                                 self.state_manager._state.device_metadata[idx]["name"] = name
+                            else:
+                                self.state_manager._state.device_metadata[idx] = {
+                                    "name": name, "type": "light", "origin": "hue",
+                                }
 
                             # Construct the rich payload for the StateManager
                             # Both individual bulbs and rooms get "light" device_type so the UI gives them the rich glowing orb (Option B)
@@ -514,9 +517,12 @@ class HueLocalBridge:
                     "idx": idx,
                     "origin": "hue",
                     "device_type": "light",  # Forces Option B UI rendering with glowing orb
-                    # Pull the name dynamically from the live state map seeded during boot
-                    "name": self.state_manager._state.dashboard_map.get(idx,
-                                                                        f"Hue {'Group' if r_type == 'grouped_light' else 'Light'} {idx}")
+                    # Pull the name dynamically from device_metadata seeded during boot
+                    "name": device_name(
+                        self.state_manager._state,
+                        idx,
+                        f"Hue {'Group' if r_type == 'grouped_light' else 'Light'} {idx}",
+                    ),
                 }
 
                 if "on" in resource and "on" in resource["on"]:

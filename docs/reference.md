@@ -10,7 +10,7 @@ This document serves as the master blueprint and reference guide for the directo
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
 * `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
 * `config_zwave.yaml`: Z-Wave device map (UI/system-owned via `zwaveconfig.html`; not hand-edited as primary workflow).
-* `entity_registry.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/install_blocky.md` (prerequisite) and `docs/todo/260803_migration.md`.
+* `entity_registry.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/install_blocky.md`.
 
 ### Entity ID types (prefixes)
 

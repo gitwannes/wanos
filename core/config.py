@@ -2,7 +2,7 @@
 import os
 import yaml
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Dict, List, Union, Any
 from dotenv import load_dotenv
 
@@ -130,21 +130,27 @@ class NativeRFXConfig(BaseModel):
 
 
 class TriggerConfig(BaseModel):
-    idx: Optional[int] = None
+    """Automation trigger — device refs use entity_id only (no numeric idx)."""
+    model_config = ConfigDict(extra="forbid")
+
     entity_id: Optional[str] = None
     state: Optional[str] = None
     event: Optional[str] = None
 
 
 class ConditionConfig(BaseModel):
+    """Automation condition — device refs use entity_id only (no numeric idx)."""
+    model_config = ConfigDict(extra="forbid")
+
     type: str
-    idx: Optional[int] = None
     entity_id: Optional[str] = None
     condition_is: str = Field(alias="is")
 
 
 class ActionConfig(BaseModel):
-    idx: Optional[int] = None
+    """Automation action — device refs use entity_id only (no numeric idx)."""
+    model_config = ConfigDict(extra="forbid")
+
     entity_id: Optional[str] = None
     state: Optional[str] = None
     event: Optional[str] = None

@@ -485,7 +485,7 @@ class DeviceHistoryManager:
             dtype = meta.get("type", "")
             if not self.should_list(idx, dtype):
                 continue
-            name = meta.get("name") or self.sm._state.dashboard_map.get(idx) or f"IDX {idx}"
+            name = meta.get("name") or f"IDX {idx}"
             raw = self.sm._state.devices.get(idx)
             insight = self.sm._state.metrics.device_insights.get(idx, {})
             if dtype in ("motion", "scene"):

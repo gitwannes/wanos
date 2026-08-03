@@ -443,7 +443,7 @@ async def get_state() -> dict[str, Any]:
 
 @app.get("/api/debug/entity-registry-check")
 async def debug_entity_registry_check(req: Request) -> dict[str, Any]:
-    """Admin Debug: same checks as helpers/cutover_entity_ids_verify.py (keep after cutover)."""
+    """Admin Debug: entity_id / automation consistency checks (keep after cutover)."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
     from core.entity_registry_check import run_entity_cutover_checks
@@ -550,8 +550,7 @@ async def sse_state_stream(request: Request):
                 data_sent = False
 
                 # Emit only domains whose serialized content has changed since last push
-                for domain in ["system", "sensors", "sauna", "ir", "metrics", "hardware", "devices", "device_metadata",
-                               "dashboard_map"]:
+                for domain in ["system", "sensors", "sauna", "ir", "metrics", "hardware", "devices", "device_metadata"]:
                     domain_data = getattr(current_state, domain, None)
                     if domain_data is None:
                         continue

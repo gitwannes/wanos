@@ -915,7 +915,7 @@
         </dialog>
 
         <dialog id="entity_registry_check_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
-            <div class="modal-box max-w-[min(95vw,112rem)] w-11/12 border bg-base-300 shadow-2xl border-base-content/20">
+            <div class="modal-box w-[75vw] max-w-[75vw] border bg-base-300 shadow-2xl border-base-content/20">
                 <h3 class="font-bold text-lg flex items-center gap-2 uppercase tracking-widest text-base-content border-b border-base-200 pb-3 mb-3">
                     <span>Entity Registry Check</span>
                     <span class="badge badge-sm font-bold"
@@ -923,7 +923,7 @@
                           x-text="entityRegistryReportOk === true ? 'GREEN' : (entityRegistryReportOk === false ? 'RED' : '…')"></span>
                 </h3>
                 <p class="text-xs text-base-content/60 mb-3">
-                    Same annotated report as <code class="text-[10px] opacity-80">python3 helpers/cutover_entity_ids_verify.py</code>
+                    Same annotated report as the permanent Admin Debug entity-registry check.
                     — scroll for stats help, warnings, and GREEN/RED verdict.
                 </p>
                 <pre class="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words max-h-[60vh] overflow-y-auto p-3 rounded-box bg-base-200 border border-base-content/10"
@@ -939,4 +939,4 @@
             </form>
         </dialog>
     </main>
-    <script src="app.js?v=2.3"></script>
+    <script src="app.js?v=2.4"></script>

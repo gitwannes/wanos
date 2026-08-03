@@ -1,14 +1,13 @@
 # ⚡ WanOS: Visual Automation Editor (IFTTT) Architecture Guide
 
-This document is the source of truth for (1) the **entity_id prerequisite** (current step) and (2) the **Blocky** visual automation editor (later).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (next).
 
-**Todo hygiene:** `docs/todo/install_enhancements_260718.md` is a superseded sketch — **delete it when the prerequisite below is complete and verified**.  
-**Operator checklist for this cutover:** `docs/todo/260803_migration.md`.  
-**`dashboard_map` removal:** immediate **follow-up PR** after the cutover check is green (see migration doc Phase 7).
+**Entity_id cutover:** implemented — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. Operator: confirm Admin Debug check green on the Pi after deploy, then start Blocky.  
+**`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
 
 ---
 
-## 🧬 CURRENT STEP — Prerequisite: One Device Map + Stable `entity_id`
+## ✅ Prerequisite (done) — One Device Map + Stable `entity_id`
 
 Blocky and automations must not store raw hardware idxs in rules. Humans see friendly **names**; saved rules use stable **`entity_id`s**; hardware still uses **idx**.
 
@@ -23,7 +22,7 @@ Blocky and automations must not store raw hardware idxs in rules. Humans see fri
 ### Single map (DRY)
 
 * **One registry:** `device_metadata[idx]` holds `name`, `type`, `origin`, and `entity_id`.
-* **Remove `dashboard_map`** after call sites migrate — it is a duplicate of `meta.name`.
+* **`dashboard_map` removed** — display names are `meta.name` / `device_name()` only.
 * **Do not** add a third in-memory dict on `SystemState` as a parallel source of truth.
 * Reverse lookup (`entity_id → idx`) is **derived** at metadata rebuild time.
 * Python device references: **always resolve** via the registry (no parallel magic idxs / no frozen string constants as source of truth).
@@ -76,33 +75,20 @@ Z-Wave slug source: **`| name |` segment only**.
 * Unresolved `entity_id` at runtime: **log + skip — do not kill the engine**.
 * **Do not split `config.yaml` yet.**
 
-### Migration & cutover tooling
+### Migration & cutover tooling (complete)
 
 | Tool | Role | Fate |
 |---|---|---|
-| **Script A** (`helpers/`) | One-off: birth assist + rewrite `automations:` + Python idxs → resolve/`entity_id` | **Delete after successful migration** |
-| **Cutover script** (`helpers/`) | One-off gate for migration day: run full verify, confirm ready for entity_id-only engine (exit non-zero on failure) | **Delete together with Script A** after success |
-| **Admin Debug check** | Same verify logic, permanent **Admin → Debug commands** button | **Keep** |
+| **Script A** / **Cutover script** (`helpers/`) | One-off migrate + verify gate | **Deleted** |
+| **Admin Debug check** | Permanent verify via `core/entity_registry_check.py` + **Admin → Debug** | **Keep** |
 
 **Remap-all:** not implemented.
 
-### Prerequisite procedure (this step)
-
-1. Backup configs + any `entity_registry.yaml`.
-2. Deploy registry birth/load/save + id patterns + always-resolve helpers; engine may still be on idxs until cutover script passes.
-3. Populate registry (boot / Script A birth-only).
-4. Run **Script A** (rewrite YAML + code refs).
-5. Run **Cutover script** (verify gate). Fix until green.
-6. Ship entity_id-only engine/schema; smoke-test on Pi.
-7. Delete Script A + Cutover script from `helpers/`.
-8. **Delete `docs/todo/install_enhancements_260718.md`.**
-9. Admin Debug “entity registry / automations check” remains available anytime.
-
 ---
 
-## 📋 AFTER THIS STEP — Blocky implementation checklist
+## 📋 NEXT — Blocky implementation checklist
 
-Do these only after the prerequisite is live, enhancements todo is deleted, and Admin check is green.
+Do these after Admin Debug entity-registry check is green on the deployed Pi.
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work)
 
@@ -151,10 +137,9 @@ Do these only after the prerequisite is live, enhancements todo is deleted, and 
 5. Orphans: `status: removed`.
 6. Unresolved: log + skip; engine stays up.
 7. Every device idx gets an `entity_id`; Python **always resolve**.
-8. Remove `dashboard_map` in an **immediate follow-up PR** after cutover check is green (see `260803_migration.md` Phase 7).
-9. Blocky later; deny-list decided at Blocky start.
-10. Do not split `config.yaml` in this step.
-11. Delete `install_enhancements_260718.md` when this step is OK.
+8. ~~Remove `dashboard_map`~~ — **done**.
+9. Blocky next; deny-list decided at Blocky start.
+10. Do not split `config.yaml` in the entity_id step (revisit only if Blocky needs it).
 
 ## 🚦 Open for Blocky start (not blocking prerequisite)
 

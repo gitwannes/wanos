@@ -300,15 +300,24 @@ class SystemState(BaseModel):
     # The generic "Peripheral Catch-all" dictionary for the Sorting Office
     devices: Dict[int, Any] = Field(default_factory=dict)
 
-    # Dictionary loaded from config.yaml to map numeric IDXs back to semantic names for the UI.
-    # The frontend parses this on boot.
-    dashboard_map: Dict[int, str] = Field(default_factory=dict)
-
     # The dynamic device registry. Maps IDXs to a dictionary containing
     # {name: str, type: str, origin: str, entity_id: str, ...}
     # entity_id is assigned once by core/entity_registry.py and frozen across renames.
+    # Display names always come from device_metadata[idx]["name"] (no parallel dashboard_map).
     device_metadata: Dict[int, Dict[str, Any]] = Field(default_factory=dict)
 
     # Allows the baseline validation rules parsed out of config_lab.yaml
     # to be passed seamlessly down to the web UI without strict compilation loop blocks.
     boot_seed: Optional[Any] = None
+
+
+def device_name(state: "SystemState", idx: Optional[int], default: str = "Unknown") -> str:
+    """Resolve display name from device_metadata (single source of truth)."""
+    if idx is None:
+        return default
+    meta = (state.device_metadata or {}).get(idx)
+    if isinstance(meta, dict):
+        name = meta.get("name")
+        if name:
+            return str(name)
+    return default

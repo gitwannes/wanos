@@ -1,6 +1,6 @@
 # WanOS: Event Payload Validation — Scoped Spec
 
-**Status:** Deferred until after Blocky / entity_id cutover (`docs/todo/install_blocky.md`, `docs/todo/260803_migration.md`).  
+**Status:** Deferred until after Blocky (`docs/todo/install_blocky.md`).  
 **Urgency:** Low. No production evidence of bad payloads causing failures.  
 **Do not implement until Blocky work is done.**
 

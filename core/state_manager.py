@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional, Any, Set
 from loguru import logger
 
-from .models import SystemState, Event, EventType
+from .models import SystemState, Event, EventType, device_name
 from .mqtt_transport import MqttClientManager
 from .logger import WanosLogger, iwhw_logger
 from .config import load_config
@@ -19,7 +19,7 @@ from logic.sauna_controller import SaunaController
 from logic.power_analytics import PowerAnalytics
 from logic.history_manager import DeviceHistoryManager
 from logic.sensor_history_manager import SensorHistoryManager
-from logic.history_ids import SAUNA_CALC_IDX, scene_history_idx
+from logic.history_ids import SAUNA_CALC_IDX, SCENE_IDX_BASE, scene_history_idx
 
 
 class StateManager:
@@ -115,7 +115,6 @@ class StateManager:
         ]
         for k in keys_to_purge:
             self._state.device_metadata.pop(k, None)
-            self._state.dashboard_map.pop(k, None)
 
         self._state.system.hidden_explorer_idxs = []
         yaml_idxs: set[int] = set()
@@ -124,7 +123,6 @@ class StateManager:
         if hasattr(self._config, "gpio_inputs") and self._config.gpio_inputs:
             for key, node in self._config.gpio_inputs.items():
                 if node.idx is not None:
-                    self._state.dashboard_map[node.idx] = node.name
                     # Preserve semantic GPIO kinds for entity_id classification (door/fluid/energy).
                     node_type = node.type if node.type in ("door", "fluid", "energy") else "sensor"
                     self._state.device_metadata[node.idx] = {"name": node.name, "type": node_type,
@@ -143,14 +141,12 @@ class StateManager:
         # 2. Parse SHT11 Sensors
         if hasattr(self._config, "sht11_sensors"):
             for key, node in self._config.sht11_sensors.items():
-                self._state.dashboard_map[node.idx] = node.name
                 self._state.device_metadata[node.idx] = {"name": node.name, "type": "temp_hum", "origin": "sht11"}
                 yaml_idxs.add(node.idx)
                 if node.idx not in self._state.devices:
                     self._state.devices[node.idx] = None
 
         # 20101 : sauna temp — virtual composite (0.7×20001 + 0.3×20002); hum from 20001
-        self._state.dashboard_map[SAUNA_CALC_IDX] = "sauna temp"
         self._state.device_metadata[SAUNA_CALC_IDX] = {
             "name": "sauna temp",
             "type": "temp_hum",
@@ -164,7 +160,6 @@ class StateManager:
         if hasattr(self._config, "weather") and getattr(self._config.weather, "idx", None):
             w_idx = self._config.weather.idx
             w_name = self._config.weather.name
-            self._state.dashboard_map[w_idx] = w_name
             self._state.device_metadata[w_idx] = {"name": w_name, "type": "temp_hum", "origin": "owm"}
             yaml_idxs.add(w_idx)
             if w_idx not in self._state.devices:
@@ -177,7 +172,6 @@ class StateManager:
                     "name": rfx_dev.name,
                     "virtual_idx": rfx_dev.virtual_idx
                 })
-                self._state.dashboard_map[rfx_dev.virtual_idx] = rfx_dev.name
                 self._state.device_metadata[rfx_dev.virtual_idx] = {"name": rfx_dev.name, "type": "switch",
                                                                     "origin": "rfxcom"}
                 yaml_idxs.add(rfx_dev.virtual_idx)
@@ -196,7 +190,6 @@ class StateManager:
                     val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
                     if "|" in val_str:
                         friendly_name = val_str.split("|", 1)[1].strip()
-                        self._state.dashboard_map[idx_int] = friendly_name
                         self._state.device_metadata[idx_int] = {
                             "name": friendly_name, "type": "light", "origin": "hue", "hue_kind": "light",
                         }
@@ -217,7 +210,6 @@ class StateManager:
                     val_str = raw_val.get_secret_value() if hasattr(raw_val, "get_secret_value") else str(raw_val)
                     if "|" in val_str:
                         friendly_name = val_str.split("|", 1)[1].strip()
-                        self._state.dashboard_map[idx_int] = friendly_name
                         self._state.device_metadata[idx_int] = {
                             "name": friendly_name, "type": "light", "origin": "hue", "hue_kind": "group",
                         }
@@ -230,7 +222,6 @@ class StateManager:
 
         if getattr(self._config, "epson", None):
             epson_name = "cinema projector"
-            self._state.dashboard_map[80001] = epson_name
             self._state.device_metadata[80001] = {"name": epson_name, "type": "switch", "origin": "epson"}
             yaml_idxs.add(80001)
             if 80001 not in self._state.devices:
@@ -238,7 +229,6 @@ class StateManager:
 
         if getattr(self._config, "sonos", None):
             for idx, node in self._config.sonos.device_map.items():
-                self._state.dashboard_map[idx] = node.name
                 self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "sonos"}
                 yaml_idxs.add(idx)
                 if idx not in self._state.devices:
@@ -247,7 +237,6 @@ class StateManager:
         if getattr(self._config, "onkyo", None):
             max_vol = getattr(self._config.onkyo, "max_volume", 60)
             for idx, node in self._config.onkyo.device_map.items():
-                self._state.dashboard_map[idx] = node.name
                 self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "onkyo",
                                                     "max_volume": max_vol}
                 yaml_idxs.add(idx)
@@ -255,14 +244,12 @@ class StateManager:
                     self._state.devices[idx] = None
 
         sauna_name = "sauna status"
-        self._state.dashboard_map[21001] = sauna_name
         self._state.device_metadata[21001] = {"name": sauna_name, "type": "sensor", "origin": "system"}
         yaml_idxs.add(21001)
         if 21001 not in self._state.devices:
             self._state.devices[21001] = "OFF"
 
         ir_name = "IR status"
-        self._state.dashboard_map[21002] = ir_name
         self._state.device_metadata[21002] = {"name": ir_name, "type": "sensor", "origin": "system"}
         yaml_idxs.add(21002)
         if 21002 not in self._state.devices:
@@ -280,7 +267,6 @@ class StateManager:
             22009: "WanOS DB size",
         }
         for s_idx, s_name in sys_metrics_map.items():
-            self._state.dashboard_map[s_idx] = s_name
             self._state.device_metadata[s_idx] = {"name": s_name, "type": "sensor", "origin": "system"}
             yaml_idxs.add(s_idx)
             if s_idx not in self._state.devices:
@@ -293,16 +279,27 @@ class StateManager:
         for nv_idx, nv_val in nvram_data.items():
             self._state.devices[nv_idx] = nv_val
             yaml_idxs.add(nv_idx)
-            if nv_idx not in self._state.dashboard_map:
-                self._state.dashboard_map[nv_idx] = f"Counter {nv_idx}"
-
-        # Explicitly pull in manual Dashboard configurations
-        if hasattr(self._config, "dashboard"):
-            for idx, name in self._config.dashboard.items():
-                self._state.dashboard_map[idx] = name
-                yaml_idxs.add(idx)
+            meta = self._state.device_metadata.get(nv_idx)
+            if not isinstance(meta, dict):
+                self._state.device_metadata[nv_idx] = {
+                    "name": f"Counter {nv_idx}", "type": "sensor", "origin": "nvram",
+                }
 
         self._extract_scenes_from_config()
+
+        # Scene synthetic IDXs (900000+) are config-derived history keys — keep them
+        # out of orphan eviction and birth stable scene.* entity_ids.
+        for idx, meta in list(self._state.device_metadata.items()):
+            if not isinstance(meta, dict):
+                continue
+            try:
+                i = int(idx)
+            except (TypeError, ValueError):
+                continue
+            if i >= SCENE_IDX_BASE or (
+                    meta.get("origin") == "automation" and meta.get("type") == "scene"):
+                yaml_idxs.add(i)
+                self.ensure_entity_id(i)
 
         # Exclude-list placeholders (entity_id in YAML → resolve to idx)
         exclusions: list[int] = []
@@ -329,10 +326,12 @@ class StateManager:
         candidate_idxs = (
             set(self._state.devices.keys())
             | set(self._state.device_metadata.keys())
-            | set(self._state.dashboard_map.keys())
         )
         for idx in list(candidate_idxs):
             if not isinstance(idx, int):
+                continue
+            # Synthetic scene history keys — never purge as YAML orphans
+            if idx >= SCENE_IDX_BASE:
                 continue
             meta = self._state.device_metadata.get(idx)
             if isinstance(meta, dict) and meta.get("origin") == "zwave":
@@ -342,7 +341,6 @@ class StateManager:
 
             self._state.devices[idx] = None
             self._state.device_metadata[idx] = None
-            self._state.dashboard_map[idx] = None
             self.entity_registry.mark_removed(idx)
             self.dispatch(Event(
                 type=EventType.HUB_STATE_CHANGED,
@@ -416,7 +414,6 @@ class StateManager:
                             })
                         # Synthetic history IDX for scene fires (900000 + crc16)
                         s_idx = scene_history_idx(t.event)
-                        self._state.dashboard_map[s_idx] = rule.name
                         self._state.device_metadata[s_idx] = {
                             "name": rule.name,
                             "type": "scene",
@@ -848,7 +845,7 @@ class StateManager:
                 if power_idx is not None:
                     self.dispatch(Event(type=EventType.POWER_UPDATED, payload={
                         "idx": power_idx, "value": 0.0, "device_type": "power", "origin": "system",
-                        "name": self._state.dashboard_map.get(power_idx, f"Power {power_idx}")
+                        "name": device_name(self._state, power_idx, f"Power {power_idx}"),
                     }))
 
         # ISOLATED HIGH-FREQUENCY HARDWARE EVENT ROUTING

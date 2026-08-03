@@ -1,7 +1,7 @@
 # --- file: core/event_handlers/timer_handlers.py ---
 import json
 from typing import Any, Set, Tuple, Optional
-from core.models import Event, EventType
+from core.models import Event, EventType, device_name
 from core.logger import automation_logger
 
 
@@ -58,7 +58,7 @@ async def handle_timer_scheduled(event: Event, manager: Any) -> Tuple[bool, Set[
                 "deadline": deadline,
                 "event_type": tgt_event_type,
                 "idx": target_idx,
-                "name": tgt_payload.get("name", manager._state.dashboard_map.get(target_idx, "System Macro")),
+                "name": tgt_payload.get("name", device_name(manager._state, target_idx, "System Macro")),
                 "type": tgt_payload.get("type", "scene" if target_idx is None else "switch"),
                 "target_state": tgt_payload.get("target_state", "Execute")
             }

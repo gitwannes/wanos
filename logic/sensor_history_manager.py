@@ -753,8 +753,7 @@ class SensorHistoryManager:
         if meta:
             return meta["label"]
         dm = self.sm._state.device_metadata.get(idx, {}) or {}
-        name = dm.get("name") or self.sm._state.dashboard_map.get(idx)
-        return name or f"IDX {idx}"
+        return dm.get("name") or f"IDX {idx}"
 
     def _discover_climate_idxs(self) -> List[int]:
         idxs = set(self._climate_idxs)

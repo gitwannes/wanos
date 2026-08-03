@@ -101,12 +101,25 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         if "volume" in payload:
             new_val["volume"] = payload["volume"]
 
-    # Hybrid Learning: Cache semantic names from inbound payloads
-    device_name = payload.get("name")
-    if device_name and idx not in manager._state.dashboard_map and str(idx) not in manager._state.dashboard_map:
-        manager._state.dashboard_map[idx] = device_name
-        if not is_init:
-            system.logger.info(f"Name for {idx} added to the dashboard map: {device_name}.")
+    # Hybrid Learning: Cache semantic names from inbound payloads into device_metadata
+    device_name_payload = payload.get("name")
+    if device_name_payload:
+        meta = manager._state.device_metadata.get(idx)
+        if not isinstance(meta, dict):
+            manager._state.device_metadata[idx] = {
+                "name": device_name_payload, "type": payload.get("device_type") or "unknown",
+                "origin": payload.get("origin") or "system",
+            }
+            state_changed = True
+            changed_domains.add("device_metadata")
+            if not is_init:
+                system.logger.info(f"Name for {idx} seeded into device_metadata: {device_name_payload}.")
+        elif not meta.get("name"):
+            meta["name"] = device_name_payload
+            state_changed = True
+            changed_domains.add("device_metadata")
+            if not is_init:
+                system.logger.info(f"Name for {idx} added to device_metadata: {device_name_payload}.")
 
     is_push_button = payload.get("is_push_button", False)
     is_force = payload.get("force", False)

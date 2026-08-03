@@ -98,7 +98,6 @@ function wanosApp() {
             // explicitly pushes the RAM dictionary over the boot sync.
             // ⚡ DYNAMIC REGISTRY: Devices are dynamically injected by the backend.
             devices: {},
-            dashboard_map: {}, // ⚡ Store the backend mapping dictionary for labels only
             device_metadata: {}, // ⚡ The dynamic registry powering deviceexplorer.html
             boot_seed: null
         },
@@ -836,10 +835,6 @@ function wanosApp() {
                 if (fullState[domain]) {
                     this.state[domain] = Object.assign({}, this.state[domain], fullState[domain]);
                 }
-            }
-
-            if (fullState.dashboard_map) {
-                this.state.dashboard_map = fullState.dashboard_map;
             }
 
             // ⚡ Natively merge the numeric IDXs directly without any string translation loops!

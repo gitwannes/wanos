@@ -2,7 +2,7 @@
 import json
 import asyncio
 from typing import Any, List
-from core.models import Event, EventType, SystemState
+from core.models import Event, EventType, SystemState, device_name
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
@@ -112,8 +112,9 @@ class ZWaveJSUIBridge(WanosComponent):
                             self._last_known_states[idx] = "DEAD"
 
                             # Fetch the custom name we pre-seeded during boot
-                            custom_name = self.state_manager._state.dashboard_map.get(idx,
-                                                                                      f"Z-Wave Node {node_name}")
+                            custom_name = device_name(
+                                self.state_manager._state, idx, f"Z-Wave Node {node_name}"
+                            )
 
                             # Push explicit DEAD intent to the frontend
                             self.state_manager.dispatch(Event(
@@ -179,7 +180,9 @@ class ZWaveJSUIBridge(WanosComponent):
 
             # Safely extract routing info for logging and logic
             # Fetch the custom name we pre-seeded, or fallback
-            custom_name = self.state_manager._state.dashboard_map.get(target_idx, f"Z-Wave Node {node_name}")
+            custom_name = device_name(
+                self.state_manager._state, target_idx, f"Z-Wave Node {node_name}"
+            )
 
             if raw_val is None:
                 return
@@ -431,8 +434,6 @@ class ZWaveJSUIBridge(WanosComponent):
                         # Explicitly nullify the state in RAM
                         if old_idx in self.state_manager._state.device_metadata:
                             self.state_manager._state.device_metadata[old_idx] = None
-                        if old_idx in self.state_manager._state.dashboard_map:
-                            self.state_manager._state.dashboard_map[old_idx] = None
                         if old_idx in self.state_manager._state.devices:
                             self.state_manager._state.devices[old_idx] = None
                         self.state_manager.entity_registry.mark_removed(old_idx)
@@ -479,9 +480,6 @@ class ZWaveJSUIBridge(WanosComponent):
 
                     self.idx_to_name[idx] = clean_path
                     self.name_to_idx[clean_path] = idx
-
-                    # Pre-seed the dashboard map so the UI knows the name before the first click!
-                    self.state_manager._state.dashboard_map[idx] = custom_name
 
                     # ATOMIC METADATA SEEDING: Ruthlessly overwrite existing metadata to guarantee parity on hot-reloads
                     hw_type = "sensor"

@@ -3,7 +3,6 @@
 Shared entity_id / automation consistency checks.
 
 Used by:
-  - helpers/cutover_entity_ids_verify.py  (one-off CLI gate — delete after cutover)
   - GET /api/debug/entity-registry-check   (Admin Debug button — keep)
 """
 from __future__ import annotations
@@ -33,8 +32,6 @@ SCAN_DIRS = ("logic", "core/event_handlers", "hardware")
 SCAN_SKIP_FILES = {
     "entity_registry_check.py",
     "entity_registry.py",
-    "migrate_entity_ids_script_a.py",
-    "cutover_entity_ids_verify.py",
 }
 
 AUTOMATION_IDX_RE = re.compile(r"^(\s*(?:-\s*)?)idx:\s*(\d+)\s*(#.*)?$", re.MULTILINE)
@@ -330,9 +327,9 @@ def format_entity_cutover_report(report: Dict[str, Any]) -> str:
     lines.append("=" * 40)
     lines.append("")
     lines.append("How to read this report")
-    lines.append("- GREEN (ok=true, no ERRORS): safe to proceed toward Phase 4")
-    lines.append("  (entity_id-only engine). Smoke-test after deploy anyway.")
-    lines.append("- RED (any ERRORS): do NOT enable entity_id-only / Phase 4 until fixed.")
+    lines.append("- GREEN (ok=true, no ERRORS): registry + config entity_id refs are consistent.")
+    lines.append("  Automations are entity_id-only (no numeric idx in rules). Smoke-test after deploy.")
+    lines.append("- RED (any ERRORS): fix before relying on automations / further cutover cleanup.")
     lines.append("- WARNINGS: non-blocking. Mostly leftover bare idxs in Python")
     lines.append("  (host metrics, sauna, simulator). Clear later; not a cutover blocker.")
     if live:
@@ -369,7 +366,7 @@ def format_entity_cutover_report(report: Dict[str, Any]) -> str:
         lines.append(f"ERRORS ({len(errors)}) - BLOCKING")
         lines.append("-" * 40)
         lines.append("  Unknown/removed entity_ids, leftover numeric idxs in YAML,")
-        lines.append("  registry collisions, or live metadata gaps. Fix before Phase 4.")
+        lines.append("  registry collisions, or live metadata gaps. Fix before trusting automations.")
         lines.append("")
         for e in errors:
             lines.append(f"  - {e}")
