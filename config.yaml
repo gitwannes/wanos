@@ -492,7 +492,7 @@ automations:
         state: "OFF"
 
   # --------------------------------------------------------------------------
-  # 🛋️ LIVING ROOM: "SPARE" SMART BUTTON (IDX 6689)
+  # 🛋️ LIVING ROOM: "SPARE" SMART BUTTON (IDX 71029)
   # --------------------------------------------------------------------------
 
   # --- Scenario 1: Room is already active -> Shut down the house ---

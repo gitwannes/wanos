@@ -60,7 +60,7 @@ If the integration is manually turned **OFF** in the UI (or if the Health Monito
 *   The core engine retains the UI elements but stops updating their statuses until the connection is restored.
 
 ## 9. Migration & Middleware Deployment Blueprint
-To decouple hardware polling overhead from the core WanOS execution loop, the Z-Wave controller is driven by a containerized Z-Wave JS UI instance. Below is the architecture for migrating from legacy environments (like Domoticz) to the modern middleware.
+To decouple hardware polling overhead from the core WanOS execution loop, the Z-Wave controller is driven by a containerized Z-Wave JS UI instance. Below is the architecture for deploying that middleware (including notes useful when migrating from a legacy hub).
 
 ### 9.1 Pre-Migration Data Extraction
 Before modifying hardware, you must extract human-readable mappings since the Z-Wave chip only stores numerical Node IDs.

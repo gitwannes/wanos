@@ -66,7 +66,7 @@ Prioritize by **trust boundary** (is the data coming from outside WanOS's own tr
 ### Tier 2 — Do next (external network devices, moderate consequence)
 | Event type | Handler | Why |
 |---|---|---|
-| `LIGHTING_STATE_CHANGED`, `HUB_STATE_CHANGED` | `hub_handlers.py` | Payloads originate from Hue/Domoticz/Z-Wave bridges — external network services, not WanOS's own config. |
+| `LIGHTING_STATE_CHANGED`, `HUB_STATE_CHANGED` | `hub_handlers.py` | Payloads originate from Hue/Z-Wave/RFX bridges — external network services, not WanOS's own config. |
 | `SONOS_COMMAND` | `integration_handlers.handle_sonos_command` | Already has a `try/except` at the execution layer (`sonos.py`), but adding a model here gives clearer rejection logging and consistent behavior with Onkyo. Lower priority since it doesn't currently crash. |
 | Onkyo-related events (if/when `onkyo.py` dispatches structured events into the same queue) | `integrations/onkyo.py` / relevant handler | Same class of external TCP/eISCP device as Sonos; align with whatever pattern Sonos ends up using. |
 
@@ -83,7 +83,7 @@ Don't spend effort here until Tier 1 and 2 are done and proven useful in practic
 | `core/models.py` | Add new narrow Pydantic models: `SaunaSetpointPayload`, `SaunaModulationPayload`, a shared telemetry model (e.g. `SensorReadingPayload` for `POWER_UPDATED`/`TEMP_UPDATED`/`HUMIDITY_UPDATED`/`WATER_PULSE`/`KWH_PULSE`), and — for Tier 2 — `LightPayload`/`HubStatePayload`. **Do not modify the existing `Event` class.** |
 | `core/event_handlers/sauna_handlers.py` | `handle_sauna_setpoint_changed` — validate with `SaunaSetpointPayload`, hard-reject + `AlertManager` alert on failure. `handle_sauna_modulation_updated` — validate with `SaunaModulationPayload`, same fail behavior. |
 | `core/event_handlers/telemetry_handlers.py` | `handle_power_updated` and the sibling handlers for `TEMP_UPDATED`, `HUMIDITY_UPDATED`, `WATER_PULSE`, `KWH_PULSE` — validate `idx`/`value` with the shared telemetry model before they reach the rolling-average buffer. |
-| `core/event_handlers/hub_handlers.py` | *(Tier 2 — after Tier 1 is proven out)* `handle_lighting_state_changed` and `handle_hub_state_changed` — validate Hue/Domoticz-sourced `idx`/`state` payloads. |
+| `core/event_handlers/hub_handlers.py` | *(Tier 2 — after Tier 1 is proven out)* `handle_lighting_state_changed` and `handle_hub_state_changed` — validate Hue/Z-Wave-sourced `idx`/`state` payloads. |
 | `core/event_handlers/integration_handlers.py` | *(Tier 2, lower priority)* `handle_sonos_command` — add a model for consistent rejection logging, even though `integrations/sonos.py` already catches exceptions downstream. |
 | `logic/alert_manager.py` | No logic changes expected — just confirm `AlertManager.process_alert(...)`'s signature matches how Tier 1 handlers call it when rejecting a payload. |
 | `tests/test_event_validation.py` *(new, or wherever the existing suite lives)* | Add the 4–5 test cases per hardened event type described in section 6 (valid payload, missing optional field, wrong type, out-of-range clamping, no regression on untouched handlers). |
@@ -153,8 +153,8 @@ new `tests/` directory if not) covering:
    handler**.
 4. A payload with an out-of-range value (e.g. `bri: 500` or `volume: -20`) — confirm clamping in the
    validator produces the expected clamped result, not a rejection.
-5. Confirm existing WanOS behavior (e.g. the `handle_domoticz_toggled` "UX wipe" nullification logic,
-   or the moving-average logic in `handle_power_updated`) is unaffected by handlers that are **not**
+5. Confirm existing WanOS behavior (e.g. the moving-average logic in `handle_power_updated`,
+   or RFX force-transmit behavior) is unaffected by handlers that are **not**
    being touched in this pass — this is a scoped change, and regression risk should be checked
    accordingly.
 

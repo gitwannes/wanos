@@ -19,11 +19,11 @@ This is a synchronous Python method living inside `state_manager.py`. When calle
 ### When to use it
 Use this *only* for critical, actionable alerts that the human looking at the web dashboard needs to see immediately.
 * ✅ *Example:* "🔴 CRITICAL: Local MQTT Broker offline"
-* ✅ *Example:* "🟢 SUCCESS: Domoticz MQTT Broker Connection back online"
+* ✅ *Example:* "🟢 SUCCESS: Local MQTT Broker back online"
 
 ```python
 # Example usage inside state_manager.py
-ch, dom = self._push_alert("🔴 CRITICAL: Domoticz connection lost after 3 retries.")
+ch, dom = self._push_alert("🔴 CRITICAL: Local MQTT Broker offline")
 state_changed |= ch
 changed_domains |= dom
 ```

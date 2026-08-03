@@ -485,7 +485,7 @@ class AutomationEngine:
                 raw_state = state.devices.get(idx)
                 current_state = raw_state.get("state") if isinstance(raw_state, dict) else raw_state
 
-                # Normalize string to uppercase to catch Domoticz "On"/"Off" states
+                # Normalize string to uppercase to catch mixed-case "On"/"Off" states
                 safe_state = str(current_state).upper() if current_state else ""
 
                 if safe_state == "ON":

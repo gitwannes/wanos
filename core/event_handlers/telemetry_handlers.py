@@ -13,7 +13,6 @@ async def handle_power_updated(event: Event, manager: Any) -> Tuple[bool, Set[st
 
     idx: int = payload.get("idx")
     raw_val: float = payload.get("value", 0.0)
-    sns: Any = manager._state.sensors
     moving_avg = 10
 
     if idx not in manager._sensor_history:
@@ -38,37 +37,6 @@ async def handle_power_updated(event: Event, manager: Any) -> Tuple[bool, Set[st
         manager._state.devices[idx] = avg_val
         state_changed = True
         changed_domains.add("devices")
-
-    # Route explicitly mapped core IDXs to their semantic SensorsState variables
-    if idx == 9:
-        if avg_val == 0.0:
-            sns.pc_power_history = [0.0] * moving_avg
-        elif len(sns.pc_power_history) == 0:
-            sns.pc_power_history = [avg_val] * moving_avg
-        else:
-            sns.pc_power_history.append(avg_val)
-            if len(sns.pc_power_history) > moving_avg:
-                sns.pc_power_history.pop(0)
-
-        if sns.pc_power != avg_val:
-            sns.pc_power = avg_val
-            state_changed = True
-            changed_domains.add("sensors")
-
-    elif idx == 9622:
-        if avg_val == 0.0:
-            sns.pc_aux_power_history = [0.0] * moving_avg
-        elif len(sns.pc_aux_power_history) == 0:
-            sns.pc_aux_power_history = [avg_val] * moving_avg
-        else:
-            sns.pc_aux_power_history.append(avg_val)
-            if len(sns.pc_aux_power_history) > moving_avg:
-                sns.pc_aux_power_history.pop(0)
-
-        if sns.pc_aux_power != avg_val:
-            sns.pc_aux_power = avg_val
-            state_changed = True
-            changed_domains.add("sensors")
 
     return state_changed, changed_domains
 

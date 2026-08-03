@@ -10,7 +10,6 @@ This document serves as the master blueprint and reference guide for the directo
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
 * `hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
 * `main.py`: The ASGI web server entry point hosting the FastAPI application instance, lifespan initialization hooks, delta SSE streaming loops, and app-level connection heartbeats.
-* `monitor.py`: A local hacker-style Textual TUI split-screen console client used to watch high-frequency telemetry logs across both brokers simultaneously.
 * `requirements.txt`: Master Python package configuration file locking dependencies for strict type validation and async execution.
 * `wanos_boot.sh`: Universal production Bash infrastructure utility script handling process control loops, graceful termination sequences, and multi-file tail debugging routing.
 * `wanos-nvram.json`: Atomic Non-Volatile Memory (NVM) store bypassing `log2ram` to persist cumulative hardware metrics (e.g., liters, kWh) across unexpected power losses.
@@ -54,60 +53,36 @@ This document serves as the master blueprint and reference guide for the directo
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)
-* `domoticz.py`: Bilingual translation bridge transforming external incoming JSON payloads into unified internal events, and converting outbound adjustments to hardware commands. *(Note: Integration entering deprecation phase as WanOS transitions to the primary Master of Truth).*
 * `open_weather.py`: REST polling framework capturing outside climate metrics and tripwiring integrations off if connections fail.
 * `onkyo.py`: Persistent asynchronous bridge maintaining zero-latency TCP sockets with Onkyo/Pioneer AV receivers, handling legacy hardware protocol variations.
 * `rfxcom.py`: Direct asyncio serial protocol driving the 433MHz antenna transceiver, utilizing custom packet generation blocks to protect against library crashes.
 * `sonos.py`: Asynchronous network integration tracking UPnP/HTTP topologies for Sonos speakers.
+* `zwave.py`: MQTT bridge to Z-Wave JS UI for mesh switch/sensor/power telemetry and command routing.
+* `hue.py`: Local Philips Hue Bridge API v2 SSE/HTTP client.
+* `epson.py`: TCP control for Epson projectors.
 
 ---
 
 ## 2. MQTT Topic Architecture
-*(Note: WanOS utilizes two distinct MQTT Client Manager instances. One binds to the local `localhost` broker for UI operations, while the other binds to external hubs like Domoticz).*
+WanOS uses a single MQTT client bound to the local `localhost` Mosquitto broker for UI heartbeats, console logs, metrics, and sauna telemetry.
 
 Summary Outgoing topics:
 
-`wanos/system`                   Boot variables upon startup, Domoticz status & heartbeat
-`wanos/domsensors/raw`           Filtered, raw packets received from Domoticz
-`wanos/domsensors/parsed`        Human-readable format triggered ONLY on a real value/state change
-`wanos/wanos`                    A full "baseline" snapshot upon start, then deltas.
+`wanos/system`                   Boot variables upon startup & heartbeat
+`wanos`                          Sauna baseline snapshot upon start, then deltas
 `wanos/metrics/pulses`           Cold & hot water: liters & energy: 0.1 kWh
 `wanos/console/status`           Standard operational engine execution logs
 `wanos/console/debug`            High-frequency developmental logging chatter
 A dedicated `mqtt_publisher.py`  layer owns all topic routing logic.
 
-WanOS operates on an Event-Driven Delta Architecture utilizing two separate client transport channels. Topic paths are completely separated by structural purpose:
+WanOS operates on an Event-Driven Delta Architecture. Topic paths are completely separated by structural purpose:
 
 ### TOPIC: `wanos/system`
-* **Cadence:** Dispatched once on initial startup handshake, on network connection state changes, and continuously every 60 seconds as a connection heartbeat.
+* **Cadence:** Dispatched once on initial startup handshake, and continuously every 60 seconds as a connection heartbeat.
 * **Rules:** Injects system parameters and handles live status tracking.
 * **Payload Examples:**
   * Process Startup: `{"app_boot_unix": 1782200000, "os_boot_unix": 1782100000, "ip_address": "10.32.251.30"}`
   * Heartbeat Metronome: `{"wanos_mqtt_connected": true}`
-  * Integration Link Status: `{"domoticz_mqtt_connected": true}`
-
-### TOPIC: `wanos/domsensors/raw`
-* **Cadence:** Emitted instantly upon receiving an inbound network packet from the remote hardware bridge.
-* **Rules:** Relays unedited data blocks filtered against a strict configuration whitelist. Blocks sequential duplicates.
-* **Payload Example:**
-  ```json
-  {
-    "idx": 141,
-    "name": "bathroom1_main",
-    "dtype": "Light/Switch",
-    "nvalue": 1,
-    "svalue": "On",
-    "svalue1": "On",
-    "svalue2": "0"
-  }
-  ```
-
-### TOPIC: `wanos/domsensors/parsed`
-* **Cadence:** Fired *only* when a device state property mathematically shifts compared to its running RAM snapshot.
-* **Rules:** Publishes human-readable status transition strings for audit tool monitoring.
-* **Payload Examples:**
-  * `{"outside_temp": "15.0 -> 15.5"}`
-  * `{"bathroom1_ventilator": "OFF -> ON"}`
 
 ### TOPIC: `wanos` (Core Sauna Telemetry)
 * **Cadence:** Sends a full baseline definition map when the sauna activates, then fires partial dictionaries (deltas) *only* if values change during execution.
@@ -131,7 +106,7 @@ WanOS operates on an Event-Driven Delta Architecture utilizing two separate clie
   {
     "timestamp": "2026-06-23 10:45:12",
     "level": "SUCCESS",
-    "message": "[Domoticz] HomeHub Bridge initialized (Pure MQTT IDX Mode + HTTP Sync)."
+    "message": "[Z-Wave] Bridge started. Subscribed to zwave/#."
   }
   ```
 

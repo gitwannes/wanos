@@ -82,7 +82,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         if "volume" in payload:
             new_val["volume"] = payload["volume"]
 
-    # Hybrid Learning: Cache semantic names from Domoticz
+    # Hybrid Learning: Cache semantic names from inbound payloads
     device_name = payload.get("name")
     if device_name and idx not in manager._state.dashboard_map and str(idx) not in manager._state.dashboard_map:
         manager._state.dashboard_map[idx] = device_name
@@ -236,19 +236,6 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                         # Binary switches (ON/OFF) commit immediately without debounce
                         manager.history_manager.log_event(idx, str(state_val))
                         changed_domains.add("metrics")
-
-        # Artificially inject 0.0W to instantly flush power graphs when switches turn off
-        if state_val == "OFF":
-            if idx == 8:  # pc
-                manager.dispatch(Event(type=EventType.POWER_UPDATED, payload={
-                    "idx": 9, "value": 0.0, "device_type": "power", "origin": "domoticz",
-                    "name": manager._state.dashboard_map.get(9, "pc_power")
-                }))
-            elif idx == 9618:  # pc_aux
-                manager.dispatch(Event(type=EventType.POWER_UPDATED, payload={
-                    "idx": 9622, "value": 0.0, "device_type": "power", "origin": "domoticz",
-                    "name": manager._state.dashboard_map.get(9622, "pc_aux_power")
-                }))
 
         # Bathroom 1e ventilator timer lock
         if idx == 71034 and state_val == "ON" and old_val != "ON":

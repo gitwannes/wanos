@@ -438,7 +438,7 @@ function wanosApp() {
                     const n = meta.name.toLowerCase();
 
                     if (meta.type === 'energy' || n.includes('kwh') || n.includes('energy')) {
-                        // ⚡ Smart Scaling: Physical GPIO pulses (Wh) require division. Third-party integrations (Domoticz/ZWave) are natively pre-scaled.
+                        // ⚡ Smart Scaling: Physical GPIO pulses (Wh) require division. Z-Wave and similar integrations are natively pre-scaled.
                         if (meta.origin === 'gpio_input') {
                             displayText = `${(parseFloat(rawValue) / 1000).toFixed(3)} kWh`;
                         } else {

@@ -8,7 +8,7 @@
 
 **A High-Performance, Event-Driven Smart Home OS & Industrial Sauna Controller**
 
-WanOS is a custom-built, highly concurrent Python backend and reactive frontend designed to orchestrate a complex smart home environment. It bridges the gap between standard consumer smart home hubs (like Domoticz or Home Assistant) and raw, bare-metal hardware control (GPIO). 
+WanOS is a custom-built, highly concurrent Python backend and reactive frontend designed to orchestrate a complex smart home environment. It bridges consumer smart-home protocols (Z-Wave, Hue, Sonos, RFXCOM, and more) with raw, bare-metal hardware control (GPIO). 
 
 Originally engineered to safely manage a 9kW 3-phase electric sauna and infrared heating system, WanOS has evolved into a full-stack, zero-latency automation engine with deeply integrated safety interlocks, physics simulations, and a modern, reactive UI.
 

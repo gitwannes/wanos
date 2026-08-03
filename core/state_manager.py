@@ -672,9 +672,11 @@ class StateManager:
                 self.dispatch(Event(type=EventType.GPIO_OUTPUT_TOGGLED, payload={"enabled": False}))
 
         # UNIVERSAL 0.0W INTERCEPTOR
+        # Config-driven: when a mapped switch turns OFF, flush its linked power meter to 0.0W.
         if event_name == "HUB_STATE_CHANGED" and payload.get("state") == "OFF":
             switch_idx = payload.get("idx")
-            power_map = getattr(self._config, "hardware_links", {}).get("power_meters", {})
+            hardware_links = getattr(self._config, "hardware_links", None)
+            power_map = hardware_links.power_meters if hardware_links else {}
             if switch_idx in power_map:
                 power_idx = power_map[switch_idx]
                 self.dispatch(Event(type=EventType.POWER_UPDATED, payload={

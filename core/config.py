@@ -208,6 +208,11 @@ class AuthConfig(BaseModel):
     kiosk_token: str
 
 
+class HardwareLinksConfig(BaseModel):
+    """Maps switches to linked hardware (e.g. power meters flushed to 0W on OFF)."""
+    power_meters: Dict[int, int] = Field(default_factory=dict)
+
+
 class AppConfig(BaseModel):
     version: str
     wanos: WanosConfig
@@ -218,6 +223,7 @@ class AppConfig(BaseModel):
     onkyo: Optional[OnkyoConfig] = None
     zwave: Optional[ZwaveConfig] = None
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
+    hardware_links: Optional[HardwareLinksConfig] = None
     auth: AuthConfig
     pins: PinMappingConfig
     gpio_inputs: Dict[str, GPIOInputNode]
@@ -292,6 +298,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "onkyo": runtime_data.get("onkyo"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile
         "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
+        "hardware_links": runtime_data.get("hardware_links"),
         "auth": {
             "shared_pin": os.getenv("AUTH_PIN", "0000"),
             "admin_pin": os.getenv("ADMIN_PIN", "0000"),
