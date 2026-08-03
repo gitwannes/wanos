@@ -31,6 +31,9 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     # ⚡ Mirror status to the virtual dashboard sensor
     manager._state.devices[21001] = "ON"
 
+    if hasattr(manager, "_power_analytics"):
+        manager._power_analytics.note_session_start()
+
     return True, {"sauna", "devices"}
 
 
@@ -113,6 +116,9 @@ async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
 
     # ⚡ Mirror status to the virtual dashboard sensor
     manager._state.devices[21002] = "ON"
+
+    if hasattr(manager, "_power_analytics"):
+        manager._power_analytics.note_session_start()
 
     return True, {"ir", "devices"}
 

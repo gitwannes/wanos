@@ -220,6 +220,26 @@ class HardwareLinksConfig(BaseModel):
         return {int(k): int(v) for k, v in value.items()}
 
 
+class HistoryRetentionConfig(BaseModel):
+    hires_days: int = 7
+    hourly_days: int = 31
+    daily_days: int = 365
+
+
+class HistorySampleConfig(BaseModel):
+    kwh_step_wh: float = 100.0
+    water_step_l: float = 1.0
+    zwave_min_interval_secs: float = 60.0
+
+
+class HistoryConfig(BaseModel):
+    """Sensor / utility time-series history (see docs/sensor_history.md)."""
+    timezone: str = "Europe/Brussels"
+    retention: HistoryRetentionConfig = Field(default_factory=HistoryRetentionConfig)
+    sample: HistorySampleConfig = Field(default_factory=HistorySampleConfig)
+    tracked_idxs: List[int] = Field(default_factory=lambda: [11001, 11002, 11003, 74001, 74003])
+
+
 class AppConfig(BaseModel):
     version: str
     wanos: WanosConfig
@@ -231,6 +251,7 @@ class AppConfig(BaseModel):
     zwave: Optional[ZwaveConfig] = None
     deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
     hardware_links: Optional[HardwareLinksConfig] = None
+    history: HistoryConfig = Field(default_factory=HistoryConfig)
     auth: AuthConfig
     pins: PinMappingConfig
     gpio_inputs: Dict[str, GPIOInputNode]

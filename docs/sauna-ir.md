@@ -2,6 +2,8 @@
 
 This document serves as the master specification for the physical topography, operational lifecycle, safety interlocks, thermodynamic equations, and analytics pipelines governing the Sauna and Infrared (IR) heating systems within WanOS.
 
+**Related:** Long-term utility and session **history** (power/water time-series tiers, retention, Sensor History UI, gap policy, and session field `temp_outside_start`) is specified in [sensor_history.md](sensor_history.md). This document remains authoritative for live sauna/IR safety, leak filtering, RLS extraction, and the core session schemas.
+
 ---
 
 ## 1. System Topography & Hardware Infrastructure
@@ -132,7 +134,9 @@ A downward drift in this coefficient over time signals failing physical door sea
 
 ## 5. Storage Schema & Data Lifecycle
 
-To maximize performance while preventing wear-leveling failure on the Raspberry Pi's physical SD card, high-frequency time-series math is kept strictly in volatile RAM. Completed session analytics are written to a local SQLite database (`device_history.db`) upon session termination.
+To maximize performance while preventing wear-leveling failure on the Raspberry Pi's physical SD card, high-frequency time-series math is kept strictly in volatile RAM. Completed session analytics are written to a local SQLite database (`sauna_sessions.db`) upon session termination.
+
+House-level power/water **time-series history** (hi-res / hourly / daily rollups, Sensor History UI) is **not** stored here — see [sensor_history.md](sensor_history.md). Session rows remain in `sauna_sessions.db` with forever retention; that document also defines the planned `temp_outside_start` column and how sessions are listed in the UI.
 
 ### 5.1 SQLite Schema: `sauna_sessions`
 ```sql
@@ -148,6 +152,7 @@ CREATE TABLE sauna_sessions (
     temp_min             REAL NOT NULL,
     temp_max             REAL NOT NULL,
     temp_avg             REAL NOT NULL,
+    temp_outside_start   REAL,            -- °C at start (OWM/outside); see sensor_history.md
     hum_start            INTEGER NOT NULL,
     hum_end              INTEGER NOT NULL,
     hum_min              INTEGER NOT NULL,
@@ -181,6 +186,7 @@ CREATE TABLE ir_sessions (
     total_runtime_secs   INTEGER NOT NULL,
     temp_start           REAL NOT NULL,
     temp_end             REAL NOT NULL,
+    temp_outside_start   REAL,            -- °C at start; see sensor_history.md
     hum_start            INTEGER NOT NULL,
     hum_end              INTEGER NOT NULL,
     mod_min              REAL NOT NULL,

@@ -436,6 +436,43 @@ async def get_state() -> dict[str, Any]:
     return state_manager.get_state_snapshot().model_dump()
 
 
+@app.get("/api/history/sensors")
+async def history_sensors(req: Request):
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    return {"sensors": state_manager.sensor_history.list_sensors()}
+
+
+@app.get("/api/history/sessions")
+async def history_sessions(
+    req: Request,
+    type: str = "sauna",
+    limit: int = 50,
+    offset: int = 0,
+):
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    session_type = type if type in ("sauna", "ir") else "sauna"
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    return state_manager.sensor_history.get_sessions(session_type, limit=limit, offset=offset)
+
+
+@app.get("/api/history/{idx}/summary")
+async def history_summary(idx: int, req: Request):
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    return state_manager.sensor_history.get_summary(idx)
+
+
+@app.get("/api/history/{idx}")
+async def history_series(idx: int, req: Request, range: str = "day"):
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    range_name = range if range in ("day", "month", "year") else "day"
+    return state_manager.sensor_history.get_series(idx, range_name)
+
+
 @app.post("/api/event")
 async def inject_event(request: GenericEventRequest, req: Request) -> dict[str, Union[str, Event]]:
     e_type_str = request.type.value if hasattr(request.type, 'value') else str(request.type)

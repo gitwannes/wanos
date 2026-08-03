@@ -128,6 +128,24 @@ hardware_links:
     72001: 74001  # PC Switch -> PC Power
     72002: 74003  # PC Aux Switch -> PC Aux Power
 
+# Sensor / utility history (power, water, charts) — see docs/sensor_history.md
+history:
+  timezone: "Europe/Brussels"
+  retention:
+    hires_days: 7
+    hourly_days: 31
+    daily_days: 365
+  sample:
+    kwh_step_wh: 100        # hi-res W sample every 0.1 kWh
+    water_step_l: 1.0       # consumption step every liter
+    zwave_min_interval_secs: 60
+  tracked_idxs:
+    - 11001   # house kWh
+    - 11002   # cold water
+    - 11003   # hot water
+    - 74001   # PC power
+    - 74003   # PC monitors power
+
 # Devices explicitly hidden from the Device Explorer UI
 # Z-Wave devices exlusions via zwave_config.yaml
 deviceexplorer_exclude:

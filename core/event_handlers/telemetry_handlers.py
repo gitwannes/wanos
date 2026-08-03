@@ -38,6 +38,9 @@ async def handle_power_updated(event: Event, manager: Any) -> Tuple[bool, Set[st
         state_changed = True
         changed_domains.add("devices")
 
+    if hasattr(manager, "sensor_history") and idx is not None:
+        manager.sensor_history.note_power_watts(idx, float(avg_val))
+
     return state_changed, changed_domains
 
 
@@ -308,6 +311,9 @@ async def handle_water_pulse(event: Event, manager: Any) -> Tuple[bool, Set[str]
             wtype = "cold" if idx == 11002 else "hot"
             manager.mqtt_publisher.accumulate_water(wtype, count)
 
+        if hasattr(manager, "sensor_history"):
+            manager.sensor_history.note_water_pulse(idx, added_liters)
+
     return state_changed, changed_domains
 
 
@@ -329,6 +335,9 @@ async def handle_kwh_pulse(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
 
         state_changed = True
         changed_domains.add("devices")
+
+        if hasattr(manager, "sensor_history"):
+            manager.sensor_history.note_kwh_pulse(idx, wh=1.0)
 
     # 3. Maintain legacy Kiosk/UI metrics
     manager._state.metrics.kwh_wh_ticks += 1

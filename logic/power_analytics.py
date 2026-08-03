@@ -42,7 +42,14 @@ class PowerAnalytics:
         # Deduplication tracker to prevent identical consecutive log lines
         self._last_log_content: str = ""
 
+        # Outdoor temp snapshot at session start (see docs/sensor_history.md)
+        self._temp_outside_start: Optional[float] = None
+
         self._init_sqlite()
+
+    def note_session_start(self) -> None:
+        """Capture outdoor temperature when a sauna/IR session begins."""
+        self._temp_outside_start = self.sm._state.sensors.outside_temp
 
     def _init_sqlite(self) -> None:
         """Constructs tracking schema tables synchronously on boot if they do not exist."""
@@ -62,6 +69,7 @@ class PowerAnalytics:
                     temp_min REAL,
                     temp_max REAL,
                     temp_avg REAL,
+                    temp_outside_start REAL,
                     hum_start INTEGER,
                     hum_end INTEGER,
                     hum_min INTEGER,
@@ -93,6 +101,7 @@ class PowerAnalytics:
                     total_runtime_secs INTEGER,
                     temp_start REAL,
                     temp_end REAL,
+                    temp_outside_start REAL,
                     hum_start INTEGER,
                     hum_end INTEGER,
                     mod_min REAL,
@@ -102,6 +111,12 @@ class PowerAnalytics:
                     energy_calc_wh REAL
                 )
             ''')
+            # Migrate older DBs that lack temp_outside_start
+            for table in ("sauna_sessions", "ir_sessions"):
+                c.execute(f"PRAGMA table_info({table})")
+                cols = {row[1] for row in c.fetchall()}
+                if "temp_outside_start" not in cols:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN temp_outside_start REAL")
             conn.commit()
             conn.close()
         except Exception as e:
@@ -240,6 +255,7 @@ class PowerAnalytics:
                     temp_min=_safe_min(self._session_temp_history),
                     temp_max=_safe_max(self._session_temp_history),
                     temp_avg=_safe_avg(self._session_temp_history),
+                    temp_outside_start=self._temp_outside_start,
                     hum_start=int(self._session_hum_history[0]) if self._session_hum_history else 0,
                     hum_end=int(self._session_hum_history[-1]) if self._session_hum_history else 0,
                     hum_min=int(_safe_min(self._session_hum_history)),
@@ -276,6 +292,7 @@ class PowerAnalytics:
                     total_runtime_secs=now_ts - start_ts,
                     temp_start=self._session_temp_history[0] if self._session_temp_history else 0.0,
                     temp_end=self._session_temp_history[-1] if self._session_temp_history else 0.0,
+                    temp_outside_start=self._temp_outside_start,
                     hum_start=int(self._session_hum_history[0]) if self._session_hum_history else 0,
                     hum_end=int(self._session_hum_history[-1]) if self._session_hum_history else 0,
                     mod_min=_safe_min(self._session_mod_u_history),
@@ -297,6 +314,7 @@ class PowerAnalytics:
         self._session_mod_u_history.clear()
         self._session_mod_v_history.clear()
         self._session_mod_w_history.clear()
+        self._temp_outside_start = None
 
     def _commit_sauna_record(self, record: SaunaSessionRecord) -> None:
         """Blocking SQLite write operation (Safely executed in an offloaded thread)."""
@@ -305,7 +323,7 @@ class PowerAnalytics:
         c.execute('''
             INSERT INTO sauna_sessions (
                 start_timestamp, total_runtime_secs, runtime_u_secs, runtime_v_secs, runtime_w_secs,
-                temp_start, temp_end, temp_min, temp_max, temp_avg,
+                temp_start, temp_end, temp_min, temp_max, temp_avg, temp_outside_start,
                 hum_start, hum_end, hum_min, hum_max, hum_avg,
                 mod_system_min, mod_system_max, mod_system_avg,
                 mod_u_min, mod_u_max, mod_u_avg,
@@ -313,11 +331,12 @@ class PowerAnalytics:
                 mod_w_min, mod_w_max, mod_w_avg,
                 energy_real_wh, energy_calc_wh,
                 extracted_p_u, extracted_p_v, extracted_p_w
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             record.start_timestamp, record.total_runtime_secs, record.runtime_u_secs, record.runtime_v_secs,
             record.runtime_w_secs,
             record.temp_start, record.temp_end, record.temp_min, record.temp_max, record.temp_avg,
+            record.temp_outside_start,
             record.hum_start, record.hum_end, record.hum_min, record.hum_max, record.hum_avg,
             record.mod_system_min, record.mod_system_max, record.mod_system_avg,
             record.mod_u_min, record.mod_u_max, record.mod_u_avg,
@@ -336,13 +355,14 @@ class PowerAnalytics:
         c.execute('''
             INSERT INTO ir_sessions (
                 start_timestamp, total_runtime_secs,
-                temp_start, temp_end, hum_start, hum_end,
+                temp_start, temp_end, temp_outside_start, hum_start, hum_end,
                 mod_min, mod_max, mod_avg,
                 energy_real_wh, energy_calc_wh
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             record.start_timestamp, record.total_runtime_secs,
-            record.temp_start, record.temp_end, record.hum_start, record.hum_end,
+            record.temp_start, record.temp_end, record.temp_outside_start,
+            record.hum_start, record.hum_end,
             record.mod_min, record.mod_max, record.mod_avg,
             record.energy_real_wh, record.energy_calc_wh
         ))

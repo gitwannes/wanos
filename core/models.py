@@ -198,6 +198,7 @@ class SaunaSessionRecord(BaseModel):
     temp_min: float
     temp_max: float
     temp_avg: float
+    temp_outside_start: Optional[float] = None
     hum_start: int
     hum_end: int
     hum_min: int
@@ -229,6 +230,7 @@ class IrSessionRecord(BaseModel):
     total_runtime_secs: int
     temp_start: float
     temp_end: float
+    temp_outside_start: Optional[float] = None
     hum_start: int
     hum_end: int
     mod_min: float

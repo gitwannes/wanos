@@ -17,6 +17,7 @@ from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
 from logic.power_analytics import PowerAnalytics
 from logic.history_manager import DeviceHistoryManager
+from logic.sensor_history_manager import SensorHistoryManager
 
 
 class StateManager:
@@ -81,6 +82,7 @@ class StateManager:
         # Instantiate isolated mathematical telemetry and logging engine
         self._power_analytics = PowerAnalytics(self)
         self.history_manager = DeviceHistoryManager(self)
+        self.sensor_history = SensorHistoryManager(self)
 
         # ATOMIC RECONCILIATION: Delegate metadata assembly to the atomic rebuilder
         self.rebuild_core_metadata()
@@ -364,6 +366,7 @@ class StateManager:
         self._health_monitor.start()
         self._power_analytics.start()
         self.history_manager.start()
+        self.sensor_history.start()
 
         # SINGLETON TIMER INSTANTIATION (Event Loop Safe)
         # Must be initialized inside an async context so its internal background tasks bind to the running loop!
@@ -393,6 +396,7 @@ class StateManager:
         await self._health_monitor.stop()
         await self._power_analytics.stop()
         await self.history_manager.stop()
+        await self.sensor_history.stop()
         if self.sonos_bridge:
             await self.sonos_bridge.stop()
         if getattr(self, "onkyo_bridge", None):

@@ -137,6 +137,20 @@ function wanosApp() {
         presets: [null, null, null, null, null], // Array of 5 slots to hold view filter dictionaries
         activePresetSlot: null, // Tracks which slot is currently being saved
         toastMessage: "", // Ephemeral UI feedback message
+
+        // ⚡ Sensor History (sensorhistory.html)
+        historySensors: [],
+        selectedHistoryIdx: 11001,
+        historySummary: null,
+        historyLoading: false,
+        historyDayTitle: "Usage last 24 hours",
+        historyMonthTitle: "Usage last month",
+        historyYearTitle: "Usage last year",
+        _historyCharts: { day: null, month: null, year: null },
+        sessionHistoryType: "sauna",
+        sessionHistoryRows: [],
+        sessionHistoryTotal: 0,
+        sessionHistoryOffset: 0,
         toastTimeout: null,
 
         // ⚡ Reactive Time Heartbeat
@@ -714,7 +728,7 @@ function wanosApp() {
 
                     if (payload.role === "admin") {
                         this.isAdmin = true;
-                    } else if (payload.role === "user" && (window.location.pathname.includes("admin.html") || window.location.pathname.includes("deviceinsights.html"))) {
+                    } else if (payload.role === "user" && (window.location.pathname.includes("admin.html") || window.location.pathname.includes("deviceinsights.html") || window.location.pathname.includes("sensorhistory.html"))) {
                         // ⚡ THE BOUNCER: If a smartphone browser auto-completes to an admin page, kick them out
                         console.warn("Unauthorized access attempt. Redirecting...");
                         window.location.href = "/deviceexplorer.html";
@@ -1148,6 +1162,237 @@ function wanosApp() {
                 }
             } catch (error) {
                 console.error(`💥 Event transmission collapsed [${eventType}]:`, error);
+            }
+        },
+
+        async initSensorHistoryPage() {
+            if (!window.location.pathname.includes("sensorhistory.html")) return;
+            await this.$nextTick();
+            window.addEventListener("resize", () => {
+                Object.values(this._historyCharts).forEach(c => c && c.resize());
+            });
+            await this.loadHistorySensors();
+            await this.reloadHistoryCharts();
+            await this.loadSessionHistory();
+        },
+
+        async loadHistorySensors() {
+            try {
+                const res = await fetch("/api/history/sensors", { headers: this.getAuthHeaders() });
+                if (res.status === 401 || res.status === 403) {
+                    window.location.href = "/deviceexplorer.html";
+                    return;
+                }
+                const data = await res.json();
+                this.historySensors = data.sensors || [];
+                if (this.historySensors.length && !this.historySensors.find(s => s.idx === this.selectedHistoryIdx)) {
+                    this.selectedHistoryIdx = this.historySensors[0].idx;
+                }
+            } catch (e) {
+                console.error("Failed to load history sensors", e);
+            }
+        },
+
+        formatHistoryValue(val, unit) {
+            if (val == null || Number.isNaN(Number(val))) return "—";
+            const n = Number(val);
+            if (unit === "kWh") return n.toFixed(2) + " kWh";
+            if (unit === "L") return n.toFixed(1) + " L";
+            return n.toFixed(1) + (unit ? " " + unit : "");
+        },
+
+        formatSessionTs(ts) {
+            if (!ts) return "—";
+            try {
+                return new Date(ts * 1000).toLocaleString("nl-BE", { timeZone: "Europe/Brussels" });
+            } catch (e) {
+                return String(ts);
+            }
+        },
+
+        formatSessionRuntime(secs) {
+            if (secs == null) return "—";
+            const m = Math.floor(Number(secs) / 60);
+            const s = Number(secs) % 60;
+            return m + "m " + s + "s";
+        },
+
+        _ensureHistoryChart(key, elId) {
+            if (typeof echarts === "undefined") return null;
+            const el = document.getElementById(elId);
+            if (!el) return null;
+            if (!this._historyCharts[key]) {
+                this._historyCharts[key] = echarts.init(el, "dark");
+            }
+            return this._historyCharts[key];
+        },
+
+        _pointsToSeries(points) {
+            return (points || []).map(p => [p.t, p.v == null ? null : p.v]);
+        },
+
+        _baseChartOption(yName) {
+            return {
+                backgroundColor: "transparent",
+                tooltip: { trigger: "axis" },
+                legend: { bottom: 0, textStyle: { color: "#9ca3af" } },
+                grid: { left: 48, right: 24, top: 24, bottom: 48 },
+                xAxis: { type: "time", axisLabel: { color: "#9ca3af" }, splitLine: { show: false } },
+                yAxis: {
+                    type: "value",
+                    name: yName,
+                    nameTextStyle: { color: "#9ca3af" },
+                    axisLabel: { color: "#9ca3af" },
+                    splitLine: { lineStyle: { color: "#374151" } }
+                },
+                dataZoom: [{ type: "inside" }, { type: "slider", height: 18, bottom: 28 }]
+            };
+        },
+
+        renderHistoryCharts(dayData, monthData, yearData) {
+            const kind = dayData?.kind || monthData?.kind || "power";
+            const isWater = kind === "water";
+
+            this.historyDayTitle = isWater ? "Consumption last 24 hours" : "Usage last 24 hours";
+            this.historyMonthTitle = isWater ? "Consumption last month" : "Usage last month";
+            this.historyYearTitle = isWater ? "Consumption last year" : "Usage last year";
+
+            const dayChart = this._ensureHistoryChart("day", "chart-day");
+            const monthChart = this._ensureHistoryChart("month", "chart-month");
+            const yearChart = this._ensureHistoryChart("year", "chart-year");
+
+            if (dayChart) {
+                const opt = this._baseChartOption(isWater ? "Liters" : "Usage (Watt)");
+                if (isWater) {
+                    opt.series = [{
+                        name: "Liters",
+                        type: "bar",
+                        data: this._pointsToSeries(dayData?.series?.liters),
+                        itemStyle: { color: "#2dd4bf" }
+                    }];
+                } else {
+                    opt.series = [{
+                        name: "Usage",
+                        type: "line",
+                        showSymbol: false,
+                        data: this._pointsToSeries(dayData?.series?.usage),
+                        lineStyle: { color: "#2dd4bf", width: 2 },
+                        areaStyle: { color: "rgba(45,212,191,0.08)" },
+                        connectNulls: false
+                    }];
+                }
+                dayChart.setOption(opt, true);
+            }
+
+            if (monthChart) {
+                const opt = this._baseChartOption(isWater ? "Liters" : "Usage (Watt)");
+                if (isWater) {
+                    opt.series = [{
+                        name: "Liters",
+                        type: "bar",
+                        data: this._pointsToSeries(monthData?.series?.liters),
+                        itemStyle: { color: "#2dd4bf" }
+                    }];
+                } else {
+                    opt.series = [
+                        {
+                            name: "Usage min",
+                            type: "line",
+                            showSymbol: false,
+                            data: this._pointsToSeries(monthData?.series?.usage_min),
+                            lineStyle: { color: "#2dd4bf" },
+                            connectNulls: false
+                        },
+                        {
+                            name: "Usage max",
+                            type: "line",
+                            showSymbol: false,
+                            data: this._pointsToSeries(monthData?.series?.usage_max),
+                            lineStyle: { color: "#a3e635" },
+                            connectNulls: false
+                        }
+                    ];
+                }
+                monthChart.setOption(opt, true);
+            }
+
+            if (yearChart) {
+                const opt = this._baseChartOption(isWater ? "Liters" : "Usage (Watt)");
+                if (isWater) {
+                    opt.series = [{
+                        name: "Liters",
+                        type: "bar",
+                        data: this._pointsToSeries(yearData?.series?.liters),
+                        itemStyle: { color: "#2dd4bf" }
+                    }];
+                } else {
+                    opt.series = [
+                        {
+                            name: "Usage min",
+                            type: "line",
+                            showSymbol: false,
+                            data: this._pointsToSeries(yearData?.series?.usage_min),
+                            lineStyle: { color: "#2dd4bf" },
+                            connectNulls: false
+                        },
+                        {
+                            name: "Usage max",
+                            type: "line",
+                            showSymbol: false,
+                            data: this._pointsToSeries(yearData?.series?.usage_max),
+                            lineStyle: { color: "#a3e635" },
+                            connectNulls: false
+                        }
+                    ];
+                }
+                yearChart.setOption(opt, true);
+            }
+        },
+
+        async reloadHistoryCharts() {
+            if (!this.selectedHistoryIdx) return;
+            this.historyLoading = true;
+            try {
+                const idx = this.selectedHistoryIdx;
+                const headers = this.getAuthHeaders();
+                const [sumRes, dayRes, monthRes, yearRes] = await Promise.all([
+                    fetch(`/api/history/${idx}/summary`, { headers }),
+                    fetch(`/api/history/${idx}?range=day`, { headers }),
+                    fetch(`/api/history/${idx}?range=month`, { headers }),
+                    fetch(`/api/history/${idx}?range=year`, { headers })
+                ]);
+                if ([sumRes, dayRes, monthRes, yearRes].some(r => r.status === 401 || r.status === 403)) {
+                    window.location.href = "/deviceexplorer.html";
+                    return;
+                }
+                this.historySummary = await sumRes.json();
+                const dayData = await dayRes.json();
+                const monthData = await monthRes.json();
+                const yearData = await yearRes.json();
+                await this.$nextTick();
+                this.renderHistoryCharts(dayData, monthData, yearData);
+            } catch (e) {
+                console.error("Failed to reload history charts", e);
+            } finally {
+                this.historyLoading = false;
+            }
+        },
+
+        async loadSessionHistory() {
+            try {
+                const res = await fetch(
+                    `/api/history/sessions?type=${this.sessionHistoryType}&limit=50&offset=${this.sessionHistoryOffset}`,
+                    { headers: this.getAuthHeaders() }
+                );
+                if (res.status === 401 || res.status === 403) {
+                    window.location.href = "/deviceexplorer.html";
+                    return;
+                }
+                const data = await res.json();
+                this.sessionHistoryRows = data.sessions || [];
+                this.sessionHistoryTotal = data.total || 0;
+            } catch (e) {
+                console.error("Failed to load session history", e);
             }
         },
 

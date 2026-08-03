@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="WanOS" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
+    <title>WanOS Sensor History</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        #pc-nav-menu { display: none; }
+        @media (min-width: 1024px) {
+            #pc-nav-menu { display: flex; }
+        }
+        .hist-chart { width: 100%; height: 280px; }
+        @media (min-width: 768px) {
+            .hist-chart { height: 320px; }
+        }
+    </style>
+</head>
+<body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()" x-init="initSensorHistoryPage()">
+
+    <div x-show="!connected"
+         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
+         <span class="loading loading-infinity w-16 text-error mb-4"></span>
+        <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
+        <p class="text-error mt-2 font-mono text-sm">Establishing connection stream to WanOS backend...</p>
+    </div>
+
+    <header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center min-h-[3rem] relative z-[60]">
+        <div class="flex-1 flex items-center gap-2 min-w-0">
+            <div class="flex flex-col min-w-0 justify-center">
+                <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-accent truncate">⚡ WanOS // Sensor History</span>
+                <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap"
+                      x-text="(historySensors.length || 0) + ' Meters'"></span>
+            </div>
+        </div>
+
+        <div id="pc-nav-menu" class="justify-center flex-1 min-w-0">
+            <div class="join bg-base-200 border border-base-300">
+                <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">EXplorer</a>
+                <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">WISC</a>
+                <a href="/deviceinsights.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">Insights</a>
+                <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-accent border-accent bg-accent/10">History</a>
+            </div>
+        </div>
+
+        <div class="flex-none flex items-center gap-2">
+            <div class="dropdown dropdown-end">
+                <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </div>
+                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
+                    <li><a href="/deviceexplorer.html">Device Explorer</a></li>
+                    <li><a href="/commander.html">WISC</a></li>
+                    <li><a href="/deviceinsights.html">Device Insights</a></li>
+                    <li><a href="/sensorhistory.html" class="text-accent font-bold">Sensor History</a></li>
+                </ul>
+            </div>
+            <a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" x-show="isAdmin" x-cloak title="Return to Admin">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </a>
+            <button @click="logout()" class="btn btn-ghost btn-xs text-base-content/30 hover:text-error" title="Logout">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-2 md:px-4 max-w-[70rem] pb-10 flex flex-col gap-4 md:gap-6">
+
+        <div class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+            <div class="form-control w-full md:max-w-md">
+                <label class="label py-0"><span class="label-text font-mono text-xs uppercase tracking-widest text-base-content/50">Sensor</span></label>
+                <select class="select select-bordered select-sm font-mono bg-base-200"
+                        x-model.number="selectedHistoryIdx"
+                        @change="reloadHistoryCharts()">
+                    <template x-for="s in historySensors" :key="s.idx">
+                        <option :value="s.idx" x-text="s.idx + ' — ' + s.label"></option>
+                    </template>
+                </select>
+            </div>
+            <button class="btn btn-sm btn-outline font-mono" @click="reloadHistoryCharts()" :disabled="historyLoading">
+                <span x-show="!historyLoading">REFRESH</span>
+                <span x-show="historyLoading" class="loading loading-spinner loading-xs"></span>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3" x-show="historySummary">
+            <div class="bg-base-100 border border-base-200 rounded-box p-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Today</div>
+                <div class="text-lg md:text-xl font-black text-accent font-mono"
+                     x-text="formatHistoryValue(historySummary?.today, historySummary?.display_unit)"></div>
+            </div>
+            <div class="bg-base-100 border border-base-200 rounded-box p-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">This month</div>
+                <div class="text-lg md:text-xl font-black font-mono"
+                     x-text="formatHistoryValue(historySummary?.month, historySummary?.display_unit)"></div>
+            </div>
+            <div class="bg-base-100 border border-base-200 rounded-box p-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">This year</div>
+                <div class="text-lg md:text-xl font-black font-mono"
+                     x-text="formatHistoryValue(historySummary?.year, historySummary?.display_unit)"></div>
+            </div>
+            <div class="bg-base-100 border border-base-200 rounded-box p-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Total</div>
+                <div class="text-lg md:text-xl font-black font-mono"
+                     x-text="historySummary?.total == null ? '—' : formatHistoryValue(historySummary?.total, historySummary?.display_unit)"></div>
+            </div>
+        </div>
+
+        <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
+            <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyDayTitle"></h2>
+            <div id="chart-day" class="hist-chart"></div>
+        </section>
+        <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
+            <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyMonthTitle"></h2>
+            <div id="chart-month" class="hist-chart"></div>
+        </section>
+        <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
+            <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyYearTitle"></h2>
+            <div id="chart-year" class="hist-chart"></div>
+        </section>
+
+        <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50">Sauna / IR sessions</h2>
+                <div class="join">
+                    <button class="btn btn-xs join-item font-mono"
+                            :class="sessionHistoryType === 'sauna' ? 'btn-accent' : 'btn-ghost'"
+                            @click="sessionHistoryType = 'sauna'; loadSessionHistory()">Sauna</button>
+                    <button class="btn btn-xs join-item font-mono"
+                            :class="sessionHistoryType === 'ir' ? 'btn-accent' : 'btn-ghost'"
+                            @click="sessionHistoryType = 'ir'; loadSessionHistory()">IR</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-sm font-mono text-xs">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Start</th>
+                            <th>Runtime</th>
+                            <th>Energy</th>
+                            <th>Temp</th>
+                            <th>Outside</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="s in sessionHistoryRows" :key="s.session_id">
+                            <tr>
+                                <td x-text="s.session_id"></td>
+                                <td x-text="formatSessionTs(s.start_timestamp)"></td>
+                                <td x-text="formatSessionRuntime(s.total_runtime_secs)"></td>
+                                <td x-text="(s.energy_real_wh != null ? (s.energy_real_wh / 1000).toFixed(2) + ' kWh' : '—')"></td>
+                                <td x-text="(s.temp_start != null ? Number(s.temp_start).toFixed(1) : '—') + ' → ' + (s.temp_end != null ? Number(s.temp_end).toFixed(1) : '—') + '°C'"></td>
+                                <td x-text="s.temp_outside_start != null ? Number(s.temp_outside_start).toFixed(1) + '°C' : '—'"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="!sessionHistoryRows.length">
+                            <td colspan="6" class="text-base-content/40 italic">No sessions recorded yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-between items-center mt-3" x-show="sessionHistoryTotal > sessionHistoryRows.length || sessionHistoryOffset > 0">
+                <button class="btn btn-xs btn-ghost font-mono" :disabled="sessionHistoryOffset <= 0"
+                        @click="sessionHistoryOffset = Math.max(0, sessionHistoryOffset - 50); loadSessionHistory()">Prev</button>
+                <span class="text-[10px] font-mono text-base-content/40"
+                      x-text="(sessionHistoryOffset + 1) + '–' + Math.min(sessionHistoryOffset + sessionHistoryRows.length, sessionHistoryTotal) + ' / ' + sessionHistoryTotal"></span>
+                <button class="btn btn-xs btn-ghost font-mono"
+                        :disabled="sessionHistoryOffset + sessionHistoryRows.length >= sessionHistoryTotal"
+                        @click="sessionHistoryOffset += 50; loadSessionHistory()">Next</button>
+            </div>
+        </section>
+    </main>
+    <script src="app.js?v=2.1"></script>
+</body>
+</html>

@@ -19,3 +19,4 @@ avahi-daemon      # mDNS/DNS-SD service for .local hostname resolution and zero-
 python3-venv      # Module for building isolated Python virtual environments
 python3-pip       # Python package installer for PyPI dependencies
 python3-libgpiod  # Native C-bindings for direct Linux GPIO character device interaction
+tzdata            # IANA timezone database for zoneinfo (Europe/Brussels day boundaries in sensor history)
