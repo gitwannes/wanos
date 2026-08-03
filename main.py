@@ -443,6 +443,21 @@ async def history_sensors(req: Request):
     return {"sensors": state_manager.sensor_history.list_sensors()}
 
 
+@app.get("/api/history/actuators")
+async def history_actuators(req: Request):
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    return {"actuators": state_manager.history_manager.list_actuators()}
+
+
+@app.get("/api/history/actuators/{idx}")
+async def history_actuator_series(idx: int, req: Request, range: str = "day"):
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    range_name = range if range in ("day", "month", "year") else "day"
+    return state_manager.history_manager.get_actuator_series(idx, range_name)
+
+
 @app.get("/api/history/sessions")
 async def history_sessions(
     req: Request,

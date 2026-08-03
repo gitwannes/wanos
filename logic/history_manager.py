@@ -1,20 +1,89 @@
 # --- file: logic/history_manager.py ---
+"""
+Actuator / switch / shutter / door / speaker history.
+Retention aligned with utility history (see docs/sensor_history.md):
+  raw events 7d | hourly 31d | daily 1y
+"""
+from __future__ import annotations
+
+import asyncio
+import calendar
 import sqlite3
 import time
-import asyncio
 from datetime import datetime, timedelta
-from typing import Any, List, Tuple, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
+
 from loguru import logger
+
+# Types excluded from actuator history (utility / passive)
+EXCLUDED_TYPES = {
+    "temp", "hum", "temp_hum", "motion", "scene",
+    "power", "energy", "fluid", "sensor",
+}
+
+
+def normalize_level(
+    state: Any,
+    device_snapshot: Any = None,
+    *,
+    bri: Any = None,
+    volume: Any = None,
+) -> Optional[float]:
+    """
+    Map device state to 0–100 chart level.
+    OFF/OPEN -> 0; ON -> volume/bri if present else 100; CLOSED -> 100; numeric as-is.
+    """
+    # Prefer explicit level from rich payload when power is ON
+    power = None
+    if isinstance(device_snapshot, dict):
+        power = device_snapshot.get("state")
+        if volume is None:
+            volume = device_snapshot.get("volume")
+        if bri is None:
+            bri = device_snapshot.get("bri")
+    if power is None and isinstance(state, str):
+        power = state
+
+    if isinstance(state, (int, float)):
+        return float(max(0, min(100, state)))
+
+    if isinstance(state, str):
+        s = state.strip().upper()
+        if s in ("OFF", "OPEN"):
+            return 0.0
+        if s == "CLOSED":
+            return 100.0
+        if s == "ON":
+            for cand in (volume, bri):
+                if isinstance(cand, (int, float)):
+                    return float(max(0, min(100, cand)))
+            if isinstance(device_snapshot, dict):
+                for key in ("volume", "bri"):
+                    v = device_snapshot.get(key)
+                    if isinstance(v, (int, float)):
+                        return float(max(0, min(100, v)))
+            return 100.0
+        if s.endswith("%"):
+            try:
+                return float(max(0, min(100, float(s.replace("%", "")))))
+            except ValueError:
+                return None
+        try:
+            return float(max(0, min(100, float(s))))
+        except ValueError:
+            return None
+
+    if power is not None:
+        return normalize_level(power, device_snapshot, bri=bri, volume=volume)
+    return None
 
 
 class DeviceHistoryManager:
     """
-    Manages persistent time-series data for UI insights.
-    Uses a Write-Ahead Logging (WAL) SQLite pattern with an in-memory queue
-    to batch writes and prevent SD card degradation. Tracks switch events over a rolling 30-day window.
+    WAL + batched writes for actuator state transitions and rollups.
     """
 
-    # Default fallback constants (can be overridden by config if implemented later)
     MAX_QUEUE_SIZE: int = 500
     FLUSH_INTERVAL: float = 60.0
 
@@ -22,232 +91,470 @@ class DeviceHistoryManager:
         self.sm = state_manager
         self.db_path = "device_history.db"
 
-        # ⚡ IN-MEMORY TRACKING
-        # Holds the baseline tallies to completely bypass SQLite SELECTs during live state changes
+        cfg = getattr(getattr(state_manager, "_config", None), "history", None)
+        tz_name = getattr(cfg, "timezone", None) or "Europe/Brussels"
+        try:
+            self.tz = ZoneInfo(tz_name)
+            self.timezone_name = tz_name
+        except Exception:
+            self.tz = ZoneInfo("Europe/Brussels")
+            self.timezone_name = "Europe/Brussels"
+
+        retention = getattr(cfg, "retention", None)
+        self.hires_days = int(getattr(retention, "hires_days", 7) or 7)
+        self.hourly_days = int(getattr(retention, "hourly_days", 31) or 31)
+        self.daily_days = int(getattr(retention, "daily_days", 365) or 365)
+
         self._today_counts: Dict[int, int] = {}
         self._month_counts: Dict[int, int] = {}
 
-        # ⚡ RAM BUFFER
-        # Stores unwritten database rows before they are flushed to disk
-        self._write_queue: List[Tuple[int, int, str]] = []
+        # (idx, ts, state, level)
+        self._write_queue: List[Tuple[int, int, str, Optional[float]]] = []
+        # RAM rollups until flush: (idx, key) -> {count, level_min, level_max, level_last}
+        self._hour_buckets: Dict[Tuple[int, str], Dict[str, Any]] = {}
+        self._day_buckets: Dict[Tuple[int, str], Dict[str, Any]] = {}
 
-        # Asyncio background tasks and synchronization primitives
-        self._task: Optional[asyncio.Task] = None  # Midnight cull loop
-        self._flush_task: Optional[asyncio.Task] = None  # Background flusher
-        self._flush_event: asyncio.Event = asyncio.Event()  # Threshold trigger event
+        self._task: Optional[asyncio.Task] = None
+        self._flush_task: Optional[asyncio.Task] = None
+        self._flush_event: asyncio.Event = asyncio.Event()
 
         self._init_db()
 
+    def _now_local(self) -> datetime:
+        return datetime.now(self.tz)
+
+    def _hour_key(self, ts: Optional[int] = None) -> str:
+        dt = datetime.fromtimestamp(ts or time.time(), self.tz)
+        return dt.strftime("%Y-%m-%dT%H")
+
+    def _day_key(self, ts: Optional[int] = None) -> str:
+        dt = datetime.fromtimestamp(ts or time.time(), self.tz)
+        return dt.strftime("%Y-%m-%d")
+
+    def _days_in_month(self, dt: Optional[datetime] = None) -> int:
+        d = dt or self._now_local()
+        return calendar.monthrange(d.year, d.month)[1]
+
     def _init_db(self) -> None:
-        """Initializes the SQLite schema and enables WAL mode for high concurrency."""
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-
-        # ⚡ WAL MODE
-        # Write-Ahead Logging prevents 'database is locked' errors by allowing
-        # simultaneous read and write operations.
         c.execute("PRAGMA journal_mode=WAL;")
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS device_events (
+                idx INTEGER,
+                timestamp INTEGER,
+                state TEXT,
+                level REAL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_ts ON device_events(idx, timestamp)")
+        # Migrate older DBs missing level
+        c.execute("PRAGMA table_info(device_events)")
+        cols = {row[1] for row in c.fetchall()}
+        if "level" not in cols:
+            c.execute("ALTER TABLE device_events ADD COLUMN level REAL")
 
-        c.execute('''CREATE TABLE IF NOT EXISTS device_events (
-                        idx INTEGER,
-                        timestamp INTEGER,
-                        state TEXT
-                     )''')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_ts ON device_events(idx, timestamp)')
-
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS device_hourly (
+                idx INTEGER NOT NULL,
+                hour_key TEXT NOT NULL,
+                event_count INTEGER NOT NULL DEFAULT 0,
+                level_min REAL,
+                level_max REAL,
+                level_last REAL,
+                PRIMARY KEY (idx, hour_key)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS device_daily (
+                idx INTEGER NOT NULL,
+                day_key TEXT NOT NULL,
+                event_count INTEGER NOT NULL DEFAULT 0,
+                level_min REAL,
+                level_max REAL,
+                level_last REAL,
+                PRIMARY KEY (idx, day_key)
+            )"""
+        )
         conn.commit()
         conn.close()
 
     def start(self) -> None:
-        """Boots the history manager, calculates baselines, and starts background loops."""
-        # Calculate the initial baseline from the DB synchronously on boot
         self.recalculate_all_insights()
-
-        # Bind the background loops to the running asyncio event loop
         self._task = asyncio.create_task(self._daily_cull_loop())
         self._flush_task = asyncio.create_task(self._batch_flush_loop())
 
     async def stop(self) -> None:
-        """Safely tears down the history manager and flushes remaining RAM to disk."""
         if self._task:
             self._task.cancel()
         if self._flush_task:
             self._flush_task.cancel()
+        if self._write_queue or self._hour_buckets or self._day_buckets:
+            await self._flush_all()
 
-        # ⚡ ASYNC SHUTDOWN FLUSH
-        # If there are leftovers in RAM, perform one final list swap and offload the write
-        # to a background thread so we don't block the main event loop during shutdown.
-        if self._write_queue:
-            final_batch = self._write_queue
-            self._write_queue = []
-            logger.info(f"History Manager shutting down. Flushing final {len(final_batch)} records to disk.")
-            await asyncio.to_thread(self._execute_batch_insert, final_batch)
+    def should_track(self, idx: int, dev_type: str) -> bool:
+        if idx in (10001, 10002):
+            return True
+        return (dev_type or "") not in EXCLUDED_TYPES
 
-    def log_event(self, idx: int, state: str) -> None:
-        """
-        Captures a device state transition. Appends to the RAM queue and immediately
-        updates the UI insights using in-memory mathematics (zero disk I/O).
-        """
+    def log_event(
+        self,
+        idx: int,
+        state: str,
+        level: Optional[float] = None,
+        *,
+        device_snapshot: Any = None,
+        bri: Any = None,
+        volume: Any = None,
+    ) -> None:
+        """Queue a state transition and update RAM insights + rollup buckets."""
         now = int(time.time())
+        state_str = str(state) if state is not None else ""
+        if level is None:
+            level = normalize_level(state_str, device_snapshot, bri=bri, volume=volume)
 
-        # 1. Add to the RAM queue for eventual DB insertion
-        self._write_queue.append((idx, now, state))
+        self._write_queue.append((idx, now, state_str, level))
+        self._bump_rollup(idx, now, level)
+        self._update_insight_in_memory(idx, now, state_str, increment=True)
 
-        # 2. Instantly update UI insights via RAM
-        self._update_insight_in_memory(idx, now, state)
-
-        # 3. Storm Threshold Trigger: If queue exceeds maximum size, force an immediate flush
         if len(self._write_queue) >= self.MAX_QUEUE_SIZE:
             self._flush_event.set()
 
-    def _update_insight_in_memory(self, idx: int, last_changed: int, state: str) -> None:
-        """
-        Increments the tracking metrics mathematically in RAM without querying SQLite.
-        Pushes the result straight to the StateManager's metrics dashboard.
-        """
-        # Increment tallies
-        self._today_counts[idx] = self._today_counts.get(idx, 0) + 1
-        self._month_counts[idx] = self._month_counts.get(idx, 0) + 1
+    def _bump_rollup(self, idx: int, ts: int, level: Optional[float]) -> None:
+        hk = (idx, self._hour_key(ts))
+        dk = (idx, self._day_key(ts))
+        for store, key in ((self._hour_buckets, hk), (self._day_buckets, dk)):
+            b = store.get(key)
+            if b is None:
+                b = {"event_count": 0, "level_min": None, "level_max": None, "level_last": None}
+                store[key] = b
+            b["event_count"] += 1
+            if level is not None:
+                b["level_min"] = level if b["level_min"] is None else min(b["level_min"], level)
+                b["level_max"] = level if b["level_max"] is None else max(b["level_max"], level)
+                b["level_last"] = level
 
-        # Calculate trailing 30-day average
-        daily_avg = round(self._month_counts[idx] / 30.0, 1)
+    def _update_insight_in_memory(
+        self, idx: int, last_changed: int, state: str, *, increment: bool = True
+    ) -> None:
+        if increment:
+            self._today_counts[idx] = self._today_counts.get(idx, 0) + 1
+            self._month_counts[idx] = self._month_counts.get(idx, 0) + 1
 
-        # Ensure the dictionary node exists for this device
+        days = max(1, self._days_in_month())
+        daily_avg = round(self._month_counts.get(idx, 0) / float(days), 1)
+
         if idx not in self.sm._state.metrics.device_insights:
             self.sm._state.metrics.device_insights[idx] = {}
 
-        # Push instantly to UI state
         self.sm._state.metrics.device_insights[idx].update({
             "last_changed": last_changed,
-            "today_count": self._today_counts[idx],
+            "today_count": self._today_counts.get(idx, 0),
             "daily_avg": daily_avg,
-            "state": state
+            "state": state,
         })
 
     def recalculate_all_insights(self) -> None:
-        """
-        Called on boot (and exactly at midnight). Runs the heavy SQL COUNT(*) queries
-        once to populate the RAM tracking dictionaries for all historically known devices.
-        """
-        now = int(time.time())
-        now_dt = datetime.now()
+        """Rebuild RAM tallies from DB (does not double-count)."""
+        now_dt = self._now_local()
         start_of_day = int(now_dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-        thirty_days_ago = now - (30 * 86400)
+        start_of_month = int(now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp())
+        days = max(1, self._days_in_month(now_dt))
 
         try:
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
-
-            # Fetch all known devices
             c.execute("SELECT DISTINCT idx FROM device_events")
-            rows = c.fetchall()
-            idxs = [row[0] for row in rows]
+            idxs = [row[0] for row in c.fetchall()]
+
+            self._today_counts = {}
+            self._month_counts = {}
 
             for idx in idxs:
-                # Get the most recent state
-                c.execute("SELECT timestamp, state FROM device_events WHERE idx = ? ORDER BY timestamp DESC LIMIT 1",
-                          (idx,))
-                latest_row = c.fetchone()
+                c.execute(
+                    "SELECT timestamp, state FROM device_events WHERE idx = ? ORDER BY timestamp DESC LIMIT 1",
+                    (idx,),
+                )
+                latest = c.fetchone()
 
-                # Baseline Today's count
-                c.execute("SELECT COUNT(*) FROM device_events WHERE idx = ? AND timestamp >= ?", (idx, start_of_day))
-                today_count = c.fetchone()[0]
-                self._today_counts[idx] = today_count
+                c.execute(
+                    "SELECT COUNT(*) FROM device_events WHERE idx = ? AND timestamp >= ?",
+                    (idx, start_of_day),
+                )
+                today = int(c.fetchone()[0])
+                self._today_counts[idx] = today
 
-                # Baseline Month's count
-                c.execute("SELECT COUNT(*) FROM device_events WHERE idx = ? AND timestamp >= ?", (idx, thirty_days_ago))
-                month_count = c.fetchone()[0]
-                self._month_counts[idx] = month_count
+                # Prefer daily rollup for month if present
+                month_prefix = now_dt.strftime("%Y-%m")
+                c.execute(
+                    "SELECT COALESCE(SUM(event_count), 0) FROM device_daily WHERE idx = ? AND day_key LIKE ?",
+                    (idx, month_prefix + "%"),
+                )
+                month_from_daily = int(c.fetchone()[0])
+                if month_from_daily > 0:
+                    month = month_from_daily
+                else:
+                    c.execute(
+                        "SELECT COUNT(*) FROM device_events WHERE idx = ? AND timestamp >= ?",
+                        (idx, start_of_month),
+                    )
+                    month = int(c.fetchone()[0])
+                self._month_counts[idx] = month
 
-                if latest_row:
-                    # Sync the RAM metrics to the state manager
-                    self._update_insight_in_memory(idx, latest_row[0], latest_row[1])
+                if latest:
+                    self.sm._state.metrics.device_insights[idx] = {
+                        "last_changed": latest[0],
+                        "today_count": today,
+                        "daily_avg": round(month / float(days), 1),
+                        "state": latest[1],
+                    }
 
             conn.close()
-            logger.info("Successfully calculated Device History insights baselines.")
+            logger.info("Device History insights baselines recalculated.")
         except Exception as e:
-            logger.error(f"Failed to recalculate history insights on boot/midnight: {e}")
+            logger.error(f"Failed to recalculate history insights: {e}")
 
-    def _execute_batch_insert(self, batch: List[Tuple[int, int, str]]) -> None:
-        """
-        The blocking SQLite execution. Processes hundreds of rows at once.
-        WARNING: This should only ever be called via asyncio.to_thread()
-        """
-        if not batch:
-            return
+    async def _flush_all(self) -> None:
+        batch = self._write_queue
+        self._write_queue = []
+        hours = self._hour_buckets
+        days = self._day_buckets
+        self._hour_buckets = {}
+        self._day_buckets = {}
+        await asyncio.to_thread(self._execute_flush, batch, hours, days)
 
+    def _execute_flush(
+        self,
+        batch: List[Tuple[int, int, str, Optional[float]]],
+        hours: Dict[Tuple[int, str], Dict[str, Any]],
+        days: Dict[Tuple[int, str], Dict[str, Any]],
+    ) -> None:
         try:
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
-            # executemany is highly optimized in SQLite for bulk inserts
-            c.executemany("INSERT INTO device_events (idx, timestamp, state) VALUES (?, ?, ?)", batch)
+            if batch:
+                c.executemany(
+                    "INSERT INTO device_events (idx, timestamp, state, level) VALUES (?, ?, ?, ?)",
+                    batch,
+                )
+            for (idx, hour_key), b in hours.items():
+                if b.get("event_count", 0) <= 0 and b.get("level_last") is None:
+                    continue
+                c.execute(
+                    """INSERT INTO device_hourly(idx, hour_key, event_count, level_min, level_max, level_last)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(idx, hour_key) DO UPDATE SET
+                         event_count = device_hourly.event_count + excluded.event_count,
+                         level_min = CASE
+                           WHEN device_hourly.level_min IS NULL THEN excluded.level_min
+                           WHEN excluded.level_min IS NULL THEN device_hourly.level_min
+                           ELSE MIN(device_hourly.level_min, excluded.level_min) END,
+                         level_max = CASE
+                           WHEN device_hourly.level_max IS NULL THEN excluded.level_max
+                           WHEN excluded.level_max IS NULL THEN device_hourly.level_max
+                           ELSE MAX(device_hourly.level_max, excluded.level_max) END,
+                         level_last = COALESCE(excluded.level_last, device_hourly.level_last)
+                    """,
+                    (idx, hour_key, b["event_count"], b["level_min"], b["level_max"], b["level_last"]),
+                )
+            for (idx, day_key), b in days.items():
+                if b.get("event_count", 0) <= 0 and b.get("level_last") is None:
+                    continue
+                c.execute(
+                    """INSERT INTO device_daily(idx, day_key, event_count, level_min, level_max, level_last)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(idx, day_key) DO UPDATE SET
+                         event_count = device_daily.event_count + excluded.event_count,
+                         level_min = CASE
+                           WHEN device_daily.level_min IS NULL THEN excluded.level_min
+                           WHEN excluded.level_min IS NULL THEN device_daily.level_min
+                           ELSE MIN(device_daily.level_min, excluded.level_min) END,
+                         level_max = CASE
+                           WHEN device_daily.level_max IS NULL THEN excluded.level_max
+                           WHEN excluded.level_max IS NULL THEN device_daily.level_max
+                           ELSE MAX(device_daily.level_max, excluded.level_max) END,
+                         level_last = COALESCE(excluded.level_last, device_daily.level_last)
+                    """,
+                    (idx, day_key, b["event_count"], b["level_min"], b["level_max"], b["level_last"]),
+                )
             conn.commit()
             conn.close()
         except Exception as e:
-            logger.error(f"Failed bulk insert to history DB: {e}")
+            logger.error(f"Failed bulk flush to device history DB: {e}")
 
     async def _batch_flush_loop(self) -> None:
-        """
-        Background loop that writes RAM to disk. Triggers either when the timer
-        expires (60s) or when the event queue size threshold is hit.
-        """
         while True:
             try:
-                # Wait for the threshold event OR the 60-second timeout
                 await asyncio.wait_for(self._flush_event.wait(), timeout=self.FLUSH_INTERVAL)
                 self._flush_event.clear()
             except asyncio.TimeoutError:
-                # Timeout is normal (60 seconds passed). Proceed to flush.
                 pass
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Error in Recorder flush loop: {e}")
+                logger.error(f"Error in device history flush loop: {e}")
 
-            if self._write_queue:
-                # ⚡ ATOMIC LIST SWAP (Fixes the Race Condition)
-                # Capture the current queue and instantly reset the class attribute
-                # to a fresh list before yielding thread control.
-                batch_to_write = self._write_queue
-                self._write_queue = []
-
-                # Offload the blocking disk I/O to a background thread
-                await asyncio.to_thread(self._execute_batch_insert, batch_to_write)
+            if self._write_queue or self._hour_buckets or self._day_buckets:
+                await self._flush_all()
 
     async def _daily_cull_loop(self) -> None:
-        """
-        Background loop that aligns exactly with midnight.
-        Deletes DB records older than 30 days and recalculates RAM tracking baselines.
-        """
         while True:
             try:
-                # Dynamically calculate exact seconds until the next midnight rollover
-                now_dt = datetime.now()
+                now_dt = self._now_local()
                 next_midnight = (now_dt + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-                sleep_seconds = (next_midnight - now_dt).total_seconds()
-
-                await asyncio.sleep(sleep_seconds)
-
-                # Midnight struck! Cull the database in a background thread
-                thirty_days_ago = int(time.time()) - (30 * 86400)
-
-                def _cull_db() -> None:
-                    conn = sqlite3.connect(self.db_path)
-                    c = conn.cursor()
-                    c.execute("DELETE FROM device_events WHERE timestamp < ?", (thirty_days_ago,))
-                    conn.commit()
-                    conn.close()
-
-                await asyncio.to_thread(_cull_db)
-                logger.info("Device history DB successfully culled records older than 30 days.")
-
-                # ⚡ RESET DAILY BASELINES
-                # Recalculate all insights from scratch to properly reset `_today_counts` to 0
+                await asyncio.sleep(max(1.0, (next_midnight - now_dt).total_seconds()))
+                await self._flush_all()
+                await asyncio.to_thread(self._cull_db)
                 await asyncio.to_thread(self.recalculate_all_insights)
-
+                logger.info("Device history midnight cull + insights reset complete.")
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Error in daily cull: {e}")
-                # Fallback sleep to prevent infinite rapid-fire loops on error
+                logger.error(f"Error in device history daily cull: {e}")
                 await asyncio.sleep(60.0)
+
+    def _cull_db(self) -> None:
+        now = int(time.time())
+        hires_cut = now - self.hires_days * 86400
+        hourly_cut = (self._now_local() - timedelta(days=self.hourly_days)).strftime("%Y-%m-%dT%H")
+        daily_cut = (self._now_local() - timedelta(days=self.daily_days)).strftime("%Y-%m-%d")
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("DELETE FROM device_events WHERE timestamp < ?", (hires_cut,))
+        c.execute("DELETE FROM device_hourly WHERE hour_key < ?", (hourly_cut,))
+        c.execute("DELETE FROM device_daily WHERE day_key < ?", (daily_cut,))
+        conn.commit()
+        conn.close()
+
+    # ------------------------------------------------------------------ queries
+    def _format_status(self, idx: int, raw: Any, meta: Dict[str, Any]) -> str:
+        dtype = meta.get("type", "")
+        if isinstance(raw, dict):
+            st = raw.get("state", "?")
+            if dtype == "speaker" and raw.get("volume") is not None and st == "ON":
+                return f"ON {raw.get('volume')}%"
+            if dtype in ("light", "switch") and raw.get("bri") is not None and st == "ON":
+                return f"ON {raw.get('bri')}%"
+            return str(st)
+        if dtype in ("blinds", "shutter"):
+            try:
+                v = int(raw)
+                if v == 0:
+                    return "OPEN"
+                if v == 100:
+                    return "CLOSED"
+                return f"{v}%"
+            except (TypeError, ValueError):
+                return str(raw)
+        if raw in ("OPEN", "CLOSED"):
+            return str(raw)
+        return str(raw) if raw is not None else "—"
+
+    def list_actuators(self) -> List[Dict[str, Any]]:
+        """Overview rows for devices that have at least one history event."""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("SELECT DISTINCT idx FROM device_events")
+        idxs = [r[0] for r in c.fetchall()]
+        # Also include from daily if events culled
+        c.execute("SELECT DISTINCT idx FROM device_daily")
+        for r in c.fetchall():
+            if r[0] not in idxs:
+                idxs.append(r[0])
+        conn.close()
+
+        days = max(1, self._days_in_month())
+        out: List[Dict[str, Any]] = []
+        for idx in idxs:
+            meta = self.sm._state.device_metadata.get(idx, {}) or {}
+            dtype = meta.get("type", "")
+            if not self.should_track(idx, dtype):
+                continue
+            name = meta.get("name") or self.sm._state.dashboard_map.get(idx) or f"IDX {idx}"
+            raw = self.sm._state.devices.get(idx)
+            insight = self.sm._state.metrics.device_insights.get(idx, {})
+            out.append({
+                "idx": idx,
+                "name": name,
+                "type": dtype or "switch",
+                "status": self._format_status(idx, raw, meta),
+                "last_changed": insight.get("last_changed"),
+                "today_count": insight.get("today_count", self._today_counts.get(idx, 0)),
+                "daily_avg": insight.get(
+                    "daily_avg",
+                    round(self._month_counts.get(idx, 0) / float(days), 1),
+                ),
+                "month_count": self._month_counts.get(idx, 0),
+                "hidden": bool(meta.get("hidden")),
+            })
+        out.sort(key=lambda r: (str(r["name"]).lower(), r["idx"]))
+        return out
+
+    def get_actuator_series(self, idx: int, range_name: str) -> Dict[str, Any]:
+        range_name = (range_name or "day").lower()
+        meta = self.sm._state.device_metadata.get(idx, {}) or {}
+        name = meta.get("name") or f"IDX {idx}"
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+
+        if range_name == "day":
+            since = int(time.time()) - 86400
+            c.execute(
+                "SELECT timestamp, state, level FROM device_events WHERE idx = ? AND timestamp >= ? ORDER BY timestamp",
+                (idx, since),
+            )
+            level_pts = []
+            for ts, state, level in c.fetchall():
+                lv = level if level is not None else normalize_level(state)
+                level_pts.append({"t": ts * 1000, "v": lv})
+            conn.close()
+            return {
+                "idx": idx,
+                "name": name,
+                "range": "day",
+                "series": {"level": level_pts},
+            }
+
+        if range_name == "month":
+            since_day = (self._now_local() - timedelta(days=31)).strftime("%Y-%m-%d")
+            c.execute(
+                """SELECT day_key, event_count, level_min, level_max, level_last
+                   FROM device_daily WHERE idx = ? AND day_key >= ? ORDER BY day_key""",
+                (idx, since_day),
+            )
+            counts, mins, maxs = [], [], []
+            for day_key, cnt, lmin, lmax, _llast in c.fetchall():
+                ts_ms = int(datetime.strptime(day_key, "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
+                counts.append({"t": ts_ms, "v": cnt})
+                mins.append({"t": ts_ms, "v": lmin})
+                maxs.append({"t": ts_ms, "v": lmax})
+            conn.close()
+            return {
+                "idx": idx,
+                "name": name,
+                "range": "month",
+                "series": {"event_count": counts, "level_min": mins, "level_max": maxs},
+            }
+
+        # year
+        since_day = (self._now_local() - timedelta(days=366)).strftime("%Y-%m-%d")
+        c.execute(
+            """SELECT substr(day_key, 1, 7) AS ym,
+                      SUM(event_count), MIN(level_min), MAX(level_max)
+               FROM device_daily WHERE idx = ? AND day_key >= ?
+               GROUP BY ym ORDER BY ym""",
+            (idx, since_day),
+        )
+        counts, mins, maxs = [], [], []
+        for ym, cnt, lmin, lmax in c.fetchall():
+            ts_ms = int(datetime.strptime(ym + "-01", "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
+            counts.append({"t": ts_ms, "v": cnt})
+            mins.append({"t": ts_ms, "v": lmin})
+            maxs.append({"t": ts_ms, "v": lmax})
+        conn.close()
+        return {
+            "idx": idx,
+            "name": name,
+            "range": "year",
+            "series": {"event_count": counts, "level_min": mins, "level_max": maxs},
+        }

@@ -50,13 +50,13 @@
             <div class="flex flex-col min-w-0 justify-center">
                 <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-accent truncate">⚡ WanOS // Sensor History</span>
                 <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap"
-                      x-text="(historySensors.length || 0) + ' Meters'"></span>
+                      x-text="(filteredHistoryRows.length || 0) + ' Sensors'"></span>
             </div>
         </div>
 
         <div id="pc-nav-menu" class="justify-center flex-1 min-w-0">
             <div class="join bg-base-200 border border-base-300">
-                <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">EXplorer</a>
+                <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">Explorer</a>
                 <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">WISC</a>
                 <a href="/deviceinsights.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">Insights</a>
                 <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-accent border-accent bg-accent/10">History</a>
@@ -86,111 +86,208 @@
 
     <main class="container mx-auto px-2 md:px-4 max-w-[70rem] pb-10 flex flex-col gap-4 md:gap-6">
 
-        <div class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
-            <div class="form-control w-full md:max-w-md">
-                <label class="label py-0"><span class="label-text font-mono text-xs uppercase tracking-widest text-base-content/50">Sensor</span></label>
-                <select class="select select-bordered select-sm font-mono bg-base-200"
-                        x-model.number="selectedHistoryIdx"
-                        @change="reloadHistoryCharts()">
-                    <template x-for="s in historySensors" :key="s.idx">
-                        <option :value="s.idx" x-text="s.idx + ' — ' + s.label"></option>
-                    </template>
-                </select>
-            </div>
-            <button class="btn btn-sm btn-outline font-mono" @click="reloadHistoryCharts()" :disabled="historyLoading">
-                <span x-show="!historyLoading">REFRESH</span>
-                <span x-show="historyLoading" class="loading loading-spinner loading-xs"></span>
-            </button>
+        <div class="join bg-base-100 border border-base-200 rounded-box self-start">
+            <button class="btn btn-sm join-item font-mono"
+                    :class="historyTab === 'sensors' ? 'btn-accent' : 'btn-ghost'"
+                    @click="historyTab = 'sensors'; refreshSensorHistoryList()">Sensors</button>
+            <button class="btn btn-sm join-item font-mono"
+                    :class="historyTab === 'sessions' ? 'btn-accent' : 'btn-ghost'"
+                    @click="historyTab = 'sessions'; loadSessionHistory()">Sessions</button>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3" x-show="historySummary">
-            <div class="bg-base-100 border border-base-200 rounded-box p-3">
-                <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Today</div>
-                <div class="text-lg md:text-xl font-black text-accent font-mono"
-                     x-text="formatHistoryValue(historySummary?.today, historySummary?.display_unit)"></div>
-            </div>
-            <div class="bg-base-100 border border-base-200 rounded-box p-3">
-                <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">This month</div>
-                <div class="text-lg md:text-xl font-black font-mono"
-                     x-text="formatHistoryValue(historySummary?.month, historySummary?.display_unit)"></div>
-            </div>
-            <div class="bg-base-100 border border-base-200 rounded-box p-3">
-                <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">This year</div>
-                <div class="text-lg md:text-xl font-black font-mono"
-                     x-text="formatHistoryValue(historySummary?.year, historySummary?.display_unit)"></div>
-            </div>
-            <div class="bg-base-100 border border-base-200 rounded-box p-3">
-                <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Total</div>
-                <div class="text-lg md:text-xl font-black font-mono"
-                     x-text="historySummary?.total == null ? '—' : formatHistoryValue(historySummary?.total, historySummary?.display_unit)"></div>
-            </div>
-        </div>
-
-        <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
-            <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyDayTitle"></h2>
-            <div id="chart-day" class="hist-chart"></div>
-        </section>
-        <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
-            <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyMonthTitle"></h2>
-            <div id="chart-month" class="hist-chart"></div>
-        </section>
-        <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
-            <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyYearTitle"></h2>
-            <div id="chart-year" class="hist-chart"></div>
-        </section>
-
-        <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50">Sauna / IR sessions</h2>
-                <div class="join">
-                    <button class="btn btn-xs join-item font-mono"
-                            :class="sessionHistoryType === 'sauna' ? 'btn-accent' : 'btn-ghost'"
-                            @click="sessionHistoryType = 'sauna'; loadSessionHistory()">Sauna</button>
-                    <button class="btn btn-xs join-item font-mono"
-                            :class="sessionHistoryType === 'ir' ? 'btn-accent' : 'btn-ghost'"
-                            @click="sessionHistoryType = 'ir'; loadSessionHistory()">IR</button>
+        <!-- SENSORS (utilities + actuators) -->
+        <div class="flex flex-col gap-4 md:gap-6" x-show="historyTab === 'sensors'" x-cloak>
+            <div class="bg-base-100 border border-base-200 rounded-box p-3 flex flex-col gap-3">
+                <div class="flex flex-wrap items-center gap-3 justify-between">
+                    <label class="label cursor-pointer gap-2 py-0">
+                        <input type="checkbox" class="toggle toggle-sm toggle-accent" x-model="actuatorFavoritesOnly" />
+                        <span class="label-text font-mono text-xs uppercase tracking-widest">Favorites only</span>
+                    </label>
+                    <div class="form-control flex flex-row items-center gap-2" x-show="isAdmin" x-cloak>
+                        <span class="text-[10px] font-bold text-base-content/70 uppercase">Hidden</span>
+                        <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenNodes" />
+                    </div>
+                    <button class="btn btn-sm btn-outline font-mono" @click="refreshSensorHistoryList()"
+                            :disabled="historyLoading || actuatorLoading">
+                        <span x-show="!(historyLoading || actuatorLoading)">REFRESH</span>
+                        <span x-show="historyLoading || actuatorLoading" class="loading loading-spinner loading-xs"></span>
+                    </button>
                 </div>
+                <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 w-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
+                    <input type="text" class="grow font-mono text-xs" placeholder="Filter name, IDX, type…" x-model="actuatorSearchQuery" />
+                </label>
             </div>
-            <div class="overflow-x-auto">
+
+            <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4 overflow-x-auto">
                 <table class="table table-sm font-mono text-xs">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Start</th>
-                            <th>Runtime</th>
-                            <th>Energy</th>
-                            <th>Temp</th>
-                            <th>Outside</th>
+                            <th></th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Since</th>
+                            <th>Today</th>
+                            <th>Avg/day</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <template x-for="s in sessionHistoryRows" :key="s.session_id">
-                            <tr>
-                                <td x-text="s.session_id"></td>
-                                <td x-text="formatSessionTs(s.start_timestamp)"></td>
-                                <td x-text="formatSessionRuntime(s.total_runtime_secs)"></td>
-                                <td x-text="(s.energy_real_wh != null ? (s.energy_real_wh / 1000).toFixed(2) + ' kWh' : '—')"></td>
-                                <td x-text="(s.temp_start != null ? Number(s.temp_start).toFixed(1) : '—') + ' → ' + (s.temp_end != null ? Number(s.temp_end).toFixed(1) : '—') + '°C'"></td>
-                                <td x-text="s.temp_outside_start != null ? Number(s.temp_outside_start).toFixed(1) + '°C' : '—'"></td>
+                    <template x-for="row in filteredHistoryRows" :key="row.category + '-' + row.idx">
+                        <tbody>
+                            <tr class="cursor-pointer hover:bg-base-200"
+                                :class="Number(selectedSensorIdx) === Number(row.idx) && selectedSensorKind === row.category ? 'bg-accent/10' : ''"
+                                @click="selectHistoryRow(row)">
+                                <td @click.stop>
+                                    <input type="checkbox" class="checkbox checkbox-xs checkbox-accent"
+                                           :checked="isActuatorFavorite(row.idx)"
+                                           @change="toggleActuatorFavorite(row.idx)" />
+                                </td>
+                                <td>
+                                    <div class="font-bold" x-text="row.name"></div>
+                                    <div class="text-[10px] text-base-content/40" x-text="row.idx + ' · ' + row.type"></div>
+                                </td>
+                                <td x-text="row.status"></td>
+                                <td x-text="row.last_changed ? getDurationString(row.last_changed) : '—'"></td>
+                                <td class="text-accent font-bold" x-text="row.today_display"></td>
+                                <td x-text="row.avg_display"></td>
                             </tr>
-                        </template>
-                        <tr x-show="!sessionHistoryRows.length">
-                            <td colspan="6" class="text-base-content/40 italic">No sessions recorded yet.</td>
+                            <template x-if="Number(selectedSensorIdx) === Number(row.idx) && selectedSensorKind === row.category">
+                                <tr class="bg-base-200/40">
+                                    <td colspan="6" class="p-3 md:p-4">
+                                        <div class="flex flex-col gap-4">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <h3 class="font-mono text-sm font-bold tracking-wider text-accent"
+                                                    x-text="'Detail: ' + (selectedSensorName || selectedSensorIdx)"></h3>
+                                                <button type="button" class="btn btn-xs btn-ghost font-mono"
+                                                        @click.stop="closeHistoryDetail()">Close</button>
+                                            </div>
+
+                                            <!-- Utility summary + charts -->
+                                            <template x-if="selectedSensorKind === 'utility'">
+                                                <div class="flex flex-col gap-4">
+                                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3" x-show="historySummary">
+                                                        <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                            <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Today</div>
+                                                            <div class="text-lg font-black text-accent font-mono"
+                                                                 x-text="formatHistoryValue(historySummary?.today, historySummary?.display_unit)"></div>
+                                                        </div>
+                                                        <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                            <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">This month</div>
+                                                            <div class="text-lg font-black font-mono"
+                                                                 x-text="formatHistoryValue(historySummary?.month, historySummary?.display_unit)"></div>
+                                                        </div>
+                                                        <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                            <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">This year</div>
+                                                            <div class="text-lg font-black font-mono"
+                                                                 x-text="formatHistoryValue(historySummary?.year, historySummary?.display_unit)"></div>
+                                                        </div>
+                                                        <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                            <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Total</div>
+                                                            <div class="text-lg font-black font-mono"
+                                                                 x-text="historySummary?.total == null ? '—' : formatHistoryValue(historySummary?.total, historySummary?.display_unit)"></div>
+                                                        </div>
+                                                    </div>
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyDayTitle"></h2>
+                                                        <div id="chart-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyMonthTitle"></h2>
+                                                        <div id="chart-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyYearTitle"></h2>
+                                                        <div id="chart-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                </div>
+                                            </template>
+
+                                            <!-- Actuator charts -->
+                                            <template x-if="selectedSensorKind === 'actuator'">
+                                                <div class="flex flex-col gap-4">
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Level last 24 hours</h2>
+                                                        <div id="chart-act-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Last month (counts + level)</h2>
+                                                        <div id="chart-act-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Last year (counts + level)</h2>
+                                                        <div id="chart-act-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </template>
+                    <tbody x-show="!filteredHistoryRows.length">
+                        <tr>
+                            <td colspan="6" class="text-base-content/40 italic">No sensors to show.</td>
                         </tr>
                     </tbody>
                 </table>
-            </div>
-            <div class="flex justify-between items-center mt-3" x-show="sessionHistoryTotal > sessionHistoryRows.length || sessionHistoryOffset > 0">
-                <button class="btn btn-xs btn-ghost font-mono" :disabled="sessionHistoryOffset <= 0"
-                        @click="sessionHistoryOffset = Math.max(0, sessionHistoryOffset - 50); loadSessionHistory()">Prev</button>
-                <span class="text-[10px] font-mono text-base-content/40"
-                      x-text="(sessionHistoryOffset + 1) + '–' + Math.min(sessionHistoryOffset + sessionHistoryRows.length, sessionHistoryTotal) + ' / ' + sessionHistoryTotal"></span>
-                <button class="btn btn-xs btn-ghost font-mono"
-                        :disabled="sessionHistoryOffset + sessionHistoryRows.length >= sessionHistoryTotal"
-                        @click="sessionHistoryOffset += 50; loadSessionHistory()">Next</button>
-            </div>
-        </section>
+            </section>
+        </div>
+
+        <!-- SESSIONS -->
+        <div class="flex flex-col gap-4" x-show="historyTab === 'sessions'" x-cloak>
+            <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50">Sauna / IR sessions</h2>
+                    <div class="join">
+                        <button class="btn btn-xs join-item font-mono"
+                                :class="sessionHistoryType === 'sauna' ? 'btn-accent' : 'btn-ghost'"
+                                @click="sessionHistoryType = 'sauna'; loadSessionHistory()">Sauna</button>
+                        <button class="btn btn-xs join-item font-mono"
+                                :class="sessionHistoryType === 'ir' ? 'btn-accent' : 'btn-ghost'"
+                                @click="sessionHistoryType = 'ir'; loadSessionHistory()">IR</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm font-mono text-xs">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Start</th>
+                                <th>Runtime</th>
+                                <th>Energy</th>
+                                <th>Temp</th>
+                                <th>Outside</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="s in sessionHistoryRows" :key="s.session_id">
+                                <tr>
+                                    <td x-text="s.session_id"></td>
+                                    <td x-text="formatSessionTs(s.start_timestamp)"></td>
+                                    <td x-text="formatSessionRuntime(s.total_runtime_secs)"></td>
+                                    <td x-text="(s.energy_real_wh != null ? (s.energy_real_wh / 1000).toFixed(2) + ' kWh' : '—')"></td>
+                                    <td x-text="(s.temp_start != null ? Number(s.temp_start).toFixed(1) : '—') + ' → ' + (s.temp_end != null ? Number(s.temp_end).toFixed(1) : '—') + '°C'"></td>
+                                    <td x-text="s.temp_outside_start != null ? Number(s.temp_outside_start).toFixed(1) + '°C' : '—'"></td>
+                                </tr>
+                            </template>
+                            <tr x-show="!sessionHistoryRows.length">
+                                <td colspan="6" class="text-base-content/40 italic">No sessions recorded yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-between items-center mt-3" x-show="sessionHistoryTotal > sessionHistoryRows.length || sessionHistoryOffset > 0">
+                    <button class="btn btn-xs btn-ghost font-mono" :disabled="sessionHistoryOffset <= 0"
+                            @click="sessionHistoryOffset = Math.max(0, sessionHistoryOffset - 50); loadSessionHistory()">Prev</button>
+                    <span class="text-[10px] font-mono text-base-content/40"
+                          x-text="(sessionHistoryOffset + 1) + '–' + Math.min(sessionHistoryOffset + sessionHistoryRows.length, sessionHistoryTotal) + ' / ' + sessionHistoryTotal"></span>
+                    <button class="btn btn-xs btn-ghost font-mono"
+                            :disabled="sessionHistoryOffset + sessionHistoryRows.length >= sessionHistoryTotal"
+                            @click="sessionHistoryOffset += 50; loadSessionHistory()">Next</button>
+                </div>
+            </section>
+        </div>
     </main>
-    <script src="app.js?v=2.2"></script>
+    <script src="app.js?v=2.6"></script>
 </body>
 </html>

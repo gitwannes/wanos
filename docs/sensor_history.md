@@ -251,9 +251,41 @@ Session energy accounting and house utility history are complementary, not dupli
 
 ---
 
-## 13. Implementation notes
+## 13. Implementation notes (utilities)
 
 * Chart library: **Apache ECharts 5** (CDN on `sensorhistory.html`).
-* Z-Wave hi-res throttle: **60 s** per IDX (locked).
-* PC power IDXs include integrated **kWh** summary tiles (today / month / year); lifetime total N/A.
+* Z-Wave hi-res throttle: **60 s** per IDX.
+* PC power IDXs include integrated **kWh** summary tiles; lifetime total N/A.
 * Host needs `tzdata` for `zoneinfo` (`Europe/Brussels`).
+
+---
+
+## 14. Actuator history (switches, shutters, doors, audio, lights)
+
+Master–detail UI on `sensorhistory.html` → **Actuators** tab.
+
+### Mapping to chart level (0–100)
+| Device | Rule |
+|--------|------|
+| Switch / light | OFF→0; ON→100 or **brightness** when ON |
+| Speaker | OFF→0; ON→**volume** |
+| Blinds | native 0=OPEN … 100=CLOSED |
+| Door | OPEN→0; CLOSED→100 |
+
+Every state/level change counts toward today / month averages.  
+**Avg/day** = calendar-month event total ÷ **days in month**.
+
+### Retention (same tiers as utilities)
+| Tier | Retention |
+|------|-----------|
+| Raw `device_events` (+ `level`) | 7 days |
+| `device_hourly` | 31 days |
+| `device_daily` | 1 year |
+
+### UI
+- Overview list: devices **with history only**; favorites checkbox + “Favorites only” toggle (`localStorage: wanos_history_favorites`)
+- Detail charts for **selected** row: day level step; month/year event counts + level min/max
+
+### API
+- `GET /api/history/actuators`
+- `GET /api/history/actuators/{idx}?range=day|month|year`

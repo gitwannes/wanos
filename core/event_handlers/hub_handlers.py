@@ -4,6 +4,7 @@ import asyncio
 from typing import Any, Set, Tuple, Optional
 from core.models import Event, EventType
 from logic.alert_manager import AlertManager
+from logic.history_manager import normalize_level
 
 # 1. Standard System Logger: Handles general INFO, DEBUG, and ERROR terminal outputs and system health
 from loguru import logger as system_logger
@@ -13,6 +14,20 @@ from core.logger import automation_logger
 from core.logger import iwhw_logger
 
 _shutter_debounce_tasks = {}
+
+
+def _log_actuator(manager: Any, idx: int, state: Any, device_snapshot: Any = None,
+                  bri: Any = None, volume: Any = None, level: Optional[float] = None) -> None:
+    """Persist actuator transition with normalized 0–100 level."""
+    if not hasattr(manager, "history_manager"):
+        return
+    if level is None:
+        level = normalize_level(state, device_snapshot, bri=bri, volume=volume)
+    manager.history_manager.log_event(
+        idx, str(state) if state is not None else "", level,
+        device_snapshot=device_snapshot, bri=bri, volume=volume,
+    )
+
 
 async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
@@ -27,6 +42,10 @@ async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str
         manager._state.devices[idx] = new_state
         state_changed = True
         changed_domains.add("devices")
+
+        if hasattr(manager, "history_manager"):
+            _log_actuator(manager, idx, new_state)
+            changed_domains.add("metrics")
 
         # Sauna safety interlock logic evaluation
         if idx == 10001 and is_open and manager._state.sauna.active:
@@ -109,14 +128,22 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
             dev_type = device_meta.get("type", "")
 
             # Explicitly include hardware doors as binary switches, ignore other passive sensors
-            if dev_type not in ["temp", "hum", "temp_hum", "motion", "scene"] or idx in [10001, 10002]:
+            if manager.history_manager.should_track(idx, dev_type):
                 is_analog = dev_type in ["blinds", "shutter"] or isinstance(state_val, (int, float))
 
-                # Check if the fundamental binary power state actually changed
                 old_log_state = old_val.get("state") if isinstance(old_val, dict) else old_val
+                old_vol = old_val.get("volume") if isinstance(old_val, dict) else None
+                old_bri = old_val.get("bri") if isinstance(old_val, dict) else None
+                new_vol = new_val.get("volume") if isinstance(new_val, dict) else payload.get("volume")
+                new_bri = new_val.get("bri") if isinstance(new_val, dict) else payload.get("bri")
 
-                if old_log_state != state_val or is_push_button:
-                    if is_analog:
+                power_changed = old_log_state != state_val or is_push_button
+                level_changed = (new_vol is not None and new_vol != old_vol) or (
+                    new_bri is not None and new_bri != old_bri
+                )
+
+                if power_changed or level_changed:
+                    if is_analog and power_changed:
                         if dev_type in ["blinds", "shutter"]:
                             def get_shutter_val(v) -> Optional[int]:
                                 if v == "OPEN": return 0
@@ -149,8 +176,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                                     active_job["task"].cancel()
                                     del _shutter_debounce_tasks[idx]
 
-                                    # Log to History DB
-                                    manager.history_manager.log_event(idx, str(state_val))
+                                    _log_actuator(manager, idx, state_val, level=float(new_int))
 
                                     # Log to IWHW Terminal
                                     name = device_meta.get("name", f"idx_{idx}")
@@ -191,8 +217,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                                                                          origin: str, target_int: int):
                                         try:
                                             await asyncio.sleep(delay)
-                                            # TTL Expiry (Time-Driven Fallback)
-                                            manager.history_manager.log_event(target_idx, str(val))
+                                            _log_actuator(manager, target_idx, val, level=float(target_int))
 
                                             # Log to IWHW
                                             meta = manager._state.device_metadata.get(target_idx, {})
@@ -224,7 +249,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                             async def generic_debounced_log(target_idx, val):
                                 try:
                                     await asyncio.sleep(30.0)
-                                    manager.history_manager.log_event(target_idx, str(val))
+                                    _log_actuator(manager, target_idx, val)
                                     manager.dispatch(Event(type=EventType.SYSTEM_METRICS_UPDATED,
                                                            payload={"insights_trigger": True}))
                                 except asyncio.CancelledError:
@@ -233,8 +258,15 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                             task = asyncio.create_task(generic_debounced_log(idx, state_val))
                             _shutter_debounce_tasks[idx] = {"task": task, "target": state_val}
                     else:
-                        # Binary switches (ON/OFF) commit immediately without debounce
-                        manager.history_manager.log_event(idx, str(state_val))
+                        # Binary switches + rich level (volume/bri) — immediate commit
+                        snap = new_val if isinstance(new_val, dict) else None
+                        log_state = state_val if state_val is not None else (
+                            snap.get("state") if snap else old_log_state
+                        )
+                        _log_actuator(
+                            manager, idx, log_state, device_snapshot=snap,
+                            bri=new_bri, volume=new_vol,
+                        )
                         changed_domains.add("metrics")
 
         # Bathroom 1e ventilator timer lock

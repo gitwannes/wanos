@@ -139,8 +139,13 @@ function wanosApp() {
         toastMessage: "", // Ephemeral UI feedback message
 
         // ⚡ Sensor History (sensorhistory.html)
+        historyTab: "sensors",
         historySensors: [],
-        selectedHistoryIdx: 11001,
+        utilitySummaries: {},
+        selectedHistoryIdx: null,
+        selectedSensorIdx: null,
+        selectedSensorKind: null, // 'utility' | 'actuator'
+        selectedSensorName: "",
         historySummary: null,
         historyLoading: false,
         historyDayTitle: "Usage last 24 hours",
@@ -148,6 +153,14 @@ function wanosApp() {
         historyYearTitle: "Usage last year",
         _historyCharts: { day: null, month: null, year: null },
         _historyRefreshTimer: null,
+        _actuatorCharts: { day: null, month: null, year: null },
+        actuatorList: [],
+        actuatorFavorites: [],
+        actuatorFavoritesOnly: false,
+        actuatorSearchQuery: "",
+        selectedActuatorIdx: null,
+        selectedActuatorName: "",
+        actuatorLoading: false,
         sessionHistoryType: "sauna",
         sessionHistoryRows: [],
         sessionHistoryTotal: 0,
@@ -1169,29 +1182,408 @@ function wanosApp() {
         async initSensorHistoryPage() {
             if (!window.location.pathname.includes("sensorhistory.html")) return;
             await this.$nextTick();
+            try {
+                const fav = JSON.parse(localStorage.getItem("wanos_history_favorites") || "[]");
+                this.actuatorFavorites = Array.isArray(fav) ? fav.map(Number) : [];
+            } catch (e) {
+                this.actuatorFavorites = [];
+            }
             window.addEventListener("resize", () => {
                 Object.values(this._historyCharts).forEach(c => c && c.resize());
+                Object.values(this._actuatorCharts).forEach(c => c && c.resize());
             });
-            await this.loadHistorySensors();
-            await this.reloadHistoryCharts();
+            await this.refreshSensorHistoryList();
             await this.loadSessionHistory();
 
-            // Auto-refresh every minute while the tab is visible
             if (this._historyRefreshTimer) {
                 clearInterval(this._historyRefreshTimer);
             }
             this._historyRefreshTimer = setInterval(() => {
-                if (document.visibilityState !== "visible" || this.historyLoading) return;
-                this.reloadHistoryCharts();
-                this.loadSessionHistory();
+                if (document.visibilityState !== "visible") return;
+                if (this.historyTab === "sensors") {
+                    this.refreshSensorHistoryList();
+                } else if (this.historyTab === "sessions") {
+                    this.loadSessionHistory();
+                }
             }, 60_000);
 
             document.addEventListener("visibilitychange", () => {
-                if (document.visibilityState === "visible" && !this.historyLoading) {
-                    this.reloadHistoryCharts();
-                    this.loadSessionHistory();
+                if (document.visibilityState !== "visible") return;
+                if (this.historyTab === "sensors") {
+                    this.refreshSensorHistoryList();
                 }
             });
+        },
+
+        _isHistoryRowHidden(idx, explicitHidden) {
+            const idxStr = String(idx);
+            const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
+            const hiddenIdxs = this.state.system.hidden_explorer_idxs || [];
+            return explicitHidden === true || meta.hidden === true
+                || idxStr.startsWith("75")
+                || hiddenIdxs.includes(idx) || hiddenIdxs.includes(Number(idx));
+        },
+
+        _utilityLiveStatus(s) {
+            const raw = this.state.devices?.[s.idx];
+            if (raw == null) return "—";
+            if (s.kind === "energy") {
+                const kwh = Number(raw) / 1000;
+                return Number.isFinite(kwh) ? kwh.toFixed(2) + " kWh" : String(raw);
+            }
+            if (s.kind === "water") {
+                const L = Number(raw);
+                return Number.isFinite(L) ? L.toFixed(1) + " L" : String(raw);
+            }
+            if (s.kind === "power") {
+                const w = Number(raw);
+                return Number.isFinite(w) ? w.toFixed(1) + " W" : String(raw);
+            }
+            return String(raw);
+        },
+
+        get filteredHistoryRows() {
+            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+            const rows = [];
+
+            for (const s of (this.historySensors || [])) {
+                const sum = this.utilitySummaries[s.idx];
+                const todayVal = sum ? this.formatHistoryValue(sum.today, sum.display_unit) : "—";
+                const avgVal = sum
+                    ? this.formatHistoryValue((sum.month || 0) / daysInMonth, sum.display_unit)
+                    : "—";
+                rows.push({
+                    idx: s.idx,
+                    name: s.label || `IDX ${s.idx}`,
+                    type: s.kind || "utility",
+                    category: "utility",
+                    status: this._utilityLiveStatus(s),
+                    last_changed: null,
+                    today_display: todayVal,
+                    avg_display: avgVal,
+                    hidden: false,
+                });
+            }
+
+            for (const a of (this.actuatorList || [])) {
+                rows.push({
+                    idx: a.idx,
+                    name: a.name,
+                    type: a.type || "switch",
+                    category: "actuator",
+                    status: a.status,
+                    last_changed: a.last_changed,
+                    today_display: String(a.today_count ?? 0),
+                    avg_display: String(a.daily_avg ?? 0),
+                    hidden: a.hidden === true,
+                });
+            }
+
+            let list = rows.filter(r => {
+                // Utility meters always listed in normal view (even if excluded from Device Explorer)
+                if (r.category === "utility") {
+                    return !this.showHiddenNodes;
+                }
+                const isHidden = this._isHistoryRowHidden(r.idx, r.hidden);
+                return this.showHiddenNodes ? isHidden : !isHidden;
+            });
+            if (this.actuatorFavoritesOnly) {
+                list = list.filter(r => this.actuatorFavorites.includes(Number(r.idx)));
+            }
+            const q = (this.actuatorSearchQuery || "").trim().toLowerCase();
+            if (q) {
+                list = list.filter(r => {
+                    const hay = `${r.idx} ${r.name || ""} ${r.type || ""} ${r.status || ""} ${r.category}`.toLowerCase();
+                    return hay.includes(q);
+                });
+            }
+            list.sort((a, b) => String(a.name).localeCompare(String(b.name)) || (a.idx - b.idx));
+            return list;
+        },
+
+        async refreshSensorHistoryList() {
+            await Promise.all([this.loadHistorySensors(), this.loadActuatorOverview()]);
+            const headers = this.getAuthHeaders();
+            const sums = {};
+            await Promise.all((this.historySensors || []).map(async s => {
+                try {
+                    const res = await fetch(`/api/history/${s.idx}/summary`, { headers });
+                    if (res.ok) sums[s.idx] = await res.json();
+                } catch (e) { /* ignore */ }
+            }));
+            this.utilitySummaries = sums;
+            if (this.selectedSensorIdx != null && this.selectedSensorKind) {
+                await this.reloadSelectedSensorDetail();
+            }
+        },
+
+        async selectHistoryRow(row) {
+            const id = Number(row.idx);
+            const kind = row.category;
+            if (Number(this.selectedSensorIdx) === id && this.selectedSensorKind === kind) {
+                this.closeHistoryDetail();
+                return;
+            }
+            this._disposeHistoryCharts();
+            this._disposeActuatorCharts();
+            this.selectedSensorIdx = id;
+            this.selectedSensorKind = kind;
+            this.selectedSensorName = row.name || String(id);
+            this.selectedHistoryIdx = kind === "utility" ? id : null;
+            this.selectedActuatorIdx = kind === "actuator" ? id : null;
+            this.selectedActuatorName = kind === "actuator" ? row.name : "";
+            await this.$nextTick();
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            await this.reloadSelectedSensorDetail();
+            const anchor = kind === "utility"
+                ? document.getElementById("chart-day")
+                : document.getElementById("chart-act-day");
+            anchor?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        },
+
+        async reloadSelectedSensorDetail() {
+            if (this.selectedSensorKind === "utility" && this.selectedSensorIdx != null) {
+                this.selectedHistoryIdx = this.selectedSensorIdx;
+                await this.reloadHistoryCharts();
+                Object.values(this._historyCharts).forEach(c => c && c.resize());
+            } else if (this.selectedSensorKind === "actuator" && this.selectedSensorIdx != null) {
+                this.selectedActuatorIdx = this.selectedSensorIdx;
+                await this.reloadActuatorCharts();
+                Object.values(this._actuatorCharts).forEach(c => c && c.resize());
+            }
+        },
+
+        closeHistoryDetail() {
+            this._disposeHistoryCharts();
+            this._disposeActuatorCharts();
+            this.selectedSensorIdx = null;
+            this.selectedSensorKind = null;
+            this.selectedSensorName = "";
+            this.selectedHistoryIdx = null;
+            this.selectedActuatorIdx = null;
+            this.selectedActuatorName = "";
+            this.historySummary = null;
+        },
+
+        _disposeHistoryCharts() {
+            Object.keys(this._historyCharts || {}).forEach(k => {
+                try { this._historyCharts[k]?.dispose(); } catch (e) { /* ignore */ }
+                this._historyCharts[k] = null;
+            });
+        },
+
+        isActuatorFavorite(idx) {
+            return this.actuatorFavorites.includes(Number(idx));
+        },
+
+        toggleActuatorFavorite(idx) {
+            const id = Number(idx);
+            if (this.actuatorFavorites.includes(id)) {
+                this.actuatorFavorites = this.actuatorFavorites.filter(x => x !== id);
+            } else {
+                this.actuatorFavorites = [...this.actuatorFavorites, id];
+            }
+            localStorage.setItem("wanos_history_favorites", JSON.stringify(this.actuatorFavorites));
+        },
+
+        async loadActuatorOverview() {
+            this.actuatorLoading = true;
+            try {
+                const res = await fetch("/api/history/actuators", { headers: this.getAuthHeaders() });
+                if (res.status === 401 || res.status === 403) {
+                    window.location.href = "/deviceexplorer.html";
+                    return;
+                }
+                const data = await res.json();
+                this.actuatorList = data.actuators || [];
+            } catch (e) {
+                console.error("Failed to load actuators", e);
+            } finally {
+                this.actuatorLoading = false;
+            }
+        },
+
+        async selectActuator(idx) {
+            const row = (this.filteredHistoryRows || []).find(
+                r => r.category === "actuator" && Number(r.idx) === Number(idx)
+            ) || { idx, category: "actuator", name: String(idx) };
+            await this.selectHistoryRow(row);
+        },
+
+        closeActuatorDetail() {
+            this.closeHistoryDetail();
+        },
+
+        _disposeActuatorCharts() {
+            Object.keys(this._actuatorCharts || {}).forEach(k => {
+                try {
+                    this._actuatorCharts[k]?.dispose();
+                } catch (e) { /* ignore */ }
+                this._actuatorCharts[k] = null;
+            });
+        },
+
+        _ensureActuatorChart(key, elId) {
+            if (typeof echarts === "undefined") return null;
+            const el = document.getElementById(elId);
+            if (!el) return null;
+            if (this._actuatorCharts[key]) {
+                try {
+                    this._actuatorCharts[key].resize();
+                } catch (e) { /* ignore */ }
+                return this._actuatorCharts[key];
+            }
+            this._actuatorCharts[key] = echarts.init(el, "dark");
+            return this._actuatorCharts[key];
+        },
+
+        renderActuatorCharts(dayData, monthData, yearData) {
+            const dayChart = this._ensureActuatorChart("day", "chart-act-day");
+            const monthChart = this._ensureActuatorChart("month", "chart-act-month");
+            const yearChart = this._ensureActuatorChart("year", "chart-act-year");
+
+            if (dayChart) {
+                const opt = this._baseChartOption("Level (0–100)");
+                opt.series = [{
+                    name: "Level",
+                    type: "line",
+                    step: "end",
+                    showSymbol: true,
+                    symbolSize: 6,
+                    data: this._pointsToSeries(dayData?.series?.level),
+                    lineStyle: { color: "#2dd4bf", width: 2 },
+                    connectNulls: false
+                }];
+                dayChart.setOption(opt, true);
+                dayChart.resize();
+            }
+
+            if (monthChart) {
+                const opt = this._baseChartOption("Level / count");
+                opt.legend = { bottom: 0, textStyle: { color: "#9ca3af" } };
+                opt.yAxis = [
+                    {
+                        type: "value",
+                        name: "Level",
+                        min: 0,
+                        max: 100,
+                        nameTextStyle: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af" },
+                        splitLine: { lineStyle: { color: "#374151" } }
+                    },
+                    {
+                        type: "value",
+                        name: "Events",
+                        nameTextStyle: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af" },
+                        splitLine: { show: false }
+                    }
+                ];
+                opt.series = [
+                    {
+                        name: "Events",
+                        type: "bar",
+                        yAxisIndex: 1,
+                        data: this._pointsToSeries(monthData?.series?.event_count),
+                        itemStyle: { color: "#64748b" }
+                    },
+                    {
+                        name: "Level min",
+                        type: "line",
+                        showSymbol: false,
+                        data: this._pointsToSeries(monthData?.series?.level_min),
+                        lineStyle: { color: "#2dd4bf" },
+                        connectNulls: false
+                    },
+                    {
+                        name: "Level max",
+                        type: "line",
+                        showSymbol: false,
+                        data: this._pointsToSeries(monthData?.series?.level_max),
+                        lineStyle: { color: "#a3e635" },
+                        connectNulls: false
+                    }
+                ];
+                monthChart.setOption(opt, true);
+                monthChart.resize();
+            }
+
+            if (yearChart) {
+                const opt = this._baseChartOption("Level / count");
+                opt.yAxis = [
+                    {
+                        type: "value",
+                        name: "Level",
+                        min: 0,
+                        max: 100,
+                        nameTextStyle: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af" },
+                        splitLine: { lineStyle: { color: "#374151" } }
+                    },
+                    {
+                        type: "value",
+                        name: "Events",
+                        nameTextStyle: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af" },
+                        splitLine: { show: false }
+                    }
+                ];
+                opt.series = [
+                    {
+                        name: "Events",
+                        type: "bar",
+                        yAxisIndex: 1,
+                        data: this._pointsToSeries(yearData?.series?.event_count),
+                        itemStyle: { color: "#64748b" }
+                    },
+                    {
+                        name: "Level min",
+                        type: "line",
+                        showSymbol: false,
+                        data: this._pointsToSeries(yearData?.series?.level_min),
+                        lineStyle: { color: "#2dd4bf" },
+                        connectNulls: false
+                    },
+                    {
+                        name: "Level max",
+                        type: "line",
+                        showSymbol: false,
+                        data: this._pointsToSeries(yearData?.series?.level_max),
+                        lineStyle: { color: "#a3e635" },
+                        connectNulls: false
+                    }
+                ];
+                yearChart.setOption(opt, true);
+                yearChart.resize();
+            }
+        },
+
+        async reloadActuatorCharts() {
+            if (!this.selectedActuatorIdx) return;
+            this.actuatorLoading = true;
+            try {
+                const idx = this.selectedActuatorIdx;
+                const headers = this.getAuthHeaders();
+                const [dayRes, monthRes, yearRes] = await Promise.all([
+                    fetch(`/api/history/actuators/${idx}?range=day`, { headers }),
+                    fetch(`/api/history/actuators/${idx}?range=month`, { headers }),
+                    fetch(`/api/history/actuators/${idx}?range=year`, { headers })
+                ]);
+                if ([dayRes, monthRes, yearRes].some(r => r.status === 401 || r.status === 403)) {
+                    window.location.href = "/deviceexplorer.html";
+                    return;
+                }
+                const dayData = await dayRes.json();
+                const monthData = await monthRes.json();
+                const yearData = await yearRes.json();
+                this.selectedActuatorName = dayData.name || this.selectedActuatorName;
+                await this.$nextTick();
+                this.renderActuatorCharts(dayData, monthData, yearData);
+            } catch (e) {
+                console.error("Failed to reload actuator charts", e);
+            } finally {
+                this.actuatorLoading = false;
+            }
         },
 
         async loadHistorySensors() {
@@ -1239,9 +1631,11 @@ function wanosApp() {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById(elId);
             if (!el) return null;
-            if (!this._historyCharts[key]) {
-                this._historyCharts[key] = echarts.init(el, "dark");
+            if (this._historyCharts[key]) {
+                try { this._historyCharts[key].resize(); } catch (e) { /* ignore */ }
+                return this._historyCharts[key];
             }
+            this._historyCharts[key] = echarts.init(el, "dark");
             return this._historyCharts[key];
         },
 
