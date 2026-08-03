@@ -61,7 +61,6 @@
             <div class="join bg-base-200 border border-base-300">
                 <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">Explorer</a>
                 <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">WISC</a>
-                <a href="/deviceinsights.html" x-show="isAdmin" x-cloak class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">Insights</a>
                 <a href="/sensorhistory.html" x-show="isAdmin" x-cloak class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">History</a>
             </div>
         </div>
@@ -76,7 +75,6 @@
                 <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
                     <li><a href="/deviceexplorer.html">Device Explorer</a></li>
                     <li><a href="/commander.html">WISC</a></li>
-                    <li x-show="isAdmin" x-cloak><a href="/deviceinsights.html">Device Insights</a></li>
                     <li x-show="isAdmin" x-cloak><a href="/sensorhistory.html">Sensor History</a></li>
                 </ul>
             </div>
@@ -547,12 +545,23 @@
                                 <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">System Commands</div>
 
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
-                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">Device Explorer</span>
-                                    <a href="/deviceexplorer.html" class="btn btn-outline btn-neutral btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0">OPEN</a>
-                                </div>
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Z-Wave Config</span>
                                     <a href="/zwaveconfig.html" class="btn btn-outline btn-secondary btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0">OPEN</a>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
+                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">Reload Config</span>
+                                    <button class="btn btn-outline btn-warning btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="requestConfigReload()" :disabled="configReloading">
+                                        <span x-show="!configReloading">GO</span>
+                                        <span x-show="configReloading" class="loading loading-spinner loading-xs"></span>
+                                    </button>
+                                </div>
+
+                                <hr class="border-base-300 my-1" />
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Debug Commands</div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
+                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">Test UI Alert</span>
+                                    <button class="btn btn-outline btn-error btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="injectTestAlert()">GO</button>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Run Sweeper</span>
@@ -562,19 +571,8 @@
                                     </button>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
-                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">Reload Config</span>
-                                    <button class="btn btn-outline btn-warning btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="requestConfigReload()" :disabled="configReloading">
-                                        <span x-show="!configReloading">GO</span>
-                                        <span x-show="configReloading" class="loading loading-spinner loading-xs"></span>
-                                    </button>
-                                </div>
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Reload UI</span>
                                     <button class="btn btn-outline btn-info btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="reloadFrontend()">GO</button>
-                                </div>
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
-                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">Test UI Alert</span>
-                                    <button class="btn btn-outline btn-error btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="injectTestAlert()">GO</button>
                                 </div>
                             </div>
                         </div>

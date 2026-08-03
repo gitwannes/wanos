@@ -18,6 +18,7 @@ from logic.sauna_controller import SaunaController
 from logic.power_analytics import PowerAnalytics
 from logic.history_manager import DeviceHistoryManager
 from logic.sensor_history_manager import SensorHistoryManager
+from logic.history_ids import SAUNA_CALC_IDX, scene_history_idx
 
 
 class StateManager:
@@ -72,6 +73,7 @@ class StateManager:
         # FIRST-SYNC TRACKING SET (Boot Storm Protector)
         # An immutable ledger tracking which IDXs have reported their physical state at least once since the Python process started.
         self._initialized_idxs: set[int] = set()
+        self._shutting_down: bool = False
 
         # Load centralized configuration profiles
         self._config = load_config()
@@ -141,6 +143,17 @@ class StateManager:
                 if node.idx not in self._state.devices:
                     self._state.devices[node.idx] = None
 
+        # 20101 : sauna temp — virtual composite (0.7×20001 + 0.3×20002); hum from 20001
+        self._state.dashboard_map[SAUNA_CALC_IDX] = "sauna temp"
+        self._state.device_metadata[SAUNA_CALC_IDX] = {
+            "name": "sauna temp",
+            "type": "temp_hum",
+            "origin": "system",
+        }
+        yaml_idxs.add(SAUNA_CALC_IDX)
+        if SAUNA_CALC_IDX not in self._state.devices:
+            self._state.devices[SAUNA_CALC_IDX] = None
+
         # 3. Parse OpenWeatherMap
         if hasattr(self._config, "weather") and getattr(self._config.weather, "idx", None):
             w_idx = self._config.weather.idx
@@ -150,16 +163,6 @@ class StateManager:
             yaml_idxs.add(w_idx)
             if w_idx not in self._state.devices:
                 self._state.devices[w_idx] = None
-
-        # METADATA INJECTION: Flag hidden devices directly in the metadata dictionary
-        exclusions = getattr(self._config, "deviceexplorer_exclude", [])
-        for idx in exclusions:
-            yaml_idxs.add(idx)
-            if idx in self._state.device_metadata and isinstance(self._state.device_metadata[idx], dict):
-                self._state.device_metadata[idx]["hidden"] = True
-            elif idx not in self._state.device_metadata:
-                self._state.device_metadata[idx] = {"name": f"Hidden {idx}", "type": "unknown",
-                                                    "origin": "system", "hidden": True}
 
         if hasattr(self._config, "native_rfx"):
             self._state.system.native_rfx_devices.clear()
@@ -265,7 +268,7 @@ class StateManager:
         }
         for s_idx, s_name in sys_metrics_map.items():
             self._state.dashboard_map[s_idx] = s_name
-            self._state.device_metadata[s_idx] = {"name": s_name, "type": "sensor", "origin": "system", "hidden": True}
+            self._state.device_metadata[s_idx] = {"name": s_name, "type": "sensor", "origin": "system"}
             yaml_idxs.add(s_idx)
             if s_idx not in self._state.devices:
                 self._state.devices[s_idx] = None
@@ -287,6 +290,16 @@ class StateManager:
                 yaml_idxs.add(idx)
 
         self._extract_scenes_from_config()
+
+        # Exclude-list placeholders (IDX in YAML but no live metadata yet)
+        exclusions = list(getattr(self._config, "deviceexplorer_exclude", []) or [])
+        self._state.system.hidden_explorer_idxs = list(exclusions)
+        for idx in exclusions:
+            yaml_idxs.add(idx)
+            if idx not in self._state.device_metadata or self._state.device_metadata.get(idx) is None:
+                self._state.device_metadata[idx] = {
+                    "name": f"Hidden {idx}", "type": "unknown", "origin": "system"
+                }
 
         # UNIVERSAL ORPHAN EVICTION (non-Z-Wave)
         # Nullify RAM for devices removed from YAML so SSE Object.assign clears the UI.
@@ -319,6 +332,30 @@ class StateManager:
                 }
             ))
 
+        # Apply hidden flags from deviceexplorer_exclude (Z-Wave merges call this again)
+        self.sync_hidden_metadata()
+
+    def sync_hidden_metadata(self) -> None:
+        """
+        Single rule for Explorer / History visibility:
+        meta.hidden = idx in system.hidden_explorer_idxs
+        (populated from config.yaml deviceexplorer_exclude, then Z-Wave hidden_nodes).
+        """
+        hidden = set()
+        for x in (self._state.system.hidden_explorer_idxs or []):
+            try:
+                hidden.add(int(x))
+            except (TypeError, ValueError):
+                continue
+        for idx, meta in list(self._state.device_metadata.items()):
+            if not isinstance(meta, dict):
+                continue
+            try:
+                i = int(idx)
+            except (TypeError, ValueError):
+                continue
+            meta["hidden"] = i in hidden
+
     def _extract_scenes_from_config(self) -> None:
         self._state.system.available_scenes.clear()
         if hasattr(self._config, "automations"):
@@ -335,6 +372,15 @@ class StateManager:
                                 "event": t.event,
                                 "require_confirmation": getattr(rule, "require_confirmation", False)
                             })
+                        # Synthetic history IDX for scene fires (900000 + crc16)
+                        s_idx = scene_history_idx(t.event)
+                        self._state.dashboard_map[s_idx] = rule.name
+                        self._state.device_metadata[s_idx] = {
+                            "name": rule.name,
+                            "type": "scene",
+                            "origin": "automation",
+                            "event": t.event,
+                        }
 
     def register_listener(self, callback: Any) -> None:
         self._state_listeners.append(callback)
@@ -367,6 +413,8 @@ class StateManager:
         self._power_analytics.start()
         self.history_manager.start()
         self.sensor_history.start()
+        from logic.automation_rules import AutomationEngine
+        AutomationEngine._history_manager = self.history_manager
 
         # SINGLETON TIMER INSTANTIATION (Event Loop Safe)
         # Must be initialized inside an async context so its internal background tasks bind to the running loop!
@@ -479,6 +527,10 @@ class StateManager:
         state_changed: bool = False
         changed_domains: Set[str] = set()
 
+        # Ignore door chatter queued during GPIO teardown
+        if self._shutting_down and event_name == "DOOR_CHANGED":
+            return False, set()
+
         # --- UNIVERSAL NULL GUARD (BOOT STORM PROTECTOR) ---
         # Intercepts every single event before it hits the handlers.
         # If the device is currently NULL or "Sync..." in memory, this is its first heartbeat.
@@ -507,7 +559,7 @@ class StateManager:
                     "name": meta_name or f"idx_{meta_idx}",
                     "type": meta_type,
                     "origin": meta_origin,
-                    "hidden": meta_idx in getattr(self._config, "deviceexplorer_exclude", [])
+                    "hidden": int(meta_idx) in set(int(x) for x in (self._state.system.hidden_explorer_idxs or [])),
                 }
                 state_changed = True
                 changed_domains.add("device_metadata")
@@ -617,7 +669,7 @@ class StateManager:
                                     payload={"msg_text": f"⚠️ {sys_name} start blocked: {', '.join(reasons)}"}))
                 return state_changed, changed_domains
 
-        # SCENE EXECUTION INTERCEPTOR (IWHW Ledger)
+        # SCENE EXECUTION INTERCEPTOR (IWHW Ledger + history)
         for scene in self._state.system.available_scenes:
             if scene.get("event") == event_name:
                 name: str = scene.get("name", "Unknown")
@@ -708,7 +760,7 @@ class StateManager:
 
         p_idx = payload.get("idx")
 
-        # EPHEMERAL MOTION LEDGER (Admin Diagnostics)
+        # EPHEMERAL MOTION LEDGER (Admin Diagnostics) + rising-edge history
         # Tracks how many times a motion sensor (75xxx) trips per boot session.
         if event_name == "HUB_STATE_CHANGED" and p_idx is not None:
             if str(p_idx).startswith("75") and payload.get("state") == "ON":
@@ -716,6 +768,8 @@ class StateManager:
                 self._state.metrics.motion_triggers[p_idx] = current_tally + 1
                 state_changed = True
                 changed_domains.add("metrics")
+                if not payload.get("is_initialization", False) and hasattr(self, "history_manager"):
+                    self.history_manager.log_event(int(p_idx), "ON", level=100.0)
 
         # MASTER Z-WAVE SAFETY CASCADE (Phase B)
         # If the 5V Master Safety Relay drops, we must instantly cut the software outputs.
@@ -792,13 +846,31 @@ class StateManager:
                 try:
                     t_high = float(d_high["temp"])
                     t_low = float(d_low["temp"])
-                    self._state.sensors.sauna_calc_temp = round((t_high * 0.7) + (t_low * 0.3), 1)
+                    calc_t = round((t_high * 0.7) + (t_low * 0.3), 1)
+                    self._state.sensors.sauna_calc_temp = calc_t
 
+                    calc_h = None
                     if d_high.get("hum") is not None:
-                        self._state.sensors.sauna_calc_hum = int(float(d_high["hum"]))
+                        calc_h = int(float(d_high["hum"]))
+                        self._state.sensors.sauna_calc_hum = calc_h
+
+                    # Mirror onto virtual IDX 20101 for Device Explorer + climate history
+                    # 20101 : sauna temp — virtual composite (0.7×20001 + 0.3×20002); hum from 20001
+                    prev_20101 = self._state.devices.get(SAUNA_CALC_IDX)
+                    new_20101 = {"temp": calc_t}
+                    if calc_h is not None:
+                        new_20101["hum"] = calc_h
+                    elif isinstance(prev_20101, dict) and prev_20101.get("hum") is not None:
+                        new_20101["hum"] = prev_20101["hum"]
+                    self._state.devices[SAUNA_CALC_IDX] = new_20101
+                    if hasattr(self, "sensor_history"):
+                        self.sensor_history.note_climate_temp(SAUNA_CALC_IDX, calc_t)
+                        if calc_h is not None:
+                            self.sensor_history.note_climate_hum(SAUNA_CALC_IDX, float(calc_h))
 
                     state_changed = True
                     changed_domains.add("sensors")
+                    changed_domains.add("devices")
                 except (ValueError, TypeError):
                     pass
             else:
@@ -806,8 +878,10 @@ class StateManager:
                 if self._state.sensors.sauna_calc_temp is not None:
                     self._state.sensors.sauna_calc_temp = None
                     self._state.sensors.sauna_calc_hum = None
+                    self._state.devices[SAUNA_CALC_IDX] = None
                     state_changed = True
                     changed_domains.add("sensors")
+                    changed_domains.add("devices")
 
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "DOOR_CHANGED"]:
             current_temp = self._state.sensors.sauna_calc_temp

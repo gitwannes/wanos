@@ -16,9 +16,15 @@ from zoneinfo import ZoneInfo
 
 from loguru import logger
 
-# Types excluded from actuator history (utility / passive)
+# Types excluded from hub auto-logging (climate / utility / event-only)
 EXCLUDED_TYPES = {
     "temp", "hum", "temp_hum", "motion", "scene",
+    "power", "energy", "fluid", "sensor",
+}
+
+# Types that must not appear in actuator history list (climate goes via sensor history)
+LIST_EXCLUDED_TYPES = {
+    "temp", "hum", "temp_hum",
     "power", "energy", "fluid", "sensor",
 }
 
@@ -196,6 +202,15 @@ class DeviceHistoryManager:
         if idx in (10001, 10002):
             return True
         return (dev_type or "") not in EXCLUDED_TYPES
+
+    def should_list(self, idx: int, dev_type: str) -> bool:
+        """Include motion/scene in history list; exclude continuous climate/utility."""
+        if idx in (10001, 10002):
+            return True
+        dtype = dev_type or ""
+        if dtype in ("motion", "scene"):
+            return True
+        return dtype not in LIST_EXCLUDED_TYPES
 
     def log_event(
         self,
@@ -468,16 +483,22 @@ class DeviceHistoryManager:
         for idx in idxs:
             meta = self.sm._state.device_metadata.get(idx, {}) or {}
             dtype = meta.get("type", "")
-            if not self.should_track(idx, dtype):
+            if not self.should_list(idx, dtype):
                 continue
             name = meta.get("name") or self.sm._state.dashboard_map.get(idx) or f"IDX {idx}"
             raw = self.sm._state.devices.get(idx)
             insight = self.sm._state.metrics.device_insights.get(idx, {})
+            if dtype in ("motion", "scene"):
+                status = "—"
+                if insight.get("last_changed"):
+                    status = "hit"
+            else:
+                status = self._format_status(idx, raw, meta)
             out.append({
                 "idx": idx,
                 "name": name,
                 "type": dtype or "switch",
-                "status": self._format_status(idx, raw, meta),
+                "status": status,
                 "last_changed": insight.get("last_changed"),
                 "today_count": insight.get("today_count", self._today_counts.get(idx, 0)),
                 "daily_avg": insight.get(
@@ -490,10 +511,25 @@ class DeviceHistoryManager:
         out.sort(key=lambda r: (str(r["name"]).lower(), r["idx"]))
         return out
 
+    def _impulse_level_series(self, events: List[Tuple[int, Any, Optional[float]]]) -> List[Dict[str, Any]]:
+        """Expand rising-edge hits into short spikes for day charts."""
+        points: List[Dict[str, Any]] = []
+        for ts, state, level in events:
+            lv = level if level is not None else normalize_level(state)
+            if lv is None:
+                lv = 100.0
+            t_ms = ts * 1000
+            points.append({"t": t_ms - 1, "v": 0.0})
+            points.append({"t": t_ms, "v": float(lv)})
+            points.append({"t": t_ms + 1, "v": 0.0})
+        return points
+
     def get_actuator_series(self, idx: int, range_name: str) -> Dict[str, Any]:
         range_name = (range_name or "day").lower()
         meta = self.sm._state.device_metadata.get(idx, {}) or {}
         name = meta.get("name") or f"IDX {idx}"
+        dtype = meta.get("type", "")
+        impulse = dtype in ("motion", "scene")
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
@@ -503,14 +539,19 @@ class DeviceHistoryManager:
                 "SELECT timestamp, state, level FROM device_events WHERE idx = ? AND timestamp >= ? ORDER BY timestamp",
                 (idx, since),
             )
-            level_pts = []
-            for ts, state, level in c.fetchall():
-                lv = level if level is not None else normalize_level(state)
-                level_pts.append({"t": ts * 1000, "v": lv})
+            rows = list(c.fetchall())
             conn.close()
+            if impulse:
+                level_pts = self._impulse_level_series(rows)
+            else:
+                level_pts = []
+                for ts, state, level in rows:
+                    lv = level if level is not None else normalize_level(state)
+                    level_pts.append({"t": ts * 1000, "v": lv})
             return {
                 "idx": idx,
                 "name": name,
+                "type": dtype,
                 "range": "day",
                 "series": {"level": level_pts},
             }
@@ -532,6 +573,7 @@ class DeviceHistoryManager:
             return {
                 "idx": idx,
                 "name": name,
+                "type": dtype,
                 "range": "month",
                 "series": {"event_count": counts, "level_min": mins, "level_max": maxs},
             }
@@ -555,6 +597,7 @@ class DeviceHistoryManager:
         return {
             "idx": idx,
             "name": name,
+            "type": dtype,
             "range": "year",
             "series": {"event_count": counts, "level_min": mins, "level_max": maxs},
         }

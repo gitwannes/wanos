@@ -58,7 +58,6 @@
             <div class="join bg-base-200 border border-base-300">
                 <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">Explorer</a>
                 <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">WISC</a>
-                <a href="/deviceinsights.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">Insights</a>
                 <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-accent border-accent bg-accent/10">History</a>
             </div>
         </div>
@@ -71,7 +70,6 @@
                 <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
                     <li><a href="/deviceexplorer.html">Device Explorer</a></li>
                     <li><a href="/commander.html">WISC</a></li>
-                    <li><a href="/deviceinsights.html">Device Insights</a></li>
                     <li><a href="/sensorhistory.html" class="text-accent font-bold">Sensor History</a></li>
                 </ul>
             </div>
@@ -201,11 +199,29 @@
                                                 </div>
                                             </template>
 
+                                            <!-- Climate dual-axis charts (same chart ids as utility) -->
+                                            <template x-if="selectedSensorKind === 'climate' || selectedSensorKind === 'host'">
+                                                <div class="flex flex-col gap-4">
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyDayTitle"></h2>
+                                                        <div id="chart-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyMonthTitle"></h2>
+                                                        <div id="chart-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                    <section>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyYearTitle"></h2>
+                                                        <div id="chart-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                    </section>
+                                                </div>
+                                            </template>
+
                                             <!-- Actuator charts -->
                                             <template x-if="selectedSensorKind === 'actuator'">
                                                 <div class="flex flex-col gap-4">
                                                     <section>
-                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Level last 24 hours</h2>
+                                                        <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Level / hits last 24 hours</h2>
                                                         <div id="chart-act-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
                                                     <section>
@@ -288,6 +304,6 @@
             </section>
         </div>
     </main>
-    <script src="app.js?v=2.6"></script>
+    <script src="app.js?v=2.8"></script>
 </body>
 </html>

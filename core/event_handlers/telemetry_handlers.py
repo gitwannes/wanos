@@ -242,6 +242,9 @@ async def handle_temp_updated(event: Event, manager: Any) -> Tuple[bool, Set[str
             state_changed = True
             changed_domains.add("devices")
 
+    if hasattr(manager, "sensor_history") and idx is not None:
+        manager.sensor_history.note_climate_temp(idx, float(val))
+
     return state_changed, changed_domains
 
 
@@ -276,6 +279,9 @@ async def handle_humidity_updated(event: Event, manager: Any) -> Tuple[bool, Set
             manager._state.devices[idx] = current
             state_changed = True
             changed_domains.add("devices")
+
+    if hasattr(manager, "sensor_history") and idx is not None:
+        manager.sensor_history.note_climate_hum(idx, float(val))
 
     return state_changed, changed_domains
 

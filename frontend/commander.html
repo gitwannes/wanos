@@ -54,7 +54,6 @@
             <div class="join bg-base-200 border border-base-300">
                 <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">Explorer</a>
                 <a href="/commander.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-secondary border-secondary bg-secondary/10">WISC</a>
-                <a href="/deviceinsights.html" x-show="isAdmin" x-cloak class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">Insights</a>
                 <a href="/sensorhistory.html" x-show="isAdmin" x-cloak class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">History</a>
             </div>
         </div>
@@ -67,7 +66,6 @@
                 <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
                     <li><a href="/deviceexplorer.html">Device Explorer</a></li>
                     <li><a href="/commander.html" class="text-secondary font-bold">WISC</a></li>
-                    <li x-show="isAdmin" x-cloak><a href="/deviceinsights.html">Device Insights</a></li>
                     <li x-show="isAdmin" x-cloak><a href="/sensorhistory.html">Sensor History</a></li>
                 </ul>
             </div>
@@ -450,38 +448,6 @@
                                        :disabled="!isDeviceOnline(72002) || state.devices[72002] === null || state.devices[72001] !== 'ON'"
                                        :checked="state.devices[72002] === 'ON'"
                                        @change="injectLabHubStateChange(72002, $event.target.checked)" />
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="flex justify-between items-center w-full">
-                                <span class="text-xs font-bold text-base-400 uppercase">PC Power Draw</span>
-                                <div class="text-right font-mono">
-                                    <span class="text-warning font-bold" x-text="state.devices[74001] !== null && state.devices[74001] !== undefined ? state.devices[74001] : '-- W'"></span>
-                                </div>
-                            </div>
-                            <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
-                                x-show="state.sensors.sensor_history && state.sensors.sensor_history[74001] && state.sensors.sensor_history[74001].length > 1" x-cloak>
-                                <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
-                                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
-                                              :points="getSparkline(state.sensors.sensor_history[74001])"></polyline>
-                                </svg>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col bg-base-200 p-3 rounded-box border border-base-300">
-                            <div class="flex justify-between items-center w-full">
-                                <span class="text-xs font-bold text-base-400 uppercase">Monitors Power Draw</span>
-                                <div class="text-right font-mono">
-                                    <span class="text-warning font-bold" x-text="state.devices[74003] !== null && state.devices[74003] !== undefined ? state.devices[74003] : '-- W'"></span>
-                                </div>
-                            </div>
-                            <div class="w-full h-8 mt-2 border-t border-base-300/50 pt-2"
-                                x-show="state.sensors.sensor_history && state.sensors.sensor_history[74003] && state.sensors.sensor_history[74003].length > 1" x-cloak>
-                                <svg viewBox="0 0 100 30" class="w-full h-full overflow-visible" preserveAspectRatio="none">
-                                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning opacity-70"
-                                              :points="getSparkline(state.sensors.sensor_history[74003])"></polyline>
-                                </svg>
                             </div>
                         </div>
                     </div>

@@ -12,12 +12,22 @@ from zoneinfo import ZoneInfo
 
 from loguru import logger
 
+from logic.history_ids import SAUNA_CALC_IDX, HOST_HISTORY_IDXS
+
 SENSOR_META: Dict[int, Dict[str, str]] = {
     11001: {"label": "House energy", "kind": "energy", "unit": "Wh"},
     11002: {"label": "Cold water", "kind": "water", "unit": "L"},
     11003: {"label": "Hot water", "kind": "water", "unit": "L"},
     74001: {"label": "PC power", "kind": "power", "unit": "W"},
     74003: {"label": "PC monitors power", "kind": "power", "unit": "W"},
+    # 20101 : sauna temp — virtual composite (see logic/history_ids.py)
+    SAUNA_CALC_IDX: {"label": "sauna temp", "kind": "climate", "unit": "°C"},
+    22002: {"label": "Host CPU Usage", "kind": "host", "unit": "%"},
+    22003: {"label": "Host Memory Free", "kind": "host", "unit": "%"},
+    22004: {"label": "Host Disk Free", "kind": "host", "unit": "%"},
+    22005: {"label": "Host Log2Ram Free", "kind": "host", "unit": "%"},
+    22006: {"label": "Host Load Average (1m)", "kind": "host", "unit": "%"},
+    71046: {"label": "Mains voltage", "kind": "host", "unit": "V"},
 }
 
 
@@ -73,6 +83,31 @@ class _DayBucket:
 
 
 @dataclass
+class _ClimateBucket:
+    t_min: Optional[float] = None
+    t_max: Optional[float] = None
+    t_sum: float = 0.0
+    t_count: int = 0
+    h_min: Optional[float] = None
+    h_max: Optional[float] = None
+    h_sum: float = 0.0
+    h_count: int = 0
+    incomplete: int = 0
+
+    def note_temp(self, t: float) -> None:
+        self.t_min = t if self.t_min is None else min(self.t_min, t)
+        self.t_max = t if self.t_max is None else max(self.t_max, t)
+        self.t_sum += t
+        self.t_count += 1
+
+    def note_hum(self, h: float) -> None:
+        self.h_min = h if self.h_min is None else min(self.h_min, h)
+        self.h_max = h if self.h_max is None else max(self.h_max, h)
+        self.h_sum += h
+        self.h_count += 1
+
+
+@dataclass
 class _IdxRuntime:
     # kWh window for hi-res W samples
     window_start_ts: float = 0.0
@@ -84,6 +119,11 @@ class _IdxRuntime:
     last_zwave_watts: Optional[float] = None
     # Gap tracking
     last_seen_ts: float = 0.0
+    # Climate deadband / max-interval
+    last_climate_temp: Optional[float] = None
+    last_climate_hum: Optional[float] = None
+    last_climate_temp_ts: float = 0.0
+    last_climate_hum_ts: float = 0.0
 
 
 class SensorHistoryManager:
@@ -109,12 +149,18 @@ class SensorHistoryManager:
         self.kwh_step_wh = float(getattr(sample, "kwh_step_wh", 100.0) or 100.0)
         self.water_step_l = float(getattr(sample, "water_step_l", 1.0) or 1.0)
         self.zwave_min_interval = float(getattr(sample, "zwave_min_interval_secs", 60.0) or 60.0)
+        self.climate_temp_deadband = float(getattr(sample, "climate_temp_deadband", 0.5) or 0.5)
+        self.climate_hum_deadband = float(getattr(sample, "climate_hum_deadband", 2.0) or 2.0)
+        self.climate_max_interval = float(getattr(sample, "climate_max_interval_secs", 300.0) or 300.0)
         tracked = getattr(cfg, "tracked_idxs", None)
         self.tracked_idxs: List[int] = list(tracked) if tracked else [11001, 11002, 11003, 74001, 74003]
 
         self._runtime: Dict[int, _IdxRuntime] = {i: _IdxRuntime() for i in self.tracked_idxs}
         self._hour_buckets: Dict[Tuple[int, str], _HourBucket] = {}
         self._day_buckets: Dict[Tuple[int, str], _DayBucket] = {}
+        self._climate_hour: Dict[Tuple[int, str], _ClimateBucket] = {}
+        self._climate_day: Dict[Tuple[int, str], _ClimateBucket] = {}
+        self._climate_idxs: set = {SAUNA_CALC_IDX}
 
         self._sample_queue: List[Tuple[int, int, float, str]] = []
         self._flush_event: asyncio.Event = asyncio.Event()
@@ -124,6 +170,7 @@ class SensorHistoryManager:
 
         self._init_db()
         self._detect_boot_gap()
+        self._load_climate_idxs_from_db()
 
     # ------------------------------------------------------------------ DB
     def _init_db(self) -> None:
@@ -171,8 +218,52 @@ class SensorHistoryManager:
                 value TEXT NOT NULL
             )"""
         )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS climate_hourly (
+                idx INTEGER NOT NULL,
+                hour_key TEXT NOT NULL,
+                t_min REAL,
+                t_max REAL,
+                t_avg REAL,
+                h_min REAL,
+                h_max REAL,
+                h_avg REAL,
+                incomplete INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (idx, hour_key)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS climate_daily (
+                idx INTEGER NOT NULL,
+                day_key TEXT NOT NULL,
+                t_min REAL,
+                t_max REAL,
+                t_avg REAL,
+                h_min REAL,
+                h_max REAL,
+                h_avg REAL,
+                incomplete INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (idx, day_key)
+            )"""
+        )
         conn.commit()
         conn.close()
+
+    def _load_climate_idxs_from_db(self) -> None:
+        try:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            c.execute(
+                "SELECT DISTINCT idx FROM sensor_samples WHERE unit IN ('C', '%')"
+            )
+            for (idx,) in c.fetchall():
+                self._climate_idxs.add(int(idx))
+            c.execute("SELECT DISTINCT idx FROM climate_daily")
+            for (idx,) in c.fetchall():
+                self._climate_idxs.add(int(idx))
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Could not load climate idxs: {e}")
 
     def _meta_get(self, key: str) -> Optional[str]:
         conn = sqlite3.connect(self.db_path)
@@ -352,6 +443,110 @@ class SensorHistoryManager:
         rt.last_seen_ts = now
         self._clear_boot_gap_flag_if_needed()
 
+    def note_gauge(self, idx: int, value: float) -> None:
+        """Persist host / mains gauge samples (min/max rollups; no consumption)."""
+        meta = SENSOR_META.get(idx)
+        if not meta or meta.get("kind") != "host":
+            return
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return
+
+        now = time.time()
+        rt = self._climate_rt(idx)  # shared per-idx runtime (throttle fields)
+        # Voltage / gauges: keep at most ~1/min (host loop is already 60s)
+        min_iv = self.zwave_min_interval if idx == 71046 else 0.0
+        if min_iv > 0 and rt.last_zwave_ts > 0 and (now - rt.last_zwave_ts) < min_iv:
+            rt.last_zwave_watts = value
+            return
+
+        unit = meta.get("unit") or ""
+        self._enqueue_sample(idx, int(now), value, unit or "x")
+        hour = self._get_hour(idx)
+        day = self._get_day(idx)
+        hour.note_watts(value)
+        day.note_watts(value)
+        rt.last_zwave_ts = now
+        rt.last_zwave_watts = value
+        rt.last_seen_ts = now
+        self._clear_boot_gap_flag_if_needed()
+
+    def _climate_rt(self, idx: int) -> _IdxRuntime:
+        if idx not in self._runtime:
+            self._runtime[idx] = _IdxRuntime()
+        return self._runtime[idx]
+
+    def _get_climate_hour(self, idx: int, hour_key: Optional[str] = None) -> _ClimateBucket:
+        key = (idx, hour_key or self._hour_key())
+        if key not in self._climate_hour:
+            b = _ClimateBucket()
+            if self._boot_gap_incomplete:
+                b.incomplete = 1
+            self._climate_hour[key] = b
+        return self._climate_hour[key]
+
+    def _get_climate_day(self, idx: int, day_key: Optional[str] = None) -> _ClimateBucket:
+        key = (idx, day_key or self._day_key())
+        if key not in self._climate_day:
+            b = _ClimateBucket()
+            if self._boot_gap_incomplete:
+                b.incomplete = 1
+            self._climate_day[key] = b
+        return self._climate_day[key]
+
+    def note_climate_temp(self, idx: int, temp: float) -> None:
+        """Log °C with deadband + max-interval throttle (any climate IDX)."""
+        if idx is None:
+            return
+        try:
+            temp = float(temp)
+        except (TypeError, ValueError):
+            return
+        self._climate_idxs.add(int(idx))
+        now = time.time()
+        rt = self._climate_rt(idx)
+        due = (
+            rt.last_climate_temp is None
+            or abs(temp - rt.last_climate_temp) >= self.climate_temp_deadband
+            or (now - rt.last_climate_temp_ts) >= self.climate_max_interval
+        )
+        if not due:
+            return
+        self._enqueue_sample(idx, int(now), temp, "C")
+        self._get_climate_hour(idx).note_temp(temp)
+        self._get_climate_day(idx).note_temp(temp)
+        rt.last_climate_temp = temp
+        rt.last_climate_temp_ts = now
+        rt.last_seen_ts = now
+        self._clear_boot_gap_flag_if_needed()
+
+    def note_climate_hum(self, idx: int, hum: float) -> None:
+        """Log %RH with deadband + max-interval throttle."""
+        if idx is None:
+            return
+        try:
+            hum = float(hum)
+        except (TypeError, ValueError):
+            return
+        self._climate_idxs.add(int(idx))
+        now = time.time()
+        rt = self._climate_rt(idx)
+        due = (
+            rt.last_climate_hum is None
+            or abs(hum - rt.last_climate_hum) >= self.climate_hum_deadband
+            or (now - rt.last_climate_hum_ts) >= self.climate_max_interval
+        )
+        if not due:
+            return
+        self._enqueue_sample(idx, int(now), hum, "%")
+        self._get_climate_hour(idx).note_hum(hum)
+        self._get_climate_day(idx).note_hum(hum)
+        rt.last_climate_hum = hum
+        rt.last_climate_hum_ts = now
+        rt.last_seen_ts = now
+        self._clear_boot_gap_flag_if_needed()
+
     def _enqueue_sample(self, idx: int, ts: int, value: float, unit: str) -> None:
         self._sample_queue.append((idx, ts, float(value), unit))
         if len(self._sample_queue) >= self.MAX_QUEUE_SIZE:
@@ -376,8 +571,10 @@ class SensorHistoryManager:
         self._sample_queue = []
         hours = dict(self._hour_buckets)
         days = dict(self._day_buckets)
+        chours = dict(self._climate_hour)
+        cdays = dict(self._climate_day)
         # Keep current hour/day in RAM; still upsert them
-        await asyncio.to_thread(self._execute_flush, samples, hours, days)
+        await asyncio.to_thread(self._execute_flush, samples, hours, days, chours, cdays)
         self._meta_set("last_heartbeat_ts", str(time.time()))
 
     def _execute_flush(
@@ -385,7 +582,11 @@ class SensorHistoryManager:
         samples: List[Tuple[int, int, float, str]],
         hours: Dict[Tuple[int, str], _HourBucket],
         days: Dict[Tuple[int, str], _DayBucket],
+        chours: Optional[Dict[Tuple[int, str], _ClimateBucket]] = None,
+        cdays: Optional[Dict[Tuple[int, str], _ClimateBucket]] = None,
     ) -> None:
+        chours = chours or {}
+        cdays = cdays or {}
         try:
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
@@ -437,6 +638,60 @@ class SensorHistoryManager:
                         b.counter_end,
                     ),
                 )
+            for (idx, hour_key), b in chours.items():
+                t_avg = (b.t_sum / b.t_count) if b.t_count else None
+                h_avg = (b.h_sum / b.h_count) if b.h_count else None
+                c.execute(
+                    """INSERT INTO climate_hourly(
+                           idx, hour_key, t_min, t_max, t_avg, h_min, h_max, h_avg, incomplete)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(idx, hour_key) DO UPDATE SET
+                         t_min=CASE WHEN climate_hourly.t_min IS NULL THEN excluded.t_min
+                                    WHEN excluded.t_min IS NULL THEN climate_hourly.t_min
+                                    ELSE MIN(climate_hourly.t_min, excluded.t_min) END,
+                         t_max=CASE WHEN climate_hourly.t_max IS NULL THEN excluded.t_max
+                                    WHEN excluded.t_max IS NULL THEN climate_hourly.t_max
+                                    ELSE MAX(climate_hourly.t_max, excluded.t_max) END,
+                         t_avg=excluded.t_avg,
+                         h_min=CASE WHEN climate_hourly.h_min IS NULL THEN excluded.h_min
+                                    WHEN excluded.h_min IS NULL THEN climate_hourly.h_min
+                                    ELSE MIN(climate_hourly.h_min, excluded.h_min) END,
+                         h_max=CASE WHEN climate_hourly.h_max IS NULL THEN excluded.h_max
+                                    WHEN excluded.h_max IS NULL THEN climate_hourly.h_max
+                                    ELSE MAX(climate_hourly.h_max, excluded.h_max) END,
+                         h_avg=excluded.h_avg,
+                         incomplete=CASE WHEN excluded.incomplete > climate_hourly.incomplete
+                                         THEN excluded.incomplete ELSE climate_hourly.incomplete END
+                    """,
+                    (idx, hour_key, b.t_min, b.t_max, t_avg, b.h_min, b.h_max, h_avg, b.incomplete),
+                )
+            for (idx, day_key), b in cdays.items():
+                t_avg = (b.t_sum / b.t_count) if b.t_count else None
+                h_avg = (b.h_sum / b.h_count) if b.h_count else None
+                c.execute(
+                    """INSERT INTO climate_daily(
+                           idx, day_key, t_min, t_max, t_avg, h_min, h_max, h_avg, incomplete)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(idx, day_key) DO UPDATE SET
+                         t_min=CASE WHEN climate_daily.t_min IS NULL THEN excluded.t_min
+                                    WHEN excluded.t_min IS NULL THEN climate_daily.t_min
+                                    ELSE MIN(climate_daily.t_min, excluded.t_min) END,
+                         t_max=CASE WHEN climate_daily.t_max IS NULL THEN excluded.t_max
+                                    WHEN excluded.t_max IS NULL THEN climate_daily.t_max
+                                    ELSE MAX(climate_daily.t_max, excluded.t_max) END,
+                         t_avg=excluded.t_avg,
+                         h_min=CASE WHEN climate_daily.h_min IS NULL THEN excluded.h_min
+                                    WHEN excluded.h_min IS NULL THEN climate_daily.h_min
+                                    ELSE MIN(climate_daily.h_min, excluded.h_min) END,
+                         h_max=CASE WHEN climate_daily.h_max IS NULL THEN excluded.h_max
+                                    WHEN excluded.h_max IS NULL THEN climate_daily.h_max
+                                    ELSE MAX(climate_daily.h_max, excluded.h_max) END,
+                         h_avg=excluded.h_avg,
+                         incomplete=CASE WHEN excluded.incomplete > climate_daily.incomplete
+                                         THEN excluded.incomplete ELSE climate_daily.incomplete END
+                    """,
+                    (idx, day_key, b.t_min, b.t_max, t_avg, b.h_min, b.h_max, h_avg, b.incomplete),
+                )
             conn.commit()
             conn.close()
         except Exception as e:
@@ -453,8 +708,10 @@ class SensorHistoryManager:
                 # Drop closed day/hour RAM keys older than today
                 today = self._day_key()
                 self._day_buckets = {k: v for k, v in self._day_buckets.items() if k[1] >= today}
+                self._climate_day = {k: v for k, v in self._climate_day.items() if k[1] >= today}
                 cur_hour = self._hour_key()
                 self._hour_buckets = {k: v for k, v in self._hour_buckets.items() if k[1] >= cur_hour[:10]}
+                self._climate_hour = {k: v for k, v in self._climate_hour.items() if k[1] >= cur_hour[:10]}
                 logger.info("Sensor history midnight close + cull complete")
             except asyncio.CancelledError:
                 break
@@ -474,24 +731,247 @@ class SensorHistoryManager:
         c.execute("DELETE FROM sensor_samples WHERE ts < ?", (hires_cut,))
         c.execute("DELETE FROM sensor_hourly WHERE hour_key < ?", (hourly_cut,))
         c.execute("DELETE FROM sensor_daily WHERE day_key < ?", (daily_cut,))
+        c.execute("DELETE FROM climate_hourly WHERE hour_key < ?", (hourly_cut,))
+        c.execute("DELETE FROM climate_daily WHERE day_key < ?", (daily_cut,))
         conn.commit()
         conn.close()
 
     # ------------------------------------------------------------------ queries
+    def _climate_label(self, idx: int) -> str:
+        meta = SENSOR_META.get(idx)
+        if meta:
+            return meta["label"]
+        dm = self.sm._state.device_metadata.get(idx, {}) or {}
+        name = dm.get("name") or self.sm._state.dashboard_map.get(idx)
+        return name or f"IDX {idx}"
+
+    def _discover_climate_idxs(self) -> List[int]:
+        idxs = set(self._climate_idxs)
+        idxs.add(SAUNA_CALC_IDX)
+        for idx, meta in (self.sm._state.device_metadata or {}).items():
+            try:
+                i = int(idx)
+            except (TypeError, ValueError):
+                continue
+            dtype = (meta or {}).get("type", "")
+            if dtype in ("temp_hum", "temp", "hum"):
+                idxs.add(i)
+        return sorted(idxs)
+
     def list_sensors(self) -> List[Dict[str, Any]]:
         out = []
         for idx in self.tracked_idxs:
             meta = SENSOR_META.get(idx, {"label": f"IDX {idx}", "kind": "unknown", "unit": ""})
             out.append({"idx": idx, **meta})
+        for idx in HOST_HISTORY_IDXS:
+            meta = SENSOR_META.get(idx)
+            if meta:
+                hidden = bool((self.sm._state.device_metadata.get(idx) or {}).get("hidden"))
+                out.append({"idx": idx, **meta, "hidden": hidden})
+        for idx in self._discover_climate_idxs():
+            raw = self.sm._state.devices.get(idx)
+            has_hum = False
+            if isinstance(raw, dict) and raw.get("hum") is not None:
+                has_hum = True
+            elif idx == SAUNA_CALC_IDX and self.sm._state.sensors.sauna_calc_hum is not None:
+                has_hum = True
+            hidden = bool((self.sm._state.device_metadata.get(idx) or {}).get("hidden"))
+            out.append({
+                "idx": idx,
+                "label": self._climate_label(idx),
+                "kind": "climate",
+                "unit": "°C",
+                "has_humidity": has_hum,
+                "hidden": hidden,
+            })
         return out
 
     def get_series(self, idx: int, range_name: str) -> Dict[str, Any]:
-        meta = SENSOR_META.get(idx, {"label": f"IDX {idx}", "kind": "unknown", "unit": ""})
+        meta = SENSOR_META.get(idx)
+        if meta is None and (idx in self._climate_idxs or idx in self._discover_climate_idxs()):
+            meta = {"label": self._climate_label(idx), "kind": "climate", "unit": "°C"}
+        elif meta is None:
+            meta = {"label": f"IDX {idx}", "kind": "unknown", "unit": ""}
         kind = meta.get("kind", "unknown")
         range_name = (range_name or "day").lower()
+        if kind == "climate":
+            return self._series_climate(idx, range_name, meta)
         if kind == "water":
             return self._series_water(idx, range_name, meta)
+        if kind == "host":
+            return self._series_host(idx, range_name, meta)
         return self._series_power(idx, range_name, meta)
+
+    def _series_host(self, idx: int, range_name: str, meta: Dict[str, str]) -> Dict[str, Any]:
+        """Same shape as power charts (day samples + month/year min/max); unit from meta."""
+        unit = meta.get("unit") or ""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        if range_name == "day":
+            since = int(time.time()) - 86400
+            c.execute(
+                "SELECT ts, value FROM sensor_samples WHERE idx = ? AND ts >= ? ORDER BY ts",
+                (idx, since),
+            )
+            points = [{"t": r[0] * 1000, "v": r[1]} for r in c.fetchall()]
+            conn.close()
+            return {
+                "idx": idx,
+                "range": "day",
+                "kind": "host",
+                "series": {"usage": points},
+                **meta,
+            }
+
+        if range_name == "month":
+            since_day = (self._now_local() - timedelta(days=31)).strftime("%Y-%m-%d")
+            c.execute(
+                "SELECT day_key, w_min, w_max FROM sensor_daily WHERE idx = ? AND day_key >= ? ORDER BY day_key",
+                (idx, since_day),
+            )
+            mins, maxs = [], []
+            for day_key, w_min, w_max in c.fetchall():
+                ts_ms = int(datetime.strptime(day_key, "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
+                mins.append({"t": ts_ms, "v": w_min})
+                maxs.append({"t": ts_ms, "v": w_max})
+            conn.close()
+            return {
+                "idx": idx,
+                "range": "month",
+                "kind": "host",
+                "series": {"usage_min": mins, "usage_max": maxs},
+                **meta,
+            }
+
+        since_day = (self._now_local() - timedelta(days=366)).strftime("%Y-%m-%d")
+        c.execute(
+            """SELECT substr(day_key, 1, 7) AS ym, MIN(w_min), MAX(w_max)
+               FROM sensor_daily WHERE idx = ? AND day_key >= ? AND w_min IS NOT NULL
+               GROUP BY ym ORDER BY ym""",
+            (idx, since_day),
+        )
+        mins, maxs = [], []
+        for ym, w_min, w_max in c.fetchall():
+            ts_ms = int(datetime.strptime(ym + "-01", "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
+            mins.append({"t": ts_ms, "v": w_min})
+            maxs.append({"t": ts_ms, "v": w_max})
+        conn.close()
+        return {
+            "idx": idx,
+            "range": "year",
+            "kind": "host",
+            "series": {"usage_min": mins, "usage_max": maxs},
+            **meta,
+        }
+
+    def _series_climate(self, idx: int, range_name: str, meta: Dict[str, str]) -> Dict[str, Any]:
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        label = meta.get("label") or self._climate_label(idx)
+
+        if range_name == "day":
+            since = int(time.time()) - 86400
+            c.execute(
+                "SELECT ts, value FROM sensor_samples WHERE idx = ? AND unit = 'C' AND ts >= ? ORDER BY ts",
+                (idx, since),
+            )
+            temps = [{"t": r[0] * 1000, "v": r[1]} for r in c.fetchall()]
+            c.execute(
+                "SELECT ts, value FROM sensor_samples WHERE idx = ? AND unit = '%' AND ts >= ? ORDER BY ts",
+                (idx, since),
+            )
+            hums = [{"t": r[0] * 1000, "v": r[1]} for r in c.fetchall()]
+            conn.close()
+            return {
+                "idx": idx,
+                "range": "day",
+                "kind": "climate",
+                "label": label,
+                "has_humidity": bool(hums),
+                "series": {"temp": temps, "hum": hums},
+            }
+
+        if range_name == "month":
+            since_day = (self._now_local() - timedelta(days=31)).strftime("%Y-%m-%d")
+            c.execute(
+                """SELECT day_key, t_min, t_max, h_min, h_max FROM climate_daily
+                   WHERE idx = ? AND day_key >= ? ORDER BY day_key""",
+                (idx, since_day),
+            )
+            t_min, t_max, h_min, h_max = [], [], [], []
+            has_hum = False
+            for day_key, tn, tx, hn, hx in c.fetchall():
+                ts_ms = int(datetime.strptime(day_key, "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
+                t_min.append({"t": ts_ms, "v": tn})
+                t_max.append({"t": ts_ms, "v": tx})
+                h_min.append({"t": ts_ms, "v": hn})
+                h_max.append({"t": ts_ms, "v": hx})
+                if hn is not None or hx is not None:
+                    has_hum = True
+            conn.close()
+            return {
+                "idx": idx,
+                "range": "month",
+                "kind": "climate",
+                "label": label,
+                "has_humidity": has_hum,
+                "series": {
+                    "temp_min": t_min,
+                    "temp_max": t_max,
+                    "hum_min": h_min,
+                    "hum_max": h_max,
+                },
+            }
+
+        # year — weekly min/max
+        since_day = (self._now_local() - timedelta(days=366)).strftime("%Y-%m-%d")
+        c.execute(
+            """SELECT day_key, t_min, t_max, h_min, h_max FROM climate_daily
+               WHERE idx = ? AND day_key >= ? ORDER BY day_key""",
+            (idx, since_day),
+        )
+        weeks: Dict[str, Dict[str, Optional[float]]] = {}
+        for day_key, tn, tx, hn, hx in c.fetchall():
+            dt = datetime.strptime(day_key, "%Y-%m-%d").replace(tzinfo=self.tz)
+            iso = dt.isocalendar()
+            wk = f"{iso.year}-W{iso.week:02d}"
+            bucket = weeks.setdefault(wk, {"t_min": None, "t_max": None, "h_min": None, "h_max": None, "monday": None})
+            if bucket["monday"] is None:
+                monday = dt - timedelta(days=dt.weekday())
+                bucket["monday"] = monday
+            if tn is not None:
+                bucket["t_min"] = tn if bucket["t_min"] is None else min(bucket["t_min"], tn)
+            if tx is not None:
+                bucket["t_max"] = tx if bucket["t_max"] is None else max(bucket["t_max"], tx)
+            if hn is not None:
+                bucket["h_min"] = hn if bucket["h_min"] is None else min(bucket["h_min"], hn)
+            if hx is not None:
+                bucket["h_max"] = hx if bucket["h_max"] is None else max(bucket["h_max"], hx)
+        conn.close()
+        t_min, t_max, h_min, h_max = [], [], [], []
+        has_hum = False
+        for wk in sorted(weeks.keys()):
+            b = weeks[wk]
+            ts_ms = int(b["monday"].timestamp() * 1000)
+            t_min.append({"t": ts_ms, "v": b["t_min"]})
+            t_max.append({"t": ts_ms, "v": b["t_max"]})
+            h_min.append({"t": ts_ms, "v": b["h_min"]})
+            h_max.append({"t": ts_ms, "v": b["h_max"]})
+            if b["h_min"] is not None or b["h_max"] is not None:
+                has_hum = True
+        return {
+            "idx": idx,
+            "range": "year",
+            "kind": "climate",
+            "label": label,
+            "has_humidity": has_hum,
+            "series": {
+                "temp_min": t_min,
+                "temp_max": t_max,
+                "hum_min": h_min,
+                "hum_max": h_max,
+            },
+        }
 
     def _series_power(self, idx: int, range_name: str, meta: Dict[str, str]) -> Dict[str, Any]:
         conn = sqlite3.connect(self.db_path)
@@ -599,8 +1079,32 @@ class SensorHistoryManager:
         return {"idx": idx, "range": "year", "kind": meta["kind"], "series": {"liters": bars}, **meta}
 
     def get_summary(self, idx: int) -> Dict[str, Any]:
-        meta = SENSOR_META.get(idx, {"label": f"IDX {idx}", "kind": "unknown", "unit": ""})
+        meta = SENSOR_META.get(idx)
+        if meta is None and idx in self._discover_climate_idxs():
+            meta = {"label": self._climate_label(idx), "kind": "climate", "unit": "°C"}
+        elif meta is None:
+            meta = {"label": f"IDX {idx}", "kind": "unknown", "unit": ""}
         kind = meta.get("kind")
+        if kind == "climate":
+            return {
+                "idx": idx,
+                **meta,
+                "today": None,
+                "month": None,
+                "year": None,
+                "total": None,
+                "display_unit": "°C",
+            }
+        if kind == "host":
+            return {
+                "idx": idx,
+                **meta,
+                "today": None,
+                "month": None,
+                "year": None,
+                "total": None,
+                "display_unit": meta.get("unit") or "",
+            }
         today = self._day_key()
         month_prefix = today[:7]
         year_prefix = today[:4]

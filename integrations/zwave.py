@@ -491,7 +491,7 @@ class ZWaveJSUIBridge(WanosComponent):
                     self.state_manager._state.device_metadata[idx] = {
                         "name": custom_name,
                         "type": hw_type,
-                        "origin": "zwave"
+                        "origin": "zwave",
                     }
 
                     # STATE SEEDING: Force the frontend to draw newly mapped devices instantly
@@ -510,6 +510,7 @@ class ZWaveJSUIBridge(WanosComponent):
 
                 # This assignment perfectly bypasses the system_handlers.py list wipeout race condition
                 self.state_manager._state.system.hidden_explorer_idxs = hidden_list
+                self.state_manager.sync_hidden_metadata()
 
             self._is_mapped = True
             await self.logger.info(

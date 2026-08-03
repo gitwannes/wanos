@@ -15,14 +15,17 @@ auth:
 # ==============================================================================
 # 100xx : GPIO inputs (doors / water / power pulses)
 # 200xx : SHT11 sensors
+# 20101 : sauna temp — virtual composite (0.7×20001 + 0.3×20002); hum from 20001
 # 2100x : Sauna & IR virtual
-# 220xx : Pi internal sensors
+# 220xx : Pi internal sensors (host CPU/mem/disk/load)
 # 30001 : OWM outside temp & hum
 # 400xx : RFX
 # 500xx : Hue (config_hue.taml)
 # 600xx : Sonos
 # 610xx : Onkyo
 # 700xx : Z-Wave (config_zwave.yaml)
+# 71046 : Mains voltage (Z-Wave Node 50)
+# 900xxx : scene history synthetic keys (crc32 of event name)
 
 # ==============================================================================
 # 1. INTEGRATIONS & NETWORK LAYER
@@ -139,6 +142,9 @@ history:
     kwh_step_wh: 100        # hi-res W sample every 0.1 kWh
     water_step_l: 1.0       # consumption step every liter
     zwave_min_interval_secs: 60
+    climate_temp_deadband: 0.5
+    climate_hum_deadband: 2.0
+    climate_max_interval_secs: 300
   tracked_idxs:
     - 11001   # house kWh
     - 11002   # cold water
@@ -146,8 +152,9 @@ history:
     - 74001   # PC power
     - 74003   # PC monitors power
 
-# Devices explicitly hidden from the Device Explorer UI
-# Z-Wave devices exlusions via zwave_config.yaml
+# Devices hidden from Device Explorer (and Sensor History list unless "Hidden" is on).
+# Single config for WanOS-owned IDXs. Z-Wave mesh uses config_zwave.yaml → hidden_nodes
+# (merged into the same runtime list at bridge start).
 deviceexplorer_exclude:
   - 80001 # Epson projector
   - 40004 # kerstboom
@@ -161,7 +168,14 @@ deviceexplorer_exclude:
   - 11003  # warm water
   - 10001  # sauna deur
   - 10002  # badk deur
-
+  - 22001  # Host CPU Temperature
+  - 22002  # Host CPU Usage
+  - 22003  # Host Memory Free
+  - 22004  # Host Disk Free
+  - 22005  # Host Log2Ram Free
+  - 22006  # Host Load Average (1m)
+  - 22007  # Host Load Average (5m)
+  - 22008  # Host Load Average (15m)
 
 # ==============================================================================
 # 3. DOMAIN RUNTIME PARAMETERS

@@ -122,6 +122,14 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         state_changed = True
         changed_domains.add("devices")
 
+        # Host / mains gauge history (22002–22006, 71046)
+        if not is_init and hasattr(manager, "sensor_history"):
+            from logic.history_ids import HOST_HISTORY_IDXS, parse_numeric_state
+            if idx in HOST_HISTORY_IDXS:
+                num = parse_numeric_state(state_val if state_val is not None else new_val)
+                if num is not None:
+                    manager.sensor_history.note_gauge(idx, num)
+
         # --- ⚡ DEVICE INSIGHTS HISTORY LOGGING ---
         if not is_init and hasattr(manager, "history_manager"):
             device_meta = manager._state.device_metadata.get(idx, {})

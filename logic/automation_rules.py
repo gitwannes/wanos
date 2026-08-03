@@ -164,6 +164,23 @@ class AutomationEngine:
                 if conditions_met:
                     automation_logger.debug(f"[X-RAY] -> Conditions MET for '{rule.name}'. Parsing actions...")
 
+                    # Scene history: log once when a scene:true rule actually fires
+                    # (manual UI event, automation IDX trigger, or nested event)
+                    if getattr(rule, "scene", False) is True:
+                        try:
+                            from logic.history_ids import scene_history_idx
+                            scene_evt = None
+                            for st in triggers:
+                                if getattr(st, "event", None):
+                                    scene_evt = st.event.value if hasattr(st.event, "value") else str(st.event)
+                                    break
+                            hist_key = scene_evt or rule.name
+                            hm = getattr(AutomationEngine, "_history_manager", None)
+                            if hm is not None:
+                                hm.log_event(scene_history_idx(hist_key), "ON", level=100.0)
+                        except Exception:
+                            pass
+
                     for action in rule.actions:
                         # ⚡ Resolve modifiers
                         raw_action_state = action.state

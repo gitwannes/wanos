@@ -49,7 +49,11 @@ This document serves as the master blueprint and reference guide for the directo
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
 * `environment_scheduler.py`: Calculates mathematical bounds clamping and dynamically schedules blind/twilight timers based on external weather.
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`.
+* `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, scene synthetic `900000+`, host/mains gauge IDXs) and helpers for scene hashing / numeric state parsing.
+* `history_manager.py`: Actuator / motion / scene event history (`device_history.db`) with retention tiers and insights tallies.
+* `power_analytics.py`: Sauna/IR session energy accounting, background leak baseline, and session SQLite persistence.
 * `sauna_controller.py`: Manages element priority wear-leveling algorithms, probe math aggregation, and handles anti-windup loops for high thermal mass zones.
+* `sensor_history_manager.py`: Utility / climate / host time-series history (`sensor_history.db`) with hi-res, hourly, and daily rollups.
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)

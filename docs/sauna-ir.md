@@ -28,6 +28,7 @@ The sauna heating system operates on a balanced 3x400V+N star configuration wher
   * High Cabin Temperature Probe: Virtual Identifier (IDX) `20001`.
   * Low Cabin Temperature Probe: Virtual Identifier (IDX) `20002`.
   * High Cabin Humidity Probe: Virtual Identifier (IDX) `20004`.
+  * Sauna composite (Explorer / history): Virtual Identifier (IDX) `20101` (`sauna temp` = 0.7×20001 + 0.3×20002; hum from 20001).
 
 ---
 

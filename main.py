@@ -154,7 +154,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
             def make_handler(orig=original_handler):
                 def custom_handler(signum, frame):
-                    loop.call_soon_threadsafe(shutdown_event.set)
+                    def _mark():
+                        state_manager._shutting_down = True
+                        shutdown_event.set()
+                    loop.call_soon_threadsafe(_mark)
                     if callable(orig):
                         orig(signum, frame)
 
@@ -257,6 +260,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown sequence
     logger.warning("Tearing down background engines...")
+    state_manager._shutting_down = True
     shutdown_event.set()
     physics_task.cancel()
     weather_task.cancel()

@@ -144,7 +144,7 @@ function wanosApp() {
         utilitySummaries: {},
         selectedHistoryIdx: null,
         selectedSensorIdx: null,
-        selectedSensorKind: null, // 'utility' | 'actuator'
+        selectedSensorKind: null, // 'utility' | 'climate' | 'actuator'
         selectedSensorName: "",
         historySummary: null,
         historyLoading: false,
@@ -367,10 +367,11 @@ function wanosApp() {
 
                 const idx = parseInt(idxStr, 10);
 
-                // ⚡ CONFIG EXCLUSION GUARD (Admin Exclusive View Logic)
-                // Reads the explicitly injected hidden flag from the metadata dict to bypass Pydantic stripping.
-                // ⚡ Automatically forces all 75xxx motion sensors into the hidden administrative view.
-                const isHiddenDevice = meta.hidden === true || idxStr.startsWith('75') || (this.state.system.hidden_explorer_idxs && this.state.system.hidden_explorer_idxs.includes(idx));
+                // Hidden = meta.hidden or idx in system.hidden_explorer_idxs
+                // (from config.yaml deviceexplorer_exclude + Z-Wave hidden_nodes)
+                const hiddenIdxs = this.state.system.hidden_explorer_idxs || [];
+                const isHiddenDevice = meta.hidden === true
+                    || hiddenIdxs.includes(idx) || hiddenIdxs.includes(Number(idxStr));
 
                 if (this.showHiddenNodes) {
                     // Exclusive View: ONLY show hidden devices
@@ -616,17 +617,7 @@ function wanosApp() {
             return list;
         },
 
-        // Evaluates the exact same filters/sort logic as unifiedDeviceList, but permanently drops transient/history-less items
-        get insightsDeviceList() {
-            return this.unifiedDeviceList.filter(item => {
-                if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'motion' || item.type === 'scene') {
-                    return false;
-                }
-                return true;
-            });
-        },
-
-        // ⏱️ Mathematical duration translator for the Insights page
+        // ⏱️ Mathematical duration translator for history tallies
         getDurationString(unixTimestamp) {
             if (!unixTimestamp) return "--";
             const diff = Math.floor(Date.now() / 1000) - unixTimestamp;
@@ -637,13 +628,6 @@ function wanosApp() {
             if (hrs < 24) return `${hrs}h ${mins % 60}m ago`;
             const days = Math.floor(hrs / 24);
             return `${days}d ${hrs % 24}h ago`;
-        },
-
-        // ⏱️ Human-readable short date formatter for the Insights page
-        formatDateShort(unixTimestamp) {
-            if (!unixTimestamp) return "--:--";
-            const d = new Date(unixTimestamp * 1000);
-            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         },
 
         getAuthHeaders() {
@@ -742,7 +726,7 @@ function wanosApp() {
 
                     if (payload.role === "admin") {
                         this.isAdmin = true;
-                    } else if (payload.role === "user" && (window.location.pathname.includes("admin.html") || window.location.pathname.includes("deviceinsights.html") || window.location.pathname.includes("sensorhistory.html"))) {
+                    } else if (payload.role === "user" && (window.location.pathname.includes("admin.html") || window.location.pathname.includes("sensorhistory.html"))) {
                         // ⚡ THE BOUNCER: If a smartphone browser auto-completes to an admin page, kick them out
                         console.warn("Unauthorized access attempt. Redirecting...");
                         window.location.href = "/deviceexplorer.html";
@@ -1111,31 +1095,6 @@ function wanosApp() {
             return { duration: durationStr, boot: bootStr };
         },
 
-        getSparkline(data) {
-            if (!data || data.length < 2) return "";
-
-            const max = Math.max(...data);
-            const min = Math.min(...data);
-            const range = max - min;
-
-            const width = 100;
-            const height = 30;
-
-            const points = data.map((val, i) => {
-                const x = (i / (data.length - 1)) * width;
-                let y;
-
-                if (range === 0) {
-                    y = val === 0 ? height : height / 2;
-                } else {
-                    y = height - ((val - min) / range) * height;
-                }
-
-                return `${x},${y}`;
-            });
-            return points.join(" ");
-        },
-
         syncLabControls() {
             const devs = this.state.devices;
             const seed = this.state.boot_seed;
@@ -1220,7 +1179,6 @@ function wanosApp() {
             const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
             const hiddenIdxs = this.state.system.hidden_explorer_idxs || [];
             return explicitHidden === true || meta.hidden === true
-                || idxStr.startsWith("75")
                 || hiddenIdxs.includes(idx) || hiddenIdxs.includes(Number(idx));
         },
 
@@ -1247,6 +1205,35 @@ function wanosApp() {
             const rows = [];
 
             for (const s of (this.historySensors || [])) {
+                if (s.kind === "climate") {
+                    rows.push({
+                        idx: s.idx,
+                        name: s.label || `IDX ${s.idx}`,
+                        type: "temp_hum",
+                        category: "climate",
+                        status: this._climateLiveStatus(s),
+                        last_changed: null,
+                        today_display: "—",
+                        avg_display: "—",
+                        hidden: s.hidden === true,
+                        has_humidity: s.has_humidity !== false,
+                    });
+                    continue;
+                }
+                if (s.kind === "host") {
+                    rows.push({
+                        idx: s.idx,
+                        name: s.label || `IDX ${s.idx}`,
+                        type: "host",
+                        category: "host",
+                        status: this._hostLiveStatus(s),
+                        last_changed: null,
+                        today_display: "—",
+                        avg_display: "—",
+                        hidden: s.hidden === true,
+                    });
+                    continue;
+                }
                 const sum = this.utilitySummaries[s.idx];
                 const todayVal = sum ? this.formatHistoryValue(sum.today, sum.display_unit) : "—";
                 const avgVal = sum
@@ -1280,7 +1267,7 @@ function wanosApp() {
             }
 
             let list = rows.filter(r => {
-                // Utility meters always listed in normal view (even if excluded from Device Explorer)
+                // Utility meters always listed in normal view (even if Explorer-excluded)
                 if (r.category === "utility") {
                     return !this.showHiddenNodes;
                 }
@@ -1301,11 +1288,35 @@ function wanosApp() {
             return list;
         },
 
+        _hostLiveStatus(s) {
+            const raw = this.state.devices?.[s.idx];
+            if (raw == null) return "—";
+            return String(raw);
+        },
+
+        _climateLiveStatus(s) {
+            const raw = this.state.devices?.[s.idx];
+            if (raw && typeof raw === "object") {
+                const t = raw.temp != null ? Number(raw.temp).toFixed(1) + "°C" : null;
+                const h = raw.hum != null ? Number(raw.hum).toFixed(0) + "%" : null;
+                if (t && h) return t + " / " + h;
+                if (t) return t;
+                if (h) return h;
+            }
+            if (Number(s.idx) === 20101) {
+                const t = this.state.sensors?.sauna_calc_temp;
+                const h = this.state.sensors?.sauna_calc_hum;
+                if (t != null && h != null) return Number(t).toFixed(1) + "°C / " + Number(h).toFixed(0) + "%";
+                if (t != null) return Number(t).toFixed(1) + "°C";
+            }
+            return "—";
+        },
+
         async refreshSensorHistoryList() {
             await Promise.all([this.loadHistorySensors(), this.loadActuatorOverview()]);
             const headers = this.getAuthHeaders();
             const sums = {};
-            await Promise.all((this.historySensors || []).map(async s => {
+            await Promise.all((this.historySensors || []).filter(s => s.kind !== "climate" && s.kind !== "host").map(async s => {
                 try {
                     const res = await fetch(`/api/history/${s.idx}/summary`, { headers });
                     if (res.ok) sums[s.idx] = await res.json();
@@ -1329,20 +1340,22 @@ function wanosApp() {
             this.selectedSensorIdx = id;
             this.selectedSensorKind = kind;
             this.selectedSensorName = row.name || String(id);
-            this.selectedHistoryIdx = kind === "utility" ? id : null;
+            this.selectedHistoryIdx = (kind === "utility" || kind === "climate" || kind === "host") ? id : null;
             this.selectedActuatorIdx = kind === "actuator" ? id : null;
             this.selectedActuatorName = kind === "actuator" ? row.name : "";
             await this.$nextTick();
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             await this.reloadSelectedSensorDetail();
-            const anchor = kind === "utility"
-                ? document.getElementById("chart-day")
-                : document.getElementById("chart-act-day");
+            const anchor = kind === "actuator"
+                ? document.getElementById("chart-act-day")
+                : document.getElementById("chart-day");
             anchor?.scrollIntoView({ behavior: "smooth", block: "nearest" });
         },
 
         async reloadSelectedSensorDetail() {
-            if (this.selectedSensorKind === "utility" && this.selectedSensorIdx != null) {
+            if ((this.selectedSensorKind === "utility" || this.selectedSensorKind === "climate"
+                    || this.selectedSensorKind === "host")
+                && this.selectedSensorIdx != null) {
                 this.selectedHistoryIdx = this.selectedSensorIdx;
                 await this.reloadHistoryCharts();
                 Object.values(this._historyCharts).forEach(c => c && c.resize());
@@ -1664,17 +1677,40 @@ function wanosApp() {
         renderHistoryCharts(dayData, monthData, yearData) {
             const kind = dayData?.kind || monthData?.kind || "power";
             const isWater = kind === "water";
+            const isClimate = kind === "climate";
+            const isHost = kind === "host";
+            const hostUnit = dayData?.unit || monthData?.unit || "";
 
-            this.historyDayTitle = isWater ? "Consumption last 24 hours" : "Usage last 24 hours";
-            this.historyMonthTitle = isWater ? "Consumption last month" : "Usage last month";
-            this.historyYearTitle = isWater ? "Consumption last year" : "Usage last year";
+            this.historyDayTitle = isClimate
+                ? "Temperature / humidity last 24 hours"
+                : (isHost ? `Value last 24 hours (${hostUnit})`
+                    : (isWater ? "Consumption last 24 hours" : "Usage last 24 hours"));
+            this.historyMonthTitle = isClimate
+                ? "Temperature / humidity last month"
+                : (isHost ? `Min / max last month (${hostUnit})`
+                    : (isWater ? "Consumption last month" : "Usage last month"));
+            this.historyYearTitle = isClimate
+                ? "Temperature / humidity last year (weekly)"
+                : (isHost ? `Min / max last year (${hostUnit})`
+                    : (isWater ? "Consumption last year" : "Usage last year"));
 
             const dayChart = this._ensureHistoryChart("day", "chart-day");
             const monthChart = this._ensureHistoryChart("month", "chart-month");
             const yearChart = this._ensureHistoryChart("year", "chart-year");
 
+            if (isClimate) {
+                const showHum = dayData?.has_humidity !== false
+                    || (dayData?.series?.hum || []).length > 0
+                    || (monthData?.series?.hum_min || []).some(p => p.v != null);
+                this._renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum);
+                return;
+            }
+
+            const yLabel = isWater ? "Liters" : (isHost ? (hostUnit || "Value") : "Usage (Watt)");
+            const seriesName = isHost ? "Value" : "Usage";
+
             if (dayChart) {
-                const opt = this._baseChartOption(isWater ? "Liters" : "Usage (Watt)");
+                const opt = this._baseChartOption(yLabel);
                 if (isWater) {
                     opt.series = [{
                         name: "Liters",
@@ -1684,7 +1720,7 @@ function wanosApp() {
                     }];
                 } else {
                     opt.series = [{
-                        name: "Usage",
+                        name: seriesName,
                         type: "line",
                         showSymbol: false,
                         data: this._pointsToSeries(dayData?.series?.usage),
@@ -1697,7 +1733,7 @@ function wanosApp() {
             }
 
             if (monthChart) {
-                const opt = this._baseChartOption(isWater ? "Liters" : "Usage (Watt)");
+                const opt = this._baseChartOption(yLabel);
                 if (isWater) {
                     opt.series = [{
                         name: "Liters",
@@ -1708,7 +1744,7 @@ function wanosApp() {
                 } else {
                     opt.series = [
                         {
-                            name: "Usage min",
+                            name: seriesName + " min",
                             type: "line",
                             showSymbol: false,
                             data: this._pointsToSeries(monthData?.series?.usage_min),
@@ -1716,7 +1752,7 @@ function wanosApp() {
                             connectNulls: false
                         },
                         {
-                            name: "Usage max",
+                            name: seriesName + " max",
                             type: "line",
                             showSymbol: false,
                             data: this._pointsToSeries(monthData?.series?.usage_max),
@@ -1729,7 +1765,7 @@ function wanosApp() {
             }
 
             if (yearChart) {
-                const opt = this._baseChartOption(isWater ? "Liters" : "Usage (Watt)");
+                const opt = this._baseChartOption(yLabel);
                 if (isWater) {
                     opt.series = [{
                         name: "Liters",
@@ -1740,7 +1776,7 @@ function wanosApp() {
                 } else {
                     opt.series = [
                         {
-                            name: "Usage min",
+                            name: seriesName + " min",
                             type: "line",
                             showSymbol: false,
                             data: this._pointsToSeries(yearData?.series?.usage_min),
@@ -1748,7 +1784,7 @@ function wanosApp() {
                             connectNulls: false
                         },
                         {
-                            name: "Usage max",
+                            name: seriesName + " max",
                             type: "line",
                             showSymbol: false,
                             data: this._pointsToSeries(yearData?.series?.usage_max),
@@ -1761,26 +1797,190 @@ function wanosApp() {
             }
         },
 
+        _climateDualAxisOption() {
+            const opt = this._baseChartOption("°C");
+            opt.grid = { left: 48, right: 48, top: 24, bottom: 48 };
+            opt.yAxis = [
+                {
+                    type: "value",
+                    name: "°C",
+                    nameTextStyle: { color: "#eab308" },
+                    axisLabel: { color: "#eab308" },
+                    splitLine: { lineStyle: { color: "#374151" } }
+                },
+                {
+                    type: "value",
+                    name: "%",
+                    nameTextStyle: { color: "#22c55e" },
+                    axisLabel: { color: "#22c55e" },
+                    splitLine: { show: false }
+                }
+            ];
+            return opt;
+        },
+
+        _renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum) {
+            if (dayChart) {
+                const opt = this._climateDualAxisOption();
+                const series = [{
+                    name: "Temperature",
+                    type: "line",
+                    step: "end",
+                    showSymbol: false,
+                    yAxisIndex: 0,
+                    data: this._pointsToSeries(dayData?.series?.temp),
+                    lineStyle: { color: "#eab308", width: 2 },
+                    connectNulls: false
+                }];
+                if (showHum) {
+                    series.push({
+                        name: "Humidity",
+                        type: "line",
+                        step: "end",
+                        showSymbol: false,
+                        yAxisIndex: 1,
+                        data: this._pointsToSeries(dayData?.series?.hum),
+                        lineStyle: { color: "#22c55e", width: 2 },
+                        connectNulls: false
+                    });
+                }
+                opt.series = series;
+                dayChart.setOption(opt, true);
+                dayChart.resize();
+            }
+
+            if (monthChart) {
+                const opt = this._climateDualAxisOption();
+                const series = [
+                    {
+                        name: "Temp min",
+                        type: "line",
+                        showSymbol: false,
+                        yAxisIndex: 0,
+                        data: this._pointsToSeries(monthData?.series?.temp_min),
+                        lineStyle: { color: "#eab308", width: 1.5, type: "dashed" },
+                        connectNulls: false
+                    },
+                    {
+                        name: "Temp max",
+                        type: "line",
+                        showSymbol: false,
+                        yAxisIndex: 0,
+                        data: this._pointsToSeries(monthData?.series?.temp_max),
+                        lineStyle: { color: "#eab308", width: 2 },
+                        connectNulls: false
+                    }
+                ];
+                if (showHum) {
+                    series.push(
+                        {
+                            name: "Hum min",
+                            type: "line",
+                            showSymbol: false,
+                            yAxisIndex: 1,
+                            data: this._pointsToSeries(monthData?.series?.hum_min),
+                            lineStyle: { color: "#22c55e", width: 1.5, type: "dashed" },
+                            connectNulls: false
+                        },
+                        {
+                            name: "Hum max",
+                            type: "line",
+                            showSymbol: false,
+                            yAxisIndex: 1,
+                            data: this._pointsToSeries(monthData?.series?.hum_max),
+                            lineStyle: { color: "#22c55e", width: 2 },
+                            connectNulls: false
+                        }
+                    );
+                }
+                opt.series = series;
+                monthChart.setOption(opt, true);
+                monthChart.resize();
+            }
+
+            if (yearChart) {
+                const opt = this._climateDualAxisOption();
+                const series = [
+                    {
+                        name: "Temp min",
+                        type: "line",
+                        showSymbol: false,
+                        yAxisIndex: 0,
+                        data: this._pointsToSeries(yearData?.series?.temp_min),
+                        lineStyle: { color: "#eab308", width: 1.5, type: "dashed" },
+                        connectNulls: false
+                    },
+                    {
+                        name: "Temp max",
+                        type: "line",
+                        showSymbol: false,
+                        yAxisIndex: 0,
+                        data: this._pointsToSeries(yearData?.series?.temp_max),
+                        lineStyle: { color: "#eab308", width: 2 },
+                        connectNulls: false
+                    }
+                ];
+                if (showHum) {
+                    series.push(
+                        {
+                            name: "Hum min",
+                            type: "line",
+                            showSymbol: false,
+                            yAxisIndex: 1,
+                            data: this._pointsToSeries(yearData?.series?.hum_min),
+                            lineStyle: { color: "#22c55e", width: 1.5, type: "dashed" },
+                            connectNulls: false
+                        },
+                        {
+                            name: "Hum max",
+                            type: "line",
+                            showSymbol: false,
+                            yAxisIndex: 1,
+                            data: this._pointsToSeries(yearData?.series?.hum_max),
+                            lineStyle: { color: "#22c55e", width: 2 },
+                            connectNulls: false
+                        }
+                    );
+                }
+                opt.series = series;
+                yearChart.setOption(opt, true);
+                yearChart.resize();
+            }
+        },
+
         async reloadHistoryCharts() {
             if (!this.selectedHistoryIdx) return;
             this.historyLoading = true;
             try {
                 const idx = this.selectedHistoryIdx;
                 const headers = this.getAuthHeaders();
-                const [sumRes, dayRes, monthRes, yearRes] = await Promise.all([
-                    fetch(`/api/history/${idx}/summary`, { headers }),
+                const isClimate = this.selectedSensorKind === "climate";
+                const isHost = this.selectedSensorKind === "host";
+                const fetches = [
                     fetch(`/api/history/${idx}?range=day`, { headers }),
                     fetch(`/api/history/${idx}?range=month`, { headers }),
                     fetch(`/api/history/${idx}?range=year`, { headers })
-                ]);
-                if ([sumRes, dayRes, monthRes, yearRes].some(r => r.status === 401 || r.status === 403)) {
+                ];
+                if (!isClimate && !isHost) {
+                    fetches.unshift(fetch(`/api/history/${idx}/summary`, { headers }));
+                }
+                const results = await Promise.all(fetches);
+                if (results.some(r => r.status === 401 || r.status === 403)) {
                     window.location.href = "/deviceexplorer.html";
                     return;
                 }
-                this.historySummary = await sumRes.json();
-                const dayData = await dayRes.json();
-                const monthData = await monthRes.json();
-                const yearData = await yearRes.json();
+                let dayData, monthData, yearData;
+                if (isClimate || isHost) {
+                    this.historySummary = null;
+                    dayData = await results[0].json();
+                    monthData = await results[1].json();
+                    yearData = await results[2].json();
+                } else {
+                    this.historySummary = await results[0].json();
+                    dayData = await results[1].json();
+                    monthData = await results[2].json();
+                    yearData = await results[3].json();
+                }
                 await this.$nextTick();
                 this.renderHistoryCharts(dayData, monthData, yearData);
             } catch (e) {

@@ -230,6 +230,9 @@ class HistorySampleConfig(BaseModel):
     kwh_step_wh: float = 100.0
     water_step_l: float = 1.0
     zwave_min_interval_secs: float = 60.0
+    climate_temp_deadband: float = 0.5
+    climate_hum_deadband: float = 2.0
+    climate_max_interval_secs: float = 300.0
 
 
 class HistoryConfig(BaseModel):
@@ -249,7 +252,7 @@ class AppConfig(BaseModel):
     sonos: Optional[SonosConfig] = None
     onkyo: Optional[OnkyoConfig] = None
     zwave: Optional[ZwaveConfig] = None
-    deviceexplorer_exclude: List[int] = Field(default_factory=list)  # ⚡ Hide explicitly excluded IDXs from UI
+    deviceexplorer_exclude: List[int] = Field(default_factory=list)  # Single hide list for Explorer/History (config.yaml); Z-Wave merges hidden_nodes at runtime
     hardware_links: Optional[HardwareLinksConfig] = None
     history: HistoryConfig = Field(default_factory=HistoryConfig)
     auth: AuthConfig

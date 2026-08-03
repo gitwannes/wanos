@@ -40,7 +40,7 @@ Related documents:
 | 3 | Hi-res sample triggers (pulses) | **Water:** one history sample per **1.0 L** advanced. **kWh:** one history sample per **0.1 kWh** (100 Wh) advanced |
 | 4 | Hourly retention | **31 days** |
 | 5 | Water charts | Same page; **consumption-only** (liters) — no Watt min/max series |
-| 6 | Access control | **Admin only** (same class as Device Insights) |
+| 6 | Access control | **Admin only** |
 | 7 | Year power chart | **monthly min/max Watts**, rolled up from daily aggregates |
 
 ### 2.1 Z-Wave instantaneous power sampling
@@ -148,8 +148,8 @@ When WanOS was offline (or samples missing) but counters advanced:
 
 ### 8.1 Page
 * **File:** `frontend/sensorhistory.html`
-* **Access:** admin JWT only; redirect non-admins (same pattern as `deviceinsights.html`).
-* **Nav:** link from existing shell pages (Commander, Admin, Insights, Explorer, etc.).
+* **Access:** admin JWT only; redirect non-admins.
+* **Nav:** link from existing shell pages (Commander, Admin, Explorer, etc.).
 
 ### 8.2 Layout (power sensors)
 Device selector, then three stacked panels:
@@ -227,7 +227,7 @@ Preferred home: `config.yaml` (optional subsection), e.g.:
 | `core/models.py` | Session record fields |
 | `config.yaml` | History settings |
 | `frontend/app.js` | Admin guard for new page; fetch helpers |
-| Nav shells (`admin.html`, `commander.html`, `deviceinsights.html`, `deviceexplorer.html`, `zwaveconfig.html`, …) | Link to Sensor History |
+| Nav shells (`admin.html`, `commander.html`, `deviceexplorer.html`, `zwaveconfig.html`, …) | Link to Sensor History |
 
 ### 11.3 Unchanged (by design)
 | File | Reason |
@@ -289,3 +289,56 @@ Every state/level change counts toward today / month averages.
 ### API
 - `GET /api/history/actuators`
 - `GET /api/history/actuators/{idx}?range=day|month|year`
+
+---
+
+## 15. Climate history (temp / humidity)
+
+All `temp_hum` / `temp` sensors plus virtual **`20101` sauna temp** (0.7×20001 + 0.3×20002; hum from 20001).
+
+### Sampling
+| Rule | Default |
+|------|---------|
+| Temp deadband | 0.5 °C |
+| Humidity deadband | 2 %RH |
+| Max interval | 300 s |
+
+Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate_daily` rollups.
+
+### Charts (ECharts, Sensors list)
+| Range | Series |
+|-------|--------|
+| Day | Stepped temp (°C) + humidity (%) dual Y-axis |
+| Month | Daily **min/max** temp (+ hum when present) |
+| Year | **Weekly** min/max (ISO week) |
+
+Temp-only devices: humidity series hidden.
+
+### Device Explorer
+IDX **20101** registered as `sauna temp` (`type: temp_hum`, origin `system`).
+
+---
+
+## 16. Motion & scene history
+
+| Source | Behaviour |
+|--------|-----------|
+| Motion `75xxx` | Rising edge only (`ON`); day chart = impulse spike; insights = today / avg/day |
+| Scenes (`scene: true`) | Log on every fire (manual + automation); synthetic IDX `900000 + (crc32(event) & 0xFFFF)` |
+
+Same retention and Sensors-list master–detail as actuators. Motion stays default-hidden (`75xxx`); use Hidden toggle / favorites.
+
+---
+
+## 17. Host gauges & mains voltage
+
+| IDX | Label | Unit |
+|-----|-------|------|
+| 22002 | Host CPU Usage | % |
+| 22003 | Host Memory Free | % |
+| 22004 | Host Disk Free | % |
+| 22005 | Host Log2Ram Free | % |
+| 22006 | Host Load Average (1m) | % (of 4 cores) |
+| 71046 | Mains voltage | V |
+
+Ingested from `HUB_STATE_CHANGED` (health_monitor ~60s; Z-Wave voltage). Charts: day line + month/year min/max (same shape as power). Visibility follows `deviceexplorer_exclude` / Hidden toggle (same as Device Explorer).
