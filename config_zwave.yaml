@@ -11,7 +11,7 @@ zwave:
   # The physical hardware path used by WanOS to verify the stick is plugged in
   usb_path: "/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00"
 
-  hidden_nodes: [71007, 71009, 71019, 71022, 71028, 71029, 71035, 71036, 71040, 71045, 71046, 72001, 72006, 74001, 74003, 75001, 75002]
+  hidden_nodes: [switch.badk_1e_hue_physical, switch.badk_2e_hue_physical, switch.vent.toilet_ventilatie_motor, switch.badk_2e_binnen_unused, switch.slpk_wannes_hue_physical, switch.living_special, switch.sauna_hue_physical, switch.ssr.safety_ssr_12v, switch.safety.safety_wisc_5v, switch.53, sensor.generic.mains_voltage, switch.pc, switch.kerst_lichten_tuin, sensor.power.pc_power, sensor.power.pc_monitors_power, sensor.generic.garage_motion, sensor.generic.toilet_motion]
 
   device_map:
     # 71000: light

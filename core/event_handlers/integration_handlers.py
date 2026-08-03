@@ -158,7 +158,7 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     changed_domains = set()
     is_enabled = payload.get("enabled", False)
 
-    # Tier 1 Intercept: Physical Stick Missing
+    # Tier 1 Intercept: Physical Stick Missing (definitive — not a boot race)
     if is_enabled and not manager._state.system.zwave_hardware_connected:
         await manager.logger.warning("🟡 [Z-Wave] Command rejected: USB Stick is unplugged.")
         ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Z-Wave USB Stick is unplugged.")
@@ -166,16 +166,26 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
         changed_domains |= dom
     # Tier 2 Intercept: Control Plane (Web Server) Offline
     elif is_enabled and not manager._state.system.zwave_web_alive:
-        await manager.logger.warning("🟡 [Z-Wave] Command rejected: JS Web Panel (8091) is unreachable.")
-        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Z-Wave JS Web Panel is offline.")
-        state_changed |= ch
-        changed_domains |= dom
+        if _zwave_enable_is_boot_race(manager):
+            await manager.logger.info(
+                "[Z-Wave] Enable deferred until JS Web Panel (8091) is ready (auto-recover when alive)."
+            )
+        else:
+            await manager.logger.warning("🟡 [Z-Wave] Command rejected: JS Web Panel (8091) is unreachable.")
+            ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Z-Wave JS Web Panel is offline.")
+            state_changed |= ch
+            changed_domains |= dom
     # Tier 3 Intercept: Data Plane (MQTT Data) Frozen
     elif is_enabled and not manager._state.system.zwave_data_alive:
-        await manager.logger.warning("🟡 [Z-Wave] Command rejected: MQTT Data stream is frozen.")
-        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Z-Wave Data stream is frozen.")
-        state_changed |= ch
-        changed_domains |= dom
+        if _zwave_enable_is_boot_race(manager):
+            await manager.logger.info(
+                "[Z-Wave] Enable deferred until MQTT Data stream is ready (auto-recover when alive)."
+            )
+        else:
+            await manager.logger.warning("🟡 [Z-Wave] Command rejected: MQTT Data stream is frozen.")
+            ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: Z-Wave Data stream is frozen.")
+            state_changed |= ch
+            changed_domains |= dom
     else:
         state_str = "ON" if is_enabled else "OFF"
         manager._state.system.zwave_integration_enabled = is_enabled
@@ -189,7 +199,25 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
         state_changed |= ch
         changed_domains |= dom
 
+        if is_enabled and payload.get("is_auto_recovery", False):
+            deadline = int(time.time()) + 10
+            manager._timer_manager.schedule(
+                "post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"}
+            )
+            logger.info("Z-Wave Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+
     return state_changed, changed_domains
+
+
+def _zwave_enable_is_boot_race(manager: Any) -> bool:
+    """True when enable is racing ahead of the first proven MQTT data plane this boot."""
+    sys = manager._state.system
+    if sys.last_zwave_heartbeat_unix is None:
+        return True
+    boot = sys.app_boot_unix
+    if boot is None:
+        return True
+    return (time.time() - boot) < 90.0
 
 
 async def handle_sonos_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:

@@ -10,6 +10,7 @@ from .models import SystemState, Event, EventType
 from .mqtt_transport import MqttClientManager
 from .logger import WanosLogger, iwhw_logger
 from .config import load_config
+from .entity_registry import EntityRegistry
 from core.event_handlers.registry import EVENT_ROUTERS
 from core.nvm_manager import NVRAMManager
 
@@ -55,6 +56,10 @@ class StateManager:
 
         # Initialize Non-Volatile Memory Disk I/O Controller
         self.nvm = NVRAMManager()
+
+        # Stable entity_id ↔ idx registry (system-owned YAML)
+        self.entity_registry = EntityRegistry()
+        self.entity_registry.load()
 
         # Optional reference to the MqttPublisher, injected after construction.
         self.mqtt_publisher: Optional[Any] = None
@@ -112,7 +117,7 @@ class StateManager:
             self._state.device_metadata.pop(k, None)
             self._state.dashboard_map.pop(k, None)
 
-        self._state.system.hidden_explorer_idxs = self._config.deviceexplorer_exclude
+        self._state.system.hidden_explorer_idxs = []
         yaml_idxs: set[int] = set()
 
         # 1. Parse GPIO Inputs
@@ -120,7 +125,8 @@ class StateManager:
             for key, node in self._config.gpio_inputs.items():
                 if node.idx is not None:
                     self._state.dashboard_map[node.idx] = node.name
-                    node_type = "energy" if node.type == "energy" else "sensor"
+                    # Preserve semantic GPIO kinds for entity_id classification (door/fluid/energy).
+                    node_type = node.type if node.type in ("door", "fluid", "energy") else "sensor"
                     self._state.device_metadata[node.idx] = {"name": node.name, "type": node_type,
                                                              "origin": "gpio_input"}
                     yaml_idxs.add(node.idx)
@@ -191,10 +197,13 @@ class StateManager:
                     if "|" in val_str:
                         friendly_name = val_str.split("|", 1)[1].strip()
                         self._state.dashboard_map[idx_int] = friendly_name
-                        self._state.device_metadata[idx_int] = {"name": friendly_name, "type": "light", "origin": "hue"}
+                        self._state.device_metadata[idx_int] = {
+                            "name": friendly_name, "type": "light", "origin": "hue", "hue_kind": "light",
+                        }
                     else:
-                        self._state.device_metadata[idx_int] = {"name": f"Hue Light {idx_int}", "type": "light",
-                                                                "origin": "hue"}
+                        self._state.device_metadata[idx_int] = {
+                            "name": f"Hue Light {idx_int}", "type": "light", "origin": "hue", "hue_kind": "light",
+                        }
                 except Exception:
                     pass
 
@@ -209,10 +218,13 @@ class StateManager:
                     if "|" in val_str:
                         friendly_name = val_str.split("|", 1)[1].strip()
                         self._state.dashboard_map[idx_int] = friendly_name
-                        self._state.device_metadata[idx_int] = {"name": friendly_name, "type": "light", "origin": "hue"}
+                        self._state.device_metadata[idx_int] = {
+                            "name": friendly_name, "type": "light", "origin": "hue", "hue_kind": "group",
+                        }
                     else:
-                        self._state.device_metadata[idx_int] = {"name": f"Hue Group {idx_int}", "type": "light",
-                                                                "origin": "hue"}
+                        self._state.device_metadata[idx_int] = {
+                            "name": f"Hue Group {idx_int}", "type": "light", "origin": "hue", "hue_kind": "group",
+                        }
                 except Exception:
                     pass
 
@@ -292,15 +304,24 @@ class StateManager:
 
         self._extract_scenes_from_config()
 
-        # Exclude-list placeholders (IDX in YAML but no live metadata yet)
-        exclusions = list(getattr(self._config, "deviceexplorer_exclude", []) or [])
-        self._state.system.hidden_explorer_idxs = list(exclusions)
-        for idx in exclusions:
+        # Exclude-list placeholders (entity_id in YAML → resolve to idx)
+        exclusions: list[int] = []
+        for ref in (getattr(self._config, "deviceexplorer_exclude", None) or []):
+            eid = str(ref).strip()
+            if not eid:
+                continue
+            idx = self.entity_registry.resolve(eid)
+            if idx is None:
+                logger.warning(f"deviceexplorer_exclude: unresolved entity_id '{eid}'")
+                continue
+            exclusions.append(idx)
             yaml_idxs.add(idx)
             if idx not in self._state.device_metadata or self._state.device_metadata.get(idx) is None:
                 self._state.device_metadata[idx] = {
-                    "name": f"Hidden {idx}", "type": "unknown", "origin": "system"
+                    "name": f"Hidden {eid}", "type": "unknown", "origin": "system"
                 }
+                self.entity_registry.ensure(idx, self._state.device_metadata[idx])
+        self._state.system.hidden_explorer_idxs = exclusions
 
         # UNIVERSAL ORPHAN EVICTION (non-Z-Wave)
         # Nullify RAM for devices removed from YAML so SSE Object.assign clears the UI.
@@ -322,6 +343,7 @@ class StateManager:
             self._state.devices[idx] = None
             self._state.device_metadata[idx] = None
             self._state.dashboard_map[idx] = None
+            self.entity_registry.mark_removed(idx)
             self.dispatch(Event(
                 type=EventType.HUB_STATE_CHANGED,
                 payload={
@@ -336,11 +358,30 @@ class StateManager:
         # Apply hidden flags from deviceexplorer_exclude (Z-Wave merges call this again)
         self.sync_hidden_metadata()
 
+        # Birth / freeze entity_ids for every live metadata row; persist entity_registry.yaml
+        self.entity_registry.reconcile(self._state.device_metadata)
+
+    def ensure_entity_id(self, idx: int) -> Optional[str]:
+        """Stamp a frozen entity_id onto device_metadata[idx] (does not flush disk)."""
+        meta = self._state.device_metadata.get(idx)
+        if not isinstance(meta, dict):
+            return None
+        return self.entity_registry.ensure(int(idx), meta)
+
+    def flush_entity_registry(self) -> None:
+        """Persist dirty entity_registry.yaml once (call after batch ensures)."""
+        self.entity_registry.save()
+
+    def resolve_entity_id(self, entity_id: str) -> Optional[int]:
+        """Always-resolve helper: entity_id → idx (None if missing/removed)."""
+        return self.entity_registry.resolve(entity_id)
+
     def sync_hidden_metadata(self) -> None:
         """
         Single rule for Explorer / History visibility:
         meta.hidden = idx in system.hidden_explorer_idxs
-        (populated from config.yaml deviceexplorer_exclude, then Z-Wave hidden_nodes).
+        (populated from config.yaml deviceexplorer_exclude entity_ids → idxs,
+         then Z-Wave hidden_nodes entity_ids merged at bridge start).
         """
         hidden = set()
         for x in (self._state.system.hidden_explorer_idxs or []):
@@ -503,24 +544,28 @@ class StateManager:
             finally:
                 self._queue.task_done()
 
-            if pending_broadcast and self._queue.empty():
-                snapshot_obj: SystemState = self.get_state_snapshot()
+            if self._queue.empty():
+                # Always flush dirty registry when the queue drains (batched, never per-event).
+                self.flush_entity_registry()
 
-                if self.mqtt_publisher:
-                    try:
-                        await self.mqtt_publisher.on_state_changed(snapshot_obj, changed_domains)
-                    except Exception as e:
-                        await self.logger.error(f"Error in MQTT publisher: {e}")
+                if pending_broadcast:
+                    snapshot_obj: SystemState = self.get_state_snapshot()
 
-                for listener in self._state_listeners:
-                    try:
-                        await listener(snapshot_obj, batch_events)
-                    except Exception as e:
-                        await self.logger.error(f"Error in state listener: {e}")
+                    if self.mqtt_publisher:
+                        try:
+                            await self.mqtt_publisher.on_state_changed(snapshot_obj, changed_domains)
+                        except Exception as e:
+                            await self.logger.error(f"Error in MQTT publisher: {e}")
 
-                pending_broadcast = False
-                changed_domains.clear()
-                batch_events.clear()
+                    for listener in self._state_listeners:
+                        try:
+                            await listener(snapshot_obj, batch_events)
+                        except Exception as e:
+                            await self.logger.error(f"Error in state listener: {e}")
+
+                    pending_broadcast = False
+                    changed_domains.clear()
+                    batch_events.clear()
 
     async def _handle_event(self, event: Event) -> tuple[bool, Set[str]]:
         event_name = event.type.value if hasattr(event.type, 'value') else str(event.type)
@@ -554,14 +599,23 @@ class StateManager:
 
         if meta_idx is not None and meta_type is not None:
             existing = self._state.device_metadata.get(meta_idx)
-            if not existing or existing.get("type") != meta_type or existing.get(
-                    "name") != meta_name or existing.get("origin") != meta_origin:
-                self._state.device_metadata[meta_idx] = {
+            if not isinstance(existing, dict):
+                existing = {}
+            if (not existing or existing.get("type") != meta_type or existing.get(
+                    "name") != meta_name or existing.get("origin") != meta_origin):
+                new_meta = {
                     "name": meta_name or f"idx_{meta_idx}",
                     "type": meta_type,
                     "origin": meta_origin,
                     "hidden": int(meta_idx) in set(int(x) for x in (self._state.system.hidden_explorer_idxs or [])),
                 }
+                if existing.get("hue_kind"):
+                    new_meta["hue_kind"] = existing["hue_kind"]
+                if existing.get("entity_id"):
+                    new_meta["entity_id"] = existing["entity_id"]
+                self._state.device_metadata[meta_idx] = new_meta
+                self.entity_registry.ensure(int(meta_idx), new_meta)
+                # Do not save per-event — flush once after the queue drain (see worker).
                 state_changed = True
                 changed_domains.add("device_metadata")
 
@@ -787,12 +841,15 @@ class StateManager:
             switch_idx = payload.get("idx")
             hardware_links = getattr(self._config, "hardware_links", None)
             power_map = hardware_links.power_meters if hardware_links else {}
-            if switch_idx in power_map:
-                power_idx = power_map[switch_idx]
-                self.dispatch(Event(type=EventType.POWER_UPDATED, payload={
-                    "idx": power_idx, "value": 0.0, "device_type": "power", "origin": "system",
-                    "name": self._state.dashboard_map.get(power_idx, f"Power {power_idx}")
-                }))
+            switch_meta = self._state.device_metadata.get(switch_idx) if switch_idx is not None else None
+            switch_eid = switch_meta.get("entity_id") if isinstance(switch_meta, dict) else None
+            if switch_eid and switch_eid in power_map:
+                power_idx = self.resolve_entity_id(power_map[switch_eid])
+                if power_idx is not None:
+                    self.dispatch(Event(type=EventType.POWER_UPDATED, payload={
+                        "idx": power_idx, "value": 0.0, "device_type": "power", "origin": "system",
+                        "name": self._state.dashboard_map.get(power_idx, f"Power {power_idx}")
+                    }))
 
         # ISOLATED HIGH-FREQUENCY HARDWARE EVENT ROUTING
         # Intercepts physical pulse meter ticks directly from GPIO and routes them straight to the math engine

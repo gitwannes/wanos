@@ -304,8 +304,9 @@ class SystemState(BaseModel):
     # The frontend parses this on boot.
     dashboard_map: Dict[int, str] = Field(default_factory=dict)
 
-    # The dynamic device registry. Maps IDXs to a dictionary containing {name: str, type: str}
-    # to allow the frontend to know exactly how to render a dynamic list element.
+    # The dynamic device registry. Maps IDXs to a dictionary containing
+    # {name: str, type: str, origin: str, entity_id: str, ...}
+    # entity_id is assigned once by core/entity_registry.py and frozen across renames.
     device_metadata: Dict[int, Dict[str, Any]] = Field(default_factory=dict)
 
     # Allows the baseline validation rules parsed out of config_lab.yaml

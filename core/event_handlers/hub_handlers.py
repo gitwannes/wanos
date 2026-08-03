@@ -201,9 +201,12 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
 
                                     blinds_cfg = getattr(manager._config, "blinds", None)
                                     if blinds_cfg and hasattr(blinds_cfg, "travel_times"):
-                                        base_time = blinds_cfg.travel_times.get(idx, getattr(blinds_cfg,
-                                                                                             "default_travel_time_secs",
-                                                                                             35))
+                                        blind_eid = device_meta.get("entity_id") if isinstance(device_meta, dict) else None
+                                        default_tt = getattr(blinds_cfg, "default_travel_time_secs", 35)
+                                        base_time = (
+                                            blinds_cfg.travel_times.get(blind_eid, default_tt)
+                                            if blind_eid else default_tt
+                                        )
                                     else:
                                         base_time = 35  # Failsafe
 
@@ -278,13 +281,29 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                         changed_domains.add("metrics")
 
         # Bathroom 1e ventilator timer lock
-        if idx == 71034 and state_val == "ON" and old_val != "ON":
+        vent_idx = None
+        for k, meta in (manager._state.device_metadata or {}).items():
+            if isinstance(meta, dict) and meta.get("entity_id") == "switch.vent.badk_1e_ventilatie":
+                try:
+                    vent_idx = int(k)
+                except (TypeError, ValueError):
+                    vent_idx = None
+                break
+        if vent_idx is not None and idx == vent_idx and state_val == "ON" and old_val != "ON":
             manager._state.devices[90001] = True
             deadline = int(time.time()) + (manager._config.bathroom1.vent_min_runtime_mins * 60)
             manager._timer_manager.schedule("bath1_vent_lock", deadline, "BATH1_VENT_LOCK_EXPIRED")
 
         # EPSON INTERCEPTOR
-        if idx == 80001 and (old_val != state_val or is_force):
+        epson_idx = None
+        for k, meta in (manager._state.device_metadata or {}).items():
+            if isinstance(meta, dict) and meta.get("entity_id") == "switch.cinema_projector":
+                try:
+                    epson_idx = int(k)
+                except (TypeError, ValueError):
+                    epson_idx = None
+                break
+        if epson_idx is not None and idx == epson_idx and (old_val != state_val or is_force):
             if manager._state.system.epson_integration_enabled:
                 if getattr(manager, "epson_bridge", None):
                     asyncio.create_task(manager.epson_bridge.power(state_val))

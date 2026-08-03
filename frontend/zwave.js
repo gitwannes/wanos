@@ -141,6 +141,7 @@ function zwaveApp() {
         processBackendState(fullState) {
             if (!fullState.system) return;
             let listModified = false;
+            this._lastMeta = fullState.device_metadata || {};
 
             if (fullState.system.zwave_usb_path) {
                 this.usbPath = fullState.system.zwave_usb_path;
@@ -187,6 +188,8 @@ function zwaveApp() {
                             existing.name = name;
                             existing.comment_str = commentStr;
                             existing.original_idx = idx;
+                            existing.entity_id = (fullState.device_metadata && fullState.device_metadata[idx]
+                                ? fullState.device_metadata[idx].entity_id : null);
                             // We can safely restore the auto-select because this block ONLY runs on fresh boots or manual reloads.
                             existing.selected = true;
                         } else {
@@ -208,6 +211,8 @@ function zwaveApp() {
                                 name: name,
                                 comment_str: commentStr,
                                 original_idx: idx,
+                                entity_id: (fullState.device_metadata && fullState.device_metadata[idx]
+                                    ? fullState.device_metadata[idx].entity_id : null),
                                 is_hidden: fullState.system.hidden_explorer_idxs.includes(idx)
                             });
                             listModified = true;
@@ -364,7 +369,11 @@ function zwaveApp() {
             for (const item of this.deviceList) {
                 if (item.selected) {
                     if (item.is_hidden && item.idx !== null) {
-                        hiddenNodes.push(item.idx);
+                        const eid = item.entity_id
+                            || (this._lastMeta && this._lastMeta[item.idx] && this._lastMeta[item.idx].entity_id);
+                        if (eid) {
+                            hiddenNodes.push(eid);
+                        }
                     }
 
                     if (item.name.trim() === "") {

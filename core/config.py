@@ -76,13 +76,27 @@ class BathroomConfig(BaseModel):
 
 class LightingConfig(BaseModel):
     default_auto_off_minutes: int
-    managed_lights: List[int]
-    auto_off_delays: Dict[int, int]
+    managed_lights: List[str] = Field(default_factory=list)
+    auto_off_delays: Dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("auto_off_delays", mode="before")
+    @classmethod
+    def coerce_delay_keys(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        return {str(k): int(v) for k, v in value.items()}
 
 
 class BlindsConfig(BaseModel):
     default_travel_time_secs: int = 35
-    travel_times: Dict[int, int] = Field(default_factory=dict)
+    travel_times: Dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("travel_times", mode="before")
+    @classmethod
+    def coerce_travel_keys(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        return {str(k): int(v) for k, v in value.items()}
 
 
 class BlindsScheduleConfig(BaseModel):
@@ -117,6 +131,7 @@ class NativeRFXConfig(BaseModel):
 
 class TriggerConfig(BaseModel):
     idx: Optional[int] = None
+    entity_id: Optional[str] = None
     state: Optional[str] = None
     event: Optional[str] = None
 
@@ -124,11 +139,13 @@ class TriggerConfig(BaseModel):
 class ConditionConfig(BaseModel):
     type: str
     idx: Optional[int] = None
+    entity_id: Optional[str] = None
     condition_is: str = Field(alias="is")
 
 
 class ActionConfig(BaseModel):
     idx: Optional[int] = None
+    entity_id: Optional[str] = None
     state: Optional[str] = None
     event: Optional[str] = None
     target: Optional[str] = None
@@ -194,7 +211,7 @@ class ZwaveConfig(BaseModel):
     usb_path: str
     mqtt_prefix: str = "zwave"  # ⚡ Global prefix for dynamic MQTT routing
     device_map: Dict[int, str] = Field(default_factory=dict)
-    hidden_nodes: List[int] = Field(default_factory=list)  # ⚡ Admin-only UI exclusions specifically for Z-Wave
+    hidden_nodes: List[str] = Field(default_factory=list)  # entity_ids hidden from Explorer (Z-Wave UI writes these)
 
 
 class AuthConfig(BaseModel):
@@ -209,15 +226,15 @@ class AuthConfig(BaseModel):
 
 
 class HardwareLinksConfig(BaseModel):
-    """Maps switches to linked hardware (e.g. power meters flushed to 0W on OFF)."""
-    power_meters: Dict[int, int] = Field(default_factory=dict)
+    """Maps switches to linked hardware (e.g. power meters flushed to 0W on OFF). Keys/values are entity_ids."""
+    power_meters: Dict[str, str] = Field(default_factory=dict)
 
     @field_validator("power_meters", mode="before")
     @classmethod
-    def coerce_int_keys(cls, value: Any) -> Any:
+    def coerce_str_keys(cls, value: Any) -> Any:
         if not isinstance(value, dict):
             return value
-        return {int(k): int(v) for k, v in value.items()}
+        return {str(k): str(v) for k, v in value.items()}
 
 
 class HistoryRetentionConfig(BaseModel):
@@ -240,7 +257,13 @@ class HistoryConfig(BaseModel):
     timezone: str = "Europe/Brussels"
     retention: HistoryRetentionConfig = Field(default_factory=HistoryRetentionConfig)
     sample: HistorySampleConfig = Field(default_factory=HistorySampleConfig)
-    tracked_idxs: List[int] = Field(default_factory=lambda: [11001, 11002, 11003, 74001, 74003])
+    tracked_entities: List[str] = Field(default_factory=lambda: [
+        "sensor.energy.kwh_meter",
+        "sensor.fluid.koud_water",
+        "sensor.fluid.warm_water",
+        "sensor.power.pc_power",
+        "sensor.power.pc_monitors_power",
+    ])
 
 
 class AppConfig(BaseModel):
@@ -252,7 +275,7 @@ class AppConfig(BaseModel):
     sonos: Optional[SonosConfig] = None
     onkyo: Optional[OnkyoConfig] = None
     zwave: Optional[ZwaveConfig] = None
-    deviceexplorer_exclude: List[int] = Field(default_factory=list)  # Single hide list for Explorer/History (config.yaml); Z-Wave merges hidden_nodes at runtime
+    deviceexplorer_exclude: List[str] = Field(default_factory=list)  # entity_ids hidden from Explorer/History; Z-Wave merges hidden_nodes at runtime
     hardware_links: Optional[HardwareLinksConfig] = None
     history: HistoryConfig = Field(default_factory=HistoryConfig)
     auth: AuthConfig

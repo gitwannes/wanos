@@ -227,7 +227,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 # Phase 3: Enable Sonos & Onkyo
                 state_manager.dispatch(Event(type=EventType.SONOS_TOGGLED, payload={"enabled": True}))
                 state_manager.dispatch(Event(type=EventType.ONKYO_TOGGLED, payload={"enabled": True}))
-                # Phase 4: Enable Z-Wave
+                # Phase 4: Enable Z-Wave (may defer silently until MQTT data plane is alive;
+                # telemetry auto-recovery arms it when ready — no false "frozen" reject alert).
                 state_manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True}))
                 # Phase 5: The OWM Cloud
                 state_manager.dispatch(Event(type=EventType.OWM_TOGGLED, payload={"enabled": True}))
@@ -438,6 +439,19 @@ async def update_zwave_config(request: ZwaveConfigRequest, req: Request):
 @app.get("/api/state")
 async def get_state() -> dict[str, Any]:
     return state_manager.get_state_snapshot().model_dump()
+
+
+@app.get("/api/debug/entity-registry-check")
+async def debug_entity_registry_check(req: Request) -> dict[str, Any]:
+    """Admin Debug: same checks as helpers/cutover_entity_ids_verify.py (keep after cutover)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    from core.entity_registry_check import run_entity_cutover_checks
+
+    report = run_entity_cutover_checks(
+        device_metadata=state_manager.get_state_snapshot().device_metadata,
+    )
+    return report
 
 
 @app.get("/api/history/sensors")

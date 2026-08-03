@@ -435,6 +435,7 @@ class ZWaveJSUIBridge(WanosComponent):
                             self.state_manager._state.dashboard_map[old_idx] = None
                         if old_idx in self.state_manager._state.devices:
                             self.state_manager._state.devices[old_idx] = None
+                        self.state_manager.entity_registry.mark_removed(old_idx)
 
                         # Dispatch a dummy event to guarantee the SSE stream pushes the 'null' payloads to the UI
                         self.state_manager.dispatch(Event(
@@ -447,9 +448,15 @@ class ZWaveJSUIBridge(WanosComponent):
                 # Extract currently loaded baseline exclusions to seamlessly merge tracking lists
                 hidden_list: list[int] = list(self.state_manager._state.system.hidden_explorer_idxs)
 
-                # ⚡ Merge dedicated Z-Wave hidden nodes into the global UI exclusion list
-                zwave_hidden_nodes = getattr(zwave_conf, "hidden_nodes", [])
-                for h_idx in zwave_hidden_nodes:
+                # ⚡ Merge dedicated Z-Wave hidden entity_ids into the global UI exclusion list
+                zwave_hidden_nodes = getattr(zwave_conf, "hidden_nodes", []) or []
+                for ref in zwave_hidden_nodes:
+                    h_idx = self.state_manager.resolve_entity_id(str(ref))
+                    if h_idx is None:
+                        await self.logger.warning(
+                            f"[Z-Wave] hidden_nodes: unresolved entity_id '{ref}'"
+                        )
+                        continue
                     if h_idx not in hidden_list:
                         hidden_list.append(h_idx)
 
@@ -493,6 +500,7 @@ class ZWaveJSUIBridge(WanosComponent):
                         "type": hw_type,
                         "origin": "zwave",
                     }
+                    self.state_manager.ensure_entity_id(idx)
 
                     # STATE SEEDING: Force the frontend to draw newly mapped devices instantly
                     if idx not in self.state_manager._state.devices:
@@ -511,6 +519,7 @@ class ZWaveJSUIBridge(WanosComponent):
                 # This assignment perfectly bypasses the system_handlers.py list wipeout race condition
                 self.state_manager._state.system.hidden_explorer_idxs = hidden_list
                 self.state_manager.sync_hidden_metadata()
+                self.state_manager.flush_entity_registry()
 
             self._is_mapped = True
             await self.logger.info(

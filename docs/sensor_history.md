@@ -204,7 +204,7 @@ Preferred home: `config.yaml` (optional subsection), e.g.:
 * `history.sample.kwh_step_wh`: `100` (0.1 kWh)
 * `history.sample.water_step_l`: `1.0`
 * `history.sample.zwave_min_interval_secs`: `60`
-* `history.tracked_idxs`: `[11001, 11002, 11003, 74001, 74003]`
+* `history.tracked_entities`: entity_ids for utility history ingest, e.g. `[sensor.energy.kwh_meter, sensor.fluid.koud_water, …]` (resolved to idx at runtime)
 
 ---
 

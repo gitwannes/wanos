@@ -11,7 +11,7 @@ from core.logger import automation_logger  # explicitly isolated logger for logi
 class AutomationEngine:
     """
     Centralized Rule Engine for WanOS automations.
-    Dynamically evaluates YAML-defined rules using strictly numeric IDXs.
+    YAML device refs use stable entity_id (resolved to idx via device_metadata).
 
     Logging Hierarchy:
     - Tier A (Invisible): If an event does not match a trigger, the engine remains 100% silent.
@@ -25,11 +25,60 @@ class AutomationEngine:
     # Rolling array tracking absolute timestamps of hot water pulses for sensory debouncing
     _hot_water_pulses: List[float] = []
 
+    # Well-known system fixtures: stable entity_id strings; always resolve to idx at runtime.
+    ENTITY_BATHROOM_VENT = "switch.vent.badk_1e_ventilatie"
+    ENTITY_BATHROOM_HUM = "sensor.temp_hum.badk_1e"
+    ENTITY_WATER_HOT = "sensor.fluid.warm_water"
+
     @classmethod
     def _get_config(cls):
         if cls._config is None:
             cls._config = load_config()
         return cls._config
+
+    @staticmethod
+    def resolve_entity_id(state: SystemState, entity_id: str) -> Optional[int]:
+        """Always-resolve: entity_id → idx via device_metadata. None if missing/removed."""
+        if not entity_id:
+            return None
+        for key, meta in (state.device_metadata or {}).items():
+            if not isinstance(meta, dict):
+                continue
+            if meta.get("entity_id") == entity_id:
+                try:
+                    return int(key)
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    @staticmethod
+    def entity_id_for(state: SystemState, idx: Optional[int]) -> Optional[str]:
+        """Reverse lookup: idx → entity_id from device_metadata."""
+        if idx is None:
+            return None
+        meta = state.device_metadata.get(idx)
+        if isinstance(meta, dict):
+            eid = meta.get("entity_id")
+            return str(eid) if eid else None
+        return None
+
+    @staticmethod
+    def resolve_device_ref(obj: Any, state: SystemState) -> Optional[int]:
+        """Resolve a trigger/condition/action device ref (prefer entity_id, legacy idx fallback)."""
+        eid = getattr(obj, "entity_id", None)
+        if eid:
+            idx = AutomationEngine.resolve_entity_id(state, eid)
+            if idx is None:
+                automation_logger.warning(
+                    f"[AUTOMATION] Unresolved entity_id '{eid}' — skipping device ref.")
+            return idx
+        raw = getattr(obj, "idx", None)
+        if raw is not None:
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return None
+        return None
 
     @staticmethod
     def _timer_exists(active_timers: List[Any], target_timer_id: str) -> bool:
@@ -65,7 +114,12 @@ class AutomationEngine:
 
     @staticmethod
     def evaluate(event: Event, state: SystemState) -> List[Event]:
-        BATHROOM_VENT_IDX: int = 71034
+        bathroom_vent_idx = AutomationEngine.resolve_entity_id(
+            state, AutomationEngine.ENTITY_BATHROOM_VENT)
+        bathroom_hum_idx = AutomationEngine.resolve_entity_id(
+            state, AutomationEngine.ENTITY_BATHROOM_HUM)
+        water_hot_idx = AutomationEngine.resolve_entity_id(
+            state, AutomationEngine.ENTITY_WATER_HOT)
 
         payload = event.payload or {}
         config = AutomationEngine._get_config()
@@ -101,10 +155,11 @@ class AutomationEngine:
             triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
 
             for t in triggers:
-                # Trigger Type A: Raw Numeric IDX State Change
-                if t.idx is not None and t.state:
+                trigger_idx = AutomationEngine.resolve_device_ref(t, state)
+                # Trigger Type A: Device State Change (entity_id or legacy idx)
+                if trigger_idx is not None and t.state:
                     if event_name == "HUB_STATE_CHANGED" and is_transition:
-                        if t.idx == event_idx and (t.state == "SYNC" or t.state == new_state):
+                        if trigger_idx == event_idx and (t.state == "SYNC" or t.state == new_state):
                             trigger_matched = True
                             trigger_reason = f"IDX {event_idx} -> {new_state}"
                             break
@@ -113,7 +168,7 @@ class AutomationEngine:
                     elif event_name == "DOOR_CHANGED":
                         is_open = payload.get("is_open")
                         mapped_state = "ON" if is_open else "OFF"
-                        if t.idx == event_idx and (t.state == "SYNC" or t.state == mapped_state):
+                        if trigger_idx == event_idx and (t.state == "SYNC" or t.state == mapped_state):
                             trigger_matched = True
                             trigger_reason = f"Door Sensor {event_idx} -> {mapped_state}"
                             # Temporarily inject the mapped state into the local loop context
@@ -150,15 +205,21 @@ class AutomationEngine:
                                     f"[X-RAY] -> ABORTED. Condition failed: It is dark, but rule requires daylight.")
 
                         # --- Condition Type 2: Hardware Device State ---
-                        elif condition.type == "device_state" and condition.idx is not None:
+                        elif condition.type == "device_state":
+                            cond_idx = AutomationEngine.resolve_device_ref(condition, state)
+                            if cond_idx is None:
+                                conditions_met = False
+                                automation_logger.debug(
+                                    f"[X-RAY] -> ABORTED. Condition failed: unresolved device ref.")
+                                continue
                             # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
-                            raw_state = state.devices.get(condition.idx)
+                            raw_state = state.devices.get(cond_idx)
                             current_state = raw_state.get("state") if isinstance(raw_state, dict) else raw_state
 
                             if str(current_state).upper() != str(condition.condition_is).upper():
                                 conditions_met = False
                                 automation_logger.debug(
-                                    f"[X-RAY] -> ABORTED. Condition failed: Target IDX {condition.idx} is '{current_state}', but rule requires '{condition.condition_is}'.")
+                                    f"[X-RAY] -> ABORTED. Condition failed: Target IDX {cond_idx} is '{current_state}', but rule requires '{condition.condition_is}'.")
 
                 # If all conditions pass, we calculate and dispatch the final actions
                 if conditions_met:
@@ -209,17 +270,18 @@ class AutomationEngine:
                             )
                             continue
 
-                        # --- Action Type A: Raw IDX Execution ---
-                        if getattr(action, "idx", None) is not None and getattr(action, "target", None) != "hue_scene":
+                        # --- Action Type A: Device Execution (entity_id / legacy idx) ---
+                        action_idx = AutomationEngine.resolve_device_ref(action, state)
+                        if action_idx is not None and getattr(action, "target", None) != "hue_scene":
                             # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
-                            raw_target_state = state.devices.get(action.idx)
+                            raw_target_state = state.devices.get(action_idx)
                             current_target_state = raw_target_state.get("state") if isinstance(raw_target_state,
                                                                                                dict) else raw_target_state
 
                             # ⚡ UNINITIALIZED STATE GUARD
                             if current_target_state is None:
                                 automation_logger.debug(
-                                    f"[X-RAY] -> Action SKIPPED for target IDX {action.idx}: Current state is unknown (NULL).")
+                                    f"[X-RAY] -> Action SKIPPED for target IDX {action_idx}: Current state is unknown (NULL).")
                                 continue
 
                             # ⚡ RICH PAYLOAD EXTRACTION (Hue Presets & Direct Overrides)
@@ -254,7 +316,8 @@ class AutomationEngine:
                             # ⚡ RFXCOM FORCE GUARD ⚡
                             # 433MHz is a stateless protocol. We automatically apply the FORCE flag
                             # behind the scenes to guarantee the radio transmits the signal every time the rule executes.
-                            meta_origin: str = state.device_metadata.get(action.idx, {}).get("origin", "")
+                            meta = state.device_metadata.get(action_idx, {}) or {}
+                            meta_origin: str = meta.get("origin", "") if isinstance(meta, dict) else ""
                             if meta_origin == "rfxcom":
                                 is_force = True
 
@@ -265,7 +328,7 @@ class AutomationEngine:
                             target_action_state).upper() or is_force:
                             # Use a distinct variable name to prevent shadowing the original event payload!
                             # Explicitly tags the origin as "AUTOMATION" for the IWHW Ledger
-                                action_payload = {"idx": action.idx, "state": target_action_state,
+                                action_payload = {"idx": action_idx, "state": target_action_state,
                                                   "force": is_force, "origin": "AUTOMATION"}
                                 if bri is not None:
                                     action_payload["bri"] = bri
@@ -282,19 +345,22 @@ class AutomationEngine:
                                 ))
 
                                 # --- TIER C: The Action Audit Trail (INFO) ---
-                                semantic_name = state.dashboard_map.get(action.idx, "Unknown")
+                                semantic_name = (
+                                    (meta.get("name") if isinstance(meta, dict) else None)
+                                    or state.dashboard_map.get(action_idx, "Unknown")
+                                )
                                 final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
                                 preset_str = f" [Rich Payload]" if is_rich_action else ""
                                 automation_logger.info(
-                                    f"[ACTION] '{rule.name}' -> Set target IDX {action.idx} ({semantic_name}) to {final_state_str}{preset_str}")
+                                    f"[ACTION] '{rule.name}' -> Set target IDX {action_idx} ({semantic_name}) to {final_state_str}{preset_str}")
                             else:
                                 automation_logger.debug(
-                                    f"[X-RAY] -> Target IDX {action.idx} is already {target_action_state}. Ignoring.")
+                                    f"[X-RAY] -> Target IDX {action_idx} is already {target_action_state}. Ignoring.")
 
                         # --- Action Type B: Native Hue Scene Trigger ---
                         elif getattr(action, "target", None) == "hue_scene":
                             scene_name = getattr(action, "scene", None)
-                            idx = getattr(action, "idx", None)
+                            idx = AutomationEngine.resolve_device_ref(action, state)
 
                             # ⚡ 2-PART PAYLOAD: Requires both the string name AND the room IDX
                             if scene_name and idx is not None:
@@ -307,7 +373,7 @@ class AutomationEngine:
                                     f"[ACTION] '{rule.name}' -> Dispatched Native Hue Scene [{scene_name}] on IDX {idx}")
                             else:
                                 automation_logger.error(
-                                    f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: Missing 'scene' or 'idx' for hue_scene target.")
+                                    f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: Missing 'scene' or device ref for hue_scene target.")
 
                         # --- Action Type C: Nested Event Chaining ---
                         elif getattr(action, "event", None):
@@ -352,7 +418,10 @@ class AutomationEngine:
 
             # --- Audit A: Lighting Timers ---
             if hasattr(config, "lighting") and config.lighting.managed_lights:
-                for light_idx in config.lighting.managed_lights:
+                for light_eid in config.lighting.managed_lights:
+                    light_idx = AutomationEngine.resolve_entity_id(state, light_eid)
+                    if light_idx is None:
+                        continue
                     current_state = state.devices.get(light_idx)
 
                     # ⚡ RICH PAYLOAD SUPPORT: Safely extract state from dictionary objects
@@ -365,8 +434,8 @@ class AutomationEngine:
                         timer_exists = AutomationEngine._timer_exists(state.system.active_timers, timer_id)
 
                         if not timer_exists:
-                            delay_mins: int = config.lighting.auto_off_delays.get(light_idx,
-                                                                                  config.lighting.default_auto_off_minutes)
+                            delay_mins: int = config.lighting.auto_off_delays.get(
+                                light_eid, config.lighting.default_auto_off_minutes)
                             deadline: int = int(time.time()) + delay_mins * 60
                             semantic_name: str = state.dashboard_map.get(light_idx, "Unknown")
 
@@ -387,7 +456,8 @@ class AutomationEngine:
                                 }
                             ))
                             automation_logger.info(
-                                f"[System Sweeper] Recovered missing auto-off timer for light IDX {light_idx} ({semantic_name}). Turning OFF in {delay_mins} min.")
+                                f"[System Sweeper] Recovered missing auto-off timer for {light_eid} "
+                                f"({semantic_name}). Turning OFF in {delay_mins} min.")
                             recovered_timers += 1
 
             # --- Audit B: Bathroom Climate Ventilation ---
@@ -395,18 +465,18 @@ class AutomationEngine:
                 on_threshold: int = config.bathroom1.vent_on_humidity
                 off_threshold: int = config.bathroom1.vent_off_humidity
 
-                d_bath = state.devices.get(20004)
+                d_bath = state.devices.get(bathroom_hum_idx) if bathroom_hum_idx is not None else None
                 current_hum: Optional[int] = d_bath.get("hum") if isinstance(d_bath, dict) else None
 
-                if current_hum is not None:
-                    current_vent_state = state.devices.get(BATHROOM_VENT_IDX, "OFF")
+                if current_hum is not None and bathroom_vent_idx is not None:
+                    current_vent_state = state.devices.get(bathroom_vent_idx, "OFF")
                     is_locked: bool = state.devices.get(90001, False)
-                    semantic_name: str = state.dashboard_map.get(BATHROOM_VENT_IDX, "Unknown")
+                    semantic_name: str = state.dashboard_map.get(bathroom_vent_idx, "Unknown")
 
                     if current_hum >= on_threshold and current_vent_state != "ON":
                         follow_up_events.append(
                             Event(type=EventType.HUB_STATE_CHANGED,
-                                  payload={"idx": BATHROOM_VENT_IDX, "state": "ON", "origin": "SYSTEM"})
+                                  payload={"idx": bathroom_vent_idx, "state": "ON", "origin": "SYSTEM"})
                         )
                         automation_logger.info(
                             f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) >= Threshold ({on_threshold}%). Forced {semantic_name} ON.")
@@ -414,7 +484,7 @@ class AutomationEngine:
                     elif current_hum <= off_threshold and current_vent_state == "ON" and not is_locked:
                         follow_up_events.append(
                             Event(type=EventType.HUB_STATE_CHANGED,
-                                  payload={"idx": BATHROOM_VENT_IDX, "state": "OFF", "origin": "SYSTEM"})
+                                  payload={"idx": bathroom_vent_idx, "state": "OFF", "origin": "SYSTEM"})
                         )
                         automation_logger.info(
                             f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) <= Threshold ({off_threshold}%). Forced {semantic_name} OFF.")
@@ -449,22 +519,22 @@ class AutomationEngine:
         # =========================================================================
         if event_name == "HUMIDITY_UPDATED":
             idx = payload.get("idx")
-            if idx == 20004:  # Virtual SHT11 Bathroom Probe
+            if idx == bathroom_hum_idx and bathroom_hum_idx is not None:
                 config = AutomationEngine._get_config()
                 val = payload.get("value", 0)
 
-                if hasattr(config, "bathroom1"):
+                if hasattr(config, "bathroom1") and bathroom_vent_idx is not None:
                     on_threshold = config.bathroom1.vent_on_humidity
                     off_threshold = config.bathroom1.vent_off_humidity
 
-                    current_vent_state = state.devices.get(BATHROOM_VENT_IDX, "OFF")
+                    current_vent_state = state.devices.get(bathroom_vent_idx, "OFF")
                     is_locked = state.devices.get(90001, False)
 
                     if val >= on_threshold and current_vent_state != "ON":
                         # Humidity is high: Auto-engage ventilator
                         follow_up_events.append(
                             Event(type=EventType.HUB_STATE_CHANGED,
-                                  payload={"idx": BATHROOM_VENT_IDX, "state": "ON", "origin": "AUTOMATION"})
+                                  payload={"idx": bathroom_vent_idx, "state": "ON", "origin": "AUTOMATION"})
                         )
                         automation_logger.info(
                             f"[Bathroom Climate] Humidity crossed upper threshold ({val}% >= {on_threshold}%). Auto-engaging extraction fan.")
@@ -474,7 +544,7 @@ class AutomationEngine:
                         if not is_locked:
                             follow_up_events.append(
                                 Event(type=EventType.HUB_STATE_CHANGED,
-                                      payload={"idx": BATHROOM_VENT_IDX, "state": "OFF", "origin": "AUTOMATION"})
+                                      payload={"idx": bathroom_vent_idx, "state": "OFF", "origin": "AUTOMATION"})
                             )
                             automation_logger.info(
                                 f"[Bathroom Climate] Humidity dropped below lower threshold ({val}% <= {off_threshold}%). Auto-disengaging extraction fan.")
@@ -486,16 +556,18 @@ class AutomationEngine:
         # 4. LIGHTING AUTO-OFF TIMERS
         # =========================================================================
         # Prevents lights in transitive rooms (hallways, toilets, pantries) from being left on indefinitely.
-        # - Only affects IDXs explicitly listed in `managed_lights` in config.yaml.
+        # - Only affects entity_ids explicitly listed in `managed_lights` in config.yaml.
         # - Looks up specific time limits (e.g. Toilet = 15m, Hallway = 10m) from `auto_off_delays`.
         # - Re-schedules the deadline dynamically if motion is re-triggered while already ON.
         # =========================================================================
         if event_name == "HUB_STATE_CHANGED":
             idx = payload.get("idx")
             semantic_name: str = state.dashboard_map.get(idx, "Unknown")
+            light_eid = AutomationEngine.entity_id_for(state, idx)
 
-            # Only track IDXs that are explicitly registered in the lighting YAML config
-            if idx is not None and hasattr(config, "lighting") and idx in config.lighting.managed_lights:
+            # Only track devices that are explicitly registered in the lighting YAML config
+            if (light_eid is not None and hasattr(config, "lighting")
+                    and light_eid in config.lighting.managed_lights):
                 timer_id: str = f"light_auto_off_{idx}"
 
                 # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
@@ -507,7 +579,8 @@ class AutomationEngine:
 
                 if safe_state == "ON":
                     # Look up specific delay, fallback to the global default
-                    delay_mins: int = config.lighting.auto_off_delays.get(idx, config.lighting.default_auto_off_minutes)
+                    delay_mins: int = config.lighting.auto_off_delays.get(
+                        light_eid, config.lighting.default_auto_off_minutes)
                     deadline: int = int(time.time()) + delay_mins * 60
 
                     follow_up_events.append(Event(
@@ -526,7 +599,8 @@ class AutomationEngine:
                         }
                     ))
                     automation_logger.info(
-                        f"[Lighting Auto-Off] Device IDX {idx} ({semantic_name}) turned ON. Scheduling OFF timer for {delay_mins} minutes (ID: {timer_id}).")
+                        f"[Lighting Auto-Off] {light_eid} ({semantic_name}) turned ON. "
+                        f"Scheduling OFF timer for {delay_mins} minutes (ID: {timer_id}).")
 
                 elif safe_state == "OFF":
                     # Instantly cancel any pending countdowns for this light,
@@ -539,7 +613,8 @@ class AutomationEngine:
                             payload={"timer_id": timer_id}
                         ))
                         automation_logger.info(
-                            f"[Lighting Auto-Off] Device IDX {idx} ({semantic_name}) turned OFF. Cancelled pending auto-off timer.")
+                            f"[Lighting Auto-Off] {light_eid} ({semantic_name}) turned OFF. "
+                            f"Cancelled pending auto-off timer.")
 
             # =========================================================================
             # 5. SHOWER VENTILATION WATCHDOG (Hot Water Overrun)
@@ -550,7 +625,7 @@ class AutomationEngine:
             # =========================================================================
             if event_name == "WATER_PULSE":
                 idx = payload.get("idx")
-                if idx == 11003:  # Hot Water Meter IDX
+                if idx == water_hot_idx and water_hot_idx is not None:
                     now_ts = time.time()
                     # Record current pulse timestamp
                     AutomationEngine._hot_water_pulses.append(now_ts)
@@ -560,15 +635,15 @@ class AutomationEngine:
                     ]
 
                     # Enforce Hand-Washing Filter: Requires a minimum velocity of 5 pulses within 10 seconds
-                    if len(AutomationEngine._hot_water_pulses) >= 5:
-                        current_vent_state = state.devices.get(BATHROOM_VENT_IDX, "OFF")
-                        semantic_name = state.dashboard_map.get(BATHROOM_VENT_IDX, "Unknown")
+                    if len(AutomationEngine._hot_water_pulses) >= 5 and bathroom_vent_idx is not None:
+                        current_vent_state = state.devices.get(bathroom_vent_idx, "OFF")
+                        semantic_name = state.dashboard_map.get(bathroom_vent_idx, "Unknown")
 
                         # Phase A: Force-engage the fan if it is currently offline
                         if current_vent_state != "ON":
                             follow_up_events.append(Event(
                                 type=EventType.HUB_STATE_CHANGED,
-                                payload = {"idx": BATHROOM_VENT_IDX, "state": "ON", "origin": "AUTOMATION"}
+                                payload = {"idx": bathroom_vent_idx, "state": "ON", "origin": "AUTOMATION"}
                             ))
                             automation_logger.info(
                                 f"[Shower Automation] Hot water sustained flow verified ({len(AutomationEngine._hot_water_pulses)} pulses/10s). Auto-engaging {semantic_name}."
@@ -585,7 +660,7 @@ class AutomationEngine:
                                 "deadline": deadline,
                                 "event_type": "BATH1_VENT_LOCK_EXPIRED",
                                 "event_payload": {
-                                    "idx": BATHROOM_VENT_IDX,
+                                    "idx": bathroom_vent_idx,
                                     "name": semantic_name,
                                     "type": "switch",
                                     "target_state": "Climate Safe"

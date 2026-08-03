@@ -110,6 +110,11 @@ function wanosApp() {
         // Tracks the execution state of the Sweeper
         sweepRunning: false,
 
+        // Tracks Admin Debug "Entity Registry Check"
+        entityRegistryChecking: false,
+        entityRegistryReportText: "",
+        entityRegistryReportOk: null,
+
         // Tracks the execution state of the configuration hot-reload loop
         configReloading: false,
 
@@ -576,11 +581,12 @@ function wanosApp() {
                 });
             }
 
-            // 5. Apply Status Filter (Hide sensors & scenes if ON/OFF is requested)
+            // 5. Apply Status Filter (Hide sensors, scenes & shutters if ON/OFF is requested)
             if (this.statusFilter !== "ALL") {
                 list = list.filter(item => {
-                    // Instantly drop legacy analog sensors and scenes
-                    if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'energy' || item.type === 'scene') {
+                    // Instantly drop legacy analog sensors, scenes, and shutters
+                    // (shutters only appear when status filter is ALL)
+                    if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'energy' || item.type === 'scene' || item.type === 'blinds') {
                         return false;
                     }
 
@@ -2563,6 +2569,101 @@ function wanosApp() {
         injectTestAlert() {
             const msg = `🧪 Simulated Error - Local Browser Injection`;
             this.publishEvent("ALERT_INJECTED", { msg_text: msg });
+        },
+
+        formatEntityRegistryReport(report) {
+            // Prefer server-rendered text (shared with CLI) so copy stays aligned.
+            if (report.report_text) return report.report_text;
+
+            const lines = [];
+            const stats = report.stats || {};
+            const warnings = report.warnings || [];
+            const errors = report.errors || [];
+            const live = Object.prototype.hasOwnProperty.call(stats, "live_metadata_with_entity_id")
+                || Object.prototype.hasOwnProperty.call(stats, "live_metadata_missing_entity_id");
+
+            lines.push("ENTITY REGISTRY / CUTOVER CHECK");
+            lines.push("========================================");
+            lines.push("");
+            lines.push("How to read this report");
+            lines.push("- GREEN (ok=true, no ERRORS): safe to proceed toward Phase 4");
+            lines.push("  (entity_id-only engine). Smoke-test after deploy anyway.");
+            lines.push("- RED (any ERRORS): do NOT enable entity_id-only / Phase 4 until fixed.");
+            lines.push("- WARNINGS: non-blocking. Mostly leftover bare idxs in Python");
+            lines.push("  (host metrics, sauna, simulator). Clear later; not a cutover blocker.");
+            if (live) {
+                lines.push("- This run included live device_metadata (Admin API / running WanOS).");
+            } else {
+                lines.push("- No live device_metadata in this run (typical for CLI offline).");
+            }
+            lines.push("");
+            lines.push("STATS");
+            lines.push("----------------------------------------");
+            lines.push(JSON.stringify(stats, null, 2));
+            if (warnings.length) {
+                lines.push("");
+                lines.push(`WARNINGS (${warnings.length}) - non-blocking follow-up`);
+                warnings.forEach((w) => lines.push(`  - ${w}`));
+            }
+            if (errors.length) {
+                lines.push("");
+                lines.push(`ERRORS (${errors.length}) - BLOCKING`);
+                errors.forEach((e) => lines.push(`  - ${e}`));
+                lines.push("");
+                lines.push("RESULT: RED - do not cut over until fixed.");
+            } else {
+                lines.push("");
+                lines.push("RESULT: GREEN - entity_id cutover checks passed.");
+                if (warnings.length) {
+                    lines.push(`(${warnings.length} warning(s) are non-blocking; clear Python magic idxs in a follow-up.)`);
+                }
+            }
+            return lines.join("\n");
+        },
+
+        async runEntityRegistryCheck() {
+            if (this.entityRegistryChecking) return;
+            this.entityRegistryChecking = true;
+            try {
+                const res = await fetch("/api/debug/entity-registry-check", {
+                    headers: this.getAuthHeaders(),
+                });
+                const report = await res.json();
+                if (!res.ok) {
+                    this.entityRegistryReportOk = false;
+                    this.entityRegistryReportText = `Entity check failed: ${report.error || res.status}`;
+                    document.getElementById("entity_registry_check_modal")?.showModal();
+                    this.publishEvent("ALERT_INJECTED", {
+                        msg_text: `Entity check failed: ${report.error || res.status}`,
+                    });
+                    return;
+                }
+                this.entityRegistryReportOk = !!report.ok;
+                this.entityRegistryReportText = this.formatEntityRegistryReport(report);
+                document.getElementById("entity_registry_check_modal")?.showModal();
+
+                const errN = (report.errors || []).length;
+                const warnN = (report.warnings || []).length;
+                const stats = report.stats || {};
+                if (report.ok) {
+                    this.publishEvent("ALERT_INJECTED", {
+                        msg_text: `Entity check GREEN — ${stats.automation_entity_ids || 0} automation ids, ${stats.registry_active || 0} registry rows (${warnN} warnings)`,
+                    });
+                } else {
+                    this.publishEvent("ALERT_INJECTED", {
+                        msg_text: `Entity check RED — ${errN} error(s), ${warnN} warning(s)`,
+                    });
+                }
+            } catch (err) {
+                this.entityRegistryReportOk = false;
+                this.entityRegistryReportText = `Entity check request failed: ${err}`;
+                document.getElementById("entity_registry_check_modal")?.showModal();
+                this.publishEvent("ALERT_INJECTED", {
+                    msg_text: `Entity check request failed: ${err}`,
+                });
+            } finally {
+                this.entityRegistryChecking = false;
+            }
         },
 
         async requestSystemSweep() {

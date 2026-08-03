@@ -150,7 +150,12 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
                 state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": 30001, "value": int(current_out_hum), "from_simulator": True}))
 
             # --- 2. BATHROOM 1eV SIMULATOR ---
-            decay_rate = 1.0 if state.devices.get(71034) == "ON" else 0.1
+            vent_on = False
+            for k, meta in (state.device_metadata or {}).items():
+                if isinstance(meta, dict) and meta.get("entity_id") == "switch.vent.badk_1e_ventilatie":
+                    vent_on = state.devices.get(int(k)) == "ON"
+                    break
+            decay_rate = 1.0 if vent_on else 0.1
             if bathroom1_hum > anchor_bathroom1_hum:
                 bathroom1_hum = max(anchor_bathroom1_hum, bathroom1_hum - decay_rate)
 

@@ -153,8 +153,18 @@ class SensorHistoryManager:
         self.climate_temp_deadband = float(getattr(sample, "climate_temp_deadband", 0.5) or 0.5)
         self.climate_hum_deadband = float(getattr(sample, "climate_hum_deadband", 2.0) or 2.0)
         self.climate_max_interval = float(getattr(sample, "climate_max_interval_secs", 300.0) or 300.0)
-        tracked = getattr(cfg, "tracked_idxs", None)
-        self.tracked_idxs: List[int] = list(tracked) if tracked else [11001, 11002, 11003, 74001, 74003]
+        tracked_eids = list(getattr(cfg, "tracked_entities", None) or [])
+        self.tracked_idxs: List[int] = []
+        for eid in tracked_eids:
+            idx = state_manager.resolve_entity_id(str(eid))
+            if idx is None:
+                logger.warning(f"history.tracked_entities: unresolved entity_id '{eid}'")
+                continue
+            self.tracked_idxs.append(idx)
+        if not self.tracked_idxs:
+            logger.error(
+                "history.tracked_entities resolved to empty — utility history ingest will skip until config is fixed"
+            )
 
         self._runtime: Dict[int, _IdxRuntime] = {i: _IdxRuntime() for i in self.tracked_idxs}
         self._hour_buckets: Dict[Tuple[int, str], _HourBucket] = {}

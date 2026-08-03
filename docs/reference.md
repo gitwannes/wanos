@@ -5,10 +5,37 @@ This document serves as the master blueprint and reference guide for the directo
 ## 1. Directory & File Structure Blueprint
 
 **Root Directory (`/home/wannes/wanos/`)**
-* `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and automation rules at the file root.
+* `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and automation rules at the file root. (Manual / human-edited; comments preserved.)
 * `config_hue.yaml`: Segregated lighting profile path tracking local network Philips Hue Bridge API endpoints and structural group/scene UUID allocations.
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
-* `hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
+* `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
+* `config_zwave.yaml`: Z-Wave device map (UI/system-owned via `zwaveconfig.html`; not hand-edited as primary workflow).
+* `entity_registry.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/install_blocky.md` (prerequisite) and `docs/todo/260803_migration.md`.
+
+### Entity ID types (prefixes)
+
+Stable automation identifiers. Pattern is `prefix.<slug>` or `prefix.<kind>.<slug>`. Display names may say “licht”; non-Hue actuators still use `switch.*`.
+
+| Prefix / pattern | Used for | Example |
+|---|---|---|
+| `hue.light.<slug>` | Philips Hue lights | `hue.light.buro_spot` |
+| `hue.group.<slug>` | Philips Hue groups | `hue.group.living` |
+| `switch.<slug>` | Z-Wave / RFX / Epson actuators (incl. names with “licht”) | `switch.buro_licht` |
+| `switch.vent.<slug>` | Ventilation / fan class | `switch.vent.badk_1e` |
+| `switch.ssr.<slug>` | SSR class | `switch.ssr.sauna` |
+| `switch.safety.<slug>` | Safety / critical power class | `switch.safety.wisc` |
+| `blinds.<slug>` | Roller shutters / blinds | `blinds.cinema` |
+| `sensor.power.<slug>` | Power meters | `sensor.power.pc` |
+| `sensor.temp_hum.<slug>` | Temperature / humidity | `sensor.temp_hum.sauna_high` |
+| `sensor.energy.<slug>` | Energy pulse (kWh) | `sensor.energy.kwh_meter` |
+| `sensor.fluid.<slug>` | Water / fluid pulse | `sensor.fluid.cold` |
+| `sensor.door.<slug>` | Door contacts | `sensor.door.sauna` |
+| `sensor.generic.<slug>` | Other sensors (motion, system status, etc.) | `sensor.generic.garage_motion` |
+| `media_player.<slug>` | Sonos / Onkyo | `media_player.living` |
+| `scene.<slug>` | Automation-exposed scenes | `scene.movie_night` |
+| `unknown.<slug>` | Tombstones / unclassified | `unknown.idx_71099` |
+
+Birth is automatic; ids freeze after first assignment. Hardware replace keeps `entity_id` and changes `idx`. Orphans keep a registry row with `status: removed`.
 * `main.py`: The ASGI web server entry point hosting the FastAPI application instance, lifespan initialization hooks, delta SSE streaming loops, and app-level connection heartbeats.
 * `requirements.txt`: Master Python package configuration file locking dependencies for strict type validation and async execution.
 * `wanos_boot.sh`: Universal production Bash infrastructure utility script handling process control loops, graceful termination sequences, and multi-file tail debugging routing.
@@ -22,6 +49,8 @@ This document serves as the master blueprint and reference guide for the directo
 * `mqtt_transport.py`: Pure, transport-agnostic client wrapper managing network sockets, keep-alives, subscriptions, and automatic hardware retry loops.
 * `mqtt_publisher.py`: The domain-scoped MQTT correspondent. Monitors the coordination worker and transforms state updates into target broker topics.
 * `nvm_manager.py`: Dedicated I/O engine managing atomic file swaps (`.tmp` to `.json`) for zero-corruption data persistence on the physical SD card.
+* `entity_registry.py`: System-owned `entity_id` ↔ idx persistence (`entity_registry.yaml`), birth/freeze, and always-resolve helpers used by `StateManager`.
+* `entity_registry_check.py`: Shared cutover / health checks (registry collisions, automation + structured config entity_id refs, Python magic-idx warnings). Used by Admin Debug and the one-off CLI gate.
 * `state_manager.py`: The ultra-fast core engine driving the unidirectional event execution loop. It acts as a pure memory router, delegating payload processing to the Strategy Pattern registry.
 
 **core/event_handlers/** (Strategy Pattern Routers)
@@ -126,6 +155,7 @@ The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer o
 * **`GET /api/state`** | Compiles a full, read-only system snapshot used by Alpine.js to bootstrap the client memory.
 * **`GET /api/state/sse`** | Persistent HTTP stream channel pushing partial domain JSON frames (`system`, `sensors`, `sauna`, `ir`, `metrics`, `hardware`, `devices`) immediately upon queue draining. Fires a `domain: ping` block if quiet for 5 seconds.
 * **`POST /api/event`** | Universal application entry point. Accepts standard `type` and `payload` properties to inject commands onto the async bus. Protects admin-only payloads via RBAC token inspection.
+* **`GET /api/debug/entity-registry-check`** | Admin-only. Runs `run_entity_cutover_checks` (plus live `device_metadata`) and returns JSON including annotated `report_text` for the Admin Debug modal.
 
 ---
 
