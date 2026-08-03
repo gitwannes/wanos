@@ -339,6 +339,9 @@ Same retention and Sensors-list master–detail as actuators. Motion stays defau
 | 22004 | Host Disk Free | % |
 | 22005 | Host Log2Ram Free | % |
 | 22006 | Host Load Average (1m) | % (of 4 cores) |
+| 22009 | WanOS DB size | MB (MiB) |
 | 71046 | Mains voltage | V |
+
+`22009` = sum of `sensor_history.db` + `device_history.db` + `sauna_sessions.db` including `-wal`/`-shm` sidecars.
 
 Ingested from `HUB_STATE_CHANGED` (health_monitor ~60s; Z-Wave voltage). Charts: day line + month/year min/max (same shape as power). Visibility follows `deviceexplorer_exclude` / Hidden toggle (same as Device Explorer).

@@ -433,6 +433,10 @@ sudo ss -tulpn | grep -E '8000|8080|443|80'
 * **`0.0.0.0:80`** ➔ `nginx` (Standard HTTP 301 Redirect)
 * **`0.0.0.0:443`** ➔ `nginx` (Secure HTTPS Reverse Proxy)
 
+### Completion
+Navigate to `https://app.wanos.be` and the UI will load securely.
+Any requests to `http://app.wanos.be:8000` (or the Pi's IP on port 8000) will be instantly redirected to the secure portal.
+
 ### 6.7 Configure Automated Renewal Cron Job
 Because we use the virtual environment binary instead of the Debian APT package, configure a daily root cron job to automate background certificate renewals and reload NGINX on success:
 

@@ -264,7 +264,8 @@ class StateManager:
             22005: "Host Log2Ram Free",
             22006: "Host Load Average (1m)",
             22007: "Host Load Average (5m)",
-            22008: "Host Load Average (15m)"
+            22008: "Host Load Average (15m)",
+            22009: "WanOS DB size",
         }
         for s_idx, s_name in sys_metrics_map.items():
             self._state.dashboard_map[s_idx] = s_name

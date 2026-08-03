@@ -37,7 +37,15 @@ HOST_MEMORY_FREE_IDX = 22003
 HOST_DISK_FREE_IDX = 22004
 HOST_LOG2RAM_FREE_IDX = 22005
 HOST_LOAD_1M_IDX = 22006
+WANOS_DB_SIZE_IDX = 22009  # sum of SQLite .db + .db-wal footprints (MiB)
 MAINS_VOLTAGE_IDX = 71046  # Z-Wave AC mains (Node 50 / Value 66561)
+
+# Runtime SQLite bases (cwd); each may also have -wal / -shm sidecars
+WANOS_SQLITE_BASES = (
+    "sensor_history.db",
+    "device_history.db",
+    "sauna_sessions.db",
+)
 
 HOST_HISTORY_IDXS = (
     HOST_CPU_USAGE_IDX,
@@ -45,6 +53,7 @@ HOST_HISTORY_IDXS = (
     HOST_DISK_FREE_IDX,
     HOST_LOG2RAM_FREE_IDX,
     HOST_LOAD_1M_IDX,
+    WANOS_DB_SIZE_IDX,
     MAINS_VOLTAGE_IDX,
 )
 
@@ -53,8 +62,21 @@ def scene_history_idx(event: str) -> int:
     return SCENE_IDX_BASE + (zlib.crc32(event.encode("utf-8")) & 0xFFFF)
 
 
+def wanos_db_size_mib() -> float:
+    """Total on-disk size of WanOS SQLite files (.db + .db-wal + .db-shm), in MiB."""
+    import os
+    total = 0
+    for base in WANOS_SQLITE_BASES:
+        for path in (base, f"{base}-wal", f"{base}-shm"):
+            try:
+                total += os.path.getsize(path)
+            except OSError:
+                pass
+    return round(total / (1024.0 * 1024.0), 2)
+
+
 def parse_numeric_state(state: Any) -> Optional[float]:
-    """Extract leading number from states like '23 %', '231 V', or raw floats."""
+    """Extract leading number from states like '23 %', '231 V', '12.4 MB', or raw floats."""
     if isinstance(state, (int, float)):
         return float(state)
     if not isinstance(state, str):

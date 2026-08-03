@@ -409,6 +409,21 @@ class HealthMonitor:
                 except Exception:
                     pass
 
+                # 7. WanOS SQLite footprint (sensor_history + device_history + sauna_sessions)
+                try:
+                    from logic.history_ids import WANOS_DB_SIZE_IDX, wanos_db_size_mib
+                    mib = wanos_db_size_mib()
+                    self.state_manager.dispatch(Event(
+                        type=EventType.HUB_STATE_CHANGED,
+                        payload={
+                            "idx": WANOS_DB_SIZE_IDX,
+                            "state": f"{mib} MB",
+                            "origin": "system",
+                        },
+                    ))
+                except Exception:
+                    pass
+
             except Exception as e:
                 logger.error(f"Hardware Telemetry Loop Exception: {e}")
 

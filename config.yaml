@@ -17,7 +17,7 @@ auth:
 # 200xx : SHT11 sensors
 # 20101 : sauna temp — virtual composite (0.7×20001 + 0.3×20002); hum from 20001
 # 2100x : Sauna & IR virtual
-# 220xx : Pi internal sensors (host CPU/mem/disk/load)
+# 220xx : Pi internal sensors (host CPU/mem/disk/load; 22009 = WanOS DB size)
 # 30001 : OWM outside temp & hum
 # 400xx : RFX
 # 500xx : Hue (config_hue.taml)
@@ -176,6 +176,7 @@ deviceexplorer_exclude:
   - 22006  # Host Load Average (1m)
   - 22007  # Host Load Average (5m)
   - 22008  # Host Load Average (15m)
+  - 22009  # WanOS DB size (SQLite total)
 
 # ==============================================================================
 # 3. DOMAIN RUNTIME PARAMETERS

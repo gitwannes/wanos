@@ -49,7 +49,7 @@ This document serves as the master blueprint and reference guide for the directo
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
 * `environment_scheduler.py`: Calculates mathematical bounds clamping and dynamically schedules blind/twilight timers based on external weather.
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`.
-* `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, scene synthetic `900000+`, host/mains gauge IDXs) and helpers for scene hashing / numeric state parsing.
+* `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, scene synthetic `900000+`, host/mains gauge IDXs, `22009` DB size helper) and helpers for scene hashing / numeric state parsing.
 * `history_manager.py`: Actuator / motion / scene event history (`device_history.db`) with retention tiers and insights tallies.
 * `power_analytics.py`: Sauna/IR session energy accounting, background leak baseline, and session SQLite persistence.
 * `sauna_controller.py`: Manages element priority wear-leveling algorithms, probe math aggregation, and handles anti-windup loops for high thermal mass zones.
@@ -153,9 +153,11 @@ To communicate with the system, payloads must align with the exact structural da
 
 ### 🔌 Physical Peripheral & Sensor Intercepts
 * All physical hardware devices, digital probes, switches, relays, and cumulative fluid/power meters are addressed using their unique, raw integer **`idx`** derived from the dashboard hardware map.
-* **System Telemetry / Virtual Sensors (IDXs 22001-22008):**
-  * Internally reserved block for host machine health. Hidden natively from standard UI view.
+* **System Telemetry / Virtual Sensors (IDXs 22001-22009):**
+  * Internally reserved block for host machine health. Hidden via `deviceexplorer_exclude`.
+  * `22009` = WanOS DB size (MiB): sum of `sensor_history.db`, `device_history.db`, `sauna_sessions.db` plus `-wal`/`-shm` sidecars.
   * E.g., `{ "type": "HUB_STATE_CHANGED", "payload": { "idx": 22002, "state": "20.0 %", "origin": "system" } }`
+  * E.g., `{ "type": "HUB_STATE_CHANGED", "payload": { "idx": 22009, "state": "12.4 MB", "origin": "system" } }`
 * **Temperature Update:**
   ```json
   { "type": "TEMP_UPDATED", "payload": { "idx": 20001, "value": 24.5 } }

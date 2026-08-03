@@ -27,6 +27,7 @@ SENSOR_META: Dict[int, Dict[str, str]] = {
     22004: {"label": "Host Disk Free", "kind": "host", "unit": "%"},
     22005: {"label": "Host Log2Ram Free", "kind": "host", "unit": "%"},
     22006: {"label": "Host Load Average (1m)", "kind": "host", "unit": "%"},
+    22009: {"label": "WanOS DB size", "kind": "host", "unit": "MB"},
     71046: {"label": "Mains voltage", "kind": "host", "unit": "V"},
 }
 
