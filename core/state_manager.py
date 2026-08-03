@@ -534,6 +534,9 @@ class StateManager:
                     "origin") == "domoticz":
                 logger.info(
                     f"--> Domoticz sensor idx {payload.get('idx')} ({payload.get('name', 'Unknown')}): initial state received: {payload.get('state')}")
+            elif event_name == "HUB_STATE_CHANGED" and payload.get("is_initialization") and payload.get(
+                    "origin") == "sonos":
+                logger.debug(f"Event Received [{event_name}] [SONOS_SYNC]: {payload}")
             elif event_name == "HUB_STATE_CHANGED" and payload.get("origin") == "system":
                 # COMPLETE SILENCE: Do not log high-frequency host stats (CPU, RAM, Load) at all
                 pass

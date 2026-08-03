@@ -568,19 +568,19 @@ automations:
       - idx: 72002
         state: "SYNC"
 
-  - name: "PC Aux ON/OFF -> Buro Schemer ON/OFF"
+  - name: "PC Aux ON -> Buro Schemer + Sonos ON"
     trigger:
       idx: 72002
-      state: "SYNC"
+      state: "ON"
     actions:
       - idx: 40002
-        state: "SYNC"
+        state: "ON"
       - idx: 60006  # Sonos buro
-        state: "SYNC"
+        state: "ON"
         volume: 6
         station: "qmaxhits"
 
-  - name: "PC Aux OFF -> Buro Schemer OFF"
+  - name: "PC Aux OFF -> Buro Schemer + Sonos OFF"
     trigger:
       idx: 72002
       state: "OFF"

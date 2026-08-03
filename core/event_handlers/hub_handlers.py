@@ -272,8 +272,16 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                 changed_domains |= dom
 
         # SONOS INTERCEPTOR
+        # Outbound only: ignore bridge confirmations (origin=sonos) and poll syncs
+        # (is_initialization). Compare the binary power state inside rich dicts —
+        # never dict vs plain string, which always looks like a change and re-fires play().
         meta_origin = manager._state.device_metadata.get(idx, {}).get("origin", "")
-        if meta_origin == "sonos" and (old_val != state_val or is_force):
+        old_state = old_val.get("state") if isinstance(old_val, dict) else old_val
+        event_origin = payload.get("origin")
+        if (meta_origin == "sonos"
+                and event_origin != "sonos"
+                and not is_init
+                and (old_state != state_val or is_force)):
             if manager._state.system.sonos_integration_enabled:
                 if getattr(manager, "sonos_bridge", None):
                     # Route the entire rich payload containing volume and station parameters

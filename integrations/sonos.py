@@ -1,5 +1,6 @@
 # --- file: integrations/sonos.py ---
 import asyncio
+import re
 import soco
 from typing import Dict, Any, Optional
 from loguru import logger
@@ -80,35 +81,104 @@ class SonosBridge:
 
             await asyncio.sleep(10)
 
+    @staticmethod
+    def _tunein_station_id(uri: str) -> Optional[str]:
+        match = re.search(r'tunein[%:]?(\d+)', uri, re.IGNORECASE)
+        return match.group(1) if match else None
+
+    @classmethod
+    def _station_uri_matches(cls, configured_url: str, current_uri: str) -> bool:
+        if not configured_url or not current_uri:
+            return False
+        if configured_url == current_uri:
+            return True
+        cfg_id = cls._tunein_station_id(configured_url)
+        cur_id = cls._tunein_station_id(current_uri)
+        if cfg_id and cur_id:
+            return cfg_id == cur_id
+        return configured_url in current_uri or current_uri in configured_url
+
+    def _already_playing_station(self, speaker: soco.SoCo, url: str, volume: Optional[int]) -> bool:
+        """Return True when the speaker is already playing the requested stream at the target volume."""
+        try:
+            transport = speaker.get_current_transport_info()
+            if transport.get('current_transport_state') != 'PLAYING':
+                return False
+
+            if volume is not None and speaker.volume != volume:
+                return False
+
+            media = speaker.get_current_media_info()
+            track = speaker.get_current_track_info()
+            current_uri = media.get('uri') or track.get('uri') or ''
+            return self._station_uri_matches(url, current_uri)
+        except Exception:
+            return False
+
+    def _start_playback(self, speaker: soco.SoCo, volume: Optional[int], station_key: Optional[str],
+                        station_url: Optional[str]) -> bool:
+        """
+        Apply volume, tune station if needed, and start playback.
+        Returns False when playback was skipped because the station was already active.
+        """
+        if volume is not None:
+            speaker.volume = volume
+
+        wants_station = bool(station_key and station_url)
+        if wants_station:
+            if self._already_playing_station(speaker, station_url, volume):
+                return False
+            speaker.play_uri(station_url, title=station_key)
+            speaker.play()
+            return True
+
+        speaker.play()
+        return True
+
+    def _pause_speaker(self, speaker: soco.SoCo) -> None:
+        speaker.pause()
+
     async def execute_command(self, payload: dict[str, Any]) -> None:
         """Unified command processor handling playback toggles, volume curves, and URI streaming."""
         idx = payload.get("idx")
         speaker = self.speakers.get(idx)
-        if not speaker: return
+        if not speaker:
+            return
 
         try:
-            # 1. Adjust volume if explicitly defined
-            if "volume" in payload:
-                vol = max(0, min(100, int(payload["volume"])))
-                await asyncio.to_thread(setattr, speaker, 'volume', vol)
-
-            # 2. Extract radio station URIs from config maps if defined
-            if "station" in payload:
-                station_key = payload["station"]
-                url = self.stations.get(station_key)
-                if url:
-                    await asyncio.to_thread(speaker.play_uri, url, title=station_key)
-
-            # 3. Handle explicit or implicit playback state changes
-            # ⚡ Fall-through execution ensures a play command fires directly after loading a radio URI
             target_state = payload.get("state") or payload.get("action")
-            if target_state == "ON" or target_state == "play" or "station" in payload:
-                await asyncio.to_thread(speaker.play)
-                self.manager.dispatch(
-                    Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": idx, "state": "ON", "origin": "sonos"}))
-            elif target_state == "OFF" or target_state == "pause":
-                await asyncio.to_thread(speaker.pause)
-                self.manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
-                                            payload={"idx": idx, "state": "OFF", "origin": "sonos"}))
+
+            # OFF/pause is authoritative — must run before any station/volume handling
+            if target_state == "OFF" or target_state == "pause":
+                await asyncio.to_thread(self._pause_speaker, speaker)
+                self.manager.dispatch(Event(
+                    type=EventType.HUB_STATE_CHANGED,
+                    payload={"idx": idx, "state": "OFF", "origin": "sonos"}))
+                return
+
+            volume = payload.get("volume")
+            if volume is not None:
+                volume = max(0, min(100, int(volume)))
+
+            station_key = payload.get("station")
+            station_url = self.stations.get(station_key) if station_key else None
+
+            should_play = (
+                target_state in ("ON", "play")
+                or station_url is not None
+            )
+
+            if not should_play:
+                if volume is not None:
+                    await asyncio.to_thread(setattr, speaker, 'volume', volume)
+                return
+
+            playback_started = await asyncio.to_thread(
+                self._start_playback, speaker, volume, station_key, station_url)
+
+            if playback_started:
+                self.manager.dispatch(Event(
+                    type=EventType.HUB_STATE_CHANGED,
+                    payload={"idx": idx, "state": "ON", "origin": "sonos"}))
         except Exception as e:
             logger.error(f"Sonos command failed on {idx}: {e}")
