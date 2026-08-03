@@ -22,23 +22,9 @@ class MQTTConfig(BaseModel):
     password: Optional[str] = None
 
 
-class HTTPConfig(BaseModel):
-    """Configuration mapping for the Domoticz HTTP JSON API."""
-    host: str
-    port: int
-    username: Optional[str] = None
-    password: Optional[str] = None
-
-
 class WanosConfig(BaseModel):
     """Internal broker configuration block."""
     mqtt: MQTTConfig
-
-
-class DomoticzConfig(BaseModel):
-    """Configuration mapping for the remote Domoticz broker."""
-    mqtt: MQTTConfig
-    http: HTTPConfig
 
 
 class GPIOInputNode(BaseModel):
@@ -225,7 +211,6 @@ class AuthConfig(BaseModel):
 class AppConfig(BaseModel):
     version: str
     wanos: WanosConfig
-    domoticz: Optional[DomoticzConfig] = None
     rfxcom: Optional[RFXComSettings] = None
     hue: Optional[HueConfig] = None
     epson: Optional[EpsonConfig] = None
@@ -300,7 +285,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     compiled_data = {
         "version": runtime_data.get("version", "1.0"),  # ⚡ Pull semantic baseline from absolute file root
         "wanos": runtime_data["wanos"],
-        "domoticz": runtime_data["domoticz"],
         "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings
         "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
         "epson": runtime_data.get("epson"),
@@ -340,21 +324,13 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
 
     # STRICT CHECK 2: Extract & validate required secret keys
     wanos_pass = os.getenv("WANOS_MQTT_PASSWORD")
-    dom_pass = os.getenv("DOM_MQTT_PASSWORD")
-    dom_http_pass = os.getenv("DOM_HTTP_PASSWORD")
     compiled_data["weather"]["api_key"] = os.getenv("OWM_API_KEY")
 
     if not wanos_pass:
         raise ValueError("CRITICAL: Missing required environment variable 'WANOS_MQTT_PASSWORD' in .env")
-    if not dom_pass:
-        raise ValueError("CRITICAL: Missing required environment variable 'DOM_MQTT_PASSWORD' in .env")
-    if not dom_http_pass:
-        raise ValueError("CRITICAL: Missing required environment variable 'DOM_HTTP_PASSWORD' in .env")
 
     # 4. Inject verified secrets into the nested MQTT objects
     compiled_data["wanos"]["mqtt"]["password"] = wanos_pass
-    compiled_data["domoticz"]["mqtt"]["password"] = dom_pass
-    compiled_data["domoticz"]["http"]["password"] = dom_http_pass
 
     # ⚡ Safe Credential Fallback Strategy: Populate key from environment using safe .get() to prevent KeyErrors
     if compiled_data.get("hue") is not None and isinstance(compiled_data["hue"], dict):

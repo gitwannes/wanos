@@ -34,18 +34,6 @@ wanos:
     username: "st"
     # password in .env
 
-domoticz:
-  mqtt:
-    broker_host: "10.32.251.181"
-    port: 1883
-    username: "st0001"
-    # password in .env
-  http:
-    host: "10.32.251.181"
-    port: 8080
-    username: "updatesensors"
-    # password in .env
-
 epson:
   ip_address: "10.32.251.75"
 

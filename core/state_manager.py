@@ -105,7 +105,6 @@ class StateManager:
             self._state.dashboard_map.pop(k, None)
 
         self._state.system.hidden_explorer_idxs = self._config.deviceexplorer_exclude
-        all_config_idxs = set()
 
         # 1. Parse GPIO Inputs
         if hasattr(self._config, "gpio_inputs") and self._config.gpio_inputs:
@@ -125,8 +124,6 @@ class StateManager:
                         else:
                             self._state.devices[node.idx] = None
 
-                    all_config_idxs.add(node.idx)
-
         # 2. Parse SHT11 Sensors
         if hasattr(self._config, "sht11_sensors"):
             for key, node in self._config.sht11_sensors.items():
@@ -134,7 +131,6 @@ class StateManager:
                 self._state.device_metadata[node.idx] = {"name": node.name, "type": "temp_hum", "origin": "sht11"}
                 if node.idx not in self._state.devices:
                     self._state.devices[node.idx] = None
-                all_config_idxs.add(node.idx)
 
         # 3. Parse OpenWeatherMap
         if hasattr(self._config, "weather") and getattr(self._config.weather, "idx", None):
@@ -144,26 +140,6 @@ class StateManager:
             self._state.device_metadata[w_idx] = {"name": w_name, "type": "temp_hum", "origin": "owm"}
             if w_idx not in self._state.devices:
                 self._state.devices[w_idx] = None
-            all_config_idxs.add(w_idx)
-
-        # 4. Automations & Lighting cache allocations
-        if hasattr(self._config, "lighting") and self._config.lighting.managed_lights:
-            all_config_idxs.update(idx for idx in self._config.lighting.managed_lights if isinstance(idx, int))
-        if hasattr(self._config, "automations"):
-            for rule in self._config.automations:
-                triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
-                for t in triggers:
-                    if t.idx is not None:
-                        all_config_idxs.add(t.idx)
-                if rule.actions:
-                    for action in rule.actions:
-                        if action.idx is not None:
-                            all_config_idxs.add(action.idx)
-
-        # Initialize remaining implicit NULL states for generic nodes
-        for idx in all_config_idxs:
-            if idx < 10000 and idx not in self._state.devices:
-                self._state.devices[idx] = None
 
         # METADATA INJECTION: Flag hidden devices directly in the metadata dictionary
         exclusions = getattr(self._config, "deviceexplorer_exclude", [])
@@ -186,7 +162,6 @@ class StateManager:
                                                                     "origin": "rfxcom"}
                 if rfx_dev.virtual_idx not in self._state.devices:
                     self._state.devices[rfx_dev.virtual_idx] = "OFF"
-                all_config_idxs.add(rfx_dev.virtual_idx)
 
         hue_conf = getattr(self._config, "hue", None)
         if hue_conf:
@@ -204,7 +179,6 @@ class StateManager:
                     else:
                         self._state.device_metadata[idx_int] = {"name": f"Hue Light {idx_int}", "type": "light",
                                                                 "origin": "hue"}
-                    all_config_idxs.add(idx_int)
                 except Exception:
                     pass
 
@@ -222,7 +196,6 @@ class StateManager:
                     else:
                         self._state.device_metadata[idx_int] = {"name": f"Hue Group {idx_int}", "type": "light",
                                                                 "origin": "hue"}
-                    all_config_idxs.add(idx_int)
                 except Exception:
                     pass
 
@@ -232,7 +205,6 @@ class StateManager:
             self._state.device_metadata[80001] = {"name": epson_name, "type": "switch", "origin": "epson"}
             if 80001 not in self._state.devices:
                 self._state.devices[80001] = "OFF"
-            all_config_idxs.add(80001)
 
         if getattr(self._config, "sonos", None):
             for idx, node in self._config.sonos.device_map.items():
@@ -240,7 +212,6 @@ class StateManager:
                 self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "sonos"}
                 if idx not in self._state.devices:
                     self._state.devices[idx] = None
-                all_config_idxs.add(idx)
 
         if getattr(self._config, "onkyo", None):
             max_vol = getattr(self._config.onkyo, "max_volume", 60)
@@ -250,21 +221,18 @@ class StateManager:
                                                     "max_volume": max_vol}
                 if idx not in self._state.devices:
                     self._state.devices[idx] = None
-                all_config_idxs.add(idx)
 
         sauna_name = "sauna status"
         self._state.dashboard_map[21001] = sauna_name
         self._state.device_metadata[21001] = {"name": sauna_name, "type": "sensor", "origin": "system"}
         if 21001 not in self._state.devices:
             self._state.devices[21001] = "OFF"
-        all_config_idxs.add(21001)
 
         ir_name = "IR status"
         self._state.dashboard_map[21002] = ir_name
         self._state.device_metadata[21002] = {"name": ir_name, "type": "sensor", "origin": "system"}
         if 21002 not in self._state.devices:
             self._state.devices[21002] = "OFF"
-        all_config_idxs.add(21002)
 
         sys_metrics_map = {
             22001: "Host CPU Temperature",
@@ -281,7 +249,6 @@ class StateManager:
             self._state.device_metadata[s_idx] = {"name": s_name, "type": "sensor", "origin": "system", "hidden": True}
             if s_idx not in self._state.devices:
                 self._state.devices[s_idx] = None
-            all_config_idxs.add(s_idx)
 
         if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
             self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
@@ -291,25 +258,13 @@ class StateManager:
             self._state.devices[nv_idx] = nv_val
             if nv_idx not in self._state.dashboard_map:
                 self._state.dashboard_map[nv_idx] = f"Counter {nv_idx}"
-            all_config_idxs.add(nv_idx)
 
         # Explicitly pull in manual Dashboard configurations
         if hasattr(self._config, "dashboard"):
             for idx, name in self._config.dashboard.items():
                 self._state.dashboard_map[idx] = name
-                all_config_idxs.add(idx)
 
         self._extract_scenes_from_config()
-
-        # ORPHAN PURGE: Remove legacy devices from RAM that no longer exist in the config
-        # (Z-Wave manages its own orphans inside zwave.py)
-        orphans = [idx for idx in list(self._state.devices.keys()) if
-                   isinstance(idx, int) and idx < 10000 and idx not in all_config_idxs]
-        for orphan in orphans:
-            if self._state.device_metadata.get(orphan, {}).get("origin") != "zwave":
-                self._state.device_metadata.pop(orphan, None)
-                self._state.dashboard_map.pop(orphan, None)
-                self._state.devices.pop(orphan, None)
 
     def _extract_scenes_from_config(self) -> None:
         self._state.system.available_scenes.clear()
@@ -529,10 +484,6 @@ class StateManager:
             if is_simulation_action or is_boot_baseline_seed:
                 origin_tag = " [SIMULATION]" if is_simulation_action else " [BOOT_SEED]"
                 logger.debug(f"Event Received [{event_name}]{origin_tag}: {payload}")
-            elif event_name == "HUB_STATE_CHANGED" and payload.get("is_initialization") and payload.get(
-                    "origin") == "domoticz":
-                logger.info(
-                    f"--> Domoticz sensor idx {payload.get('idx')} ({payload.get('name', 'Unknown')}): initial state received: {payload.get('state')}")
             elif event_name == "HUB_STATE_CHANGED" and payload.get("is_initialization") and payload.get(
                     "origin") == "sonos":
                 logger.debug(f"Event Received [{event_name}] [SONOS_SYNC]: {payload}")

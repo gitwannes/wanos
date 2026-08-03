@@ -43,9 +43,6 @@ class MqttPublisher:
         self._last_pub_hot_l: int = 0
         self._last_pub_kwh: float = 0.0
 
-        # Parsed delta cache for wanos/domsensors/parsed
-        self._parsed_cache: dict[str, Any] = {}
-
         # Sauna core cache for wanos
         self._sauna_cache: dict[str, Any] = {}
         self._sauna_was_active: bool = False
@@ -102,12 +99,6 @@ class MqttPublisher:
         if "system" in changed_domains:
             await self._publish_telemetry(snapshot)
 
-        if "sensors" in changed_domains:
-            await self._publish_sensors(snapshot)
-
-        if "devices" in changed_domains:
-            await self._publish_devices(snapshot)
-
         if "sauna" in changed_domains:
             await self._publish_sauna(snapshot)
 
@@ -131,33 +122,6 @@ class MqttPublisher:
                 "ip_address": snapshot.system.ip_address
             })
             self._system_boot_sent = True
-
-    async def _publish_parsed_delta(self, key: str, new_val: Any) -> None:
-        """Compares internal cache and broadcasts a human-readable delta if the value changed."""
-        if new_val is None:
-            return
-
-        old_val = self._parsed_cache.get(key)
-
-        if old_val != new_val:
-            if old_val is not None:
-                # Format to 1 decimal place if float, otherwise cast as string
-                old_s = f"{old_val:.1f}" if isinstance(old_val, float) else str(old_val)
-                new_s = f"{new_val:.1f}" if isinstance(new_val, float) else str(new_val)
-
-                await self._client.publish("wanos/domsensors/parsed", {key: f"{old_s} -> {new_s}"})
-
-            self._parsed_cache[key] = new_val
-
-    async def _publish_sensors(self, snapshot: "SystemState") -> None:
-        """Feeds analog sensors through the parsed delta loop."""
-        for key, val in snapshot.sensors.model_dump().items():
-            await self._publish_parsed_delta(key, val)
-
-    async def _publish_devices(self, snapshot: "SystemState") -> None:
-        """Feeds device toggles through the parsed delta loop."""
-        for key, val in snapshot.devices.items():
-            await self._publish_parsed_delta(key, val)
 
     async def _publish_sauna(self, snapshot: "SystemState") -> None:
         """
