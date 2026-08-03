@@ -89,7 +89,7 @@ async def handle_system_sweep_requested(event: Event, manager: Any) -> Tuple[boo
 
     # ENHANCED RECOVERY GUARD
     reason = payload.get("reason")
-    is_passive_sweep = reason in ["domoticz_reconnection", "network_recovery", "config_reload", None]
+    is_passive_sweep = reason in ["network_recovery", "config_reload", None]
     uptime = int(time.time() - manager._start_time)
 
     if is_passive_sweep or uptime < 180:

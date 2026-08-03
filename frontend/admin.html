@@ -290,11 +290,6 @@
                                 </div>
 
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
-                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">Domoticz Hub</span>
-                                    <span class="font-bold text-[10px] shrink-0" :class="state.system.domoticz_mqtt_connected ? 'text-success' : 'text-error animate-pulse'" x-text="state.system.domoticz_mqtt_connected ? 'ONLINE' : 'OFFLINE'"></span>
-                                </div>
-
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Automations</span>
                                     <div class="flex items-center gap-2 shrink-0">
                                         <span class="font-bold text-[10px]" :class="state.system.automations_enabled ? 'text-success' : 'text-warning'" x-text="state.system.automations_enabled ? 'LIVE' : 'DISABLED'"></span>

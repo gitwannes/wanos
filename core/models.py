@@ -51,7 +51,6 @@ class EventType(str, Enum):
     # Toggles
     AUTOMATIONS_TOGGLED = "AUTOMATIONS_TOGGLED"  # Automation Rules
     SIMULATIONS_TOGGLED = "SIMULATIONS_TOGGLED"  # Simulation Physics Engine
-    DOMOTICZ_TOGGLED = "DOMOTICZ_TOGGLED"  # Listen to Domoticz messages
     RFXCOM_TOGGLED = "RFXCOM_TOGGLED"  # Added to allow UI HTTP events to pass validation!
     OWM_TOGGLED = "OWM_TOGGLED"  # get OWM weather
     ZWAVE_TOGGLED = "ZWAVE_TOGGLED"  # Z-Wave integration toggle
@@ -96,7 +95,6 @@ class SystemAdminState(BaseModel):
     version_major: str = "v0.0"  # Exposes major layout semantic configuration strings to dashboard layout
     version_full: str = "v0.0-build_unknown"  # Exposes consolidated full runtime version mapping strings to admin layout
     wanos_mqtt_connected: bool = False
-    domoticz_mqtt_connected: bool = False
     rfxcom_connected: bool = False  # Tracks native USB RFX transceiver health
     rfxcom_integration_enabled: bool = False  # Switch to block/allow native RFXCOM transmission/reception
     zwave_hardware_connected: bool = False  # Tracks physical USB stick presence
@@ -115,7 +113,6 @@ class SystemAdminState(BaseModel):
     os_boot_unix: Optional[int] = None
     app_boot_unix: Optional[int] = None
     automations_enabled: bool = False  # Master switch for the logic engine
-    domoticz_integration_enabled: bool = False  # Default OFF, controls whether we process Domoticz messages
     owm_integration_enabled: bool = False  # Default OFF, controls OpenWeatherMap polling
     system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # Upgraded to structured dicts {id, level, message, timestamp, count}
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers

@@ -478,14 +478,14 @@ automations:
       - idx: 71043 # licht toilet
         state: "ON"
 
-  - name: "achterdeur_waskot"
-    ## !! NEW doorsensor to install
-    trigger:
-      idx: 94  # achterdeur
-      state: "ON"
-    actions:
-      - idx: 71014 # licht waskot
-        state: "ON"
+  # DISABLED — Domoticz IDX 94 retired; re-enable when Z-Wave achterdeur sensor is installed
+  # - name: "achterdeur_waskot"
+  #   trigger:
+  #     idx: 94  # achterdeur (legacy Domoticz — replace with Z-Wave IDX)
+  #     state: "ON"
+  #   actions:
+  #     - idx: 71014 # licht waskot
+  #       state: "ON"
 
   - name: "garage_waskot_OFF"
     trigger:
@@ -675,7 +675,7 @@ automations:
       idx: 51001         # If someone uses the Hue app/remote...
       state: "ON"
     actions:
-      - idx: 71007       # ...the Domoticz relay physically follows suit.
+      - idx: 71007       # ...the relay physically follows suit.
         state: "ON"
       - idx: 60003       # Sonos badk 1e
         state: "ON"
@@ -687,7 +687,7 @@ automations:
       idx: 51001         # If someone uses the Hue app/remote...
       state: "OFF"
     actions:
-      - idx: 71007       # ...the Domoticz relay physically follows suit.
+      - idx: 71007       # ...the relay physically follows suit.
         state: "OFF"
       - idx: 60003       # Sonos badk 1e
         state: "OFF"
@@ -771,7 +771,7 @@ automations:
       idx: 51007         # If someone uses the Hue app/remote...
       state: "OFF"
     actions:
-      - idx: 71009       # ...the Domoticz relay physically follows suit.
+      - idx: 71009       # ...the relay physically follows suit.
         state: "OFF"
       - idx: 60001       # Sonos badk 2e
         state: "OFF"
@@ -808,7 +808,7 @@ automations:
       idx: 51006         # If Wannes uses the Hue app/remote...
       state: "SYNC"
     actions:
-      - idx: 71028       # ...the physical Domoticz relay UI follows suit.
+      - idx: 71028       # ...the physical relay UI follows suit.
         state: "SYNC"
 
   # --------------------------------------------------------------------------
@@ -863,9 +863,8 @@ automations:
         state: "OFF"
       - idx: 72002     # pc_aux
         state: "OFF"
-      # --- SONOS PLACEHOLDER ---
-      # - idx: XXXXX  # Replace with Domoticz Sonos virtual IDX when available
-      #   state: "OFF"
+      - idx: 60006
+        state: "OFF"
       - idx: 51004    # Hue cinema group
         state: "ON"
         preset: "relax_red"

@@ -24,7 +24,7 @@ class HealthMonitor:
         # Dedicated Strike Counters for Auto-Kill thresholds
         # Network integrations get 3 strikes (6 seconds) to survive minor TCP blips.
         # USB hardware gets 1 strike (2 seconds) because a missing /dev/tty is immediately fatal.
-        self.strikes = {"domoticz": 0, "hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0, "sonos": 0}
+        self.strikes = {"hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0, "sonos": 0}
 
         # ⚡ Stateful Hysteresis Tracker for System Telemetry
         # Debounces alerts so the UI isn't spammed every 60 seconds during a persistent load spike.
@@ -145,7 +145,6 @@ class HealthMonitor:
                 config = sm._config  # Dynamically pull config to survive hot-reloads
 
                 wanos_conn = self._is_connected(sm.mqtt_client)
-                dom_conn = self._is_connected(sm.domoticz_client)
                 rfx_conn = self._is_connected(sm.rfxcom_bridge)
                 hue_conn = self._is_connected(getattr(sm, "hue_bridge", None))
                 epson_conn = await self._ping_epson()
@@ -177,7 +176,6 @@ class HealthMonitor:
                 zwave_conn = zwave_physical and zwave_web and zwave_data
 
                 # Update strike tracking based on physical socket availability
-                self.strikes["domoticz"] = 0 if dom_conn else self.strikes["domoticz"] + 1
                 self.strikes["hue"] = 0 if hue_conn else self.strikes["hue"] + 1
                 self.strikes["epson"] = 0 if epson_conn else self.strikes["epson"] + 1
                 self.strikes["onkyo"] = 0 if onkyo_conn else self.strikes["onkyo"] + 1
@@ -188,11 +186,6 @@ class HealthMonitor:
                 self.strikes["zwave"] = 0 if zwave_conn else self.strikes["zwave"] + 1
 
                 # Evaluate Auto-Kill thresholds against the live RAM state intent
-                if self.strikes["domoticz"] >= 3 and sys_state.system.domoticz_integration_enabled:
-                    sm.dispatch(Event(type=EventType.DOMOTICZ_TOGGLED, payload={
-                        "enabled": False,
-                        "error_msg": "🔌 Domoticz connection lost after 3 retries. Integration disabled."}))
-
                 if self.strikes["hue"] >= 3 and sys_state.system.hue_integration_enabled:
                     sm.dispatch(Event(type=EventType.HUE_TOGGLED, payload={
                         "enabled": False,
@@ -276,7 +269,6 @@ class HealthMonitor:
 
                 metrics_payload = {
                     "wanos_connected": wanos_conn,
-                    "domoticz_connected": dom_conn,
                     "rfxcom_connected": rfx_conn,
                     "hue_connected": hue_conn,
                     "epson_connected": epson_conn,

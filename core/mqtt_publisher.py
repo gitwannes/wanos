@@ -33,7 +33,6 @@ class MqttPublisher:
         self._app_boot_unix = int(time.time())
         self._os_boot_unix = int(psutil.boot_time())
         self._system_boot_sent: bool = False
-        self._last_domoticz_conn: Optional[bool] = None
 
         # Metric threshold trackers
         self._water_cold_liters: float = 0.0
@@ -124,7 +123,7 @@ class MqttPublisher:
                 print(f"⚠️ Heartbeat error: {e}")
 
     async def _publish_telemetry(self, snapshot: "SystemState") -> None:
-        """Publishes boot UNIX stamps once, and Domoticz status only upon connection change."""
+        """Publishes boot UNIX stamps once on wanos/system."""
         if not self._system_boot_sent and snapshot.system.ip_address != "0.0.0.0":
             await self._client.publish("wanos/system", {
                 "app_boot_unix": self._app_boot_unix,
@@ -132,11 +131,6 @@ class MqttPublisher:
                 "ip_address": snapshot.system.ip_address
             })
             self._system_boot_sent = True
-
-        dom_conn = snapshot.system.domoticz_mqtt_connected
-        if self._last_domoticz_conn != dom_conn:
-            await self._client.publish("wanos/system", {"domoticz_mqtt_connected": dom_conn})
-            self._last_domoticz_conn = dom_conn
 
     async def _publish_parsed_delta(self, key: str, new_val: Any) -> None:
         """Compares internal cache and broadcasts a human-readable delta if the value changed."""

@@ -11,14 +11,12 @@ function wanosApp() {
                 version_major: "v0.0", // ⚡ Reactive placeholder container mapping
                 version_full: "v0.0-build_unknown", // ⚡ Reactive placeholder container mapping
                 wanos_mqtt_connected: false,
-                domoticz_mqtt_connected: false,
                 ip_address: "0.0.0.0",
                 os_boot_unix: null,
                 app_boot_unix: null,
                 os_uptime_formatted: { duration: "00:00:00", boot: "--" },
                 app_uptime_formatted: { duration: "00:00:00", boot: "--" },
                 automations_enabled: true, // Master switch for the logic engine
-                domoticz_integration_enabled: false, // ⚡ Switch to block/allow Domoticz messages
                 owm_integration_enabled: false, // ⚡ Switch to block/allow OWM polling
                 rfxcom_connected: false, // ⚡ Live USB mounting health status
                 rfxcom_integration_enabled: false, // ⚡ Switch to block/allow native RFXCOM transmission/reception
@@ -274,7 +272,6 @@ function wanosApp() {
             let offlineCount = 0;
 
             if (!s.automations_enabled) offlineCount++;
-            if (s.domoticz_mqtt_connected && !s.domoticz_integration_enabled) offlineCount++;
             if (s.hue_connected && !s.hue_integration_enabled) offlineCount++;
             if (s.epson_connected && !s.epson_integration_enabled) offlineCount++;
             if (s.rfxcom_connected && !s.rfxcom_integration_enabled) offlineCount++;
@@ -299,7 +296,6 @@ function wanosApp() {
         // ⚡ Dynamically compiles a list of disabled backend integrations
         get disabledIntegrationsText() {
             let disabled = [];
-            // if (!this.state.system.domoticz_integration_enabled) disabled.push("Domoticz");
             if (!this.state.system.automations_enabled) disabled.push("Automation");
             if (!this.state.system.hue_integration_enabled) disabled.push("Hue");
             if (!this.state.system.epson_integration_enabled) disabled.push("Epson projector");
@@ -327,7 +323,6 @@ function wanosApp() {
 
                 // ⚡ INTEGRATION ORIGIN GUARD
                 // Automatically drop devices from the UI if their parent integration is disabled.
-                if (meta.origin === 'domoticz' && !this.state.system.domoticz_integration_enabled) continue;
                 if (meta.origin === 'rfxcom' && !this.state.system.rfxcom_integration_enabled) continue;
                 if (meta.origin === 'hue' && !this.state.system.hue_integration_enabled) continue;
                 if (meta.origin === 'zwave' && !this.state.system.zwave_integration_enabled) continue;
@@ -636,7 +631,6 @@ function wanosApp() {
             if (!meta) return false;
             if (meta.origin === 'zwave') return this.state.system.zwave_integration_enabled;
             if (meta.origin === 'hue') return this.state.system.hue_integration_enabled;
-            if (meta.origin === 'domoticz') return this.state.system.domoticz_integration_enabled;
             if (meta.origin === 'epson') return this.state.system.epson_integration_enabled;
             if (meta.origin === 'sonos') return this.state.system.sonos_integration_enabled;
             if (meta.origin === 'onkyo') return this.state.system.onkyo_integration_enabled;
@@ -1254,11 +1248,6 @@ function wanosApp() {
             this.publishEvent("AUTOMATIONS_TOGGLED", { enabled: nextState });
         },
 
-        toggleDomoticz() {
-            const nextState = !this.state.system.domoticz_integration_enabled;
-            this.publishEvent("DOMOTICZ_TOGGLED", { enabled: nextState });
-        },
-
         toggleZwave() {
             const nextState = !this.state.system.zwave_integration_enabled;
             this.publishEvent("ZWAVE_TOGGLED", { enabled: nextState });
@@ -1325,29 +1314,26 @@ function wanosApp() {
             await this.publishEvent("ONKYO_TOGGLED", { enabled: true });
             await this.publishEvent("RFXCOM_TOGGLED", { enabled: true });
 
-            // Phase 3: Enable Domoticz (State Database Sync)
-            await this.publishEvent("DOMOTICZ_TOGGLED", { enabled: true });
-
-            // Phase 4: Enable Z-Wave
+            // Phase 3: Enable Z-Wave
             await this.publishEvent("ZWAVE_TOGGLED", { enabled: true });
 
-            // Phase 5: The Cloud (Low-priority polling)
+            // Phase 4: The Cloud (Low-priority polling)
             await this.publishEvent("OWM_TOGGLED", { enabled: true });
 
-            // Phase 6: Arm Physical Inputs
+            // Phase 5: Arm Physical Inputs
             await this.publishEvent("GPIO_INPUT_TOGGLED", { enabled: true });
             if (this.state.hardware.sht11_connected) {
                 await this.publishEvent("SHT11_TOGGLED", { enabled: true });
             }
 
-            // Phase 7: Hardware Stabilization Wait (Give the SHT11 loop time to sample the room)
+            // Phase 6: Hardware Stabilization Wait (Give the SHT11 loop time to sample the room)
             this.publishEvent("ALERT_INJECTED", { msg_text: "⏳ Waiting 2 seconds for sensor bus stabilization..." });
             await new Promise(resolve => setTimeout(resolve, 2000));
 
-            // Phase 8: Arm GPIO Outputs
+            // Phase 7: Arm GPIO Outputs
             await this.publishEvent("GPIO_OUTPUT_TOGGLED", { enabled: true });
 
-            // Phase 9: Ensure Time-Series & Auto-Timers are synchronized
+            // Phase 8: Ensure Time-Series & Auto-Timers are synchronized
             // (Reuses the dedicated sweep macro to enforce UI locks!)
             await this.requestSystemSweep();
         },

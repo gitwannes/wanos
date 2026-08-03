@@ -44,7 +44,6 @@ class StateManager:
         self._worker_task: Optional[asyncio.Task] = None
         self._state_listeners: list[Any] = []  
         self.mqtt_client: MqttClientManager = mqtt_client
-        self.domoticz_client: Optional[Any] = None  
         self.rfxcom_bridge: Optional[Any] = None  
         self.hue_bridge: Optional[Any] = None  
         self.epson_bridge: Optional[Any] = None

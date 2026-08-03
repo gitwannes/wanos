@@ -95,7 +95,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     changed_domains = set()
 
     wanos_conn = payload.get("wanos_connected", False)
-    dom_conn = payload.get("domoticz_connected", False)
     rfx_conn = payload.get("rfxcom_connected", False)
     hue_conn = payload.get("hue_connected", False)
     epson_conn = payload.get("epson_connected", False)
@@ -107,7 +106,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     ip_addr = payload.get("ip_address", "0.0.0.0")
 
     prev_wanos = manager._state.system.wanos_mqtt_connected
-    prev_dom = manager._state.system.domoticz_mqtt_connected
     prev_rfx = manager._state.system.rfxcom_connected
     prev_hue = manager._state.system.hue_connected
     prev_epson = manager._state.system.epson_connected
@@ -127,18 +125,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Local MQTT Broker back online")
         state_changed |= ch
         changed_domains |= dom
-
-    if prev_dom and not dom_conn:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Domoticz MQTT Broker Connection down")
-        state_changed |= ch
-        changed_domains |= dom
-    elif not prev_dom and dom_conn and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Domoticz MQTT Broker Connection back online")
-        state_changed |= ch
-        changed_domains |= dom
-        if not manager._state.system.domoticz_integration_enabled:
-            manager.dispatch(
-                Event(type=EventType.DOMOTICZ_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_rfx and not rfx_conn:
         ch, dom = AlertManager.process_alert(manager._state,
@@ -221,7 +207,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
 
         # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
     if (prev_wanos != wanos_conn or
-            prev_dom != dom_conn or
             prev_rfx != rfx_conn or
             prev_hue != hue_conn or
             prev_epson != epson_conn or
@@ -232,7 +217,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             manager._state.system.ip_address != ip_addr or
             manager._state.system.app_boot_unix is None):
         manager._state.system.wanos_mqtt_connected = wanos_conn
-        manager._state.system.domoticz_mqtt_connected = dom_conn
         manager._state.system.rfxcom_connected = rfx_conn
         manager._state.system.hue_connected = hue_conn
         manager._state.system.epson_connected = epson_conn

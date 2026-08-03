@@ -1,6 +1,6 @@
 # --- file: core/event_handlers/registry.py ---
 from .integration_handlers import (
-    handle_automations_toggled, handle_domoticz_toggled, handle_rfxcom_toggled,
+    handle_automations_toggled, handle_rfxcom_toggled,
     handle_owm_toggled, handle_hue_toggled, handle_epson_toggled, handle_zwave_toggled,
     handle_simulations_toggled, handle_sonos_toggled, handle_sonos_command,
     handle_onkyo_toggled
@@ -35,7 +35,6 @@ from .system_handlers import (
 # Registry dictionary mapping event string identifiers to their asynchronous handler functions.
 EVENT_ROUTERS = {
     "AUTOMATIONS_TOGGLED": handle_automations_toggled,
-    "DOMOTICZ_TOGGLED": handle_domoticz_toggled,
     "RFXCOM_TOGGLED": handle_rfxcom_toggled,
     "OWM_TOGGLED": handle_owm_toggled,
     "HUE_TOGGLED": handle_hue_toggled,
