@@ -304,29 +304,6 @@ function wanosApp() {
             return list.sort((a, b) => a.name.localeCompare(b.name));
         },
 
-        // ⚡ Intelligently evaluates if all capable engines are currently running
-        get allEnginesStarted() {
-            const s = this.state.system;
-            const h = this.state.hardware;
-            let offlineCount = 0;
-
-            if (!s.automations_enabled) offlineCount++;
-            if (s.hue_connected && !s.hue_integration_enabled) offlineCount++;
-            if (s.epson_connected && !s.epson_integration_enabled) offlineCount++;
-            if (s.rfxcom_connected && !s.rfxcom_integration_enabled) offlineCount++;
-            if (s.zwave_hardware_connected && s.zwave_web_alive && s.zwave_data_alive && !s.zwave_integration_enabled) offlineCount++;
-            if (!s.owm_integration_enabled) offlineCount++;
-            if (!s.sonos_integration_enabled) offlineCount++;
-            if (s.sonos_connected && !s.sonos_integration_enabled) offlineCount++;
-            if (s.onkyo_connected && !s.onkyo_integration_enabled) offlineCount++;
-            if (h.gpio_input_connected && !h.gpio_input_enabled) offlineCount++;
-            if (h.sht11_connected && !h.sht11_enabled) offlineCount++;
-            if (h.gpio_output_connected && !h.gpio_output_enabled) offlineCount++;
-
-            // ⚡ Button is disabled (allEnginesStarted = true) if ALL are on (0) OR if only 1 is still off (1)
-            return offlineCount <= 1;
-        },
-
         // ⚡ New dedicated property to easily expose the simulation state to any HTML view
         get ssrSimulationText() {
             return this.state.devices[71036] !== 'ON' ? 'SIMULATION MODE (5V RELAY OFF)' : '';
@@ -2378,48 +2355,6 @@ function wanosApp() {
                     this.injectLabMetric("HUMIDITY_UPDATED", 20002, this.labSaunaLowHum || 48);
                 }, 250); // Tiny delay to ensure the backend processed the SIMULATIONS_TOGGLED event first
             }
-        },
-
-        async enableAllIntegrations() {
-            this.publishEvent("ALERT_INJECTED", { msg_text: "🚀 Initiating Master Start Sequence..." });
-
-            // ⚡ NOTE ON AWAITS:
-            // `await this.publishEvent` only waits for the HTTP 200 OK (the event being accepted into the queue).
-            // It does NOT wait for the backend StateManager to actually process and propagate the state.
-            // These awaits act as a network traffic pacer to prevent API DDoS, rather than strict logical sequence locks.
-
-            // Phase 1: Arm the Brain (Automations)
-            await this.publishEvent("AUTOMATIONS_TOGGLED", { enabled: true });
-
-            // Phase 2: Power the Actuators (Hardware Bridges & Displays)
-            await this.publishEvent("HUE_TOGGLED", { enabled: true });
-            await this.publishEvent("EPSON_TOGGLED", { enabled: true });
-            await this.publishEvent("SONOS_TOGGLED", { enabled: true });
-            await this.publishEvent("ONKYO_TOGGLED", { enabled: true });
-            await this.publishEvent("RFXCOM_TOGGLED", { enabled: true });
-
-            // Phase 3: Enable Z-Wave
-            await this.publishEvent("ZWAVE_TOGGLED", { enabled: true });
-
-            // Phase 4: The Cloud (Low-priority polling)
-            await this.publishEvent("OWM_TOGGLED", { enabled: true });
-
-            // Phase 5: Arm Physical Inputs
-            await this.publishEvent("GPIO_INPUT_TOGGLED", { enabled: true });
-            if (this.state.hardware.sht11_connected) {
-                await this.publishEvent("SHT11_TOGGLED", { enabled: true });
-            }
-
-            // Phase 6: Hardware Stabilization Wait (Give the SHT11 loop time to sample the room)
-            this.publishEvent("ALERT_INJECTED", { msg_text: "⏳ Waiting 2 seconds for sensor bus stabilization..." });
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Phase 7: Arm GPIO Outputs
-            await this.publishEvent("GPIO_OUTPUT_TOGGLED", { enabled: true });
-
-            // Phase 8: Ensure Time-Series & Auto-Timers are synchronized
-            // (Reuses the dedicated sweep macro to enforce UI locks!)
-            await this.requestSystemSweep();
         },
 
         injectLabDoorChange(idx, isOpen) {
