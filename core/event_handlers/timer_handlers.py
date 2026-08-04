@@ -3,6 +3,7 @@ import json
 from typing import Any, Set, Tuple, Optional
 from core.models import Event, EventType, device_name
 from core.logger import automation_logger
+from core.well_known_entities import ENTITY_BATHROOM_HUM
 
 
 async def handle_timer_scheduled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
@@ -139,15 +140,16 @@ async def handle_bath1_vent_lock_expired(event: Event, manager: Any) -> Tuple[bo
     state_changed = True
     changed_domains = {"devices"}
 
-    # Safely pull current humidity from the universal dictionary registry for SHT11 IDX 20004
-    d_bath = manager._state.devices.get(20004)
+    # Safely pull current humidity from the bathroom SHT11 (entity_id → idx)
+    bath_idx = manager.resolve_entity_id(ENTITY_BATHROOM_HUM)
+    d_bath = manager._state.devices.get(bath_idx) if bath_idx is not None else None
     current_hum = d_bath.get("hum") if isinstance(d_bath, dict) else None
 
     # Immediately force an artificial humidity update to evaluate if it should turn off NOW
-    if current_hum is not None:
+    if current_hum is not None and bath_idx is not None:
         manager.dispatch(Event(
             type=EventType.HUMIDITY_UPDATED,
-            payload={"idx": 20004, "value": int(current_hum)}
+            payload={"idx": bath_idx, "value": int(current_hum)}
         ))
 
     return state_changed, changed_domains

@@ -3,6 +3,7 @@ import time
 import asyncio
 from typing import Any, Set, Tuple, Optional
 from core.models import Event, EventType
+from core.well_known_entities import ENTITY_SAUNA_DOOR
 from logic.alert_manager import AlertManager
 from logic.history_manager import normalize_level
 
@@ -48,7 +49,8 @@ async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str
             changed_domains.add("metrics")
 
         # Sauna safety interlock logic evaluation
-        if idx == 10001 and is_open and manager._state.sauna.active:
+        door_idx = manager.resolve_entity_id(ENTITY_SAUNA_DOOR)
+        if door_idx is not None and idx == door_idx and is_open and manager._state.sauna.active:
             manager._state.sauna.active = False
             manager._state.sauna.modulation_pwm = 0
             manager._state.sauna.phases_pwm = [0, 0, 0]

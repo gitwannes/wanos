@@ -3,10 +3,19 @@ import time
 from typing import Any, Set, Tuple
 from loguru import logger
 from core.models import Event, EventType
+from core.well_known_entities import (
+    ENTITY_IR_STATUS,
+    ENTITY_SAFETY_SSR,
+    ENTITY_SAUNA_DOOR,
+    ENTITY_SAUNA_STATUS,
+)
 
 
 async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
-    door_sauna_open = manager._state.devices.get(10001) == "OPEN"
+    door_idx = manager.resolve_entity_id(ENTITY_SAUNA_DOOR)
+    door_sauna_open = (
+        door_idx is not None and manager._state.devices.get(door_idx) == "OPEN"
+    )
     if door_sauna_open:
         await manager.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Door is open.")
         return False, set()
@@ -16,8 +25,10 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
 
     # ⚡ Master Z-Wave Safety Interlock
     # Verifies the 5V power supply to the SSRs is actively engaged by the Z-Wave network
-    if manager._state.devices.get(71036) != "ON":
-        await manager.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Master relay (71036) is OFF.")
+    safety_idx = manager.resolve_entity_id(ENTITY_SAFETY_SSR)
+    if safety_idx is None or manager._state.devices.get(safety_idx) != "ON":
+        await manager.logger.warning(
+            f"🌡️ Bouncer rejected SAUNA_ON: Master relay ({ENTITY_SAFETY_SSR}) is OFF.")
         manager.dispatch(Event(type=EventType.ALERT_INJECTED, payload={"msg_text": "🚨 Sauna start blocked: Master relay is disengaged!", "level": "critical"}))
         return False, set()
 
@@ -29,7 +40,9 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.sauna.session_end_time = manager._sauna_timer_duration_secs
 
     # ⚡ Mirror status to the virtual dashboard sensor
-    manager._state.devices[21001] = "ON"
+    status_idx = manager.resolve_entity_id(ENTITY_SAUNA_STATUS)
+    if status_idx is not None:
+        manager._state.devices[status_idx] = "ON"
 
     if hasattr(manager, "_power_analytics"):
         manager._power_analytics.note_session_start()
@@ -49,7 +62,9 @@ async def handle_sauna_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._timer_manager.schedule("vent_wait", manager._state.sauna.ventilation_deadline, "VENT_WAIT_EXPIRED")
 
     # ⚡ Mirror status to the virtual dashboard sensor
-    manager._state.devices[21001] = "OFF"
+    status_idx = manager.resolve_entity_id(ENTITY_SAUNA_STATUS)
+    if status_idx is not None:
+        manager._state.devices[status_idx] = "OFF"
 
     return True, {"sauna", "devices"}
 
@@ -115,7 +130,9 @@ async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._timer_manager.schedule("ir_main", manager._state.ir.session_end_time, "IR_TIMER_EXPIRED")
 
     # ⚡ Mirror status to the virtual dashboard sensor
-    manager._state.devices[21002] = "ON"
+    ir_status_idx = manager.resolve_entity_id(ENTITY_IR_STATUS)
+    if ir_status_idx is not None:
+        manager._state.devices[ir_status_idx] = "ON"
 
     if hasattr(manager, "_power_analytics"):
         manager._power_analytics.note_session_start()
@@ -128,7 +145,9 @@ async def handle_ir_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._timer_manager.cancel("ir_main")
 
     # ⚡ Mirror status to the virtual dashboard sensor
-    manager._state.devices[21002] = "OFF"
+    ir_status_idx = manager.resolve_entity_id(ENTITY_IR_STATUS)
+    if ir_status_idx is not None:
+        manager._state.devices[ir_status_idx] = "OFF"
 
     return True, {"ir", "devices"}
 

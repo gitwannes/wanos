@@ -136,7 +136,7 @@ Do these after Admin Debug entity-registry check is green on the deployed Pi.
 4. Z-Wave slug from `| name |` only.
 5. Orphans: `status: removed`.
 6. Unresolved: log + skip; engine stays up.
-7. Every device idx gets an `entity_id`; Python **always resolve**.
+7. Every device idx gets an `entity_id`; Python **always resolve** via registry (`core/well_known_entities.py` + `resolve_entity_id`). Magic-idx scan cleared (allowlist: `90001` vent lock).
 8. ~~Remove `dashboard_map`~~ — **done**.
 9. Blocky next; deny-list decided at Blocky start.
 10. Do not split `config.yaml` in the entity_id step (revisit only if Blocky needs it).

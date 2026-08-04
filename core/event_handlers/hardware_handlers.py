@@ -3,6 +3,7 @@ import asyncio
 from typing import Any, Set, Tuple
 from loguru import logger
 from core.models import Event, EventType
+from core.well_known_entities import ENTITY_SAUNA_HIGH, ENTITY_SAUNA_LOW
 from logic.alert_manager import AlertManager
 
 
@@ -125,8 +126,13 @@ async def handle_sensor_error(event: Event, manager: Any) -> Tuple[bool, Set[str
         state_changed = True
         changed_domains.add("hardware")
 
-    # 20001 & 20002 = Sauna SHT Probes
-    if idx in [20001, 20002] and manager._state.sauna.active:
+    # Sauna SHT probes (ceiling + bench)
+    sauna_probe_idxs = {
+        manager.resolve_entity_id(ENTITY_SAUNA_HIGH),
+        manager.resolve_entity_id(ENTITY_SAUNA_LOW),
+    }
+    sauna_probe_idxs.discard(None)
+    if idx in sauna_probe_idxs and manager._state.sauna.active:
         await manager.logger.critical(f"Critical sensor failure on IDX {idx}. Emergency stopping heater elements.")
         manager.dispatch(Event(type=EventType.SAUNA_OFF))
 

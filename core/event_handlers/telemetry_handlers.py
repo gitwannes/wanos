@@ -1,6 +1,7 @@
 # --- file: core/event_handlers/telemetry_handlers.py ---
 from typing import Any, Set, Tuple
 from core.models import Event, EventType
+from core.well_known_entities import ENTITY_COLD_WATER, ENTITY_OUTSIDE
 from logic.alert_manager import AlertManager
 from logic.environment_scheduler import EnvironmentScheduler
 from logic.sauna_controller import SaunaController
@@ -230,7 +231,8 @@ async def handle_temp_updated(event: Event, manager: Any) -> Tuple[bool, Set[str
         changed_domains.add("devices")
 
     # --- CORE ENGINE TARGET ROUTING ---
-    if idx == 30001:
+    outside_idx = manager.resolve_entity_id(ENTITY_OUTSIDE)
+    if outside_idx is not None and idx == outside_idx:
         if sns.outside_temp != val:
             sns.outside_temp = val
             state_changed = True
@@ -268,7 +270,8 @@ async def handle_humidity_updated(event: Event, manager: Any) -> Tuple[bool, Set
         changed_domains.add("devices")
 
     # --- CORE ENGINE TARGET ROUTING ---
-    if idx == 30001:
+    outside_idx = manager.resolve_entity_id(ENTITY_OUTSIDE)
+    if outside_idx is not None and idx == outside_idx:
         if sns.outside_hum != val:
             sns.outside_hum = val
             state_changed = True
@@ -314,7 +317,8 @@ async def handle_water_pulse(event: Event, manager: Any) -> Tuple[bool, Set[str]
 
         # 4. Forward to MQTT Publisher (Mapping IDX back to fluid type for legacy topics)
         if manager.mqtt_publisher:
-            wtype = "cold" if idx == 11002 else "hot"
+            cold_idx = manager.resolve_entity_id(ENTITY_COLD_WATER)
+            wtype = "cold" if cold_idx is not None and idx == cold_idx else "hot"
             manager.mqtt_publisher.accumulate_water(wtype, count)
 
         if hasattr(manager, "sensor_history"):

@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from loguru import logger
 
 from logic.history_ids import SAUNA_CALC_IDX, HOST_HISTORY_IDXS
+from core.well_known_entities import ENTITY_MAINS_VOLTAGE
 
 SENSOR_META: Dict[int, Dict[str, str]] = {
     11001: {"label": "House energy", "kind": "energy", "unit": "Wh"},
@@ -260,6 +261,18 @@ class SensorHistoryManager:
         conn.commit()
         conn.close()
 
+    @staticmethod
+    def _is_host_gauge(idx: int) -> bool:
+        """Host gauges reuse unit '%' (same as RH); never treat them as climate."""
+        try:
+            i = int(idx)
+        except (TypeError, ValueError):
+            return False
+        if i in HOST_HISTORY_IDXS:
+            return True
+        meta = SENSOR_META.get(i)
+        return bool(meta and meta.get("kind") == "host")
+
     def _load_climate_idxs_from_db(self) -> None:
         try:
             conn = sqlite3.connect(self.db_path)
@@ -268,10 +281,16 @@ class SensorHistoryManager:
                 "SELECT DISTINCT idx FROM sensor_samples WHERE unit IN ('C', '%')"
             )
             for (idx,) in c.fetchall():
-                self._climate_idxs.add(int(idx))
+                i = int(idx)
+                if self._is_host_gauge(i):
+                    continue
+                self._climate_idxs.add(i)
             c.execute("SELECT DISTINCT idx FROM climate_daily")
             for (idx,) in c.fetchall():
-                self._climate_idxs.add(int(idx))
+                i = int(idx)
+                if self._is_host_gauge(i):
+                    continue
+                self._climate_idxs.add(i)
             conn.close()
         except Exception as e:
             logger.warning(f"Could not load climate idxs: {e}")
@@ -467,7 +486,8 @@ class SensorHistoryManager:
         now = time.time()
         rt = self._climate_rt(idx)  # shared per-idx runtime (throttle fields)
         # Voltage / gauges: keep at most ~1/min (host loop is already 60s)
-        min_iv = self.zwave_min_interval if idx == 71046 else 0.0
+        mains_idx = self.sm.resolve_entity_id(ENTITY_MAINS_VOLTAGE)
+        min_iv = self.zwave_min_interval if mains_idx is not None and idx == mains_idx else 0.0
         if min_iv > 0 and rt.last_zwave_ts > 0 and (now - rt.last_zwave_ts) < min_iv:
             rt.last_zwave_watts = value
             return
@@ -756,12 +776,14 @@ class SensorHistoryManager:
         return dm.get("name") or f"IDX {idx}"
 
     def _discover_climate_idxs(self) -> List[int]:
-        idxs = set(self._climate_idxs)
+        idxs = {i for i in self._climate_idxs if not self._is_host_gauge(i)}
         idxs.add(SAUNA_CALC_IDX)
         for idx, meta in (self.sm._state.device_metadata or {}).items():
             try:
                 i = int(idx)
             except (TypeError, ValueError):
+                continue
+            if self._is_host_gauge(i):
                 continue
             dtype = (meta or {}).get("type", "")
             if dtype in ("temp_hum", "temp", "hum"):
@@ -779,6 +801,8 @@ class SensorHistoryManager:
                 hidden = bool((self.sm._state.device_metadata.get(idx) or {}).get("hidden"))
                 out.append({"idx": idx, **meta, "hidden": hidden})
         for idx in self._discover_climate_idxs():
+            if self._is_host_gauge(idx):
+                continue
             raw = self.sm._state.devices.get(idx)
             has_hum = False
             if isinstance(raw, dict) and raw.get("hum") is not None:

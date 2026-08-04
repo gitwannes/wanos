@@ -12,6 +12,14 @@ from typing import Optional
 from core.state_manager import StateManager
 from core.models import Event, EventType
 from core.config import load_config
+from core.well_known_entities import (
+    ENTITY_BATHROOM_HUM,
+    ENTITY_BATHROOM_VENT,
+    ENTITY_OUTSIDE,
+    ENTITY_SAUNA_DOOR,
+    ENTITY_SAUNA_HIGH,
+    ENTITY_SAUNA_LOW,
+)
 
 
 async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
@@ -32,6 +40,17 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
 
     await state_mgr.logger.warning("boot_seed config initialized. Executing dynamic IDX injection...")
 
+    # Resolve well-known fixtures once (registry remains SoT for entity_id ↔ idx).
+    idx_sauna_high = state_mgr.resolve_entity_id(ENTITY_SAUNA_HIGH)
+    idx_sauna_low = state_mgr.resolve_entity_id(ENTITY_SAUNA_LOW)
+    idx_bath_hum = state_mgr.resolve_entity_id(ENTITY_BATHROOM_HUM)
+    idx_outside = state_mgr.resolve_entity_id(ENTITY_OUTSIDE)
+    idx_sauna_door = state_mgr.resolve_entity_id(ENTITY_SAUNA_DOOR)
+    if None in (idx_sauna_high, idx_sauna_low, idx_bath_hum, idx_outside, idx_sauna_door):
+        await state_mgr.logger.error(
+            "Simulator: unresolved well-known entity_id(s) — halting thermodynamics loop.")
+        return
+
     # Safely convert the config seed to a dictionary (handles both dicts and Pydantic models)
     seed_dict = seed if isinstance(seed, dict) else (seed.model_dump() if hasattr(seed, "model_dump") else seed.__dict__)
 
@@ -41,17 +60,17 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
         return node.get(prop, default)
 
     # 2. Extract baseline "Anchors" for the continuous physics loop math
-    anchor_sauna_high_hum: float = float(get_val(20001, "hum", 45.0))
-    anchor_bathroom1_hum: float = float(get_val(20004, "hum", 45.0))
-    anchor_outside_temp: float = float(get_val(30001, "temp", 15.0))
-    anchor_outside_hum: float = float(get_val(30001, "hum", 60.0))
+    anchor_sauna_high_hum: float = float(get_val(idx_sauna_high, "hum", 45.0))
+    anchor_bathroom1_hum: float = float(get_val(idx_bath_hum, "hum", 45.0))
+    anchor_outside_temp: float = float(get_val(idx_outside, "temp", 15.0))
+    anchor_outside_hum: float = float(get_val(idx_outside, "hum", 60.0))
     outside_tick: int = int(seed_dict.get("outside_tick", 0))
 
     # Active tracking variables (initialized to anchors)
-    sauna_high: float = float(get_val(20001, "temp", 21.0))
-    sauna_low: float = float(get_val(20002, "temp", 20.0))
+    sauna_high: float = float(get_val(idx_sauna_high, "temp", 21.0))
+    sauna_low: float = float(get_val(idx_sauna_low, "temp", 20.0))
     sauna_high_hum: float = anchor_sauna_high_hum
-    sauna_low_hum: float = float(get_val(20002, "hum", 48.0))
+    sauna_low_hum: float = float(get_val(idx_sauna_low, "hum", 48.0))
     bathroom1_hum: float = anchor_bathroom1_hum
 
     # Local UI metric tracking anchors
@@ -86,29 +105,29 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
 
             # --- LIVE UI INTERCEPT SYNCHRONIZER ---
             # Intercepts manual lab slider manipulations by parsing the unified nested device registry.
-            d_20001 = state.devices.get(20001)
-            if isinstance(d_20001, dict):
-                t_20001 = d_20001.get("temp")
-                h_20001 = d_20001.get("hum")
-                if t_20001 is not None and round(sauna_high, 1) != round(t_20001, 1):
-                    sauna_high = float(t_20001)
-                if h_20001 is not None and int(sauna_high_hum) != int(h_20001):
-                    sauna_high_hum = float(h_20001)
+            d_sauna_high = state.devices.get(idx_sauna_high)
+            if isinstance(d_sauna_high, dict):
+                t_high = d_sauna_high.get("temp")
+                h_high = d_sauna_high.get("hum")
+                if t_high is not None and round(sauna_high, 1) != round(t_high, 1):
+                    sauna_high = float(t_high)
+                if h_high is not None and int(sauna_high_hum) != int(h_high):
+                    sauna_high_hum = float(h_high)
 
-            d_20002 = state.devices.get(20002)
-            if isinstance(d_20002, dict):
-                t_20002 = d_20002.get("temp")
-                h_20002 = d_20002.get("hum")
-                if t_20002 is not None and round(sauna_low, 1) != round(t_20002, 1):
-                    sauna_low = float(t_20002)
-                if h_20002 is not None and int(sauna_low_hum) != int(h_20002):
-                    sauna_low_hum = float(h_20002)
+            d_sauna_low = state.devices.get(idx_sauna_low)
+            if isinstance(d_sauna_low, dict):
+                t_low = d_sauna_low.get("temp")
+                h_low = d_sauna_low.get("hum")
+                if t_low is not None and round(sauna_low, 1) != round(t_low, 1):
+                    sauna_low = float(t_low)
+                if h_low is not None and int(sauna_low_hum) != int(h_low):
+                    sauna_low_hum = float(h_low)
 
-            d_20004 = state.devices.get(20004)
-            if isinstance(d_20004, dict):
-                h_20004 = d_20004.get("hum")
-                if h_20004 is not None and int(bathroom1_hum) != int(h_20004):
-                    bathroom1_hum = float(h_20004)
+            d_bath = state.devices.get(idx_bath_hum)
+            if isinstance(d_bath, dict):
+                h_bath = d_bath.get("hum")
+                if h_bath is not None and int(bathroom1_hum) != int(h_bath):
+                    bathroom1_hum = float(h_bath)
 
             # Dynamic re-anchoring for outside atmosphere sliders
             if last_calculated_out_temp is not None and state.sensors.outside_temp is not None:
@@ -146,25 +165,25 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
                 last_calculated_out_temp = current_out_temp
                 last_calculated_out_hum = current_out_hum
 
-                state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"idx": 30001, "value": round(current_out_temp, 1), "from_simulator": True}))
-                state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": 30001, "value": int(current_out_hum), "from_simulator": True}))
+                state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"idx": idx_outside, "value": round(current_out_temp, 1), "from_simulator": True}))
+                state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": idx_outside, "value": int(current_out_hum), "from_simulator": True}))
 
             # --- 2. BATHROOM 1eV SIMULATOR ---
             vent_on = False
             for k, meta in (state.device_metadata or {}).items():
-                if isinstance(meta, dict) and meta.get("entity_id") == "switch.vent.badk_1e_ventilatie":
+                if isinstance(meta, dict) and meta.get("entity_id") == ENTITY_BATHROOM_VENT:
                     vent_on = state.devices.get(int(k)) == "ON"
                     break
             decay_rate = 1.0 if vent_on else 0.1
             if bathroom1_hum > anchor_bathroom1_hum:
                 bathroom1_hum = max(anchor_bathroom1_hum, bathroom1_hum - decay_rate)
 
-            state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": 20004, "value": int(bathroom1_hum), "from_simulator": True}))
+            state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": idx_bath_hum, "value": int(bathroom1_hum), "from_simulator": True}))
 
             # --- 3. SAUNA THERMODYNAMICS ---
             AMBIENT = 20.0
             pwm = state.sauna.modulation_pwm
-            door_sauna_open = state.devices.get(10001) == "OPEN"
+            door_sauna_open = state.devices.get(idx_sauna_door) == "OPEN"
 
             heat_added = (pwm / 100.0) * 0.5
             temp_diff_high = max(0, sauna_high - AMBIENT)
@@ -189,10 +208,10 @@ async def lab_mode_thermodynamics_loop(state_mgr: StateManager) -> None:
                 sauna_high_hum += 0.05
                 sauna_low_hum += 0.02
 
-            state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"idx": 20001, "value": sauna_high, "from_simulator": True}))
-            state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"idx": 20002, "value": sauna_low, "from_simulator": True}))
-            state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": 20001, "value": int(sauna_high_hum), "from_simulator": True}))
-            state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": 20002, "value": int(sauna_low_hum), "from_simulator": True}))
+            state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"idx": idx_sauna_high, "value": sauna_high, "from_simulator": True}))
+            state_mgr.dispatch(Event(type=EventType.TEMP_UPDATED, payload={"idx": idx_sauna_low, "value": sauna_low, "from_simulator": True}))
+            state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": idx_sauna_high, "value": int(sauna_high_hum), "from_simulator": True}))
+            state_mgr.dispatch(Event(type=EventType.HUMIDITY_UPDATED, payload={"idx": idx_sauna_low, "value": int(sauna_low_hum), "from_simulator": True}))
 
         except asyncio.CancelledError:
             break

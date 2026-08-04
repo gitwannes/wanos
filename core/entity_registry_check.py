@@ -278,14 +278,14 @@ def run_entity_cutover_checks(
             more = f" (+{len(live_missing) - 12})" if len(live_missing) > 12 else ""
             errors.append(f"Live device_metadata missing entity_id for idxs: {sample}{more}")
 
-    # Python magic idxs — report as warnings for the cutover gate.
-    # Clearing every system/sauna/simulator bare idx is follow-up work; automations must already be clean.
+    # Python magic idxs — leftover bare device numbers in scanned Python.
+    # Cleared via entity_id resolve; 90001 (vent lock) remains allowlisted.
     magic = _scan_python_magic_idxs(root)
     stats["python_magic_idx_hits"] = len(magic)
     for hit in magic[:40]:
-        warnings.append(f"Python magic idx (follow-up): {hit}")
+        warnings.append(f"Python magic idx: {hit}")
     if len(magic) > 40:
-        warnings.append(f"Python magic idx (follow-up): … +{len(magic) - 40} more")
+        warnings.append(f"Python magic idx: … +{len(magic) - 40} more")
 
     ok = len(errors) == 0
     report = {"ok": ok, "errors": errors, "warnings": warnings, "stats": stats}
@@ -330,8 +330,8 @@ def format_entity_cutover_report(report: Dict[str, Any]) -> str:
     lines.append("- GREEN (ok=true, no ERRORS): registry + config entity_id refs are consistent.")
     lines.append("  Automations are entity_id-only (no numeric idx in rules). Smoke-test after deploy.")
     lines.append("- RED (any ERRORS): fix before relying on automations / further cutover cleanup.")
-    lines.append("- WARNINGS: non-blocking. Mostly leftover bare idxs in Python")
-    lines.append("  (host metrics, sauna, simulator). Clear later; not a cutover blocker.")
+    lines.append("- WARNINGS: non-blocking. Unexpected leftovers (e.g. new bare idxs).")
+    lines.append("  Allowlisted virtual idxs (90001 vent lock) are ignored by design.")
     if live:
         lines.append("- This run included live device_metadata (Admin API / running WanOS).")
         lines.append("  CLI without WanOS running skips the live-metadata section.")
@@ -352,11 +352,10 @@ def format_entity_cutover_report(report: Dict[str, Any]) -> str:
     lines.append("")
 
     if warnings:
-        lines.append(f"WARNINGS ({len(warnings)}) - non-blocking follow-up")
+        lines.append(f"WARNINGS ({len(warnings)}) - non-blocking")
         lines.append("-" * 40)
         lines.append("  'Python magic idx' = hardcoded device number in .py source.")
-        lines.append("  Automations/config already use entity_id; these are cleanup chores")
-        lines.append("  (sauna door, host CPU gauges, lab simulator, etc.).")
+        lines.append("  Prefer entity_id + resolve; only allowlisted virtual idxs should remain.")
         lines.append("")
         for w in warnings:
             lines.append(f"  - {w}")
@@ -376,8 +375,7 @@ def format_entity_cutover_report(report: Dict[str, Any]) -> str:
         lines.append("RESULT: GREEN - entity_id cutover checks passed.")
         if warnings:
             lines.append(
-                f"({len(warnings)} warning(s) are non-blocking; "
-                "clear Python magic idxs in a follow-up.)"
+                f"({len(warnings)} warning(s) are non-blocking; review before ship.)"
             )
         else:
             lines.append("(No warnings.)")

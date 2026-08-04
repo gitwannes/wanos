@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, List
 from datetime import datetime
 from loguru import logger
 from core.models import SaunaSessionRecord, IrSessionRecord, SystemState
+from core.well_known_entities import ENTITY_MAINS_VOLTAGE
 
 
 class PowerAnalytics:
@@ -202,7 +203,8 @@ class PowerAnalytics:
                 self.sm._state.metrics.running_energy_real_wh += step_real_wh
                 self.sm._state.metrics.total_energy_real_wh += step_real_wh
 
-                v_raw = state.devices.get(71046)
+                mains_idx = self.sm.resolve_entity_id(ENTITY_MAINS_VOLTAGE)
+                v_raw = state.devices.get(mains_idx) if mains_idx is not None else None
                 if v_raw is not None and str(v_raw).replace(" V", "").strip().replace('.', '', 1).isdigit():
                     v_live = float(str(v_raw).replace(" V", "").strip())
                     mod_u = state.sauna.phases_pwm.get("U", 0) / 100.0
@@ -376,7 +378,8 @@ class PowerAnalytics:
                 await asyncio.sleep(60.0)
                 state: SystemState = self.sm.get_state_snapshot()
 
-                v_raw = state.devices.get(71046)
+                mains_idx = self.sm.resolve_entity_id(ENTITY_MAINS_VOLTAGE)
+                v_raw = state.devices.get(mains_idx) if mains_idx is not None else None
                 real_power = state.metrics.p_elements_real_watts
 
                 # ⚡ STRICT VOLTAGE INTERLOCK

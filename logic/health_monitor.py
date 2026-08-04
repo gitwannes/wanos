@@ -8,6 +8,16 @@ import time
 import psutil
 from typing import Any
 from core.models import Event, EventType, SystemState
+from core.well_known_entities import (
+    ENTITY_HOST_CPU_TEMP,
+    ENTITY_HOST_CPU_USAGE,
+    ENTITY_HOST_DISK_FREE,
+    ENTITY_HOST_LOAD_15M,
+    ENTITY_HOST_LOAD_1M,
+    ENTITY_HOST_LOAD_5M,
+    ENTITY_HOST_LOG2RAM_FREE,
+    ENTITY_HOST_MEMORY_FREE,
+)
 from loguru import logger
 
 
@@ -287,21 +297,30 @@ class HealthMonitor:
                 # Silently absorb minor loop crashes to prevent total health engine failure
                 print(f"Health Monitor Loop Exception: {e}")
 
+    def _host_idx(self, entity_id: str) -> int | None:
+        """Resolve a host-gauge entity_id; None if registry row is missing."""
+        return self.state_manager.resolve_entity_id(entity_id)
+
+    def _dispatch_host_gauge(self, entity_id: str, state: str) -> None:
+        idx = self._host_idx(entity_id)
+        if idx is None:
+            return
+        self.state_manager.dispatch(Event(
+            type=EventType.HUB_STATE_CHANGED,
+            payload={"idx": idx, "state": state, "origin": "system"},
+        ))
+
     async def _system_hardware_loop(self) -> None:
         """Isolated 60-second polling loop reading native Linux kernel telemetry via psutil."""
         while True:
             try:
                 # 1. CPU Usage
                 cpu_perc = psutil.cpu_percent(interval=None)
-                self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
-                                                  payload={"idx": 22002, "state": f"{round(cpu_perc)} %",
-                                                           "origin": "system"}))
+                self._dispatch_host_gauge(ENTITY_HOST_CPU_USAGE, f"{round(cpu_perc)} %")
 
                 # 2. RAM Free %
                 ram_free_perc = 100.0 - psutil.virtual_memory().percent
-                self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
-                                                  payload={"idx": 22003, "state": f"{round(ram_free_perc)} %",
-                                                           "origin": "system"}))
+                self._dispatch_host_gauge(ENTITY_HOST_MEMORY_FREE, f"{round(ram_free_perc)} %")
 
                 # ⚡ Hysteresis Evaluation: RAM Free
                 if ram_free_perc <= 5.0 and self._alert_states["mem_free"] != "critical":
@@ -317,9 +336,7 @@ class HealthMonitor:
 
                 # 3. Disk Free % (Root)
                 disk_free_perc = 100.0 - psutil.disk_usage('/').percent
-                self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
-                                                  payload={"idx": 22004, "state": f"{round(disk_free_perc)} %",
-                                                           "origin": "system"}))
+                self._dispatch_host_gauge(ENTITY_HOST_DISK_FREE, f"{round(disk_free_perc)} %")
 
                 # ⚡ Hysteresis Evaluation: Disk Free
                 if disk_free_perc <= 5.0 and self._alert_states["disk_free"] != "critical":
@@ -337,9 +354,7 @@ class HealthMonitor:
                 # 4. Log2Ram Free % (Mounts directly to /var/log)
                 try:
                     log2ram_free_perc = 100.0 - psutil.disk_usage('/var/log').percent
-                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED, payload={"idx": 22005,
-                                                                                                 "state": f"{round(log2ram_free_perc)} %",
-                                                                                                 "origin": "system"}))
+                    self._dispatch_host_gauge(ENTITY_HOST_LOG2RAM_FREE, f"{round(log2ram_free_perc)} %")
                     # ⚡ Hysteresis Evaluation: Log2Ram
                     if log2ram_free_perc <= 5.0 and self._alert_states["log2ram_free"] != "critical":
                         self._alert_states["log2ram_free"] = "critical"
@@ -360,18 +375,9 @@ class HealthMonitor:
                 try:
                     load1, load5, load15 = os.getloadavg()
                     # ⚡ The Math Fix: Multiply by 100 BEFORE rounding to correctly calculate percentages based on a 4-core processor
-                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
-                                                      payload={"idx": 22006,
-                                                               "state": f"{round((load1 / 4) * 100)} %",
-                                                               "origin": "system"}))
-                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
-                                                      payload={"idx": 22007,
-                                                               "state": f"{round((load5 / 4) * 100)} %",
-                                                               "origin": "system"}))
-                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
-                                                      payload={"idx": 22008,
-                                                               "state": f"{round((load15 / 4) * 100)} %",
-                                                               "origin": "system"}))
+                    self._dispatch_host_gauge(ENTITY_HOST_LOAD_1M, f"{round((load1 / 4) * 100)} %")
+                    self._dispatch_host_gauge(ENTITY_HOST_LOAD_5M, f"{round((load5 / 4) * 100)} %")
+                    self._dispatch_host_gauge(ENTITY_HOST_LOAD_15M, f"{round((load15 / 4) * 100)} %")
 
                     # ⚡ Hysteresis Evaluation: 15-Minute Load Average
                     if load15 >= 4.0 and self._alert_states["load_15m"] == "normal":
@@ -389,9 +395,7 @@ class HealthMonitor:
                 try:
                     with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
                         temp_c = int(f.read()) / 1000.0
-                    self.state_manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED,
-                                                      payload={"idx": 22001, "state": f"{round(temp_c)} °C",
-                                                               "origin": "system"}))
+                    self._dispatch_host_gauge(ENTITY_HOST_CPU_TEMP, f"{round(temp_c)} °C")
 
                     # ⚡ Hysteresis Evaluation: CPU Temp
                     if temp_c >= 85.0 and self._alert_states["cpu_temp"] != "critical":

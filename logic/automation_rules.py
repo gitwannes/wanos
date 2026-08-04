@@ -6,6 +6,11 @@ from typing import List, Optional, Any
 from core.models import Event, EventType, SystemState, device_name
 from core.config import load_config
 from core.logger import automation_logger  # explicitly isolated logger for logic rules
+from core.well_known_entities import (
+    ENTITY_BATHROOM_HUM,
+    ENTITY_BATHROOM_VENT,
+    ENTITY_WATER_HOT,
+)
 
 
 class AutomationEngine:
@@ -26,10 +31,10 @@ class AutomationEngine:
     # Rolling array tracking absolute timestamps of hot water pulses for sensory debouncing
     _hot_water_pulses: List[float] = []
 
-    # Well-known system fixtures: stable entity_id strings; always resolve to idx at runtime.
-    ENTITY_BATHROOM_VENT = "switch.vent.badk_1e_ventilatie"
-    ENTITY_BATHROOM_HUM = "sensor.temp_hum.badk_1e"
-    ENTITY_WATER_HOT = "sensor.fluid.warm_water"
+    # Well-known system fixtures: re-exported from core.well_known_entities.
+    ENTITY_BATHROOM_VENT = ENTITY_BATHROOM_VENT
+    ENTITY_BATHROOM_HUM = ENTITY_BATHROOM_HUM
+    ENTITY_WATER_HOT = ENTITY_WATER_HOT
 
     @classmethod
     def _get_config(cls):

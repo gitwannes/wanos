@@ -1,0 +1,101 @@
+idx    entity_id                             domain        type      prefix           origin      status  name                      name_at_birth             hidden
+-----  ------------------------------------  ------------  --------  ---------------  ----------  ------  ------------------------  ------------------------  ------
+10001  sensor.door.sauna_deur                sensor        door      sensor.door      gpio_input  active  sauna deur                sauna deur                yes   
+10002  sensor.door.badkamer_deur             sensor        door      sensor.door      gpio_input  active  badkamer deur             badkamer deur             yes   
+11001  sensor.energy.kwh_meter               sensor        energy    sensor.energy    gpio_input  active  kWh meter                 kWh meter                 yes   
+11002  sensor.fluid.koud_water               sensor        fluid     sensor.fluid     gpio_input  active  koud water                koud water                yes   
+11003  sensor.fluid.warm_water               sensor        fluid     sensor.fluid     gpio_input  active  warm water                warm water                yes   
+20001  sensor.temp_hum.sauna_high            sensor        temp_hum  sensor.temp_hum  sht11       active  sauna high                sauna high                      
+20002  sensor.temp_hum.sauna_low             sensor        temp_hum  sensor.temp_hum  sht11       active  sauna low                 sauna low                       
+20003  sensor.temp_hum.cinema                sensor        temp_hum  sensor.temp_hum  sht11       active  cinema                    cinema                          
+20004  sensor.temp_hum.badk_1e               sensor        temp_hum  sensor.temp_hum  sht11       active  badk 1e                   badk 1e                         
+20101  sensor.temp_hum.sauna_temp            sensor        temp_hum  sensor.temp_hum  system      active  sauna temp                sauna temp                      
+21001  sensor.generic.sauna_status           sensor        sensor    sensor.generic   system      active  sauna status              sauna status                    
+21002  sensor.generic.ir_status              sensor        sensor    sensor.generic   system      active  IR status                 IR status                       
+22001  sensor.temp_hum.host_cpu_temperature  sensor        sensor    sensor.temp_hum  system      active  Host CPU Temperature      Host CPU Temperature      yes   
+22002  sensor.generic.host_cpu_usage         sensor        sensor    sensor.generic   system      active  Host CPU Usage            Host CPU Usage            yes   
+22003  sensor.generic.host_memory_free       sensor        sensor    sensor.generic   system      active  Host Memory Free          Host Memory Free          yes   
+22004  sensor.generic.host_disk_free_root    sensor        sensor    sensor.generic   system      active  Host Disk Free (Root)     Host Disk Free (Root)     yes   
+22005  sensor.generic.host_log2ram_free      sensor        sensor    sensor.generic   system      active  Host Log2Ram Free         Host Log2Ram Free         yes   
+22006  sensor.generic.host_load_average_1m   sensor        sensor    sensor.generic   system      active  Host Load Average (1m)    Host Load Average (1m)    yes   
+22007  sensor.generic.host_load_average_5m   sensor        sensor    sensor.generic   system      active  Host Load Average (5m)    Host Load Average (5m)    yes   
+22008  sensor.generic.host_load_average_15m  sensor        sensor    sensor.generic   system      active  Host Load Average (15m)   Host Load Average (15m)   yes   
+22009  sensor.generic.wanos_db_size          sensor        sensor    sensor.generic   system      active  WanOS DB size             WanOS DB size             yes   
+30001  sensor.temp_hum.outside_temp_hum      sensor        temp_hum  sensor.temp_hum  owm         active  Outside temp & hum        Outside temp & hum              
+40001  switch.cinema_schemer                 switch        switch    switch           rfxcom      active  cinema schemer            cinema schemer                  
+40002  switch.buro_wannes_schemer            switch        switch    switch           rfxcom      active  buro Wannes schemer       buro Wannes schemer             
+40003  switch.living_schemer                 switch        switch    switch           rfxcom      active  living schemer            living schemer                  
+40004  switch.kerstboom                      switch        switch    switch           rfxcom      active  kerstboom                 kerstboom                 yes   
+40005  switch.kerst_lichten_voor             switch        switch    switch           rfxcom      active  kerst lichten voor        kerst lichten voor        yes   
+51001  hue.group.badk_1e_hue                 hue           light     hue.group        hue         active  badk 1e Hue               badk 1e Hue                     
+51002  hue.group.sauna_hue                   hue           light     hue.group        hue         active  sauna Hue                 sauna Hue                       
+51003  hue.group.eetkamer_hue                hue           light     hue.group        hue         active  eetkamer Hue              eetkamer Hue                    
+51004  hue.group.cinema_hue                  hue           light     hue.group        hue         active  cinema Hue                cinema Hue                      
+51005  hue.group.living_hue                  hue           light     hue.group        hue         active  living Hue                living Hue                      
+51006  hue.group.slpk_wannes_hue             hue           light     hue.group        hue         active  slpk Wannes Hue           slpk Wannes Hue                 
+51007  hue.group.badk_2e_hue                 hue           light     hue.group        hue         active  badk 2e Hue               badk 2e Hue                     
+51008  hue.group.slpk_dries_hue              hue           light     hue.group        hue         active  slpk Dries Hue            slpk Dries Hue                  
+51100  hue.group.verd_0_hue                  hue           light     hue.group        hue         active  verd 0 Hue                verd 0 Hue                yes   
+51101  hue.group.verd_1_hue                  hue           light     hue.group        hue         active  verd 1 Hue                verd 1 Hue                yes   
+51102  hue.group.verd_2_hue                  hue           light     hue.group        hue         active  verd 2 Hue                verd 2 Hue                yes   
+60001  media_player.badk_boven               media_player  speaker   media_player     sonos       active  badk boven                badk boven                      
+60002  media_player.living                   media_player  speaker   media_player     sonos       active  living                    living                          
+60003  media_player.badk_1e                  media_player  speaker   media_player     sonos       active  badk 1e                   badk 1e                         
+60004  media_player.slpk_wannes              media_player  speaker   media_player     sonos       active  slpk Wannes               slpk Wannes                     
+60005  media_player.slpk_dries               media_player  speaker   media_player     sonos       active  slpk Dries                slpk Dries                      
+60006  media_player.buro                     media_player  speaker   media_player     sonos       active  buro                      buro                            
+61001  media_player.cinema                   media_player  speaker   media_player     onkyo       active  cinema                    cinema                          
+61002  media_player.living_2                 media_player  speaker   media_player     onkyo       active  living                    living                          
+71001  switch.buro_licht                     switch        switch    switch           zwave       active  buro licht                buro licht                      
+71002  switch.cinema_licht                   switch        switch    switch           zwave       active  cinema licht              cinema licht                    
+71003  switch.licht_living                   switch        switch    switch           zwave       active  licht living              licht living                    
+71004  switch.licht_keuken                   switch        switch    switch           zwave       active  licht keuken              licht keuken                    
+71005  switch.gang_beneden                   switch        switch    switch           zwave       active  gang beneden              gang beneden                    
+71006  switch.licht_garage                   switch        switch    switch           zwave       active  licht garage              licht garage                    
+71007  switch.badk_1e_hue_physical           switch        switch    switch           zwave       active  badk 1e Hue physical      badk 1e Hue physical      yes   
+71008  switch.gang_boven                     switch        switch    switch           zwave       active  gang boven                gang boven                      
+71009  switch.badk_2e_hue_physical           switch        switch    switch           zwave       active  badk 2e Hue physical      badk 2e Hue physical      yes   
+71010  switch.badk_2e_wastafel               switch        switch    switch           zwave       active  badk 2e wastafel          badk 2e wastafel                
+71012  switch.voorraad_gv                    switch        switch    switch           zwave       active  voorraad gv               voorraad gv                     
+71014  switch.waskot                         switch        switch    switch           zwave       active  waskot                    waskot                          
+71017  switch.slpk_dries                     switch        switch    switch           zwave       active  slpk Dries                slpk Dries                      
+71019  switch.vent.toilet_ventilatie_motor   switch        switch    switch.vent      zwave       active  toilet ventilatie motor   toilet ventilatie motor   yes   
+71021  switch.vent.badk_2e_ventilatie        switch        switch    switch.vent      zwave       active  badk 2e ventilatie        badk 2e ventilatie              
+71022  switch.badk_2e_binnen_unused          switch        switch    switch           zwave       active  badk 2e binnen (unused)   badk 2e binnen (unused)   yes   
+71023  switch.slpk_liene                     switch        switch    switch           zwave       active  slpk Liene                slpk Liene                      
+71024  switch.berging_2e                     switch        switch    switch           zwave       active  berging 2e                berging 2e                      
+71025  switch.eetkamer                       switch        switch    switch           zwave       active  eetkamer                  eetkamer                        
+71027  switch.slpk_wannes                    switch        switch    switch           zwave       active  slpk Wannes               slpk Wannes                     
+71028  switch.slpk_wannes_hue_physical       switch        switch    switch           zwave       active  slpk Wannes Hue physical  slpk Wannes Hue physical  yes   
+71029  switch.living_special                 switch        switch    switch           zwave       active  living special            living special            yes   
+71032  switch.badk_1e_wastafel               switch        switch    switch           zwave       active  badk 1e wastafel          badk 1e wastafel                
+71034  switch.vent.badk_1e_ventilatie        switch        switch    switch.vent      zwave       active  badk 1e ventilatie        badk 1e ventilatie              
+71035  switch.sauna_hue_physical             switch        switch    switch           zwave       active  sauna hue physical        sauna hue physical        yes   
+71036  switch.ssr.safety_ssr_12v             switch        switch    switch.ssr       zwave       active  safety SSR (12V)          safety SSR (12V)          yes   
+71038  switch.vent.sauna_ventilator          switch        switch    switch.vent      zwave       active  sauna ventilator          sauna ventilator                
+71040  switch.safety.safety_wisc_5v          switch        switch    switch.safety    zwave       active  safety Wisc (5V)          safety Wisc (5V)          yes   
+71043  switch.toilet                         switch        switch    switch           zwave       active  toilet                    toilet                          
+71044  switch.vent.toilet_ventilatie         switch        switch    switch.vent      zwave       active  toilet ventilatie         toilet ventilatie               
+71045  switch.53                             switch        switch    switch           zwave       active  53?                       53?                       yes   
+71046  sensor.generic.mains_voltage          sensor        switch    sensor.generic   zwave       active  mains voltage             mains voltage             yes   
+72001  switch.pc                             switch        switch    switch           zwave       active  PC                        PC                        yes   
+72002  switch.pc_monitors                    switch        switch    switch           zwave       active  PC monitors               PC monitors                     
+72004  switch.sauna_zoutlamp                 switch        switch    switch           zwave       active  sauna zoutlamp            sauna zoutlamp                  
+72005  switch.tuin                           switch        switch    switch           zwave       active  tuin                      tuin                            
+72006  switch.kerst_lichten_tuin             switch        switch    switch           zwave       active  kerst lichten tuin        kerst lichten tuin        yes   
+73001  blinds.cinema                         blinds        blinds    blinds           zwave       active  cinema                    cinema                          
+73002  blinds.sauna                          blinds        blinds    blinds           zwave       active  sauna                     sauna                           
+73003  blinds.gv_links                       blinds        blinds    blinds           zwave       active  gv links                  gv links                        
+73004  blinds.gv_rechts                      blinds        blinds    blinds           zwave       active  gv rechts                 gv rechts                       
+74001  sensor.power.pc_power                 sensor        power     sensor.power     zwave       active  PC power                  PC power                  yes   
+74003  sensor.power.pc_monitors_power        sensor        power     sensor.power     zwave       active  PC monitors power         PC monitors power         yes   
+75001  sensor.generic.garage_motion          sensor        sensor    sensor.generic   zwave       active  garage motion             garage motion             yes   
+75002  sensor.generic.toilet_motion          sensor        sensor    sensor.generic   zwave       active  toilet motion             toilet motion             yes   
+76002  sensor.temp_hum.garage_temp           sensor        temp_hum  sensor.temp_hum  zwave       active  garage temp               garage temp                     
+76003  sensor.temp_hum.toilet_temp           sensor        temp_hum  sensor.temp_hum  zwave       active  toilet temp               toilet temp                     
+80001  switch.cinema_projector               switch        switch    switch           epson       active  cinema projector          cinema projector          yes   
+
+# rows: 94
+# columns: idx, entity_id, domain, type, prefix, origin, status, name, name_at_birth, hidden
+# source: entity_registry.yaml (+ config_*.yaml enrichment)
+# excluded: synthetic scene history (idx>=900000 / unknown.idx_9* / scene.* / type=scene+origin=automation)
