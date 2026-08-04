@@ -161,6 +161,8 @@ function wanosApp() {
         _historyCharts: { day: null, month: null, year: null },
         _historyRefreshTimer: null,
         _actuatorCharts: { day: null, month: null, year: null },
+        historyChartHasData: { day: false, month: false, year: false },
+        actuatorChartHasData: { day: false, month: false, year: false },
         actuatorList: [],
         actuatorFavorites: [],
         actuatorFavoritesOnly: false,
@@ -566,6 +568,11 @@ function wanosApp() {
                 }
             }
 
+            // 2b. Favorites (shared localStorage with Sensor History)
+            if (this.actuatorFavoritesOnly) {
+                list = list.filter(item => this.actuatorFavorites.includes(Number(item.id)));
+            }
+
             // 3. Apply Text Search
             if (this.searchQuery.trim() !== "") {
                 const q = this.searchQuery.toLowerCase();
@@ -721,6 +728,14 @@ function wanosApp() {
                 }
             } catch (err) {
                 console.warn("⚠️ Failed to parse view presets from localStorage. Reverting to default array.");
+            }
+
+            // Shared favorites (Device Explorer + Sensor History)
+            try {
+                const fav = JSON.parse(localStorage.getItem("wanos_history_favorites") || "[]");
+                this.actuatorFavorites = Array.isArray(fav) ? fav.map(Number) : [];
+            } catch (e) {
+                this.actuatorFavorites = [];
             }
 
             // ⚡ VISUAL STATE PERSISTENCE
@@ -1149,6 +1164,7 @@ function wanosApp() {
         async initSensorHistoryPage() {
             if (!window.location.pathname.includes("sensorhistory.html")) return;
             await this.$nextTick();
+            // Favorites already loaded in init(); keep a refresh for late localStorage edits
             try {
                 const fav = JSON.parse(localStorage.getItem("wanos_history_favorites") || "[]");
                 this.actuatorFavorites = Array.isArray(fav) ? fav.map(Number) : [];
@@ -1198,7 +1214,7 @@ function wanosApp() {
 
         /**
          * Icon emoji matching Device Explorer name/type heuristics.
-         * Returns '' when Explorer would show no leading icon (plain switches, etc.).
+         * Use mobile-safe emoji (avoid U+23FB POWER which often renders blank on phones).
          */
         historyRowIcon(row) {
             if (!row) return "";
@@ -1240,8 +1256,19 @@ function wanosApp() {
                 return "🟥";
             }
             if (type === "host") return "🖥️";
-            if (type === "switch") return "⏻";
+            if (type === "switch") return "💡";
             return "";
+        },
+
+        /** Explorer-facing icon for a unified list item (same heuristics as History). */
+        explorerItemIcon(item) {
+            if (!item) return "";
+            return this.historyRowIcon({
+                idx: item.id,
+                name: item.name,
+                type: item.type,
+                origin: item.origin,
+            });
         },
 
         _utilityLiveStatus(s) {
@@ -1339,7 +1366,42 @@ function wanosApp() {
             if (this.actuatorFavoritesOnly) {
                 list = list.filter(r => this.actuatorFavorites.includes(Number(r.idx)));
             }
-            const q = (this.actuatorSearchQuery || "").trim().toLowerCase();
+
+            // Shared type filter with Device Explorer
+            if (this.typeFilter !== "ALL") {
+                list = list.filter(r => {
+                    const meta = (this.state.device_metadata && this.state.device_metadata[r.idx]) || {};
+                    const isHue = meta.origin === "hue" || r.type === "light";
+                    if (this.typeFilter === "SWITCH") return r.type === "switch" && !isHue;
+                    if (this.typeFilter === "HUE") return isHue;
+                    if (this.typeFilter === "SPEAKER") return r.type === "speaker";
+                    if (this.typeFilter === "SCENE") return r.type === "scene";
+                    if (this.typeFilter === "BLINDS") return r.type === "blinds";
+                    if (this.typeFilter === "SENSOR") {
+                        return ["temp", "hum", "temp_hum", "power", "energy", "sensor", "host", "climate", "water"]
+                            .includes(r.type) || r.category === "utility" || r.category === "climate" || r.category === "host";
+                    }
+                    return true;
+                });
+            }
+
+            // Shared status filter (binary actuators only; drop sensors/scenes/blinds like Explorer)
+            if (this.statusFilter !== "ALL") {
+                list = list.filter(r => {
+                    if (r.category !== "actuator") return false;
+                    if (["temp", "hum", "temp_hum", "power", "energy", "scene", "blinds", "host", "climate"].includes(r.type)) {
+                        return false;
+                    }
+                    const st = String(r.status || "").toUpperCase();
+                    const isOn = st === "ON" || st === "CLOSED" || st === "HIT";
+                    const isOff = st === "OFF" || st === "OPEN";
+                    if (this.statusFilter === "ON") return isOn;
+                    if (this.statusFilter === "OFF") return isOff;
+                    return false;
+                });
+            }
+
+            const q = (this.actuatorSearchQuery || this.searchQuery || "").trim().toLowerCase();
             if (q) {
                 list = list.filter(r => {
                     const typeLabel = this.historyTypeLabel(r.type) || "";
@@ -1347,7 +1409,16 @@ function wanosApp() {
                     return hay.includes(q);
                 });
             }
-            list.sort((a, b) => String(a.name).localeCompare(String(b.name)) || (a.idx - b.idx));
+            list.sort((a, b) => {
+                if (this.sortMode === "STATUS") {
+                    const statusA = String(a.status || "");
+                    const statusB = String(b.status || "");
+                    if (statusA !== statusB) return statusA.localeCompare(statusB);
+                } else if (this.sortMode === "TYPE") {
+                    if (a.type !== b.type) return String(a.type).localeCompare(String(b.type));
+                }
+                return String(a.name).localeCompare(String(b.name)) || (a.idx - b.idx);
+            });
             return list;
         },
 
@@ -1514,124 +1585,145 @@ function wanosApp() {
         },
 
         renderActuatorCharts(dayData, monthData, yearData) {
-            const dayChart = this._ensureActuatorChart("day", "chart-act-day");
-            const monthChart = this._ensureActuatorChart("month", "chart-act-month");
-            const yearChart = this._ensureActuatorChart("year", "chart-act-year");
+            this.actuatorChartHasData = {
+                day: this._historyPayloadHasData(dayData),
+                month: this._historyPayloadHasData(monthData),
+                year: this._historyPayloadHasData(yearData),
+            };
 
-            if (dayChart) {
-                const opt = this._baseChartOption("Level (0–100)");
-                opt.series = [{
-                    name: "Level",
-                    type: "line",
-                    step: "end",
-                    showSymbol: true,
-                    symbolSize: 6,
-                    data: this._pointsToSeries(dayData?.series?.level),
-                    lineStyle: { color: "#2dd4bf", width: 2 },
-                    connectNulls: false
-                }];
-                dayChart.setOption(opt, true);
-                dayChart.resize();
-            }
+            // Drop stale chart instances (and sticky dataZoom) before containers reappear.
+            this._disposeActuatorCharts();
 
-            if (monthChart) {
-                const opt = this._baseChartOption("Level / count");
-                opt.legend = { bottom: 0, textStyle: { color: "#9ca3af" } };
-                opt.yAxis = [
-                    {
-                        type: "value",
+            const draw = () => {
+                const dayChart = this.actuatorChartHasData.day ? this._ensureActuatorChart("day", "chart-act-day") : null;
+                const monthChart = this.actuatorChartHasData.month ? this._ensureActuatorChart("month", "chart-act-month") : null;
+                const yearChart = this.actuatorChartHasData.year ? this._ensureActuatorChart("year", "chart-act-year") : null;
+
+                if (dayChart) {
+                    const opt = this._baseChartOption("Level (0–100)");
+                    opt.yAxis.min = 0;
+                    opt.yAxis.max = 100;
+                    opt.series = [{
                         name: "Level",
-                        min: 0,
-                        max: 100,
-                        nameTextStyle: { color: "#9ca3af" },
-                        axisLabel: { color: "#9ca3af" },
-                        splitLine: { lineStyle: { color: "#374151" } }
-                    },
-                    {
-                        type: "value",
-                        name: "Events",
-                        nameTextStyle: { color: "#9ca3af" },
-                        axisLabel: { color: "#9ca3af" },
-                        splitLine: { show: false }
-                    }
-                ];
-                opt.series = [
-                    {
-                        name: "Events",
-                        type: "bar",
-                        yAxisIndex: 1,
-                        data: this._pointsToSeries(monthData?.series?.event_count),
-                        itemStyle: { color: "#64748b" }
-                    },
-                    {
-                        name: "Level min",
                         type: "line",
-                        showSymbol: false,
-                        data: this._pointsToSeries(monthData?.series?.level_min),
-                        lineStyle: { color: "#2dd4bf" },
+                        step: "end",
+                        showSymbol: true,
+                        symbolSize: 6,
+                        data: this._pointsToSeries(dayData?.series?.level),
+                        lineStyle: { color: "#2dd4bf", width: 2 },
                         connectNulls: false
-                    },
-                    {
-                        name: "Level max",
-                        type: "line",
-                        showSymbol: false,
-                        data: this._pointsToSeries(monthData?.series?.level_max),
-                        lineStyle: { color: "#a3e635" },
-                        connectNulls: false
-                    }
-                ];
-                monthChart.setOption(opt, true);
-                monthChart.resize();
-            }
+                    }];
+                    this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
+                    dayChart.setOption(opt, true);
+                    dayChart.resize();
+                }
 
-            if (yearChart) {
-                const opt = this._baseChartOption("Level / count");
-                opt.yAxis = [
-                    {
-                        type: "value",
-                        name: "Level",
-                        min: 0,
-                        max: 100,
-                        nameTextStyle: { color: "#9ca3af" },
-                        axisLabel: { color: "#9ca3af" },
-                        splitLine: { lineStyle: { color: "#374151" } }
-                    },
-                    {
-                        type: "value",
-                        name: "Events",
-                        nameTextStyle: { color: "#9ca3af" },
-                        axisLabel: { color: "#9ca3af" },
-                        splitLine: { show: false }
-                    }
-                ];
-                opt.series = [
-                    {
-                        name: "Events",
-                        type: "bar",
-                        yAxisIndex: 1,
-                        data: this._pointsToSeries(yearData?.series?.event_count),
-                        itemStyle: { color: "#64748b" }
-                    },
-                    {
-                        name: "Level min",
-                        type: "line",
-                        showSymbol: false,
-                        data: this._pointsToSeries(yearData?.series?.level_min),
-                        lineStyle: { color: "#2dd4bf" },
-                        connectNulls: false
-                    },
-                    {
-                        name: "Level max",
-                        type: "line",
-                        showSymbol: false,
-                        data: this._pointsToSeries(yearData?.series?.level_max),
-                        lineStyle: { color: "#a3e635" },
-                        connectNulls: false
-                    }
-                ];
-                yearChart.setOption(opt, true);
-                yearChart.resize();
-            }
+                if (monthChart) {
+                    const opt = this._baseChartOption("Level / count");
+                    opt.legend = { bottom: 0, textStyle: { color: "#9ca3af" } };
+                    opt.yAxis = [
+                        {
+                            type: "value",
+                            name: "Level",
+                            min: 0,
+                            max: 100,
+                            nameTextStyle: { color: "#9ca3af" },
+                            axisLabel: { color: "#9ca3af" },
+                            splitLine: { lineStyle: { color: "#374151" } }
+                        },
+                        {
+                            type: "value",
+                            name: "Events",
+                            nameTextStyle: { color: "#9ca3af" },
+                            axisLabel: { color: "#9ca3af" },
+                            splitLine: { show: false }
+                        }
+                    ];
+                    opt.series = [
+                        {
+                            name: "Events",
+                            type: "bar",
+                            yAxisIndex: 1,
+                            data: this._pointsToSeries(monthData?.series?.event_count),
+                            itemStyle: { color: "#64748b" }
+                        },
+                        {
+                            name: "Level min",
+                            type: "line",
+                            showSymbol: false,
+                            data: this._pointsToSeries(monthData?.series?.level_min),
+                            lineStyle: { color: "#2dd4bf" },
+                            connectNulls: false
+                        },
+                        {
+                            name: "Level max",
+                            type: "line",
+                            showSymbol: false,
+                            data: this._pointsToSeries(monthData?.series?.level_max),
+                            lineStyle: { color: "#a3e635" },
+                            connectNulls: false
+                        }
+                    ];
+                    this._applyTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
+                    monthChart.setOption(opt, true);
+                    monthChart.resize();
+                }
+
+                if (yearChart) {
+                    const opt = this._baseChartOption("Level / count");
+                    opt.yAxis = [
+                        {
+                            type: "value",
+                            name: "Level",
+                            min: 0,
+                            max: 100,
+                            nameTextStyle: { color: "#9ca3af" },
+                            axisLabel: { color: "#9ca3af" },
+                            splitLine: { lineStyle: { color: "#374151" } }
+                        },
+                        {
+                            type: "value",
+                            name: "Events",
+                            nameTextStyle: { color: "#9ca3af" },
+                            axisLabel: { color: "#9ca3af" },
+                            splitLine: { show: false }
+                        }
+                    ];
+                    opt.series = [
+                        {
+                            name: "Events",
+                            type: "bar",
+                            yAxisIndex: 1,
+                            data: this._pointsToSeries(yearData?.series?.event_count),
+                            itemStyle: { color: "#64748b" }
+                        },
+                        {
+                            name: "Level min",
+                            type: "line",
+                            showSymbol: false,
+                            data: this._pointsToSeries(yearData?.series?.level_min),
+                            lineStyle: { color: "#2dd4bf" },
+                            connectNulls: false
+                        },
+                        {
+                            name: "Level max",
+                            type: "line",
+                            showSymbol: false,
+                            data: this._pointsToSeries(yearData?.series?.level_max),
+                            lineStyle: { color: "#a3e635" },
+                            connectNulls: false
+                        }
+                    ];
+                    this._applyTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
+                    yearChart.setOption(opt, true);
+                    yearChart.resize();
+                }
+            };
+
+            // x-show must reveal chart divs before echarts measures width.
+            this.$nextTick(() => {
+                requestAnimationFrame(draw);
+            });
         },
 
         async reloadActuatorCharts() {
@@ -1715,8 +1807,47 @@ function wanosApp() {
             return this._historyCharts[key];
         },
 
+        _normalizeTsMs(t) {
+            const n = Number(t);
+            if (!Number.isFinite(n) || n <= 0) return null;
+            // Backend sends ms; tolerate accidental unix-seconds.
+            return n < 1e12 ? n * 1000 : n;
+        },
+
         _pointsToSeries(points) {
-            return (points || []).map(p => [p.t, p.v == null ? null : p.v]);
+            return (points || []).map(p => {
+                const t = this._normalizeTsMs(p && p.t);
+                return [t, (p == null || p.v == null) ? null : p.v];
+            }).filter(row => row[0] != null);
+        },
+
+        _seriesHasPoints(points) {
+            return (points || []).some(p => p != null && p.v != null && !Number.isNaN(Number(p.v)));
+        },
+
+        _historyPayloadHasData(data) {
+            const s = data && data.series;
+            if (!s || typeof s !== "object") return false;
+            return Object.values(s).some(arr => this._seriesHasPoints(arr));
+        },
+
+        /**
+         * Force the titled window (last 24h / month / year). Sparse event series otherwise
+         * collapse the time axis; reused chart instances also keep a tiny dataZoom from before.
+         * Use percent zoom (0–100) against explicit axis min/max — more reliable than startValue
+         * when series only cover a thin slice of the window.
+         */
+        _applyTimeWindow(opt, windowMs) {
+            if (!opt || !opt.xAxis || !windowMs) return;
+            const end = Date.now();
+            const start = end - windowMs;
+            opt.xAxis.min = start;
+            opt.xAxis.max = end;
+            opt.xAxis.scale = true;
+            opt.dataZoom = [
+                { type: "inside", start: 0, end: 100, filterMode: "none", minValueSpan: Math.min(windowMs, 60 * 60 * 1000) },
+                { type: "slider", height: 18, bottom: 28, start: 0, end: 100, filterMode: "none", minValueSpan: Math.min(windowMs, 60 * 60 * 1000) },
+            ];
         },
 
         _baseChartOption(yName) {
@@ -1724,8 +1855,12 @@ function wanosApp() {
                 backgroundColor: "transparent",
                 tooltip: { trigger: "axis" },
                 legend: { bottom: 0, textStyle: { color: "#9ca3af" } },
-                grid: { left: 48, right: 24, top: 24, bottom: 48 },
-                xAxis: { type: "time", axisLabel: { color: "#9ca3af" }, splitLine: { show: false } },
+                grid: { left: 48, right: 24, top: 24, bottom: 56 },
+                xAxis: {
+                    type: "time",
+                    axisLabel: { color: "#9ca3af", hideOverlap: true },
+                    splitLine: { show: false }
+                },
                 yAxis: {
                     type: "value",
                     name: yName,
@@ -1733,7 +1868,10 @@ function wanosApp() {
                     axisLabel: { color: "#9ca3af" },
                     splitLine: { lineStyle: { color: "#374151" } }
                 },
-                dataZoom: [{ type: "inside" }, { type: "slider", height: 18, bottom: 28 }]
+                dataZoom: [
+                    { type: "inside", filterMode: "none" },
+                    { type: "slider", height: 18, bottom: 28, filterMode: "none" },
+                ]
             };
         },
 
@@ -1743,6 +1881,12 @@ function wanosApp() {
             const isClimate = kind === "climate";
             const isHost = kind === "host";
             const hostUnit = dayData?.unit || monthData?.unit || "";
+
+            this.historyChartHasData = {
+                day: this._historyPayloadHasData(dayData),
+                month: this._historyPayloadHasData(monthData),
+                year: this._historyPayloadHasData(yearData),
+            };
 
             this.historyDayTitle = isClimate
                 ? "Temperature / humidity last 24 hours"
@@ -1757,107 +1901,121 @@ function wanosApp() {
                 : (isHost ? `Min / max last year (${hostUnit})`
                     : (isWater ? "Consumption last year" : "Usage last year"));
 
-            const dayChart = this._ensureHistoryChart("day", "chart-day");
-            const monthChart = this._ensureHistoryChart("month", "chart-month");
-            const yearChart = this._ensureHistoryChart("year", "chart-year");
+            this._disposeHistoryCharts();
 
-            if (isClimate) {
-                const showHum = dayData?.has_humidity !== false
-                    || (dayData?.series?.hum || []).length > 0
-                    || (monthData?.series?.hum_min || []).some(p => p.v != null);
-                this._renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum);
-                return;
-            }
+            const draw = () => {
+                const dayChart = this.historyChartHasData.day ? this._ensureHistoryChart("day", "chart-day") : null;
+                const monthChart = this.historyChartHasData.month ? this._ensureHistoryChart("month", "chart-month") : null;
+                const yearChart = this.historyChartHasData.year ? this._ensureHistoryChart("year", "chart-year") : null;
 
-            const yLabel = isWater ? "Liters" : (isHost ? (hostUnit || "Value") : "Usage (Watt)");
-            const seriesName = isHost ? "Value" : "Usage";
-
-            if (dayChart) {
-                const opt = this._baseChartOption(yLabel);
-                if (isWater) {
-                    opt.series = [{
-                        name: "Liters",
-                        type: "bar",
-                        data: this._pointsToSeries(dayData?.series?.liters),
-                        itemStyle: { color: "#2dd4bf" }
-                    }];
-                } else {
-                    opt.series = [{
-                        name: seriesName,
-                        type: "line",
-                        showSymbol: false,
-                        data: this._pointsToSeries(dayData?.series?.usage),
-                        lineStyle: { color: "#2dd4bf", width: 2 },
-                        areaStyle: { color: "rgba(45,212,191,0.08)" },
-                        connectNulls: false
-                    }];
+                if (isClimate) {
+                    const showHum = dayData?.has_humidity !== false
+                        || (dayData?.series?.hum || []).length > 0
+                        || (monthData?.series?.hum_min || []).some(p => p.v != null);
+                    this._renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum);
+                    return;
                 }
-                dayChart.setOption(opt, true);
-            }
 
-            if (monthChart) {
-                const opt = this._baseChartOption(yLabel);
-                if (isWater) {
-                    opt.series = [{
-                        name: "Liters",
-                        type: "bar",
-                        data: this._pointsToSeries(monthData?.series?.liters),
-                        itemStyle: { color: "#2dd4bf" }
-                    }];
-                } else {
-                    opt.series = [
-                        {
-                            name: seriesName + " min",
-                            type: "line",
-                            showSymbol: false,
-                            data: this._pointsToSeries(monthData?.series?.usage_min),
-                            lineStyle: { color: "#2dd4bf" },
-                            connectNulls: false
-                        },
-                        {
-                            name: seriesName + " max",
-                            type: "line",
-                            showSymbol: false,
-                            data: this._pointsToSeries(monthData?.series?.usage_max),
-                            lineStyle: { color: "#a3e635" },
-                            connectNulls: false
-                        }
-                    ];
-                }
-                monthChart.setOption(opt, true);
-            }
+                const yLabel = isWater ? "Liters" : (isHost ? (hostUnit || "Value") : "Usage (Watt)");
+                const seriesName = isHost ? "Value" : "Usage";
 
-            if (yearChart) {
-                const opt = this._baseChartOption(yLabel);
-                if (isWater) {
-                    opt.series = [{
-                        name: "Liters",
-                        type: "bar",
-                        data: this._pointsToSeries(yearData?.series?.liters),
-                        itemStyle: { color: "#2dd4bf" }
-                    }];
-                } else {
-                    opt.series = [
-                        {
-                            name: seriesName + " min",
+                if (dayChart) {
+                    const opt = this._baseChartOption(yLabel);
+                    if (isWater) {
+                        opt.series = [{
+                            name: "Liters",
+                            type: "bar",
+                            data: this._pointsToSeries(dayData?.series?.liters),
+                            itemStyle: { color: "#2dd4bf" }
+                        }];
+                    } else {
+                        opt.series = [{
+                            name: seriesName,
                             type: "line",
                             showSymbol: false,
-                            data: this._pointsToSeries(yearData?.series?.usage_min),
-                            lineStyle: { color: "#2dd4bf" },
+                            data: this._pointsToSeries(dayData?.series?.usage),
+                            lineStyle: { color: "#2dd4bf", width: 2 },
+                            areaStyle: { color: "rgba(45,212,191,0.08)" },
                             connectNulls: false
-                        },
-                        {
-                            name: seriesName + " max",
-                            type: "line",
-                            showSymbol: false,
-                            data: this._pointsToSeries(yearData?.series?.usage_max),
-                            lineStyle: { color: "#a3e635" },
-                            connectNulls: false
-                        }
-                    ];
+                        }];
+                    }
+                    this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
+                    dayChart.setOption(opt, true);
+                    dayChart.resize();
                 }
-                yearChart.setOption(opt, true);
-            }
+
+                if (monthChart) {
+                    const opt = this._baseChartOption(yLabel);
+                    if (isWater) {
+                        opt.series = [{
+                            name: "Liters",
+                            type: "bar",
+                            data: this._pointsToSeries(monthData?.series?.liters),
+                            itemStyle: { color: "#2dd4bf" }
+                        }];
+                    } else {
+                        opt.series = [
+                            {
+                                name: seriesName + " min",
+                                type: "line",
+                                showSymbol: false,
+                                data: this._pointsToSeries(monthData?.series?.usage_min),
+                                lineStyle: { color: "#2dd4bf" },
+                                connectNulls: false
+                            },
+                            {
+                                name: seriesName + " max",
+                                type: "line",
+                                showSymbol: false,
+                                data: this._pointsToSeries(monthData?.series?.usage_max),
+                                lineStyle: { color: "#a3e635" },
+                                connectNulls: false
+                            }
+                        ];
+                    }
+                    this._applyTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
+                    monthChart.setOption(opt, true);
+                    monthChart.resize();
+                }
+
+                if (yearChart) {
+                    const opt = this._baseChartOption(yLabel);
+                    if (isWater) {
+                        opt.series = [{
+                            name: "Liters",
+                            type: "bar",
+                            data: this._pointsToSeries(yearData?.series?.liters),
+                            itemStyle: { color: "#2dd4bf" }
+                        }];
+                    } else {
+                        opt.series = [
+                            {
+                                name: seriesName + " min",
+                                type: "line",
+                                showSymbol: false,
+                                data: this._pointsToSeries(yearData?.series?.usage_min),
+                                lineStyle: { color: "#2dd4bf" },
+                                connectNulls: false
+                            },
+                            {
+                                name: seriesName + " max",
+                                type: "line",
+                                showSymbol: false,
+                                data: this._pointsToSeries(yearData?.series?.usage_max),
+                                lineStyle: { color: "#a3e635" },
+                                connectNulls: false
+                            }
+                        ];
+                    }
+                    this._applyTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
+                    yearChart.setOption(opt, true);
+                    yearChart.resize();
+                }
+            };
+
+            this.$nextTick(() => {
+                requestAnimationFrame(draw);
+            });
         },
 
         _climateDualAxisOption() {
@@ -1908,6 +2066,7 @@ function wanosApp() {
                     });
                 }
                 opt.series = series;
+                this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
                 dayChart.setOption(opt, true);
                 dayChart.resize();
             }
@@ -1957,6 +2116,7 @@ function wanosApp() {
                     );
                 }
                 opt.series = series;
+                this._applyTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
                 monthChart.setOption(opt, true);
                 monthChart.resize();
             }
@@ -2006,6 +2166,7 @@ function wanosApp() {
                     );
                 }
                 opt.series = series;
+                this._applyTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
                 yearChart.setOption(opt, true);
                 yearChart.resize();
             }
@@ -2810,9 +2971,11 @@ function wanosApp() {
         // Rapidly clears all UI filters and sort modes back to their base defaults
         clearAllFilters() {
             this.searchQuery = "";
+            this.actuatorSearchQuery = "";
             this.typeFilter = "ALL";
             this.statusFilter = "ALL";
             this.sortMode = "NAME";
+            this.actuatorFavoritesOnly = false;
         },
 
         // Router for when a user clicks one of the 1-4 preset circles

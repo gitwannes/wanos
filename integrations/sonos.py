@@ -177,8 +177,19 @@ class SonosBridge:
                 self._start_playback, speaker, volume, station_key, station_url)
 
             if playback_started:
+                # Include volume so the Explorer slider does not stay stuck at 0/SYNC
+                # after an ON confirm that previously omitted the level.
+                try:
+                    current_vol = volume
+                    if current_vol is None:
+                        current_vol = await asyncio.to_thread(getattr, speaker, "volume")
+                except Exception:
+                    current_vol = volume
+                confirm = {"idx": idx, "state": "ON", "origin": "sonos"}
+                if current_vol is not None:
+                    confirm["volume"] = int(current_vol)
                 self.manager.dispatch(Event(
                     type=EventType.HUB_STATE_CHANGED,
-                    payload={"idx": idx, "state": "ON", "origin": "sonos"}))
+                    payload=confirm))
         except Exception as e:
             logger.error(f"Sonos command failed on {idx}: {e}")

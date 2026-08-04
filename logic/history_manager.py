@@ -524,6 +524,41 @@ class DeviceHistoryManager:
             points.append({"t": t_ms + 1, "v": 0.0})
         return points
 
+    def _step_level_series(
+        self,
+        events: List[Tuple[int, Any, Optional[float]]],
+        since_ts: int,
+        until_ts: int,
+        prev_level: Optional[float],
+    ) -> List[Dict[str, Any]]:
+        """
+        Build a hold-last step series spanning the full window.
+        Without start/end anchors, ECharts only draws through the last event and
+        sparse switch toggles look crushed into a thin left-hand spike.
+        """
+        if not events and prev_level is None:
+            return []
+
+        points: List[Dict[str, Any]] = []
+        level = 0.0 if prev_level is None else float(prev_level)
+        points.append({"t": since_ts * 1000, "v": level})
+
+        for ts, state, raw_level in events:
+            lv = raw_level if raw_level is not None else normalize_level(state)
+            if lv is None:
+                continue
+            level = float(lv)
+            t_ms = int(ts) * 1000
+            # Keep step edges sharp even when multiple events share a second.
+            if points and points[-1]["t"] >= t_ms:
+                t_ms = points[-1]["t"] + 1
+            points.append({"t": t_ms, "v": level})
+
+        end_ms = max(until_ts * 1000, points[-1]["t"] + 1)
+        if points[-1]["t"] < end_ms:
+            points.append({"t": end_ms, "v": level})
+        return points
+
     def get_actuator_series(self, idx: int, range_name: str) -> Dict[str, Any]:
         range_name = (range_name or "day").lower()
         meta = self.sm._state.device_metadata.get(idx, {}) or {}
@@ -534,20 +569,29 @@ class DeviceHistoryManager:
         c = conn.cursor()
 
         if range_name == "day":
-            since = int(time.time()) - 86400
+            until_ts = int(time.time())
+            since = until_ts - 86400
             c.execute(
                 "SELECT timestamp, state, level FROM device_events WHERE idx = ? AND timestamp >= ? ORDER BY timestamp",
                 (idx, since),
             )
             rows = list(c.fetchall())
+            prev_level: Optional[float] = None
+            if not impulse:
+                c.execute(
+                    """SELECT state, level FROM device_events
+                       WHERE idx = ? AND timestamp < ?
+                       ORDER BY timestamp DESC LIMIT 1""",
+                    (idx, since),
+                )
+                prev = c.fetchone()
+                if prev:
+                    prev_level = prev[1] if prev[1] is not None else normalize_level(prev[0])
             conn.close()
             if impulse:
                 level_pts = self._impulse_level_series(rows)
             else:
-                level_pts = []
-                for ts, state, level in rows:
-                    lv = level if level is not None else normalize_level(state)
-                    level_pts.append({"t": ts * 1000, "v": lv})
+                level_pts = self._step_level_series(rows, since, until_ts, prev_level)
             return {
                 "idx": idx,
                 "name": name,

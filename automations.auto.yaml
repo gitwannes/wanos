@@ -287,8 +287,8 @@ automations:
       - entity_id: hue.group.eetkamer_hue
         state: "ON"
 
+  # Chain automation (not a UI scene). Was scene:true → synthetic history IDX 956177 only.
   - name: "BuroCinemaPC_cosy"
-    scene: true
     trigger:
       - entity_id: switch.buro_licht
         state: "ON"
@@ -407,6 +407,16 @@ automations:
       - entity_id: switch.pc_monitors
         state: "SYNC"
 
+  # When PC turns OFF, always FORCE schemer OFF even if pc_monitors was already OFF
+  # (the Aux SYNC chain would otherwise skip and leave the RFX schemer lit).
+  - name: "PC OFF -> Buro Schemer FORCE OFF"
+    trigger:
+      entity_id: switch.pc
+      state: "OFF"
+    actions:
+      - entity_id: switch.buro_wannes_schemer
+        state: "FORCE_OFF"
+
   - name: "PC Aux ON -> Buro Schemer + Sonos ON"
     trigger:
       entity_id: switch.pc_monitors
@@ -425,7 +435,7 @@ automations:
       state: "OFF"
     actions:
       - entity_id: switch.buro_wannes_schemer
-        state: "OFF"
+        state: "FORCE_OFF"
       - entity_id: media_player.buro
         state: "OFF"
 

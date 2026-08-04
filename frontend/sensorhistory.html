@@ -95,6 +95,30 @@
 
         <!-- SENSORS (utilities + actuators) -->
         <div class="flex flex-col gap-4 md:gap-6" x-show="historyTab === 'sensors'" x-cloak>
+            <div class="flex items-center justify-between bg-base-100 shadow-md border border-base-200 rounded-box py-1.5 px-3">
+                <div class="flex items-center gap-3">
+                    <button class="btn btn-xs btn-circle btn-ghost text-error/70 hover:text-error hover:bg-error/20 mr-3 md:mr-5 border border-error/10"
+                            title="Clear all filters"
+                            @click="clearAllFilters()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    <div class="flex gap-2">
+                        <template x-for="(preset, index) in presets" :key="index">
+                            <button class="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold font-mono text-[11px] md:text-sm transition-colors duration-200 border border-base-content/20"
+                                    :class="preset !== null ? 'bg-primary text-primary-content border-primary shadow-md' : 'bg-transparent text-base-content/40 hover:border-primary/50'"
+                                    @click="handlePresetClick(index)">
+                                <span x-text="index + 1"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-ghost text-lg hover:bg-base-200"
+                        title="Manage Presets"
+                        @click="document.getElementById('preset_edit_modal').showModal()">
+                    ✏️
+                </button>
+            </div>
+
             <div class="bg-base-100 border border-base-200 rounded-box p-3 flex flex-col gap-3">
                 <div class="flex flex-wrap items-center gap-3 justify-between">
                     <label class="label cursor-pointer gap-2 py-0">
@@ -111,10 +135,37 @@
                         <span x-show="historyLoading || actuatorLoading" class="loading loading-spinner loading-xs"></span>
                     </button>
                 </div>
-                <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 w-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
-                    <input type="text" class="grow font-mono text-xs" placeholder="Filter name, IDX, type…" x-model="actuatorSearchQuery" />
-                </label>
+                <div class="grid grid-cols-2 md:flex md:flex-row gap-2 md:gap-3 items-center w-full">
+                    <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 w-full col-span-2 md:flex-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
+                        <input type="text" class="grow font-mono text-xs" placeholder="Filter name, IDX, type…"
+                               x-model="searchQuery" />
+                    </label>
+                    <select class="select select-bordered select-sm font-mono text-[10px] md:text-xs w-full md:w-auto min-w-[110px]"
+                            :class="typeFilter !== 'ALL' ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-base-200'"
+                            x-model="typeFilter">
+                        <option value="ALL">Alles</option>
+                        <option value="SWITCH">Switches</option>
+                        <option value="HUE">Hue</option>
+                        <option value="BLINDS">Rolluiken</option>
+                        <option value="SPEAKER">Audio</option>
+                        <option value="SENSOR">Sensors</option>
+                        <option value="SCENE">Scenes</option>
+                    </select>
+                    <select class="select select-bordered select-sm font-mono text-[10px] md:text-xs w-full md:w-auto min-w-[110px]"
+                            :class="statusFilter !== 'ALL' ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-base-200'"
+                            x-model="statusFilter">
+                        <option value="ALL">All States</option>
+                        <option value="ON">ON / Closed</option>
+                        <option value="OFF">OFF / Open</option>
+                    </select>
+                    <select class="select select-bordered select-sm font-mono text-[10px] md:text-xs bg-base-200 w-full md:w-auto min-w-[120px]"
+                            x-model="sortMode">
+                        <option value="TYPE">Sort by Type</option>
+                        <option value="NAME">Sort by Name</option>
+                        <option value="STATUS">Sort by Status</option>
+                    </select>
+                </div>
             </div>
 
             <section class="bg-base-100 border border-base-200 rounded-box p-3 md:p-4 overflow-x-auto">
@@ -188,15 +239,15 @@
                                                                  x-text="historySummary?.total == null ? '—' : formatHistoryValue(historySummary?.total, historySummary?.display_unit)"></div>
                                                         </div>
                                                     </div>
-                                                    <section>
+                                                    <section x-show="historyChartHasData.day">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyDayTitle"></h2>
                                                         <div id="chart-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
-                                                    <section>
+                                                    <section x-show="historyChartHasData.month">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyMonthTitle"></h2>
                                                         <div id="chart-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
-                                                    <section>
+                                                    <section x-show="historyChartHasData.year">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyYearTitle"></h2>
                                                         <div id="chart-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
@@ -206,15 +257,15 @@
                                             <!-- Climate dual-axis charts (same chart ids as utility) -->
                                             <template x-if="selectedSensorKind === 'climate' || selectedSensorKind === 'host'">
                                                 <div class="flex flex-col gap-4">
-                                                    <section>
+                                                    <section x-show="historyChartHasData.day">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyDayTitle"></h2>
                                                         <div id="chart-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
-                                                    <section>
+                                                    <section x-show="historyChartHasData.month">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyMonthTitle"></h2>
                                                         <div id="chart-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
-                                                    <section>
+                                                    <section x-show="historyChartHasData.year">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyYearTitle"></h2>
                                                         <div id="chart-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
@@ -224,18 +275,22 @@
                                             <!-- Actuator charts -->
                                             <template x-if="selectedSensorKind === 'actuator'">
                                                 <div class="flex flex-col gap-4">
-                                                    <section>
+                                                    <section x-show="actuatorChartHasData.day">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Level / hits last 24 hours</h2>
                                                         <div id="chart-act-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
-                                                    <section>
+                                                    <section x-show="actuatorChartHasData.month">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Last month (counts + level)</h2>
                                                         <div id="chart-act-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
-                                                    <section>
+                                                    <section x-show="actuatorChartHasData.year">
                                                         <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Last year (counts + level)</h2>
                                                         <div id="chart-act-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                     </section>
+                                                    <p class="font-mono text-xs text-base-content/40 italic"
+                                                       x-show="!actuatorChartHasData.day && !actuatorChartHasData.month && !actuatorChartHasData.year">
+                                                        No history data for this period.
+                                                    </p>
                                                 </div>
                                             </template>
                                         </div>
@@ -307,7 +362,65 @@
                 </div>
             </section>
         </div>
+
+        <dialog id="preset_save_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+            <div class="modal-box border border-primary/20 bg-base-300 shadow-2xl text-center">
+                <h3 class="font-black text-lg text-base-content tracking-wider mb-2">Save Preset</h3>
+                <p class="text-sm text-base-content/70 mb-6">Wil je de huidige filters bewaren in <span class="font-bold text-primary">preset <span x-text="(activePresetSlot !== null ? activePresetSlot + 1 : '')"></span></span>?</p>
+                <div class="modal-action">
+                    <form method="dialog" class="w-full flex justify-between gap-4">
+                        <button class="btn btn-outline flex-1 font-mono text-base-content/70" @click="activePresetSlot = null">Cancel</button>
+                        <button type="button" class="btn btn-primary flex-1 font-mono shadow-md text-primary-content font-bold" @click="confirmSavePreset()">SAVE PRESET</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button @click="activePresetSlot = null">close</button>
+            </form>
+        </dialog>
+
+        <dialog id="preset_edit_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+            <div class="modal-box border border-base-content/10 bg-base-300 shadow-2xl">
+                <h3 class="font-bold text-lg border-b border-base-200 pb-2 mb-4">Manage Presets</h3>
+
+                <div class="flex flex-col gap-3">
+                    <template x-for="(preset, index) in presets" :key="index">
+                        <div class="flex items-center justify-between p-3 bg-base-200 rounded-box border border-base-300">
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                                      :class="preset !== null ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content/30'"
+                                      x-text="index + 1"></span>
+                                <span class="font-mono text-xs truncate"
+                                      :class="preset === null ? 'text-base-content/40 italic' : 'text-base-content/90'"
+                                      x-text="getPresetSummary(index)"></span>
+                            </div>
+                            <button class="btn btn-xs btn-circle btn-error btn-outline shrink-0 ml-2"
+                                    x-show="preset !== null"
+                                    title="Remove Preset"
+                                    @click="removePreset(index)">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="modal-action border-t border-base-200 pt-4 mt-6">
+                    <form method="dialog" class="w-full">
+                        <button class="btn btn-outline btn-block btn-sm font-mono text-base-content/70">Close</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <div class="toast toast-bottom toast-center z-[99999]" x-show="toastMessage !== ''" x-transition x-cloak>
+            <div class="alert alert-error shadow-lg">
+                <span class="font-mono text-xs font-bold text-error-content" x-text="toastMessage"></span>
+            </div>
+        </div>
     </main>
-    <script src="app.js?v=2.9"></script>
+    <script src="app.js?v=3.2"></script>
 </body>
 </html>

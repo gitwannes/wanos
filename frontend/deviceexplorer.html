@@ -109,11 +109,17 @@
                 </div>
             </div>
 
-            <button class="btn btn-sm btn-ghost text-lg hover:bg-base-200"
-                    title="Manage Presets"
-                    @click="document.getElementById('preset_edit_modal').showModal()">
-                ✏️
-            </button>
+            <div class="flex items-center gap-3">
+                <label class="label cursor-pointer gap-2 py-0">
+                    <input type="checkbox" class="toggle toggle-sm toggle-accent" x-model="actuatorFavoritesOnly" />
+                    <span class="label-text font-mono text-[10px] uppercase tracking-widest hidden sm:inline">Favorites</span>
+                </label>
+                <button class="btn btn-sm btn-ghost text-lg hover:bg-base-200"
+                        title="Manage Presets"
+                        @click="document.getElementById('preset_edit_modal').showModal()">
+                    ✏️
+                </button>
+            </div>
         </div>
 
         <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3">
@@ -165,6 +171,12 @@
 
                     <li class="flex flex-row items-center justify-between py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-1 md:gap-6 overflow-hidden w-full"
                     :class="item.is_dead ? 'opacity-50 grayscale bg-base-200/30' : ''">
+                        <div class="shrink-0 pr-1" @click.stop>
+                            <input type="checkbox" class="checkbox checkbox-xs checkbox-accent"
+                                   :checked="isActuatorFavorite(item.id)"
+                                   @change="toggleActuatorFavorite(item.id)"
+                                   title="Favorite" />
+                        </div>
                         <div class="flex-1 min-w-0 pr-1 md:pr-2 flex flex-col justify-center">
                             <template x-if="item.is_hue">
                                 <button class="text-left hover:text-primary transition-colors flex items-center gap-3 w-full" @click="openLightModal(item)">
@@ -206,36 +218,30 @@
                                     <template x-if="item.type === 'blinds'">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-sm">↕️</span>
-                                            <!--
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">shutter</span>
-                                            -->
+                                        </div>
+                                    </template>
+
+                                    <template x-if="item.type === 'switch' || item.type === 'light'">
+                                        <div class="flex items-center gap-1 shrink-0" x-show="explorerItemIcon(item)">
+                                            <span class="text-sm leading-none" x-text="explorerItemIcon(item)"></span>
                                         </div>
                                     </template>
 
                                     <template x-if="item.name.toLowerCase().includes('water') || item.name.toLowerCase().includes('liter')">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-sm">💧</span>
-                                            <!--
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">water</span>
-                                            -->
                                         </div>
                                     </template>
 
                                     <template x-if="item.type === 'temp_hum' && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-[10px] md:text-xs">🌡️💧</span>
-                                            <!--
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">climate</span>
-                                            -->
                                         </div>
                                     </template>
 
                                     <template x-if="(item.type === 'temp' || (item.type === 'sensor' && item.name.toLowerCase().includes('temp'))) && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-sm">🌡️</span>
-                                            <!--
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">temp</span>
-                                            -->
                                         </div>
                                     </template>
 
@@ -256,36 +262,30 @@
                                     <template x-if="item.type === 'sensor' && item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('water')">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-sm text-info">⚡</span>
-                                            <!--
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">voltage</span>
-                                            -->
                                         </div>
                                     </template>
 
                                     <template x-if="item.type === 'sensor' && item.name.toLowerCase().includes('motion')">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-sm">🏃</span>
-                                            <!--
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">motion</span>
-                                            -->
                                         </div>
                                     </template>
 
-                                    <template x-if="(item.name.toLowerCase().includes('cinema') || item.name.toLowerCase().includes('epson') || item.name.toLowerCase().includes('projector')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'temp_hum' && item.type !== 'temp' && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
+                                    <template x-if="(item.name.toLowerCase().includes('cinema') || item.name.toLowerCase().includes('epson') || item.name.toLowerCase().includes('projector')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'switch' && item.type !== 'light' && item.type !== 'temp_hum' && item.type !== 'temp' && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-sm">🎬</span>
                                             <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">cinema</span>
                                         </div>
                                     </template>
 
-                                    <template x-if="(item.name.toLowerCase().includes('sauna') || item.name.toLowerCase().includes('zoutlamp')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'temp_hum' && item.type !== 'temp' && item.type !== 'power' && item.type !== 'energy' && !item.name.toLowerCase().includes('cinema') && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
+                                    <template x-if="(item.name.toLowerCase().includes('sauna') || item.name.toLowerCase().includes('zoutlamp')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'switch' && item.type !== 'light' && item.type !== 'temp_hum' && item.type !== 'temp' && item.type !== 'power' && item.type !== 'energy' && !item.name.toLowerCase().includes('cinema') && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-sm">♨️</span>
                                             <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">sauna</span>
                                         </div>
                                     </template>
 
-                                    <template x-if="(item.name.toLowerCase().includes(' ir ') || item.name.toLowerCase().startsWith('ir ') || item.name.toLowerCase() === 'ir' || item.name.toLowerCase().includes('infrarood')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'temp_hum' && item.type !== 'temp' && item.type !== 'power' && item.type !== 'energy' && !item.name.toLowerCase().includes('sauna') && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
+                                    <template x-if="(item.name.toLowerCase().includes(' ir ') || item.name.toLowerCase().startsWith('ir ') || item.name.toLowerCase() === 'ir' || item.name.toLowerCase().includes('infrarood')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'switch' && item.type !== 'light' && item.type !== 'temp_hum' && item.type !== 'temp' && item.type !== 'power' && item.type !== 'energy' && !item.name.toLowerCase().includes('sauna') && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
                                         <div class="flex items-center gap-1 shrink-0">
                                             <span class="text-sm">🟥</span>
                                             <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">IR</span>
@@ -358,14 +358,16 @@
                                           :class="item.is_dead ? 'badge-neutral text-error font-bold' : (item.is_on ? 'badge-success text-neutral-900 shadow-sm' : 'badge-neutral text-base-content/50')"
                                           x-text="item.is_dead ? 'DEAD' : (item.display_text !== null ? item.display_text : '--')"></span>
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
                                           @click="toggleSpeakerPower(item.id, true)">PLAY</span>
 
-                                    <input type="range" min="0" :max="item.max_volume" step="1" class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer touch-pan-y"
+                                    <input type="range" min="0" :max="item.max_volume" step="1"
+                                           class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer touch-pan-y"
                                            :disabled="item.is_syncing || item.is_dead || !item.is_on"
-                                           :value="(!item.is_syncing && item.is_on && item.ui_volume !== undefined) ? item.ui_volume : 0"
+                                           :key="'spkvol-' + item.id + '-' + (item.ui_volume ?? 'x') + '-' + item.is_on + '-' + item.is_syncing"
+                                           :value="(!item.is_syncing && item.is_on && item.ui_volume !== undefined && item.ui_volume !== null) ? item.ui_volume : 0"
+                                           x-effect="if (!item.is_syncing && item.is_on && item.ui_volume !== undefined && item.ui_volume !== null) { $el.value = item.ui_volume }"
                                            @pointerdown="let t = $event.touches ? $event.touches[0] : $event; $el._startX = t.clientX; $el._startY = t.clientY; $el._verified = false; $el._orig = $el.value;"
-                                            @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"                                           @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
+                                           @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
                                            @input="
                                                if (!$el._verified) {
                                                    $event.target.value = $el._orig;
@@ -381,7 +383,8 @@
                                                setSpeakerVolume(item.id, parseInt($event.target.value, 10));
                                            " />
                                     <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-warning cursor-pointer hover:text-primary transition-colors"
-                                          @click="toggleSpeakerPower(item.id, false)">PAUSE</span>                                </div>
+                                          @click="toggleSpeakerPower(item.id, false)">PAUSE</span>
+                                </div>
                             </template>
 
                             <template x-if="item.type === 'temp'">
@@ -574,6 +577,6 @@
         </div>
 
     </main>
-    <script src="app.js?v=2.9"></script>
+    <script src="app.js?v=3.2"></script>
 </body>
 </html>

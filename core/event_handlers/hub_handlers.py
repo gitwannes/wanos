@@ -132,18 +132,20 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         is_force = True
         payload["force"] = True
 
+    # Host / mains gauge history (22002–22006/22009, 71046).
+    # Sample on every poll tick — not only when the rounded string changes —
+    # otherwise disk/log2ram/mains sit flat for hours with empty graphs.
+    if not is_init and hasattr(manager, "sensor_history"):
+        from logic.history_ids import HOST_HISTORY_IDXS, parse_numeric_state
+        if idx in HOST_HISTORY_IDXS:
+            num = parse_numeric_state(state_val if state_val is not None else new_val)
+            if num is not None:
+                manager.sensor_history.note_gauge(idx, num)
+
     if old_val != new_val or is_push_button or is_force:
         manager._state.devices[idx] = new_val
         state_changed = True
         changed_domains.add("devices")
-
-        # Host / mains gauge history (22002–22006, 71046)
-        if not is_init and hasattr(manager, "sensor_history"):
-            from logic.history_ids import HOST_HISTORY_IDXS, parse_numeric_state
-            if idx in HOST_HISTORY_IDXS:
-                num = parse_numeric_state(state_val if state_val is not None else new_val)
-                if num is not None:
-                    manager.sensor_history.note_gauge(idx, num)
 
         # --- ⚡ DEVICE INSIGHTS HISTORY LOGGING ---
         if not is_init and hasattr(manager, "history_manager"):
