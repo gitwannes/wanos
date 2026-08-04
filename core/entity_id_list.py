@@ -1,30 +1,19 @@
-#!/usr/bin/env python3
+# --- file: core/entity_id_list.py ---
 """
-Offline report: dump every entity_id from entity_registry.yaml into a
-fixed-width plaintext file (entity_id-list.txt at the WanOS repo root).
+Generate a fixed-width entity_id authoring report.
 
-Does not need a running WanOS server. Optionally enriches rows from the
-same YAML configs the app uses (hardware / hue / zwave / master config).
-
-Usage (from repo root or helpers/):
-  py helpers/list_entity_ids.py
-  py helpers/list_entity_ids.py --output path/to/file.txt
+Used by GET /api/admin/entity-id-list (Admin → System Commands download).
 """
 from __future__ import annotations
 
-import argparse
-import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-try:
-    import yaml
-except ImportError:
-    print("PyYAML is required (pip install pyyaml).", file=sys.stderr)
-    sys.exit(1)
+import yaml
+
+ROOT = Path(__file__).resolve().parent.parent
 
 REGISTRY_FILENAME = "entity_registry.yaml"
-DEFAULT_OUTPUT_NAME = "entity_id-list.txt"
 
 # Scene history keys (logic/history_ids.py): 900000 + (crc32(event) & 0xFFFF).
 # These are not authoring IDs — automations use event: "SCENE_…" strings.
@@ -64,7 +53,7 @@ def find_repo_root(start: Optional[Path] = None) -> Path:
     for base in candidates:
         if (base / REGISTRY_FILENAME).is_file() or (base / "config.yaml").is_file():
             return base
-    return here.parent if (here / "list_entity_ids.py").is_file() else here
+    return ROOT
 
 
 def load_yaml(path: Path) -> Any:
@@ -73,8 +62,8 @@ def load_yaml(path: Path) -> Any:
     try:
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
-    except Exception as exc:
-        print(f"Warning: could not parse {path.name}: {exc}", file=sys.stderr)
+    except Exception:
+        # Callers that care (CLI) can print; API path just skips broken enrichment.
         return None
 
 
@@ -389,31 +378,8 @@ def format_fixed_width(rows: List[Dict[str, str]], columns: Tuple[str, ...] = CO
     return "\n".join(lines)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Dump entity_id list as fixed-width plaintext.")
-    parser.add_argument(
-        "--root",
-        type=Path,
-        default=None,
-        help="WanOS repo root (default: auto-detect from script / cwd)",
-    )
-    parser.add_argument(
-        "--output", "-o",
-        type=Path,
-        default=None,
-        help=f"Output path (default: <root>/{DEFAULT_OUTPUT_NAME})",
-    )
-    args = parser.parse_args(argv)
-
-    root = find_repo_root(args.root) if args.root is None else args.root.resolve()
-    out_path = (args.output or (root / DEFAULT_OUTPUT_NAME)).resolve()
-
-    rows = build_rows(root)
-    text = format_fixed_width(rows)
-    out_path.write_text(text, encoding="utf-8")
-    print(f"Wrote {len(rows)} entities -> {out_path}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+def generate_entity_id_list_text(root: Optional[Path] = None) -> str:
+    """Build the full fixed-width report from live registry + config enrichment."""
+    base = (root or ROOT).resolve()
+    rows = build_rows(base)
+    return format_fixed_width(rows)

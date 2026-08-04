@@ -22,7 +22,7 @@ import yaml
 from contextlib import asynccontextmanager
 from typing import Union, Any, AsyncGenerator, Optional
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, RedirectResponse, JSONResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, JSONResponse, Response
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
@@ -452,6 +452,28 @@ async def debug_entity_registry_check(req: Request) -> dict[str, Any]:
         device_metadata=state_manager.get_state_snapshot().device_metadata,
     )
     return report
+
+
+@app.get("/api/admin/entity-id-list")
+async def admin_entity_id_list(req: Request):
+    """Admin: download live entity_id authoring list (core.entity_id_list)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    from core.entity_id_list import generate_entity_id_list_text
+
+    try:
+        text = generate_entity_id_list_text()
+    except FileNotFoundError as e:
+        return JSONResponse(status_code=404, content={"error": str(e)})
+    except Exception as e:
+        logger.error(f"Failed to generate entity_id list: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to generate entity_id list."})
+
+    return Response(
+        content=text,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="entity_id-list.txt"'},
+    )
 
 
 @app.get("/api/history/sensors")

@@ -555,6 +555,13 @@
                                         <span x-show="configReloading" class="loading loading-spinner loading-xs"></span>
                                     </button>
                                 </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
+                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">Entity ID List</span>
+                                    <button class="btn btn-outline btn-success btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="downloadEntityIdList()" :disabled="entityIdListDownloading">
+                                        <span x-show="!entityIdListDownloading">GET</span>
+                                        <span x-show="entityIdListDownloading" class="loading loading-spinner loading-xs"></span>
+                                    </button>
+                                </div>
 
                                 <hr class="border-base-300 my-1" />
                                 <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Debug Commands</div>
@@ -939,4 +946,4 @@
             </form>
         </dialog>
     </main>
-    <script src="app.js?v=2.4"></script>
+    <script src="app.js?v=2.5"></script>

@@ -114,6 +114,9 @@ function wanosApp() {
         entityRegistryReportText: "",
         entityRegistryReportOk: null,
 
+        // Tracks Admin System Commands "Entity ID List" download
+        entityIdListDownloading: false,
+
         // Tracks the execution state of the configuration hot-reload loop
         configReloading: false,
 
@@ -2658,6 +2661,45 @@ function wanosApp() {
                 });
             } finally {
                 this.entityRegistryChecking = false;
+            }
+        },
+
+        async downloadEntityIdList() {
+            if (this.entityIdListDownloading) return;
+            this.entityIdListDownloading = true;
+            try {
+                const res = await fetch("/api/admin/entity-id-list", {
+                    headers: this.getAuthHeaders(),
+                });
+                if (!res.ok) {
+                    let errMsg = `HTTP ${res.status}`;
+                    try {
+                        const body = await res.json();
+                        errMsg = body.error || errMsg;
+                    } catch (_) { /* response may be plain text */ }
+                    this.publishEvent("ALERT_INJECTED", {
+                        msg_text: `Entity ID list download failed: ${errMsg}`,
+                    });
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "entity_id-list.txt";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                this.publishEvent("ALERT_INJECTED", {
+                    msg_text: "Downloaded entity_id-list.txt",
+                });
+            } catch (err) {
+                this.publishEvent("ALERT_INJECTED", {
+                    msg_text: `Entity ID list download failed: ${err}`,
+                });
+            } finally {
+                this.entityIdListDownloading = false;
             }
         },
 
