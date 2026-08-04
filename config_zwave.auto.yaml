@@ -1,8 +1,8 @@
 
   # ==============================================================================
-  # config_zwave.yaml
+  # config_zwave.auto.yaml
 
-  # This file should NOT be edit manually: consult zwaveconfig.html.
+  # This file should NOT be edited manually: consult zwaveconfig.html.
 
   # Z-Wave JS UI: http://10.32.251.30:8091
   # ==============================================================================

@@ -2,7 +2,7 @@
 
 This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (next).
 
-**Entity_id cutover:** implemented — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. Operator: confirm Admin Debug check green on the Pi after deploy, then start Blocky.  
+**Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
 
 ---
@@ -36,7 +36,7 @@ Blocky and automations must not store raw hardware idxs in rules. Humans see fri
 * **Do not** re-derive `entity_id` from `name` on every boot.
 * **Remap-all (regen ids from names):** **do not implement**.
 
-### Persistence: `entity_registry.yaml`
+### Persistence: `entity_registry.auto.yaml`
 
 * System-owned file at WanOS root. Backend reads/writes it.
 * **Not** in hand-edited `config.yaml`.
@@ -73,7 +73,7 @@ Z-Wave slug source: **`| name |` segment only**.
 * Full cutover; **zero dual support** for numeric device idxs in rules.
 * Event-only triggers (`event: …`) unchanged.
 * Unresolved `entity_id` at runtime: **log + skip — do not kill the engine**.
-* **Do not split `config.yaml` yet.**
+* Automatic domains live in **`automations.auto.yaml`** (`deviceexplorer_exclude`, `lighting`, `automations`).
 
 ### Migration & cutover tooling (complete)
 
@@ -86,27 +86,35 @@ Z-Wave slug source: **`| name |` segment only**.
 
 ---
 
-## 📋 NEXT — Blocky implementation checklist
+## ✅ Prerequisite gate — Pi Admin Debug GREEN
 
-Do these after Admin Debug entity-registry check is green on the deployed Pi.
+Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT: GREEN**, no warnings. Live `device_metadata` included (`live_metadata_with_entity_id: 101`, `live_metadata_missing_entity_id: 0`). Local CLI check matches. **Prerequisite complete — start Blocky.**
+
+---
+
+## 📋 NEXT — Blocky implementation checklist
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work)
 
 1. Define **automation device deny-list** (which `entity_id`s / prefixes must not appear in pickers: safety, SSR, system-only, hidden, etc.).
-2. Confirm whether automations stay in `config.yaml` (surgical `ruamel`) or are extracted later — default remains **in `config.yaml`** until explicitly changed.
+2. Automations / lighting / excludes already live in **`automations.auto.yaml`** — Blocky writes target that file (`ruamel` surgical write of `automations:`).
 3. Inventory system events for the event dropdown dictionary.
+4. **ON/OFF merge model** — locked below (schema + migration of existing sibling pairs).
 
 ### Phase 1 — Backend API (CRUD & hot-reload)
 
 1. `GET/POST/PUT/DELETE /api/automations`.
-2. `ruamel.yaml` surgical write of `automations:` only (preserve comments).
+2. `ruamel.yaml` surgical write of `automations:` in **`automations.auto.yaml`** only (preserve comments).
 3. Persist **`entity_id`** on device triggers/conditions/actions (never raw idx).
-4. Dispatch `CONFIG_RELOAD_REQUESTED`; clear `AutomationEngine` config cache.
+4. Support **first-class branched rules** (ON/OFF or event-pair branches) in schema + engine evaluate path.
+5. Migrate existing sibling ON/OFF (and event ON/OFF) pairs that share the same trigger into one branched rule.
+6. Dispatch `CONFIG_RELOAD_REQUESTED`; clear `AutomationEngine` config cache.
 
 ### Phase 2 — Frontend data model
 
-1. Alpine editor store: `name`, `scene`, `trigger[]`, `conditions[]`, `actions[]`.
+1. Alpine editor store: `name`, `scene`, trigger (device or event), optional **ON branch** / **OFF branch** (each: `conditions[]`, `actions[]`), or **SYNC** when applicable.
 2. Add-trigger / add-action binds **`entity_id`**; UI shows **`name`**.
+3. One-sided rules allowed (ON-only or OFF-only); missing branch simply does not match that edge.
 
 ### Phase 3 — Semantic dropdowns
 
@@ -116,9 +124,10 @@ Do these after Admin Debug entity-registry check is green on the deployed Pi.
 
 ### Phase 4 — UI blocks (DaisyUI)
 
-1. WHEN (device / system event).
-2. AND IF (time of day / device state).
-3. THEN DO (device / scene / event; force; rich light/speaker payloads for `hue.light.*` / `media_player.*` as applicable).
+1. WHEN (device / system event) — one trigger; UI asks ON vs OFF (or shows both branches).
+2. AND IF (time of day / device state) — **per branch** when conditions differ.
+3. THEN DO (device / scene / event; force; rich light/speaker payloads for `hue.light.*` / `media_player.*` as applicable) — **per branch**.
+4. Canonical template: **`switch.pc_monitors`** (ON: schemer + Sonos with volume/station; OFF: both off).
 
 ### Phase 5 — Hardening
 
@@ -130,7 +139,7 @@ Do these after Admin Debug entity-registry check is green on the deployed Pi.
 
 ## 🚦 Decisions locked (prerequisite)
 
-1. `entity_registry.yaml`; freeze after birth; no remap-all.
+1. `entity_registry.auto.yaml`; freeze after birth; no remap-all.
 2. Full cutover; zero dual support; Script A + Cutover script (delete after); Admin Debug check (keep).
 3. Id patterns as table above (`hue.light` / `hue.group`; `switch` / `switch.vent|ssr|safety`; RFX = `switch`; sensors dotted).
 4. Z-Wave slug from `| name |` only.
@@ -139,9 +148,19 @@ Do these after Admin Debug entity-registry check is green on the deployed Pi.
 7. Every device idx gets an `entity_id`; Python **always resolve** via registry (`core/well_known_entities.py` + `resolve_entity_id`). Magic-idx scan cleared (allowlist: `90001` vent lock).
 8. ~~Remove `dashboard_map`~~ — **done**.
 9. Blocky next; deny-list decided at Blocky start.
-10. Do not split `config.yaml` in the entity_id step (revisit only if Blocky needs it).
+10. Auto domains extracted to **`automations.auto.yaml`**; Z-Wave map is **`config_zwave.auto.yaml`**.
+11. **Pi Admin Debug GREEN** — entity_id prerequisite closed.
+
+## 🚦 Decisions locked (Blocky — ON/OFF merge)
+
+1. **Persistence = first-class branched rule** (proposal B): one YAML rule with ON/OFF (or event-pair) branches — not two sibling flat rules kept forever. Engine understands branches (or expands at load); Blocky CRUD reads/writes the branched shape.
+2. **Pair key = same trigger `entity_id`** (device) or same event family for event pairs. Auto-group / migrate by that key.
+3. **Canonical example:** `switch.pc_monitors` — ON branch (schemer + Sonos rich) / OFF branch (both off).
+4. **`SYNC` only when ON and OFF are the same** (pure mirror: same targets, flipped state, no asymmetric rich payload or conditions). Otherwise use explicit ON/OFF branches.
+5. **Event pairs merge too** (e.g. cinema / twilight / sauna ON↔OFF) under the same branched model.
+6. **One-sided OK:** ON-only (or OFF-only) rules allowed; the absent edge simply does not match (e.g. `BuroCinemaPC_cosy`).
 
 ## 🚦 Open for Blocky start (not blocking prerequisite)
 
 1. Exact deny-list contents.
-2. Whether to extract `automations:` out of `config.yaml` before/during Blocky.
+2. Exact YAML key names for branches (`on:` / `off:` vs `branches:`) — decide at implement time; behavior above is locked.

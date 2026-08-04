@@ -398,7 +398,7 @@ function zwaveApp() {
             let yamlLines = [];
             yamlLines.push(``);
             yamlLines.push(`  # ==============================================================================`);
-            yamlLines.push(`  # config_zwave.yaml`);
+            yamlLines.push(`  # config_zwave.auto.yaml`);
             yamlLines.push(``);
             yamlLines.push(`  # This file should NOT be edit manually: consult zwaveconfig.html.`);
             yamlLines.push(``);
@@ -460,7 +460,7 @@ function zwaveApp() {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = "config_zwave.yaml.txt";
+                a.download = "config_zwave.auto.yaml.txt";
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);

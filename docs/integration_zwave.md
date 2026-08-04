@@ -7,7 +7,7 @@ Based on the WanOS backend architecture, the Z-Wave integration acts as a **lazy
 When the WanOS backend boots, the `ZWaveJSUIBridge` is instantiated, but it does not immediately subscribe to device telemetry. 
 
 *   **Silent Standby:** The bridge subscribes exclusively to the Z-Wave JS UI driver status (`driver/status`) and an out-of-band data plane heartbeat (`_EVENTS/+/controller/statistics_updated`). 
-*   **Lazy Boot:** The integration waits for two distinct hardware flags to become `True`: the physical USB stick connection (`zwave_hardware_connected`) and the MQTT engine status (`is_mqtt_engine_alive`). Only when both are verified does the bridge parse `config_zwave.yaml` to map the network. Mapped nodes receive (or reuse) a stable `entity_id` via system-owned `entity_registry.yaml` — see `docs/todo/install_blocky.md`.
+*   **Lazy Boot:** The integration waits for two distinct hardware flags to become `True`: the physical USB stick connection (`zwave_hardware_connected`) and the MQTT engine status (`is_mqtt_engine_alive`). Only when both are verified does the bridge parse `config_zwave.auto.yaml` to map the network. Mapped nodes receive (or reuse) a stable `entity_id` via system-owned `entity_registry.auto.yaml` — see `docs/todo/install_blocky.md`.
 *   **Armed Subscription:** Once the UI master toggle enables the integration, the bridge opens the telemetry stream (`zwave/#`) to actively listen for node updates.
 
 ## 2. Protocol Variations: Command Classes
@@ -37,7 +37,7 @@ The Z-Wave bridge incorporates several specialized routing mechanisms to handle 
 ## 5. The Continuous Listening Loop (The Inbox)
 While armed, the bridge parses all incoming MQTT JSON payloads. 
 
-*   **The Inbox Interceptor:** If the bridge receives telemetry from a node that is *not* currently mapped in `config_zwave.yaml`, it filters out generic network noise (Node 1 Controller pings) and forwards actionable Command Classes (like a new motion sensor) directly to the WanOS "Inbox" via a `ZWAVE_DISCOVERY` event for UI provisioning.
+*   **The Inbox Interceptor:** If the bridge receives telemetry from a node that is *not* currently mapped in `config_zwave.auto.yaml`, it filters out generic network noise (Node 1 Controller pings) and forwards actionable Command Classes (like a new motion sensor) directly to the WanOS "Inbox" via a `ZWAVE_DISCOVERY` event for UI provisioning.
 
 ## 6. Failure, Disconnection, and Reconnecting
 Because Z-Wave relies on a fragile chain of hardware and software, the bridge handles failures at the specific node level:

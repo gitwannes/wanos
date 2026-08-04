@@ -2,7 +2,7 @@
 """
 System-owned stable entity_id ↔ idx registry.
 
-Persists to entity_registry.yaml at the WanOS root. Ids are assigned once at
+Persists to entity_registry.auto.yaml at the WanOS root. Ids are assigned once at
 device birth and frozen across display-name renames. See docs/todo/install_blocky.md.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import yaml
 from loguru import logger
 
 
-REGISTRY_FILENAME = "entity_registry.yaml"
+REGISTRY_FILENAME = "entity_registry.auto.yaml"
 
 # Name-token classifiers for switch subclasses (checked in order).
 _SSR_TOKENS = ("ssr",)
@@ -95,7 +95,7 @@ def classify_entity_prefix(
 
 
 class EntityRegistry:
-    """Load/save entity_registry.yaml and resolve entity_id ↔ idx."""
+    """Load/save entity_registry.auto.yaml and resolve entity_id ↔ idx."""
 
     def __init__(self, base_dir: Optional[Path] = None) -> None:
         self.base_dir = base_dir or Path(__file__).resolve().parent.parent
@@ -113,7 +113,7 @@ class EntityRegistry:
         self._by_idx.clear()
         self._entity_to_idx.clear()
         if not self.file_path.exists():
-            logger.info("No entity_registry.yaml found — will create on first birth.")
+            logger.info("No entity_registry.auto.yaml found — will create on first birth.")
             self._loaded = True
             return
         try:
@@ -144,7 +144,7 @@ class EntityRegistry:
                     self._entity_to_idx[eid] = idx
             logger.success(f"Entity registry loaded ({len(self._by_idx)} rows) from {self.file_path.name}.")
         except Exception as e:
-            logger.error(f"Failed to load entity_registry.yaml: {e}")
+            logger.error(f"Failed to load entity_registry.auto.yaml: {e}")
         self._loaded = True
 
     def save(self) -> None:
@@ -162,7 +162,7 @@ class EntityRegistry:
             self._dirty = False
             logger.debug(f"Entity registry flushed ({len(self._by_idx)} rows).")
         except Exception as e:
-            logger.error(f"Failed to save entity_registry.yaml: {e}")
+            logger.error(f"Failed to save entity_registry.auto.yaml: {e}")
 
     def resolve(self, entity_id: str) -> Optional[int]:
         """entity_id → idx. Returns None if missing or removed."""

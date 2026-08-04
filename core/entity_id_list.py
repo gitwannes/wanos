@@ -13,7 +13,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 
-REGISTRY_FILENAME = "entity_registry.yaml"
+REGISTRY_FILENAME = "entity_registry.auto.yaml"
 
 # Scene history keys (logic/history_ids.py): 900000 + (crc32(event) & 0xFFFF).
 # These are not authoring IDs — automations use event: "SCENE_…" strings.
@@ -33,7 +33,7 @@ COLUMNS = (
     "hidden",
 )
 
-# Z-Wave idx band → device type (mirrors config_zwave.yaml comments / bridge).
+# Z-Wave idx band → device type (mirrors config_zwave.auto.yaml comments / bridge).
 _ZWAVE_TYPE_BY_BAND = (
     (71000, 71999, "switch"),
     (72000, 72999, "switch"),
@@ -45,7 +45,7 @@ _ZWAVE_TYPE_BY_BAND = (
 
 
 def find_repo_root(start: Optional[Path] = None) -> Path:
-    """Resolve WanOS root (directory that holds entity_registry.yaml / config.yaml)."""
+    """Resolve WanOS root (directory that holds entity_registry.auto.yaml / config.yaml)."""
     here = (start or Path(__file__).resolve()).resolve()
     if here.is_file():
         here = here.parent
@@ -211,8 +211,9 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
                 continue
             put(node.get("idx"), name=node.get("name"), dtype="temp_hum", origin="sht11")
 
-    # --- config.yaml (master) ---
+    # --- config.yaml (master) + automations.auto.yaml (exclude / lighting / rules) ---
     cfg = load_yaml(root / "config.yaml") or {}
+    auto_cfg = load_yaml(root / "automations.auto.yaml") or {}
     weather = cfg.get("weather") or {}
     if isinstance(weather, dict) and weather.get("idx") is not None:
         put(weather.get("idx"), name=weather.get("name") or "Outside temp & hum", dtype="temp_hum", origin="owm")
@@ -231,7 +232,7 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
             put(idx, name=name, dtype="speaker", origin="onkyo")
     if cfg.get("epson"):
         put(80001, name="cinema projector", dtype="switch", origin="epson")
-    for eid in cfg.get("deviceexplorer_exclude") or []:
+    for eid in auto_cfg.get("deviceexplorer_exclude") or cfg.get("deviceexplorer_exclude") or []:
         if eid:
             hidden.add(str(eid).strip())
 
@@ -262,8 +263,8 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
     for idx, raw in (hue.get("group_map") or {}).items():
         put(idx, name=_pipe_name(raw) or f"Hue Group {idx}", dtype="light", origin="hue")
 
-    # --- config_zwave.yaml ---
-    zw = load_yaml(root / "config_zwave.yaml") or {}
+    # --- config_zwave.auto.yaml ---
+    zw = load_yaml(root / "config_zwave.auto.yaml") or {}
     zwave = zw.get("zwave") if isinstance(zw, dict) else None
     if isinstance(zwave, dict):
         for eid in zwave.get("hidden_nodes") or []:
@@ -369,7 +370,7 @@ def format_fixed_width(rows: List[Dict[str, str]], columns: Tuple[str, ...] = CO
     lines.append("")
     lines.append(f"# rows: {len(rows)}")
     lines.append(f"# columns: {', '.join(columns)}")
-    lines.append("# source: entity_registry.yaml (+ config_*.yaml enrichment)")
+    lines.append("# source: entity_registry.auto.yaml (+ config_*.yaml / automations.auto.yaml enrichment)")
     lines.append(
         f"# excluded: synthetic scene history (idx>={SCENE_IDX_BASE} / "
         "unknown.idx_9* / scene.* / type=scene+origin=automation)"

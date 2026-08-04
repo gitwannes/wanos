@@ -134,7 +134,7 @@ class AutomationEngine:
         # =========================================================================
         # 1. DYNAMIC YAML AUTOMATIONS (The Custom Rule Parser)
         # =========================================================================
-        # This block parses the `automations:` list in config.yaml.
+        # This block parses the `automations:` list (from automations.auto.yaml).
         # - Triggers can be a single item or a List (List = OR logic. If any trigger matches, it fires).
         # - Actions are a List (List = AND logic. All actions execute sequentially).
         # - "SYNC" modifier: The action dynamically mirrors the exact state of the trigger (e.g., Switch ON -> Light ON).
@@ -556,7 +556,7 @@ class AutomationEngine:
         # 4. LIGHTING AUTO-OFF TIMERS
         # =========================================================================
         # Prevents lights in transitive rooms (hallways, toilets, pantries) from being left on indefinitely.
-        # - Only affects entity_ids explicitly listed in `managed_lights` in config.yaml.
+        # - Only affects entity_ids explicitly listed in `managed_lights` in automations.auto.yaml.
         # - Looks up specific time limits (e.g. Toilet = 15m, Hallway = 10m) from `auto_off_delays`.
         # - Re-schedules the deadline dynamically if motion is re-triggered while already ON.
         # =========================================================================

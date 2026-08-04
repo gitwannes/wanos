@@ -140,7 +140,7 @@ The engine maintains a definitive **First-Sync Tracking Set** (`_initialized_idx
 ### Hot/Warm/Cold/Persistent Data Lifecycles
 System operations use an tiered storage structure based on performance demands:
 * **Hot Storage (RAM):** The active event queue and moving average history windows process inputs at microsecond speeds.
-* **Warm Storage (Local Filesystem):** Critical system states and structural configuration models read directly from highly readable YAML profiles (`config.yaml`, `config_hardware.yaml`, `config_lab.yaml`, `config_zwave.yaml`). Stable logical device ids live in system-owned `entity_registry.yaml` (auto-maintained; not mixed into commented `config.yaml`).
+* **Warm Storage (Local Filesystem):** Critical system states and structural configuration models read directly from highly readable YAML profiles (`config.yaml`, `config_hardware.yaml`, `config_lab.yaml`, `config_zwave.auto.yaml`, `automations.auto.yaml`). Stable logical device ids live in system-owned `entity_registry.auto.yaml` (auto-maintained; not mixed into commented `config.yaml`).
 * **Persistent State (NVRAM):** Cumulative, irreversible home metrics (Liters, kWh) are saved via explicit Atomic Swaps to the root directory to survive hard power cuts.
 * **Cold Storage (System Logs):** Structured diagnostic traces are handled via a multi-sink Loguru wrapper that splits inputs into distinct file outputs using non-blocking background worker threads to keep disk execution from freezing the runtime loops.
 

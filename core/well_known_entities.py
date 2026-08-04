@@ -2,7 +2,7 @@
 """
 Stable entity_id lookup keys for system fixtures.
 
-entity_registry.yaml remains the source of truth for entity_id ↔ idx.
+entity_registry.auto.yaml remains the source of truth for entity_id ↔ idx.
 Call sites resolve these strings via StateManager.resolve_entity_id /
 EntityRegistry.resolve / AutomationEngine.resolve_entity_id — never bake
 the numeric idx into business logic.

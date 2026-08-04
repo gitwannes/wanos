@@ -307,7 +307,7 @@ function Invoke-WanosMirrorJob {
     Write-Host "=== MIRROR JOB (Local --> Dest) ==="
     Write-SyncVerbose "Source: $Source"
     Write-SyncVerbose "Dest:   $Dest"
-    Write-SyncVerbose "Note:   Pi-owned files (entity_registry.yaml, *.db, ...) are excluded from copy AND delete"
+    Write-SyncVerbose "Note:   Pi-owned files (entity_registry.auto.yaml, *.db, ...) are excluded from copy AND delete"
 
     if (-not (Test-Path -LiteralPath $Source)) {
         throw "Mirror source missing: $Source"
@@ -351,7 +351,7 @@ function Invoke-WanosMirrorJob {
 
     # ----- Delete phase: remove dest files not present in source -----
     # CRITICAL: must honour the same excludes as robocopy /XF+/XD, otherwise
-    # Pi-only files (*.db, nvram, entity_registry.yaml if ever missing locally, venvs)
+    # Pi-only files (*.db, nvram, entity_registry.auto.yaml if ever missing locally, venvs)
     # would be wiped because they are "extra" on the destination.
     if (-not (Test-Path -LiteralPath $destRoot)) { return }
 
@@ -384,7 +384,7 @@ function Invoke-WanosStatsJob {
     param(
         [string]$Source,              # Pi root (Z:\)
         [string]$StatsDest,           # OneDrive logs (dbs, nvram)
-        [string]$RepoDest,            # Git repo root (entity_registry.yaml)
+        [string]$RepoDest,            # Git repo root (entity_registry.auto.yaml)
         [string[]]$IncludePatterns,
         [string[]]$RepoPullPatterns,
         [string[]]$SkipDirPatterns,   # do not walk Pi venvs etc.
@@ -427,14 +427,14 @@ function Invoke-WanosStatsJob {
         $destRoot = if ($isRepoPull) { $RepoDest } else { $StatsDest }
         $destPath = Join-Path $destRoot $relative
 
-        # entity_registry.yaml lives at WanOS root on both sides - keep flat name at repo root
+        # entity_registry.auto.yaml lives at WanOS root on both sides - keep flat name at repo root
         if ($isRepoPull) {
             $destPath = Join-Path $RepoDest $src.Name
         }
 
         $destFile = Get-ItemOrNull -Path $destPath
 
-        # Repo-pull files (entity_registry.yaml): Pi is source of truth - always
+        # Repo-pull files (entity_registry.auto.yaml): Pi is source of truth - always
         # overwrite local, even when the PC copy looks newer (stale upload / clock skew).
         # Stats/telemetry: keep newer-only so we do not thrash OneDrive logs.
         $shouldCopy = if ($isRepoPull) {

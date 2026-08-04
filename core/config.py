@@ -75,7 +75,7 @@ class BathroomConfig(BaseModel):
 
 
 class LightingConfig(BaseModel):
-    default_auto_off_minutes: int
+    default_auto_off_minutes: int = 300
     managed_lights: List[str] = Field(default_factory=list)
     auto_off_delays: Dict[str, int] = Field(default_factory=dict)
 
@@ -307,7 +307,8 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     hardware_yaml_path = BASE_DIR / "config_hardware.yaml"
     lab_yaml_path = BASE_DIR / "config_lab.yaml"
     hue_yaml_path = BASE_DIR / "config_hue.yaml"  # ⚡ Segregated lighting profile path entry
-    zwave_yaml_path = BASE_DIR / "config_zwave.yaml"  # ⚡ Segregated Z-Wave profile path entry
+    zwave_yaml_path = BASE_DIR / "config_zwave.auto.yaml"  # ⚡ UI/system-owned Z-Wave profile
+    automations_yaml_path = BASE_DIR / "automations.auto.yaml"  # ⚡ UI/system-owned exclude/lighting/rules
 
     # STRICT CHECK 1: Ensure .env file physically exists
     if not env_path.exists():
@@ -347,6 +348,21 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             if isinstance(zwave_file_raw, dict):
                 zwave_data = zwave_file_raw.get("zwave", zwave_file_raw)
 
+    # 3c. Read automatic automations / lighting / explorer-exclude profile
+    auto_data: Dict[str, Any] = {}
+    if automations_yaml_path.exists():
+        with open(automations_yaml_path, "r", encoding="utf-8") as file:
+            auto_raw = yaml.safe_load(file)
+            if isinstance(auto_raw, dict):
+                auto_data = auto_raw
+
+    # Prefer automations.auto.yaml; fall back to legacy keys still in config.yaml during migration
+    deviceexplorer_exclude = auto_data.get(
+        "deviceexplorer_exclude", runtime_data.get("deviceexplorer_exclude", [])
+    )
+    lighting_data = auto_data.get("lighting", runtime_data.get("lighting", {}))
+    automations_data = auto_data.get("automations", runtime_data.get("automations", []))
+
     # 4. Consolidate payloads for unified validation assembly
     compiled_data = {
         "version": runtime_data.get("version", "1.0"),  # ⚡ Pull semantic baseline from absolute file root
@@ -357,8 +373,9 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "sonos": runtime_data.get("sonos"),
         "onkyo": runtime_data.get("onkyo"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile
-        "deviceexplorer_exclude": runtime_data.get("deviceexplorer_exclude", []),  # ⚡ Load the UI exclusion list
+        "deviceexplorer_exclude": deviceexplorer_exclude,  # ⚡ From automations.auto.yaml
         "hardware_links": runtime_data.get("hardware_links"),
+        "history": runtime_data.get("history") or {},
         "auth": {
             "shared_pin": os.getenv("AUTH_PIN", "0000"),
             "admin_pin": os.getenv("ADMIN_PIN", "0000"),
@@ -381,12 +398,12 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "sauna": runtime_data["sauna"],
         "ir": runtime_data["ir"],
         "bathroom1": runtime_data["bathroom1"],
-        "lighting": runtime_data.get("lighting", {}),
+        "lighting": lighting_data,
         "blinds": runtime_data.get("blinds"),
         "environmental_schedule": runtime_data.get("environmental_schedule"),
         "weather": runtime_data["weather"],
         "native_rfx": runtime_data.get("native_rfx", []),
-        "automations": runtime_data.get("automations", [])
+        "automations": automations_data,
     }
 
     # STRICT CHECK 2: Extract & validate required secret keys

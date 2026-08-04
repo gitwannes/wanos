@@ -427,7 +427,7 @@ async def update_zwave_config(request: ZwaveConfigRequest, req: Request):
         return JSONResponse(status_code=400, content={"error": "Invalid YAML format."})
 
     try:
-        file_path = os.path.join(os.path.dirname(__file__), "config_zwave.yaml")
+        file_path = os.path.join(os.path.dirname(__file__), "config_zwave.auto.yaml")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(request.yaml_content)
         return {"status": "Success", "message": "Z-Wave configuration written to disk."}

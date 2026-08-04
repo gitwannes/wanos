@@ -97,5 +97,5 @@ idx    entity_id                             domain        type      prefix     
 
 # rows: 94
 # columns: idx, entity_id, domain, type, prefix, origin, status, name, name_at_birth, hidden
-# source: entity_registry.yaml (+ config_*.yaml enrichment)
+# source: entity_registry.auto.yaml (+ config_*.yaml enrichment)
 # excluded: synthetic scene history (idx>=900000 / unknown.idx_9* / scene.* / type=scene+origin=automation)

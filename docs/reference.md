@@ -5,12 +5,13 @@ This document serves as the master blueprint and reference guide for the directo
 ## 1. Directory & File Structure Blueprint
 
 **Root Directory (`/home/wannes/wanos/`)**
-* `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and automation rules at the file root. (Manual / human-edited; comments preserved.)
+* `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and manual integration settings. (Manual / human-edited; comments preserved.) Automatic domains (`deviceexplorer_exclude`, `lighting`, `automations`) live in `automations.auto.yaml`.
+* `automations.auto.yaml`: UI/system-owned automatic sections — Device Explorer excludes, lighting auto-off, and automation rules/scenes.
 * `config_hue.yaml`: Segregated lighting profile path tracking local network Philips Hue Bridge API endpoints and structural group/scene UUID allocations.
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
 * `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
-* `config_zwave.yaml`: Z-Wave device map (UI/system-owned via `zwaveconfig.html`; not hand-edited as primary workflow).
-* `entity_registry.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/install_blocky.md`.
+* `config_zwave.auto.yaml`: Z-Wave device map (UI/system-owned via `zwaveconfig.html`; not hand-edited as primary workflow).
+* `entity_registry.auto.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/install_blocky.md`.
 
 ### Entity ID types (prefixes)
 
@@ -49,7 +50,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `mqtt_transport.py`: Pure, transport-agnostic client wrapper managing network sockets, keep-alives, subscriptions, and automatic hardware retry loops.
 * `mqtt_publisher.py`: The domain-scoped MQTT correspondent. Monitors the coordination worker and transforms state updates into target broker topics.
 * `nvm_manager.py`: Dedicated I/O engine managing atomic file swaps (`.tmp` to `.json`) for zero-corruption data persistence on the physical SD card.
-* `entity_registry.py`: System-owned `entity_id` ↔ idx persistence (`entity_registry.yaml`), birth/freeze, and always-resolve helpers used by `StateManager`.
+* `entity_registry.py`: System-owned `entity_id` ↔ idx persistence (`entity_registry.auto.yaml`), birth/freeze, and always-resolve helpers used by `StateManager`.
 * `entity_registry_check.py`: Shared cutover / health checks (registry collisions, automation + structured config entity_id refs, Python magic-idx warnings). Used by Admin Debug and the one-off CLI gate.
 * `state_manager.py`: The ultra-fast core engine driving the unidirectional event execution loop. It acts as a pure memory router, delegating payload processing to the Strategy Pattern registry.
 
@@ -184,7 +185,7 @@ To communicate with the system, payloads must align with the exact structural da
 ### 🔌 Physical Peripheral & Sensor Intercepts
 * All physical hardware devices, digital probes, switches, relays, and cumulative fluid/power meters are addressed using their unique, raw integer **`idx`** derived from the dashboard hardware map.
 * **System Telemetry / Virtual Sensors (IDXs 22001-22009):**
-  * Internally reserved block for host machine health. Hidden via `deviceexplorer_exclude`.
+  * Internally reserved block for host machine health. Hidden via `deviceexplorer_exclude` in `automations.auto.yaml`.
   * `22009` = WanOS DB size (MiB): sum of `sensor_history.db`, `device_history.db`, `sauna_sessions.db` plus `-wal`/`-shm` sidecars.
   * E.g., `{ "type": "HUB_STATE_CHANGED", "payload": { "idx": 22002, "state": "20.0 %", "origin": "system" } }`
   * E.g., `{ "type": "HUB_STATE_CHANGED", "payload": { "idx": 22009, "state": "12.4 MB", "origin": "system" } }`

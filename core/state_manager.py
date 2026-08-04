@@ -356,7 +356,7 @@ class StateManager:
         # Apply hidden flags from deviceexplorer_exclude (Z-Wave merges call this again)
         self.sync_hidden_metadata()
 
-        # Birth / freeze entity_ids for every live metadata row; persist entity_registry.yaml
+        # Birth / freeze entity_ids for every live metadata row; persist entity_registry.auto.yaml
         self.entity_registry.reconcile(self._state.device_metadata)
 
     def ensure_entity_id(self, idx: int) -> Optional[str]:
@@ -367,7 +367,7 @@ class StateManager:
         return self.entity_registry.ensure(int(idx), meta)
 
     def flush_entity_registry(self) -> None:
-        """Persist dirty entity_registry.yaml once (call after batch ensures)."""
+        """Persist dirty entity_registry.auto.yaml once (call after batch ensures)."""
         self.entity_registry.save()
 
     def resolve_entity_id(self, entity_id: str) -> Optional[int]:
@@ -378,7 +378,7 @@ class StateManager:
         """
         Single rule for Explorer / History visibility:
         meta.hidden = idx in system.hidden_explorer_idxs
-        (populated from config.yaml deviceexplorer_exclude entity_ids → idxs,
+        (populated from automations.auto.yaml deviceexplorer_exclude entity_ids → idxs,
          then Z-Wave hidden_nodes entity_ids merged at bridge start).
         """
         hidden = set()

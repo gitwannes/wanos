@@ -101,8 +101,8 @@ sudo ./wanos_bootstrap_phase1.sh
 4. **Sync Codebase to Samba Share (`Z:\` / `/home/wannes/wanos/`):**
    Copy your WanOS application codebase and remaining deployment files into the share:
    * WanOS source directories (`main.py`, `core/`, `logic/`, `hardware/`, `integrations/`)
-   * Config profiles (`config.yaml`, `config_hardware.yaml`, `config_zwave.yaml`, `config_hue.yaml`, …)
-   * `entity_registry.yaml` — optional on first install; created/updated automatically at runtime (stable `entity_id` ↔ idx). See `docs/todo/install_blocky.md`.
+   * Config profiles (`config.yaml`, `config_hardware.yaml`, `config_zwave.auto.yaml`, `config_hue.yaml`, `automations.auto.yaml`, …)
+   * `entity_registry.auto.yaml` — optional on first install; created/updated automatically at runtime (stable `entity_id` ↔ idx). See `docs/todo/install_blocky.md`.
    * `requirements.txt` (Python dependency list including `certbot` and `requests`)
    * `.env` (Environment variables and configuration keys)
    * `docker-compose.yml`

@@ -375,7 +375,7 @@ function wanosApp() {
                 const idx = parseInt(idxStr, 10);
 
                 // Hidden = meta.hidden or idx in system.hidden_explorer_idxs
-                // (from config.yaml deviceexplorer_exclude + Z-Wave hidden_nodes)
+                // (from automations.auto.yaml deviceexplorer_exclude + Z-Wave hidden_nodes)
                 const hiddenIdxs = this.state.system.hidden_explorer_idxs || [];
                 const isHiddenDevice = meta.hidden === true
                     || hiddenIdxs.includes(idx) || hiddenIdxs.includes(Number(idxStr));
@@ -1186,6 +1186,60 @@ function wanosApp() {
                 || hiddenIdxs.includes(idx) || hiddenIdxs.includes(Number(idx));
         },
 
+        /** Display label for History type chips (Device Explorer keeps raw `type`). */
+        historyTypeLabel(type) {
+            if (type === "light") return "Hue light";
+            return type || "";
+        },
+
+        /**
+         * Icon emoji matching Device Explorer name/type heuristics.
+         * Returns '' when Explorer would show no leading icon (plain switches, etc.).
+         */
+        historyRowIcon(row) {
+            if (!row) return "";
+            const meta = (this.state.device_metadata && this.state.device_metadata[row.idx]) || {};
+            const name = String(row.name || meta.name || "").toLowerCase();
+            const type = String(row.type || meta.type || "").toLowerCase();
+            const origin = String(meta.origin || row.origin || "").toLowerCase();
+
+            if (type === "speaker") return origin === "onkyo" ? "📻" : "🔊";
+            if (type === "scene") return "✨";
+            if (type === "blinds") return "↕️";
+            if (name.includes("water") || name.includes("liter") || type === "water") return "💧";
+            if (type === "temp_hum" || type === "climate") return "🌡️💧";
+            if (type === "temp" || (type === "sensor" && name.includes("temp")) || (type === "host" && name.includes("temp"))) return "🌡️";
+            if (type === "hum") return "💧";
+            if (type === "energy") return "🔌";
+            if (type === "power") return "⚡";
+            if (type === "sensor" && name.includes("volt")) return "⚡";
+            if ((type === "sensor" || type === "generic") && name.includes("motion")) return "🏃";
+            if (type === "light") return "💡";
+            if ((name.includes("cinema") || name.includes("epson") || name.includes("projector"))
+                && type !== "blinds" && type !== "speaker" && type !== "scene"
+                && type !== "temp_hum" && type !== "temp"
+                && !(type === "sensor" && (name.includes("temp") || name.includes("volt") || name.includes("motion")))) {
+                return "🎬";
+            }
+            if ((name.includes("sauna") || name.includes("zoutlamp"))
+                && type !== "blinds" && type !== "speaker" && type !== "scene"
+                && type !== "temp_hum" && type !== "temp" && type !== "power" && type !== "energy"
+                && !name.includes("cinema")
+                && !(type === "sensor" && (name.includes("temp") || name.includes("volt") || name.includes("motion")))) {
+                return "♨️";
+            }
+            if ((name.includes(" ir ") || name.startsWith("ir ") || name === "ir" || name.includes("infrarood"))
+                && type !== "blinds" && type !== "speaker" && type !== "scene"
+                && type !== "temp_hum" && type !== "temp" && type !== "power" && type !== "energy"
+                && !name.includes("sauna")
+                && !(type === "sensor" && (name.includes("temp") || name.includes("volt") || name.includes("motion")))) {
+                return "🟥";
+            }
+            if (type === "host") return "🖥️";
+            if (type === "switch") return "⏻";
+            return "";
+        },
+
         _utilityLiveStatus(s) {
             const raw = this.state.devices?.[s.idx];
             if (raw == null) return "—";
@@ -1284,7 +1338,8 @@ function wanosApp() {
             const q = (this.actuatorSearchQuery || "").trim().toLowerCase();
             if (q) {
                 list = list.filter(r => {
-                    const hay = `${r.idx} ${r.name || ""} ${r.type || ""} ${r.status || ""} ${r.category}`.toLowerCase();
+                    const typeLabel = this.historyTypeLabel(r.type) || "";
+                    const hay = `${r.idx} ${r.name || ""} ${r.type || ""} ${typeLabel} ${r.status || ""} ${r.category}`.toLowerCase();
                     return hay.includes(q);
                 });
             }

@@ -125,8 +125,9 @@ def run_entity_cutover_checks(
       stats: dict
     """
     root = root or ROOT
-    registry_path = registry_path or (root / "entity_registry.yaml")
+    registry_path = registry_path or (root / "entity_registry.auto.yaml")
     config_path = config_path or (root / "config.yaml")
+    automations_path = root / "automations.auto.yaml"
 
     errors: List[str] = []
     warnings: List[str] = []
@@ -160,9 +161,18 @@ def run_entity_cutover_checks(
         else:
             seen[eid] = idx
 
-    # Automations block
+    # Automations block (prefer automations.auto.yaml; fall back to config.yaml)
     config_text = config_path.read_text(encoding="utf-8")
-    auto_text = _automations_block(config_text)
+    if automations_path.exists():
+        auto_file_text = automations_path.read_text(encoding="utf-8")
+        auto_text = _automations_block(auto_file_text) or auto_file_text
+        auto_source = "automations.auto.yaml"
+    else:
+        auto_file_text = config_text
+        auto_text = _automations_block(config_text)
+        auto_source = "config.yaml"
+        warnings.append("automations.auto.yaml missing — checking automations in config.yaml")
+
     leftover_idxs = AUTOMATION_IDX_RE.findall(auto_text)
     stats["automation_leftover_idxs"] = len(leftover_idxs)
     for _indent, idx_s, _rest in leftover_idxs:
@@ -186,6 +196,25 @@ def run_entity_cutover_checks(
         errors.append(f"config.yaml parse error: {exc}")
         raw_cfg = {}
 
+    try:
+        if automations_path.exists():
+            raw_auto = yaml.safe_load(auto_file_text) or {}
+        else:
+            raw_auto = {}
+    except yaml.YAMLError as exc:
+        errors.append(f"automations.auto.yaml parse error: {exc}")
+        raw_auto = {}
+
+    # Merge auto domains (auto file wins; legacy config.yaml fallback)
+    merged_auto = {
+        "deviceexplorer_exclude": raw_auto.get(
+            "deviceexplorer_exclude", raw_cfg.get("deviceexplorer_exclude")
+        ),
+        "lighting": raw_auto.get("lighting", raw_cfg.get("lighting")),
+        "automations": raw_auto.get("automations", raw_cfg.get("automations")),
+    }
+    stats["automations_source"] = auto_source
+
     def _require_eids(label: str, refs: List[Any]) -> None:
         for ref in refs:
             eid = str(ref).strip()
@@ -201,7 +230,7 @@ def run_entity_cutover_checks(
                 else:
                     errors.append(f"{label} refs unknown entity_id '{eid}'")
 
-    exclude = raw_cfg.get("deviceexplorer_exclude") or []
+    exclude = merged_auto.get("deviceexplorer_exclude") or []
     if not isinstance(exclude, list):
         errors.append("deviceexplorer_exclude must be a list")
     else:
@@ -221,7 +250,7 @@ def run_entity_cutover_checks(
         _require_eids("blinds.travel_times", list(travel.keys()))
         stats["blinds_travel_times"] = len(travel)
 
-    lighting = raw_cfg.get("lighting") or {}
+    lighting = merged_auto.get("lighting") or {}
     managed = lighting.get("managed_lights") or []
     delays = lighting.get("auto_off_delays") or {}
     if isinstance(managed, list):
@@ -238,12 +267,12 @@ def run_entity_cutover_checks(
         _require_eids("history.tracked_entities", tracked)
         stats["tracked_entities"] = len(tracked)
 
-    zwave_path = root / "config_zwave.yaml"
+    zwave_path = root / "config_zwave.auto.yaml"
     if zwave_path.exists():
         try:
             zw = yaml.safe_load(zwave_path.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError as exc:
-            errors.append(f"config_zwave.yaml parse error: {exc}")
+            errors.append(f"config_zwave.auto.yaml parse error: {exc}")
             zw = {}
         hidden = (zw.get("zwave") or zw).get("hidden_nodes") or []
         if isinstance(hidden, list):
@@ -295,7 +324,7 @@ def run_entity_cutover_checks(
 
 # Human-readable labels for stats keys (shown in CLI + Admin modal).
 _STAT_HELP: Dict[str, str] = {
-    "registry_active": "active rows in entity_registry.yaml (idx <-> entity_id)",
+    "registry_active": "active rows in entity_registry.auto.yaml (idx <-> entity_id)",
     "registry_removed": "orphan rows kept with status=removed (not purged)",
     "automation_leftover_idxs": "numeric idx: still under automations: (must be 0)",
     "automation_entity_ids": "entity_id refs found in automations: rules",
@@ -304,7 +333,8 @@ _STAT_HELP: Dict[str, str] = {
     "blinds_travel_times": "per-blind travel overrides in blinds.travel_times",
     "managed_lights": "lights/groups in lighting.managed_lights (auto-off)",
     "tracked_entities": "sensors in history.tracked_entities",
-    "zwave_hidden_nodes": "entity_ids in config_zwave.yaml hidden_nodes",
+    "zwave_hidden_nodes": "entity_ids in config_zwave.auto.yaml hidden_nodes",
+    "automations_source": "file providing automations/lighting/exclude (auto preferred)",
     "python_magic_idx_hits": "bare device idxs still in Python (warnings only)",
     "live_metadata_with_entity_id": "live RAM devices that already have entity_id",
     "live_metadata_missing_entity_id": "live RAM devices missing entity_id (error if >0)",

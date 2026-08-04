@@ -36,7 +36,7 @@ __pycache__
 
 [MirrorExcludeFiles]
 # Pi-owned runtime (pushing from PC destroys live state)
-entity_registry.yaml
+entity_registry.auto.yaml
 wanos-nvram.json
 wanos-nvram.json.tmp
 .lgd-nfy0
@@ -62,7 +62,7 @@ dhcpcd.conf
 
 [StatsInclude]
 # Repo pull (also listed under StatsRepoPull)
-entity_registry.yaml
+entity_registry.auto.yaml
 # Telemetry / logs --> StatsDest (OneDrive)
 *.db
 wanos-nvram.json
@@ -70,4 +70,4 @@ wanos-nvram.json.tmp
 
 [StatsRepoPull]
 # Pi is authoritative: always overwrite local (ignore timestamps)
-entity_registry.yaml
+entity_registry.auto.yaml

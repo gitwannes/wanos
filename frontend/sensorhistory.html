@@ -140,8 +140,12 @@
                                            @change="toggleActuatorFavorite(row.idx)" />
                                 </td>
                                 <td>
-                                    <div class="font-bold" x-text="row.name"></div>
-                                    <div class="text-[10px] text-base-content/40" x-text="row.idx + ' · ' + row.type"></div>
+                                    <div class="font-bold flex items-center gap-1.5">
+                                        <span class="shrink-0 text-sm leading-none" x-text="historyRowIcon(row)" x-show="historyRowIcon(row)"></span>
+                                        <span class="truncate" x-text="row.name"></span>
+                                    </div>
+                                    <div class="text-[10px] text-base-content/40"
+                                         x-text="row.idx + ' · ' + historyTypeLabel(row.type)"></div>
                                 </td>
                                 <td x-text="row.status"></td>
                                 <td x-text="row.last_changed ? getDurationString(row.last_changed) : '—'"></td>
@@ -304,6 +308,6 @@
             </section>
         </div>
     </main>
-    <script src="app.js?v=2.8"></script>
+    <script src="app.js?v=2.9"></script>
 </body>
 </html>
