@@ -375,31 +375,35 @@ entities:
     entity_id: switch.cinema_projector
     status: active
     name_at_birth: cinema projector
+  90001:
+    entity_id: unknown.idx_90001
+    status: active
+    name_at_birth: idx_90001
   924446:
-    entity_id: unknown.idx_924446
+    entity_id: scene.gocosy_gv
     status: active
-    name_at_birth: idx_924446
+    name_at_birth: GoCosy gv
   934076:
-    entity_id: unknown.idx_934076
+    entity_id: scene.all_off_overal
     status: active
-    name_at_birth: idx_934076
+    name_at_birth: ALL OFF overal
   943339:
-    entity_id: unknown.idx_943339
+    entity_id: scene.all_off_gv
     status: active
-    name_at_birth: idx_943339
+    name_at_birth: ALL OFF gv
   948850:
-    entity_id: unknown.idx_948850
+    entity_id: scene.all_off_1ev
     status: active
-    name_at_birth: idx_948850
+    name_at_birth: ALL OFF 1eV
   950178:
-    entity_id: unknown.idx_950178
+    entity_id: scene.all_off_2ev
     status: active
-    name_at_birth: idx_950178
+    name_at_birth: ALL OFF 2eV
   963287:
-    entity_id: unknown.idx_963287
+    entity_id: scene.cinema_on
     status: active
-    name_at_birth: idx_963287
+    name_at_birth: '--- CINEMA ON'
   963960:
-    entity_id: unknown.idx_963960
+    entity_id: scene.cinema_off
     status: active
-    name_at_birth: idx_963960
+    name_at_birth: '--- CINEMA OFF'

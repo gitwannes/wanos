@@ -371,8 +371,12 @@ function wanosApp() {
                 if (meta.origin === 'gpio_input' && !this.state.hardware.gpio_input_enabled) continue;
                 if (meta.origin === 'sht11' && !this.state.hardware.sht11_enabled) continue;
                 if (meta.origin === 'owm' && !this.state.system.owm_integration_enabled) continue;
+                // Scene rows are rendered from available_scenes below; skip synthetic scene metadata here to avoid duplicates.
+                if (meta.type === 'scene') continue;
 
                 const idx = parseInt(idxStr, 10);
+                // Internal virtual lock flags should never be visible in Explorer (user or admin).
+                if (idx === 90001) continue;
 
                 // Hidden = meta.hidden or idx in system.hidden_explorer_idxs
                 // (from automations.auto.yaml deviceexplorer_exclude + Z-Wave hidden_nodes)

@@ -98,6 +98,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 1. Define **automation device deny-list** (which `entity_id`s / prefixes must not appear in pickers: safety, SSR, system-only, hidden, etc.).
 2. Automations / lighting / excludes already live in **`automations.auto.yaml`** — Blocky writes target that file (`ruamel` surgical write of `automations:`).
+   - **Comment (locked for current phase):** Write scope is **only `automations:`**. Keep `lighting:` and `deviceexplorer_exclude:` untouched for later phase.
 3. Inventory system events for the event dropdown dictionary.
 4. **ON/OFF merge model** — locked below (schema + migration of existing sibling pairs).
 
@@ -106,9 +107,10 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 1. `GET/POST/PUT/DELETE /api/automations`.
 2. `ruamel.yaml` surgical write of `automations:` in **`automations.auto.yaml`** only (preserve comments).
 3. Persist **`entity_id`** on device triggers/conditions/actions (never raw idx).
-4. Support **first-class branched rules** (ON/OFF or event-pair branches) in schema + engine evaluate path.
-5. Migrate existing sibling ON/OFF (and event ON/OFF) pairs that share the same trigger into one branched rule.
+4. Support **first-class branched rules** (Y1 `on:`/`off:`) in schema; **X1:** expand at load to flat engine rules (pair identity preserved for CRUD).
+5. Migrate existing sibling ON/OFF (and event ON/OFF) pairs per **M1**; leave `SYNC` and multi-ON cases (`living_special`) alone.
 6. Dispatch `CONFIG_RELOAD_REQUESTED`; clear `AutomationEngine` config cache.
+7. **Later:** promote expand path to **X2** native branch evaluate once Blocky CRUD is stable.
 
 ### Phase 2 — Frontend data model
 
@@ -153,14 +155,87 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 🚦 Decisions locked (Blocky — ON/OFF merge)
 
-1. **Persistence = first-class branched rule** (proposal B): one YAML rule with ON/OFF (or event-pair) branches — not two sibling flat rules kept forever. Engine understands branches (or expands at load); Blocky CRUD reads/writes the branched shape.
+1. **Persistence = first-class branched rule** (proposal B): one YAML rule with ON/OFF (or event-pair) branches — not two sibling flat rules kept forever. Blocky CRUD reads/writes the branched shape; runtime starts as **X1 expand-at-load**, then **X2 native** once CRUD is stable.
 2. **Pair key = same trigger `entity_id`** (device) or same event family for event pairs. Auto-group / migrate by that key.
 3. **Canonical example:** `switch.pc_monitors` — ON branch (schemer + Sonos rich) / OFF branch (both off).
 4. **`SYNC` only when ON and OFF are the same** (pure mirror: same targets, flipped state, no asymmetric rich payload or conditions). Otherwise use explicit ON/OFF branches.
 5. **Event pairs merge too** (e.g. cinema / twilight / sauna ON↔OFF) under the same branched model.
 6. **One-sided OK:** ON-only (or OFF-only) rules allowed; the absent edge simply does not match (e.g. `BuroCinemaPC_cosy`).
 
-## 🚦 Open for Blocky start (not blocking prerequisite)
+## 🚦 Decisions locked (Blocky — Phase 0 open items)
 
-1. Exact deny-list contents.
-2. Exact YAML key names for branches (`on:` / `off:` vs `branches:`) — decide at implement time; behavior above is locked.
+1. **Deny-list = D1 (role-aware):**
+   * **Hard deny** (never in trigger / condition / action pickers): `switch.safety.*`, `switch.ssr.*`, host/infra sensors (`sensor.generic.host_*`, `sensor.temp_hum.host_*`, `sensor.generic.wanos_db_size`), virtual/internal (`90001` vent lock).
+   * **Soft hide** (picker default off; “Show hidden” / advanced): union of `deviceexplorer_exclude` ∪ zwave `hidden_nodes`, **except** any `entity_id` already referenced in automations (auto-unhide so bathroom physicals / `living_special` / `switch.pc` stay editable).
+   * Everything else in live `device_metadata` (status ≠ removed) is allow.
+2. **YAML branch keys = Y1:** trigger without edge state; top-level `on:` / `off:` each with optional `conditions` + `actions`. One-sided = omit the unused key. Event pairs use the same ON/OFF metaphor (mapped via curated event dictionary).
+3. **Event dropdown = E1:** curated allow-list with friendly labels (not full `EventType`). Starter set = events already used in automations + intentional scene/schedule hooks; exclude toggles, telemetry, heartbeats, config/bus internals.
+4. **Migration = M1 (conservative):** auto-merge only when exactly one ON + one OFF sibling share the same trigger `entity_id` (or mapped event-ON + event-OFF), and neither is `SYNC`. Do **not** auto-merge when multiple ON (or multiple OFF) rules share an eid — leave for operator / later Blocky UX. Known case today: `switch.living_special` (3 rules × OR ON|OFF, condition-discriminated).
+5. **Engine = X1 first, then X2:** YAML stores Y1 `on:`/`off:`; loader **expands at load** to today’s flat ON/OFF rules for `AutomationEngine.evaluate` (preserve pair identity for CRUD round-trip). **Promote to native branch evaluate (X2)** once Blocky CRUD is stable — one in-memory rule, select branch from `new_state` / event; clearer logs; no shadow duplicates.
+6. **CRUD identity = A:** persist stable per-rule `id` in YAML and use it for `PUT/DELETE`; never key mutations by `name` or list index.
+7. **X1 pair round-trip = P1:** keep expansion metadata runtime-only (`<id>#on`, `<id>#off` or equivalent); never persist generated child rules back to YAML.
+8. **Migration timing = MA:** run an explicit one-shot M1 migration step before enabling Blocky editing in production (review diff, then proceed).
+9. **E1 dictionary scope = E1-v1:** start with approved schedule/scene/sauna trigger set used by automations; add new entries only by explicit review.
+10. **Hard-deny extras = H1:** keep hard-deny minimal in v1 (safety/SSR/internal classes only); avoid broader hard-deny expansion until real operator pain appears.
+11. **UI scope = new page, admin-only:** Blocky is a dedicated admin route/page, not mixed into end-user pages.
+
+## ✅ Final spec lock checklist (no code)
+
+Mark each item `LOCKED` before implementation starts.
+
+### A) Already locked
+
+- [x] **Scope:** Blocky writes only `automations:` (leave `lighting:` / `deviceexplorer_exclude:` for later phase).
+- [x] **UI access:** new page, admin-only.
+- [x] **Persistence model:** branched YAML (`on:` / `off:`), one-sided allowed.
+- [x] **Pairing rule:** same trigger `entity_id` (device) or mapped event family.
+- [x] **SYNC policy:** keep SYNC for pure mirrors; do not force split.
+- [x] **Migration policy:** M1 conservative merge; skip `SYNC` and multi-ON/OFF cases (e.g. `living_special`).
+- [x] **Engine rollout:** X1 expand-at-load first, then X2 native branch evaluate after CRUD is stable.
+- [x] **CRUD identity model:** stable per-rule `id` (A), not `name` or list index.
+- [x] **X1 round-trip:** runtime-only expansion metadata (P1), never persisted.
+- [x] **Deny-list posture:** D1 + H1 (minimal hard-deny in v1).
+- [x] **Events posture:** E1-v1 curated dictionary.
+
+### B) Lock now before coding (precision items)
+
+- [ ] **Rule `id` format and policy**
+  - Choose one: `UUIDv4` / `ULID` / other.
+  - Lock generation source (backend-only recommended), immutability, duplicate handling, and backfill behavior.
+- [ ] **E1-v1 concrete event table**
+  - Lock exact event keys and labels.
+  - Lock allowed usage per event: trigger-only / action-only / both.
+  - Lock event-pair family mappings used by merge/UI.
+- [ ] **X1 log/debug naming contract**
+  - Lock internal branch naming (`<id>#on|off` or equivalent) and log format.
+  - Lock deterministic branch evaluation order.
+- [ ] **MA operational runbook**
+  - Lock operator, environment, pre-backup, dry-run/write mode, rollback, and sign-off checks.
+
+### C) MA execution checklist (operational gate)
+
+- [ ] Backup `automations.auto.yaml`.
+- [ ] Run M1 migration once (explicit MA step).
+- [ ] Review diff: only eligible ON/OFF sibling pairs merged; `SYNC` and `living_special` unchanged.
+- [ ] Dispatch `CONFIG_RELOAD_REQUESTED`.
+- [ ] Run Admin Debug entity-registry check (must be GREEN).
+- [ ] Smoke test canonical scenarios: `switch.pc_monitors`, bathroom ON/OFF pairs, spare-button scenarios.
+- [ ] Record operator/date + result in release notes or deployment log.
+
+### D) Implementation readiness gate
+
+- [ ] All items in section **B** are marked locked.
+- [ ] MA checklist section **C** is approved by operator.
+- [ ] This file is frozen as the implementation baseline for Blocky v1.
+
+### SYNC — keep or split to ON/OFF?
+
+**Keep `SYNC` as a first-class mode** when ON and OFF are pure mirrors (same targets, flipped/mirrored state, no asymmetric rich payload or conditions). That matches your locked rule and industry practice:
+
+* HA: one automation, trigger on any state change, action sets target to `trigger.to_state` (mirror) — not two duplicated halves.
+* openHAB / many hubs: “follow” / mirror profiles for 1:1 coupling.
+* Splitting pure mirrors into identical `on:`/`off:` trees invites drift (edit ON, forget OFF).
+
+**Do not use SYNC** when branches differ (e.g. `switch.pc_monitors` → Sonos volume/station on ON only) — use Y1 `on:`/`off:`.
+
+Current pure-SYNC rules (leave as SYNC under M1): `Slpk_Dries`, `PC ON/OFF -> PC Aux`, `toilet_gv_ventilatie_on`, `Slpk Wannes: Hue App Syncs to Switch`.

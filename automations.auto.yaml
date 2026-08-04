@@ -32,6 +32,8 @@ deviceexplorer_exclude:
   - sensor.generic.host_load_average_5m
   - sensor.generic.host_load_average_15m
   - sensor.generic.wanos_db_size
+  - sensor.temp_hum.sauna_high
+  - sensor.temp_hum.sauna_low
 
 # ==============================================================================
 # LIGHTING (managed lights / auto-off delays)
