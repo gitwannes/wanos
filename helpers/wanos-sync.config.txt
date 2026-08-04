@@ -1,0 +1,73 @@
+# =============================================================================
+# WANOS sync config
+# Loaded by helpers/wanos-sync.ps1  |  wrapper: helpers/wanos-sync.bat
+# =============================================================================
+# Rules:
+#   - One pattern / name per line
+#   - Blank lines and lines starting with # are ignored
+#   - Do NOT pass this file to: robocopy /JOB:...
+#
+# Job 1 MIRROR (Local --> Pi): MirrorExcludeDirs + MirrorExcludeFiles
+#   Dir patterns match ANY path segment. File patterns match file NAME only.
+#   Excluded = not copied AND not deleted on dest (robocopy /XD+/XF semantics).
+#
+# Job 2 PULL (Pi --> Local): StatsInclude + StatsRepoPull
+#   StatsInclude  = include-only file NAME patterns from Pi
+#   StatsRepoPull = subset that always overwrites into the git repo (Pi wins)
+#                   everything else in StatsInclude goes to StatsDest (newer-only)
+# =============================================================================
+
+[MirrorExcludeDirs]
+# Local-only / never deploy
+.git
+.idea
+.venv
+docs
+code-import
+bootstrap
+backup*
+logs
+temp
+# Pi-only trees (never delete/touch under mirror delete)
+wanos_venv
+migration_venv
+billit_venv
+__pycache__
+
+[MirrorExcludeFiles]
+# Pi-owned runtime (pushing from PC destroys live state)
+entity_registry.yaml
+wanos-nvram.json
+wanos-nvram.json.tmp
+.lgd-nfy0
+*.db
+# Sync tooling (PC-only; never deploy to Pi)
+wanos-sync.bat
+wanos-sync.ps1
+wanos-sync.config.txt
+robocopy-sync.bat
+wanos.rcj
+*.bat
+*.rcj
+*.ps1
+# Local tooling / secrets / junk
+.env*
+.gitignore
+.gitattributes
+* - Copy.py
+*.zip
+dhcpcd.conf
+*.bak
+*.tmp
+
+[StatsInclude]
+# Repo pull (also listed under StatsRepoPull)
+entity_registry.yaml
+# Telemetry / logs --> StatsDest (OneDrive)
+*.db
+wanos-nvram.json
+wanos-nvram.json.tmp
+
+[StatsRepoPull]
+# Pi is authoritative: always overwrite local (ignore timestamps)
+entity_registry.yaml
