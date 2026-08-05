@@ -94,7 +94,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 1 **done** (backend + X1 + CRUD + migration helper), Phase 2 **done** (new admin-only Blocky page + Alpine store + CRUD wiring), MA migration **done on Pi** (GREEN + smoke checks), next focus = Phase 3/4 UX hardening.
+**Current status:** Phase 1 **done** (backend + X1 + CRUD + migration helper), Phase 2 **done** (new admin-only Blocky page + Alpine store + CRUD wiring), MA migration **done on Pi** (GREEN + smoke checks), Phase 3 **implemented** (semantic pickers + D1/E1 policy), next focus = Phase 4 visual Blockly mode.
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work)
 
@@ -120,7 +120,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 2. Add-trigger / add-action binds **`entity_id`**; UI shows **`name`**.
 3. One-sided rules allowed (ON-only or OFF-only); missing branch simply does not match that edge.
 
-### Phase 3 — Semantic dropdowns 🔜 TODO
+### Phase 3 — Semantic dropdowns ✅ IMPLEMENTED (pending operator validation)
 
 1. Device pickers from **`device_metadata`** (respect deny-list).
 2. Event pickers from friendly event dictionary.
@@ -296,11 +296,8 @@ Run **once** on the Pi, **after** Phase 1 (Y1 loader) is deployed, **before** yo
 
 ## 🧭 Next TODO (Option 2 roadmap)
 
-1. **Phase 3:** replace free-text trigger/event inputs in `blocky.js` with semantic pickers:
-   - apply D1 deny-list behavior (hard deny + soft-hide + show-hidden toggle),
-   - apply E1-v1 curated event list with friendly labels and explicit pair families.
-2. **Phase 4:** add true Blockly visual mode (WHEN / AND IF / THEN DO) as a second editor mode, while keeping current JSON/form mode as fallback.
-3. **Phase 5:** finalize operator docs + regression matrix; keep X1 stable, then schedule X2 promotion when CRUD/editor usage is stable.
+1. **Phase 4:** add true Blockly visual mode (WHEN / AND IF / THEN DO) as a second editor mode, while keeping current JSON/form mode as fallback.
+2. **Phase 5:** finalize operator docs + regression matrix; keep X1 stable, then schedule X2 promotion when CRUD/editor usage is stable.
 
 ## ✅ Definition of Done (Option 2)
 
@@ -308,16 +305,16 @@ Use this as strict phase gates. Do not mark a phase complete unless all items ar
 
 ### Phase 3 DoD — Semantic pickers + policy enforcement
 
-- [ ] **Device picker policy:** D1 is enforced in UI and backend-facing payload shaping:
+- [x] **Device picker policy:** D1 is enforced in UI and backend-facing payload shaping:
   - hard-deny eids never appear/selectable,
   - soft-hidden eids are hidden by default and visible only via explicit toggle,
   - eids already used by automations remain visible/editable.
-- [ ] **Event picker policy:** E1-v1 curated events are rendered with friendly labels (no raw key-only UX by default).
-- [ ] **Event family behavior:** explicit pair families are respected for branched event trigger UX (no suffix heuristics).
-- [ ] **No free-text dependency for normal flow:** standard rule authoring works end-to-end without typing raw `entity_id` or raw event keys.
-- [ ] **Validation UX:** blocked selections show clear user feedback (why blocked + what to do).
-- [ ] **Compatibility:** existing rules load/edit/save without semantic drift.
-- [ ] **Regression smoke:** create/edit/delete one branched device rule, one branched event-family rule, one flat SYNC rule.
+- [x] **Event picker policy:** E1-v1 curated events are rendered with friendly labels (no raw key-only UX by default).
+- [x] **Event family behavior:** explicit pair families are respected for branched event trigger UX (no suffix heuristics).
+- [x] **No free-text dependency for normal flow:** standard rule authoring works end-to-end without typing raw `entity_id` or raw event keys (flat fallback mode remains available by design).
+- [x] **Validation UX:** blocked selections show clear user feedback (why blocked + what to do).
+- [x] **Compatibility:** existing rules load/edit/save without semantic drift.
+- [ ] **Regression smoke (operator run on Pi):** create/edit/delete one branched device rule, one branched event-family rule, one flat SYNC rule.
 
 ### Phase 4 DoD — Blockly visual mode (hybrid)
 

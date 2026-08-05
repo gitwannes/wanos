@@ -124,45 +124,227 @@
                                 </label>
                                 <label class="form-control" x-show="editor.triggerKind === 'device'">
                                     <span class="label-text text-xs">Trigger entity_id</span>
-                                    <input class="input input-bordered input-sm font-mono" list="entity-ids" x-model="editor.triggerEntityId">
+                                    <select class="select select-bordered select-sm font-mono" x-model="editor.triggerEntityId">
+                                        <template x-for="opt in visibleEntityOptions" :key="opt.eid">
+                                            <option :value="opt.eid" x-text="opt.label"></option>
+                                        </template>
+                                    </select>
                                 </label>
                                 <label class="form-control" x-show="editor.triggerKind === 'event'">
                                     <span class="label-text text-xs">Event family</span>
                                     <select class="select select-bordered select-sm font-mono" x-model="editor.triggerEventFamily">
-                                        <template x-for="fam in eventFamilies" :key="fam"><option :value="fam" x-text="fam"></option></template>
+                                        <template x-for="fam in eventFamilies" :key="fam">
+                                            <option :value="fam" x-text="eventFamilyLabel(fam)"></option>
+                                        </template>
                                     </select>
                                 </label>
                             </div>
 
-                            <datalist id="entity-ids">
-                                <template x-for="eid in entityIds" :key="eid"><option :value="eid"></option></template>
-                            </datalist>
+                            <div x-show="editor.triggerKind === 'device'" class="flex items-center gap-2 text-xs text-base-content/70">
+                                <input id="showHiddenEntities" type="checkbox" class="checkbox checkbox-xs" x-model="showHiddenEntities" @change="ensureTriggerEntitySelection()">
+                                <label for="showHiddenEntities">Show hidden entities</label>
+                                <span class="badge badge-outline badge-xs">D1 policy active</span>
+                            </div>
 
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                 <div class="card bg-base-200">
                                     <div class="card-body p-3">
-                                        <label class="label cursor-pointer justify-start gap-2"><input type="checkbox" class="checkbox checkbox-sm" x-model="editor.onEnabled"><span class="label-text font-bold">ON branch</span></label>
-                                        <label class="form-control mb-2">
-                                            <span class="label-text text-xs">Conditions JSON array</span>
-                                            <textarea class="textarea textarea-bordered textarea-sm font-mono h-28" x-model="editor.onConditionsJson"></textarea>
+                                        <label class="label cursor-pointer justify-start gap-2">
+                                            <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.onEnabled">
+                                            <span class="label-text font-bold">ON branch</span>
                                         </label>
-                                        <label class="form-control">
-                                            <span class="label-text text-xs">Actions JSON array</span>
-                                            <textarea class="textarea textarea-bordered textarea-sm font-mono h-32" x-model="editor.onActionsJson"></textarea>
-                                        </label>
+
+                                        <div x-show="editor.onEnabled" class="space-y-3">
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-xs font-semibold">Conditions</span>
+                                                <button class="btn btn-xs btn-outline" @click="addCondition('on')">Add condition</button>
+                                            </div>
+                                            <template x-for="(c, idx) in editor.onConditions" :key="'on-c-'+idx">
+                                                <div class="p-2 rounded border border-base-300 bg-base-100 space-y-2">
+                                                    <div class="flex justify-between items-center">
+                                                        <span class="text-[11px] opacity-70" x-text="'Condition #' + (idx + 1)"></span>
+                                                        <button class="btn btn-xs btn-ghost text-error" @click="removeCondition('on', idx)">Remove</button>
+                                                    </div>
+                                                    <div class="grid grid-cols-1 gap-2">
+                                                        <select class="select select-bordered select-xs" x-model="c.type">
+                                                            <option value="device_state">Device state</option>
+                                                            <option value="time_of_day">Time of day</option>
+                                                        </select>
+                                                        <template x-if="c.type === 'device_state'">
+                                                            <div class="grid grid-cols-1 gap-2">
+                                                                <select class="select select-bordered select-xs font-mono" x-model="c.entity_id">
+                                                                    <template x-for="opt in visibleEntityOptions" :key="'on-c-opt-'+opt.eid">
+                                                                        <option :value="opt.eid" x-text="opt.label"></option>
+                                                                    </template>
+                                                                </select>
+                                                                <select class="select select-bordered select-xs" x-model="c.is">
+                                                                    <option value="ON">is ON</option>
+                                                                    <option value="OFF">is OFF</option>
+                                                                </select>
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="c.type === 'time_of_day'">
+                                                            <select class="select select-bordered select-xs" x-model="c.is">
+                                                                <option value="dark">is dark</option>
+                                                                <option value="light">is light</option>
+                                                            </select>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <div class="flex justify-between items-center pt-1">
+                                                <span class="text-xs font-semibold">Actions</span>
+                                                <button class="btn btn-xs btn-outline" @click="addAction('on', 'ON')">Add action</button>
+                                            </div>
+                                            <template x-for="(a, idx) in editor.onActions" :key="'on-a-'+idx">
+                                                <div class="p-2 rounded border border-base-300 bg-base-100 space-y-2">
+                                                    <div class="flex justify-between items-center">
+                                                        <span class="text-[11px] opacity-70" x-text="'Action #' + (idx + 1)"></span>
+                                                        <button class="btn btn-xs btn-ghost text-error" @click="removeAction('on', idx)">Remove</button>
+                                                    </div>
+                                                    <div class="grid grid-cols-1 gap-2">
+                                                        <select class="select select-bordered select-xs" x-model="a.kind" @change="actionKindChanged(a)">
+                                                            <option value="device">Device action</option>
+                                                            <option value="event">Event action</option>
+                                                        </select>
+                                                        <template x-if="a.kind === 'device'">
+                                                            <div class="grid grid-cols-1 gap-2">
+                                                                <select class="select select-bordered select-xs font-mono" x-model="a.entity_id">
+                                                                    <template x-for="opt in visibleEntityOptions" :key="'on-a-opt-'+opt.eid">
+                                                                        <option :value="opt.eid" x-text="opt.label"></option>
+                                                                    </template>
+                                                                </select>
+                                                                <select class="select select-bordered select-xs font-mono" x-model="a.state">
+                                                                    <option value="ON">ON</option>
+                                                                    <option value="OFF">OFF</option>
+                                                                    <option value="SYNC">SYNC</option>
+                                                                    <option value="SYNCOPPOSITE">SYNCOPPOSITE</option>
+                                                                    <option value="FORCE_ON">FORCE_ON</option>
+                                                                    <option value="FORCE_OFF">FORCE_OFF</option>
+                                                                    <option value="0">0 (blinds open)</option>
+                                                                    <option value="100">100 (blinds close)</option>
+                                                                </select>
+                                                                <div class="grid grid-cols-2 gap-2">
+                                                                    <input class="input input-bordered input-xs" placeholder="preset (optional)" x-model="a.preset">
+                                                                    <input class="input input-bordered input-xs" placeholder="station (optional)" x-model="a.station">
+                                                                    <input class="input input-bordered input-xs" placeholder="bri (optional)" x-model="a.bri">
+                                                                    <input class="input input-bordered input-xs" placeholder="volume (optional)" x-model="a.volume">
+                                                                </div>
+                                                                <input class="input input-bordered input-xs font-mono" placeholder='xy JSON array (optional), e.g. [0.5,0.5]' x-model="a.xy">
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="a.kind === 'event'">
+                                                            <select class="select select-bordered select-xs font-mono" x-model="a.event">
+                                                                <template x-for="ev in curatedEvents" :key="'on-ev-'+ev">
+                                                                    <option :value="ev" x-text="ev"></option>
+                                                                </template>
+                                                            </select>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="card bg-base-200">
                                     <div class="card-body p-3">
-                                        <label class="label cursor-pointer justify-start gap-2"><input type="checkbox" class="checkbox checkbox-sm" x-model="editor.offEnabled"><span class="label-text font-bold">OFF branch</span></label>
-                                        <label class="form-control mb-2">
-                                            <span class="label-text text-xs">Conditions JSON array</span>
-                                            <textarea class="textarea textarea-bordered textarea-sm font-mono h-28" x-model="editor.offConditionsJson"></textarea>
+                                        <label class="label cursor-pointer justify-start gap-2">
+                                            <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.offEnabled">
+                                            <span class="label-text font-bold">OFF branch</span>
                                         </label>
-                                        <label class="form-control">
-                                            <span class="label-text text-xs">Actions JSON array</span>
-                                            <textarea class="textarea textarea-bordered textarea-sm font-mono h-32" x-model="editor.offActionsJson"></textarea>
-                                        </label>
+
+                                        <div x-show="editor.offEnabled" class="space-y-3">
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-xs font-semibold">Conditions</span>
+                                                <button class="btn btn-xs btn-outline" @click="addCondition('off')">Add condition</button>
+                                            </div>
+                                            <template x-for="(c, idx) in editor.offConditions" :key="'off-c-'+idx">
+                                                <div class="p-2 rounded border border-base-300 bg-base-100 space-y-2">
+                                                    <div class="flex justify-between items-center">
+                                                        <span class="text-[11px] opacity-70" x-text="'Condition #' + (idx + 1)"></span>
+                                                        <button class="btn btn-xs btn-ghost text-error" @click="removeCondition('off', idx)">Remove</button>
+                                                    </div>
+                                                    <div class="grid grid-cols-1 gap-2">
+                                                        <select class="select select-bordered select-xs" x-model="c.type">
+                                                            <option value="device_state">Device state</option>
+                                                            <option value="time_of_day">Time of day</option>
+                                                        </select>
+                                                        <template x-if="c.type === 'device_state'">
+                                                            <div class="grid grid-cols-1 gap-2">
+                                                                <select class="select select-bordered select-xs font-mono" x-model="c.entity_id">
+                                                                    <template x-for="opt in visibleEntityOptions" :key="'off-c-opt-'+opt.eid">
+                                                                        <option :value="opt.eid" x-text="opt.label"></option>
+                                                                    </template>
+                                                                </select>
+                                                                <select class="select select-bordered select-xs" x-model="c.is">
+                                                                    <option value="ON">is ON</option>
+                                                                    <option value="OFF">is OFF</option>
+                                                                </select>
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="c.type === 'time_of_day'">
+                                                            <select class="select select-bordered select-xs" x-model="c.is">
+                                                                <option value="dark">is dark</option>
+                                                                <option value="light">is light</option>
+                                                            </select>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <div class="flex justify-between items-center pt-1">
+                                                <span class="text-xs font-semibold">Actions</span>
+                                                <button class="btn btn-xs btn-outline" @click="addAction('off', 'OFF')">Add action</button>
+                                            </div>
+                                            <template x-for="(a, idx) in editor.offActions" :key="'off-a-'+idx">
+                                                <div class="p-2 rounded border border-base-300 bg-base-100 space-y-2">
+                                                    <div class="flex justify-between items-center">
+                                                        <span class="text-[11px] opacity-70" x-text="'Action #' + (idx + 1)"></span>
+                                                        <button class="btn btn-xs btn-ghost text-error" @click="removeAction('off', idx)">Remove</button>
+                                                    </div>
+                                                    <div class="grid grid-cols-1 gap-2">
+                                                        <select class="select select-bordered select-xs" x-model="a.kind" @change="actionKindChanged(a)">
+                                                            <option value="device">Device action</option>
+                                                            <option value="event">Event action</option>
+                                                        </select>
+                                                        <template x-if="a.kind === 'device'">
+                                                            <div class="grid grid-cols-1 gap-2">
+                                                                <select class="select select-bordered select-xs font-mono" x-model="a.entity_id">
+                                                                    <template x-for="opt in visibleEntityOptions" :key="'off-a-opt-'+opt.eid">
+                                                                        <option :value="opt.eid" x-text="opt.label"></option>
+                                                                    </template>
+                                                                </select>
+                                                                <select class="select select-bordered select-xs font-mono" x-model="a.state">
+                                                                    <option value="ON">ON</option>
+                                                                    <option value="OFF">OFF</option>
+                                                                    <option value="SYNC">SYNC</option>
+                                                                    <option value="SYNCOPPOSITE">SYNCOPPOSITE</option>
+                                                                    <option value="FORCE_ON">FORCE_ON</option>
+                                                                    <option value="FORCE_OFF">FORCE_OFF</option>
+                                                                    <option value="0">0 (blinds open)</option>
+                                                                    <option value="100">100 (blinds close)</option>
+                                                                </select>
+                                                                <div class="grid grid-cols-2 gap-2">
+                                                                    <input class="input input-bordered input-xs" placeholder="preset (optional)" x-model="a.preset">
+                                                                    <input class="input input-bordered input-xs" placeholder="station (optional)" x-model="a.station">
+                                                                    <input class="input input-bordered input-xs" placeholder="bri (optional)" x-model="a.bri">
+                                                                    <input class="input input-bordered input-xs" placeholder="volume (optional)" x-model="a.volume">
+                                                                </div>
+                                                                <input class="input input-bordered input-xs font-mono" placeholder='xy JSON array (optional), e.g. [0.5,0.5]' x-model="a.xy">
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="a.kind === 'event'">
+                                                            <select class="select select-bordered select-xs font-mono" x-model="a.event">
+                                                                <template x-for="ev in curatedEvents" :key="'off-ev-'+ev">
+                                                                    <option :value="ev" x-text="ev"></option>
+                                                                </template>
+                                                            </select>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
