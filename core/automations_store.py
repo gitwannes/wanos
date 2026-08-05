@@ -5,6 +5,33 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from ruamel.yaml import YAML
+from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+
+# YAML 1.1 bool-ish tokens — must be quoted when dumped as device/event states.
+_YAML_BOOLISH = {
+    "y", "Y", "yes", "Yes", "YES", "n", "N", "no", "No", "NO",
+    "true", "True", "TRUE", "false", "False", "FALSE",
+    "on", "On", "ON", "off", "Off", "OFF",
+}
+
+
+def _quote_boolish_scalars(node: Any) -> None:
+    """In-place: quote state/is strings that YAML would otherwise load as bools."""
+    if isinstance(node, dict):
+        for key, val in list(node.items()):
+            if key in ("state", "is"):
+                if isinstance(val, bool):
+                    node[key] = DoubleQuotedScalarString("ON" if val else "OFF")
+                elif isinstance(val, str) and val in _YAML_BOOLISH:
+                    node[key] = DoubleQuotedScalarString(val)
+                else:
+                    _quote_boolish_scalars(val)
+            else:
+                _quote_boolish_scalars(val)
+    elif isinstance(node, list):
+        for item in node:
+            _quote_boolish_scalars(item)
 
 
 def _root_dir() -> Path:
@@ -64,6 +91,7 @@ def write_automations(rules: List[Dict[str, Any]]) -> None:
     yaml.indent(mapping=2, sequence=4, offset=2)
 
     root["automations"] = rules
+    _quote_boolish_scalars(root["automations"])
     with path.open("w", encoding="utf-8") as f:
         yaml.dump(root, f)
 

@@ -148,6 +148,14 @@ class TriggerConfig(BaseModel):
     state: Optional[str] = None
     event: Optional[str] = None
 
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, v: Any) -> Any:
+        # YAML 1.1: unquoted ON/OFF/Yes/No become bool — restore device states.
+        if isinstance(v, bool):
+            return "ON" if v else "OFF"
+        return v
+
 
 class ConditionConfig(BaseModel):
     """Automation condition — device refs use entity_id only (no numeric idx)."""
@@ -156,6 +164,13 @@ class ConditionConfig(BaseModel):
     type: str
     entity_id: Optional[str] = None
     condition_is: str = Field(alias="is")
+
+    @field_validator("condition_is", mode="before")
+    @classmethod
+    def _coerce_is(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            return "ON" if v else "OFF"
+        return v
 
 
 class ActionConfig(BaseModel):
@@ -173,6 +188,12 @@ class ActionConfig(BaseModel):
     volume: Optional[int] = None  # Sonos
     station: Optional[str] = None  # Sonos
 
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            return "ON" if v else "OFF"
+        return v
 
 class AutomationRuleConfig(BaseModel):
     # Stable per-rule identity used by Blocky CRUD.

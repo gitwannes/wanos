@@ -94,13 +94,13 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 1 **done** (backend + X1 + CRUD + migration helper), Phase 2 **done** (new admin-only Blocky page + Alpine store + CRUD wiring), MA migration **done on Pi** (GREEN + smoke checks), Phase 3 **implemented** (semantic pickers + D1/E1 policy), next focus = Phase 4 visual Blockly mode.
+**Current status:** Phase 1–2 **done**, MA migration **done on Pi**, Phase 3 **implemented** (pending Pi smoke), Phase 4 **code complete / not DoD-closed** — Blockly hybrid works (snap/uniqueness/non-reactive workspace); remaining Phase 4 gate is **operator round-trip + confidence checks on Pi**. Next: finish Phase 4 DoD, then Phase 5 hardening. Phase 6 = if/then/else + complex flat. Phase 7 = exclude/lighting UI.
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work)
 
 1. Define **automation device deny-list** (which `entity_id`s / prefixes must not appear in pickers: safety, SSR, system-only, hidden, etc.).
 2. Automations / lighting / excludes already live in **`automations.auto.yaml`** — Blocky writes target that file (`ruamel` surgical write of `automations:`).
-   - **Comment (locked for current phase):** Write scope is **only `automations:`**. Keep `lighting:` and `deviceexplorer_exclude:` untouched for later phase.
+   - **Comment (locked for current phase):** Write scope is **only `automations:`**. Keep `lighting:` and `deviceexplorer_exclude:` for **Phase 7**.
 3. Inventory system events for the event dropdown dictionary.
 4. **ON/OFF merge model** — locked below (schema + migration of existing sibling pairs).
 
@@ -126,18 +126,54 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 2. Event pickers from friendly event dictionary.
 3. Users never type `entity_id`.
 
-### Phase 4 — UI blocks (DaisyUI) 🔜 TODO
+### Phase 4 — UI blocks (Blockly hybrid) ✅ CODE COMPLETE (DoD open — operator validation)
 
-1. WHEN (device / system event) — one trigger; UI asks ON vs OFF (or shows both branches).
-2. AND IF (time of day / device state) — **per branch** when conditions differ.
-3. THEN DO (device / scene / event; force; rich light/speaker payloads for `hue.light.*` / `media_player.*` as applicable) — **per branch**.
-4. Canonical template: **`switch.pc_monitors`** (ON: schemer + Sonos with volume/station; OFF: both off).
+1. WHEN (device / system event) — one trigger; ON/OFF branches (or flat Then).
+2. AND IF (time of day / device state) — **per branch**.
+3. THEN DO (device / event actions) — **per branch** / flat Then.
+4. Canonical template: **`switch.pc_monitors`** (operator confidence check still open).
+5. Snapping / uniqueness / Alpine-safe workspace — fixed and verified on minimal harness + live Blocky.
 
 ### Phase 5 — Hardening 🟡 IN PROGRESS / TODO
 
 1. Run Admin Debug entity/automation check after Blocky writes.
 2. Confirm unresolved ids still log+skip without taking down the engine.
 3. Document operator workflow (create rule → save → hot-reload → verify).
+
+### Phase 6 — Blockly advanced flat patterns 🔜 TODO
+
+**Goal:** reduce JSON-only flat rules and split-rule pairs; keep Y1 branched + flat compatibility (no ad-hoc schema).
+
+**Scope note — unified if/then/else (Phase 6 goal):**
+- **Yes — include branched rules in the same if/then/else model for unity.** Today’s ON-branch / OFF-branch containers are a temporary Blockly shape; Phase 6 should converge on one mental model for all rule kinds:
+  - **Branched device / event-family:** trigger → **if ON** … **else if OFF** … (maps to stored Y1 `on:`/`off:`; engine stays X1/X2).
+  - **Flat companions (Cinema OFF):** trigger event → **if dark** … **else if light** … (merge UX; persistence TBD).
+  - **Complex flat:** multi-trigger OR, etc. → Blockly (no JSON-only dead-end).
+- Until Phase 6 ships that unified canvas, keep the current ON/OFF branch blocks working (connection/snap fixes are Phase 4 hotfixes, not the final UX).
+
+1. **Unified if/then/else canvas (HIGH PRIORITY):** one Blockly vocabulary for branched Y1 and flat companions; remove confusing dual list rows for Cinema-style pairs; keep dashboard = single scene button.
+2. **Multi-trigger flat rules:** Blockly support for `trigger:` as a list (e.g. `KeukenLivingEetk_EetkHue` — three devices ON → one action). Start with **“when any of”** (OR) block; defer **“when all of”** (AND) if not needed in live rules.
+3. **Single-trigger list normalization:** YAML `trigger: [{ entity_id, state }]` (one element) is already Blockly-compatible after normalize — ensure round-trip preserves list-vs-object shape if operator cares (or always emit object form on save).
+4. **Remove “complex flat rule” JSON-only path:** audit live flat automations; extend Blockly (OR-trigger, if/else companions, any remaining shapes) so no production rule falls back to generic **“Complex flat rule — JSON only”**. Keep JSON editor only as explicit power-user override, not the default for unrecognized patterns.
+
+**Examples to validate in Phase 6:**
+
+| Rule | Current Blocky | Phase 6 target |
+|------|----------------|----------------|
+| `BuroCinemaPC_cosy` | Blockly (device trigger; was list-wrapped) | ✅ maintain round-trip |
+| `KeukenLivingEetk_EetkHue` | JSON only (3 triggers) | Blockly OR-trigger |
+| `--- CINEMA OFF` + `CINEMA OFF (Day)` | Two flat Blockly rules | Optional merged if/else canvas + operator merge procedure |
+| Any rule still showing “Complex flat rule” | JSON fallback | Blockly or documented exception |
+
+### Phase 7 — Config editors for `deviceexplorer_exclude` + `lighting` 🔜 TODO
+
+**Today (no UI):** both live in **`automations.auto.yaml`** (top of file). Soft-hide in Blocky/Explorer = that list ∪ Z-Wave `hidden_nodes` (see D1). Auto-off = `lighting.managed_lights` + `default_auto_off_minutes` + `auto_off_delays`.
+
+**Phase 7 goal:** admin UI (Blocky sibling page or Admin section) to view/edit:
+1. **Device Explorer exclude** — which `entity_id`s are soft-hidden (with clear note that Z-Wave `hidden_nodes` still come from `config_zwave.auto.yaml`).
+2. **Lighting auto-off** — managed lights list, default minutes, per-entity delay overrides.
+
+**Constraints:** surgical `ruamel` writes of only those keys (same pattern as automations CRUD); never rewrite unrelated keys; Admin Debug still GREEN after edits.
 
 ---
 
@@ -296,8 +332,10 @@ Run **once** on the Pi, **after** Phase 1 (Y1 loader) is deployed, **before** yo
 
 ## 🧭 Next TODO (Option 2 roadmap)
 
-1. **Phase 4:** add true Blockly visual mode (WHEN / AND IF / THEN DO) as a second editor mode, while keeping current JSON/form mode as fallback.
+1. **Phase 4 closeout:** operator round-trip + confidence checks on Pi (DoD below).
 2. **Phase 5:** finalize operator docs + regression matrix; keep X1 stable, then schedule X2 promotion when CRUD/editor usage is stable.
+3. **Phase 6:** Unified if/then/else Blockly for branched Y1 + flat companions (Cinema OFF) + complex flat (multi-trigger OR); eliminate generic “complex flat rule” JSON-only path.
+4. **Phase 7:** admin UI for `deviceexplorer_exclude` + `lighting` in `automations.auto.yaml`.
 
 ## ✅ Definition of Done (Option 2)
 
@@ -318,16 +356,40 @@ Use this as strict phase gates. Do not mark a phase complete unless all items ar
 
 ### Phase 4 DoD — Blockly visual mode (hybrid)
 
-- [ ] **Second editor mode exists:** Blockly canvas mode is available alongside the current JSON/form editor.
-- [ ] **Fallback preserved:** JSON/form editor remains fully functional and selectable at all times.
+- [x] **Second editor mode exists:** Blockly canvas mode is available alongside the current JSON/form editor.
+- [x] **Fallback preserved:** JSON/form editor remains fully functional and selectable at all times.
 - [ ] **Round-trip safety:** Blockly -> saved YAML -> reload -> reopened in Blockly preserves semantics for:
   - one-sided ON-only/OFF-only,
   - full ON+OFF branched rules,
   - event-family branched rules,
   - flat SYNC/multi-trigger rules (either editable or clearly marked fallback-only).
-- [ ] **Mode boundary clarity:** UI clearly indicates when a rule must be edited in fallback mode (if Blockly cannot represent it yet).
+- [x] **Mode boundary clarity:** UI clearly indicates when a rule must be edited in fallback mode (if Blockly cannot represent it yet).
 - [ ] **No schema mutation:** persisted shape remains aligned with locked Y1 + flat compatibility (no ad-hoc new schema).
 - [ ] **Operator confidence checks:** test at least `pc_monitors`, one bathroom pair, one scene-triggered rule from Blockly mode.
+- [x] **Drag/connect correctness:** conditions and actions snap into the branch slots and can be dragged out again; verified on `helpers/blockly_minimal_test.html` and live Blocky (Alpine-safe `BlockyRT` workspace).
+- [x] **Uniqueness:** one trigger / one ON / one OFF / one Then; no duplicate condition/action fingerprints on the canvas (toolbox hides singletons).
+
+#### Snapping / un-snapping — root cause and fix
+
+Symptom: blocks rendered and chained to each other, but would not drop into the `conditions`
+/ `actions` slot of a branch, and could not be pulled back out.
+
+Root causes (fixed):
+1. Inject / layout while hidden (`x-show` → `display:none`) or zero-size host → broken hit-testing.
+2. Storing `WorkspaceSvg` on Alpine reactive state (Proxy) → drag/snap broken vs the plain-`ws` minimal test.
+3. Tailwind `svg { max-width: 100% }` distorting Blockly SVG metrics.
+
+Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `display:none`, inject options matching the minimal test, `svgResize` + ResizeObserver, typed Condition/Action sockets.
+
+Regression harness (keep): `helpers/blockly_minimal_test.html` (double-click or serve locally).
+
+### Phase 6 DoD — Blockly advanced flat patterns
+
+- [ ] **Split-rule if/else:** `SCENE_CINEMA_OFF` dark + light companions editable as one Blockly flow (or documented one-click merge to single persisted rule).
+- [ ] **Multi-trigger flat:** at least one live OR-trigger rule (e.g. `KeukenLivingEetk_EetkHue`) editable in Blockly without JSON.
+- [ ] **List trigger round-trip:** `BuroCinemaPC_cosy` saves/reloads in Blockly without semantic drift.
+- [ ] **Scene vs flat clarity:** UI/docs explain why companion rules omit `scene:` (not shown on dashboard) vs primary scene button rule.
+- [ ] **No generic complex-flat fallback:** production flat rules open in Blockly; JSON-only is opt-in, not “Complex flat rule — JSON only” for live automations.
 
 ### Phase 5 DoD — Hardening + rollout readiness
 

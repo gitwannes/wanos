@@ -42,13 +42,13 @@ deviceexplorer_exclude:
 lighting:
   # The engine will ONLY apply auto-off rules to entity_ids explicitly listed here
   managed_lights: [switch.licht_living, switch.licht_keuken, switch.gang_beneden,
-    switch.licht_garage, switch.badk_1e_hue_physical, switch.gang_boven,
-        switch.buro_licht, switch.cinema_licht, switch.waskot,
-        switch.voorraad_gv, switch.slpk_dries, switch.vent.badk_2e_ventilatie,
+    switch.licht_garage, switch.badk_1e_hue_physical, switch.gang_boven, 
+        switch.buro_licht, switch.cinema_licht, switch.waskot, 
+        switch.voorraad_gv, switch.slpk_dries, switch.vent.badk_2e_ventilatie, 
         switch.cinema_schemer, switch.buro_wannes_schemer, switch.living_schemer,
-    switch.slpk_liene, switch.berging_2e, switch.eetkamer, switch.slpk_wannes,
-        hue.group.slpk_wannes_hue, hue.group.eetkamer_hue, hue.group.living_hue,
-        hue.group.slpk_dries_hue, hue.group.cinema_hue, switch.toilet,
+    switch.slpk_liene, switch.berging_2e, switch.eetkamer, switch.slpk_wannes, 
+        hue.group.slpk_wannes_hue, hue.group.eetkamer_hue, hue.group.living_hue, 
+        hue.group.slpk_dries_hue, hue.group.cinema_hue, switch.toilet, 
         switch.vent.toilet_ventilatie]
   default_auto_off_minutes: 300
   # Specific delay overrides in minutes
@@ -790,3 +790,14 @@ automations:
       - entity_id: blinds.cinema
         state: "0"
     id: f56fb02b-d1b6-4508-bf85-a5808f9c0c39
+  - name: test
+    scene: false
+    require_confirmation: false
+    trigger:
+      entity_id: sensor.temp_hum.badk_1e
+    on:
+      conditions: []
+      actions:
+        - entity_id: media_player.badk_1e
+          state: "ON"
+    id: a167ee8f-a89a-45ee-94e3-0e02a5684820

@@ -35,8 +35,9 @@ billit_venv
 __pycache__
 
 [MirrorExcludeFiles]
-# Pi-owned runtime (pushing from PC destroys live state)
+# Pi-owned runtime (pushing from PC destroys live state / fights StatsRepoPull)
 entity_registry.auto.yaml
+automations.auto.yaml
 wanos-nvram.json
 wanos-nvram.json.tmp
 .lgd-nfy0
@@ -61,8 +62,9 @@ dhcpcd.conf
 *.tmp
 
 [StatsInclude]
-# Repo pull (also listed under StatsRepoPull)
+# Repo pull (also listed under StatsRepoPull) — Pi is source of truth
 entity_registry.auto.yaml
+automations.auto.yaml
 # Telemetry / logs --> StatsDest (OneDrive)
 *.db
 wanos-nvram.json
@@ -70,4 +72,6 @@ wanos-nvram.json.tmp
 
 [StatsRepoPull]
 # Pi is authoritative: always overwrite local (ignore timestamps)
+# Do NOT also mirror these Local-->Pi in the same run (that push+pull fights itself).
 entity_registry.auto.yaml
+automations.auto.yaml

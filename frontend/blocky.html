@@ -19,6 +19,45 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://unpkg.com/blockly@13.2.1/blockly.min.js"></script>
+
+    <style>
+        /* Same constraints as helpers/blockly_minimal_test.html.
+           Do NOT force .blocklySvg width/height — Blockly owns those pixels.
+           Do NOT put Blockly on Alpine reactive state (Proxy breaks drag/snap). */
+        #blocklyWorkspace {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            height: 520px;
+        }
+        #blocklyWorkspace.blockly-fs {
+            height: calc(100vh - 5.5rem);
+        }
+        #blocklyWorkspace .injectionDiv {
+            width: 100%;
+            height: 100%;
+        }
+        #blocklyWorkspace svg,
+        .blocklySvg,
+        .blocklyWidgetDiv svg,
+        .blocklyDropDownDiv svg {
+            max-width: none !important;
+            max-height: none !important;
+        }
+        .blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTooltipDiv { z-index: 100000 !important; }
+        .blocklyToolboxDiv { z-index: 20; }
+        /* Park off-screen instead of display:none — keeps metrics valid like the test page. */
+        #blocklyPanel.is-parked {
+            position: fixed !important;
+            left: -10000px !important;
+            top: 0 !important;
+            width: 900px !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
+    </style>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content p-6" x-data="blockyApp()" x-init="init()">
 
@@ -36,7 +75,7 @@
         </a>
         <div>
             <h1 class="text-2xl font-black text-warning uppercase tracking-widest">⚡ Blocky Automation Editor</h1>
-            <p class="text-xs text-base-content/50 font-mono mt-1">Phase 2 data model (Y1 on/off + flat compatibility)</p>
+            <p class="text-xs text-base-content/50 font-mono mt-1">Blockly primary · form/JSON fallback</p>
         </div>
     </div>
 
@@ -56,16 +95,14 @@
                 <h2 class="card-title text-sm uppercase tracking-wider">Automations</h2>
                 <button class="btn btn-xs btn-warning" @click="newRule()">New</button>
             </div>
-            <input type="text" class="input input-bordered input-sm mb-3 font-mono" placeholder="Filter by name/id" x-model="filterText">
-            <div class="max-h-[70vh] overflow-y-auto pr-1 flex flex-col gap-2">
+            <input type="text" class="input input-bordered input-sm mb-3 font-mono" placeholder="Filter by name" x-model="filterText">
+            <div class="max-h-[70vh] overflow-y-auto pr-1 flex flex-col gap-1 items-stretch w-full">
                 <template x-for="rule in filteredRules" :key="rule.id || rule.name">
-                    <button class="btn btn-sm justify-start normal-case"
-                            :class="selectedRule && selectedRule.id === rule.id ? 'btn-warning' : 'btn-ghost'"
+                    <button class="w-full btn btn-sm justify-start text-left normal-case gap-2 px-2"
+                            :class="(selectedRule && !selectedRule.isDraft && selectedRule.id === rule.id) ? 'btn-warning' : (selectedRule && selectedRule.isDraft ? '' : 'btn-ghost')"
                             @click="selectRule(rule)">
-                        <span class="truncate text-left">
-                            <span x-text="rule.name || '(unnamed)'"></span>
-                            <span class="text-xs opacity-60" x-text="' · ' + (rule.mode === 'branched' ? 'branched' : 'flat')"></span>
-                        </span>
+                        <span class="badge badge-xs shrink-0" :class="ruleListBadgeClass(rule)" x-text="ruleListKind(rule)"></span>
+                        <span class="truncate flex-1 text-left" x-text="rule.name || '(unnamed)'"></span>
                     </button>
                 </template>
             </div>
@@ -82,15 +119,16 @@
             </div>
 
             <template x-if="!selectedRule">
-                <div class="text-base-content/60 text-sm">Select a rule or click <b>New</b>.</div>
+                <div class="text-base-content/60 text-sm">Select a rule from the list, or click <b>New</b> to create one.</div>
             </template>
 
             <template x-if="selectedRule">
                 <div class="space-y-4">
+                    <div x-show="selectedRule.isDraft" class="text-xs text-warning font-semibold">New rule — pick trigger in Blockly, name it, then Save.</div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <label class="form-control">
-                            <span class="label-text text-xs">Rule ID</span>
-                            <input class="input input-bordered input-sm font-mono" x-model="editor.id" readonly>
+                            <span class="label-text text-xs">Name</span>
+                            <input class="input input-bordered input-sm" x-model="editor.name">
                         </label>
                         <label class="form-control">
                             <span class="label-text text-xs">Mode</span>
@@ -101,38 +139,103 @@
                         </label>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <label class="form-control">
-                            <span class="label-text text-xs">Name</span>
-                            <input class="input input-bordered input-sm" x-model="editor.name">
-                        </label>
-                        <div class="flex gap-4 items-end">
-                            <label class="label cursor-pointer gap-2"><span class="label-text text-xs">Scene</span><input type="checkbox" class="checkbox checkbox-sm" x-model="editor.scene"></label>
-                            <label class="label cursor-pointer gap-2"><span class="label-text text-xs">Confirm</span><input type="checkbox" class="checkbox checkbox-sm" x-model="editor.require_confirmation"></label>
+                    <div class="flex flex-col gap-1">
+                        <div class="flex gap-4 items-center">
+                            <label class="label cursor-pointer gap-2">
+                                <span class="label-text text-xs">Show on dashboard</span>
+                                <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.scene">
+                            </label>
+                            <label class="label cursor-pointer gap-2">
+                                <span class="label-text text-xs">Require confirmation</span>
+                                <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.require_confirmation">
+                            </label>
+                        </div>
+                        <p class="text-[11px] text-base-content/50 max-w-xl">
+                            Dashboard = kiosk scene button. Trigger = what fires the rule (device or event in Blockly).
+                            Companion rules share an event but stay off the dashboard (e.g. Cinema OFF daytime).
+                        </p>
+                    </div>
+
+                    <template x-if="editor.mode === 'branched'">
+                        <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200">
+                            <span class="text-xs font-semibold">Editor:</span>
+                            <select class="select select-bordered select-xs" x-model="branchedEditorMode" @change="onBranchedEditorModeChanged()">
+                                <option value="blockly">Blockly (primary)</option>
+                                <option value="form">Form fallback</option>
+                            </select>
+                            <template x-if="branchedEditorMode === 'blockly'">
+                                <div class="flex items-center gap-2">
+                                    <button class="btn btn-xs btn-outline" @click="loadEditorIntoBlockly()">Reload canvas</button>
+                                    <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <template x-if="editor.mode === 'flat'">
+                        <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200">
+                            <span class="text-xs font-semibold">Editor:</span>
+                            <select class="select select-bordered select-xs" x-model="flatEditorMode" @change="onFlatEditorModeChanged()" :disabled="!isFlatBlocklyCompatible(selectedRule)">
+                                <option value="blockly">Blockly (primary)</option>
+                                <option value="json">JSON fallback</option>
+                            </select>
+                            <template x-if="flatEditorMode === 'blockly'">
+                                <div class="flex items-center gap-2">
+                                    <button class="btn btn-xs btn-outline" @click="loadEditorIntoBlockly()">Reload canvas</button>
+                                    <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                                </div>
+                            </template>
+                            <span class="text-[11px] text-base-content/50" x-show="!isFlatBlocklyCompatible(selectedRule)" x-text="flatBlocklyBlockedReason(selectedRule)"></span>
+                        </div>
+                    </template>
+
+                    <div id="blocklyPanel"
+                         class="space-y-2"
+                         x-effect="showBlocklyWorkspace; blocklyFullscreen; queueMicrotask(() => resizeBlockly())"
+                         :class="{
+                             'is-parked': !showBlocklyWorkspace,
+                             'fixed inset-0 z-[200] bg-base-300 p-4 flex flex-col': blocklyFullscreen && showBlocklyWorkspace
+                         }">
+                        <div x-show="blocklyFullscreen && showBlocklyWorkspace" class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <div>
+                                <div class="font-bold text-warning uppercase tracking-wider text-sm">Blocky · full screen</div>
+                                <div class="text-sm font-semibold mt-1" x-text="editor.name || '(unnamed rule)'"></div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="btn btn-sm btn-outline" @click="toggleBlocklyFullscreen()">Exit full screen</button>
+                                <button class="btn btn-sm btn-warning" @click="saveRule()" :disabled="busy">Save</button>
+                            </div>
+                        </div>
+                        <div id="blocklyWorkspace"
+                             class="w-full rounded border border-base-300 bg-base-100"
+                             :class="blocklyFullscreen && showBlocklyWorkspace ? 'blockly-fs' : ''"></div>
+                        <div class="text-[11px] text-base-content/60" x-show="showBlocklyWorkspace && !blocklyFullscreen">
+                            Grab a block by its coloured body to drag · drag away to disconnect · drop on the trash (bottom-right) to delete.
+                            Toolbox hides trigger/branch types once used; duplicate conditions/actions are removed automatically.
                         </div>
                     </div>
 
                     <template x-if="editor.mode === 'branched'">
-                        <div class="space-y-4">
+                        <div class="space-y-4" x-show="branchedEditorMode === 'form'">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <label class="form-control">
                                     <span class="label-text text-xs">Trigger kind</span>
                                     <select class="select select-bordered select-sm" x-model="editor.triggerKind">
-                                        <option value="device">Device entity_id</option>
-                                        <option value="event">Event family</option>
+                                    <option value="device">Device</option>
+                                    <option value="event">Event</option>
                                     </select>
                                 </label>
                                 <label class="form-control" x-show="editor.triggerKind === 'device'">
-                                    <span class="label-text text-xs">Trigger entity_id</span>
-                                    <select class="select select-bordered select-sm font-mono" x-model="editor.triggerEntityId">
+                                    <span class="label-text text-xs">Trigger device</span>
+                                    <select class="select select-bordered select-sm" x-model="editor.triggerEntityId">
                                         <template x-for="opt in visibleEntityOptions" :key="opt.eid">
-                                            <option :value="opt.eid" x-text="opt.label"></option>
+                                            <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
                                         </template>
                                     </select>
                                 </label>
                                 <label class="form-control" x-show="editor.triggerKind === 'event'">
-                                    <span class="label-text text-xs">Event family</span>
-                                    <select class="select select-bordered select-sm font-mono" x-model="editor.triggerEventFamily">
+                                    <span class="label-text text-xs">Event</span>
+                                    <select class="select select-bordered select-sm" x-model="editor.triggerEventFamily">
                                         <template x-for="fam in eventFamilies" :key="fam">
                                             <option :value="fam" x-text="eventFamilyLabel(fam)"></option>
                                         </template>
@@ -172,9 +275,9 @@
                                                         </select>
                                                         <template x-if="c.type === 'device_state'">
                                                             <div class="grid grid-cols-1 gap-2">
-                                                                <select class="select select-bordered select-xs font-mono" x-model="c.entity_id">
+                                                                <select class="select select-bordered select-xs" x-model="c.entity_id">
                                                                     <template x-for="opt in visibleEntityOptions" :key="'on-c-opt-'+opt.eid">
-                                                                        <option :value="opt.eid" x-text="opt.label"></option>
+                                                                        <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
                                                                     </template>
                                                                 </select>
                                                                 <select class="select select-bordered select-xs" x-model="c.is">
@@ -210,9 +313,9 @@
                                                         </select>
                                                         <template x-if="a.kind === 'device'">
                                                             <div class="grid grid-cols-1 gap-2">
-                                                                <select class="select select-bordered select-xs font-mono" x-model="a.entity_id">
+                                                                <select class="select select-bordered select-xs" x-model="a.entity_id">
                                                                     <template x-for="opt in visibleEntityOptions" :key="'on-a-opt-'+opt.eid">
-                                                                        <option :value="opt.eid" x-text="opt.label"></option>
+                                                                        <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
                                                                     </template>
                                                                 </select>
                                                                 <select class="select select-bordered select-xs font-mono" x-model="a.state">
@@ -272,9 +375,9 @@
                                                         </select>
                                                         <template x-if="c.type === 'device_state'">
                                                             <div class="grid grid-cols-1 gap-2">
-                                                                <select class="select select-bordered select-xs font-mono" x-model="c.entity_id">
+                                                                <select class="select select-bordered select-xs" x-model="c.entity_id">
                                                                     <template x-for="opt in visibleEntityOptions" :key="'off-c-opt-'+opt.eid">
-                                                                        <option :value="opt.eid" x-text="opt.label"></option>
+                                                                        <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
                                                                     </template>
                                                                 </select>
                                                                 <select class="select select-bordered select-xs" x-model="c.is">
@@ -310,9 +413,9 @@
                                                         </select>
                                                         <template x-if="a.kind === 'device'">
                                                             <div class="grid grid-cols-1 gap-2">
-                                                                <select class="select select-bordered select-xs font-mono" x-model="a.entity_id">
+                                                                <select class="select select-bordered select-xs" x-model="a.entity_id">
                                                                     <template x-for="opt in visibleEntityOptions" :key="'off-a-opt-'+opt.eid">
-                                                                        <option :value="opt.eid" x-text="opt.label"></option>
+                                                                        <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
                                                                     </template>
                                                                 </select>
                                                                 <select class="select select-bordered select-xs font-mono" x-model="a.state">
@@ -348,11 +451,12 @@
                                     </div>
                                 </div>
                             </div>
+                            </div>
                         </div>
                     </template>
 
                     <template x-if="editor.mode === 'flat'">
-                        <div>
+                        <div x-show="flatEditorMode === 'json'">
                             <label class="form-control">
                                 <span class="label-text text-xs">Flat rule JSON</span>
                                 <textarea class="textarea textarea-bordered textarea-sm font-mono h-80" x-model="editor.flatRuleJson"></textarea>
@@ -373,6 +477,6 @@
     </section>
 </main>
 
-<script src="blocky.js?v=1.0"></script>
+<script src="blocky.js?v=3.0"></script>
 </body>
 </html>
