@@ -1,5 +1,12 @@
 // --- file: frontend/app.js ---
 
+// ECharts instances MUST live outside the Alpine component data. Alpine deep-wraps
+// everything reachable from `this` in reactive Proxies; a proxied ECharts instance
+// corrupts ECharts' internal identity checks and resize()/setOption() then throw
+// ("Cannot read properties of undefined"), silently aborting the rest of the render.
+const wanosHistoryCharts = { day: null, month: null, year: null };
+const wanosActuatorCharts = { day: null, month: null, year: null };
+
 function wanosApp() {
     return {
         connected: false,
@@ -139,14 +146,15 @@ function wanosApp() {
         typeFilter: "ALL",   // "ALL", "SWITCH", "SCENE", "BLINDS", "SENSOR"
         statusFilter: "ALL", // "ALL", "ON", "OFF"
         sortMode: "NAME",    // "NAME", "STATUS"
+        explorerMode: "control", // "control" | "history" — always land on control
 
         // ⚡ View Presets State
         presets: [null, null, null, null, null], // Array of 5 slots to hold view filter dictionaries
         activePresetSlot: null, // Tracks which slot is currently being saved
         toastMessage: "", // Ephemeral UI feedback message
 
-        // ⚡ Sensor History (sensorhistory.html)
-        historyTab: "sensors",
+        // ⚡ Sensor History / Explorer History mode
+        historyTab: "sessions",
         historySensors: [],
         utilitySummaries: {},
         selectedHistoryIdx: null,
@@ -158,10 +166,15 @@ function wanosApp() {
         historyDayTitle: "Usage last 24 hours",
         historyMonthTitle: "Usage last month",
         historyYearTitle: "Usage last year",
-        _historyCharts: { day: null, month: null, year: null },
         _historyRefreshTimer: null,
-        _actuatorCharts: { day: null, month: null, year: null },
         historyChartHasData: { day: false, month: false, year: false },
+        // Flat flags for Alpine x-if (more reliable than nested object keys)
+        historyHasDay: false,
+        historyHasMonth: false,
+        historyHasYear: false,
+        actuatorHasDay: false,
+        actuatorHasMonth: false,
+        actuatorHasYear: false,
         actuatorChartHasData: { day: false, month: false, year: false },
         actuatorList: [],
         actuatorFavorites: [],
@@ -613,6 +626,45 @@ function wanosApp() {
             return list;
         },
 
+        /** idx → { category, name } for devices that have a history backend series. */
+        get historyCapabilityByIdx() {
+            const map = {};
+            for (const s of (this.historySensors || [])) {
+                let category = "utility";
+                if (s.kind === "climate") category = "climate";
+                else if (s.kind === "host") category = "host";
+                map[Number(s.idx)] = {
+                    category,
+                    name: s.label || `IDX ${s.idx}`,
+                    kind: s.kind,
+                };
+            }
+            for (const a of (this.actuatorList || [])) {
+                map[Number(a.idx)] = {
+                    category: "actuator",
+                    name: a.name || `IDX ${a.idx}`,
+                    kind: "actuator",
+                };
+            }
+            return map;
+        },
+
+        deviceHasHistory(idx) {
+            return this.historyCapabilityByIdx[Number(idx)] != null;
+        },
+
+        /** Control list as-is; History mode applies hybrid C (drop rows without series). */
+        get explorerDisplayList() {
+            const base = this.unifiedDeviceList;
+            if (this.explorerMode !== "history") return base;
+            return base.filter(item => this.deviceHasHistory(item.id));
+        },
+
+        /** Admin-only hint: how many Control-visible rows were dropped by hybrid C. */
+        get historyWithoutSeriesCount() {
+            return (this.unifiedDeviceList || []).filter(item => !this.deviceHasHistory(item.id)).length;
+        },
+
         // ⏱️ Mathematical duration translator for history tallies
         getDurationString(unixTimestamp) {
             if (!unixTimestamp) return "--";
@@ -730,8 +782,8 @@ function wanosApp() {
 
                     if (payload.role === "admin") {
                         this.isAdmin = true;
-                    } else if (payload.role === "user" && (window.location.pathname.includes("admin.html") || window.location.pathname.includes("sensorhistory.html"))) {
-                        // ⚡ THE BOUNCER: If a smartphone browser auto-completes to an admin page, kick them out
+                    } else if (payload.role === "user" && window.location.pathname.includes("admin.html")) {
+                        // ⚡ THE BOUNCER: user role cannot open admin.html (History/sessions are allowed)
                         console.warn("Unauthorized access attempt. Redirecting...");
                         window.location.href = "/deviceexplorer.html";
                         return;
@@ -1138,21 +1190,25 @@ function wanosApp() {
             }
         },
 
+        async initDeviceExplorerPage() {
+            if (!window.location.pathname.includes("deviceexplorer.html")) return;
+            await this.$nextTick();
+            window.addEventListener("resize", () => {
+                Object.values(wanosHistoryCharts || {}).forEach(c => c && c.resize());
+                Object.values(wanosActuatorCharts || {}).forEach(c => c && c.resize());
+            });
+            // Preload capability maps so History mode can filter immediately
+            try {
+                await Promise.all([this.loadHistorySensors(), this.loadActuatorOverview()]);
+            } catch (e) {
+                console.warn("History capability preload failed", e);
+            }
+        },
+
         async initSensorHistoryPage() {
             if (!window.location.pathname.includes("sensorhistory.html")) return;
             await this.$nextTick();
-            // Favorites already loaded in init(); keep a refresh for late localStorage edits
-            try {
-                const fav = JSON.parse(localStorage.getItem("wanos_history_favorites") || "[]");
-                this.actuatorFavorites = Array.isArray(fav) ? fav.map(Number) : [];
-            } catch (e) {
-                this.actuatorFavorites = [];
-            }
-            window.addEventListener("resize", () => {
-                Object.values(this._historyCharts).forEach(c => c && c.resize());
-                Object.values(this._actuatorCharts).forEach(c => c && c.resize());
-            });
-            await this.refreshSensorHistoryList();
+            this.historyTab = "sessions";
             await this.loadSessionHistory();
 
             if (this._historyRefreshTimer) {
@@ -1160,18 +1216,76 @@ function wanosApp() {
             }
             this._historyRefreshTimer = setInterval(() => {
                 if (document.visibilityState !== "visible") return;
-                if (this.historyTab === "sensors") {
-                    this.refreshSensorHistoryList();
-                } else if (this.historyTab === "sessions") {
-                    this.loadSessionHistory();
-                }
+                this.loadSessionHistory();
             }, 60_000);
+        },
 
-            document.addEventListener("visibilitychange", () => {
-                if (document.visibilityState !== "visible") return;
-                if (this.historyTab === "sensors") {
-                    this.refreshSensorHistoryList();
+        async setExplorerMode(mode) {
+            if (mode !== "control" && mode !== "history") return;
+            if (this.explorerMode === mode) return;
+            this.explorerMode = mode;
+
+            if (mode === "history") {
+                await this.ensureExplorerHistoryData();
+                const id = this.selectedSensorIdx;
+                if (id != null) {
+                    const still = (this.explorerDisplayList || []).some(i => Number(i.id) === Number(id));
+                    if (still) {
+                        await this.$nextTick();
+                        await this.reloadSelectedSensorDetail();
+                    } else {
+                        this.closeHistoryDetail();
+                    }
                 }
+                this._startExplorerHistoryRefresh();
+            } else {
+                this._stopExplorerHistoryRefresh();
+                // Keep selection ids for when user returns to History; hide charts in Control UI.
+                this._disposeHistoryCharts();
+                this._disposeActuatorCharts();
+            }
+        },
+
+        async ensureExplorerHistoryData() {
+            await Promise.all([this.loadHistorySensors(), this.loadActuatorOverview()]);
+        },
+
+        _startExplorerHistoryRefresh() {
+            this._stopExplorerHistoryRefresh();
+            this._historyRefreshTimer = setInterval(() => {
+                if (document.visibilityState !== "visible") return;
+                if (this.explorerMode !== "history") return;
+                this.refreshExplorerHistory();
+            }, 60_000);
+        },
+
+        _stopExplorerHistoryRefresh() {
+            if (this._historyRefreshTimer) {
+                clearInterval(this._historyRefreshTimer);
+                this._historyRefreshTimer = null;
+            }
+        },
+
+        async refreshExplorerHistory() {
+            await this.ensureExplorerHistoryData();
+            if (this.selectedSensorIdx != null && this.selectedSensorKind) {
+                const still = (this.explorerDisplayList || []).some(
+                    i => Number(i.id) === Number(this.selectedSensorIdx)
+                );
+                if (still) await this.reloadSelectedSensorDetail();
+                else this.closeHistoryDetail();
+            }
+        },
+
+        async selectExplorerHistoryItem(item) {
+            if (!item || this.explorerMode !== "history") return;
+            const cap = this.historyCapabilityByIdx[Number(item.id)];
+            if (!cap) return;
+            await this.selectHistoryRow({
+                idx: item.id,
+                name: item.name || cap.name,
+                category: cap.category,
+                type: item.type,
             });
         },
 
@@ -1246,6 +1360,111 @@ function wanosApp() {
                 type: item.type,
                 origin: item.origin,
             });
+        },
+
+        /**
+         * History-mode trailing value: same semantics as Control, richer for audio/blinds.
+         * Speakers → "ON, vol N" / "OFF"; blinds → Open / Closed / Open X%.
+         */
+        explorerHistoryValueText(item) {
+            if (!item) return "—";
+            if (item.is_dead) return "DEAD";
+            if (item.raw_value === null || item.raw_value === undefined) return "SYNC...";
+
+            if (item.type === "speaker") {
+                const raw = item.raw_value;
+                const on = item.is_on === true;
+                let vol = null;
+                if (typeof raw === "object" && raw !== null && raw.volume != null) {
+                    vol = raw.volume;
+                } else if (item.ui_volume != null) {
+                    vol = item.ui_volume;
+                }
+                if (!on) return "OFF";
+                if (vol == null) return "ON";
+                return "ON, vol " + vol;
+            }
+
+            if (item.type === "blinds") {
+                const level = parseInt(item.raw_value, 10);
+                if (!Number.isFinite(level)) return String(item.display_text || "—");
+                if (level <= 0) return "Open";
+                if (level >= 100) return "Closed";
+                const openPct = Math.max(0, Math.min(100, 100 - level));
+                return "Open " + openPct + "%";
+            }
+
+            return item.display_text != null ? String(item.display_text) : "—";
+        },
+
+        /** Match Control-mode value colors in History mode. */
+        explorerHistoryValueClass(item) {
+            if (!item) return "text-base-content/80";
+            if (item.is_dead) return "text-error";
+            if (item.type === "temp" || item.type === "temp_hum") return "text-orange-400";
+            if (item.type === "hum") return "text-info";
+            if (item.type === "energy") return "text-success";
+            if (item.type === "power") return "text-warning";
+            if (item.type === "sensor") {
+                const name = String(item.name || "").toLowerCase();
+                if (name.includes("temp")) return "text-orange-400";
+                if (name.includes("volt")) return "text-info";
+                if (item.is_on === true) return "text-error animate-pulse";
+                if (item.is_on === false) return "text-base-500";
+                return "text-success";
+            }
+            if (item.type === "speaker") {
+                return item.is_on ? "text-warning" : "text-base-content/70";
+            }
+            if (item.type === "blinds") return "text-info";
+            if (item.type === "switch" || item.type === "light") {
+                return item.is_on ? "text-warning" : "text-base-500";
+            }
+            return "text-base-content/80";
+        },
+
+        /** Hardware / configured level ceiling (Onkyo uses max_volume). */
+        _actuatorLevelDeviceMax(idx) {
+            const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
+            const maxVol = meta.max_volume != null ? Number(meta.max_volume) : null;
+            if (Number.isFinite(maxVol) && maxVol > 0) return maxVol;
+            if (meta.origin === "onkyo") return 60;
+            return 100;
+        },
+
+        _isAudioActuator(idx) {
+            const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
+            return meta.type === "speaker"
+                || meta.origin === "sonos"
+                || meta.origin === "onkyo";
+        },
+
+        /** Peak numeric value across one or more series payloads. */
+        _seriesPeak(...seriesList) {
+            let peak = null;
+            for (const points of seriesList) {
+                for (const p of points || []) {
+                    if (p == null || p.v == null) continue;
+                    const n = Number(p.v);
+                    if (!Number.isFinite(n)) continue;
+                    if (peak == null || n > peak) peak = n;
+                }
+            }
+            return peak;
+        },
+
+        /**
+         * Level Y-axis max for one chart window.
+         * Audio: min(device max_volume, visible peak rounded up to nearest 10).
+         * Other actuators: fixed device ceiling (0–100 / max_volume).
+         */
+        _actuatorLevelAxisMax(idx, ...seriesForWindow) {
+            const deviceMax = this._actuatorLevelDeviceMax(idx);
+            if (!this._isAudioActuator(idx)) return deviceMax;
+            const peak = this._seriesPeak(...seriesForWindow);
+            if (peak == null || peak <= 0) return Math.min(deviceMax, 10);
+            const rounded = Math.ceil(peak / 10) * 10;
+            return Math.min(deviceMax, Math.max(rounded, 10));
         },
 
         _utilityLiveStatus(s) {
@@ -1469,11 +1688,11 @@ function wanosApp() {
                 && this.selectedSensorIdx != null) {
                 this.selectedHistoryIdx = this.selectedSensorIdx;
                 await this.reloadHistoryCharts();
-                Object.values(this._historyCharts).forEach(c => c && c.resize());
+                Object.values(wanosHistoryCharts).forEach(c => c && c.resize());
             } else if (this.selectedSensorKind === "actuator" && this.selectedSensorIdx != null) {
                 this.selectedActuatorIdx = this.selectedSensorIdx;
                 await this.reloadActuatorCharts();
-                Object.values(this._actuatorCharts).forEach(c => c && c.resize());
+                Object.values(wanosActuatorCharts).forEach(c => c && c.resize());
             }
         },
 
@@ -1487,12 +1706,20 @@ function wanosApp() {
             this.selectedActuatorIdx = null;
             this.selectedActuatorName = "";
             this.historySummary = null;
+            this.historyChartHasData.day = false;
+            this.historyChartHasData.month = false;
+            this.historyChartHasData.year = false;
+            this.actuatorChartHasData.day = false;
+            this.actuatorChartHasData.month = false;
+            this.actuatorChartHasData.year = false;
+            this._syncHistoryHasFlags();
+            this._syncActuatorHasFlags();
         },
 
         _disposeHistoryCharts() {
-            Object.keys(this._historyCharts || {}).forEach(k => {
-                try { this._historyCharts[k]?.dispose(); } catch (e) { /* ignore */ }
-                this._historyCharts[k] = null;
+            Object.keys(wanosHistoryCharts || {}).forEach(k => {
+                try { wanosHistoryCharts[k]?.dispose(); } catch (e) { /* ignore */ }
+                wanosHistoryCharts[k] = null;
             });
         },
 
@@ -1539,11 +1766,11 @@ function wanosApp() {
         },
 
         _disposeActuatorCharts() {
-            Object.keys(this._actuatorCharts || {}).forEach(k => {
+            Object.keys(wanosActuatorCharts || {}).forEach(k => {
                 try {
-                    this._actuatorCharts[k]?.dispose();
+                    wanosActuatorCharts[k]?.dispose();
                 } catch (e) { /* ignore */ }
-                this._actuatorCharts[k] = null;
+                wanosActuatorCharts[k] = null;
             });
         },
 
@@ -1551,35 +1778,50 @@ function wanosApp() {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById(elId);
             if (!el) return null;
-            if (this._actuatorCharts[key]) {
+            if (wanosActuatorCharts[key]) {
                 try {
-                    this._actuatorCharts[key].resize();
+                    wanosActuatorCharts[key].resize();
                 } catch (e) { /* ignore */ }
-                return this._actuatorCharts[key];
+                return wanosActuatorCharts[key];
             }
-            this._actuatorCharts[key] = echarts.init(el, "dark");
-            return this._actuatorCharts[key];
+            wanosActuatorCharts[key] = echarts.init(el, "dark");
+            return wanosActuatorCharts[key];
         },
 
         renderActuatorCharts(dayData, monthData, yearData) {
-            this.actuatorChartHasData = {
-                day: this._historyPayloadHasData(dayData),
-                month: this._historyPayloadHasData(monthData),
-                year: this._historyPayloadHasData(yearData),
-            };
+            const dayOk = this._historyPayloadHasData(dayData);
+            const monthOk = this._historyPayloadHasData(monthData);
+            const yearOk = this._historyPayloadHasData(yearData);
 
-            // Drop stale chart instances (and sticky dataZoom) before containers reappear.
+            this.actuatorChartHasData.day = false;
+            this.actuatorChartHasData.month = false;
+            this.actuatorChartHasData.year = false;
+            this._syncActuatorHasFlags();
             this._disposeActuatorCharts();
 
-            const draw = () => {
-                const dayChart = this.actuatorChartHasData.day ? this._ensureActuatorChart("day", "chart-act-day") : null;
-                const monthChart = this.actuatorChartHasData.month ? this._ensureActuatorChart("month", "chart-act-month") : null;
-                const yearChart = this.actuatorChartHasData.year ? this._ensureActuatorChart("year", "chart-act-year") : null;
+            const idx = dayData?.idx ?? monthData?.idx ?? yearData?.idx ?? this.selectedActuatorIdx;
+            const dayLevelMax = this._actuatorLevelAxisMax(idx, dayData?.series?.level);
+            const monthLevelMax = this._actuatorLevelAxisMax(
+                idx, monthData?.series?.level_min, monthData?.series?.level_max
+            );
+            const yearLevelMax = this._actuatorLevelAxisMax(
+                idx, yearData?.series?.level_min, yearData?.series?.level_max
+            );
 
-                if (dayChart) {
-                    const opt = this._baseChartOption("Level (0–100)");
+            const draw = () => {
+                const dayChart = dayOk ? this._ensureActuatorChart("day", "chart-act-day") : null;
+                const monthChart = monthOk ? this._ensureActuatorChart("month", "chart-act-month") : null;
+                const yearChart = yearOk ? this._ensureActuatorChart("year", "chart-act-year") : null;
+
+                this.actuatorChartHasData.day = !!(dayOk && dayChart);
+                this.actuatorChartHasData.month = !!(monthOk && monthChart);
+                this.actuatorChartHasData.year = !!(yearOk && yearChart);
+                this._syncActuatorHasFlags();
+
+                if (dayChart && this.actuatorChartHasData.day) {
+                    const opt = this._baseChartOption("Level (0–" + dayLevelMax + ")");
                     opt.yAxis.min = 0;
-                    opt.yAxis.max = 100;
+                    opt.yAxis.max = dayLevelMax;
                     opt.series = [{
                         name: "Level",
                         type: "line",
@@ -1595,7 +1837,7 @@ function wanosApp() {
                     dayChart.resize();
                 }
 
-                if (monthChart) {
+                if (monthChart && this.actuatorChartHasData.month) {
                     const opt = this._baseChartOption("Level / count");
                     opt.legend = { bottom: 0, textStyle: { color: "#9ca3af" } };
                     opt.yAxis = [
@@ -1603,7 +1845,7 @@ function wanosApp() {
                             type: "value",
                             name: "Level",
                             min: 0,
-                            max: 100,
+                            max: monthLevelMax,
                             nameTextStyle: { color: "#9ca3af" },
                             axisLabel: { color: "#9ca3af" },
                             splitLine: { lineStyle: { color: "#374151" } }
@@ -1646,14 +1888,14 @@ function wanosApp() {
                     monthChart.resize();
                 }
 
-                if (yearChart) {
+                if (yearChart && this.actuatorChartHasData.year) {
                     const opt = this._baseChartOption("Level / count");
                     opt.yAxis = [
                         {
                             type: "value",
                             name: "Level",
                             min: 0,
-                            max: 100,
+                            max: yearLevelMax,
                             nameTextStyle: { color: "#9ca3af" },
                             axisLabel: { color: "#9ca3af" },
                             splitLine: { lineStyle: { color: "#374151" } }
@@ -1697,9 +1939,16 @@ function wanosApp() {
                 }
             };
 
-            // x-show must reveal chart divs before echarts measures width.
             this.$nextTick(() => {
-                requestAnimationFrame(draw);
+                this.actuatorChartHasData.day = dayOk;
+                this.actuatorChartHasData.month = monthOk;
+                this.actuatorChartHasData.year = yearOk;
+                this._syncActuatorHasFlags();
+                this.$nextTick(() => {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(draw);
+                    });
+                });
             });
         },
 
@@ -1740,9 +1989,6 @@ function wanosApp() {
                 }
                 const data = await res.json();
                 this.historySensors = data.sensors || [];
-                if (this.historySensors.length && !this.historySensors.find(s => s.idx === this.selectedHistoryIdx)) {
-                    this.selectedHistoryIdx = this.historySensors[0].idx;
-                }
             } catch (e) {
                 console.error("Failed to load history sensors", e);
             }
@@ -1776,12 +2022,12 @@ function wanosApp() {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById(elId);
             if (!el) return null;
-            if (this._historyCharts[key]) {
-                try { this._historyCharts[key].resize(); } catch (e) { /* ignore */ }
-                return this._historyCharts[key];
+            if (wanosHistoryCharts[key]) {
+                try { wanosHistoryCharts[key].resize(); } catch (e) { /* ignore */ }
+                return wanosHistoryCharts[key];
             }
-            this._historyCharts[key] = echarts.init(el, "dark");
-            return this._historyCharts[key];
+            wanosHistoryCharts[key] = echarts.init(el, "dark");
+            return wanosHistoryCharts[key];
         },
 
         _normalizeTsMs(t) {
@@ -1802,10 +2048,36 @@ function wanosApp() {
             return (points || []).some(p => p != null && p.v != null && !Number.isNaN(Number(p.v)));
         },
 
+        _seriesDrawable(points) {
+            return this._pointsToSeries(points).some(row => row[1] != null && !Number.isNaN(Number(row[1])));
+        },
+
         _historyPayloadHasData(data) {
             const s = data && data.series;
             if (!s || typeof s !== "object") return false;
             return Object.values(s).some(arr => this._seriesHasPoints(arr));
+        },
+
+        _climateRangeHasData(data, rangeName) {
+            const s = data && data.series;
+            if (!s) return false;
+            if (rangeName === "day") {
+                return this._seriesDrawable(s.temp) || this._seriesDrawable(s.hum);
+            }
+            return this._seriesDrawable(s.temp_min) || this._seriesDrawable(s.temp_max)
+                || this._seriesDrawable(s.hum_min) || this._seriesDrawable(s.hum_max);
+        },
+
+        _syncHistoryHasFlags() {
+            this.historyHasDay = !!this.historyChartHasData.day;
+            this.historyHasMonth = !!this.historyChartHasData.month;
+            this.historyHasYear = !!this.historyChartHasData.year;
+        },
+
+        _syncActuatorHasFlags() {
+            this.actuatorHasDay = !!this.actuatorChartHasData.day;
+            this.actuatorHasMonth = !!this.actuatorChartHasData.month;
+            this.actuatorHasYear = !!this.actuatorChartHasData.year;
         },
 
         /**
@@ -1859,12 +2131,6 @@ function wanosApp() {
             const isHost = kind === "host";
             const hostUnit = dayData?.unit || monthData?.unit || "";
 
-            this.historyChartHasData = {
-                day: this._historyPayloadHasData(dayData),
-                month: this._historyPayloadHasData(monthData),
-                year: this._historyPayloadHasData(yearData),
-            };
-
             this.historyDayTitle = isClimate
                 ? "Temperature / humidity last 24 hours"
                 : (isHost ? `Value last 24 hours (${hostUnit})`
@@ -1878,25 +2144,60 @@ function wanosApp() {
                 : (isHost ? `Min / max last year (${hostUnit})`
                     : (isWater ? "Consumption last year" : "Usage last year"));
 
+            // Phase 1: unmount all chart sections so empty titles cannot linger.
+            this.historyChartHasData.day = false;
+            this.historyChartHasData.month = false;
+            this.historyChartHasData.year = false;
+            this._syncHistoryHasFlags();
             this._disposeHistoryCharts();
 
+            const dayOk = isClimate
+                ? this._climateRangeHasData(dayData, "day")
+                : this._historyPayloadHasData(dayData);
+            const monthOk = isClimate
+                ? this._climateRangeHasData(monthData, "month")
+                : this._historyPayloadHasData(monthData);
+            const yearOk = isClimate
+                ? this._climateRangeHasData(yearData, "year")
+                : this._historyPayloadHasData(yearData);
+
             const draw = () => {
-                const dayChart = this.historyChartHasData.day ? this._ensureHistoryChart("day", "chart-day") : null;
-                const monthChart = this.historyChartHasData.month ? this._ensureHistoryChart("month", "chart-month") : null;
-                const yearChart = this.historyChartHasData.year ? this._ensureHistoryChart("year", "chart-year") : null;
+                const dayChart = dayOk ? this._ensureHistoryChart("day", "chart-day") : null;
+                const monthChart = monthOk ? this._ensureHistoryChart("month", "chart-month") : null;
+                const yearChart = yearOk ? this._ensureHistoryChart("year", "chart-year") : null;
+
+                // Only keep sections whose containers actually mounted + have drawable series.
+                this.historyChartHasData.day = !!(dayOk && dayChart);
+                this.historyChartHasData.month = !!(monthOk && monthChart);
+                this.historyChartHasData.year = !!(yearOk && yearChart);
+                this._syncHistoryHasFlags();
 
                 if (isClimate) {
                     const showHum = dayData?.has_humidity !== false
-                        || (dayData?.series?.hum || []).length > 0
-                        || (monthData?.series?.hum_min || []).some(p => p.v != null);
-                    this._renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum);
+                        || this._seriesDrawable(dayData?.series?.hum)
+                        || this._seriesDrawable(monthData?.series?.hum_min)
+                        || this._seriesDrawable(monthData?.series?.hum_max);
+                    this._renderClimateCharts(
+                        this.historyChartHasData.day ? dayChart : null,
+                        this.historyChartHasData.month ? monthChart : null,
+                        this.historyChartHasData.year ? yearChart : null,
+                        dayData, monthData, yearData, showHum
+                    );
+                    // Drop any range that rendered with no drawable points
+                    if (this.historyChartHasData.month && !this._climateRangeHasData(monthData, "month")) {
+                        this.historyChartHasData.month = false;
+                    }
+                    if (this.historyChartHasData.year && !this._climateRangeHasData(yearData, "year")) {
+                        this.historyChartHasData.year = false;
+                    }
+                    this._syncHistoryHasFlags();
                     return;
                 }
 
                 const yLabel = isWater ? "Liters" : (isHost ? (hostUnit || "Value") : "Usage (Watt)");
                 const seriesName = isHost ? "Value" : "Usage";
 
-                if (dayChart) {
+                if (dayChart && this.historyChartHasData.day) {
                     const opt = this._baseChartOption(yLabel);
                     if (isWater) {
                         opt.series = [{
@@ -1921,7 +2222,7 @@ function wanosApp() {
                     dayChart.resize();
                 }
 
-                if (monthChart) {
+                if (monthChart && this.historyChartHasData.month) {
                     const opt = this._baseChartOption(yLabel);
                     if (isWater) {
                         opt.series = [{
@@ -1955,7 +2256,7 @@ function wanosApp() {
                     monthChart.resize();
                 }
 
-                if (yearChart) {
+                if (yearChart && this.historyChartHasData.year) {
                     const opt = this._baseChartOption(yLabel);
                     if (isWater) {
                         opt.series = [{
@@ -1990,8 +2291,17 @@ function wanosApp() {
                 }
             };
 
+            // Phase 2: mount only ranges that have data, then init charts.
             this.$nextTick(() => {
-                requestAnimationFrame(draw);
+                this.historyChartHasData.day = dayOk;
+                this.historyChartHasData.month = monthOk;
+                this.historyChartHasData.year = yearOk;
+                this._syncHistoryHasFlags();
+                this.$nextTick(() => {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(draw);
+                    });
+                });
             });
         },
 
@@ -2900,7 +3210,11 @@ function wanosApp() {
 
         // Determines if the current view state differs from the system defaults
         isFilterActive() {
-            return this.searchQuery.trim() !== "" || this.typeFilter !== "ALL" || this.statusFilter !== "ALL" || this.sortMode !== "NAME";
+            return this.searchQuery.trim() !== ""
+                || this.typeFilter !== "ALL"
+                || this.statusFilter !== "ALL"
+                || this.sortMode !== "NAME"
+                || this.actuatorFavoritesOnly === true;
         },
 
         // Rapidly clears all UI filters and sort modes back to their base defaults
@@ -2918,10 +3232,11 @@ function wanosApp() {
             if (this.presets[index] !== null) {
                 // APPLY PRESET: Slot is filled, instantly map the saved payload to the reactive filters
                 const p = this.presets[index];
-                this.searchQuery = p.searchQuery;
-                this.typeFilter = p.typeFilter;
-                this.statusFilter = p.statusFilter;
-                this.sortMode = p.sortMode;
+                this.searchQuery = p.searchQuery || "";
+                this.typeFilter = p.typeFilter || "ALL";
+                this.statusFilter = p.statusFilter || "ALL";
+                this.sortMode = p.sortMode || "NAME";
+                this.actuatorFavoritesOnly = p.favoritesOnly === true;
             } else {
                 // SAVE PRESET: Slot is empty, verify if there is actually a modified view to save
                 if (!this.isFilterActive()) {
@@ -2940,7 +3255,8 @@ function wanosApp() {
                     searchQuery: this.searchQuery,
                     typeFilter: this.typeFilter,
                     statusFilter: this.statusFilter,
-                    sortMode: this.sortMode
+                    sortMode: this.sortMode,
+                    favoritesOnly: this.actuatorFavoritesOnly === true,
                 };
                 this.presets[this.activePresetSlot] = payload;
                 localStorage.setItem('wanos_view_presets', JSON.stringify(this.presets));
@@ -2964,6 +3280,7 @@ function wanosApp() {
             if (p.searchQuery) parts.push(`"${p.searchQuery}"`);
             if (p.typeFilter !== "ALL") parts.push(p.typeFilter);
             if (p.statusFilter !== "ALL") parts.push(p.statusFilter);
+            if (p.favoritesOnly) parts.push("Favorites");
 
             if (p.sortMode === "STATUS") parts.push("Sort: Status");
             else if (p.sortMode === "TYPE") parts.push("Sort: Type, Name");

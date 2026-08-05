@@ -932,9 +932,13 @@ class SensorHistoryManager:
                    WHERE idx = ? AND day_key >= ? ORDER BY day_key""",
                 (idx, since_day),
             )
+            rows = list(c.fetchall())
+            if not rows or all(tn is None and tx is None for _, tn, tx, _, _ in rows):
+                # Hi-res samples may exist before the first daily flush lands — synthesize days.
+                rows = self._climate_days_from_samples(c, idx, since_day)
             t_min, t_max, h_min, h_max = [], [], [], []
             has_hum = False
-            for day_key, tn, tx, hn, hx in c.fetchall():
+            for day_key, tn, tx, hn, hx in rows:
                 ts_ms = int(datetime.strptime(day_key, "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
                 t_min.append({"t": ts_ms, "v": tn})
                 t_max.append({"t": ts_ms, "v": tx})
@@ -964,8 +968,11 @@ class SensorHistoryManager:
                WHERE idx = ? AND day_key >= ? ORDER BY day_key""",
             (idx, since_day),
         )
+        rows = list(c.fetchall())
+        if not rows or all(tn is None and tx is None for _, tn, tx, _, _ in rows):
+            rows = self._climate_days_from_samples(c, idx, since_day)
         weeks: Dict[str, Dict[str, Optional[float]]] = {}
-        for day_key, tn, tx, hn, hx in c.fetchall():
+        for day_key, tn, tx, hn, hx in rows:
             dt = datetime.strptime(day_key, "%Y-%m-%d").replace(tzinfo=self.tz)
             iso = dt.isocalendar()
             wk = f"{iso.year}-W{iso.week:02d}"
@@ -1006,6 +1013,44 @@ class SensorHistoryManager:
                 "hum_max": h_max,
             },
         }
+
+    def _climate_days_from_samples(
+        self, c: sqlite3.Cursor, idx: int, since_day: str
+    ) -> List[Tuple[str, Optional[float], Optional[float], Optional[float], Optional[float]]]:
+        """Fallback daily climate min/max from hi-res samples (covers pre-rollup windows)."""
+        try:
+            since_ts = int(
+                datetime.strptime(since_day, "%Y-%m-%d").replace(tzinfo=self.tz).timestamp()
+            )
+        except ValueError:
+            return []
+        c.execute(
+            "SELECT ts, value, unit FROM sensor_samples WHERE idx = ? AND unit IN ('C', '%') AND ts >= ? ORDER BY ts",
+            (idx, since_ts),
+        )
+        days: Dict[str, Dict[str, Optional[float]]] = {}
+        for ts, value, unit in c.fetchall():
+            try:
+                day_key = datetime.fromtimestamp(int(ts), self.tz).strftime("%Y-%m-%d")
+                v = float(value)
+            except (TypeError, ValueError, OSError):
+                continue
+            b = days.setdefault(
+                day_key, {"t_min": None, "t_max": None, "h_min": None, "h_max": None}
+            )
+            if unit == "C":
+                b["t_min"] = v if b["t_min"] is None else min(b["t_min"], v)
+                b["t_max"] = v if b["t_max"] is None else max(b["t_max"], v)
+            elif unit == "%":
+                b["h_min"] = v if b["h_min"] is None else min(b["h_min"], v)
+                b["h_max"] = v if b["h_max"] is None else max(b["h_max"], v)
+        out: List[Tuple[str, Optional[float], Optional[float], Optional[float], Optional[float]]] = []
+        for day_key in sorted(days.keys()):
+            b = days[day_key]
+            if b["t_min"] is None and b["t_max"] is None and b["h_min"] is None and b["h_max"] is None:
+                continue
+            out.append((day_key, b["t_min"], b["t_max"], b["h_min"], b["h_max"]))
+        return out
 
     def _series_power(self, idx: int, range_name: str, meta: Dict[str, str]) -> Dict[str, Any]:
         conn = sqlite3.connect(self.db_path)

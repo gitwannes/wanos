@@ -23,6 +23,7 @@
     <title>WanOS Device Explorer</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <!--
     https://iro.js.org/
@@ -38,9 +39,14 @@
         @media (min-width: 1024px) {
             #pc-nav-menu { display: flex; }
         }
+        .hist-chart { width: 100%; height: 280px; }
+        @media (min-width: 768px) {
+            .hist-chart { height: 320px; }
+        }
+        [x-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
+<body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()" x-init="initDeviceExplorerPage()">
 
     <div x-show="!connected"
          class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
@@ -52,8 +58,11 @@
     <header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center min-h-[3rem] relative z-[60]">
         <div class="flex-1 flex items-center gap-2 min-w-0">
             <div class="flex flex-col min-w-0 justify-center">
-                <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-primary truncate">⚡ WanOS // Device Explorer</span>
-                <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" x-text="unifiedDeviceList.length + ' Nodes'"></span>
+                <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider truncate"
+                      :class="explorerMode === 'history' ? 'text-accent' : 'text-primary'"
+                      x-text="explorerMode === 'history' ? '⚡ WanOS // Explorer · History' : '⚡ WanOS // Device Explorer'"></span>
+                <span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap"
+                      x-text="explorerDisplayList.length + (explorerMode === 'history' ? ' History' : ' Nodes')"></span>
             </div>
         </div>
 
@@ -61,7 +70,7 @@
             <div class="join bg-base-200 border border-base-300">
                 <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-primary border-primary bg-primary/10">Explorer</a>
                 <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">WISC</a>
-                <a href="/sensorhistory.html" x-show="isAdmin" x-cloak class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">History</a>
+                <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">History</a>
             </div>
         </div>
 
@@ -73,7 +82,7 @@
                 <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
                     <li><a href="/deviceexplorer.html" class="text-primary font-bold">Device Explorer</a></li>
                     <li><a href="/commander.html">WISC</a></li>
-                    <li x-show="isAdmin" x-cloak><a href="/sensorhistory.html">Sensor History</a></li>
+                    <li><a href="/sensorhistory.html">History</a></li>
                 </ul>
             </div>
             <a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" x-show="isAdmin" x-cloak title="Return to Admin">                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -114,6 +123,10 @@
                     <input type="checkbox" class="toggle toggle-sm toggle-accent" x-model="actuatorFavoritesOnly" />
                     <span class="label-text font-mono text-[10px] uppercase tracking-widest hidden sm:inline">Favorites</span>
                 </label>
+                <div class="form-control flex flex-row items-center gap-2" x-show="isAdmin" x-cloak>
+                    <span class="text-[10px] font-bold text-base-content/70 uppercase">Hidden</span>
+                    <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenNodes" />
+                </div>
                 <button class="btn btn-sm btn-ghost text-lg hover:bg-base-200"
                         title="Manage Presets"
                         @click="document.getElementById('preset_edit_modal').showModal()">
@@ -122,7 +135,16 @@
             </div>
         </div>
 
-        <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3">
+        <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3 flex flex-col gap-2 md:gap-3">
+            <div class="join self-start border border-base-300">
+                <button type="button" class="btn btn-sm join-item font-mono tracking-widest"
+                        :class="explorerMode === 'control' ? 'btn-primary' : 'btn-ghost'"
+                        @click="setExplorerMode('control')">Control</button>
+                <button type="button" class="btn btn-sm join-item font-mono tracking-widest"
+                        :class="explorerMode === 'history' ? 'btn-accent' : 'btn-ghost'"
+                        @click="setExplorerMode('history')">History</button>
+            </div>
+
             <div class="grid grid-cols-2 md:flex md:flex-row gap-2 md:gap-3 items-center w-full">
 
                 <div class="form-control col-span-2 md:col-auto md:flex-1 w-full">
@@ -157,17 +179,17 @@
                     <option value="NAME">Sort by Name</option>
                     <option value="STATUS">Sort by Status</option>
                 </select>
-
-                <div class="form-control col-span-2 md:col-auto flex flex-row items-center justify-center md:justify-end gap-2 px-2" x-show="isAdmin" x-cloak>
-                    <span class="text-[10px] font-bold text-base-content/70 uppercase">Hidden</span>
-                    <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenNodes" />
-                </div>
             </div>
         </div>
 
-        <div class="card bg-base-100 shadow-xl border border-base-200 overflow-hidden">
+        <p class="font-mono text-[10px] text-base-content/50 px-1"
+           x-show="isAdmin && explorerMode === 'history' && historyWithoutSeriesCount > 0" x-cloak
+           x-text="historyWithoutSeriesCount + ' devices without history hidden'"></p>
+
+        <!-- CONTROL MODE LIST -->
+        <div class="card bg-base-100 shadow-xl border border-base-200 overflow-hidden" x-show="explorerMode === 'control'" x-cloak>
             <ul class="flex flex-col w-full divide-y divide-base-200/50">
-                <template x-for="item in unifiedDeviceList" :key="item.id">
+                <template x-for="item in unifiedDeviceList" :key="'c-' + item.id">
 
                     <li class="flex flex-row items-center justify-between py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-1 md:gap-6 overflow-hidden w-full"
                     :class="item.is_dead ? 'opacity-50 grayscale bg-base-200/30' : ''">
@@ -453,6 +475,191 @@
             </ul>
         </div>
 
+        <!-- HISTORY MODE LIST + DETAIL -->
+        <div class="card bg-base-100 shadow-xl border border-base-200 overflow-hidden" x-show="explorerMode === 'history'" x-cloak>
+            <ul class="flex flex-col w-full divide-y divide-base-200/50">
+                <template x-for="item in explorerDisplayList" :key="'h-' + item.id">
+                    <li class="flex flex-col w-full"
+                        :class="Number(selectedSensorIdx) === Number(item.id) ? 'bg-accent/5' : ''">
+                        <div class="flex flex-row items-center justify-between py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-2 md:gap-4 cursor-pointer w-full"
+                             :class="item.is_dead ? 'opacity-50 grayscale' : ''"
+                             @click="selectExplorerHistoryItem(item)">
+                            <div class="shrink-0 pr-1" @click.stop>
+                                <input type="checkbox" class="checkbox checkbox-xs checkbox-accent"
+                                       :checked="isActuatorFavorite(item.id)"
+                                       @change="toggleActuatorFavorite(item.id)"
+                                       title="Favorite" />
+                            </div>
+                            <div class="flex-1 min-w-0 flex flex-col justify-center">
+                                <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate flex items-center gap-1.5">
+                                    <template x-if="item.type === 'speaker' && item.origin !== 'onkyo'">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><circle cx="12" cy="14" r="4"></circle><line x1="12" y1="6" x2="12.01" y2="6"></line></svg>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider" x-text="item.origin"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="item.type === 'speaker' && item.origin === 'onkyo'">
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="1.5"></rect><circle cx="17" cy="12" r="2"></circle><line x1="6" y1="12" x2="10" y2="12"></line></svg>
+                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider" x-text="item.origin"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="item.type === 'blinds'">
+                                        <span class="text-sm shrink-0">↕️</span>
+                                    </template>
+                                    <template x-if="item.type === 'switch' || item.type === 'light'">
+                                        <span class="text-sm leading-none shrink-0" x-show="explorerItemIcon(item)" x-text="explorerItemIcon(item)"></span>
+                                    </template>
+                                    <template x-if="item.type === 'temp_hum'">
+                                        <span class="text-[10px] md:text-xs shrink-0">🌡️💧</span>
+                                    </template>
+                                    <template x-if="item.type === 'temp' || (item.type === 'sensor' && String(item.name || '').toLowerCase().includes('temp'))">
+                                        <span class="text-sm shrink-0">🌡️</span>
+                                    </template>
+                                    <template x-if="item.type === 'hum'">
+                                        <span class="text-sm shrink-0">💧</span>
+                                    </template>
+                                    <template x-if="item.type === 'energy'">
+                                        <span class="text-sm opacity-80 shrink-0">🔌</span>
+                                    </template>
+                                    <template x-if="item.type === 'power'">
+                                        <span class="text-sm text-warning shrink-0">⚡</span>
+                                    </template>
+                                    <template x-if="item.type === 'sensor' && String(item.name || '').toLowerCase().includes('volt')">
+                                        <span class="text-sm text-info shrink-0">⚡</span>
+                                    </template>
+                                    <template x-if="item.type === 'sensor' && String(item.name || '').toLowerCase().includes('motion')">
+                                        <span class="text-sm shrink-0">🏃</span>
+                                    </template>
+                                    <template x-if="!['speaker','blinds','switch','light','temp_hum','temp','hum','energy','power'].includes(item.type) && !(item.type === 'sensor' && (String(item.name || '').toLowerCase().includes('temp') || String(item.name || '').toLowerCase().includes('volt') || String(item.name || '').toLowerCase().includes('motion')))">
+                                        <span class="text-sm leading-none shrink-0" x-show="explorerItemIcon(item)" x-text="explorerItemIcon(item)"></span>
+                                    </template>
+                                    <span class="truncate" x-text="item.name"></span>
+                                </div>
+                                <div class="text-[10px] text-base-content/40 font-mono"
+                                     x-text="item.id + ' · ' + (item.type || '')"></div>
+                            </div>
+                            <div class="shrink-0 font-mono text-xs md:text-sm font-bold max-w-[45%] truncate text-right"
+                                 :class="explorerHistoryValueClass(item)"
+                                 x-text="explorerHistoryValueText(item)"></div>
+                        </div>
+
+                        <template x-if="Number(selectedSensorIdx) === Number(item.id)">
+                            <div class="px-3 md:px-4 pb-4 pt-1 bg-base-200/40 border-t border-base-300" @click.stop>
+                                <div class="flex flex-col gap-4">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <h3 class="font-mono text-sm font-bold tracking-wider text-accent"
+                                            x-text="'Detail: ' + (selectedSensorName || selectedSensorIdx)"></h3>
+                                        <button type="button" class="btn btn-xs btn-ghost font-mono"
+                                                @click="closeHistoryDetail()">Close</button>
+                                    </div>
+
+                                    <template x-if="selectedSensorKind === 'utility'">
+                                        <div class="flex flex-col gap-4">
+                                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3" x-show="historySummary">
+                                                <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                    <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Today</div>
+                                                    <div class="text-lg font-black text-accent font-mono"
+                                                         x-text="formatHistoryValue(historySummary?.today, historySummary?.display_unit)"></div>
+                                                </div>
+                                                <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                    <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">This month</div>
+                                                    <div class="text-lg font-black font-mono"
+                                                         x-text="formatHistoryValue(historySummary?.month, historySummary?.display_unit)"></div>
+                                                </div>
+                                                <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                    <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">This year</div>
+                                                    <div class="text-lg font-black font-mono"
+                                                         x-text="formatHistoryValue(historySummary?.year, historySummary?.display_unit)"></div>
+                                                </div>
+                                                <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                    <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Total</div>
+                                                    <div class="text-lg font-black font-mono"
+                                                         x-text="historySummary?.total == null ? '—' : formatHistoryValue(historySummary?.total, historySummary?.display_unit)"></div>
+                                                </div>
+                                            </div>
+                                            <template x-if="historyHasDay">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyDayTitle"></h2>
+                                                    <div id="chart-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                            <template x-if="historyHasMonth">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyMonthTitle"></h2>
+                                                    <div id="chart-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                            <template x-if="historyHasYear">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyYearTitle"></h2>
+                                                    <div id="chart-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="selectedSensorKind === 'climate' || selectedSensorKind === 'host'">
+                                        <div class="flex flex-col gap-4">
+                                            <template x-if="historyHasDay">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyDayTitle"></h2>
+                                                    <div id="chart-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                            <template x-if="historyHasMonth">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyMonthTitle"></h2>
+                                                    <div id="chart-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                            <template x-if="historyHasYear">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="historyYearTitle"></h2>
+                                                    <div id="chart-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="selectedSensorKind === 'actuator'">
+                                        <div class="flex flex-col gap-4">
+                                            <template x-if="actuatorHasDay">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Level / hits last 24 hours</h2>
+                                                    <div id="chart-act-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                            <template x-if="actuatorHasMonth">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Last month (counts + level)</h2>
+                                                    <div id="chart-act-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                            <template x-if="actuatorHasYear">
+                                                <section>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Last year (counts + level)</h2>
+                                                    <div id="chart-act-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
+                                                </section>
+                                            </template>
+                                            <p class="font-mono text-xs text-base-content/40 italic"
+                                               x-show="!actuatorHasDay && !actuatorHasMonth && !actuatorHasYear">
+                                                No history data for this period.
+                                            </p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </li>
+                </template>
+
+                <li x-show="explorerDisplayList.length === 0" class="p-6 text-center text-base-400 font-mono text-xs md:text-sm italic w-full">
+                    No history nodes match the current filter criteria.
+                </li>
+            </ul>
+        </div>
+
         <dialog id="light_control_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
             <div class="modal-box border border-primary/20 bg-base-300 shadow-2xl">
                 <h3 class="font-bold text-lg flex items-center gap-2 uppercase tracking-widest text-primary border-b border-base-200 pb-3 mb-4">
@@ -577,6 +784,6 @@
         </div>
 
     </main>
-    <script src="app.js?v=3.2"></script>
+    <script src="app.js?v=3.8"></script>
 </body>
 </html>

@@ -476,24 +476,34 @@ async def admin_entity_id_list(req: Request):
     )
 
 
+def _require_history_reader(req: Request):
+    """Device/session history is available to admin and user roles."""
+    if req.state.role not in ("admin", "user"):
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Login required."})
+    return None
+
+
 @app.get("/api/history/sensors")
 async def history_sensors(req: Request):
-    if req.state.role != "admin":
-        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    denied = _require_history_reader(req)
+    if denied:
+        return denied
     return {"sensors": state_manager.sensor_history.list_sensors()}
 
 
 @app.get("/api/history/actuators")
 async def history_actuators(req: Request):
-    if req.state.role != "admin":
-        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    denied = _require_history_reader(req)
+    if denied:
+        return denied
     return {"actuators": state_manager.history_manager.list_actuators()}
 
 
 @app.get("/api/history/actuators/{idx}")
 async def history_actuator_series(idx: int, req: Request, range: str = "day"):
-    if req.state.role != "admin":
-        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    denied = _require_history_reader(req)
+    if denied:
+        return denied
     range_name = range if range in ("day", "month", "year") else "day"
     return state_manager.history_manager.get_actuator_series(idx, range_name)
 
@@ -505,8 +515,9 @@ async def history_sessions(
     limit: int = 50,
     offset: int = 0,
 ):
-    if req.state.role != "admin":
-        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    denied = _require_history_reader(req)
+    if denied:
+        return denied
     session_type = type if type in ("sauna", "ir") else "sauna"
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
@@ -515,15 +526,17 @@ async def history_sessions(
 
 @app.get("/api/history/{idx}/summary")
 async def history_summary(idx: int, req: Request):
-    if req.state.role != "admin":
-        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    denied = _require_history_reader(req)
+    if denied:
+        return denied
     return state_manager.sensor_history.get_summary(idx)
 
 
 @app.get("/api/history/{idx}")
 async def history_series(idx: int, req: Request, range: str = "day"):
-    if req.state.role != "admin":
-        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    denied = _require_history_reader(req)
+    if denied:
+        return denied
     range_name = range if range in ("day", "month", "year") else "day"
     return state_manager.sensor_history.get_series(idx, range_name)
 
