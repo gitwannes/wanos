@@ -13,15 +13,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 _NUMERIC_IDX_RE = re.compile(r"^\d+$")
 
-# Keep in sync with core.config.EVENT_FAMILY_TO_ON_OFF (avoid importing pydantic-heavy config in CLI).
-EVENT_FAMILY_TO_ON_OFF: Dict[str, tuple[str, str]] = {
-    "blinds": ("BLINDS_OPEN_TRIGGER", "BLINDS_CLOSE_TRIGGER"),
-    "twilight_evening": ("TWILIGHT_EVENING_ON_TRIGGER", "TWILIGHT_EVENING_OFF_TRIGGER"),
-    "twilight_morning": ("TWILIGHT_MORNING_ON_TRIGGER", "TWILIGHT_MORNING_OFF_TRIGGER"),
-    "sauna": ("SAUNA_ON", "SAUNA_OFF"),
-    "ir": ("IR_ON", "IR_OFF"),
-    "cinema": ("SCENE_CINEMA_ON", "SCENE_CINEMA_OFF"),
-}
+from core.schedule_events import (  # noqa: E402
+    SCHEDULE_WINDOW_EDGES,
+    canonicalize_schedule_event,
+)
+
+# Deprecated name — prefer SCHEDULE_WINDOW_EDGES
+EVENT_FAMILY_TO_ON_OFF = SCHEDULE_WINDOW_EDGES
 
 try:
     from loguru import logger as _logger
@@ -46,8 +44,13 @@ _V2_KEY_ORDER = (
     "id",
 )
 
-_OFF_EVENT_TO_FAMILY = {off: fam for fam, (_on, off) in EVENT_FAMILY_TO_ON_OFF.items()}
-_ON_EVENT_TO_FAMILY = {on: fam for fam, (on, _off) in EVENT_FAMILY_TO_ON_OFF.items()}
+_OFF_EVENT_TO_FAMILY = {off: fam for fam, (_on, off) in SCHEDULE_WINDOW_EDGES.items()}
+_ON_EVENT_TO_FAMILY = {on: fam for fam, (on, _off) in SCHEDULE_WINDOW_EDGES.items()}
+# Legacy concrete events still reverse-map to families during cutover
+_ON_EVENT_TO_FAMILY["TWILIGHT_MORNING_ON_TRIGGER"] = "twilight_morning"
+_ON_EVENT_TO_FAMILY["TWILIGHT_EVENING_ON_TRIGGER"] = "twilight_evening"
+_OFF_EVENT_TO_FAMILY["TWILIGHT_MORNING_OFF_TRIGGER"] = "twilight_morning"
+_OFF_EVENT_TO_FAMILY["TWILIGHT_EVENING_OFF_TRIGGER"] = "twilight_evening"
 
 
 def is_v2_rule(rule: Any) -> bool:
@@ -171,7 +174,10 @@ def legacy_to_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
         if st.upper() in ("ON", "OFF"):
             out_trigger_f = {"entity_id": trigger["entity_id"]}
             case_match["to_state"] = st.upper()
-        # SYNC and other states stay on trigger; single case without to_state
+        elif st.upper() in ("SYNC", "SYNCOPPOSITE"):
+            # Expand via normalize after building a provisional v2 shell
+            out_trigger_f = {"entity_id": trigger["entity_id"], "state": st.upper()}
+            case_match = {}
 
     conds = rule.get("conditions") or []
     if not isinstance(conds, list):
@@ -187,7 +193,7 @@ def legacy_to_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
         case_f["conditions"] = [_copy_condition(c) for c in conds]
     cases_flat.append(case_f)
 
-    return ordered_v2_dict({
+    provisional = ordered_v2_dict({
         "name": name,
         "scene": scene,
         "require_confirmation": require_confirmation,
@@ -195,6 +201,107 @@ def legacy_to_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
         "cases": cases_flat,
         "id": rule_id,
     })
+    # SYNC|SYNCOPPOSITE → ON/OFF cases
+    return ordered_v2_dict(_normalize_v2(provisional))
+
+
+def _rewrite_mirror_action(action: Dict[str, Any], edge: str) -> Dict[str, Any]:
+    """Map SYNC / SYNCOPPOSITE action states onto an explicit ON/OFF edge."""
+    out = _copy_action(action)
+    st = str(out.get("state") or "").upper()
+    if st == "SYNC":
+        out["state"] = edge
+    elif st == "SYNCOPPOSITE":
+        out["state"] = "OFF" if edge == "ON" else "ON"
+    return out
+
+
+def _migrate_sync_to_cases(rule: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Retire trigger/action SYNC|SYNCOPPOSITE → explicit ON/OFF cases (one rule).
+    Pure mirrors become two cases; leftover SYNC action states inside an edged case
+    are rewritten to that case's to_state (or flipped for SYNCOPPOSITE).
+    """
+    out = copy.deepcopy(rule)
+    trigger = out.get("trigger")
+    cases = out.get("cases") or []
+    if not isinstance(cases, list):
+        cases = []
+
+    trig_sync = (
+        isinstance(trigger, dict)
+        and trigger.get("entity_id")
+        and str(trigger.get("state") or "").upper() in ("SYNC", "SYNCOPPOSITE")
+    )
+
+    if trig_sync:
+        eid = trigger["entity_id"]
+        out["trigger"] = {"entity_id": eid}
+        # Single undedged case (classic SYNC rule) → expand to ON + OFF
+        if len(cases) == 1 and not cases[0].get("to_state"):
+            base_acts = cases[0].get("actions") or []
+            base_conds = cases[0].get("conditions") or []
+            new_cases: List[Dict[str, Any]] = []
+            for edge in ("ON", "OFF"):
+                case: Dict[str, Any] = {
+                    "to_state": edge,
+                    "actions": [_rewrite_mirror_action(a, edge) for a in base_acts if isinstance(a, dict)],
+                }
+                if base_conds:
+                    case["conditions"] = [_copy_condition(c) for c in base_conds]
+                new_cases.append(case)
+            out["cases"] = new_cases
+            cases = new_cases
+        else:
+            cases = out.get("cases") or cases
+
+    # Rewrite any remaining SYNC/SYNCOPPOSITE on actions using case to_state
+    fixed_cases: List[Dict[str, Any]] = []
+    for c in cases:
+        if not isinstance(c, dict):
+            continue
+        edge = str(c.get("to_state") or "").upper()
+        acts_in = c.get("actions") or []
+        if edge in ("ON", "OFF"):
+            acts_out = [_rewrite_mirror_action(a, edge) for a in acts_in if isinstance(a, dict)]
+        else:
+            # No edge — cannot resolve SYNC; leave non-SYNC actions, drop SYNC states to ON as last resort? 
+            # Better: expand missing edge into ON/OFF if any action is SYNC
+            has_mirror = any(
+                isinstance(a, dict) and str(a.get("state") or "").upper() in ("SYNC", "SYNCOPPOSITE")
+                for a in acts_in
+            )
+            if has_mirror:
+                for e in ("ON", "OFF"):
+                    nc = {
+                        "to_state": e,
+                        "actions": [_rewrite_mirror_action(a, e) for a in acts_in if isinstance(a, dict)],
+                    }
+                    if c.get("conditions"):
+                        nc["conditions"] = [_copy_condition(x) for x in c["conditions"]]
+                    fixed_cases.append(nc)
+                continue
+            acts_out = [_copy_action(a) for a in acts_in if isinstance(a, dict)]
+        nc2 = dict(c)
+        nc2["actions"] = acts_out
+        fixed_cases.append(nc2)
+    out["cases"] = fixed_cases
+    return out
+
+
+def _canonicalize_trigger(trigger: Any) -> Any:
+    """Rewrite legacy twilight event strings on triggers (dict or OR-list)."""
+    if isinstance(trigger, list):
+        return [_canonicalize_trigger(t) for t in trigger]
+    if isinstance(trigger, dict):
+        out = copy.deepcopy(trigger)
+        if out.get("event"):
+            out["event"] = canonicalize_schedule_event(out["event"])
+        # Strip retired SYNC from trigger (cases carry edges after _migrate_sync_to_cases)
+        if str(out.get("state") or "").upper() in ("SYNC", "SYNCOPPOSITE"):
+            out.pop("state", None)
+        return out
+    return trigger
 
 
 def _normalize_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
@@ -211,6 +318,9 @@ def _normalize_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
             case["conditions"] = [_copy_condition(x) for x in conds]
         acts = c.get("actions") or []
         case["actions"] = [_copy_action(a) for a in acts] if isinstance(acts, list) else []
+        for a in case["actions"]:
+            if isinstance(a, dict) and a.get("event"):
+                a["event"] = canonicalize_schedule_event(a["event"])
         cases_out.append(case)
     out = {
         "name": rule.get("name") or "",
@@ -220,13 +330,15 @@ def _normalize_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
         "cases": cases_out,
         "id": rule.get("id"),
     }
+    out = _migrate_sync_to_cases(out)
+    out["trigger"] = _canonicalize_trigger(out.get("trigger"))
     return out
 
 
 def v2_to_editor_projection(rule: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Project v2 → Y1/flat when lossless so Phase 4 Blocky keeps working until 6B.
-    Multi-case non-ON/OFF (e.g. Cinema merge) stays v2 (JSON fallback).
+    Project v2 → Y1/flat when lossless (legacy helper; Blocky uses raw v2 since Phase 6B).
+    Multi-case non-ON/OFF (e.g. Cinema merge) stays v2.
     """
     if not is_v2_rule(rule):
         return rule
@@ -258,7 +370,7 @@ def v2_to_editor_projection(rule: Dict[str, Any]) -> Dict[str, Any]:
             # Keep family name if already family; else leave concrete event as family-like
             ev = trigger["event"]
             fam = _ON_EVENT_TO_FAMILY.get(ev) or _OFF_EVENT_TO_FAMILY.get(ev) or ev
-            if fam in EVENT_FAMILY_TO_ON_OFF:
+            if fam in SCHEDULE_WINDOW_EDGES:
                 out_trig = {"event": fam}
             else:
                 out_trig = {"event": ev}
@@ -343,14 +455,14 @@ def _expand_v2_case_to_flat(
             label = f" [case {case_index}]"
     elif isinstance(trigger, dict) and trigger.get("event"):
         ev = str(trigger["event"])
-        if ev in EVENT_FAMILY_TO_ON_OFF and to_state_u in ("ON", "OFF"):
-            on_ev, off_ev = EVENT_FAMILY_TO_ON_OFF[ev]
+        if ev in SCHEDULE_WINDOW_EDGES and to_state_u in ("ON", "OFF"):
+            on_ev, off_ev = SCHEDULE_WINDOW_EDGES[ev]
             flat_trigger = {"event": on_ev if to_state_u == "ON" else off_ev}
             suffix = f"#{to_state_u.lower()}"
             label = f" [{to_state_u}]"
         else:
             # Concrete event (e.g. SCENE_CINEMA_OFF) with condition-discriminated cases
-            flat_trigger = {"event": ev}
+            flat_trigger = {"event": canonicalize_schedule_event(ev)}
             suffix = f"#c{case_index}"
             label = f" [case {case_index}]"
     else:
@@ -417,8 +529,11 @@ def expand_automations_for_engine(raw_automations: Any) -> List[dict]:
                     expanded.append(flat)
             continue
 
-        # Flat pass-through
-        expanded.append(rule)
+        # Flat pass-through — canonicalize schedule event aliases
+        flat = copy.deepcopy(rule)
+        if "trigger" in flat:
+            flat["trigger"] = _canonicalize_trigger(flat["trigger"])
+        expanded.append(flat)
 
     return expanded
 

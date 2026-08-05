@@ -120,24 +120,24 @@ class EnvironmentScheduler:
             }))
         if _should_schedule("env_twi_eve_on", twi_eve_on):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
-                "timer_id": "env_twi_eve_on", "deadline": twi_eve_on, "event_type": "TWILIGHT_EVENING_ON_TRIGGER",
+                "timer_id": "env_twi_eve_on", "deadline": twi_eve_on, "event_type": "SUNSET_TRIGGER",
                 "event_payload": {}
             }))
         if _should_schedule("env_twi_eve_off", twi_eve_off):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_eve_off", "deadline": twi_eve_off,
-                "event_type": "TWILIGHT_EVENING_OFF_TRIGGER",
+                "event_type": "EVENING_OFF_TRIGGER",
                 "event_payload": {}
             }))
         if _should_schedule("env_twi_morn_on", sns.env_schedule_twilight_morning_on_unix):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_morn_on", "deadline": sns.env_schedule_twilight_morning_on_unix,
-                "event_type": "TWILIGHT_MORNING_ON_TRIGGER",
+                "event_type": "MORNING_ON_TRIGGER",
                 "event_payload": {}
             }))
         if _should_schedule("env_twi_morn_off", sns.env_schedule_twilight_morning_off_unix):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
                 "timer_id": "env_twi_morn_off", "deadline": sns.env_schedule_twilight_morning_off_unix,
-                "event_type": "TWILIGHT_MORNING_OFF_TRIGGER",
+                "event_type": "SUNRISE_TRIGGER",
                 "event_payload": {}
             }))

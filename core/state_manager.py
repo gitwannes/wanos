@@ -13,6 +13,7 @@ from .config import load_config
 from .entity_registry import EntityRegistry
 from core.event_handlers.registry import EVENT_ROUTERS
 from core.nvm_manager import NVRAMManager
+from core.schedule_events import canonicalize_schedule_event
 
 from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
@@ -512,10 +513,11 @@ class StateManager:
             self._queue.put_nowait(event)
 
     async def _dispatch_from_timer(self, event_type_str: str, payload: dict) -> None:
+        canonical = canonicalize_schedule_event(event_type_str) or event_type_str
         try:
-            e_type = EventType(event_type_str)
+            e_type = EventType(canonical)
         except ValueError:
-            e_type = event_type_str
+            e_type = canonical
         self.dispatch(Event(type=e_type, payload=payload))
 
     def get_state_snapshot(self) -> SystemState:

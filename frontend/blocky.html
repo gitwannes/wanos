@@ -34,8 +34,6 @@
         #blocklyWorkspace.blockly-fs {
             height: calc(100vh - 5.5rem);
         }
-        /* Absolute fill so Blockly.svgResize measures the full host — mid-canvas
-           grey scrollbar is the classic symptom of a half-width injectionDiv. */
         #blocklyWorkspace .injectionDiv {
             position: absolute;
             inset: 0;
@@ -49,14 +47,12 @@
             max-width: none !important;
             max-height: none !important;
         }
-        /* Keep scrollbars at the SVG edges (not mid-canvas ghosts). */
         .blocklyScrollbarVertical,
         .blocklyScrollbarHorizontal {
             opacity: 0.55;
         }
         .blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTooltipDiv { z-index: 100000 !important; }
         .blocklyToolboxDiv { z-index: 20; }
-        /* Park off-screen instead of display:none — keeps metrics valid like the test page. */
         #blocklyPanel.is-parked {
             position: fixed !important;
             left: -10000px !important;
@@ -84,7 +80,7 @@
         </a>
         <div>
             <h1 class="text-2xl font-black text-warning uppercase tracking-widest">⚡ Blocky Automation Editor</h1>
-            <p class="text-xs text-base-content/50 font-mono mt-1">Blockly primary · form/JSON fallback</p>
+            <p class="text-xs text-base-content/50 font-mono mt-1">Schema v2 · one canvas · JSON power-user only</p>
         </div>
     </div>
 
@@ -137,70 +133,54 @@
 
             <template x-if="selectedRule">
                 <div class="space-y-4">
-                    <div x-show="selectedRule.isDraft" class="text-xs text-warning font-semibold">New rule — pick trigger in Blockly, name it, then Save.</div>
+                    <div x-show="selectedRule.isDraft" class="text-xs text-warning font-semibold">New rule — pick trigger + cases in Blockly, name it, then Save.</div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <label class="form-control">
                             <span class="label-text text-xs">Name</span>
                             <input class="input input-bordered input-sm" x-model="editor.name">
                         </label>
                         <label class="form-control">
-                            <span class="label-text text-xs">Mode</span>
-                            <select class="select select-bordered select-sm" x-model="editor.mode">
-                                <option value="branched">Branched (Y1 on/off)</option>
-                                <option value="flat">Flat (SYNC / advanced)</option>
+                            <span class="label-text text-xs">Editor</span>
+                            <select class="select select-bordered select-sm" x-model="editorMode" @change="onEditorModeChanged()">
+                                <option value="blockly">Blockly (primary)</option>
+                                <option value="json">JSON (power-user)</option>
                             </select>
                         </label>
                     </div>
 
                     <div class="flex flex-col gap-1">
-                        <div class="flex gap-4 items-center">
+                        <div class="flex flex-wrap gap-4 items-center">
+                            <template x-if="canShowOnDashboard">
+                                <div class="flex flex-wrap gap-4 items-center">
+                                    <label class="label cursor-pointer gap-2">
+                                        <span class="label-text text-xs">Show on dashboard</span>
+                                        <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.scene">
+                                    </label>
+                                    <label class="label cursor-pointer gap-2">
+                                        <span class="label-text text-xs">Require confirmation</span>
+                                        <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.require_confirmation">
+                                    </label>
+                                </div>
+                            </template>
                             <label class="label cursor-pointer gap-2">
-                                <span class="label-text text-xs">Show on dashboard</span>
-                                <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.scene">
-                            </label>
-                            <label class="label cursor-pointer gap-2">
-                                <span class="label-text text-xs">Require confirmation</span>
-                                <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.require_confirmation">
+                                <span class="label-text text-xs">Show Explorer-hidden devices</span>
+                                <input type="checkbox" class="checkbox checkbox-sm" x-model="showHiddenEntities">
                             </label>
                         </div>
+                        <p class="text-[11px] text-base-content/50 max-w-xl" x-show="canShowOnDashboard">
+                            Dashboard = kiosk scene button (event-triggered rules only). Confirmation = mis-click modal for that button.
+                        </p>
                         <p class="text-[11px] text-base-content/50 max-w-xl">
-                            Dashboard = kiosk scene button. Trigger = what fires the rule (device or event in Blockly).
-                            Companion rules share an event but stay off the dashboard (e.g. Cinema OFF daytime).
+                            Trigger wakes the rule; cases are ordered if / else-if / else.
+                            One device trigger + ON/OFF cases (device-becomes edges only inside “When any of”).
+                            Rich fields (preset, volume, …) round-trip; authoring UX is Phase 6C.
                         </p>
                     </div>
 
-                    <template x-if="editor.mode === 'branched'">
-                        <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200">
-                            <span class="text-xs font-semibold">Editor:</span>
-                            <select class="select select-bordered select-xs" x-model="branchedEditorMode" @change="onBranchedEditorModeChanged()">
-                                <option value="blockly">Blockly (primary)</option>
-                                <option value="form">Form fallback</option>
-                            </select>
-                            <template x-if="branchedEditorMode === 'blockly'">
-                                <div class="flex items-center gap-2">
-                                    <button class="btn btn-xs btn-outline" @click="loadEditorIntoBlockly()">Reload canvas</button>
-                                    <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-
-                    <template x-if="editor.mode === 'flat'">
-                        <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200">
-                            <span class="text-xs font-semibold">Editor:</span>
-                            <select class="select select-bordered select-xs" x-model="flatEditorMode" @change="onFlatEditorModeChanged()" :disabled="!isFlatBlocklyCompatible(selectedRule)">
-                                <option value="blockly">Blockly (primary)</option>
-                                <option value="json">JSON fallback</option>
-                            </select>
-                            <template x-if="flatEditorMode === 'blockly'">
-                                <div class="flex items-center gap-2">
-                                    <button class="btn btn-xs btn-outline" @click="loadEditorIntoBlockly()">Reload canvas</button>
-                                    <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
-                                </div>
-                            </template>
-                            <span class="text-[11px] text-base-content/50" x-show="!isFlatBlocklyCompatible(selectedRule)" x-text="flatBlocklyBlockedReason(selectedRule)"></span>
-                        </div>
-                    </template>
+                    <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200" x-show="editorMode === 'blockly'">
+                        <button class="btn btn-xs btn-outline" @click="loadV2IntoBlockly()">Reload canvas</button>
+                        <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                    </div>
 
                     <div id="blocklyPanel"
                          class="space-y-2"
@@ -223,261 +203,19 @@
                              class="w-full rounded border border-base-300 bg-base-100"
                              :class="blocklyFullscreen && showBlocklyWorkspace ? 'blockly-fs' : ''"></div>
                         <div class="text-[11px] text-base-content/60" x-show="showBlocklyWorkspace && !blocklyFullscreen">
-                            Grab a block by its coloured body to drag · snap fully into the green notch until it clicks ·
-                            drag away to disconnect · drop on the trash (bottom-right) to delete.
-                            Unsnapped condition/action blocks block Save (they look nested but are not connected).
-                            Toolbox hides trigger/branch types once used; duplicate conditions/actions are removed automatically.
+                            Trigger → chain of <b>if</b> cases → actions.
+                            To change trigger type, drag another from <b>Trigger</b> (cases stay attached).
+                            Schedule window: start/end edges (e.g. morning-on → sunrise); not the same as blinds open/close.
+                            Snap blocks fully into notches · unsnapped leaves block Save · trash deletes.
                         </div>
                     </div>
 
-                    <template x-if="editor.mode === 'branched'">
-                        <div class="space-y-4" x-show="branchedEditorMode === 'form'">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <label class="form-control">
-                                    <span class="label-text text-xs">Trigger kind</span>
-                                    <select class="select select-bordered select-sm" x-model="editor.triggerKind">
-                                    <option value="device">Device</option>
-                                    <option value="event">Event</option>
-                                    </select>
-                                </label>
-                                <label class="form-control" x-show="editor.triggerKind === 'device'">
-                                    <span class="label-text text-xs">Trigger device</span>
-                                    <select class="select select-bordered select-sm" x-model="editor.triggerEntityId">
-                                        <template x-for="opt in visibleEntityOptions" :key="opt.eid">
-                                            <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
-                                        </template>
-                                    </select>
-                                </label>
-                                <label class="form-control" x-show="editor.triggerKind === 'event'">
-                                    <span class="label-text text-xs">Event</span>
-                                    <select class="select select-bordered select-sm" x-model="editor.triggerEventFamily">
-                                        <template x-for="fam in eventFamilies" :key="fam">
-                                            <option :value="fam" x-text="eventFamilyLabel(fam)"></option>
-                                        </template>
-                                    </select>
-                                </label>
-                            </div>
-
-                            <div x-show="editor.triggerKind === 'device'" class="flex items-center gap-2 text-xs text-base-content/70">
-                                <input id="showHiddenEntities" type="checkbox" class="checkbox checkbox-xs" x-model="showHiddenEntities" @change="ensureTriggerEntitySelection()">
-                                <label for="showHiddenEntities">Show hidden entities</label>
-                                <span class="badge badge-outline badge-xs">D1 policy active</span>
-                            </div>
-
-                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                <div class="card bg-base-200">
-                                    <div class="card-body p-3">
-                                        <label class="label cursor-pointer justify-start gap-2">
-                                            <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.onEnabled">
-                                            <span class="label-text font-bold">ON branch</span>
-                                        </label>
-
-                                        <div x-show="editor.onEnabled" class="space-y-3">
-                                            <div class="flex justify-between items-center">
-                                                <span class="text-xs font-semibold">Conditions</span>
-                                                <button class="btn btn-xs btn-outline" @click="addCondition('on')">Add condition</button>
-                                            </div>
-                                            <template x-for="(c, idx) in editor.onConditions" :key="'on-c-'+idx">
-                                                <div class="p-2 rounded border border-base-300 bg-base-100 space-y-2">
-                                                    <div class="flex justify-between items-center">
-                                                        <span class="text-[11px] opacity-70" x-text="'Condition #' + (idx + 1)"></span>
-                                                        <button class="btn btn-xs btn-ghost text-error" @click="removeCondition('on', idx)">Remove</button>
-                                                    </div>
-                                                    <div class="grid grid-cols-1 gap-2">
-                                                        <select class="select select-bordered select-xs" x-model="c.type">
-                                                            <option value="device_state">Device state</option>
-                                                            <option value="time_of_day">Time of day</option>
-                                                        </select>
-                                                        <template x-if="c.type === 'device_state'">
-                                                            <div class="grid grid-cols-1 gap-2">
-                                                                <select class="select select-bordered select-xs" x-model="c.entity_id">
-                                                                    <template x-for="opt in visibleEntityOptions" :key="'on-c-opt-'+opt.eid">
-                                                                        <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
-                                                                    </template>
-                                                                </select>
-                                                                <select class="select select-bordered select-xs" x-model="c.is">
-                                                                    <option value="ON">is ON</option>
-                                                                    <option value="OFF">is OFF</option>
-                                                                </select>
-                                                            </div>
-                                                        </template>
-                                                        <template x-if="c.type === 'time_of_day'">
-                                                            <select class="select select-bordered select-xs" x-model="c.is">
-                                                                <option value="dark">is dark</option>
-                                                                <option value="light">is light</option>
-                                                            </select>
-                                                        </template>
-                                                    </div>
-                                                </div>
-                                            </template>
-
-                                            <div class="flex justify-between items-center pt-1">
-                                                <span class="text-xs font-semibold">Actions</span>
-                                                <button class="btn btn-xs btn-outline" @click="addAction('on', 'ON')">Add action</button>
-                                            </div>
-                                            <template x-for="(a, idx) in editor.onActions" :key="'on-a-'+idx">
-                                                <div class="p-2 rounded border border-base-300 bg-base-100 space-y-2">
-                                                    <div class="flex justify-between items-center">
-                                                        <span class="text-[11px] opacity-70" x-text="'Action #' + (idx + 1)"></span>
-                                                        <button class="btn btn-xs btn-ghost text-error" @click="removeAction('on', idx)">Remove</button>
-                                                    </div>
-                                                    <div class="grid grid-cols-1 gap-2">
-                                                        <select class="select select-bordered select-xs" x-model="a.kind" @change="actionKindChanged(a)">
-                                                            <option value="device">Device action</option>
-                                                            <option value="event">Event action</option>
-                                                        </select>
-                                                        <template x-if="a.kind === 'device'">
-                                                            <div class="grid grid-cols-1 gap-2">
-                                                                <select class="select select-bordered select-xs" x-model="a.entity_id">
-                                                                    <template x-for="opt in visibleEntityOptions" :key="'on-a-opt-'+opt.eid">
-                                                                        <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
-                                                                    </template>
-                                                                </select>
-                                                                <select class="select select-bordered select-xs font-mono" x-model="a.state">
-                                                                    <option value="ON">ON</option>
-                                                                    <option value="OFF">OFF</option>
-                                                                    <option value="SYNC">SYNC</option>
-                                                                    <option value="SYNCOPPOSITE">SYNCOPPOSITE</option>
-                                                                    <option value="FORCE_ON">FORCE_ON</option>
-                                                                    <option value="FORCE_OFF">FORCE_OFF</option>
-                                                                    <option value="0">0 (blinds open)</option>
-                                                                    <option value="100">100 (blinds close)</option>
-                                                                </select>
-                                                                <div class="grid grid-cols-2 gap-2">
-                                                                    <input class="input input-bordered input-xs" placeholder="preset (optional)" x-model="a.preset">
-                                                                    <input class="input input-bordered input-xs" placeholder="station (optional)" x-model="a.station">
-                                                                    <input class="input input-bordered input-xs" placeholder="bri (optional)" x-model="a.bri">
-                                                                    <input class="input input-bordered input-xs" placeholder="volume (optional)" x-model="a.volume">
-                                                                </div>
-                                                                <input class="input input-bordered input-xs font-mono" placeholder='xy JSON array (optional), e.g. [0.5,0.5]' x-model="a.xy">
-                                                            </div>
-                                                        </template>
-                                                        <template x-if="a.kind === 'event'">
-                                                            <select class="select select-bordered select-xs font-mono" x-model="a.event">
-                                                                <template x-for="ev in curatedEvents" :key="'on-ev-'+ev">
-                                                                    <option :value="ev" x-text="ev"></option>
-                                                                </template>
-                                                            </select>
-                                                        </template>
-                                                    </div>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="card bg-base-200">
-                                    <div class="card-body p-3">
-                                        <label class="label cursor-pointer justify-start gap-2">
-                                            <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.offEnabled">
-                                            <span class="label-text font-bold">OFF branch</span>
-                                        </label>
-
-                                        <div x-show="editor.offEnabled" class="space-y-3">
-                                            <div class="flex justify-between items-center">
-                                                <span class="text-xs font-semibold">Conditions</span>
-                                                <button class="btn btn-xs btn-outline" @click="addCondition('off')">Add condition</button>
-                                            </div>
-                                            <template x-for="(c, idx) in editor.offConditions" :key="'off-c-'+idx">
-                                                <div class="p-2 rounded border border-base-300 bg-base-100 space-y-2">
-                                                    <div class="flex justify-between items-center">
-                                                        <span class="text-[11px] opacity-70" x-text="'Condition #' + (idx + 1)"></span>
-                                                        <button class="btn btn-xs btn-ghost text-error" @click="removeCondition('off', idx)">Remove</button>
-                                                    </div>
-                                                    <div class="grid grid-cols-1 gap-2">
-                                                        <select class="select select-bordered select-xs" x-model="c.type">
-                                                            <option value="device_state">Device state</option>
-                                                            <option value="time_of_day">Time of day</option>
-                                                        </select>
-                                                        <template x-if="c.type === 'device_state'">
-                                                            <div class="grid grid-cols-1 gap-2">
-                                                                <select class="select select-bordered select-xs" x-model="c.entity_id">
-                                                                    <template x-for="opt in visibleEntityOptions" :key="'off-c-opt-'+opt.eid">
-                                                                        <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
-                                                                    </template>
-                                                                </select>
-                                                                <select class="select select-bordered select-xs" x-model="c.is">
-                                                                    <option value="ON">is ON</option>
-                                                                    <option value="OFF">is OFF</option>
-                                                                </select>
-                                                            </div>
-                                                        </template>
-                                                        <template x-if="c.type === 'time_of_day'">
-                                                            <select class="select select-bordered select-xs" x-model="c.is">
-                                                                <option value="dark">is dark</option>
-                                                                <option value="light">is light</option>
-                                                            </select>
-                                                        </template>
-                                                    </div>
-                                                </div>
-                                            </template>
-
-                                            <div class="flex justify-between items-center pt-1">
-                                                <span class="text-xs font-semibold">Actions</span>
-                                                <button class="btn btn-xs btn-outline" @click="addAction('off', 'OFF')">Add action</button>
-                                            </div>
-                                            <template x-for="(a, idx) in editor.offActions" :key="'off-a-'+idx">
-                                                <div class="p-2 rounded border border-base-300 bg-base-100 space-y-2">
-                                                    <div class="flex justify-between items-center">
-                                                        <span class="text-[11px] opacity-70" x-text="'Action #' + (idx + 1)"></span>
-                                                        <button class="btn btn-xs btn-ghost text-error" @click="removeAction('off', idx)">Remove</button>
-                                                    </div>
-                                                    <div class="grid grid-cols-1 gap-2">
-                                                        <select class="select select-bordered select-xs" x-model="a.kind" @change="actionKindChanged(a)">
-                                                            <option value="device">Device action</option>
-                                                            <option value="event">Event action</option>
-                                                        </select>
-                                                        <template x-if="a.kind === 'device'">
-                                                            <div class="grid grid-cols-1 gap-2">
-                                                                <select class="select select-bordered select-xs" x-model="a.entity_id">
-                                                                    <template x-for="opt in visibleEntityOptions" :key="'off-a-opt-'+opt.eid">
-                                                                        <option :value="opt.eid" x-text="entityDisplayLabel(opt)"></option>
-                                                                    </template>
-                                                                </select>
-                                                                <select class="select select-bordered select-xs font-mono" x-model="a.state">
-                                                                    <option value="ON">ON</option>
-                                                                    <option value="OFF">OFF</option>
-                                                                    <option value="SYNC">SYNC</option>
-                                                                    <option value="SYNCOPPOSITE">SYNCOPPOSITE</option>
-                                                                    <option value="FORCE_ON">FORCE_ON</option>
-                                                                    <option value="FORCE_OFF">FORCE_OFF</option>
-                                                                    <option value="0">0 (blinds open)</option>
-                                                                    <option value="100">100 (blinds close)</option>
-                                                                </select>
-                                                                <div class="grid grid-cols-2 gap-2">
-                                                                    <input class="input input-bordered input-xs" placeholder="preset (optional)" x-model="a.preset">
-                                                                    <input class="input input-bordered input-xs" placeholder="station (optional)" x-model="a.station">
-                                                                    <input class="input input-bordered input-xs" placeholder="bri (optional)" x-model="a.bri">
-                                                                    <input class="input input-bordered input-xs" placeholder="volume (optional)" x-model="a.volume">
-                                                                </div>
-                                                                <input class="input input-bordered input-xs font-mono" placeholder='xy JSON array (optional), e.g. [0.5,0.5]' x-model="a.xy">
-                                                            </div>
-                                                        </template>
-                                                        <template x-if="a.kind === 'event'">
-                                                            <select class="select select-bordered select-xs font-mono" x-model="a.event">
-                                                                <template x-for="ev in curatedEvents" :key="'off-ev-'+ev">
-                                                                    <option :value="ev" x-text="ev"></option>
-                                                                </template>
-                                                            </select>
-                                                        </template>
-                                                    </div>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            </div>
-                        </div>
-                    </template>
-
-                    <template x-if="editor.mode === 'flat'">
-                        <div x-show="flatEditorMode === 'json'">
-                            <label class="form-control">
-                                <span class="label-text text-xs">Flat rule JSON</span>
-                                <textarea class="textarea textarea-bordered textarea-sm font-mono h-80" x-model="editor.flatRuleJson"></textarea>
-                            </label>
-                        </div>
-                    </template>
+                    <div x-show="editorMode === 'json'">
+                        <label class="form-control">
+                            <span class="label-text text-xs">Rule JSON (schema v2)</span>
+                            <textarea class="textarea textarea-bordered textarea-sm font-mono h-80" x-model="editor.ruleJson"></textarea>
+                        </label>
+                    </div>
 
                     <div class="flex gap-2 pt-2">
                         <button class="btn btn-warning btn-sm" @click="saveRule()" :disabled="busy">
@@ -492,6 +230,6 @@
     </section>
 </main>
 
-<script src="blocky.js?v=3.3"></script>
+<script src="blocky.js?v=4.9"></script>
 </body>
 </html>

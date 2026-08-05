@@ -78,12 +78,19 @@ class EventType(str, Enum):
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
 
     # Environment Schedule Events
+    # Blinds: clamped daylight window (≠ raw sunrise/sunset — see core/schedule_events.py).
     BLINDS_OPEN_TRIGGER = "BLINDS_OPEN_TRIGGER"
     BLINDS_CLOSE_TRIGGER = "BLINDS_CLOSE_TRIGGER"
-    TWILIGHT_EVENING_ON_TRIGGER = "TWILIGHT_EVENING_ON_TRIGGER"
-    TWILIGHT_EVENING_OFF_TRIGGER = "TWILIGHT_EVENING_OFF_TRIGGER"
+    # Twilight window edges (canonical names). Legacy TWILIGHT_* aliases: schedule_events.SCHEDULE_EVENT_ALIASES.
+    MORNING_ON_TRIGGER = "MORNING_ON_TRIGGER"      # configured morning-on clock
+    SUNRISE_TRIGGER = "SUNRISE_TRIGGER"            # end morning twilight (= sunrise); NOT blinds open
+    SUNSET_TRIGGER = "SUNSET_TRIGGER"              # start evening twilight (= sunset); NOT blinds close
+    EVENING_OFF_TRIGGER = "EVENING_OFF_TRIGGER"    # configured evening-off clock
+    # Deprecated Enum members kept so EventType("TWILIGHT_…") still parses until callers migrate.
     TWILIGHT_MORNING_ON_TRIGGER = "TWILIGHT_MORNING_ON_TRIGGER"
     TWILIGHT_MORNING_OFF_TRIGGER = "TWILIGHT_MORNING_OFF_TRIGGER"
+    TWILIGHT_EVENING_ON_TRIGGER = "TWILIGHT_EVENING_ON_TRIGGER"
+    TWILIGHT_EVENING_OFF_TRIGGER = "TWILIGHT_EVENING_OFF_TRIGGER"
 
     # Timer Events
     TIMER_SCHEDULED = "TIMER_SCHEDULED"

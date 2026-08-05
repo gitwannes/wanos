@@ -6,6 +6,7 @@ from typing import List, Optional, Any
 from core.models import Event, EventType, SystemState, device_name
 from core.config import load_config
 from core.logger import automation_logger  # explicitly isolated logger for logic rules
+from core.schedule_events import canonicalize_schedule_event
 from core.well_known_entities import (
     ENTITY_BATHROOM_HUM,
     ENTITY_BATHROOM_VENT,
@@ -163,9 +164,9 @@ class AutomationEngine:
         # This block parses the `automations:` list (from automations.auto.yaml).
         # - Triggers can be a single item or a List (List = OR logic. If any trigger matches, it fires).
         # - Actions are a List (List = AND logic. All actions execute sequentially).
-        # - "SYNC" modifier: The action dynamically mirrors the exact state of the trigger (e.g., Switch ON -> Light ON).
         # - "FORCE_" modifier: Bypasses the StateManager's duplicate-filter, forcing the RF/MQTT command to broadcast
         #   even if the backend thinks the device is already in that state.
+        # - Pure mirrors use explicit ON/OFF cases (SYNC / SYNCOPPOSITE retired).
         # =========================================================================
 
         # 🛡️ THE GENERIC BOOT GUARD 🛡️
@@ -185,7 +186,7 @@ class AutomationEngine:
                 # Trigger Type A: Device State Change (entity_id → idx)
                 if trigger_idx is not None and t.state:
                     if event_name == "HUB_STATE_CHANGED" and is_transition:
-                        if trigger_idx == event_idx and (t.state == "SYNC" or t.state == new_state):
+                        if trigger_idx == event_idx and t.state == new_state:
                             trigger_matched = True
                             trigger_reason = f"IDX {event_idx} -> {new_state}"
                             break
@@ -194,7 +195,7 @@ class AutomationEngine:
                     elif event_name == "DOOR_CHANGED":
                         is_open = payload.get("is_open")
                         mapped_state = "ON" if is_open else "OFF"
-                        if trigger_idx == event_idx and (t.state == "SYNC" or t.state == mapped_state):
+                        if trigger_idx == event_idx and t.state == mapped_state:
                             trigger_matched = True
                             trigger_reason = f"Door Sensor {event_idx} -> {mapped_state}"
                             # Temporarily inject the mapped state into the local loop context
@@ -205,7 +206,7 @@ class AutomationEngine:
                 # Trigger Type B: Semantic System Event (e.g., SAUNA_ON, BLINDS_OPEN_TRIGGER)
                 elif t.event:
                     rule_event_str = t.event.value if hasattr(t.event, 'value') else str(t.event)
-                    if event_name == rule_event_str:
+                    if canonicalize_schedule_event(event_name) == canonicalize_schedule_event(rule_event_str):
                         trigger_matched = True
                         trigger_reason = f"Event [{event_name}]"
                         break
@@ -278,17 +279,18 @@ class AutomationEngine:
                             is_force = True
                             raw_action_state = raw_action_state.replace("FORCE_", "")
 
-                        if action.state == "SYNC":
-                            target_action_state = new_state
-                        elif action.state == "SYNCOPPOSITE":
-                            target_action_state = "OFF" if new_state == "ON" else "ON"
-                        else:
-                            target_action_state = raw_action_state
+                        if action.state == "SYNC" or action.state == "SYNCOPPOSITE":
+                            automation_logger.warning(
+                                f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} action state "
+                                f"{action.state} is retired — use explicit ON/OFF cases. Skipping action."
+                            )
+                            continue
+                        target_action_state = raw_action_state
 
-                            # ⚡ STRICT STATE FILTER: Prevent 'None' states from propagating to physical hardware.
-                            # Drops ghost payloads (e.g., Hue brightness slides without binary power states)
-                            # before they hit the execution blocks.
-                            # We safely bypass this filter for Native Events and Hue Scenes which inherently do not require binary states.
+                        # ⚡ STRICT STATE FILTER: Prevent 'None' states from propagating to physical hardware.
+                        # Drops ghost payloads (e.g., Hue brightness slides without binary power states)
+                        # before they hit the execution blocks.
+                        # We safely bypass this filter for Native Events and Hue Scenes which inherently do not require binary states.
                         is_pure_event: bool = getattr(action, "event", None) is not None
                         is_hue_scene: bool = getattr(action, "target", None) == "hue_scene"
 

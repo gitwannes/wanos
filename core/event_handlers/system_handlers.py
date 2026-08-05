@@ -139,15 +139,15 @@ async def handle_system_sweep_requested(event: Event, manager: Any) -> Tuple[boo
 
         if sns.env_schedule_twilight_morning_on_unix and sns.env_schedule_twilight_morning_off_unix:
             if sns.env_schedule_twilight_morning_on_unix <= now < sns.env_schedule_twilight_morning_off_unix:
-                manager.dispatch(Event(type=EventType.TWILIGHT_MORNING_ON_TRIGGER))
+                manager.dispatch(Event(type=EventType.MORNING_ON_TRIGGER))
             else:
-                manager.dispatch(Event(type=EventType.TWILIGHT_MORNING_OFF_TRIGGER))
+                manager.dispatch(Event(type=EventType.SUNRISE_TRIGGER))
 
         if sns.env_schedule_twilight_evening_on_unix and sns.env_schedule_twilight_evening_off_unix:
             if sns.env_schedule_twilight_evening_on_unix <= now < sns.env_schedule_twilight_evening_off_unix:
-                manager.dispatch(Event(type=EventType.TWILIGHT_EVENING_ON_TRIGGER))
+                manager.dispatch(Event(type=EventType.SUNSET_TRIGGER))
             else:
-                manager.dispatch(Event(type=EventType.TWILIGHT_EVENING_OFF_TRIGGER))
+                manager.dispatch(Event(type=EventType.EVENING_OFF_TRIGGER))
 
     ch, dom = AlertManager.process_alert(manager._state,
                                          "🟢 System Sweeper complete. Suntime-based events synchronized.")

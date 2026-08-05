@@ -94,7 +94,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE** (Pi migrator + GREEN + clean boot). Next: **6B → 6C**. Phase 7 = soft-hide UI; Phase 8 = lighting UI.
+**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE**. Phase **6B ✅ DONE** (incl. SYNC→ON/OFF on Pi). Next: **6C** (rich action UX). Phase 7 = soft-hide UI; Phase 8 = lighting UI.
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
@@ -140,7 +140,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 2. [x] Confirm unresolved ids still log+skip without taking down the engine (`resolve_device_ref` WARNING).
 3. [x] Document operator workflow (create rule → save → hot-reload → verify) — see **E) Phase 5 operator runbook** below.
 
-### Phase 6A — Unified schema v2 + migrator ✅ CODE COMPLETE (Pi migrator pending)
+### Phase 6A — Unified schema v2 + migrator ✅ DONE
 
 **Goal (locked — option B, storage cutover):**
 - **One persisted schema for every automation** — not dual Y1 branched + flat forever. Y1 `on:`/`off:` and flat `conditions`/`actions` become **legacy migrator/API input** only.
@@ -149,15 +149,15 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 **Implemented:**
 - `core/automations_schema_v2.py` — convert / expand / Cinema merge / canonical `name`…`id` last
 - Loader dual-read via `expand_automations_for_engine`
-- API POST/PUT persist **v2 only**; GET projects lossless v2→Y1/flat for Blocky until 6B
+- API POST/PUT persist **v2 only**; GET returns raw v2 (Phase 6B)
 - `helpers/migrate_automations_v2.py` — `--dry-run` / `--write` (+ backup)
-- Blocky: preserve rich action fields on canvas apply; v2 multi-case → JSON fallback
+- Rich action fields preserved on canvas apply / API dump
 
-**Operator on Pi:**
+**Operator on Pi (completed 2026-08-05):**
 1. Deploy code; `python3 helpers/migrate_automations_v2.py --dry-run`
-2. Review plan (Cinema OFF merge 40→39 rules typical)
-3. `--write` → Admin Debug GREEN (restart or any Blocky save for reload)
-4. Smoke: branched projection, SYNC, Cinema OFF dark/light cases
+2. Review plan (Cinema OFF merge)
+3. `--write` → Admin Debug GREEN + clean boot
+4. Smoke: Cinema OFF dark/light cases, OR triggers, ex-mirror rules (now ON/OFF cases)
 
 **Unified schema (v2) — conceptual shape:**
 - `name`, `scene`, `require_confirmation`, …
@@ -175,9 +175,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 | Flat `state: ON` (+ conditions) | `trigger: { entity_id }` + one case `to_state: ON` (+ conditions) |
 | Cinema OFF dark + light (two rules) | **Merge** → one rule, two time cases |
 | Multi-trigger OR | `trigger: [ … ]` (OR) + usually one case |
-| SYNC | v2 + `state: SYNC` on trigger; single case |
+| SYNC / SYNCOPPOSITE | **Retired** → `trigger: { entity_id }` + cases `to_state: ON` / `OFF` (explicit action states); see SYNC cutover below |
 
-### Phase 6B — One Blockly canvas + list unity 🔜 TODO
+### Phase 6B — One Blockly canvas + list unity ✅ DONE
 
 **Depends on:** 6A (v2 on disk + API).
 
@@ -186,12 +186,24 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 - **One list entry per logical automation** — Cinema OFF appears once; one flow. Dashboard `scene:` button behavior unchanged where applicable.
 - Eliminate “Complex flat rule — JSON only” as the default for live rules (JSON = power-user override only).
 
-1. Blockly read/write **v2 only**; retire separate branched/flat modes.
-2. Cinema OFF (and similar): one list row + one canvas for the merged rule from 6A.
-3. Multi-trigger OR in Blockly (e.g. `KeukenLivingEetk_EetkHue`).
-4. Round-trip smoke: ex-Y1, ex-flat, SYNC, merged Cinema — no semantic drift; rich action keys still preserved (6A rule).
+**Implemented:**
+1. Blockly read/write **v2 only**; retired branched/flat dual modes; schedule-window UX; one device root + cases; dashboard toggles only for event triggers.
+2. API GET/POST/PUT return **raw v2**.
+3. Cinema OFF (merged) + multi-trigger OR on one canvas; rich keys pass through pending 6C.
+4. SYNC/SYNCOPPOSITE retired → ON/OFF cases (see cutover below).
 
-**Until 6B ships:** Phase 4 hybrid ON/OFF + flat Blockly containers remain acceptable on top of whatever storage is live.
+**Operator smoke:** ✅ OK on Pi (2026-08-05) — Cinema, OR, ex-Y1/ex-mirror, schedule windows.
+
+### SYNC cutover — migrate mirrors to ON/OFF cases ✅ DONE ON PI
+
+**Goal:** delete trigger/action `SYNC` and `SYNCOPPOSITE`; pure mirrors = **one rule**, two cases (`to_state: ON` / `OFF`).
+
+**Code + YAML + Pi (completed 2026-08-05):**
+- `_migrate_sync_to_cases` + engine retirement + Blocky without SYNC dropdowns
+- Four mirrors rewritten; deployed YAML; Admin Debug GREEN; smoke OK
+  (`Slpk_Dries`, `PC ON/OFF -> PC Aux`, `toilet_gv_ventilatie_on`, `Slpk Wannes: Hue App Syncs to Switch`)
+
+**Rollback (emergency):** restore pre-cutover `automations.auto.yaml` **and** a build that still understood SYNC (current engine will not run leftover SYNC actions).
 
 ### Phase 6C — Rich device action UX 🔜 TODO
 
@@ -308,10 +320,10 @@ Mark each item `LOCKED` before implementation starts.
 |---|---|---|
 | `BLINDS_OPEN_TRIGGER` | Blinds open | trigger-only |
 | `BLINDS_CLOSE_TRIGGER` | Blinds close | trigger-only |
-| `TWILIGHT_EVENING_ON_TRIGGER` | Twilight evening ON | trigger-only |
-| `TWILIGHT_EVENING_OFF_TRIGGER` | Twilight evening OFF | trigger-only |
-| `TWILIGHT_MORNING_ON_TRIGGER` | Twilight morning ON | trigger-only |
-| `TWILIGHT_MORNING_OFF_TRIGGER` | Twilight morning OFF | trigger-only |
+| `MORNING_ON_TRIGGER` | Morning on (clock) | trigger-only |
+| `SUNRISE_TRIGGER` | Sunrise (end morning twilight) | trigger-only |
+| `SUNSET_TRIGGER` | Sunset (start evening twilight) | trigger-only |
+| `EVENING_OFF_TRIGGER` | Evening off (clock) | trigger-only |
 | `SAUNA_ON` | Sauna ON | trigger-only |
 | `SAUNA_OFF` | Sauna OFF | trigger-only |
 | `IR_ON` | IR ON | trigger-only |
@@ -324,16 +336,22 @@ Mark each item `LOCKED` before implementation starts.
 | `SCENE_VERDIEP1_OFF` | Floor 1 OFF | both |
 | `SCENE_VERDIEP2_OFF` | Floor 2 OFF | both |
 
-**Pair families (explicit):**
+**Schedule window edges (`SCHEDULE_WINDOW_EDGES` in `core/schedule_events.py`):**
 
-| Family | ON / open | OFF / close |
+| Family | Enter edge | Exit edge |
 |---|---|---|
 | `blinds` | `BLINDS_OPEN_TRIGGER` | `BLINDS_CLOSE_TRIGGER` |
-| `twilight_evening` | `TWILIGHT_EVENING_ON_TRIGGER` | `TWILIGHT_EVENING_OFF_TRIGGER` |
-| `twilight_morning` | `TWILIGHT_MORNING_ON_TRIGGER` | `TWILIGHT_MORNING_OFF_TRIGGER` |
+| `twilight_morning` | `MORNING_ON_TRIGGER` | `SUNRISE_TRIGGER` |
+| `twilight_evening` | `SUNSET_TRIGGER` | `EVENING_OFF_TRIGGER` |
 | `sauna` | `SAUNA_ON` | `SAUNA_OFF` |
 | `ir` | `IR_ON` | `IR_OFF` |
 | `cinema` | `SCENE_CINEMA_ON` | `SCENE_CINEMA_OFF` |
+
+**Sunrise/sunset ≠ blinds:** `SUNRISE_TRIGGER` / `SUNSET_TRIGGER` are twilight-window edges at raw astronomical sunrise/sunset. `BLINDS_OPEN_TRIGGER` / `BLINDS_CLOSE_TRIGGER` use **clamped** times (`max(sunrise|sunset, earliest)` ± optional latest). Do not wire them interchangeably.
+
+**Legacy aliases (still accepted on load / match / timers / API):**  
+`TWILIGHT_MORNING_ON_TRIGGER` → `MORNING_ON_TRIGGER`, `TWILIGHT_MORNING_OFF_TRIGGER` → `SUNRISE_TRIGGER`, `TWILIGHT_EVENING_ON_TRIGGER` → `SUNSET_TRIGGER`, `TWILIGHT_EVENING_OFF_TRIGGER` → `EVENING_OFF_TRIGGER`.  
+Deprecated map name: `EVENT_FAMILY_TO_ON_OFF` (= `SCHEDULE_WINDOW_EDGES`).
 
 **Unpaired (do not auto-merge):** `SCENE_ALL_OFF`, `SCENE_GOCOSY`, `SCENE_GV_OFF`, `SCENE_VERDIEP1_OFF`, `SCENE_VERDIEP2_OFF`.
 
@@ -441,8 +459,8 @@ Phase 5 does **not** require a rollback rehearsal that depends on hand-edit + Ad
 
 ## 🧭 Next TODO (Option 2 roadmap)
 
-1. **Phase 6A:** schema v2 + one-shot migrator + key order + preserve rich action fields on round-trip.
-2. **Phase 6B:** one Blockly canvas + Cinema one list entry + OR-trigger; no complex-flat JSON default.
+1. **Phase 6A:** ✅ schema v2 + one-shot migrator + key order + preserve rich action fields on round-trip.
+2. **Phase 6B:** ✅ one Blockly canvas + Cinema one list entry + OR-trigger + SYNC→ON/OFF on Pi; JSON power-user only.
 3. **Phase 6C:** rich action UX — Hue preset, blinds open %, Sonos volume + station.
 4. **Phase 7:** unified soft-hide UI (“hidden from Explorer / pickers”) — one surface for `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes`.
 5. **Phase 8:** admin UI for `lighting` auto-off in `automations.auto.yaml`.
@@ -501,12 +519,12 @@ Regression harness (keep): `helpers/blockly_minimal_test.html` (double-click or 
 - [x] **YAML key order:** **`name` → body → `id` last** on write/migrate.
 - [x] **Rich fields preserved:** Blockly apply keeps preset/volume/station/bri/xy from prior editor state; API/v2 dump keeps them.
 
-### Phase 6B DoD — One Blockly canvas + list unity
+### Phase 6B DoD — One Blockly canvas + list unity ✅
 
-- [ ] **One Blockly canvas:** all production rules use if/else-if/else on v2; no branched-vs-flat mode split; JSON-only is opt-in.
-- [ ] **One list entry:** Cinema OFF (merged) once in the list; one flow; dashboard `scene:` behavior unchanged where applicable.
-- [ ] **Multi-trigger OR:** e.g. `KeukenLivingEetk_EetkHue` editable in Blockly without JSON.
-- [ ] **Round-trip:** representative ex-Y1, ex-flat, SYNC, merged Cinema — no semantic drift; rich keys still preserved.
+- [x] **One Blockly canvas:** all production rules use if/else-if/else on v2; no branched-vs-flat mode split; JSON-only is opt-in.
+- [x] **One list entry:** Cinema OFF (merged) once in the list; one flow; dashboard `scene:` behavior unchanged where applicable.
+- [x] **Multi-trigger OR:** e.g. `KeukenLivingEetk_EetkHue` editable in Blockly without JSON.
+- [x] **Round-trip (Pi smoke):** ex-Y1, ex-flat/ex-mirror, merged Cinema — OK (2026-08-05).
 
 ### Phase 6C DoD — Rich device action UX
 
@@ -525,14 +543,12 @@ Regression harness (keep): `helpers/blockly_minimal_test.html` (double-click or 
 - [x] **X2 readiness review:** **stay on X1** — rationale in §E6 (revisit in **Phase 6A** with schema v2 cases).
 
 
-### SYNC — keep or split to ON/OFF?
+### SYNC — retired (use ON/OFF cases) ✅ DONE ON PI
 
-**Keep `SYNC` as a first-class mode** when ON and OFF are pure mirrors (same targets, flipped/mirrored state, no asymmetric rich payload or conditions). That matches your locked rule and industry practice:
+**Retired:** trigger/action `SYNC` and `SYNCOPPOSITE`. Pure mirrors are one rule with `to_state: ON` + `to_state: OFF` cases (same targets).
 
-* HA: one automation, trigger on any state change, action sets target to `trigger.to_state` (mirror) — not two duplicated halves.
-* openHAB / many hubs: “follow” / mirror profiles for 1:1 coupling.
-* Splitting pure mirrors into identical `on:`/`off:` trees invites drift (edit ON, forget OFF).
-
-**Do not use SYNC** when branches differ (e.g. `switch.pc_monitors` → Sonos volume/station on ON only) — use Y1 `on:`/`off:`.
-
-Current pure-SYNC rules (leave as SYNC under M1): `Slpk_Dries`, `PC ON/OFF -> PC Aux`, `toilet_gv_ventilatie_on`, `Slpk Wannes: Hue App Syncs to Switch`.
+**DoD:**
+- [x] Schema migrator `_migrate_sync_to_cases` + YAML rewrite of four live mirrors.
+- [x] Engine no longer honors SYNC trigger/action (leftover action → WARNING + skip).
+- [x] Blocky UI no longer offers SYNC / SYNCOPPOSITE.
+- [x] **Pi:** deploy + grep-clean YAML + Admin Debug GREEN + smoke four ex-mirrors (2026-08-05).

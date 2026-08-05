@@ -30,6 +30,7 @@ from datetime import datetime, timedelta, timezone
 
 # WanOS specific
 from core.models import Event, EventType
+from core.schedule_events import canonicalize_schedule_event
 from core.mqtt_transport import MqttClientManager
 from core.mqtt_publisher import MqttPublisher
 from core.state_manager import StateManager
@@ -44,7 +45,6 @@ from core.automations_schema_v2 import (
     is_v2_rule,
     legacy_to_v2,
     ordered_v2_dict,
-    v2_to_editor_projection,
     validate_v2_entity_ids,
 )
 from core.automations_api_models import (
@@ -456,7 +456,7 @@ async def update_zwave_config(request: ZwaveConfigRequest, req: Request):
 
 @app.get("/api/automations")
 async def list_automations(req: Request) -> dict[str, Any]:
-    """Admin: list automations. Disk may be v2; response projects to Y1/flat when lossless for Blocky."""
+    """Admin: list automations as schema v2 (legacy on disk is converted for the editor)."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
     raw = read_automations()
@@ -464,10 +464,7 @@ async def list_automations(req: Request) -> dict[str, Any]:
     for r in raw:
         if not isinstance(r, dict):
             continue
-        if is_v2_rule(r):
-            out.append(v2_to_editor_projection(dict(r)))
-        else:
-            out.append(r)
+        out.append(ordered_v2_dict(legacy_to_v2(dict(r))))
     return {"automations": out}
 
 
@@ -516,7 +513,7 @@ async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
 
     append_automation(new_rule)
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
-    return {"status": "Success", "automation": v2_to_editor_projection(new_rule)}
+    return {"status": "Success", "automation": new_rule}
 
 
 @app.put("/api/automations")
@@ -537,7 +534,7 @@ async def update_automation_api(rule: dict[str, Any], req: Request) -> dict[str,
         return JSONResponse(status_code=404, content={"error": f"Automation id '{dumped['id']}' not found."})
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
-    return {"status": "Success", "automation": v2_to_editor_projection(dumped)}
+    return {"status": "Success", "automation": dumped}
 
 
 @app.delete("/api/automations")
@@ -669,9 +666,10 @@ async def inject_event(request: GenericEventRequest, req: Request) -> dict[str, 
             return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
     try:
-        e_type = EventType(request.type)
+        canonical = canonicalize_schedule_event(request.type) or request.type
+        e_type = EventType(canonical)
     except ValueError:
-        e_type = request.type
+        e_type = canonicalize_schedule_event(request.type) or request.type
 
     event: Event = Event(type=e_type, payload=request.payload)
     state_manager.dispatch(event)

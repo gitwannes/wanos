@@ -77,7 +77,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `alert_manager.py`: Centralized UI Notification Engine handling timestamping, deduplication, and severity classification of frontend banners.
 * `automation_rules.py`: Dynamically evaluates declarative YAML rules.
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
-* `environment_scheduler.py`: Calculates mathematical bounds clamping and dynamically schedules blind/twilight timers based on external weather.
+* `environment_scheduler.py`: Calculates mathematical bounds clamping and dynamically schedules blind/twilight timers based on external weather. Emits canonical edge events (`MORNING_ON` / `SUNRISE` / `SUNSET` / `EVENING_OFF`, plus `BLINDS_OPEN` / `BLINDS_CLOSE`). See `core/schedule_events.py` — **sunrise/sunset ≠ blinds open/close** (blinds are clamped).
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`.
 * `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, scene synthetic `900000+`, host/mains gauge IDXs, `22009` DB size helper) and helpers for scene hashing / numeric state parsing.
 * `history_manager.py`: Actuator / motion / scene event history (`device_history.db`) with retention tiers and insights tallies.
@@ -157,7 +157,7 @@ The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer o
 * **`GET /api/state/sse`** | Persistent HTTP stream channel pushing partial domain JSON frames (`system`, `sensors`, `sauna`, `ir`, `metrics`, `hardware`, `devices`) immediately upon queue draining. Fires a `domain: ping` block if quiet for 5 seconds.
 * **`POST /api/event`** | Universal application entry point. Accepts standard `type` and `payload` properties to inject commands onto the async bus. Protects admin-only payloads via RBAC token inspection.
 * **`GET /api/debug/entity-registry-check`** | Admin-only. Runs `run_entity_cutover_checks` (plus live `device_metadata`) and returns JSON including annotated `report_text` for the Admin Debug modal. Blocky also calls this after automation Save/Delete and shows GREEN/RED in-page.
-* **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET may project lossless v2→Y1/flat for Blocky until Phase 6B. Each write dispatches `CONFIG_RELOAD_REQUESTED`. Migrator: `helpers/migrate_automations_v2.py`. See `docs/todo/install_blocky.md` Phase 6A.
+* **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET returns raw v2. Each write dispatches `CONFIG_RELOAD_REQUESTED`. Schedule families: `SCHEDULE_WINDOW_EDGES` (`core/schedule_events.py`). See `docs/todo/install_blocky.md`.
 
 ---
 

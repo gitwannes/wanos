@@ -6,15 +6,12 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Dict, List, Union, Any
 from dotenv import load_dotenv
 
-EVENT_FAMILY_TO_ON_OFF: Dict[str, tuple[str, str]] = {
-    # Curated ON/OFF event pairs for branched event-family triggers (Y1 -> X1 expansion).
-    "blinds": ("BLINDS_OPEN_TRIGGER", "BLINDS_CLOSE_TRIGGER"),
-    "twilight_evening": ("TWILIGHT_EVENING_ON_TRIGGER", "TWILIGHT_EVENING_OFF_TRIGGER"),
-    "twilight_morning": ("TWILIGHT_MORNING_ON_TRIGGER", "TWILIGHT_MORNING_OFF_TRIGGER"),
-    "sauna": ("SAUNA_ON", "SAUNA_OFF"),
-    "ir": ("IR_ON", "IR_OFF"),
-    "cinema": ("SCENE_CINEMA_ON", "SCENE_CINEMA_OFF"),
-}
+from core.schedule_events import (  # noqa: F401 — re-export for existing imports
+    EVENT_FAMILY_TO_ON_OFF,
+    SCHEDULE_EVENT_ALIASES,
+    SCHEDULE_WINDOW_EDGES,
+    canonicalize_schedule_event,
+)
 
 
 class WeatherConfig(BaseModel):

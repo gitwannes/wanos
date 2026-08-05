@@ -79,7 +79,8 @@ class BranchedAutomationRuleRequest(BaseModel):
 
 class FlatAutomationRuleRequest(BaseModel):
     """
-    Flat stored shape (used for SYNC and multi-trigger / condition-discriminated rules).
+    Flat stored shape (legacy / multi-trigger / condition-discriminated rules).
+    SYNC mirrors are expanded to ON/OFF cases by schema v2 normalize.
     """
     model_config = ConfigDict(extra="forbid")
 
