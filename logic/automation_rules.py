@@ -187,7 +187,8 @@ class AutomationEngine:
             # --- TIER B: The Thought Process (DEBUG ONLY) ---
             if trigger_matched:
                 automation_logger.debug(
-                    f"[X-RAY] Rule '{rule.name}' triggered by {trigger_reason}. Evaluating conditions...")
+                    f"[X-RAY] Rule '{rule.name}' (id={getattr(rule, 'id', None)}) triggered by {trigger_reason}. "
+                    f"Evaluating conditions...")
 
                 conditions_met = True
                 if rule.conditions:

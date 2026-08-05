@@ -6,6 +6,16 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Dict, List, Union, Any
 from dotenv import load_dotenv
 
+EVENT_FAMILY_TO_ON_OFF: Dict[str, tuple[str, str]] = {
+    # Curated ON/OFF event pairs for branched event-family triggers (Y1 -> X1 expansion).
+    "blinds": ("BLINDS_OPEN_TRIGGER", "BLINDS_CLOSE_TRIGGER"),
+    "twilight_evening": ("TWILIGHT_EVENING_ON_TRIGGER", "TWILIGHT_EVENING_OFF_TRIGGER"),
+    "twilight_morning": ("TWILIGHT_MORNING_ON_TRIGGER", "TWILIGHT_MORNING_OFF_TRIGGER"),
+    "sauna": ("SAUNA_ON", "SAUNA_OFF"),
+    "ir": ("IR_ON", "IR_OFF"),
+    "cinema": ("SCENE_CINEMA_ON", "SCENE_CINEMA_OFF"),
+}
+
 
 class WeatherConfig(BaseModel):
     idx: int
@@ -165,12 +175,164 @@ class ActionConfig(BaseModel):
 
 
 class AutomationRuleConfig(BaseModel):
+    # Stable per-rule identity used by Blocky CRUD.
+    # Expanded X1 engine clones use runtime-only ids like "<id>#on"/"<id>#off".
+    id: Optional[str] = None
+
     name: str
     scene: bool = False  # ⚡ Expose this automation rule as a manually triggerable scene in the UI
     require_confirmation: bool = False  # ⚡ Prevents accidental misclicks by requiring a modal confirmation
     trigger: Union[TriggerConfig, List[TriggerConfig]]
     conditions: Optional[List[ConditionConfig]] = None
     actions: List[ActionConfig]
+
+
+def _expand_branched_automations_for_engine(raw_automations: Any) -> List[dict]:
+    """
+    X1 expansion: convert stored Y1 branched rules (top-level on:/off:) into the
+    flat rule shape expected by AutomationEngine.evaluate.
+
+    This runs inside load_config() before Pydantic validation of AutomationRuleConfig.
+    """
+    from loguru import logger
+
+    if raw_automations is None:
+        return []
+    if not isinstance(raw_automations, list):
+        logger.warning(f"automations:auto.yaml: expected automations list, got {type(raw_automations)}")
+        return []
+
+    expanded: List[dict] = []
+
+    for rule in raw_automations:
+        if not isinstance(rule, dict):
+            continue
+
+        # Branched Y1 rule shape detection:
+        # NOTE:
+        # PyYAML `safe_load()` can coerce the plain YAML scalars "on"/"off"
+        # into booleans True/False, including when they appear as *dict keys*.
+        # That would make ("on" in rule) fail and the branched rule would pass
+        # through as a "flat" rule => missing `actions` at engine load time.
+        is_branched = ("on" in rule) or ("off" in rule) or (True in rule) or (False in rule)
+        if not is_branched:
+            # Flat rules (including existing SYNC and multi-trigger spare button logic) pass through.
+            expanded.append(rule)
+            continue
+
+        # Common top-level fields:
+        rule_id = rule.get("id")
+        name = rule.get("name")
+        scene = bool(rule.get("scene", False))
+        require_confirmation = bool(rule.get("require_confirmation", False))
+
+        trigger = rule.get("trigger") or {}
+        if not isinstance(trigger, dict):
+            logger.warning(f"[AUTOMATIONS] Branched rule '{name}' has invalid trigger (expected map). Skipping.")
+            continue
+
+        base = {
+            "id": rule_id,
+            "name": name,
+            "scene": scene,
+            "require_confirmation": require_confirmation,
+        }
+
+        on_branch = rule["on"] if "on" in rule else (rule[True] if True in rule else None)
+        off_branch = rule["off"] if "off" in rule else (rule[False] if False in rule else None)
+
+        def _branch_to_actions_conditions(branch: Any) -> tuple[Optional[List[dict]], List[dict]]:
+            if branch is None:
+                return None, []
+            if not isinstance(branch, dict):
+                return None, []
+            conditions = branch.get("conditions")
+            actions = branch.get("actions") or []
+            if conditions == []:
+                conditions = None
+            if not isinstance(actions, list):
+                actions = []
+            return conditions, actions
+
+        # Device trigger case: trigger: { entity_id: ... }
+        if trigger.get("entity_id"):
+            eid = trigger.get("entity_id")
+
+            if on_branch is not None:
+                conds, actions = _branch_to_actions_conditions(on_branch)
+                expanded.append(
+                    {
+                        **base,
+                        "id": f"{rule_id}#on" if rule_id else None,
+                        # Runtime-only clarity for logs/debug: keep parent identity, add branch label.
+                        "name": f"{name} [ON]" if name else name,
+                        "trigger": {"entity_id": eid, "state": "ON"},
+                        "conditions": conds,
+                        "actions": actions,
+                    }
+                )
+
+            if off_branch is not None:
+                conds, actions = _branch_to_actions_conditions(off_branch)
+                expanded.append(
+                    {
+                        **base,
+                        "id": f"{rule_id}#off" if rule_id else None,
+                        # Runtime-only clarity for logs/debug: keep parent identity, add branch label.
+                        "name": f"{name} [OFF]" if name else name,
+                        "trigger": {"entity_id": eid, "state": "OFF"},
+                        "conditions": conds,
+                        "actions": actions,
+                    }
+                )
+            continue
+
+        # Event-family trigger case: trigger: { event: "<family>" }
+        event_family = trigger.get("event")
+        if event_family:
+            on_event_off_event = EVENT_FAMILY_TO_ON_OFF.get(str(event_family))
+            if not on_event_off_event:
+                logger.warning(
+                    f"[AUTOMATIONS] Branched rule '{name}' has unknown event family '{event_family}'. Skipping."
+                )
+                continue
+
+            on_event, off_event = on_event_off_event
+
+            if on_branch is not None:
+                conds, actions = _branch_to_actions_conditions(on_branch)
+                expanded.append(
+                    {
+                        **base,
+                        "id": f"{rule_id}#on" if rule_id else None,
+                        # Runtime-only clarity for logs/debug: keep parent identity, add branch label.
+                        "name": f"{name} [ON]" if name else name,
+                        "trigger": {"event": on_event},
+                        "conditions": conds,
+                        "actions": actions,
+                    }
+                )
+
+            if off_branch is not None:
+                conds, actions = _branch_to_actions_conditions(off_branch)
+                expanded.append(
+                    {
+                        **base,
+                        "id": f"{rule_id}#off" if rule_id else None,
+                        # Runtime-only clarity for logs/debug: keep parent identity, add branch label.
+                        "name": f"{name} [OFF]" if name else name,
+                        "trigger": {"event": off_event},
+                        "conditions": conds,
+                        "actions": actions,
+                    }
+                )
+            continue
+
+        logger.warning(
+            f"[AUTOMATIONS] Branched rule '{name}' has unsupported trigger format. Expected trigger.entity_id or trigger.event."
+        )
+
+    return expanded
 
 
 class HuePresetConfig(BaseModel):
@@ -364,6 +526,9 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     lighting_data = auto_data.get("lighting", runtime_data.get("lighting", {}))
     automations_data = auto_data.get("automations", runtime_data.get("automations", []))
 
+    # X1 expansion (Y1 branched -> flat engine rules)
+    automations_expanded_for_engine = _expand_branched_automations_for_engine(automations_data)
+
     # 4. Consolidate payloads for unified validation assembly
     compiled_data = {
         "version": runtime_data.get("version", "1.0"),  # ⚡ Pull semantic baseline from absolute file root
@@ -404,7 +569,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "environmental_schedule": runtime_data.get("environmental_schedule"),
         "weather": runtime_data["weather"],
         "native_rfx": runtime_data.get("native_rfx", []),
-        "automations": automations_data,
+        "automations": automations_expanded_for_engine,
     }
 
     # STRICT CHECK 2: Extract & validate required secret keys

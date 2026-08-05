@@ -34,6 +34,12 @@ from core.mqtt_transport import MqttClientManager
 from core.mqtt_publisher import MqttPublisher
 from core.state_manager import StateManager
 from core.config import load_config, AppConfig
+from core.automations_store import read_automations, write_automations
+from core.automations_api_models import (
+    BranchedAutomationRuleRequest,
+    FlatAutomationRuleRequest,
+    AutomationsRuleIdRequest,
+)
 from core.logger import setup_wanos_logging, WanosLogger
 from hardware.simulator import lab_mode_thermodynamics_loop
 from integrations.open_weather import weather_polling_loop
@@ -434,6 +440,102 @@ async def update_zwave_config(request: ZwaveConfigRequest, req: Request):
     except Exception as e:
         logger.error(f"Failed to write Z-Wave config from UI: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to save configuration file on server."})
+
+
+@app.get("/api/automations")
+async def list_automations(req: Request) -> dict[str, Any]:
+    """Admin: list stored automations in Y1 branched shape (for on/off rules) + flat SYNC rules."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    rules = read_automations()
+    return {"automations": rules}
+
+
+@app.post("/api/automations")
+async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any]:
+    """Admin: create a new automation rule in automations.auto.yaml (only `automations:` key is rewritten)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    # Detect Y1 branched vs flat by presence of on/off keys.
+    try:
+        if ("on" in rule) or ("off" in rule):
+            parsed = BranchedAutomationRuleRequest.model_validate(rule)
+        else:
+            parsed = FlatAutomationRuleRequest.model_validate(rule)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Invalid automation payload: {e}"})
+
+    # Backend-only rule identity (B1): if missing, generate it here.
+    import uuid
+    new_rule = parsed.model_dump(exclude_none=True)
+    if not new_rule.get("id"):
+        new_rule["id"] = str(uuid.uuid4())
+
+    current = read_automations()
+    if any(isinstance(r, dict) and r.get("id") == new_rule["id"] for r in current if r.get("id") is not None):
+        return JSONResponse(status_code=409, content={"error": "Duplicate automation id."})
+
+    # Persist exactly the stored shape (branched if on/off, otherwise flat).
+    current.append(new_rule)
+    write_automations(current)
+
+    # Hot reload logic config + engine cache
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    return {"status": "Success", "automation": new_rule}
+
+
+@app.put("/api/automations")
+async def update_automation(rule: dict[str, Any], req: Request) -> dict[str, Any]:
+    """Admin: replace an automation rule (identified by rule.id) inside automations.auto.yaml."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    try:
+        if ("on" in rule) or ("off" in rule):
+            parsed = BranchedAutomationRuleRequest.model_validate(rule)
+        else:
+            parsed = FlatAutomationRuleRequest.model_validate(rule)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Invalid automation payload: {e}"})
+
+    if not getattr(parsed, "id", None):
+        return JSONResponse(status_code=400, content={"error": "PUT requires a stable automation rule `id`."})
+
+    current = read_automations()
+    rid = parsed.id
+    replaced = False
+    next_rules: list[dict[str, Any]] = []
+    for r in current:
+        if isinstance(r, dict) and r.get("id") == rid:
+            next_rules.append(parsed.model_dump(exclude_none=True))
+            replaced = True
+        else:
+            next_rules.append(r)
+
+    if not replaced:
+        return JSONResponse(status_code=404, content={"error": f"Automation id '{rid}' not found."})
+
+    write_automations(next_rules)
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    return {"status": "Success", "automation": parsed.model_dump(exclude_none=True)}
+
+
+@app.delete("/api/automations")
+async def delete_automation(req_body: AutomationsRuleIdRequest, req: Request) -> dict[str, Any]:
+    """Admin: delete an automation rule by id from automations.auto.yaml."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    current = read_automations()
+    rid = req_body.id
+    next_rules: list[dict[str, Any]] = [r for r in current if not (isinstance(r, dict) and r.get("id") == rid)]
+    if len(next_rules) == len(current):
+        return JSONResponse(status_code=404, content={"error": f"Automation id '{rid}' not found."})
+
+    write_automations(next_rules)
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    return {"status": "Success"}
 
 
 @app.get("/api/state")

@@ -197,36 +197,100 @@ Mark each item `LOCKED` before implementation starts.
 - [x] **Deny-list posture:** D1 + H1 (minimal hard-deny in v1).
 - [x] **Events posture:** E1-v1 curated dictionary.
 
-### B) Lock now before coding (precision items)
+### B) Spec precision — locked / open
 
-- [ ] **Rule `id` format and policy**
-  - Choose one: `UUIDv4` / `ULID` / other.
-  - Lock generation source (backend-only recommended), immutability, duplicate handling, and backfill behavior.
-- [ ] **E1-v1 concrete event table**
-  - Lock exact event keys and labels.
-  - Lock allowed usage per event: trigger-only / action-only / both.
-  - Lock event-pair family mappings used by merge/UI.
-- [ ] **X1 log/debug naming contract**
-  - Lock internal branch naming (`<id>#on|off` or equivalent) and log format.
-  - Lock deterministic branch evaluation order.
-- [ ] **MA operational runbook**
-  - Lock operator, environment, pre-backup, dry-run/write mode, rollback, and sign-off checks.
+#### B1 Rule `id` — LOCKED
 
-### C) MA execution checklist (operational gate)
+- [x] Format = **UUIDv4**.
+- [x] Generation = **backend-only** (create + MA backfill); PUT cannot change `id`; rename does not change `id`.
+- [x] Missing `id` on legacy YAML = **MA must backfill before Blocky enable**; refuse to enable editor if any rule still lacks `id` after MA.
+- [x] Duplicate `id` = **do not invent a new id**. Surface as **WARNING** (see note below); engine stays up; Blocky/API must not treat duplicates as healthy.
+  - **Comment:** Agree with WARNING for **load / runtime / Admin Debug** (aligns with WanOS “log + skip, engine stays up”). For **Blocky save (POST/PUT)**, still **reject** a write that would create/keep a duplicate `id` — WARNING alone must not allow persisting known-bad identity.
 
-- [ ] Backup `automations.auto.yaml`.
-- [ ] Run M1 migration once (explicit MA step).
-- [ ] Review diff: only eligible ON/OFF sibling pairs merged; `SYNC` and `living_special` unchanged.
-- [ ] Dispatch `CONFIG_RELOAD_REQUESTED`.
-- [ ] Run Admin Debug entity-registry check (must be GREEN).
-- [ ] Smoke test canonical scenarios: `switch.pc_monitors`, bathroom ON/OFF pairs, spare-button scenarios.
-- [ ] Record operator/date + result in release notes or deployment log.
+#### B2 E1-v1 event dictionary — LOCKED
+
+- [x] Scope = **C**: curated allow-list covering schedule / scene / sauna / **IR** even if some keys are unused today (not “live YAML only”).
+- [x] UI labels = **friendly** (not raw keys).
+- [x] Event-pair families = **explicit map** (no `_ON`/`_OFF` suffix inference).
+- [x] Concrete table + usage + pair families approved (below).
+
+| Key | Label | Usage |
+|---|---|---|
+| `BLINDS_OPEN_TRIGGER` | Blinds open | trigger-only |
+| `BLINDS_CLOSE_TRIGGER` | Blinds close | trigger-only |
+| `TWILIGHT_EVENING_ON_TRIGGER` | Twilight evening ON | trigger-only |
+| `TWILIGHT_EVENING_OFF_TRIGGER` | Twilight evening OFF | trigger-only |
+| `TWILIGHT_MORNING_ON_TRIGGER` | Twilight morning ON | trigger-only |
+| `TWILIGHT_MORNING_OFF_TRIGGER` | Twilight morning OFF | trigger-only |
+| `SAUNA_ON` | Sauna ON | trigger-only |
+| `SAUNA_OFF` | Sauna OFF | trigger-only |
+| `IR_ON` | IR ON | trigger-only |
+| `IR_OFF` | IR OFF | trigger-only |
+| `SCENE_CINEMA_ON` | Cinema scene ON | trigger-only |
+| `SCENE_CINEMA_OFF` | Cinema scene OFF | trigger-only |
+| `SCENE_ALL_OFF` | All OFF scene | both |
+| `SCENE_GOCOSY` | Go Cosy scene | both |
+| `SCENE_GV_OFF` | Ground floor OFF | both |
+| `SCENE_VERDIEP1_OFF` | Floor 1 OFF | both |
+| `SCENE_VERDIEP2_OFF` | Floor 2 OFF | both |
+
+**Pair families (explicit):**
+
+| Family | ON / open | OFF / close |
+|---|---|---|
+| `blinds` | `BLINDS_OPEN_TRIGGER` | `BLINDS_CLOSE_TRIGGER` |
+| `twilight_evening` | `TWILIGHT_EVENING_ON_TRIGGER` | `TWILIGHT_EVENING_OFF_TRIGGER` |
+| `twilight_morning` | `TWILIGHT_MORNING_ON_TRIGGER` | `TWILIGHT_MORNING_OFF_TRIGGER` |
+| `sauna` | `SAUNA_ON` | `SAUNA_OFF` |
+| `ir` | `IR_ON` | `IR_OFF` |
+| `cinema` | `SCENE_CINEMA_ON` | `SCENE_CINEMA_OFF` |
+
+**Unpaired (do not auto-merge):** `SCENE_ALL_OFF`, `SCENE_GOCOSY`, `SCENE_GV_OFF`, `SCENE_VERDIEP1_OFF`, `SCENE_VERDIEP2_OFF`.
+
+#### B3 X1 log/debug — LOCKED
+
+- [x] Internal branch naming = **`<id>#on` / `<id>#off`** (runtime-only; never written to YAML).
+- [x] Log format = **`rule=<id> branch=on|off name="<name>"`**.
+- [x] Expansion order = **ON then OFF** (deterministic).
+- [x] Missing branch = **A**: emit only the present branch (no empty stub). Absent edge simply does not match.
+
+#### B4 MA operational runbook — LOCKED
+
+**What “MA” means:** explicit one-shot operator-run M1 migration of `automations.auto.yaml` before enabling Blocky editing in production (not boot-auto, not first-save).
+
+- [x] Who runs MA = **Johan on the Pi** (after Phase 1 Y1/X1 loader is deployed).
+- [x] Dry-run = **mandatory** (`--dry-run` review, then separate `--write`).
+- [x] Backup = **`automations.auto.yaml.bak.<UTC>`** next to the live file.
+- [x] Rollback = restore `.bak.*` → reload → Admin Debug GREEN.
+- [x] Timing vs code = **after** Phase 1 Y1/X1 loader can load branched YAML; **before** enabling Blocky UI in prod.
+
+### C) MA migration — your steps (operator)
+
+Run **once** on the Pi, **after** Phase 1 (Y1 loader) is deployed, **before** you enable the Blocky UI.
+
+**Do not run yet** — migration tooling does not exist until Phase 1 is built.
+
+1. Confirm WanOS on the Pi can load branched `on:` / `off:` rules (Phase 1 deployed).
+2. Admin → Debug → entity-registry check → **GREEN**.
+3. Copy `automations.auto.yaml` → `automations.auto.yaml.bak.<UTC>` (e.g. `20260805T090000Z`).
+4. Run migration helper **`python3 helpers/migrate_automations_m1.py --dry-run`**. Read the plan. Stop if anything looks wrong.
+5. Dry-run must show: merges for clean ON/OFF pairs (e.g. `pc_monitors`, bathrooms); **no** merge for `SYNC` or `living_special`.
+6. Run migration helper **`python3 helpers/migrate_automations_m1.py --write`**.
+7. Diff backup vs new file. `lighting:` and `deviceexplorer_exclude:` must be unchanged.
+8. Admin → reload config (`CONFIG_RELOAD_REQUESTED`).
+9. Admin → Debug → entity-registry check → **GREEN**.
+10. Smoke test: `pc_monitors` ON/OFF; bathroom 1e/2e; spare button (`living_special`); one SYNC rule; one scene if easy.
+11. Note date, backup filename, and result in your deployment log.
+12. Enable / link Blocky admin page.
+
+**If something fails after step 6:** copy `.bak.<UTC>` back over `automations.auto.yaml` → reload → registry GREEN → re-smoke → fix before retry.
 
 ### D) Implementation readiness gate
 
-- [ ] All items in section **B** are marked locked.
-- [ ] MA checklist section **C** is approved by operator.
-- [ ] This file is frozen as the implementation baseline for Blocky v1.
+- [x] All items in section **B** are marked locked.
+- [ ] MA section **C** completed by operator (after Phase 1 deploy).
+- [x] This file is frozen as the **spec baseline** for Blocky v1 (implementation may start; MA still gated on Phase 1).
+
 
 ### SYNC — keep or split to ON/OFF?
 
