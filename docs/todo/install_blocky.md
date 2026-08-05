@@ -92,7 +92,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ---
 
-## 📋 NEXT — Blocky implementation checklist
+## 📋 Blocky implementation checklist
+
+**Current status:** Phase 1 **done** (backend + X1 + CRUD + migration helper), Phase 2 **done** (new admin-only Blocky page + Alpine store + CRUD wiring), MA migration **done on Pi** (GREEN + smoke checks), next focus = Phase 3/4 UX hardening.
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work)
 
@@ -102,7 +104,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 3. Inventory system events for the event dropdown dictionary.
 4. **ON/OFF merge model** — locked below (schema + migration of existing sibling pairs).
 
-### Phase 1 — Backend API (CRUD & hot-reload)
+### Phase 1 — Backend API (CRUD & hot-reload) ✅ DONE
 
 1. `GET/POST/PUT/DELETE /api/automations`.
 2. `ruamel.yaml` surgical write of `automations:` in **`automations.auto.yaml`** only (preserve comments).
@@ -112,26 +114,26 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 6. Dispatch `CONFIG_RELOAD_REQUESTED`; clear `AutomationEngine` config cache.
 7. **Later:** promote expand path to **X2** native branch evaluate once Blocky CRUD is stable.
 
-### Phase 2 — Frontend data model
+### Phase 2 — Frontend data model ✅ DONE
 
 1. Alpine editor store: `name`, `scene`, trigger (device or event), optional **ON branch** / **OFF branch** (each: `conditions[]`, `actions[]`), or **SYNC** when applicable.
 2. Add-trigger / add-action binds **`entity_id`**; UI shows **`name`**.
 3. One-sided rules allowed (ON-only or OFF-only); missing branch simply does not match that edge.
 
-### Phase 3 — Semantic dropdowns
+### Phase 3 — Semantic dropdowns 🔜 TODO
 
 1. Device pickers from **`device_metadata`** (respect deny-list).
 2. Event pickers from friendly event dictionary.
 3. Users never type `entity_id`.
 
-### Phase 4 — UI blocks (DaisyUI)
+### Phase 4 — UI blocks (DaisyUI) 🔜 TODO
 
 1. WHEN (device / system event) — one trigger; UI asks ON vs OFF (or shows both branches).
 2. AND IF (time of day / device state) — **per branch** when conditions differ.
 3. THEN DO (device / scene / event; force; rich light/speaker payloads for `hue.light.*` / `media_player.*` as applicable) — **per branch**.
 4. Canonical template: **`switch.pc_monitors`** (ON: schemer + Sonos with volume/station; OFF: both off).
 
-### Phase 5 — Hardening
+### Phase 5 — Hardening 🟡 IN PROGRESS / TODO
 
 1. Run Admin Debug entity/automation check after Blocky writes.
 2. Confirm unresolved ids still log+skip without taking down the engine.
@@ -178,6 +180,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 9. **E1 dictionary scope = E1-v1:** start with approved schedule/scene/sauna trigger set used by automations; add new entries only by explicit review.
 10. **Hard-deny extras = H1:** keep hard-deny minimal in v1 (safety/SSR/internal classes only); avoid broader hard-deny expansion until real operator pain appears.
 11. **UI scope = new page, admin-only:** Blocky is a dedicated admin route/page, not mixed into end-user pages.
+12. **UI strategy = Option 2 (Hybrid):** keep the current JSON/form editor as fallback + debugging path, and add Blockly visual mode incrementally. Do not remove the fallback editor until Blockly covers all live rule patterns and proves stable.
 
 ## ✅ Final spec lock checklist (no code)
 
@@ -264,11 +267,11 @@ Mark each item `LOCKED` before implementation starts.
 - [x] Rollback = restore `.bak.*` → reload → Admin Debug GREEN.
 - [x] Timing vs code = **after** Phase 1 Y1/X1 loader can load branched YAML; **before** enabling Blocky UI in prod.
 
-### C) MA migration — your steps (operator)
+### C) MA migration — your steps (operator) ✅ COMPLETED ON PI
 
 Run **once** on the Pi, **after** Phase 1 (Y1 loader) is deployed, **before** you enable the Blocky UI.
 
-**Do not run yet** — migration tooling does not exist until Phase 1 is built.
+**Completion note:** migration helper was executed (`--dry-run` then `--write`), service restarted, Admin Debug check returned GREEN, and runtime logs confirmed branch ids (`<id>#on/#off`) and expected automation behavior.
 
 1. Confirm WanOS on the Pi can load branched `on:` / `off:` rules (Phase 1 deployed).
 2. Admin → Debug → entity-registry check → **GREEN**.
@@ -288,8 +291,56 @@ Run **once** on the Pi, **after** Phase 1 (Y1 loader) is deployed, **before** yo
 ### D) Implementation readiness gate
 
 - [x] All items in section **B** are marked locked.
-- [ ] MA section **C** completed by operator (after Phase 1 deploy).
+- [x] MA section **C** completed by operator (after Phase 1 deploy).
 - [x] This file is frozen as the **spec baseline** for Blocky v1 (implementation may start; MA still gated on Phase 1).
+
+## 🧭 Next TODO (Option 2 roadmap)
+
+1. **Phase 3:** replace free-text trigger/event inputs in `blocky.js` with semantic pickers:
+   - apply D1 deny-list behavior (hard deny + soft-hide + show-hidden toggle),
+   - apply E1-v1 curated event list with friendly labels and explicit pair families.
+2. **Phase 4:** add true Blockly visual mode (WHEN / AND IF / THEN DO) as a second editor mode, while keeping current JSON/form mode as fallback.
+3. **Phase 5:** finalize operator docs + regression matrix; keep X1 stable, then schedule X2 promotion when CRUD/editor usage is stable.
+
+## ✅ Definition of Done (Option 2)
+
+Use this as strict phase gates. Do not mark a phase complete unless all items are checked.
+
+### Phase 3 DoD — Semantic pickers + policy enforcement
+
+- [ ] **Device picker policy:** D1 is enforced in UI and backend-facing payload shaping:
+  - hard-deny eids never appear/selectable,
+  - soft-hidden eids are hidden by default and visible only via explicit toggle,
+  - eids already used by automations remain visible/editable.
+- [ ] **Event picker policy:** E1-v1 curated events are rendered with friendly labels (no raw key-only UX by default).
+- [ ] **Event family behavior:** explicit pair families are respected for branched event trigger UX (no suffix heuristics).
+- [ ] **No free-text dependency for normal flow:** standard rule authoring works end-to-end without typing raw `entity_id` or raw event keys.
+- [ ] **Validation UX:** blocked selections show clear user feedback (why blocked + what to do).
+- [ ] **Compatibility:** existing rules load/edit/save without semantic drift.
+- [ ] **Regression smoke:** create/edit/delete one branched device rule, one branched event-family rule, one flat SYNC rule.
+
+### Phase 4 DoD — Blockly visual mode (hybrid)
+
+- [ ] **Second editor mode exists:** Blockly canvas mode is available alongside the current JSON/form editor.
+- [ ] **Fallback preserved:** JSON/form editor remains fully functional and selectable at all times.
+- [ ] **Round-trip safety:** Blockly -> saved YAML -> reload -> reopened in Blockly preserves semantics for:
+  - one-sided ON-only/OFF-only,
+  - full ON+OFF branched rules,
+  - event-family branched rules,
+  - flat SYNC/multi-trigger rules (either editable or clearly marked fallback-only).
+- [ ] **Mode boundary clarity:** UI clearly indicates when a rule must be edited in fallback mode (if Blockly cannot represent it yet).
+- [ ] **No schema mutation:** persisted shape remains aligned with locked Y1 + flat compatibility (no ad-hoc new schema).
+- [ ] **Operator confidence checks:** test at least `pc_monitors`, one bathroom pair, one scene-triggered rule from Blockly mode.
+
+### Phase 5 DoD — Hardening + rollout readiness
+
+- [ ] **Docs complete:** operator workflow and troubleshooting steps updated in `install_blocky.md` and reference docs.
+- [ ] **Regression matrix complete:** pass/fail table for critical automation patterns (branched, one-sided, SYNC, event-family, scene).
+- [ ] **Runtime stability:** no startup/reload validation failures on migrated YAML in repeated restarts.
+- [ ] **Observability clarity:** branch-aware logs (`<id>#on/#off`, branch labels) are readable and verified in real traces.
+- [ ] **Policy verification:** Admin Debug check remains GREEN after representative create/update/delete operations.
+- [ ] **Rollback rehearsal:** backup/restore + reload procedure tested once and documented with timings/outcome.
+- [ ] **X2 readiness review:** explicit checkpoint recorded (stay on X1 vs schedule X2 promotion), with decision rationale.
 
 
 ### SYNC — keep or split to ON/OFF?

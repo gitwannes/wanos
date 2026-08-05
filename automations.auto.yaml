@@ -41,7 +41,15 @@ deviceexplorer_exclude:
 
 lighting:
   # The engine will ONLY apply auto-off rules to entity_ids explicitly listed here
-  managed_lights: [switch.licht_living, switch.licht_keuken, switch.gang_beneden, switch.licht_garage, switch.badk_1e_hue_physical, switch.gang_boven, switch.buro_licht, switch.cinema_licht, switch.waskot, switch.voorraad_gv, switch.slpk_dries, switch.vent.badk_2e_ventilatie, switch.cinema_schemer, switch.buro_wannes_schemer, switch.living_schemer, switch.slpk_liene, switch.berging_2e, switch.eetkamer, switch.slpk_wannes, hue.group.slpk_wannes_hue, hue.group.eetkamer_hue, hue.group.living_hue, hue.group.slpk_dries_hue, hue.group.cinema_hue, switch.toilet, switch.vent.toilet_ventilatie]
+  managed_lights: [switch.licht_living, switch.licht_keuken, switch.gang_beneden,
+    switch.licht_garage, switch.badk_1e_hue_physical, switch.gang_boven,
+        switch.buro_licht, switch.cinema_licht, switch.waskot,
+        switch.voorraad_gv, switch.slpk_dries, switch.vent.badk_2e_ventilatie,
+        switch.cinema_schemer, switch.buro_wannes_schemer, switch.living_schemer,
+    switch.slpk_liene, switch.berging_2e, switch.eetkamer, switch.slpk_wannes,
+        hue.group.slpk_wannes_hue, hue.group.eetkamer_hue, hue.group.living_hue,
+        hue.group.slpk_dries_hue, hue.group.cinema_hue, switch.toilet,
+        switch.vent.toilet_ventilatie]
   default_auto_off_minutes: 300
   # Specific delay overrides in minutes
   auto_off_delays:
@@ -70,31 +78,33 @@ automations:
   # --------------------------------------------------------------------------
   # 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
   # --------------------------------------------------------------------------
-  - name: "Morning Blinds Open"
+  - id: b3f9c1f0-700d-40e5-b98e-e818445b26c9
+    name: "Morning Blinds Open"
+    scene: false
+    require_confirmation: false
     trigger:
-      event: "BLINDS_OPEN_TRIGGER"
-    actions:
-      - entity_id: blinds.gv_links
-        state: "0"
-      - entity_id: blinds.gv_rechts
-        state: "0"
-      - entity_id: blinds.sauna
-        state: "0"
-      - entity_id: blinds.cinema
-        state: "0"
+      event: blinds
+    on:
+      actions:
+        - entity_id: blinds.gv_links
+          state: "0"
+        - entity_id: blinds.gv_rechts
+          state: "0"
+        - entity_id: blinds.sauna
+          state: "0"
+        - entity_id: blinds.cinema
+          state: "0"
 
-  - name: "Evening Blinds Close"
-    trigger:
-      event: "BLINDS_CLOSE_TRIGGER"
-    actions:
-      - entity_id: blinds.gv_links
-        state: "100"
-      - entity_id: blinds.gv_rechts
-        state: "100"
-      - entity_id: blinds.sauna
-        state: "100"
-      - entity_id: blinds.cinema
-        state: "100"
+    off:
+      actions:
+        - entity_id: blinds.gv_links
+          state: "100"
+        - entity_id: blinds.gv_rechts
+          state: "100"
+        - entity_id: blinds.sauna
+          state: "100"
+        - entity_id: blinds.cinema
+          state: "100"
 
   - name: "Tuinlichten & kerststuff aan 's avonds"
     trigger:
@@ -109,6 +119,7 @@ automations:
       - entity_id: switch.kerst_lichten_voor
         state: "ON"
 
+    id: ea2ab903-fe8c-4375-a771-3bb47a7c9417
   - name: "Tuinlichten & kerststuff uit 's avonds"
     trigger:
       - event: "TWILIGHT_EVENING_OFF_TRIGGER"
@@ -122,23 +133,26 @@ automations:
       - entity_id: switch.kerst_lichten_voor
         state: "OFF"
 
-  - name: "Kerstverlichting voor & achter aan 's morgens"
+    id: da035d08-aa2b-4cf2-8e98-8a79402819fb
+  - id: b53fb293-fe1f-481d-97ac-9f5acedd0a00
+    name: "Kerstverlichting voor & achter aan 's morgens"
+    scene: false
+    require_confirmation: false
     trigger:
-      - event: "TWILIGHT_MORNING_ON_TRIGGER"
-    actions:
-      - entity_id: switch.kerst_lichten_tuin
-        state: "ON"
-      - entity_id: switch.kerst_lichten_voor
-        state: "ON"
+      event: twilight_morning
+    on:
+      actions:
+        - entity_id: switch.kerst_lichten_tuin
+          state: "ON"
+        - entity_id: switch.kerst_lichten_voor
+          state: "ON"
 
-  - name: "Kerstverlichting voor & achter uit 's morgens"
-    trigger:
-      - event: "TWILIGHT_MORNING_OFF_TRIGGER"
-    actions:
-      - entity_id: switch.kerst_lichten_tuin
-        state: "OFF"
-      - entity_id: switch.kerst_lichten_voor
-        state: "OFF"
+    off:
+      actions:
+        - entity_id: switch.kerst_lichten_tuin
+          state: "OFF"
+        - entity_id: switch.kerst_lichten_voor
+          state: "OFF"
 
   - name: "Tuinlichten Evening ON"
     trigger:
@@ -147,6 +161,7 @@ automations:
       - entity_id: switch.tuin
         state: "ON"
 
+    id: 806a7710-cee6-437b-bd2e-c0e7dc96f0c2
   - name: "Tuinlichten Evening OFF"
     trigger:
       event: "TWILIGHT_EVENING_OFF_TRIGGER" # Fires exactly at 23:00 (or config setting)
@@ -157,6 +172,7 @@ automations:
   # --------------------------------------------------------------------------
   # 🎛️ MANUALLY TRIGGERED SCENES (UI Visible)
   # --------------------------------------------------------------------------
+    id: 40617bd0-7c40-429d-abdc-efc2b3056b3e
   - name: "ALL OFF gv"
     scene: true
     trigger:
@@ -187,6 +203,7 @@ automations:
       - entity_id: media_player.living
         state: "OFF"
 
+    id: be05646d-d637-41f4-93b6-980366e6af44
   - name: "ALL OFF 1eV"
     scene: true
     trigger:
@@ -213,6 +230,7 @@ automations:
       - entity_id: media_player.buro
         state: "OFF"
 
+    id: 419e34c2-dfdf-4eab-ba6c-77852e965a6d
   - name: "ALL OFF 2eV"
     scene: true
     trigger:
@@ -239,6 +257,7 @@ automations:
       - entity_id: media_player.slpk_dries
         state: "OFF"
 
+    id: 938b6b82-746f-4761-a080-32abe7658a98
   - name: "ALL OFF overal"
     scene: true
     require_confirmation: true
@@ -249,6 +268,7 @@ automations:
       - event: "SCENE_VERDIEP1_OFF"
       - event: "SCENE_VERDIEP2_OFF"
 
+    id: c8519732-38d6-444b-937e-1bc588bd01ee
   - name: "GoCosy gv"
     scene: true
     trigger:
@@ -267,6 +287,7 @@ automations:
   # --------------------------------------------------------------------------
   # 💡 ROOM MACROS & LIGHTING CHAINS
   # --------------------------------------------------------------------------
+    id: 0edc9fce-f788-4801-9ddf-730fa191d184
   - name: "Slpk_Dries"
     trigger:
       entity_id: switch.slpk_dries
@@ -275,6 +296,7 @@ automations:
       - entity_id: hue.group.slpk_dries_hue
         state: "SYNC"
 
+    id: 70b7e4a3-b773-4bdd-83ea-4c18a9b1c61b
   - name: "KeukenLivingEetk_EetkHue"
     trigger:
       - entity_id: switch.licht_living
@@ -288,6 +310,7 @@ automations:
         state: "ON"
 
   # Chain automation (not a UI scene). Was scene:true → synthetic history IDX 956177 only.
+    id: 0db26b54-0576-4821-bc79-e35de11d640e
   - name: "BuroCinemaPC_cosy"
     trigger:
       - entity_id: switch.buro_licht
@@ -298,6 +321,7 @@ automations:
       - entity_id: switch.buro_wannes_schemer
         state: "ON"
 
+    id: a9491c48-f233-413e-86d4-2cdcf713ac63
   - name: "garage_motion"
     trigger:
       entity_id: sensor.generic.garage_motion
@@ -309,6 +333,7 @@ automations:
       - entity_id: switch.licht_garage
         state: "ON"
 
+    id: 30541a25-0d37-448b-b874-df8c0bf64aeb
   - name: "toilet_motion"
     trigger:
       entity_id: sensor.generic.toilet_motion
@@ -326,6 +351,7 @@ automations:
   #     - idx: 71014 # licht waskot
   #       state: "ON"
 
+    id: 284fe67e-827e-4d38-a4b9-58a8b2ae67a5
   - name: "garage_waskot_OFF"
     trigger:
       entity_id: switch.licht_garage
@@ -334,6 +360,7 @@ automations:
       - entity_id: switch.waskot
         state: "OFF"
 
+    id: ce50613a-8f88-496d-a078-10facd819776
   - name: "gang_boven_berging_OFF"
     trigger:
       entity_id: switch.gang_boven
@@ -347,6 +374,7 @@ automations:
   # --------------------------------------------------------------------------
 
   # --- Scenario 1: Room is already active -> Shut down the house ---
+    id: 513ef949-cd33-4a7d-8417-4959c4c829d2
   - name: "Spare Button: Hue is ON -> Trigger ALL OFF"
     trigger:
       - entity_id: switch.living_special
@@ -361,6 +389,7 @@ automations:
       - event: "SCENE_ALL_OFF"   # Note: Change to SCENE_GV_OFF if you only want the ground floor to turn off!
 
   # --- Scenario 2: Room is Dark AND it's nighttime -> Go Cosy ---
+    id: 839d64aa-6216-4405-9fee-b75287adb039
   - name: "Spare Button: Hue OFF + Night -> Go Cosy"
     trigger:
       - entity_id: switch.living_special
@@ -377,6 +406,7 @@ automations:
       - event: "SCENE_GOCOSY"
 
   # --- Scenario 3: Room is Dark AND it's daytime -> Red Accent ---
+    id: 364ac941-35c6-467d-9232-37b2b2b29568
   - name: "Spare Button: Hue OFF + Day -> Red Accent"
     trigger:
       - entity_id: switch.living_special
@@ -399,6 +429,7 @@ automations:
   # --------------------------------------------------------------------------
   # ⚙️ HARDWARE SYNC & SYSTEM MACROS
   # --------------------------------------------------------------------------
+    id: 48e294b0-8784-40b6-a9eb-cf6e5a991407
   - name: "PC ON/OFF -> PC Aux ON/OFF"
     trigger:
       entity_id: switch.pc
@@ -409,6 +440,7 @@ automations:
 
   # When PC turns OFF, always FORCE schemer OFF even if pc_monitors was already OFF
   # (the Aux SYNC chain would otherwise skip and leave the RFX schemer lit).
+    id: 06b759d4-5636-4063-8657-ed72b5b5deb7
   - name: "PC OFF -> Buro Schemer FORCE OFF"
     trigger:
       entity_id: switch.pc
@@ -417,27 +449,28 @@ automations:
       - entity_id: switch.buro_wannes_schemer
         state: "FORCE_OFF"
 
-  - name: "PC Aux ON -> Buro Schemer + Sonos ON"
+    id: 1a1bdfaa-1b8e-40aa-b20a-3002411ec7ac
+  - id: 1b8371ae-8846-42e0-9e40-7ce11b2669da
+    name: "PC Aux ON -> Buro Schemer + Sonos ON"
+    scene: false
+    require_confirmation: false
     trigger:
       entity_id: switch.pc_monitors
-      state: "ON"
-    actions:
-      - entity_id: switch.buro_wannes_schemer
-        state: "ON"
-      - entity_id: media_player.buro
-        state: "ON"
-        volume: 6
-        station: "qmaxhits"
+    on:
+      actions:
+        - entity_id: switch.buro_wannes_schemer
+          state: "ON"
+        - entity_id: media_player.buro
+          state: "ON"
+          volume: 6
+          station: "qmaxhits"
 
-  - name: "PC Aux OFF -> Buro Schemer + Sonos OFF"
-    trigger:
-      entity_id: switch.pc_monitors
-      state: "OFF"
-    actions:
-      - entity_id: switch.buro_wannes_schemer
-        state: "FORCE_OFF"
-      - entity_id: media_player.buro
-        state: "OFF"
+    off:
+      actions:
+        - entity_id: switch.buro_wannes_schemer
+          state: "FORCE_OFF"
+        - entity_id: media_player.buro
+          state: "OFF"
 
   - name: "toilet_gv_ventilatie_on"
     trigger:
@@ -447,6 +480,7 @@ automations:
       - entity_id: switch.vent.toilet_ventilatie_motor
         state: "SYNC"
 
+    id: 7ffde6cb-61e2-4754-a392-47d136a0b0b4
   - name: "gocosy-savonds"
     trigger:
       event: TWILIGHT_EVENING_ON_TRIGGER
@@ -462,194 +496,195 @@ automations:
 # --------------------------------------------------------------------------
 
   # --- Main Bathroom Switch (141) Master Control ---
-  - name: "Badk 1e: Main Switch ON -> Hue Red"
+    id: db6338f5-dc44-4482-994b-cdc620a381c8
+  - id: 9133d4f5-453d-464e-86df-e5f2bc61be8b
+    name: "Badk 1e: Main Switch ON -> Hue Red"
+    scene: false
+    require_confirmation: false
     trigger:
       entity_id: switch.badk_1e_hue_physical
-      state: "ON"
-    conditions:
-      - type: "device_state"
-        entity_id: hue.group.badk_1e_hue
-        is: "OFF"        # Only applies Red if the room was off
-    actions:
-      - entity_id: hue.group.badk_1e_hue
-        state: "ON"
-        preset: "relax_red"
-      - entity_id: media_player.badk_1e
-        state: "ON"
-        volume: 10
-        station: "qmaxhits"
+    on:
+      actions:
+        - entity_id: hue.group.badk_1e_hue
+          state: "ON"
+          preset: "relax_red"
+        - entity_id: media_player.badk_1e
+          state: "ON"
+          volume: 10
+          station: "qmaxhits"
 
   # --- Wastafel (Sink) Logic: Split into Day/Night context ---
-  - name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
-    trigger:
-      entity_id: switch.badk_1e_wastafel
-      state: "ON"
-    conditions:
-      - type: "device_state"
-        entity_id: hue.group.badk_1e_hue
-        is: "ON"         # Only fires if the room is already lit
-    actions:
-      - entity_id: hue.group.badk_1e_hue
-        state: "ON"
-        preset: "my_white"
-
-  - name: "Badk 1e: Wastafel OFF -> Hue Red (If already in room)"
-    trigger:
-      entity_id: switch.badk_1e_wastafel
-      state: "OFF"
-    conditions:
-      - type: "device_state"
-        entity_id: hue.group.badk_1e_hue
-        is: "ON"         # Only fires if the room is already lit
-    actions:
-      - entity_id: hue.group.badk_1e_hue
-        state: "ON"
-        preset: "relax_red"
-
-  - name: "Badk 1e: Main Switch OFF -> Hue & wastafel OFF"
-    trigger:
-      entity_id: switch.badk_1e_hue_physical
-      state: "OFF"
-    actions:
-      - entity_id: hue.group.badk_1e_hue
-        state: "OFF"
-      - entity_id: switch.badk_1e_wastafel
-        state: "OFF"
-      - entity_id: media_player.badk_1e
-        state: "OFF"
+      conditions:
+        - type: "device_state"
+          entity_id: hue.group.badk_1e_hue
+          is: "OFF"      # Only applies Red if the room was off
+    off:
+      actions:
+        - entity_id: hue.group.badk_1e_hue
+          state: "OFF"
+        - entity_id: switch.badk_1e_wastafel
+          state: "OFF"
+        - entity_id: media_player.badk_1e
+          state: "OFF"
 
   # --- Hue App Override Sync (Bidirectional support) ---
-  - name: "Badk 1e: Hue App Syncs to Main Switch-ON"
+  - id: 751cdc57-c079-488b-91ca-708246f15e3a
+    name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
+    scene: false
+    require_confirmation: false
     trigger:
-      entity_id: hue.group.badk_1e_hue
-      state: "ON"
-    actions:
-      - entity_id: switch.badk_1e_hue_physical
-        state: "ON"
-      - entity_id: media_player.badk_1e
-        state: "ON"
-        volume: 10
-        station: "qmaxhits"
+      entity_id: switch.badk_1e_wastafel
+    on:
+      actions:
+        - entity_id: hue.group.badk_1e_hue
+          state: "ON"
+          preset: "my_white"
 
-  - name: "Badk 1e: Hue App Syncs to Main Switch-OFF"
+      conditions:
+        - type: "device_state"
+          entity_id: hue.group.badk_1e_hue
+          is: "ON"       # Only fires if the room is already lit
+    off:
+      actions:
+        - entity_id: hue.group.badk_1e_hue
+          state: "ON"
+          preset: "relax_red"
+
+      conditions:
+        - type: "device_state"
+          entity_id: hue.group.badk_1e_hue
+          is: "ON"       # Only fires if the room is already lit
+  - id: caa74273-e140-4354-8021-741bf7c311ca
+    name: "Badk 1e: Hue App Syncs to Main Switch-ON"
+    scene: false
+    require_confirmation: false
     trigger:
       entity_id: hue.group.badk_1e_hue
-      state: "OFF"
-    actions:
-      - entity_id: switch.badk_1e_hue_physical
-        state: "OFF"
-      - entity_id: media_player.badk_1e
-        state: "OFF"
+    on:
+      actions:
+        - entity_id: switch.badk_1e_hue_physical
+          state: "ON"
+        - entity_id: media_player.badk_1e
+          state: "ON"
+          volume: 10
+          station: "qmaxhits"
+
+    off:
+      actions:
+        - entity_id: switch.badk_1e_hue_physical
+          state: "OFF"
+        - entity_id: media_player.badk_1e
+          state: "OFF"
 
 # --------------------------------------------------------------------------
 # 🛁 BATHROOM 2 (2e) LIGHTING & HUE SYNC
 # --------------------------------------------------------------------------
 
   # --- Main Bathroom Switch Master Control ---
-  - name: "Badk 2e: Main Switch ON -> Hue Red"
+  - id: 618d15f6-c094-44c9-8fb5-13c44d80dee7
+    name: "Badk 2e: Main Switch ON -> Hue Red"
+    scene: false
+    require_confirmation: false
     trigger:
       entity_id: switch.badk_2e_hue_physical
-      state: "ON"
-    conditions:
-      - type: "device_state"
-        entity_id: hue.group.badk_2e_hue
-        is: "OFF"        # Only applies Red if the room was off
-    actions:
-      - entity_id: hue.group.badk_2e_hue
-        state: "ON"
-        preset: "relax_red"
-      - entity_id: media_player.badk_boven
-        state: "ON"
-        volume: 10
-        station: "qmaxhits"
+    on:
+      actions:
+        - entity_id: hue.group.badk_2e_hue
+          state: "ON"
+          preset: "relax_red"
+        - entity_id: media_player.badk_boven
+          state: "ON"
+          volume: 10
+          station: "qmaxhits"
 
   # --- Wastafel (Sink) Logic: Split into Day/Night context ---
-  - name: "Badk 2e: Wastafel ON -> Hue White (If already in room)"
-    trigger:
-      entity_id: switch.badk_2e_wastafel
-      state: "ON"
-    conditions:
-      - type: "device_state"
-        entity_id: hue.group.badk_2e_hue
-        is: "ON"         # Only fires if the room is already lit
-    actions:
-      - entity_id: hue.group.badk_2e_hue
-        state: "ON"
-        preset: "my_white"
-
-  - name: "Badk 2e: Wastafel OFF -> Hue Red (If already in room)"
-    trigger:
-      entity_id: switch.badk_2e_wastafel
-      state: "OFF"
-    conditions:
-      - type: "device_state"
-        entity_id: hue.group.badk_2e_hue
-        is: "ON"         # Only fires if the room is already lit
-    actions:
-      - entity_id: hue.group.badk_2e_hue
-        state: "ON"
-        preset: "relax_red"
-
-  - name: "Badk 2e: Main Switch OFF -> Hue & wastafel OFF"
-    trigger:
-      entity_id: switch.badk_2e_hue_physical
-      state: "OFF"
-    actions:
-      - entity_id: hue.group.badk_2e_hue
-        state: "OFF"
-      - entity_id: switch.badk_2e_wastafel
-        state: "OFF"
-      - entity_id: media_player.badk_boven
-        state: "OFF"
+      conditions:
+        - type: "device_state"
+          entity_id: hue.group.badk_2e_hue
+          is: "OFF"      # Only applies Red if the room was off
+    off:
+      actions:
+        - entity_id: hue.group.badk_2e_hue
+          state: "OFF"
+        - entity_id: switch.badk_2e_wastafel
+          state: "OFF"
+        - entity_id: media_player.badk_boven
+          state: "OFF"
 
   # --- Hue App Override Sync (Bidirectional support) ---
-  - name: "Badk 2e: Hue App Syncs to Main Switch-ON"
+  - id: b1dc143b-bc38-4d44-a723-05b9fe0278be
+    name: "Badk 2e: Wastafel ON -> Hue White (If already in room)"
+    scene: false
+    require_confirmation: false
     trigger:
-      entity_id: hue.group.badk_2e_hue
-      state: "ON"
-    actions:
-      - entity_id: switch.badk_2e_hue_physical
-        state: "ON"
-      - entity_id: media_player.badk_boven
-        state: "ON"
-        volume: 10
-        station: "qmaxhits"
+      entity_id: switch.badk_2e_wastafel
+    on:
+      actions:
+        - entity_id: hue.group.badk_2e_hue
+          state: "ON"
+          preset: "my_white"
 
-  - name: "Badk 2e: Hue App Syncs to Main Switch-OFF"
+      conditions:
+        - type: "device_state"
+          entity_id: hue.group.badk_2e_hue
+          is: "ON"       # Only fires if the room is already lit
+    off:
+      actions:
+        - entity_id: hue.group.badk_2e_hue
+          state: "ON"
+          preset: "relax_red"
+
+      conditions:
+        - type: "device_state"
+          entity_id: hue.group.badk_2e_hue
+          is: "ON"       # Only fires if the room is already lit
+  - id: 90f7b517-3323-46af-abf7-11f98cdfb5e7
+    name: "Badk 2e: Hue App Syncs to Main Switch-ON"
+    scene: false
+    require_confirmation: false
     trigger:
       entity_id: hue.group.badk_2e_hue
-      state: "OFF"
-    actions:
-      - entity_id: switch.badk_2e_hue_physical
-        state: "OFF"
-      - entity_id: media_player.badk_boven
-        state: "OFF"
+    on:
+      actions:
+        - entity_id: switch.badk_2e_hue_physical
+          state: "ON"
+        - entity_id: media_player.badk_boven
+          state: "ON"
+          volume: 10
+          station: "qmaxhits"
+
+    off:
+      actions:
+        - entity_id: switch.badk_2e_hue_physical
+          state: "OFF"
+        - entity_id: media_player.badk_boven
+          state: "OFF"
 
   # --------------------------------------------------------------------------
   # 🛏️ SLPK WANNES LIGHTING & HUE SYNC
   # --------------------------------------------------------------------------
 
   # --- Physical Switch Master Control ---
-  - name: "Slpk Wannes: Switch ON -> Hue Red (If Room was Dark)"
+  - id: 4c96bf42-317d-4e79-a9bd-3b83edd7d668
+    name: "Slpk Wannes: Switch ON -> Hue Red (If Room was Dark)"
+    scene: false
+    require_confirmation: false
     trigger:
       entity_id: switch.slpk_wannes_hue_physical
-      state: "ON"
-    conditions:
-      - type: "device_state"
-        entity_id: hue.group.slpk_wannes_hue
-        is: "OFF"        # 🛡️ Anti-Overwrite Guard: Only applies Red if the room was off
-    actions:
-      - entity_id: hue.group.slpk_wannes_hue
-        state: "ON"
-        preset: "relax_red"
+    on:
+      actions:
+        - entity_id: hue.group.slpk_wannes_hue
+          state: "ON"
+          preset: "relax_red"
 
-  - name: "Slpk Wannes: Switch OFF -> Hue OFF"
-    trigger:
-      entity_id: switch.slpk_wannes_hue_physical
-      state: "OFF"
-    actions:
-      - entity_id: hue.group.slpk_wannes_hue
-        state: "OFF"
+      conditions:
+        - type: "device_state"
+          entity_id: hue.group.slpk_wannes_hue
+          is: "OFF"      # 🛡️ Anti-Overwrite Guard: Only applies Red if the room was off
+    off:
+      actions:
+        - entity_id: hue.group.slpk_wannes_hue
+          state: "OFF"
 
   # --- Hue App Override Sync (Bidirectional support) ---
   - name: "Slpk Wannes: Hue App Syncs to Switch"
@@ -663,29 +698,32 @@ automations:
   # --------------------------------------------------------------------------
   # 🧖‍♂️ SAUNA AUTOMATIONS
   # --------------------------------------------------------------------------
-  - name: "Sauna Lights ON"
+    id: dc3edc7c-f4c5-4d7f-be9e-41f532c57486
+  - id: e4fa952f-e625-4fd9-b2c9-dad8ec4d26cb
+    name: "Sauna Lights ON"
+    scene: false
+    require_confirmation: false
     trigger:
-      event: "SAUNA_ON"
-    actions:
-      - entity_id: hue.group.verd_1_hue
-        state: "ON"
-      - entity_id: hue.group.living_hue
-        state: "ON"
-      - entity_id: switch.sauna_zoutlamp
-        state: "ON"  # Sauna zoutlamp
+      event: sauna
+    on:
+      actions:
+        - entity_id: hue.group.verd_1_hue
+          state: "ON"
+        - entity_id: hue.group.living_hue
+          state: "ON"
+        - entity_id: switch.sauna_zoutlamp
+          state: "ON" # Sauna zoutlamp
 
-  - name: "Sauna OFF -> Hue Off"
-    trigger:
-      event: "SAUNA_OFF"
-    actions:
-      - entity_id: hue.group.verd_1_hue
-        state: "ON"
-        preset: "my_white"
-      - entity_id: hue.group.living_hue
-        state: "ON"
-        preset: "my_white"
-      - entity_id: switch.sauna_zoutlamp
-        state: "OFF"  # Sauna zoutlamp
+    off:
+      actions:
+        - entity_id: hue.group.verd_1_hue
+          state: "ON"
+          preset: "my_white"
+        - entity_id: hue.group.living_hue
+          state: "ON"
+          preset: "my_white"
+        - entity_id: switch.sauna_zoutlamp
+          state: "OFF" # Sauna zoutlamp
 
   # --------------------------------------------------------------------------
   # 🍿 CINEMA MODE SCENES
@@ -719,6 +757,7 @@ automations:
         preset: "relax_red"
 
   # --- CINEMA OFF: SPLIT INTO TWO RULES FOR IF/ELSE LOGIC ---
+    id: e5a56e29-3ad8-46bf-9f1b-3bdeca33ee35
   - name: "--- CINEMA OFF"
     # This one makes it to the dashboard.trigger:
     # It fires the event "SCENE_CINEMA_OFF", both this and "CINEMA OFF (Day)" are then evaluated.
@@ -736,6 +775,7 @@ automations:
         state: "OFF"
       - entity_id: switch.cinema_licht
         state: "ON"
+    id: e0970780-d016-4964-9330-f403e3e0da6e
   - name: "CINEMA OFF (Day)"
     trigger:
       event: "SCENE_CINEMA_OFF"
@@ -749,3 +789,4 @@ automations:
         state: "OFF"
       - entity_id: blinds.cinema
         state: "0"
+    id: f56fb02b-d1b6-4508-bf85-a5808f9c0c39
