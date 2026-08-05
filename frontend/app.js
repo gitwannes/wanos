@@ -1945,104 +1945,11 @@ function wanosApp() {
                 }
 
                 if (monthChart && this.actuatorChartHasData.month) {
-                    const opt = this._baseChartOption("Level / count");
-                    opt.legend = { bottom: 0, textStyle: { color: "#9ca3af" } };
-                    opt.yAxis = [
-                        {
-                            type: "value",
-                            name: "Level",
-                            min: 0,
-                            max: monthLevelMax,
-                            nameTextStyle: { color: "#9ca3af" },
-                            axisLabel: { color: "#9ca3af" },
-                            splitLine: { lineStyle: { color: "#374151" } }
-                        },
-                        {
-                            type: "value",
-                            name: "Events",
-                            nameTextStyle: { color: "#9ca3af" },
-                            axisLabel: { color: "#9ca3af" },
-                            splitLine: { show: false }
-                        }
-                    ];
-                    opt.series = [
-                        {
-                            name: "Events",
-                            type: "bar",
-                            yAxisIndex: 1,
-                            data: this._pointsToSeries(monthData?.series?.event_count),
-                            itemStyle: { color: "#64748b" }
-                        },
-                        {
-                            name: "Level min",
-                            type: "line",
-                            showSymbol: false,
-                            data: this._pointsToSeries(monthData?.series?.level_min),
-                            lineStyle: { color: "#2dd4bf" },
-                            connectNulls: false
-                        },
-                        {
-                            name: "Level max",
-                            type: "line",
-                            showSymbol: false,
-                            data: this._pointsToSeries(monthData?.series?.level_max),
-                            lineStyle: { color: "#a3e635" },
-                            connectNulls: false
-                        }
-                    ];
-                    this._applyTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
-                    monthChart.setOption(opt, true);
-                    monthChart.resize();
+                    this._renderActuatorPeriodChart(monthChart, monthData, "month", monthLevelMax);
                 }
 
                 if (yearChart && this.actuatorChartHasData.year) {
-                    const opt = this._baseChartOption("Level / count");
-                    opt.yAxis = [
-                        {
-                            type: "value",
-                            name: "Level",
-                            min: 0,
-                            max: yearLevelMax,
-                            nameTextStyle: { color: "#9ca3af" },
-                            axisLabel: { color: "#9ca3af" },
-                            splitLine: { lineStyle: { color: "#374151" } }
-                        },
-                        {
-                            type: "value",
-                            name: "Events",
-                            nameTextStyle: { color: "#9ca3af" },
-                            axisLabel: { color: "#9ca3af" },
-                            splitLine: { show: false }
-                        }
-                    ];
-                    opt.series = [
-                        {
-                            name: "Events",
-                            type: "bar",
-                            yAxisIndex: 1,
-                            data: this._pointsToSeries(yearData?.series?.event_count),
-                            itemStyle: { color: "#64748b" }
-                        },
-                        {
-                            name: "Level min",
-                            type: "line",
-                            showSymbol: false,
-                            data: this._pointsToSeries(yearData?.series?.level_min),
-                            lineStyle: { color: "#2dd4bf" },
-                            connectNulls: false
-                        },
-                        {
-                            name: "Level max",
-                            type: "line",
-                            showSymbol: false,
-                            data: this._pointsToSeries(yearData?.series?.level_max),
-                            lineStyle: { color: "#a3e635" },
-                            connectNulls: false
-                        }
-                    ];
-                    this._applyTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
-                    yearChart.setOption(opt, true);
-                    yearChart.resize();
+                    this._renderActuatorPeriodChart(yearChart, yearData, "year", yearLevelMax);
                 }
             };
 
@@ -2397,8 +2304,8 @@ function wanosApp() {
             });
         },
 
-        /** Format one water bucket timestamp for category-axis labels. */
-        _waterBucketLabel(tsMs, range) {
+        /** Format one history bucket timestamp for category-axis labels. */
+        _historyBucketLabel(tsMs, range) {
             const t = this._normalizeTsMs(tsMs);
             if (t == null) return "";
             const d = new Date(t);
@@ -2410,6 +2317,110 @@ function wanosApp() {
                 return d.toLocaleDateString("nl-BE", { day: "numeric", month: "short", timeZone: tz });
             }
             return d.toLocaleDateString("nl-BE", { month: "short", year: "numeric", timeZone: tz });
+        },
+
+        _buildActuatorPeriodPayload(data) {
+            const map = new Map();
+            const add = (points, field) => {
+                for (const p of points || []) {
+                    const t = this._normalizeTsMs(p && p.t);
+                    if (t == null) continue;
+                    if (!map.has(t)) map.set(t, { t, events: 0, lmin: null, lmax: null });
+                    const row = map.get(t);
+                    if (field === "events") row.events = Number(p.v) || 0;
+                    else if (field === "lmin") row.lmin = p.v == null ? null : Number(p.v);
+                    else if (field === "lmax") row.lmax = p.v == null ? null : Number(p.v);
+                }
+            };
+            add(data?.series?.event_count, "events");
+            add(data?.series?.level_min, "lmin");
+            add(data?.series?.level_max, "lmax");
+            return [...map.values()].sort((a, b) => a.t - b.t);
+        },
+
+        /**
+         * Actuator month/year: category axis so event bars don't stretch across the window.
+         */
+        _renderActuatorPeriodChart(chart, data, range, levelMax) {
+            if (!chart) return;
+            const rows = this._buildActuatorPeriodPayload(data);
+            if (!rows.length) return;
+            const labels = rows.map(r => this._historyBucketLabel(r.t, range));
+            const opt = {
+                backgroundColor: "transparent",
+                tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
+                legend: {
+                    top: 4,
+                    left: "center",
+                    itemGap: 10,
+                    textStyle: { color: "#9ca3af", fontSize: 10 }
+                },
+                grid: { left: 48, right: 48, top: 36, bottom: labels.length > 8 ? 72 : 56 },
+                xAxis: {
+                    type: "category",
+                    data: labels,
+                    axisLabel: {
+                        color: "#9ca3af",
+                        hideOverlap: true,
+                        rotate: labels.length > 6 ? 35 : 0,
+                        fontSize: 10
+                    },
+                    axisTick: { alignWithLabel: true },
+                    splitLine: { show: false }
+                },
+                yAxis: [
+                    {
+                        type: "value",
+                        name: "Level",
+                        min: 0,
+                        max: levelMax,
+                        nameTextStyle: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af" },
+                        splitLine: { lineStyle: { color: "#374151" } }
+                    },
+                    {
+                        type: "value",
+                        name: "Events",
+                        nameTextStyle: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af" },
+                        splitLine: { show: false }
+                    }
+                ],
+                series: [
+                    {
+                        name: "Events",
+                        type: "bar",
+                        yAxisIndex: 1,
+                        barMaxWidth: 40,
+                        data: rows.map(r => r.events),
+                        itemStyle: { color: "#64748b" }
+                    },
+                    {
+                        name: "Level min",
+                        type: "line",
+                        yAxisIndex: 0,
+                        step: "end",
+                        showSymbol: true,
+                        symbolSize: 5,
+                        data: rows.map(r => r.lmin),
+                        lineStyle: { color: "#2dd4bf" },
+                        connectNulls: false
+                    },
+                    {
+                        name: "Level max",
+                        type: "line",
+                        yAxisIndex: 0,
+                        step: "end",
+                        showSymbol: true,
+                        symbolSize: 5,
+                        data: rows.map(r => r.lmax),
+                        lineStyle: { color: "#a3e635" },
+                        connectNulls: false
+                    }
+                ]
+            };
+            chart.setOption(opt, true);
+            chart.resize();
         },
 
         _buildWaterChartPayload(data, range) {
@@ -2424,7 +2435,7 @@ function wanosApp() {
                 const hp = hot[i];
                 const ts = (cp && cp.t != null) ? cp.t : (hp && hp.t);
                 if (ts == null) continue;
-                labels.push(this._waterBucketLabel(ts, range));
+                labels.push(this._historyBucketLabel(ts, range));
                 coldVals.push(cp != null && cp.v != null ? Number(cp.v) : 0);
                 hotVals.push(hp != null && hp.v != null ? Number(hp.v) : 0);
             }
@@ -2488,9 +2499,15 @@ function wanosApp() {
             chart.resize();
         },
 
-        _climateDualAxisOption() {
+        _climateDualAxisOption(seriesCount) {
+            const many = (seriesCount || 0) > 2;
             const opt = this._baseChartOption("°C");
-            opt.grid = { left: 48, right: 48, top: 24, bottom: 48 };
+            opt.legend = many
+                ? { top: 4, left: "center", itemGap: 10, textStyle: { color: "#9ca3af", fontSize: 10 } }
+                : { bottom: 4, left: "center", textStyle: { color: "#9ca3af", fontSize: 10 } };
+            opt.grid = many
+                ? { left: 48, right: 48, top: 40, bottom: 52 }
+                : { left: 48, right: 48, top: 24, bottom: 64 };
             opt.yAxis = [
                 {
                     type: "value",
@@ -2510,9 +2527,23 @@ function wanosApp() {
             return opt;
         },
 
+        _applyClimateTimeWindow(opt, windowMs) {
+            if (!opt || !opt.xAxis || !windowMs) return;
+            const end = Date.now();
+            const start = end - windowMs;
+            opt.xAxis.min = start;
+            opt.xAxis.max = end;
+            opt.xAxis.scale = true;
+            const many = (opt.series || []).length > 2;
+            const sliderBottom = many ? 6 : 22;
+            opt.dataZoom = [
+                { type: "inside", start: 0, end: 100, filterMode: "none", minValueSpan: Math.min(windowMs, 60 * 60 * 1000) },
+                { type: "slider", height: 14, bottom: sliderBottom, start: 0, end: 100, filterMode: "none", minValueSpan: Math.min(windowMs, 60 * 60 * 1000) },
+            ];
+        },
+
         _renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum) {
             if (dayChart) {
-                const opt = this._climateDualAxisOption();
                 const series = [{
                     name: "Temperature",
                     type: "line",
@@ -2535,14 +2566,14 @@ function wanosApp() {
                         connectNulls: false
                     });
                 }
+                const opt = this._climateDualAxisOption(series.length);
                 opt.series = series;
-                this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
+                this._applyClimateTimeWindow(opt, 24 * 60 * 60 * 1000);
                 dayChart.setOption(opt, true);
                 dayChart.resize();
             }
 
             if (monthChart) {
-                const opt = this._climateDualAxisOption();
                 const series = [
                     {
                         name: "Temp min",
@@ -2585,14 +2616,14 @@ function wanosApp() {
                         }
                     );
                 }
+                const opt = this._climateDualAxisOption(series.length);
                 opt.series = series;
-                this._applyTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
+                this._applyClimateTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
                 monthChart.setOption(opt, true);
                 monthChart.resize();
             }
 
             if (yearChart) {
-                const opt = this._climateDualAxisOption();
                 const series = [
                     {
                         name: "Temp min",
@@ -2635,8 +2666,9 @@ function wanosApp() {
                         }
                     );
                 }
+                const opt = this._climateDualAxisOption(series.length);
                 opt.series = series;
-                this._applyTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
+                this._applyClimateTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
                 yearChart.setOption(opt, true);
                 yearChart.resize();
             }
