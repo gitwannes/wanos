@@ -77,8 +77,34 @@ class AutomationEngine:
         idx = AutomationEngine.resolve_entity_id(state, eid)
         if idx is None:
             automation_logger.warning(
-                f"[AUTOMATION] Unresolved entity_id '{eid}' — skipping device ref.")
+                f"[AUTOMATION] Unresolved entity_id '{eid}' — skipping device ref "
+                f"(engine continues; rule action/condition ignored)."
+            )
         return idx
+
+    @staticmethod
+    def format_rule_ref(rule: Any) -> str:
+        """
+        Locked B3 observability format for X1-expanded (and flat) rules:
+        rule=<parent-id> branch=on|off|- name="<base name>"
+        """
+        rid = getattr(rule, "id", None)
+        name = getattr(rule, "name", None) or ""
+        branch = "-"
+        base_id = str(rid) if rid is not None else "-"
+        if isinstance(rid, str):
+            if rid.endswith("#on"):
+                branch = "on"
+                base_id = rid[:-3]
+            elif rid.endswith("#off"):
+                branch = "off"
+                base_id = rid[:-4]
+        display = name
+        if display.endswith(" [ON]"):
+            display = display[:-5]
+        elif display.endswith(" [OFF]"):
+            display = display[:-6]
+        return f'rule={base_id} branch={branch} name="{display}"'
 
     @staticmethod
     def _timer_exists(active_timers: List[Any], target_timer_id: str) -> bool:
@@ -187,7 +213,7 @@ class AutomationEngine:
             # --- TIER B: The Thought Process (DEBUG ONLY) ---
             if trigger_matched:
                 automation_logger.debug(
-                    f"[X-RAY] Rule '{rule.name}' (id={getattr(rule, 'id', None)}) triggered by {trigger_reason}. "
+                    f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} triggered by {trigger_reason}. "
                     f"Evaluating conditions...")
 
                 conditions_met = True
@@ -224,7 +250,8 @@ class AutomationEngine:
 
                 # If all conditions pass, we calculate and dispatch the final actions
                 if conditions_met:
-                    automation_logger.debug(f"[X-RAY] -> Conditions MET for '{rule.name}'. Parsing actions...")
+                    automation_logger.debug(
+                        f"[X-RAY] -> Conditions MET for {AutomationEngine.format_rule_ref(rule)}. Parsing actions...")
 
                     # Scene history: log once when a scene:true rule actually fires
                     # (manual UI event, automation IDX trigger, or nested event)
@@ -353,7 +380,8 @@ class AutomationEngine:
                                 final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
                                 preset_str = f" [Rich Payload]" if is_rich_action else ""
                                 automation_logger.info(
-                                    f"[ACTION] '{rule.name}' -> Set target IDX {action_idx} ({semantic_name}) to {final_state_str}{preset_str}")
+                                    f"[ACTION] {AutomationEngine.format_rule_ref(rule)} -> "
+                                    f"Set target IDX {action_idx} ({semantic_name}) to {final_state_str}{preset_str}")
                             else:
                                 automation_logger.debug(
                                     f"[X-RAY] -> Target IDX {action_idx} is already {target_action_state}. Ignoring.")
@@ -371,10 +399,12 @@ class AutomationEngine:
                                              "origin": "AUTOMATION"}
                                 ))
                                 automation_logger.info(
-                                    f"[ACTION] '{rule.name}' -> Dispatched Native Hue Scene [{scene_name}] on IDX {idx}")
+                                    f"[ACTION] {AutomationEngine.format_rule_ref(rule)} -> "
+                                    f"Dispatched Native Hue Scene [{scene_name}] on IDX {idx}")
                             else:
                                 automation_logger.error(
-                                    f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: Missing 'scene' or device ref for hue_scene target.")
+                                    f"🔴 [AUTOMATION ERROR] {AutomationEngine.format_rule_ref(rule)} "
+                                    f"failed: Missing 'scene' or device ref for hue_scene target.")
 
                         # --- Action Type C: Nested Event Chaining ---
                         elif getattr(action, "event", None):
@@ -384,7 +414,8 @@ class AutomationEngine:
                             except KeyError:
                                 evt_type = action.event
                                 automation_logger.error(
-                                    f"🔴 [AUTOMATION ERROR] Rule '{rule.name}' failed: '{action.event}' is not a valid EventType Enum.")
+                                    f"🔴 [AUTOMATION ERROR] {AutomationEngine.format_rule_ref(rule)} "
+                                    f"failed: '{action.event}' is not a valid EventType Enum.")
 
                             # ⚡ DYNAMIC PAYLOAD INJECTION
                             # Automatically map all provided YAML keys (idx, volume, station, etc.) into the event payload
@@ -401,7 +432,8 @@ class AutomationEngine:
 
                             payload_str = f" with payload: {action_payload}" if action_payload else ""
                             automation_logger.info(
-                                f"[ACTION] '{rule.name}' -> Dispatched Internal Event [{action.event}]{payload_str}")
+                                f"[ACTION] {AutomationEngine.format_rule_ref(rule)} -> "
+                                f"Dispatched Internal Event [{action.event}]{payload_str}")
 
         # =========================================================================
         # 2. SYSTEM SWEEPER: Time & Environment Audit (Option B Enforcer)

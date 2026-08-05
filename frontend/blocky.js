@@ -208,6 +208,49 @@ function blockyRefreshToolbox() {
     try { ws.updateToolbox(blockyToolboxDefinition(present)); } catch (e) { /* ignore */ }
 }
 
+function blockyIsRootType(type) {
+    return type === "b_trigger_device"
+        || type === "b_trigger_device_state"
+        || type === "b_trigger_event"
+        || type === "b_trigger_curated_event"
+        || type === "b_branch_on"
+        || type === "b_branch_off"
+        || type === "b_then_do";
+}
+
+/** Condition/action blocks that are not snapped into a container (look nested but aren't). */
+function blockyOrphanLeafBlocks(ws) {
+    if (!ws) return [];
+    return ws.getAllBlocks(false).filter((b) => {
+        if (!b || blockyIsRootType(b.type)) return false;
+        return !b.getParent();
+    });
+}
+
+function blockyAssertNoOrphans(ws) {
+    const orphans = blockyOrphanLeafBlocks(ws);
+    if (!orphans.length) return;
+    const labels = orphans.map((b) => {
+        if (b.type === "b_condition_time") {
+            return `if time is ${b.getFieldValue("TOD") || "?"}`;
+        }
+        if (b.type === "b_condition_device") {
+            return `if device ${b.getFieldValue("ENTITY") || "?"} is ${b.getFieldValue("STATE") || "?"}`;
+        }
+        if (b.type === "b_action_device") {
+            return `set device ${b.getFieldValue("ENTITY") || "?"}`;
+        }
+        if (b.type === "b_action_event") {
+            return `fire event ${b.getFieldValue("EVENT") || "?"}`;
+        }
+        return b.type;
+    });
+    throw new Error(
+        `Save blocked: ${orphans.length} block(s) are not snapped into conditions/actions — ` +
+        `connect or delete: ${labels.join("; ")}`
+    );
+}
+
 function blockyCancelUniqueness() {
     if (BlockyRT.uniquenessTimer) {
         clearTimeout(BlockyRT.uniquenessTimer);
@@ -330,6 +373,8 @@ function blockyApp() {
         busy: false,
         errorMessage: "",
         infoMessage: "",
+        registryCheckMessage: "",
+        registryCheckOk: null,
         filterText: "",
         automations: [],
         selectedRule: null,
@@ -526,10 +571,18 @@ function blockyApp() {
             try {
                 const inj = host.querySelector(".injectionDiv");
                 if (inj) {
+                    inj.style.position = "absolute";
+                    inj.style.left = "0";
+                    inj.style.top = "0";
+                    inj.style.right = "0";
+                    inj.style.bottom = "0";
                     inj.style.width = "100%";
                     inj.style.height = "100%";
                 }
                 Blockly.svgResize(ws);
+                if (ws.scrollbar && typeof ws.scrollbar.resize === "function") {
+                    ws.scrollbar.resize();
+                }
             } catch (e) { /* ignore */ }
         },
 
@@ -711,13 +764,15 @@ function blockyApp() {
 
         normalizeCondition(c) {
             if (!c || typeof c !== "object") return this.blankCondition();
+            // Backend historically dumped alias field as condition_is without by_alias=True.
+            const isVal = c.is != null ? c.is : c.condition_is;
             if (c.type === "time_of_day") {
-                return { type: "time_of_day", is: c.is || "dark" };
+                return { type: "time_of_day", is: isVal || "dark" };
             }
             return {
                 type: "device_state",
                 entity_id: c.entity_id || this.firstEntityId(),
-                is: c.is || "ON"
+                is: isVal || "ON"
             };
         },
 
@@ -1003,9 +1058,13 @@ function blockyApp() {
                 }
 
                 if (ws.render) ws.render();
-                Blockly.svgResize(ws);
+                this.resizeBlockly();
                 this.scrollBlocklyToTopLeft();
                 blockyRefreshToolbox();
+                requestAnimationFrame(() => {
+                    this.resizeBlockly();
+                    requestAnimationFrame(() => this.resizeBlockly());
+                });
             } finally {
                 if (wasEnabled) Events.enable();
                 if (!Events.isEnabled()) Events.enable();
@@ -1044,9 +1103,13 @@ function blockyApp() {
                 blockyConnectChain(thenBlock, "ACTIONS", this._actionBlocksFromEditor(this.editor.flatActions));
 
                 if (ws.render) ws.render();
-                Blockly.svgResize(ws);
+                this.resizeBlockly();
                 this.scrollBlocklyToTopLeft();
                 blockyRefreshToolbox();
+                requestAnimationFrame(() => {
+                    this.resizeBlockly();
+                    requestAnimationFrame(() => this.resizeBlockly());
+                });
             } finally {
                 if (wasEnabled) Events.enable();
                 if (!Events.isEnabled()) Events.enable();
@@ -1068,6 +1131,7 @@ function blockyApp() {
             this.ensureBlocklyReady();
             const ws = blockyWs();
             if (!ws) throw new Error("Blockly workspace not ready.");
+            blockyAssertNoOrphans(ws);
             const tops = ws.getTopBlocks(true);
 
             const trigCurated = tops.find((b) => b.type === "b_trigger_curated_event");
@@ -1118,6 +1182,7 @@ function blockyApp() {
             this.ensureBlocklyReady();
             const ws = blockyWs();
             if (!ws) throw new Error("Blockly workspace not ready.");
+            blockyAssertNoOrphans(ws);
             const tops = ws.getTopBlocks(true);
 
             const trigDevice = tops.find((b) => b.type === "b_trigger_device");
@@ -1405,10 +1470,44 @@ function blockyApp() {
             }
         },
 
+        async runPostWriteRegistryCheck() {
+            this.registryCheckMessage = "";
+            this.registryCheckOk = null;
+            try {
+                const res = await fetch("/api/debug/entity-registry-check", {
+                    headers: this.getAuthHeaders(),
+                });
+                const report = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    this.registryCheckOk = false;
+                    this.registryCheckMessage =
+                        `Admin Debug check failed: ${report.error || res.status}. Open Admin → Debug.`;
+                    return;
+                }
+                const errN = (report.errors || []).length;
+                const warnN = (report.warnings || []).length;
+                this.registryCheckOk = !!report.ok;
+                if (report.ok) {
+                    this.registryCheckMessage =
+                        warnN
+                            ? `Admin Debug GREEN — entity_id / registry check passed (${warnN} non-blocking warning(s)).`
+                            : "Admin Debug GREEN — entity_id / registry check passed (not a behavior smoke test).";
+                } else {
+                    this.registryCheckMessage =
+                        `Admin Debug RED — ${errN} error(s), ${warnN} warning(s). Open Admin → Debug for the full report.`;
+                }
+            } catch (e) {
+                this.registryCheckOk = false;
+                this.registryCheckMessage = `Admin Debug check request failed: ${e}. Open Admin → Debug.`;
+            }
+        },
+
         async saveRule() {
             this.busy = true;
             this.errorMessage = "";
             this.infoMessage = "";
+            this.registryCheckMessage = "";
+            this.registryCheckOk = null;
             try {
                 if ((this.editor.mode === "branched" && this.branchedEditorMode === "blockly") ||
                     (this.editor.mode === "flat" && this.flatEditorMode === "blockly")) {
@@ -1424,13 +1523,14 @@ function blockyApp() {
                 });
                 const body = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(body.error || `${method} failed (${res.status})`);
-                this.infoMessage = isUpdate ? "Automation updated." : "Automation created.";
+                this.infoMessage = isUpdate ? "Automation updated (hot-reload queued)." : "Automation created (hot-reload queued).";
                 await this.refreshAll();
                 const rid = (body.automation && body.automation.id) || payload.id;
                 if (rid) {
                     const fresh = this.automations.find((r) => r.id === rid);
                     if (fresh) this.selectRule(fresh);
                 }
+                await this.runPostWriteRegistryCheck();
             } catch (e) {
                 this.errorMessage = String(e);
             } finally {
@@ -1447,6 +1547,8 @@ function blockyApp() {
             this.busy = true;
             this.errorMessage = "";
             this.infoMessage = "";
+            this.registryCheckMessage = "";
+            this.registryCheckOk = null;
             try {
                 const res = await fetch("/api/automations", {
                     method: "DELETE",
@@ -1455,9 +1557,10 @@ function blockyApp() {
                 });
                 const body = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(body.error || `DELETE failed (${res.status})`);
-                this.infoMessage = "Automation deleted.";
+                this.infoMessage = "Automation deleted (hot-reload queued).";
                 await this.refreshAll();
                 this.newRule();
+                await this.runPostWriteRegistryCheck();
             } catch (e) {
                 this.errorMessage = String(e);
             } finally {

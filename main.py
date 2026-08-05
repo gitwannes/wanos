@@ -34,7 +34,12 @@ from core.mqtt_transport import MqttClientManager
 from core.mqtt_publisher import MqttPublisher
 from core.state_manager import StateManager
 from core.config import load_config, AppConfig
-from core.automations_store import read_automations, write_automations
+from core.automations_store import (
+    append_automation,
+    delete_automation,
+    read_automations,
+    update_automation,
+)
 from core.automations_api_models import (
     BranchedAutomationRuleRequest,
     FlatAutomationRuleRequest,
@@ -453,7 +458,7 @@ async def list_automations(req: Request) -> dict[str, Any]:
 
 @app.post("/api/automations")
 async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any]:
-    """Admin: create a new automation rule in automations.auto.yaml (only `automations:` key is rewritten)."""
+    """Admin: create a new automation rule in automations.auto.yaml (surgical append; comments kept)."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
@@ -468,7 +473,7 @@ async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
 
     # Backend-only rule identity (B1): if missing, generate it here.
     import uuid
-    new_rule = parsed.model_dump(exclude_none=True)
+    new_rule = parsed.model_dump(exclude_none=True, by_alias=True)
     if not new_rule.get("id"):
         new_rule["id"] = str(uuid.uuid4())
 
@@ -477,8 +482,8 @@ async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
         return JSONResponse(status_code=409, content={"error": "Duplicate automation id."})
 
     # Persist exactly the stored shape (branched if on/off, otherwise flat).
-    current.append(new_rule)
-    write_automations(current)
+    # Surgical append keeps comments on existing rules + other top-level keys.
+    append_automation(new_rule)
 
     # Hot reload logic config + engine cache
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
@@ -486,7 +491,7 @@ async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
 
 
 @app.put("/api/automations")
-async def update_automation(rule: dict[str, Any], req: Request) -> dict[str, Any]:
+async def update_automation_api(rule: dict[str, Any], req: Request) -> dict[str, Any]:
     """Admin: replace an automation rule (identified by rule.id) inside automations.auto.yaml."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
@@ -502,38 +507,23 @@ async def update_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
     if not getattr(parsed, "id", None):
         return JSONResponse(status_code=400, content={"error": "PUT requires a stable automation rule `id`."})
 
-    current = read_automations()
-    rid = parsed.id
-    replaced = False
-    next_rules: list[dict[str, Any]] = []
-    for r in current:
-        if isinstance(r, dict) and r.get("id") == rid:
-            next_rules.append(parsed.model_dump(exclude_none=True))
-            replaced = True
-        else:
-            next_rules.append(r)
+    dumped = parsed.model_dump(exclude_none=True, by_alias=True)
+    if not update_automation(parsed.id, dumped):
+        return JSONResponse(status_code=404, content={"error": f"Automation id '{parsed.id}' not found."})
 
-    if not replaced:
-        return JSONResponse(status_code=404, content={"error": f"Automation id '{rid}' not found."})
-
-    write_automations(next_rules)
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
-    return {"status": "Success", "automation": parsed.model_dump(exclude_none=True)}
+    return {"status": "Success", "automation": dumped}
 
 
 @app.delete("/api/automations")
-async def delete_automation(req_body: AutomationsRuleIdRequest, req: Request) -> dict[str, Any]:
+async def delete_automation_api(req_body: AutomationsRuleIdRequest, req: Request) -> dict[str, Any]:
     """Admin: delete an automation rule by id from automations.auto.yaml."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
-    current = read_automations()
-    rid = req_body.id
-    next_rules: list[dict[str, Any]] = [r for r in current if not (isinstance(r, dict) and r.get("id") == rid)]
-    if len(next_rules) == len(current):
-        return JSONResponse(status_code=404, content={"error": f"Automation id '{rid}' not found."})
+    if not delete_automation(req_body.id):
+        return JSONResponse(status_code=404, content={"error": f"Automation id '{req_body.id}' not found."})
 
-    write_automations(next_rules)
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
     return {"status": "Success"}
 

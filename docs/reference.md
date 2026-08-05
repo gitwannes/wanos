@@ -156,7 +156,8 @@ The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer o
 * **`GET /api/state`** | Compiles a full, read-only system snapshot used by Alpine.js to bootstrap the client memory.
 * **`GET /api/state/sse`** | Persistent HTTP stream channel pushing partial domain JSON frames (`system`, `sensors`, `sauna`, `ir`, `metrics`, `hardware`, `devices`) immediately upon queue draining. Fires a `domain: ping` block if quiet for 5 seconds.
 * **`POST /api/event`** | Universal application entry point. Accepts standard `type` and `payload` properties to inject commands onto the async bus. Protects admin-only payloads via RBAC token inspection.
-* **`GET /api/debug/entity-registry-check`** | Admin-only. Runs `run_entity_cutover_checks` (plus live `device_metadata`) and returns JSON including annotated `report_text` for the Admin Debug modal.
+* **`GET /api/debug/entity-registry-check`** | Admin-only. Runs `run_entity_cutover_checks` (plus live `device_metadata`) and returns JSON including annotated `report_text` for the Admin Debug modal. Blocky also calls this after automation Save/Delete and shows GREEN/RED in-page.
+* **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD for rules in `automations.auto.yaml`. Writes are surgical (`ruamel`); each successful write dispatches `CONFIG_RELOAD_REQUESTED` (no manual Admin reload for normal Blocky ops). Operator workflow: `docs/todo/install_blocky.md` §E.
 
 ---
 

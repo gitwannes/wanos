@@ -159,7 +159,7 @@ class TriggerConfig(BaseModel):
 
 class ConditionConfig(BaseModel):
     """Automation condition — device refs use entity_id only (no numeric idx)."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     type: str
     entity_id: Optional[str] = None

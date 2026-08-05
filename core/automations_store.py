@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 
@@ -42,6 +43,13 @@ def _automations_path() -> Path:
     return _root_dir() / "automations.auto.yaml"
 
 
+def _rt_yaml() -> YAML:
+    yaml = YAML(typ="rt")
+    yaml.preserve_quotes = True
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    return yaml
+
+
 def load_automations_roundtrip() -> Tuple[Any, Path]:
     """
     Loads automations.auto.yaml using ruamel round-trip mode.
@@ -53,14 +61,49 @@ def load_automations_roundtrip() -> Tuple[Any, Path]:
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}")
 
-    yaml = YAML(typ="rt")
-    yaml.preserve_quotes = True
-    yaml.indent(mapping=2, sequence=4, offset=2)
-
+    yaml = _rt_yaml()
     with path.open("r", encoding="utf-8") as f:
         root = yaml.load(f)
 
     return root, path
+
+
+def _ensure_automations_seq(root: Any) -> CommentedSeq:
+    if not isinstance(root, dict):
+        raise ValueError("automations.auto.yaml root must be a mapping")
+    autos = root.get("automations")
+    if autos is None:
+        seq: CommentedSeq = CommentedSeq()
+        root["automations"] = seq
+        return seq
+    if isinstance(autos, CommentedSeq):
+        return autos
+    if isinstance(autos, list):
+        seq = CommentedSeq(autos)
+        root["automations"] = seq
+        return seq
+    raise ValueError("automations: must be a list")
+
+
+def _dump_root(root: Any, path: Path) -> None:
+    yaml = _rt_yaml()
+    with path.open("w", encoding="utf-8") as f:
+        yaml.dump(root, f)
+
+
+def _to_commented(node: Any) -> Any:
+    """Plain dict/list → CommentedMap/CommentedSeq for ruamel-friendly inserts."""
+    if isinstance(node, dict):
+        out = CommentedMap()
+        for k, v in node.items():
+            out[k] = _to_commented(v)
+        return out
+    if isinstance(node, list):
+        out = CommentedSeq()
+        for item in node:
+            out.append(_to_commented(item))
+        return out
+    return node
 
 
 def read_automations() -> List[Dict[str, Any]]:
@@ -70,7 +113,6 @@ def read_automations() -> List[Dict[str, Any]]:
         return []
     if isinstance(automations, list):
         return automations
-    # ruamel uses CommentedSeq; it behaves like a list but may not type-check as list.
     try:
         return list(automations)
     except TypeError:
@@ -79,19 +121,55 @@ def read_automations() -> List[Dict[str, Any]]:
 
 def write_automations(rules: List[Dict[str, Any]]) -> None:
     """
-    Surgical write of only the `automations:` key.
-    Other top-level keys (deviceexplorer_exclude, lighting) are preserved by ruamel.
+    Full replace of the `automations:` list (legacy). Prefer append/update/delete
+    helpers so sibling rule comments stay intact.
     """
     root, path = load_automations_roundtrip()
     if not isinstance(root, dict):
         raise ValueError("automations.auto.yaml root must be a mapping")
 
-    yaml = YAML(typ="rt")
-    yaml.preserve_quotes = True
-    yaml.indent(mapping=2, sequence=4, offset=2)
-
-    root["automations"] = rules
+    seq = CommentedSeq()
+    for rule in rules:
+        seq.append(_to_commented(rule))
+    root["automations"] = seq
     _quote_boolish_scalars(root["automations"])
-    with path.open("w", encoding="utf-8") as f:
-        yaml.dump(root, f)
+    _dump_root(root, path)
 
+
+def append_automation(rule: Dict[str, Any]) -> None:
+    """Append one rule; preserve comments on existing automations + other top-level keys."""
+    root, path = load_automations_roundtrip()
+    seq = _ensure_automations_seq(root)
+    item = _to_commented(rule)
+    _quote_boolish_scalars(item)
+    seq.append(item)
+    _dump_root(root, path)
+
+
+def update_automation(rule_id: str, rule: Dict[str, Any]) -> bool:
+    """
+    Replace one rule by id in-place. Other list entries (and their comments) stay.
+    Returns False if id not found.
+    """
+    root, path = load_automations_roundtrip()
+    seq = _ensure_automations_seq(root)
+    for i, existing in enumerate(seq):
+        if isinstance(existing, dict) and existing.get("id") == rule_id:
+            item = _to_commented(rule)
+            _quote_boolish_scalars(item)
+            seq[i] = item
+            _dump_root(root, path)
+            return True
+    return False
+
+
+def delete_automation(rule_id: str) -> bool:
+    """Remove one rule by id; preserve comments on remaining entries."""
+    root, path = load_automations_roundtrip()
+    seq = _ensure_automations_seq(root)
+    for i, existing in enumerate(list(seq)):
+        if isinstance(existing, dict) and existing.get("id") == rule_id:
+            del seq[i]
+            _dump_root(root, path)
+            return True
+    return False

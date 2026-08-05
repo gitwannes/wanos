@@ -34,9 +34,13 @@
         #blocklyWorkspace.blockly-fs {
             height: calc(100vh - 5.5rem);
         }
+        /* Absolute fill so Blockly.svgResize measures the full host — mid-canvas
+           grey scrollbar is the classic symptom of a half-width injectionDiv. */
         #blocklyWorkspace .injectionDiv {
-            width: 100%;
-            height: 100%;
+            position: absolute;
+            inset: 0;
+            width: 100% !important;
+            height: 100% !important;
         }
         #blocklyWorkspace svg,
         .blocklySvg,
@@ -44,6 +48,11 @@
         .blocklyDropDownDiv svg {
             max-width: none !important;
             max-height: none !important;
+        }
+        /* Keep scrollbars at the SVG edges (not mid-canvas ghosts). */
+        .blocklyScrollbarVertical,
+        .blocklyScrollbarHorizontal {
+            opacity: 0.55;
         }
         .blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTooltipDiv { z-index: 100000 !important; }
         .blocklyToolboxDiv { z-index: 20; }
@@ -116,6 +125,10 @@
             </div>
             <div x-show="infoMessage" class="alert alert-success text-sm mb-3">
                 <span x-text="infoMessage"></span>
+            </div>
+            <div x-show="registryCheckMessage" class="alert text-sm mb-3"
+                 :class="registryCheckOk === false ? 'alert-error' : (registryCheckOk === true ? 'alert-success' : 'alert-info')">
+                <span x-text="registryCheckMessage"></span>
             </div>
 
             <template x-if="!selectedRule">
@@ -210,7 +223,9 @@
                              class="w-full rounded border border-base-300 bg-base-100"
                              :class="blocklyFullscreen && showBlocklyWorkspace ? 'blockly-fs' : ''"></div>
                         <div class="text-[11px] text-base-content/60" x-show="showBlocklyWorkspace && !blocklyFullscreen">
-                            Grab a block by its coloured body to drag · drag away to disconnect · drop on the trash (bottom-right) to delete.
+                            Grab a block by its coloured body to drag · snap fully into the green notch until it clicks ·
+                            drag away to disconnect · drop on the trash (bottom-right) to delete.
+                            Unsnapped condition/action blocks block Save (they look nested but are not connected).
                             Toolbox hides trigger/branch types once used; duplicate conditions/actions are removed automatically.
                         </div>
                     </div>
@@ -477,6 +492,6 @@
     </section>
 </main>
 
-<script src="blocky.js?v=3.0"></script>
+<script src="blocky.js?v=3.2"></script>
 </body>
 </html>
