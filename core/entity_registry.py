@@ -69,6 +69,8 @@ def classify_entity_prefix(
         return "sensor.door"
     if dtype == "speaker":
         return "media_player"
+    if dtype == "motion":
+        return "sensor.generic"
     if dtype == "scene":
         return "scene"
     if dtype == "unknown":

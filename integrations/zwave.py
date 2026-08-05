@@ -295,7 +295,7 @@ class ZWaveJSUIBridge(WanosComponent):
                         "idx": target_idx,
                         "state": state_str,
                         "name": custom_name,
-                        "device_type": "sensor",
+                        "device_type": "motion",
                         "origin": "zwave",
                         "is_initialization": False
                     }
@@ -492,6 +492,10 @@ class ZWaveJSUIBridge(WanosComponent):
                         hw_type = "blinds"
                     elif 74000 <= idx < 75000:
                         hw_type = "power"
+                    elif 75000 <= idx < 76000:
+                        hw_type = "motion"
+                    elif 76000 <= idx < 77000:
+                        hw_type = "temp_hum"
 
                     self.state_manager._state.device_metadata[idx] = {
                         "name": custom_name,

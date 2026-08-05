@@ -312,7 +312,8 @@ def _normalize_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
             continue
         case: Dict[str, Any] = {}
         if c.get("to_state") is not None:
-            case["to_state"] = str(c["to_state"]).upper() if str(c["to_state"]).upper() in ("ON", "OFF") else c["to_state"]
+            ts = str(c["to_state"]).upper()
+            case["to_state"] = ts if ts in ("ON", "OFF", "OPEN", "CLOSED") else c["to_state"]
         conds = c.get("conditions") or []
         if isinstance(conds, list) and conds:
             case["conditions"] = [_copy_condition(x) for x in conds]
@@ -445,6 +446,12 @@ def _expand_v2_case_to_flat(
             flat_trigger = {"entity_id": eid, "state": to_state_u}
             suffix = f"#{to_state_u.lower()}"
             label = f" [{to_state_u}]"
+        elif to_state is not None:
+            # Blinds OPEN/CLOSED (or numeric) edge on device wake
+            st = str(to_state)
+            flat_trigger = {"entity_id": eid, "state": st}
+            suffix = f"#{st.lower()}"
+            label = f" [{st}]"
         elif trigger.get("state"):
             flat_trigger = {"entity_id": eid, "state": trigger["state"]}
             suffix = f"#c{case_index}" if case_index else ""

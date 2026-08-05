@@ -1,15 +1,6 @@
 // Phase 6B: unified Blockly canvas for schema v2 (trigger + ordered cases).
-
-const BLOCKY_ACTION_STATES = [
-    ["ON", "ON"], ["OFF", "OFF"],
-    ["FORCE_ON", "FORCE_ON"], ["FORCE_OFF", "FORCE_OFF"], ["0", "0"], ["100", "100"]
-];
-
-const BLOCKY_CASE_MATCH_DEVICE = [
-    ["when ON", "ON"],
-    ["when OFF", "OFF"],
-    ["(conditions only)", "NONE"]
-];
+// Contextual dropdowns: only show entries valid for the current trigger / device type.
+// Phase 6C (TODO): rich action authoring UX — Hue preset, blinds open %, Sonos volume/station.
 
 /** Keep in sync with core/schedule_events.SCHEDULE_WINDOW_EDGES (enter, exit). */
 const BLOCKY_SCHEDULE_WINDOW_EDGES = {
@@ -44,6 +35,16 @@ const BLOCKY_ROOT_TRIGGERS = new Set([
     "b_trig_device", "b_trig_or", "b_trig_event", "b_trig_family"
 ]);
 
+/** Sensor / temp-class — excluded from pickers (motion is separate: trigger OK, never action). */
+const BLOCKY_SENSOR_LIKE_TYPES = new Set([
+    "sensor", "temp_hum", "temp", "hum", "power", "energy", "fluid"
+]);
+
+/** Types that can appear as action targets. */
+const BLOCKY_ACTUATOR_TYPES = new Set([
+    "switch", "light", "blinds", "shutter", "speaker", "media_player"
+]);
+
 function blockyEdgeShort(ev) {
     return BLOCKY_EDGE_SHORT[ev] || String(ev || "").replace(/_TRIGGER$/i, "").replace(/_/g, " ").toLowerCase();
 }
@@ -62,22 +63,192 @@ function blockyScheduleWindowHint(fam) {
     return `Fires twice: ${a}, then ${b}.`;
 }
 
+function blockyEntityMeta(eid) {
+    const app = BlockyRT.app;
+    if (app && Array.isArray(app.entityOptions)) {
+        return app.entityOptions.find((o) => o.eid === eid) || null;
+    }
+    return null;
+}
+
+function blockyEntityTypeOf(eid) {
+    const opt = blockyEntityMeta(eid);
+    if (opt && opt.type) return String(opt.type).toLowerCase();
+    const e = String(eid || "");
+    if (e.startsWith("blinds.")) return "blinds";
+    if (e.startsWith("hue.")) return "light";
+    if (e.startsWith("media_player.")) return "speaker";
+    if (e.startsWith("sensor.door.") || e.startsWith("door.")) return "door";
+    if (e.includes("motion")) return "motion";
+    if (e.startsWith("sensor.")) return "sensor";
+    if (e.startsWith("switch.")) return "switch";
+    return "";
+}
+
+function blockyEntityOriginOf(eid) {
+    const opt = blockyEntityMeta(eid);
+    return opt && opt.origin ? String(opt.origin).toLowerCase() : "";
+}
+
+function blockyIsMotionEntity(optOrEid) {
+    const type = String(
+        (optOrEid && typeof optOrEid === "object" ? optOrEid.type : null)
+        || blockyEntityTypeOf(typeof optOrEid === "string" ? optOrEid : (optOrEid && optOrEid.eid))
+        || ""
+    ).toLowerCase();
+    if (type === "motion") return true;
+    const eid = String(
+        (optOrEid && typeof optOrEid === "object" ? optOrEid.eid : optOrEid) || ""
+    );
+    const name = (optOrEid && typeof optOrEid === "object" ? optOrEid.name : "") || "";
+    return /motion/i.test(eid) || /motion/i.test(name);
+}
+
+function blockyIsSensorLikeEntity(optOrEid, typeHint) {
+    if (blockyIsMotionEntity(optOrEid)) return false; // motion ≠ temp/power class
+    const type = String(
+        (optOrEid && typeof optOrEid === "object" ? optOrEid.type : typeHint)
+        || blockyEntityTypeOf(typeof optOrEid === "string" ? optOrEid : (optOrEid && optOrEid.eid))
+        || ""
+    ).toLowerCase();
+    if (BLOCKY_SENSOR_LIKE_TYPES.has(type)) return true;
+    const eid = String(
+        (optOrEid && typeof optOrEid === "object" ? optOrEid.eid : optOrEid) || ""
+    );
+    if (eid.startsWith("sensor.door.")) return false;
+    if (eid.startsWith("sensor.")) return true;
+    return false;
+}
+
+function blockyIsActuatorEntity(optOrEid) {
+    const type = String(
+        (optOrEid && typeof optOrEid === "object" ? optOrEid.type : null)
+        || blockyEntityTypeOf(typeof optOrEid === "string" ? optOrEid : (optOrEid && optOrEid.eid))
+        || ""
+    ).toLowerCase();
+    if (BLOCKY_ACTUATOR_TYPES.has(type)) return true;
+    const eid = String(
+        (optOrEid && typeof optOrEid === "object" ? optOrEid.eid : optOrEid) || ""
+    );
+    return (
+        eid.startsWith("switch.")
+        || eid.startsWith("hue.")
+        || eid.startsWith("blinds.")
+        || eid.startsWith("media_player.")
+    );
+}
+
+function blockyEntityAllowedForRole(opt, role) {
+    if (role === "action") {
+        // Motion / sensors / doors cannot be actioned.
+        return blockyIsActuatorEntity(opt) && !blockyIsMotionEntity(opt);
+    }
+    if (blockyIsMotionEntity(opt)) {
+        // Motion OK as When-device trigger (garage/toilet); not as condition for now.
+        return role === "trigger";
+    }
+    return !blockyIsSensorLikeEntity(opt);
+}
+
 function blockyCaseMatchOptions(caseBlock) {
+    let opts;
     try {
         const root = caseBlock.getRootBlock && caseBlock.getRootBlock();
         if (root && root.type === "b_trig_family") {
             const fam = root.getFieldValue("FAMILY");
             const edges = BLOCKY_SCHEDULE_WINDOW_EDGES[fam];
             if (edges) {
-                return [
+                opts = [
                     [`at start (${blockyEdgeShort(edges[0])})`, "ON"],
-                    [`at end (${blockyEdgeShort(edges[1])})`, "OFF"],
-                    ["(conditions only)", "NONE"]
+                    [`at end (${blockyEdgeShort(edges[1])})`, "OFF"]
                 ];
             }
+        } else if (root && root.type === "b_trig_device") {
+            const type = blockyEntityTypeOf(root.getFieldValue("ENTITY"));
+            if (type === "blinds" || type === "shutter") {
+                opts = [
+                    ["when OPEN", "OPEN"],
+                    ["when CLOSED", "CLOSED"]
+                ];
+            } else {
+                opts = [
+                    ["when ON", "ON"],
+                    ["when OFF", "OFF"]
+                ];
+            }
+        } else if (root && root.type === "b_trig_or") {
+            opts = [["(conditions only)", "NONE"]];
+        } else if (root && root.type === "b_trig_event") {
+            opts = [["(run if conditions)", "NONE"]];
         }
     } catch (e) { /* ignore */ }
-    return BLOCKY_CASE_MATCH_DEVICE;
+    if (!opts) {
+        opts = [
+            ["when ON", "ON"],
+            ["when OFF", "OFF"]
+        ];
+    }
+    return opts;
+}
+
+function blockyEdgeStateOptions(block) {
+    const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
+    if (type === "blinds" || type === "shutter") {
+        return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"]];
+    }
+    return BLOCKY_EDGE_STATES.slice();
+}
+
+/**
+ * Action state entries by device type.
+ * Phase 6C: add Hue preset / Sonos volume+station / blinds open-% authoring (not just 0/100).
+ * No “(legacy)” — stale values are coerced away.
+ */
+function blockyActionStateOptions(block) {
+    const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
+    if (type === "blinds" || type === "shutter") {
+        // Stored = closed % (0 open … 100 closed). Open-% picker is Phase 6C.
+        return [
+            ["0 — open", "0"],
+            ["100 — closed", "100"]
+        ];
+    }
+    if (type === "light" || type === "hue") {
+        // Phase 6C: when ON, show preset dropdown from hue_presets.
+        return [["ON", "ON"], ["OFF", "OFF"]];
+    }
+    if (type === "speaker" || type === "media_player") {
+        // Phase 6C: when ON, show volume + station (Sonos) fields.
+        return [["ON", "ON"], ["OFF", "OFF"]];
+    }
+    // switch (and unknown actuators)
+    return [
+        ["ON", "ON"], ["OFF", "OFF"],
+        ["FORCE_ON", "FORCE_ON"], ["FORCE_OFF", "FORCE_OFF"]
+    ];
+}
+
+function blockyConditionStateOptions(block) {
+    const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
+    if (type === "blinds" || type === "shutter") {
+        return [["Open", "0"], ["Closed", "100"]];
+    }
+    if (type === "door") {
+        return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"]];
+    }
+    return [["ON", "ON"], ["OFF", "OFF"]];
+}
+
+function blockyCoerceFieldToOptions(block, fieldName, optionsFn) {
+    try {
+        const f = block.getField(fieldName);
+        if (!f) return;
+        const opts = optionsFn(block);
+        const v = f.getValue();
+        if (!opts.some((o) => o[1] === v)) {
+            f.setValue(opts[0][1]);
+        }
+    } catch (e) { /* ignore */ }
 }
 
 function blockyRefreshCaseMatchLabels(fromBlock) {
@@ -87,9 +258,14 @@ function blockyRefreshCaseMatchLabels(fromBlock) {
             const f = cur.getField("MATCH");
             if (f) {
                 try {
+                    const opts = blockyCaseMatchOptions(cur);
                     const v = f.getValue();
                     f.getOptions(false);
-                    f.setValue(v);
+                    if (!opts.some((o) => o[1] === v)) {
+                        f.setValue(opts[0][1]);
+                    } else {
+                        f.setValue(v);
+                    }
                     if (typeof f.forceRerender === "function") f.forceRerender();
                 } catch (e) { /* ignore */ }
             }
@@ -99,7 +275,9 @@ function blockyRefreshCaseMatchLabels(fromBlock) {
 }
 
 function defineBlockyBlocks(Blockly, providers) {
-    const entityDd = providers.entity;
+    const entityTriggerDd = providers.entityTrigger || providers.entity;
+    const entityConditionDd = providers.entityCondition || providers.entity;
+    const entityActionDd = providers.entityAction || providers.entity;
     const familyDd = providers.family;
     const eventDd = providers.event;
 
@@ -111,23 +289,37 @@ function defineBlockyBlocks(Blockly, providers) {
         init() {
             this.appendDummyInput()
                 .appendField("When device")
-                .appendField(new Blockly.FieldDropdown(entityDd), "ENTITY")
+                .appendField(new Blockly.FieldDropdown(entityTriggerDd), "ENTITY")
                 .appendField("(use cases for ON/OFF)");
             this.setNextStatement(true, "Case");
             this.setColour(230);
+        },
+        onchange(ev) {
+            if (!this.workspace || this.isInFlyout) return;
+            if (ev && (ev.type === "create" || ev.type === "move"
+                || (ev.type === "change" && ev.name === "ENTITY"))) {
+                blockyRefreshCaseMatchLabels(this.getNextBlock());
+            }
         }
     };
     Blockly.Blocks.b_trig_device_edge = {
         init() {
+            const block = this;
             this.appendDummyInput()
                 .appendField("When device")
-                .appendField(new Blockly.FieldDropdown(entityDd), "ENTITY")
+                .appendField(new Blockly.FieldDropdown(entityTriggerDd), "ENTITY")
                 .appendField("becomes")
-                .appendField(new Blockly.FieldDropdown(BLOCKY_EDGE_STATES), "STATE");
+                .appendField(new Blockly.FieldDropdown(() => blockyEdgeStateOptions(block)), "STATE");
             this.setPreviousStatement(true, "TrigEdge");
             this.setNextStatement(true, "TrigEdge");
             this.setColour(230);
             this.setTooltip("OR-list edge only — put inside “When any of”. For a single device use “When device” + cases.");
+        },
+        onchange(ev) {
+            if (!this.workspace || this.isInFlyout) return;
+            if (ev && ev.type === "change" && ev.name === "ENTITY") {
+                blockyCoerceFieldToOptions(this, "STATE", blockyEdgeStateOptions);
+            }
         }
     };
     Blockly.Blocks.b_trig_event_edge = {
@@ -147,6 +339,12 @@ function defineBlockyBlocks(Blockly, providers) {
             this.appendStatementInput("EDGES").setCheck("TrigEdge");
             this.setNextStatement(true, "Case");
             this.setColour(220);
+        },
+        onchange(ev) {
+            if (!this.workspace || this.isInFlyout) return;
+            if (ev && (ev.type === "create" || ev.type === "move")) {
+                blockyRefreshCaseMatchLabels(this.getNextBlock());
+            }
         }
     };
     Blockly.Blocks.b_trig_event = {
@@ -156,13 +354,19 @@ function defineBlockyBlocks(Blockly, providers) {
                 .appendField(new Blockly.FieldDropdown(eventDd), "EVENT");
             this.setNextStatement(true, "Case");
             this.setColour(210);
+        },
+        onchange(ev) {
+            if (!this.workspace || this.isInFlyout) return;
+            if (ev && (ev.type === "create" || ev.type === "move")) {
+                blockyRefreshCaseMatchLabels(this.getNextBlock());
+            }
         }
     };
     Blockly.Blocks.b_trig_family = {
         init() {
             const block = this;
             this.appendDummyInput()
-                .appendField("When schedule window")
+                .appendField("When schedule (start→end)")
                 .appendField(new Blockly.FieldDropdown(familyDd, (newVal) => {
                     block.updateScheduleHint_(newVal);
                     blockyRefreshCaseMatchLabels(block.getNextBlock());
@@ -208,6 +412,7 @@ function defineBlockyBlocks(Blockly, providers) {
         onchange(ev) {
             if (!this.workspace || this.isInFlyout) return;
             if (ev && (ev.type === "move" || ev.type === "create")) {
+                blockyCoerceFieldToOptions(this, "MATCH", blockyCaseMatchOptions);
                 const f = this.getField("MATCH");
                 if (f) {
                     try {
@@ -222,14 +427,21 @@ function defineBlockyBlocks(Blockly, providers) {
 
     Blockly.Blocks.b_condition_device = {
         init() {
+            const block = this;
             this.appendDummyInput()
                 .appendField("if device")
-                .appendField(new Blockly.FieldDropdown(entityDd), "ENTITY")
+                .appendField(new Blockly.FieldDropdown(entityConditionDd), "ENTITY")
                 .appendField("is")
-                .appendField(new Blockly.FieldDropdown([["ON", "ON"], ["OFF", "OFF"]]), "STATE");
+                .appendField(new Blockly.FieldDropdown(() => blockyConditionStateOptions(block)), "STATE");
             this.setPreviousStatement(true, "Condition");
             this.setNextStatement(true, "Condition");
             this.setColour(60);
+        },
+        onchange(ev) {
+            if (!this.workspace || this.isInFlyout) return;
+            if (ev && ev.type === "change" && ev.name === "ENTITY") {
+                blockyCoerceFieldToOptions(this, "STATE", blockyConditionStateOptions);
+            }
         }
     };
     Blockly.Blocks.b_condition_time = {
@@ -244,14 +456,22 @@ function defineBlockyBlocks(Blockly, providers) {
     };
     Blockly.Blocks.b_action_device = {
         init() {
+            const block = this;
             this.appendDummyInput()
                 .appendField("set device")
-                .appendField(new Blockly.FieldDropdown(entityDd), "ENTITY")
+                .appendField(new Blockly.FieldDropdown(entityActionDd), "ENTITY")
                 .appendField("to")
-                .appendField(new Blockly.FieldDropdown(BLOCKY_ACTION_STATES), "STATE");
+                .appendField(new Blockly.FieldDropdown(() => blockyActionStateOptions(block)), "STATE");
+            // Phase 6C: append preset / volume / station / open-% fields when entity type warrants it.
             this.setPreviousStatement(true, "Action");
             this.setNextStatement(true, "Action");
             this.setColour(290);
+        },
+        onchange(ev) {
+            if (!this.workspace || this.isInFlyout) return;
+            if (ev && ev.type === "change" && ev.name === "ENTITY") {
+                blockyCoerceFieldToOptions(this, "STATE", blockyActionStateOptions);
+            }
         }
     };
     Blockly.Blocks.b_action_event = {
@@ -267,7 +487,7 @@ function defineBlockyBlocks(Blockly, providers) {
 }
 
 function blockyToolboxDefinition(_presentTypes) {
-    // Always offer triggers so operators can swap device ↔ event ↔ schedule window.
+    // Always offer triggers so operators can swap device ↔ event ↔ schedule (start→end).
     // Uniqueness keeps a single root and adopts the case chain onto the new trigger.
     const contents = [
         {
@@ -280,8 +500,19 @@ function blockyToolboxDefinition(_presentTypes) {
                 { kind: "block", type: "b_trig_event" },
                 { kind: "block", type: "b_trig_family" }
             ]
-        },
-        {
+        }
+    ];
+    // OR edges only snap inside “When any of” — hide the category otherwise.
+    let showOrEdges = false;
+    try {
+        const ws = blockyWs();
+        if (ws) {
+            const roots = ws.getTopBlocks(false).filter((b) => BLOCKY_ROOT_TRIGGERS.has(b.type));
+            showOrEdges = roots.some((b) => b.type === "b_trig_or");
+        }
+    } catch (e) { /* ignore */ }
+    if (showOrEdges) {
+        contents.push({
             kind: "category",
             name: "OR edges",
             colour: "#6B8CAE",
@@ -289,7 +520,9 @@ function blockyToolboxDefinition(_presentTypes) {
                 { kind: "block", type: "b_trig_device_edge" },
                 { kind: "block", type: "b_trig_event_edge" }
             ]
-        },
+        });
+    }
+    contents.push(
         {
             kind: "category",
             name: "Cases",
@@ -314,7 +547,7 @@ function blockyToolboxDefinition(_presentTypes) {
                 { kind: "block", type: "b_action_event" }
             ]
         }
-    ];
+    );
     return { kind: "categoryToolbox", contents };
 }
 
@@ -431,6 +664,7 @@ function blockyEnforceUniqueness(forceToolbox) {
                 blockyMoveCaseChain(b, keep);
                 try { b.dispose(false); changed = true; } catch (e) { /* ignore */ }
             });
+            blockyRefreshCaseMatchLabels(keep.getNextBlock());
         }
         BlockyRT.pendingCreateRootId = null;
         const seen = new Map();
@@ -451,7 +685,8 @@ function blockyEnforceUniqueness(forceToolbox) {
         if (wasEnabled) Events.enable();
         if (!Events.isEnabled()) Events.enable();
         BlockyRT.enforcing = false;
-        if (changed) blockyRefreshToolbox();
+        // Always refresh — OR-edges category depends on whether root is “When any of”.
+        blockyRefreshToolbox();
     }
 }
 
@@ -496,7 +731,13 @@ function blockyMkBlock(type, fields, x, y) {
     const b = ws.newBlock(type);
     if (fields) {
         Object.entries(fields).forEach(([k, v]) => {
-            try { if (v != null && v !== "") b.setFieldValue(String(v), k); } catch (e) { /* ignore */ }
+            if (v == null || v === "") return;
+            try {
+                b.setFieldValue(String(v), k);
+            } catch (e) {
+                // Usually means eid missing from dropdown — open-rule inject should prevent this.
+                console.warn(`Blocky: could not set ${type}.${k}=${v}`, e);
+            }
         });
     }
     if (typeof x === "number" && typeof y === "number") b.moveBy(x, y);
@@ -601,7 +842,7 @@ function blockyApp() {
         showHiddenEntities: false,
         editorMode: "blockly",
         blocklyFullscreen: false,
-            blocklySchemaVersion: 26,
+            blocklySchemaVersion: 30,
         blocklyUiTick: 0,
         eventFamilies: ["blinds", "twilight_evening", "twilight_morning", "sauna", "ir", "cinema"],
         eventFamilyLabels: {
@@ -716,17 +957,29 @@ function blockyApp() {
             return "badge-info";
         },
 
-        deviceTypeLabel(type) {
+        deviceTypeLabel(type, origin, idx) {
             const t = String(type || "").toLowerCase();
+            let o = String(origin || "").toLowerCase();
+            if ((t === "speaker" || t === "media_player") && !o) {
+                const n = Number(idx);
+                if (n >= 60000 && n < 61000) o = "sonos";
+                else if (n >= 61000 && n < 62000) o = "onkyo";
+            }
+            if (t === "speaker" || t === "media_player") {
+                if (o === "onkyo") return "Onkyo";
+                if (o === "sonos") return "Sonos";
+                return "speaker";
+            }
             const map = {
                 blinds: "blinds", switch: "switch", light: "light", hue: "light",
-                speaker: "speaker", media_player: "speaker", scene: "scene"
+                scene: "scene", motion: "motion"
             };
             return map[t] || t || "device";
         },
 
         entityDisplayLabel(opt) {
-            return `${opt.name} · ${this.deviceTypeLabel(opt.type)}`;
+            if (opt && opt.typeLabel) return `${opt.name} · ${opt.typeLabel}`;
+            return `${opt.name} · ${this.deviceTypeLabel(opt.type, opt.origin, opt.idx)}`;
         },
 
         eventFamilyLabel(fam) {
@@ -817,20 +1070,7 @@ function blockyApp() {
             return this.hardDenyPrefixes.some((p) => v.startsWith(p));
         },
 
-        collectEntityIdsFromRules(rules) {
-            const out = new Set();
-            const visit = (node) => {
-                if (Array.isArray(node)) { node.forEach(visit); return; }
-                if (!node || typeof node !== "object") return;
-                if (node.entity_id) out.add(String(node.entity_id));
-                Object.values(node).forEach(visit);
-            };
-            visit(rules);
-            return out;
-        },
-
-        rebuildEntityOptions(deviceMetadata, automations) {
-            const usedEntityIds = this.collectEntityIdsFromRules(automations || []);
+        rebuildEntityOptions(deviceMetadata, _automations) {
             const opts = [];
             for (const [idx, meta] of Object.entries(deviceMetadata || {})) {
                 if (!meta || typeof meta !== "object") continue;
@@ -839,44 +1079,84 @@ function blockyApp() {
                 const type = meta.type ? String(meta.type) : "unknown";
                 if (type === "scene") continue;
                 const labelName = meta.name ? String(meta.name) : eid;
+                let origin = meta.origin ? String(meta.origin) : "";
+                const idxNum = Number(idx);
+                if ((type === "speaker" || type === "media_player") && !origin) {
+                    if (idxNum >= 60000 && idxNum < 61000) origin = "sonos";
+                    else if (idxNum >= 61000 && idxNum < 62000) origin = "onkyo";
+                }
+                const typeLabel = this.deviceTypeLabel(type, origin, idxNum);
                 opts.push({
                     eid,
-                    idx: Number(idx),
+                    idx: idxNum,
                     name: labelName,
                     label: labelName,
                     type,
-                    softHidden: Boolean(meta.hidden) && !usedEntityIds.has(eid)
+                    origin,
+                    typeLabel,
+                    // Honor Explorer soft-hide; do not auto-unhide just because another rule references it.
+                    // Open-rule eids are re-added in blocklyEntityDropdownOptions for round-trip.
+                    softHidden: Boolean(meta.hidden)
                 });
             }
             opts.sort((a, b) => a.name.localeCompare(b.name));
             this.entityOptions = opts;
         },
 
-        firstEntityId() {
-            const first = this.visibleEntityOptions[0] || this.entityOptions[0];
-            return first ? first.eid : "";
+        firstEntityId(role = "trigger") {
+            const opts = this.blocklyEntityDropdownOptions({ role });
+            const first = opts.find((o) => o[1]);
+            return first ? first[1] : "";
         },
 
-        blocklyEntityDropdownOptions() {
-            const opts = this.visibleEntityOptions.map((o) => [this.entityDisplayLabel(o), o.eid]);
-            // Guarantee eids referenced by the open rule appear (Blockly rejects unknown values).
+        /**
+         * role: "trigger" | "condition" | "action"
+         * Sensors/temp excluded; motion OK as trigger only; actions = actuators only.
+         * Round-trip guarantee is role-scoped — action eids must not leak into When-device.
+         */
+        blocklyEntityDropdownOptions(optsIn) {
+            const role = (optsIn && optsIn.role) || "action";
+            const base = this.visibleEntityOptions.filter((o) => blockyEntityAllowedForRole(o, role));
+            const opts = base.map((o) => [this.entityDisplayLabel(o), o.eid]);
             const seen = new Set(opts.map((o) => o[1]));
             const add = (eid) => {
                 if (!eid || seen.has(eid) || this.isHardDeniedEntityId(eid)) return;
+                // Always include open-rule eids for this role (soft-hidden / motion / etc.)
+                // so Blockly setFieldValue does not fall back to the first catalog entry.
                 seen.add(eid);
-                opts.push([`${eid} · (missing metadata)`, eid]);
+                const meta = (this.entityOptions || []).find((o) => o.eid === eid);
+                if (meta) {
+                    opts.push([this.entityDisplayLabel(meta), eid]);
+                } else {
+                    opts.push([`${eid} · (missing metadata)`, eid]);
+                }
             };
             try {
                 const rule = JSON.parse(this.editor.ruleJson || "{}");
-                const visit = (node) => {
-                    if (Array.isArray(node)) { node.forEach(visit); return; }
-                    if (!node || typeof node !== "object") return;
-                    if (node.entity_id) add(String(node.entity_id));
-                    Object.values(node).forEach(visit);
-                };
-                visit(rule);
+                this._ruleEntityIdsForRole(rule, role).forEach(add);
             } catch (e) { /* ignore */ }
             return opts.length ? opts : [["(no entities)", ""]];
+        },
+
+        /** Only eids that belong in this picker role (prevents action→trigger leak). */
+        _ruleEntityIdsForRole(rule, role) {
+            const out = [];
+            const push = (eid) => {
+                if (eid) out.push(String(eid));
+            };
+            if (role === "trigger") {
+                const t = rule.trigger;
+                if (Array.isArray(t)) t.forEach((x) => x && push(x.entity_id));
+                else if (t) push(t.entity_id);
+                return out;
+            }
+            const cases = rule.cases || [];
+            if (role === "condition") {
+                cases.forEach((c) => (c.conditions || []).forEach((cond) => push(cond && cond.entity_id)));
+                return out;
+            }
+            cases.forEach((c) => (c.actions || []).forEach((a) => push(a && a.entity_id)));
+            return out;
         },
 
         blocklyEventDropdownOptions() {
@@ -982,7 +1262,9 @@ function blockyApp() {
             }
             if (BlockyRT.ready) blockyDestroyWorkspace();
             defineBlockyBlocks(Blockly, {
-                entity: () => (BlockyRT.app || this).blocklyEntityDropdownOptions(),
+                entityTrigger: () => (BlockyRT.app || this).blocklyEntityDropdownOptions({ role: "trigger" }),
+                entityCondition: () => (BlockyRT.app || this).blocklyEntityDropdownOptions({ role: "condition" }),
+                entityAction: () => (BlockyRT.app || this).blocklyEntityDropdownOptions({ role: "action" }),
                 family: () => (BlockyRT.app || this).blocklyEventFamilyDropdownOptions(),
                 event: () => (BlockyRT.app || this).blocklyEventDropdownOptions()
             });
@@ -1028,7 +1310,7 @@ function blockyApp() {
                     return blockyMkBlock("b_condition_time", { TOD: c.is || "dark" });
                 }
                 return blockyMkBlock("b_condition_device", {
-                    ENTITY: c.entity_id || this.firstEntityId(),
+                    ENTITY: c.entity_id || this.firstEntityId("condition"),
                     STATE: c.is || "ON"
                 });
             });
@@ -1040,6 +1322,7 @@ function blockyApp() {
                     return blockyMkBlock("b_action_event", { EVENT: a.event });
                 }
                 if (a.entity_id) {
+                    // Phase 6C: move rich fields onto the action block (keyed by entity alone can collide).
                     BlockyRT.richByEntity[a.entity_id] = {
                         preset: a.preset || "",
                         bri: a.bri ?? "",
@@ -1049,7 +1332,7 @@ function blockyApp() {
                     };
                 }
                 return blockyMkBlock("b_action_device", {
-                    ENTITY: a.entity_id || this.firstEntityId(),
+                    ENTITY: a.entity_id || this.firstEntityId("action"),
                     STATE: a.state || "ON"
                 });
             });
@@ -1057,7 +1340,10 @@ function blockyApp() {
 
         _caseBlocks(cases) {
             return (cases || []).map((c) => {
-                const match = (c.to_state === "ON" || c.to_state === "OFF") ? c.to_state : "NONE";
+                const match = (
+                    c.to_state === "ON" || c.to_state === "OFF"
+                    || c.to_state === "OPEN" || c.to_state === "CLOSED"
+                ) ? c.to_state : "NONE";
                 const blk = blockyMkBlock("b_case", { MATCH: match });
                 blockyConnectChain(blk, "CONDS", this._conditionBlocks(c.conditions));
                 blockyConnectChain(blk, "ACTIONS", this._actionBlocks(c.actions));
@@ -1099,7 +1385,20 @@ function blockyApp() {
                 if (root && root.type === "b_trig_family" && typeof root.updateScheduleHint_ === "function") {
                     root.updateScheduleHint_(root.getFieldValue("FAMILY"));
                     blockyRefreshCaseMatchLabels(root.getNextBlock());
+                } else if (root) {
+                    blockyRefreshCaseMatchLabels(root.getNextBlock());
                 }
+
+                // Coerce action/condition STATE to type-valid options after load.
+                ws.getAllBlocks(false).forEach((b) => {
+                    if (b.type === "b_action_device") {
+                        blockyCoerceFieldToOptions(b, "STATE", blockyActionStateOptions);
+                    } else if (b.type === "b_condition_device") {
+                        blockyCoerceFieldToOptions(b, "STATE", blockyConditionStateOptions);
+                    } else if (b.type === "b_case") {
+                        blockyCoerceFieldToOptions(b, "MATCH", blockyCaseMatchOptions);
+                    }
+                });
 
                 if (ws.render) ws.render();
                 this.resizeBlockly();
@@ -1193,18 +1492,23 @@ function blockyApp() {
             } else if (root.type === "b_trig_event") {
                 trigger = { event: root.getFieldValue("EVENT") };
             } else {
-                throw new Error("Unsupported trigger block. Use When device / event / schedule window / When any of.");
+                throw new Error("Unsupported trigger block. Use When device / event / schedule (start→end) / When any of.");
             }
 
             const cases = [];
             let cur = caseStart;
+            // Event / OR: MATCH is conditions-gate only — never persist to_state from a stale ON/OFF.
+            const matchWritesToState = root.type === "b_trig_device" || root.type === "b_trig_family";
             while (cur && cur.type === "b_case") {
                 const match = cur.getFieldValue("MATCH");
                 const conds = this._readConditions(cur.getInputTargetBlock("CONDS"));
                 const acts = this._readActions(cur.getInputTargetBlock("ACTIONS"));
                 if (!acts.length) throw new Error("Each case needs at least one action.");
                 const c = { actions: acts };
-                if (match === "ON" || match === "OFF") c.to_state = match;
+                if (matchWritesToState && (match === "ON" || match === "OFF"
+                    || match === "OPEN" || match === "CLOSED")) {
+                    c.to_state = match;
+                }
                 if (conds.length) c.conditions = conds;
                 cases.push(c);
                 cur = cur.getNextBlock();
@@ -1282,8 +1586,8 @@ function blockyApp() {
                 scene: false,
                 require_confirmation: false,
                 ruleJson: JSON.stringify({
-                    trigger: { entity_id: this.firstEntityId() },
-                    cases: [{ to_state: "ON", actions: [{ entity_id: this.firstEntityId(), state: "ON" }] }]
+                    trigger: { entity_id: this.firstEntityId("trigger") },
+                    cases: [{ to_state: "ON", actions: [{ entity_id: this.firstEntityId("action"), state: "ON" }] }]
                 }, null, 2)
             };
         },

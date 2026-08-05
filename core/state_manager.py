@@ -601,18 +601,23 @@ class StateManager:
             existing = self._state.device_metadata.get(meta_idx)
             if not isinstance(existing, dict):
                 existing = {}
+            # Keep origin/name when the event omits them (e.g. Sonos poll without device_type wipe).
+            resolved_origin = meta_origin if meta_origin is not None else existing.get("origin")
+            resolved_name = meta_name if meta_name is not None else existing.get("name")
             if (not existing or existing.get("type") != meta_type or existing.get(
-                    "name") != meta_name or existing.get("origin") != meta_origin):
+                    "name") != resolved_name or existing.get("origin") != resolved_origin):
                 new_meta = {
-                    "name": meta_name or f"idx_{meta_idx}",
+                    "name": resolved_name or f"idx_{meta_idx}",
                     "type": meta_type,
-                    "origin": meta_origin,
+                    "origin": resolved_origin,
                     "hidden": int(meta_idx) in set(int(x) for x in (self._state.system.hidden_explorer_idxs or [])),
                 }
                 if existing.get("hue_kind"):
                     new_meta["hue_kind"] = existing["hue_kind"]
                 if existing.get("entity_id"):
                     new_meta["entity_id"] = existing["entity_id"]
+                if existing.get("max_volume") is not None and "max_volume" not in new_meta:
+                    new_meta["max_volume"] = existing["max_volume"]
                 self._state.device_metadata[meta_idx] = new_meta
                 self.entity_registry.ensure(int(meta_idx), new_meta)
                 # Do not save per-event — flush once after the queue drain (see worker).

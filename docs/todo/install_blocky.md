@@ -94,7 +94,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE**. Phase **6B ✅ DONE** (incl. SYNC→ON/OFF on Pi). Next: **6C** (rich action UX). Phase 7 = soft-hide UI; Phase 8 = lighting UI.
+**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE**. Phase **6B ✅ DONE** (incl. SYNC→ON/OFF on Pi). Contextual Blockly pickers (type-aware states, case match by trigger, OR-edges toolbox) shipped as a **6B follow-on**. Next: **6C** (rich action UX). Phase 7 = soft-hide UI; Phase 8 = lighting UI.
+
+**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog. **Motion** is allowed as **When device** trigger only (garage/toilet); never as action. Soft-hidden / out-of-catalog eids that appear on the **open rule** are always listed for that picker role so Blockly does not fall back to the first device (e.g. `53?`). Actions = actuators only. Re-enable broader sensor pickers when needed.
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
@@ -125,6 +127,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 1. Device pickers from **`device_metadata`** (respect deny-list).
 2. Event pickers from friendly event dictionary.
 3. Users never type `entity_id`.
+4. **Follow-up:** sensors / temp / power / energy / fluid omitted from pickers; motion = trigger-only; actions = actuators only — see status note above.
 
 ### Phase 4 — UI blocks (Blockly hybrid) ✅ DONE
 
@@ -212,7 +215,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 **Goal:** author rich actions in Blocky without hand-YAML. Engine already supports these payloads; 6C is **editor UX + pickers** only.
 
 1. **Hue presets** — e.g. `preset: "relax_red"` (and related bri/xy if needed) via dropdown from known presets; round-trip with device ON/scene actions.
-2. **Blinds position** — operator-facing **open %** (e.g. “open 10%” = 90% closed); map to stored 0–100 `state` per existing engine convention; document the mapping in-phase.
+2. **Blinds position** — operator-facing **open %** (e.g. “open 10%” = 90% closed); map to stored 0–100 `state` per existing engine convention; document the mapping in-phase. (Interim: action dropdown already limits blinds to `0` / `100`.)
 3. **Sonos** — `volume` and `station` fields (station keys from config dictionary); enough to edit live rules like `pc_monitors` ON branch without JSON.
 
 **Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI, Phase 8 lighting config UI.
@@ -222,7 +225,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 **Today (no UI):** soft-hide is already one runtime concept (D1) — `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes` → `hidden_explorer_idxs` / `meta.hidden` — but operators still face two YAML homes (`automations.auto.yaml` vs `config_zwave.auto.yaml`).
 
 **Phase 7 goal:** one operator-facing soft-hide model and admin UI (Blocky sibling page or Admin section):
-1. **One mental model** — “hide this `entity_id` from Explorer / Blocky pickers” is one action (D1 soft-hide; auto-unhide when referenced in automations unchanged).
+1. **One mental model** — “hide this `entity_id` from Explorer / Blocky pickers” is one action (D1 soft-hide). Blocky respects soft-hide unless “Show Explorer-hidden devices” is on (open-rule eids still listed for edit).
 2. **One edit surface** — view/edit the full soft-hide set as a single list (or clear union), not an exclude editor plus a footnote about Z-Wave.
 3. **Storage** — either collapse `hidden_nodes` into `deviceexplorer_exclude` (Z-Wave UI writes the same key), or keep dual files with the UI as the single writer of the union; runtime already treats them as one list.
 
@@ -267,7 +270,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 1. **Deny-list = D1 (role-aware):**
    * **Hard deny** (never in trigger / condition / action pickers): `switch.safety.*`, `switch.ssr.*`, host/infra sensors (`sensor.generic.host_*`, `sensor.temp_hum.host_*`, `sensor.generic.wanos_db_size`), virtual/internal (`90001` vent lock).
-   * **Soft hide** (picker default off; “Show hidden” / advanced): union of `deviceexplorer_exclude` ∪ zwave `hidden_nodes`, **except** any `entity_id` already referenced in automations (auto-unhide so bathroom physicals / `living_special` / `switch.pc` stay editable).
+   * **Soft hide** (picker default off; “Show Explorer-hidden devices”): union of `deviceexplorer_exclude` ∪ zwave `hidden_nodes`. Soft-hidden devices stay out of pickers unless the checkbox is on. **Exception:** eids already used in the **open rule** (same picker role) remain listed so that rule can still round-trip / edit.
    * Everything else in live `device_metadata` (status ≠ removed) is allow.
 2. **YAML branch keys = Y1:** trigger without edge state; top-level `on:` / `off:` each with optional `conditions` + `actions`. One-sided = omit the unused key. Event pairs use the same ON/OFF metaphor (mapped via curated event dictionary).
 3. **Event dropdown = E1:** curated allow-list with friendly labels (not full `EventType`). Starter set = events already used in automations + intentional scene/schedule hooks; exclude toggles, telemetry, heartbeats, config/bus internals.
@@ -473,8 +476,8 @@ Use this as strict phase gates. Do not mark a phase complete unless all items ar
 
 - [x] **Device picker policy:** D1 is enforced in UI and backend-facing payload shaping:
   - hard-deny eids never appear/selectable,
-  - soft-hidden eids are hidden by default and visible only via explicit toggle,
-  - eids already used by automations remain visible/editable.
+  - soft-hidden eids are hidden by default and visible only via “Show Explorer-hidden devices”,
+  - eids already used by the **open rule** (same picker role) remain listed so that rule can edit/round-trip.
 - [x] **Event picker policy:** E1-v1 curated events are rendered with friendly labels (no raw key-only UX by default).
 - [x] **Event family behavior:** explicit pair families are respected for branched event trigger UX (no suffix heuristics).
 - [x] **No free-text dependency for normal flow:** standard rule authoring works end-to-end without typing raw `entity_id` or raw event keys (flat fallback mode remains available by design).

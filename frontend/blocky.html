@@ -172,7 +172,8 @@
                         </p>
                         <p class="text-[11px] text-base-content/50 max-w-xl">
                             Trigger wakes the rule; cases are ordered if / else-if / else.
-                            One device trigger + ON/OFF cases (device-becomes edges only inside “When any of”).
+                            Match options follow the trigger (device ON/OFF or blinds OPEN/CLOSED; schedule start/end; event/OR = conditions gate).
+                            Action/condition states follow device type. Speakers show as Sonos/Onkyo. OR edges only when root is “When any of”.
                             Rich fields (preset, volume, …) round-trip; authoring UX is Phase 6C.
                         </p>
                     </div>
@@ -205,7 +206,7 @@
                         <div class="text-[11px] text-base-content/60" x-show="showBlocklyWorkspace && !blocklyFullscreen">
                             Trigger → chain of <b>if</b> cases → actions.
                             To change trigger type, drag another from <b>Trigger</b> (cases stay attached).
-                            Schedule window: start/end edges (e.g. morning-on → sunrise); not the same as blinds open/close.
+                            Schedule (start→end): paired edges (e.g. morning-on → sunrise); not the same as blinds open/close.
                             Snap blocks fully into notches · unsnapped leaves block Save · trash deletes.
                         </div>
                     </div>

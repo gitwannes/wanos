@@ -371,7 +371,7 @@ automations:
           - entity_id: switch.waskot
             state: "OFF"
     id: ce50613a-8f88-496d-a078-10facd819776
-  - name: "gang_boven_berging_OFF"
+  - name: gang_boven_berging_OFF
     scene: false
     require_confirmation: false
     trigger:
@@ -379,7 +379,7 @@ automations:
     cases:
       - to_state: OFF
         actions:
-          - entity_id: switch.slpk_liene
+          - entity_id: switch.berging_2e
             state: "OFF"
     id: 513ef949-cd33-4a7d-8417-4959c4c829d2
   - name: "Spare Button: Hue is ON -> Trigger ALL OFF"
@@ -438,7 +438,7 @@ automations:
           - entity_id: switch.licht_living
             state: "OFF"
     id: 48e294b0-8784-40b6-a9eb-cf6e5a991407
-  - name: "PC ON/OFF -> PC Aux ON/OFF"
+  - name: PC ON/OFF -> PC Aux ON/OFF
     scene: false
     require_confirmation: false
     trigger:
@@ -453,16 +453,16 @@ automations:
           - entity_id: switch.pc_monitors
             state: "OFF"
     id: 06b759d4-5636-4063-8657-ed72b5b5deb7
-  - name: "PC OFF -> Buro Schemer FORCE OFF"
+  - name: PC OFF -> Buro Schemer FORCE OFF
     scene: false
     require_confirmation: false
     trigger:
-      entity_id: switch.pc
+      entity_id: switch.pc_monitors
     cases:
       - to_state: OFF
         actions:
           - entity_id: switch.buro_wannes_schemer
-            state: "FORCE_OFF"
+            state: FORCE_OFF
     id: 1a1bdfaa-1b8e-40aa-b20a-3002411ec7ac
   - name: "PC Aux ON -> Buro Schemer + Sonos ON"
     scene: false

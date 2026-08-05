@@ -140,6 +140,27 @@ class AutomationEngine:
         return now < sunrise or now > sunset
 
     @staticmethod
+    def _normalize_edge_state(raw: Any, meta: Any = None) -> str:
+        """Normalize trigger/event states for comparison (blinds OPEN↔0, CLOSED↔100)."""
+        s = str(raw).strip() if raw is not None else ""
+        su = s.upper()
+        dtype = ""
+        if isinstance(meta, dict):
+            dtype = str(meta.get("type") or "").lower()
+        if dtype in ("blinds", "shutter"):
+            if su in ("0", "OPEN"):
+                return "OPEN"
+            if su in ("100", "CLOSED"):
+                return "CLOSED"
+            return su
+        return su
+
+    @staticmethod
+    def _states_match(expected: Any, actual: Any, meta: Any = None) -> bool:
+        return AutomationEngine._normalize_edge_state(expected, meta) == AutomationEngine._normalize_edge_state(
+            actual, meta)
+
+    @staticmethod
     def evaluate(event: Event, state: SystemState) -> List[Event]:
         bathroom_vent_idx = AutomationEngine.resolve_entity_id(
             state, AutomationEngine.ENTITY_BATHROOM_VENT)
@@ -186,7 +207,8 @@ class AutomationEngine:
                 # Trigger Type A: Device State Change (entity_id → idx)
                 if trigger_idx is not None and t.state:
                     if event_name == "HUB_STATE_CHANGED" and is_transition:
-                        if trigger_idx == event_idx and t.state == new_state:
+                        if trigger_idx == event_idx and AutomationEngine._states_match(
+                                t.state, new_state, state.device_metadata.get(trigger_idx, {})):
                             trigger_matched = True
                             trigger_reason = f"IDX {event_idx} -> {new_state}"
                             break
@@ -195,7 +217,8 @@ class AutomationEngine:
                     elif event_name == "DOOR_CHANGED":
                         is_open = payload.get("is_open")
                         mapped_state = "ON" if is_open else "OFF"
-                        if trigger_idx == event_idx and t.state == mapped_state:
+                        if trigger_idx == event_idx and AutomationEngine._states_match(
+                                t.state, mapped_state, state.device_metadata.get(trigger_idx, {})):
                             trigger_matched = True
                             trigger_reason = f"Door Sensor {event_idx} -> {mapped_state}"
                             # Temporarily inject the mapped state into the local loop context
