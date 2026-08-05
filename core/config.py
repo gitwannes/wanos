@@ -52,6 +52,7 @@ class PinMappingConfig(BaseModel):
 
 class SaunaRuntimeConfig(BaseModel):
     default_sauna_setpoint: int
+    min_temp: int
     max_temp: int
     kp: float
     ki: float

@@ -429,6 +429,7 @@ class StateManager:
         # This prevents follow-up integration bridge setups from wiping running metrics or resetting active loops.
         if not hasattr(self, "sauna_logic"):
             self._state.sauna.target_temp = float(self._config.sauna.default_sauna_setpoint)
+            self._state.sauna.min_temp = float(self._config.sauna.min_temp)
             self._state.sauna.max_temp = float(self._config.sauna.max_temp)
             self._state.boot_seed = self._config.boot_seed
 

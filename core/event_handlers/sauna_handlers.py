@@ -2,7 +2,9 @@
 import time
 from typing import Any, Set, Tuple
 from loguru import logger
-from core.models import Event, EventType
+from pydantic import ValidationError
+from core.models import Event, EventType, SaunaSetpointPayload
+from logic.alert_manager import AlertManager
 from core.well_known_entities import (
     ENTITY_IR_STATUS,
     ENTITY_SAFETY_SSR,
@@ -104,10 +106,23 @@ async def handle_sauna_timer_expired(event: Event, manager: Any) -> Tuple[bool, 
 async def handle_sauna_setpoint_changed(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
     new_target = payload.get("target")
-    if new_target is not None:
-        manager._state.sauna.target_temp = min(float(new_target), manager._state.sauna.max_temp)
-        return True, {"sauna"}
-    return False, set()
+    if new_target is None:
+        return False, set()
+
+    try:
+        parsed = SaunaSetpointPayload(target=new_target)
+    except ValidationError:
+        await manager.logger.error(
+            f"Command rejected: invalid sauna setpoint payload (target={new_target!r})"
+        )
+        return AlertManager.process_alert(
+            manager._state, "🟡 Command rejected: invalid sauna setpoint"
+        )
+
+    min_temp = manager._state.sauna.min_temp or float(manager._config.sauna.min_temp)
+    max_temp = manager._state.sauna.max_temp or float(manager._config.sauna.max_temp)
+    manager._state.sauna.target_temp = max(min_temp, min(parsed.target, max_temp))
+    return True, {"sauna"}
 
 
 async def handle_sauna_modulation_updated(event: Event, manager: Any) -> Tuple[bool, Set[str]]:

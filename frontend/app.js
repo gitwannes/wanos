@@ -52,6 +52,7 @@ function wanosApp() {
             sauna: {
                 active: false,
                 target_temp: null,
+                min_temp: null,
                 max_temp: null,
                 hold_mode: "autohold",
                 modulation_pwm: 0,

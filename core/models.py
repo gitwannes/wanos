@@ -1,5 +1,6 @@
 # --- file: core/models.py ---
-from pydantic import BaseModel, Field
+import math
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Any, Dict, List, Union
 from enum import Enum
 
@@ -131,6 +132,23 @@ class Event(BaseModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
+class SaunaSetpointPayload(BaseModel):
+    """Validated target for SAUNA_SETPOINT_CHANGED (handler-owned, not on Event envelope)."""
+
+    target: float
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def coerce_finite_target(cls, v: Any) -> float:
+        try:
+            val = float(v)
+        except (TypeError, ValueError):
+            raise ValueError("non-numeric target")
+        if not math.isfinite(val):
+            raise ValueError("non-finite target")
+        return val
+
+
 class SensorsState(BaseModel):
     outside_temp: Optional[float] = None
     outside_hum: Optional[int] = None
@@ -160,6 +178,7 @@ class SensorsState(BaseModel):
 class SaunaState(BaseModel):
     active: bool = False
     target_temp: Optional[float] = None
+    min_temp: Optional[float] = None
     max_temp: Optional[float] = None
     hold_mode: str = "nohold"
     modulation_pwm: int = 0

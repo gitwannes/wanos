@@ -158,6 +158,7 @@ history:
 # ==============================================================================
 sauna:
   default_sauna_setpoint: 80     # Default sauna temperature setpoint
+  min_temp: 50                   # Minimum setpoint that can be set in the UI
   max_temp: 95                   # Maximum setpoint that can be set in the UI
   kp: 3.0                        # PID Proportional
   ki: 0.01                       # PID Integral
