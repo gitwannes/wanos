@@ -40,6 +40,13 @@ from core.automations_store import (
     read_automations,
     update_automation,
 )
+from core.automations_schema_v2 import (
+    is_v2_rule,
+    legacy_to_v2,
+    ordered_v2_dict,
+    v2_to_editor_projection,
+    validate_v2_entity_ids,
+)
 from core.automations_api_models import (
     BranchedAutomationRuleRequest,
     FlatAutomationRuleRequest,
@@ -449,70 +456,88 @@ async def update_zwave_config(request: ZwaveConfigRequest, req: Request):
 
 @app.get("/api/automations")
 async def list_automations(req: Request) -> dict[str, Any]:
-    """Admin: list stored automations in Y1 branched shape (for on/off rules) + flat SYNC rules."""
+    """Admin: list automations. Disk may be v2; response projects to Y1/flat when lossless for Blocky."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
-    rules = read_automations()
-    return {"automations": rules}
+    raw = read_automations()
+    out = []
+    for r in raw:
+        if not isinstance(r, dict):
+            continue
+        if is_v2_rule(r):
+            out.append(v2_to_editor_projection(dict(r)))
+        else:
+            out.append(r)
+    return {"automations": out}
+
+
+def _persist_automation_payload(rule: dict[str, Any]) -> dict[str, Any]:
+    """
+    Accept Y1 / flat / v2 payloads; always persist canonical v2 (Phase 6A).
+    """
+    import uuid
+
+    # Prefer validating known legacy shapes when not already v2
+    if not is_v2_rule(rule) and (("on" in rule) or ("off" in rule)):
+        parsed = BranchedAutomationRuleRequest.model_validate(rule)
+        intermediate = parsed.model_dump(exclude_none=True, by_alias=True)
+    elif not is_v2_rule(rule):
+        parsed = FlatAutomationRuleRequest.model_validate(rule)
+        intermediate = parsed.model_dump(exclude_none=True, by_alias=True)
+    else:
+        intermediate = rule
+
+    v2 = ordered_v2_dict(legacy_to_v2(intermediate))
+    if not v2.get("id"):
+        v2["id"] = str(uuid.uuid4())
+    validate_v2_entity_ids(v2)
+    if not v2.get("cases"):
+        raise ValueError("Automation must contain at least one case with actions.")
+    for c in v2["cases"]:
+        if not (c.get("actions") or []):
+            raise ValueError("Each case must contain at least one action.")
+    return v2
 
 
 @app.post("/api/automations")
 async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any]:
-    """Admin: create a new automation rule in automations.auto.yaml (surgical append; comments kept)."""
+    """Admin: create automation — persisted as schema v2 only."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
-    # Detect Y1 branched vs flat by presence of on/off keys.
     try:
-        if ("on" in rule) or ("off" in rule):
-            parsed = BranchedAutomationRuleRequest.model_validate(rule)
-        else:
-            parsed = FlatAutomationRuleRequest.model_validate(rule)
+        new_rule = _persist_automation_payload(rule)
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Invalid automation payload: {e}"})
 
-    # Backend-only rule identity (B1): if missing, generate it here.
-    import uuid
-    new_rule = parsed.model_dump(exclude_none=True, by_alias=True)
-    if not new_rule.get("id"):
-        new_rule["id"] = str(uuid.uuid4())
-
     current = read_automations()
-    if any(isinstance(r, dict) and r.get("id") == new_rule["id"] for r in current if r.get("id") is not None):
+    if any(isinstance(r, dict) and r.get("id") == new_rule["id"] for r in current if isinstance(r, dict)):
         return JSONResponse(status_code=409, content={"error": "Duplicate automation id."})
 
-    # Persist exactly the stored shape (branched if on/off, otherwise flat).
-    # Surgical append keeps comments on existing rules + other top-level keys.
     append_automation(new_rule)
-
-    # Hot reload logic config + engine cache
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
-    return {"status": "Success", "automation": new_rule}
+    return {"status": "Success", "automation": v2_to_editor_projection(new_rule)}
 
 
 @app.put("/api/automations")
 async def update_automation_api(rule: dict[str, Any], req: Request) -> dict[str, Any]:
-    """Admin: replace an automation rule (identified by rule.id) inside automations.auto.yaml."""
+    """Admin: replace automation by id — persisted as schema v2 only."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
     try:
-        if ("on" in rule) or ("off" in rule):
-            parsed = BranchedAutomationRuleRequest.model_validate(rule)
-        else:
-            parsed = FlatAutomationRuleRequest.model_validate(rule)
+        dumped = _persist_automation_payload(rule)
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Invalid automation payload: {e}"})
 
-    if not getattr(parsed, "id", None):
+    if not dumped.get("id"):
         return JSONResponse(status_code=400, content={"error": "PUT requires a stable automation rule `id`."})
 
-    dumped = parsed.model_dump(exclude_none=True, by_alias=True)
-    if not update_automation(parsed.id, dumped):
-        return JSONResponse(status_code=404, content={"error": f"Automation id '{parsed.id}' not found."})
+    if not update_automation(dumped["id"], dumped):
+        return JSONResponse(status_code=404, content={"error": f"Automation id '{dumped['id']}' not found."})
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
-    return {"status": "Success", "automation": dumped}
+    return {"status": "Success", "automation": v2_to_editor_projection(dumped)}
 
 
 @app.delete("/api/automations")

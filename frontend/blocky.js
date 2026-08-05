@@ -514,6 +514,8 @@ function blockyApp() {
         isFlatBlocklyCompatible(rule) {
             if (rule && rule.isDraft && this.editor.mode === "flat") return true;
             if (!rule || rule.on || rule.off) return false;
+            // Schema v2 multi-case (e.g. merged Cinema) — JSON until Phase 6B canvas.
+            if (Array.isArray(rule.cases)) return false;
             const t = this.normalizeFlatTrigger(rule.trigger);
             if (!t) return false;
             if (t.multi) return false;
@@ -525,6 +527,9 @@ function blockyApp() {
         flatBlocklyBlockedReason(rule) {
             if (rule && rule.isDraft) return "";
             if (!rule || rule.on || rule.off) return "Branched rule — use branched Blockly.";
+            if (Array.isArray(rule.cases)) {
+                return "Schema v2 multi-case rule — JSON until Phase 6B unified canvas.";
+            }
             const t = rule.trigger;
             if (Array.isArray(t) && t.length > 1) {
                 return `Multiple triggers (${t.length}) — Blockly multi-trigger not yet supported.`;
@@ -1168,7 +1173,21 @@ function blockyApp() {
             });
             this.editor.flatActions = this._readStatementChain(actStart, (b) => {
                 if (b.type === "b_action_event") return { kind: "event", event: b.getFieldValue("EVENT") };
-                return { kind: "device", entity_id: b.getFieldValue("ENTITY"), state: b.getFieldValue("STATE"), preset: "", bri: "", xy: "", volume: "", station: "" };
+                const entity = b.getFieldValue("ENTITY");
+                const state = b.getFieldValue("STATE");
+                const prev = (this.editor.flatActions || []).find(
+                    (a) => a && a.kind !== "event" && a.entity_id === entity
+                );
+                return {
+                    kind: "device",
+                    entity_id: entity,
+                    state,
+                    preset: (prev && prev.preset) || "",
+                    bri: (prev && prev.bri) || "",
+                    xy: (prev && prev.xy) || "",
+                    volume: (prev && prev.volume) || "",
+                    station: (prev && prev.station) || ""
+                };
             });
 
             this.infoMessage = "Applied Blockly workspace to flat rule data.";
@@ -1216,7 +1235,21 @@ function blockyApp() {
                 });
                 this.editor.onActions = this._readStatementChain(actStart, (b) => {
                     if (b.type === "b_action_event") return { kind: "event", event: b.getFieldValue("EVENT") };
-                    return { kind: "device", entity_id: b.getFieldValue("ENTITY"), state: b.getFieldValue("STATE"), preset: "", bri: "", xy: "", volume: "", station: "" };
+                    const entity = b.getFieldValue("ENTITY");
+                    const state = b.getFieldValue("STATE");
+                    const prev = (this.editor.onActions || []).find(
+                        (a) => a && a.kind !== "event" && a.entity_id === entity
+                    );
+                    return {
+                        kind: "device",
+                        entity_id: entity,
+                        state,
+                        preset: (prev && prev.preset) || "",
+                        bri: (prev && prev.bri) || "",
+                        xy: (prev && prev.xy) || "",
+                        volume: (prev && prev.volume) || "",
+                        station: (prev && prev.station) || ""
+                    };
                 });
             } else {
                 this.editor.onConditions = [];
@@ -1232,7 +1265,21 @@ function blockyApp() {
                 });
                 this.editor.offActions = this._readStatementChain(actStart, (b) => {
                     if (b.type === "b_action_event") return { kind: "event", event: b.getFieldValue("EVENT") };
-                    return { kind: "device", entity_id: b.getFieldValue("ENTITY"), state: b.getFieldValue("STATE"), preset: "", bri: "", xy: "", volume: "", station: "" };
+                    const entity = b.getFieldValue("ENTITY");
+                    const state = b.getFieldValue("STATE");
+                    const prev = (this.editor.offActions || []).find(
+                        (a) => a && a.kind !== "event" && a.entity_id === entity
+                    );
+                    return {
+                        kind: "device",
+                        entity_id: entity,
+                        state,
+                        preset: (prev && prev.preset) || "",
+                        bri: (prev && prev.bri) || "",
+                        xy: (prev && prev.xy) || "",
+                        volume: (prev && prev.volume) || "",
+                        station: (prev && prev.station) || ""
+                    };
                 });
             } else {
                 this.editor.offConditions = [];
@@ -1406,8 +1453,16 @@ function blockyApp() {
                     );
                 } else {
                     this.flatEditorMode = "json";
-                    editor.flatRuleJson = JSON.stringify(
-                        {
+                    const jsonBody = Array.isArray(rule.cases)
+                        ? {
+                            id: rule.id,
+                            name: rule.name,
+                            scene: !!rule.scene,
+                            require_confirmation: !!rule.require_confirmation,
+                            trigger: rule.trigger,
+                            cases: rule.cases
+                        }
+                        : {
                             id: rule.id,
                             name: rule.name,
                             scene: !!rule.scene,
@@ -1415,10 +1470,8 @@ function blockyApp() {
                             trigger: rule.trigger,
                             conditions: rule.conditions || null,
                             actions: rule.actions || []
-                        },
-                        null,
-                        2
-                    );
+                        };
+                    editor.flatRuleJson = JSON.stringify(jsonBody, null, 2);
                 }
             }
             this.editor = editor;
@@ -1447,9 +1500,12 @@ function blockyApp() {
                 const rulesPayload = await rulesRes.json();
                 const rawRules = (rulesPayload.automations || []).filter((r) => r && typeof r === "object");
                 this.automations = rawRules.map((r) => {
-                    const mode = Object.prototype.hasOwnProperty.call(r, "on") || Object.prototype.hasOwnProperty.call(r, "off")
-                        ? "branched"
-                        : "flat";
+                    let mode = "flat";
+                    if (Object.prototype.hasOwnProperty.call(r, "on") || Object.prototype.hasOwnProperty.call(r, "off")) {
+                        mode = "branched";
+                    } else if (Array.isArray(r.cases)) {
+                        mode = "flat"; // v2 non-projected → JSON editor
+                    }
                     return { ...r, mode };
                 });
 

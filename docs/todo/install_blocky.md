@@ -94,9 +94,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 1–2 **done**, MA migration **done on Pi**, Phase 3 **implemented** (pending Pi smoke), Phase 4 **code complete / not DoD-closed**, Phase 5 **✅ DONE**. Next: close Phase 4 DoD on Pi if still open, then **Phase 6A → 6B → 6C**. Phase 7 = unified soft-hide UI; Phase 8 = lighting auto-off UI.
+**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE** (Pi migrator + GREEN + clean boot). Next: **6B → 6C**. Phase 7 = soft-hide UI; Phase 8 = lighting UI.
 
-### Phase 0 — Blocky prep (decisions at start of Blocky work)
+### Phase 0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
 1. Define **automation device deny-list** (which `entity_id`s / prefixes must not appear in pickers: safety, SSR, system-only, hidden, etc.).
 2. Automations / lighting / excludes already live in **`automations.auto.yaml`** — Blocky writes target that file (`ruamel` surgical write of `automations:`).
@@ -120,18 +120,18 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 2. Add-trigger / add-action binds **`entity_id`**; UI shows **`name`**.
 3. One-sided rules allowed (ON-only or OFF-only); missing branch simply does not match that edge.
 
-### Phase 3 — Semantic dropdowns ✅ IMPLEMENTED (pending operator validation)
+### Phase 3 — Semantic dropdowns ✅ DONE
 
 1. Device pickers from **`device_metadata`** (respect deny-list).
 2. Event pickers from friendly event dictionary.
 3. Users never type `entity_id`.
 
-### Phase 4 — UI blocks (Blockly hybrid) ✅ CODE COMPLETE (DoD open — operator validation)
+### Phase 4 — UI blocks (Blockly hybrid) ✅ DONE
 
 1. WHEN (device / system event) — one trigger; ON/OFF branches (or flat Then).
 2. AND IF (time of day / device state) — **per branch**.
 3. THEN DO (device / event actions) — **per branch** / flat Then.
-4. Canonical template: **`switch.pc_monitors`** (operator confidence check still open).
+4. Canonical template: **`switch.pc_monitors`** (operator confidence check **OK**).
 5. Snapping / uniqueness / Alpine-safe workspace — fixed and verified on minimal harness + live Blocky.
 
 ### Phase 5 — Hardening ✅ DONE
@@ -140,18 +140,31 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 2. [x] Confirm unresolved ids still log+skip without taking down the engine (`resolve_device_ref` WARNING).
 3. [x] Document operator workflow (create rule → save → hot-reload → verify) — see **E) Phase 5 operator runbook** below.
 
-### Phase 6A — Unified schema v2 + migrator 🔜 TODO
+### Phase 6A — Unified schema v2 + migrator ✅ CODE COMPLETE (Pi migrator pending)
 
 **Goal (locked — option B, storage cutover):**
-- **One persisted schema for every automation** — not dual Y1 branched + flat forever. Y1 `on:`/`off:` and flat `conditions`/`actions` become **legacy migrator input** only.
-- Engine can evaluate v2 natively (X2-aligned cases) or expand-at-load interim; **YAML on disk is v2 only** after cutover (no dual write-back).
+- **One persisted schema for every automation** — not dual Y1 branched + flat forever. Y1 `on:`/`off:` and flat `conditions`/`actions` become **legacy migrator/API input** only.
+- Engine expands v2 cases → flat evaluate (X1-style interim). **YAML on disk is v2 only** after migrator `--write`.
+
+**Implemented:**
+- `core/automations_schema_v2.py` — convert / expand / Cinema merge / canonical `name`…`id` last
+- Loader dual-read via `expand_automations_for_engine`
+- API POST/PUT persist **v2 only**; GET projects lossless v2→Y1/flat for Blocky until 6B
+- `helpers/migrate_automations_v2.py` — `--dry-run` / `--write` (+ backup)
+- Blocky: preserve rich action fields on canvas apply; v2 multi-case → JSON fallback
+
+**Operator on Pi:**
+1. Deploy code; `python3 helpers/migrate_automations_v2.py --dry-run`
+2. Review plan (Cinema OFF merge 40→39 rules typical)
+3. `--write` → Admin Debug GREEN (restart or any Blocky save for reload)
+4. Smoke: branched projection, SYNC, Cinema OFF dark/light cases
 
 **Unified schema (v2) — conceptual shape:**
 - `name`, `scene`, `require_confirmation`, …
 - `trigger` — wake-up only: one device, one event/family, or **OR-list** (edge discrimination lives in `cases` when using cases).
-- `cases` — ordered if / else-if / else: matchers (`to_state`, event edge, and/or `conditions`) + `actions`.
-- Action payloads already may include rich keys (`preset`, `bri`, `xy`, `volume`, `station`, numeric blinds `state`) — **schema keeps them**; authoring UX is Phase **6C**.
-- `id` — last key in YAML (see key-order normalize below).
+- `cases` — ordered if / else-if / else: matchers (`to_state`, and/or `conditions`) + `actions`.
+- Action payloads may include rich keys (`preset`, `bri`, `xy`, `volume`, `station`, numeric blinds `state`) — **preserved**; authoring UX is Phase **6C**.
+- `id` — last key in YAML.
 
 **Legacy → v2 map (migrator):**
 
@@ -160,18 +173,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 | Y1 branched device | `trigger: { entity_id }` + case `to_state: ON` / `OFF` (one-sided = one case) |
 | Y1 event-family | `trigger: { event: family }` + cases per ON/OFF edge |
 | Flat `state: ON` (+ conditions) | `trigger: { entity_id }` + one case `to_state: ON` (+ conditions) |
-| Cinema OFF dark + light (two rules) | **Merge** → one rule, two time cases (list unity finished in **6B** UI; merge in migrator here) |
+| Cinema OFF dark + light (two rules) | **Merge** → one rule, two time cases |
 | Multi-trigger OR | `trigger: [ … ]` (OR) + usually one case |
-| SYNC | v2 + `state: SYNC` actions |
-
-**Until 6A ships:** keep Y1 + flat storage (Phase 0–5 baseline).
-
-1. Lock v2 schema + Pydantic/API (trigger + `cases`; SYNC / OR-trigger / `scene` explicit).
-2. One-shot migrator (**no lazy converge**): dry-run → `.bak.<UTC>` → write all rules to v2; merge safe Cinema-style pairs; Admin Debug GREEN + reload. Optional short dual-**read**; dual-**write** forbidden after cutover.
-3. YAML key order: **`name` → body → `id` last** on every rule in the same pass (or immediate follow-up); Blocky/API emit that order thereafter. Preserve section comments where ruamel allows.
-4. **Non-destructive rich fields:** any load/save path used after 6A must **preserve** `preset` / `bri` / `xy` / `volume` / `station` / numeric blinds positions (do not strip on round-trip even before 6C UX exists).
-
-**6A examples:** `pc_monitors` (ex-Y1), flat edge rules, SYNC, merged Cinema YAML shape, `name`…`id` last everywhere.
+| SYNC | v2 + `state: SYNC` on trigger; single case |
 
 ### Phase 6B — One Blockly canvas + list unity 🔜 TODO
 
@@ -433,22 +437,21 @@ Phase 5 does **not** require a rollback rehearsal that depends on hand-edit + Ad
 
 **Decision: stay on X1** (expand-at-load to flat `#on`/`#off` engine rules).
 
-**Rationale:** At Phase 5 closeout, stay on X1. **Revisit X2 in Phase 6A:** native **case** evaluate on unified schema v2 — not a separate forever-Y1 feature.
+**Rationale:** Phase 0–5 closed on X1. **Revisit X2 in Phase 6A:** native **case** evaluate on unified schema v2 — not a separate forever-Y1 feature.
 
 ## 🧭 Next TODO (Option 2 roadmap)
 
-1. **Phase 4 closeout on Pi** (if still open): round-trip + confidence checks.
-2. **Phase 6A:** schema v2 + one-shot migrator + key order + preserve rich action fields on round-trip.
-3. **Phase 6B:** one Blockly canvas + Cinema one list entry + OR-trigger; no complex-flat JSON default.
-4. **Phase 6C:** rich action UX — Hue preset, blinds open %, Sonos volume + station.
-5. **Phase 7:** unified soft-hide UI (“hidden from Explorer / pickers”) — one surface for `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes`.
-6. **Phase 8:** admin UI for `lighting` auto-off in `automations.auto.yaml`.
+1. **Phase 6A:** schema v2 + one-shot migrator + key order + preserve rich action fields on round-trip.
+2. **Phase 6B:** one Blockly canvas + Cinema one list entry + OR-trigger; no complex-flat JSON default.
+3. **Phase 6C:** rich action UX — Hue preset, blinds open %, Sonos volume + station.
+4. **Phase 7:** unified soft-hide UI (“hidden from Explorer / pickers”) — one surface for `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes`.
+5. **Phase 8:** admin UI for `lighting` auto-off in `automations.auto.yaml`.
 
 ## ✅ Definition of Done (Option 2)
 
 Use this as strict phase gates. Do not mark a phase complete unless all items are checked.
 
-### Phase 3 DoD — Semantic pickers + policy enforcement
+### Phase 3 DoD — Semantic pickers + policy enforcement ✅
 
 - [x] **Device picker policy:** D1 is enforced in UI and backend-facing payload shaping:
   - hard-deny eids never appear/selectable,
@@ -459,20 +462,20 @@ Use this as strict phase gates. Do not mark a phase complete unless all items ar
 - [x] **No free-text dependency for normal flow:** standard rule authoring works end-to-end without typing raw `entity_id` or raw event keys (flat fallback mode remains available by design).
 - [x] **Validation UX:** blocked selections show clear user feedback (why blocked + what to do).
 - [x] **Compatibility:** existing rules load/edit/save without semantic drift.
-- [ ] **Regression smoke (operator run on Pi):** create/edit/delete one branched device rule, one branched event-family rule, one flat SYNC rule.
+- [x] **Regression smoke (operator run on Pi):** create/edit/delete one branched device rule, one branched event-family rule, one flat SYNC rule — **OK**.
 
-### Phase 4 DoD — Blockly visual mode (hybrid)
+### Phase 4 DoD — Blockly visual mode (hybrid) ✅
 
 - [x] **Second editor mode exists:** Blockly canvas mode is available alongside the current JSON/form editor.
 - [x] **Fallback preserved:** JSON/form editor remains fully functional and selectable at all times.
-- [ ] **Round-trip safety:** Blockly -> saved YAML -> reload -> reopened in Blockly preserves semantics for:
+- [x] **Round-trip safety:** Blockly -> saved YAML -> reload -> reopened in Blockly preserves semantics for:
   - one-sided ON-only/OFF-only,
   - full ON+OFF branched rules,
   - event-family branched rules,
   - flat SYNC/multi-trigger rules (either editable or clearly marked fallback-only).
 - [x] **Mode boundary clarity:** UI clearly indicates when a rule must be edited in fallback mode (if Blockly cannot represent it yet).
-- [ ] **No schema mutation:** persisted shape remains aligned with locked Y1 + flat compatibility (no ad-hoc new schema).
-- [ ] **Operator confidence checks:** test at least `pc_monitors`, one bathroom pair, one scene-triggered rule from Blockly mode.
+- [x] **No schema mutation (pre-6A):** persisted shape remained Y1 + flat compatible through Phase 4–5 (no ad-hoc schema). Phase **6A** replaces this baseline with unified schema v2 by design.
+- [x] **Operator confidence checks:** `pc_monitors`, bathroom pair, scene-triggered rule from Blockly — **OK**.
 - [x] **Drag/connect correctness:** conditions and actions snap into the branch slots and can be dragged out again; verified on `helpers/blockly_minimal_test.html` and live Blocky (Alpine-safe `BlockyRT` workspace).
 - [x] **Uniqueness:** one trigger / one ON / one OFF / one Then; no duplicate condition/action fingerprints on the canvas (toolbox hides singletons).
 
@@ -490,13 +493,13 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 
 Regression harness (keep): `helpers/blockly_minimal_test.html` (double-click or serve locally).
 
-### Phase 6A DoD — Unified schema v2 + migrator
+### Phase 6A DoD — Unified schema v2 + migrator ✅
 
-- [ ] **Schema v2 locked & implemented:** every live rule persists as trigger + ordered `cases`; Y1/flat not written after cutover.
-- [ ] **Migrator (no lazy converge):** dry-run → backup → write; safe Cinema-style pairs merged in YAML; Admin Debug GREEN + reload.
-- [ ] **Engine:** native case evaluate (preferred) or documented expand-at-load interim; case-aware logs.
-- [ ] **YAML key order:** **`name` → body → `id` last** on all rules; API/Blocky writes stay canonical.
-- [ ] **Rich fields preserved:** round-trip keeps `preset` / `bri` / `xy` / `volume` / `station` / numeric blinds `state` (no silent strip).
+- [x] **Schema v2 locked & implemented:** trigger + ordered `cases`; API writes v2 only after deploy.
+- [x] **Migrator on Pi (no lazy converge):** dry-run → backup → `--write`; Cinema pair merged; Admin Debug GREEN + clean boot (2026-08-05).
+- [x] **Engine:** expand v2 cases → flat evaluate (interim); case labels in runtime ids (`#on`/`#off`/`#cN`).
+- [x] **YAML key order:** **`name` → body → `id` last** on write/migrate.
+- [x] **Rich fields preserved:** Blockly apply keeps preset/volume/station/bri/xy from prior editor state; API/v2 dump keeps them.
 
 ### Phase 6B DoD — One Blockly canvas + list unity
 

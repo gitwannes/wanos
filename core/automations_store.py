@@ -137,31 +137,51 @@ def write_automations(rules: List[Dict[str, Any]]) -> None:
 
 
 def append_automation(rule: Dict[str, Any]) -> None:
-    """Append one rule; preserve comments on existing automations + other top-level keys."""
+    """Append one rule (expected v2 canonical); preserve comments on existing entries."""
+    from core.automations_schema_v2 import legacy_to_v2, ordered_v2_dict, validate_v2_entity_ids
+
+    v2 = ordered_v2_dict(legacy_to_v2(rule))
+    validate_v2_entity_ids(v2)
     root, path = load_automations_roundtrip()
     seq = _ensure_automations_seq(root)
-    item = _to_commented(rule)
+    item = _to_commented(v2)
     _quote_boolish_scalars(item)
     seq.append(item)
     _dump_root(root, path)
 
 
 def update_automation(rule_id: str, rule: Dict[str, Any]) -> bool:
-    """
-    Replace one rule by id in-place. Other list entries (and their comments) stay.
-    Returns False if id not found.
-    """
+    """Replace one rule by id with v2 canonical shape."""
+    from core.automations_schema_v2 import legacy_to_v2, ordered_v2_dict, validate_v2_entity_ids
+
+    v2 = ordered_v2_dict(legacy_to_v2(rule))
+    validate_v2_entity_ids(v2)
+    if v2.get("id") is None:
+        v2["id"] = rule_id
     root, path = load_automations_roundtrip()
     seq = _ensure_automations_seq(root)
     for i, existing in enumerate(seq):
         if isinstance(existing, dict) and existing.get("id") == rule_id:
-            item = _to_commented(rule)
+            item = _to_commented(ordered_v2_dict(v2))
             _quote_boolish_scalars(item)
             seq[i] = item
             _dump_root(root, path)
             return True
     return False
 
+
+def replace_all_automations(rules: List[Dict[str, Any]]) -> None:
+    """Full replace of automations list (migrator). Preserves other top-level keys/comments."""
+    root, path = load_automations_roundtrip()
+    if not isinstance(root, dict):
+        raise ValueError("automations.auto.yaml root must be a mapping")
+    seq = CommentedSeq()
+    for rule in rules:
+        item = _to_commented(rule)
+        _quote_boolish_scalars(item)
+        seq.append(item)
+    root["automations"] = seq
+    _dump_root(root, path)
 
 def delete_automation(rule_id: str) -> bool:
     """Remove one rule by id; preserve comments on remaining entries."""

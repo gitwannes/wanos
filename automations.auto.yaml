@@ -791,23 +791,15 @@ automations:
         state: "0"
     id: f56fb02b-d1b6-4508-bf85-a5808f9c0c39
   - id: f550818e-f1b2-451c-898b-adf3057ca138
-    name: testON
+    name: test1
     scene: false
     require_confirmation: false
     trigger:
       entity_id: switch.buro_wannes_schemer
       state: "ON"
+    conditions:
+      - type: time_of_day
+        is: light
     actions:
       - entity_id: switch.buro_licht
         state: "ON"
-  - name: testOFF
-    scene: false
-    require_confirmation: false
-    trigger:
-      entity_id: switch.53
-    on:
-      conditions: []
-      actions:
-        - entity_id: switch.53
-          state: "ON"
-    id: 3cd3e546-7744-4273-8c5e-59629227d79d
