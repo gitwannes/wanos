@@ -249,9 +249,10 @@
                                         </div>
                                     </template>
 
-                                    <template x-if="item.name.toLowerCase().includes('water') || item.name.toLowerCase().includes('liter')">
+                                    <template x-if="item.name.toLowerCase().includes('water') || item.name.toLowerCase().includes('liter') || item.type === 'fluid'">
                                         <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm">💧</span>
+                                            <span class="text-sm"
+                                                  :class="isHotWaterItem(item) ? 'text-error' : 'text-info'">💧</span>
                                         </div>
                                     </template>
 
@@ -448,6 +449,14 @@
                                 </div>
                             </template>
 
+                            <template x-if="item.type === 'fluid'">
+                                <div class="flex justify-end shrink-0">
+                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                          :class="item.is_dead ? 'text-error' : (isHotWaterItem(item) ? 'text-error' : 'text-info')"
+                                          x-text="item.display_text"></span>
+                                </div>
+                            </template>
+
                             <template x-if="item.type === 'sensor'">
                                 <div class="flex items-center justify-end shrink-0">
                                     <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
@@ -525,23 +534,40 @@
                                     <template x-if="item.type === 'power'">
                                         <span class="text-sm text-warning shrink-0">⚡</span>
                                     </template>
+                                    <template x-if="item.type === 'fluid' || String(item.name || '').toLowerCase().includes('water') || String(item.name || '').toLowerCase().includes('liter')">
+                                        <span class="text-sm shrink-0"
+                                              :class="isHotWaterItem(item) ? 'text-error' : 'text-info'">💧</span>
+                                    </template>
                                     <template x-if="item.type === 'sensor' && String(item.name || '').toLowerCase().includes('volt')">
                                         <span class="text-sm text-info shrink-0">⚡</span>
                                     </template>
                                     <template x-if="item.type === 'sensor' && String(item.name || '').toLowerCase().includes('motion')">
                                         <span class="text-sm shrink-0">🏃</span>
                                     </template>
-                                    <template x-if="!['speaker','blinds','switch','light','temp_hum','temp','hum','energy','power'].includes(item.type) && !(item.type === 'sensor' && (String(item.name || '').toLowerCase().includes('temp') || String(item.name || '').toLowerCase().includes('volt') || String(item.name || '').toLowerCase().includes('motion')))">
+                                    <template x-if="!['speaker','blinds','switch','light','temp_hum','temp','hum','energy','power','fluid'].includes(item.type) && !(item.type === 'sensor' && (String(item.name || '').toLowerCase().includes('temp') || String(item.name || '').toLowerCase().includes('volt') || String(item.name || '').toLowerCase().includes('motion'))) && !String(item.name || '').toLowerCase().includes('water') && !String(item.name || '').toLowerCase().includes('liter')">
                                         <span class="text-sm leading-none shrink-0" x-show="explorerItemIcon(item)" x-text="explorerItemIcon(item)"></span>
                                     </template>
                                     <span class="truncate" x-text="item.name"></span>
                                 </div>
                                 <div class="text-[10px] text-base-content/40 font-mono"
-                                     x-text="item.id + ' · ' + (item.type || '')"></div>
+                                     x-text="historyRowSubtitle(item)"></div>
                             </div>
-                            <div class="shrink-0 font-mono text-xs md:text-sm font-bold max-w-[45%] truncate text-right"
-                                 :class="explorerHistoryValueClass(item)"
-                                 x-text="explorerHistoryValueText(item)"></div>
+                            <div class="shrink-0 font-mono text-xs md:text-sm font-bold max-w-[55%] text-right">
+                                <template x-if="isWaterHistoryItem(item)">
+                                    <div class="whitespace-nowrap">
+                                        <span class="text-info"
+                                              x-text="'C ' + _waterLitersText(historyCapabilityByIdx[Number(item.id)]?.coldIdx)"></span>
+                                        <span class="text-base-content/40"> · </span>
+                                        <span class="text-error"
+                                              x-text="'H ' + _waterLitersText(historyCapabilityByIdx[Number(item.id)]?.hotIdx)"></span>
+                                    </div>
+                                </template>
+                                <template x-if="!isWaterHistoryItem(item)">
+                                    <div class="truncate"
+                                         :class="explorerHistoryValueClass(item)"
+                                         x-text="explorerHistoryValueText(item)"></div>
+                                </template>
+                            </div>
                         </div>
 
                         <template x-if="Number(selectedSensorIdx) === Number(item.id)">
@@ -556,7 +582,40 @@
 
                                     <template x-if="selectedSensorKind === 'utility'">
                                         <div class="flex flex-col gap-4">
-                                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3" x-show="historySummary">
+                                            <!-- Water: Cold / Hot / Total × periods -->
+                                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3"
+                                                 x-show="historySummary && historySummary.kind === 'water'">
+                                                <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                    <div class="text-[10px] font-mono uppercase tracking-widest text-info mb-2">Cold</div>
+                                                    <div class="flex flex-col gap-1 font-mono text-xs">
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Today</span><span class="font-bold" x-text="formatHistoryValue(historySummary?.cold?.today, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Month</span><span class="font-bold" x-text="formatHistoryValue(historySummary?.cold?.month, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Year</span><span class="font-bold" x-text="formatHistoryValue(historySummary?.cold?.year, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2 border-t border-base-300 pt-1 mt-1"><span class="text-base-content/40">Total</span><span class="font-bold" x-text="historySummary?.cold?.total == null ? '—' : formatHistoryValue(historySummary?.cold?.total, 'L')"></span></div>
+                                                    </div>
+                                                </div>
+                                                <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                    <div class="text-[10px] font-mono uppercase tracking-widest text-error mb-2">Hot</div>
+                                                    <div class="flex flex-col gap-1 font-mono text-xs">
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Today</span><span class="font-bold" x-text="formatHistoryValue(historySummary?.hot?.today, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Month</span><span class="font-bold" x-text="formatHistoryValue(historySummary?.hot?.month, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Year</span><span class="font-bold" x-text="formatHistoryValue(historySummary?.hot?.year, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2 border-t border-base-300 pt-1 mt-1"><span class="text-base-content/40">Total</span><span class="font-bold" x-text="historySummary?.hot?.total == null ? '—' : formatHistoryValue(historySummary?.hot?.total, 'L')"></span></div>
+                                                    </div>
+                                                </div>
+                                                <div class="bg-base-100 border border-base-300 rounded-box p-3">
+                                                    <div class="text-[10px] font-mono uppercase tracking-widest text-accent mb-2">Total</div>
+                                                    <div class="flex flex-col gap-1 font-mono text-xs">
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Today</span><span class="font-bold text-accent" x-text="formatHistoryValue(historySummary?.today, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Month</span><span class="font-bold" x-text="formatHistoryValue(historySummary?.month, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2"><span class="text-base-content/40">Year</span><span class="font-bold" x-text="formatHistoryValue(historySummary?.year, 'L')"></span></div>
+                                                        <div class="flex justify-between gap-2 border-t border-base-300 pt-1 mt-1"><span class="text-base-content/40">Total</span><span class="font-bold" x-text="historySummary?.total == null ? '—' : formatHistoryValue(historySummary?.total, 'L')"></span></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Non-water utilities: single-series summary -->
+                                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3"
+                                                 x-show="historySummary && historySummary.kind !== 'water'">
                                                 <div class="bg-base-100 border border-base-300 rounded-box p-3">
                                                     <div class="text-[10px] font-mono uppercase tracking-widest text-base-content/40">Today</div>
                                                     <div class="text-lg font-black text-accent font-mono"
@@ -784,6 +843,6 @@
         </div>
 
     </main>
-    <script src="app.js?v=3.8"></script>
+    <script src="app.js?v=3.12"></script>
 </body>
 </html>

@@ -32,6 +32,11 @@ SENSOR_META: Dict[int, Dict[str, str]] = {
     71046: {"label": "Mains voltage", "kind": "host", "unit": "V"},
 }
 
+# Paired fluid meters — History UI merges into one "Water" detail (shared liters axis).
+WATER_COLD_IDX = 11002
+WATER_HOT_IDX = 11003
+WATER_PAIR_IDXS = (WATER_COLD_IDX, WATER_HOT_IDX)
+
 
 def _resolve_tz(name: str):
     """Load IANA zone; requires OS package tzdata. Falls back to UTC if missing."""
@@ -792,8 +797,15 @@ class SensorHistoryManager:
 
     def list_sensors(self) -> List[Dict[str, Any]]:
         out = []
+        water_emitted = False
         for idx in self.tracked_idxs:
             meta = SENSOR_META.get(idx, {"label": f"IDX {idx}", "kind": "unknown", "unit": ""})
+            if meta.get("kind") == "water":
+                if water_emitted:
+                    continue
+                water_emitted = True
+                out.append(self._water_list_entry())
+                continue
             out.append({"idx": idx, **meta})
         for idx in HOST_HISTORY_IDXS:
             meta = SENSOR_META.get(idx)
@@ -820,6 +832,20 @@ class SensorHistoryManager:
             })
         return out
 
+    def _water_list_entry(self) -> Dict[str, Any]:
+        return {
+            "idx": WATER_COLD_IDX,
+            "label": "Water",
+            "kind": "water",
+            "unit": "L",
+            "cold_idx": WATER_COLD_IDX,
+            "hot_idx": WATER_HOT_IDX,
+            "pair_idxs": [WATER_COLD_IDX, WATER_HOT_IDX],
+        }
+
+    def _is_water_idx(self, idx: int) -> bool:
+        return int(idx) in WATER_PAIR_IDXS
+
     def get_series(self, idx: int, range_name: str) -> Dict[str, Any]:
         meta = SENSOR_META.get(idx)
         if meta is None and (idx in self._climate_idxs or idx in self._discover_climate_idxs()):
@@ -830,7 +856,7 @@ class SensorHistoryManager:
         range_name = (range_name or "day").lower()
         if kind == "climate":
             return self._series_climate(idx, range_name, meta)
-        if kind == "water":
+        if kind == "water" or self._is_water_idx(idx):
             return self._series_water(idx, range_name, meta)
         if kind == "host":
             return self._series_host(idx, range_name, meta)
@@ -1114,48 +1140,143 @@ class SensorHistoryManager:
             **meta,
         }
 
-    def _series_water(self, idx: int, range_name: str, meta: Dict[str, str]) -> Dict[str, Any]:
+    def _water_bars_for_idx(self, idx: int, range_name: str) -> List[Dict[str, Any]]:
+        """Raw consumption bars for one fluid IDX (day=hourly, month=daily, year=monthly)."""
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
+        bars: List[Dict[str, Any]] = []
         if range_name == "day":
             since_hour = (self._now_local() - timedelta(hours=24)).strftime("%Y-%m-%dT%H")
             c.execute(
                 "SELECT hour_key, consumption FROM sensor_hourly WHERE idx = ? AND hour_key >= ? ORDER BY hour_key",
                 (idx, since_hour),
             )
-            bars = []
             for hour_key, consumption in c.fetchall():
                 ts_ms = int(datetime.strptime(hour_key, "%Y-%m-%dT%H").replace(tzinfo=self.tz).timestamp() * 1000)
-                bars.append({"t": ts_ms, "v": consumption})
-            conn.close()
-            return {"idx": idx, "range": "day", "kind": meta["kind"], "series": {"liters": bars}, **meta}
-
-        if range_name == "month":
+                bars.append({"t": ts_ms, "v": float(consumption or 0), "k": hour_key})
+        elif range_name == "month":
             since_day = (self._now_local() - timedelta(days=31)).strftime("%Y-%m-%d")
             c.execute(
                 "SELECT day_key, consumption FROM sensor_daily WHERE idx = ? AND day_key >= ? ORDER BY day_key",
                 (idx, since_day),
             )
-            bars = []
             for day_key, consumption in c.fetchall():
                 ts_ms = int(datetime.strptime(day_key, "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
-                bars.append({"t": ts_ms, "v": consumption})
-            conn.close()
-            return {"idx": idx, "range": "month", "kind": meta["kind"], "series": {"liters": bars}, **meta}
-
-        since_day = (self._now_local() - timedelta(days=366)).strftime("%Y-%m-%d")
-        c.execute(
-            """SELECT substr(day_key, 1, 7) AS ym, SUM(consumption)
-               FROM sensor_daily WHERE idx = ? AND day_key >= ?
-               GROUP BY ym ORDER BY ym""",
-            (idx, since_day),
-        )
-        bars = []
-        for ym, total in c.fetchall():
-            ts_ms = int(datetime.strptime(ym + "-01", "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
-            bars.append({"t": ts_ms, "v": total})
+                bars.append({"t": ts_ms, "v": float(consumption or 0), "k": day_key})
+        else:
+            since_day = (self._now_local() - timedelta(days=366)).strftime("%Y-%m-%d")
+            c.execute(
+                """SELECT substr(day_key, 1, 7) AS ym, SUM(consumption)
+                   FROM sensor_daily WHERE idx = ? AND day_key >= ?
+                   GROUP BY ym ORDER BY ym""",
+                (idx, since_day),
+            )
+            for ym, total in c.fetchall():
+                ts_ms = int(datetime.strptime(ym + "-01", "%Y-%m-%d").replace(tzinfo=self.tz).timestamp() * 1000)
+                bars.append({"t": ts_ms, "v": float(total or 0), "k": ym})
         conn.close()
-        return {"idx": idx, "range": "year", "kind": meta["kind"], "series": {"liters": bars}, **meta}
+        return bars
+
+    @staticmethod
+    def _align_water_pair(
+        cold_bars: List[Dict[str, Any]], hot_bars: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Union of bucket keys; missing side contributes 0 (user: 'if only cold, hot will be 0')."""
+        by_k: Dict[str, Dict[str, Any]] = {}
+        for b in cold_bars:
+            by_k[b["k"]] = {"t": b["t"], "cold": b["v"], "hot": 0.0}
+        for b in hot_bars:
+            if b["k"] in by_k:
+                by_k[b["k"]]["hot"] = b["v"]
+            else:
+                by_k[b["k"]] = {"t": b["t"], "cold": 0.0, "hot": b["v"]}
+        keys = sorted(by_k.keys())
+        cold_out = [{"t": by_k[k]["t"], "v": by_k[k]["cold"]} for k in keys]
+        hot_out = [{"t": by_k[k]["t"], "v": by_k[k]["hot"]} for k in keys]
+        return cold_out, hot_out
+
+    def _series_water(self, idx: int, range_name: str, meta: Dict[str, str]) -> Dict[str, Any]:
+        cold_raw = self._water_bars_for_idx(WATER_COLD_IDX, range_name)
+        hot_raw = self._water_bars_for_idx(WATER_HOT_IDX, range_name)
+        cold, hot = self._align_water_pair(cold_raw, hot_raw)
+        return {
+            "idx": WATER_COLD_IDX,
+            "range": range_name,
+            "kind": "water",
+            "label": "Water",
+            "unit": "L",
+            "cold_idx": WATER_COLD_IDX,
+            "hot_idx": WATER_HOT_IDX,
+            "series": {"cold": cold, "hot": hot},
+        }
+
+    def _water_period_consumption(self, idx: int) -> Dict[str, Optional[float]]:
+        """today / month / year / total(lifetime counter) for one fluid IDX."""
+        today = self._day_key()
+        month_prefix = today[:7]
+        year_prefix = today[:4]
+
+        today_cons = 0.0
+        day_b = self._day_buckets.get((idx, today))
+        if day_b:
+            today_cons = day_b.consumption
+
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("SELECT consumption FROM sensor_daily WHERE idx = ? AND day_key = ?", (idx, today))
+        row = c.fetchone()
+        if row:
+            today_cons = max(today_cons, float(row[0] or 0))
+
+        c.execute(
+            "SELECT COALESCE(SUM(consumption), 0) FROM sensor_daily WHERE idx = ? AND day_key LIKE ? AND day_key != ?",
+            (idx, month_prefix + "%", today),
+        )
+        month_cons = float(c.fetchone()[0] or 0) + today_cons
+
+        c.execute(
+            "SELECT COALESCE(SUM(consumption), 0) FROM sensor_daily WHERE idx = ? AND day_key LIKE ? AND day_key != ?",
+            (idx, year_prefix + "%", today),
+        )
+        year_cons = float(c.fetchone()[0] or 0) + today_cons
+        conn.close()
+
+        total = None
+        cur = self.sm._state.devices.get(idx)
+        if isinstance(cur, (int, float)):
+            total = float(cur)
+
+        return {
+            "today": today_cons,
+            "month": month_cons,
+            "year": year_cons,
+            "total": total,
+        }
+
+    def _water_summary(self) -> Dict[str, Any]:
+        cold = self._water_period_consumption(WATER_COLD_IDX)
+        hot = self._water_period_consumption(WATER_HOT_IDX)
+
+        def _sum(a: Optional[float], b: Optional[float]) -> Optional[float]:
+            if a is None and b is None:
+                return None
+            return float(a or 0) + float(b or 0)
+
+        return {
+            "idx": WATER_COLD_IDX,
+            "label": "Water",
+            "kind": "water",
+            "unit": "L",
+            "display_unit": "L",
+            "cold_idx": WATER_COLD_IDX,
+            "hot_idx": WATER_HOT_IDX,
+            "cold": cold,
+            "hot": hot,
+            "today": _sum(cold["today"], hot["today"]),
+            "month": _sum(cold["month"], hot["month"]),
+            "year": _sum(cold["year"], hot["year"]),
+            "total": _sum(cold["total"], hot["total"]),
+        }
 
     def get_summary(self, idx: int) -> Dict[str, Any]:
         meta = SENSOR_META.get(idx)
@@ -1184,6 +1305,9 @@ class SensorHistoryManager:
                 "total": None,
                 "display_unit": meta.get("unit") or "",
             }
+        if kind == "water" or self._is_water_idx(idx):
+            return self._water_summary()
+
         today = self._day_key()
         month_prefix = today[:7]
         year_prefix = today[:4]

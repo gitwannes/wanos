@@ -454,7 +454,7 @@ function wanosApp() {
                                 else if (k.includes('pow') || k.includes('watt') || k.includes('meter')) unit = 'W';
                                 else if (k.includes('volt')) unit = 'V';
                                 else if (k.includes('amp') || k.includes('current')) unit = 'A';
-                                else if (k.includes('water') || k.includes('liter') || k.includes('volume')) unit = 'L';
+                                else if (k.includes('water') || k.includes('liter') || k.includes('volume')) unit = 'l';
                                 else if (k.includes('kwh') || k.includes('energy')) unit = 'kWh';
 
                                 displayText = unit ? `${rawValue[keys[0]]} ${unit}` : `${rawValue[keys[0]]} ${keys[0]}`;
@@ -481,7 +481,7 @@ function wanosApp() {
                         }
                     }
                     else if (meta.type === 'power' || n.includes('power') || n.includes('watt')) displayText = `${rawValue} W`;
-                    else if (n.includes('water') || n.includes('liter')) displayText = `${parseFloat(rawValue).toFixed(1)} L`;
+                    else if (meta.type === 'fluid' || n.includes('water') || n.includes('liter')) displayText = `${parseFloat(rawValue).toFixed(1)} l`;
                     else if (n.includes('temp')) displayText = `${rawValue} °C`;
                     else if (n.includes('hum')) displayText = `${rawValue} %`;
                     else if (n.includes('lux')) displayText = `${rawValue} Lux`;
@@ -560,7 +560,15 @@ function wanosApp() {
 
             // 2b. Favorites (shared localStorage with Sensor History)
             if (this.actuatorFavoritesOnly) {
-                list = list.filter(item => this.actuatorFavorites.includes(Number(item.id)));
+                list = list.filter(item => {
+                    if (this.actuatorFavorites.includes(Number(item.id))) return true;
+                    // Water pair: keep cold primary if either fluid is favorited
+                    const cap = this.historyCapabilityByIdx[Number(item.id)];
+                    if (cap && cap.kind === "water" && Array.isArray(cap.pairIdxs)) {
+                        return cap.pairIdxs.some(i => this.actuatorFavorites.includes(Number(i)));
+                    }
+                    return false;
+                });
             }
 
             // 3. Apply Text Search
@@ -633,17 +641,31 @@ function wanosApp() {
                 let category = "utility";
                 if (s.kind === "climate") category = "climate";
                 else if (s.kind === "host") category = "host";
-                map[Number(s.idx)] = {
+                const entry = {
                     category,
                     name: s.label || `IDX ${s.idx}`,
                     kind: s.kind,
+                    primaryIdx: Number(s.idx),
                 };
+                if (s.kind === "water") {
+                    entry.name = s.label || "Water";
+                    entry.coldIdx = Number(s.cold_idx ?? s.idx);
+                    entry.hotIdx = Number(s.hot_idx ?? 11003);
+                    entry.pairIdxs = (s.pair_idxs || [entry.coldIdx, entry.hotIdx]).map(Number);
+                    entry.primaryIdx = entry.coldIdx;
+                    for (const pid of entry.pairIdxs) {
+                        map[pid] = { ...entry };
+                    }
+                    continue;
+                }
+                map[Number(s.idx)] = entry;
             }
             for (const a of (this.actuatorList || [])) {
                 map[Number(a.idx)] = {
                     category: "actuator",
                     name: a.name || `IDX ${a.idx}`,
                     kind: "actuator",
+                    primaryIdx: Number(a.idx),
                 };
             }
             return map;
@@ -653,11 +675,79 @@ function wanosApp() {
             return this.historyCapabilityByIdx[Number(idx)] != null;
         },
 
-        /** Control list as-is; History mode applies hybrid C (drop rows without series). */
+        /** Control list as-is; History mode applies hybrid C + water pair merge. */
         get explorerDisplayList() {
             const base = this.unifiedDeviceList;
             if (this.explorerMode !== "history") return base;
-            return base.filter(item => this.deviceHasHistory(item.id));
+            const withHist = base.filter(item => this.deviceHasHistory(item.id));
+            // Drop secondary fluid row (hot) when cold/hot are merged into one Water detail.
+            const hotSecondary = new Set();
+            for (const item of withHist) {
+                const cap = this.historyCapabilityByIdx[Number(item.id)];
+                if (cap && cap.kind === "water" && cap.hotIdx != null && Number(item.id) === Number(cap.hotIdx)
+                    && Number(cap.hotIdx) !== Number(cap.primaryIdx)) {
+                    hotSecondary.add(Number(item.id));
+                }
+            }
+            return withHist
+                .filter(item => !hotSecondary.has(Number(item.id)))
+                .map(item => {
+                    const cap = this.historyCapabilityByIdx[Number(item.id)];
+                    if (!cap || cap.kind !== "water") return item;
+                    return {
+                        ...item,
+                        name: cap.name || "Water",
+                        display_text: this._waterPairLiveStatus(cap),
+                    };
+                });
+        },
+
+        _waterPairLiveStatus(cap) {
+            const fmt = (idx) => {
+                const raw = this.state.devices?.[idx];
+                if (raw == null) return "—";
+                const L = Number(raw);
+                return Number.isFinite(L) ? L.toFixed(1) + " l" : "—";
+            };
+            if (!cap) return "—";
+            return "C " + fmt(cap.coldIdx) + " · H " + fmt(cap.hotIdx);
+        },
+
+        _waterLitersText(idx) {
+            const raw = this.state.devices?.[idx];
+            if (raw == null) return "—";
+            const L = Number(raw);
+            return Number.isFinite(L) ? L.toFixed(1) + " l" : "—";
+        },
+
+        isWaterHistoryItem(item) {
+            if (!item) return false;
+            const cap = this.historyCapabilityByIdx[Number(item.id)];
+            return !!(cap && cap.kind === "water");
+        },
+
+        historyRowSubtitle(item) {
+            if (!item) return "";
+            if (this.isWaterHistoryItem(item)) return "fluid";
+            return item.id + " · " + (item.type || "");
+        },
+
+        isColdWaterItem(item) {
+            if (!item) return false;
+            const id = Number(item.id);
+            const cap = this.historyCapabilityByIdx[id];
+            if (cap && cap.kind === "water" && cap.coldIdx != null) return id === Number(cap.coldIdx);
+            const n = String(item.name || "").toLowerCase();
+            return item.type === "fluid" && (n.includes("koud") || n.includes("cold"));
+        },
+
+        isHotWaterItem(item) {
+            if (!item) return false;
+            const id = Number(item.id);
+            const cap = this.historyCapabilityByIdx[id];
+            if (cap && cap.kind === "water" && cap.hotIdx != null) return id === Number(cap.hotIdx);
+            const n = String(item.name || "").toLowerCase();
+            return item.type === "fluid" && (n.includes("warm") || n.includes("hot"));
         },
 
         /** Admin-only hint: how many Control-visible rows were dropped by hybrid C. */
@@ -1281,9 +1371,10 @@ function wanosApp() {
             if (!item || this.explorerMode !== "history") return;
             const cap = this.historyCapabilityByIdx[Number(item.id)];
             if (!cap) return;
+            const idx = cap.primaryIdx != null ? cap.primaryIdx : item.id;
             await this.selectHistoryRow({
-                idx: item.id,
-                name: item.name || cap.name,
+                idx,
+                name: cap.name || item.name,
                 category: cap.category,
                 type: item.type,
             });
@@ -1476,7 +1567,7 @@ function wanosApp() {
             }
             if (s.kind === "water") {
                 const L = Number(raw);
-                return Number.isFinite(L) ? L.toFixed(1) + " L" : String(raw);
+                return Number.isFinite(L) ? L.toFixed(1) + " l" : String(raw);
             }
             if (s.kind === "power") {
                 const w = Number(raw);
@@ -1524,12 +1615,19 @@ function wanosApp() {
                 const avgVal = sum
                     ? this.formatHistoryValue((sum.month || 0) / daysInMonth, sum.display_unit)
                     : "—";
+                let status = this._utilityLiveStatus(s);
+                if (s.kind === "water") {
+                    status = this._waterPairLiveStatus({
+                        coldIdx: Number(s.cold_idx ?? s.idx),
+                        hotIdx: Number(s.hot_idx ?? 11003),
+                    });
+                }
                 rows.push({
                     idx: s.idx,
                     name: s.label || `IDX ${s.idx}`,
                     type: s.kind || "utility",
                     category: "utility",
-                    status: this._utilityLiveStatus(s),
+                    status,
                     last_changed: null,
                     today_display: todayVal,
                     avg_display: avgVal,
@@ -1724,15 +1822,24 @@ function wanosApp() {
         },
 
         isActuatorFavorite(idx) {
-            return this.actuatorFavorites.includes(Number(idx));
+            const id = Number(idx);
+            const cap = this.historyCapabilityByIdx[id];
+            if (cap && cap.kind === "water" && Array.isArray(cap.pairIdxs)) {
+                return cap.pairIdxs.some(i => this.actuatorFavorites.includes(Number(i)));
+            }
+            return this.actuatorFavorites.includes(id);
         },
 
         toggleActuatorFavorite(idx) {
-            const id = Number(idx);
-            if (this.actuatorFavorites.includes(id)) {
-                this.actuatorFavorites = this.actuatorFavorites.filter(x => x !== id);
+            const cap = this.historyCapabilityByIdx[Number(idx)];
+            const ids = (cap && cap.kind === "water" && Array.isArray(cap.pairIdxs))
+                ? cap.pairIdxs.map(Number)
+                : [Number(idx)];
+            const on = ids.some(i => this.actuatorFavorites.includes(i));
+            if (on) {
+                this.actuatorFavorites = this.actuatorFavorites.filter(x => !ids.includes(Number(x)));
             } else {
-                this.actuatorFavorites = [...this.actuatorFavorites, id];
+                this.actuatorFavorites = [...new Set([...this.actuatorFavorites, ...ids])];
             }
             localStorage.setItem("wanos_history_favorites", JSON.stringify(this.actuatorFavorites));
         },
@@ -1998,7 +2105,7 @@ function wanosApp() {
             if (val == null || Number.isNaN(Number(val))) return "—";
             const n = Number(val);
             if (unit === "kWh") return n.toFixed(2) + " kWh";
-            if (unit === "L") return n.toFixed(1) + " L";
+            if (unit === "L" || unit === "l") return n.toFixed(1) + " l";
             return n.toFixed(1) + (unit ? " " + unit : "");
         },
 
@@ -2134,15 +2241,15 @@ function wanosApp() {
             this.historyDayTitle = isClimate
                 ? "Temperature / humidity last 24 hours"
                 : (isHost ? `Value last 24 hours (${hostUnit})`
-                    : (isWater ? "Consumption last 24 hours" : "Usage last 24 hours"));
+                    : (isWater ? "Cold / hot water last 24 hours" : "Usage last 24 hours"));
             this.historyMonthTitle = isClimate
                 ? "Temperature / humidity last month"
                 : (isHost ? `Min / max last month (${hostUnit})`
-                    : (isWater ? "Consumption last month" : "Usage last month"));
+                    : (isWater ? "Cold / hot water last month" : "Usage last month"));
             this.historyYearTitle = isClimate
                 ? "Temperature / humidity last year (weekly)"
                 : (isHost ? `Min / max last year (${hostUnit})`
-                    : (isWater ? "Consumption last year" : "Usage last year"));
+                    : (isWater ? "Cold / hot water last year" : "Usage last year"));
 
             // Phase 1: unmount all chart sections so empty titles cannot linger.
             this.historyChartHasData.day = false;
@@ -2194,19 +2301,14 @@ function wanosApp() {
                     return;
                 }
 
-                const yLabel = isWater ? "Liters" : (isHost ? (hostUnit || "Value") : "Usage (Watt)");
+                const yLabel = isWater ? "liters" : (isHost ? (hostUnit || "Value") : "Usage (Watt)");
                 const seriesName = isHost ? "Value" : "Usage";
 
                 if (dayChart && this.historyChartHasData.day) {
-                    const opt = this._baseChartOption(yLabel);
                     if (isWater) {
-                        opt.series = [{
-                            name: "Liters",
-                            type: "bar",
-                            data: this._pointsToSeries(dayData?.series?.liters),
-                            itemStyle: { color: "#2dd4bf" }
-                        }];
+                        this._renderWaterChart(dayChart, dayData, "day");
                     } else {
+                        const opt = this._baseChartOption(yLabel);
                         opt.series = [{
                             name: seriesName,
                             type: "line",
@@ -2216,22 +2318,17 @@ function wanosApp() {
                             areaStyle: { color: "rgba(45,212,191,0.08)" },
                             connectNulls: false
                         }];
+                        this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
+                        dayChart.setOption(opt, true);
+                        dayChart.resize();
                     }
-                    this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
-                    dayChart.setOption(opt, true);
-                    dayChart.resize();
                 }
 
                 if (monthChart && this.historyChartHasData.month) {
-                    const opt = this._baseChartOption(yLabel);
                     if (isWater) {
-                        opt.series = [{
-                            name: "Liters",
-                            type: "bar",
-                            data: this._pointsToSeries(monthData?.series?.liters),
-                            itemStyle: { color: "#2dd4bf" }
-                        }];
+                        this._renderWaterChart(monthChart, monthData, "month");
                     } else {
+                        const opt = this._baseChartOption(yLabel);
                         opt.series = [
                             {
                                 name: seriesName + " min",
@@ -2250,22 +2347,17 @@ function wanosApp() {
                                 connectNulls: false
                             }
                         ];
+                        this._applyTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
+                        monthChart.setOption(opt, true);
+                        monthChart.resize();
                     }
-                    this._applyTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
-                    monthChart.setOption(opt, true);
-                    monthChart.resize();
                 }
 
                 if (yearChart && this.historyChartHasData.year) {
-                    const opt = this._baseChartOption(yLabel);
                     if (isWater) {
-                        opt.series = [{
-                            name: "Liters",
-                            type: "bar",
-                            data: this._pointsToSeries(yearData?.series?.liters),
-                            itemStyle: { color: "#2dd4bf" }
-                        }];
+                        this._renderWaterChart(yearChart, yearData, "year");
                     } else {
+                        const opt = this._baseChartOption(yLabel);
                         opt.series = [
                             {
                                 name: seriesName + " min",
@@ -2284,10 +2376,10 @@ function wanosApp() {
                                 connectNulls: false
                             }
                         ];
+                        this._applyTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
+                        yearChart.setOption(opt, true);
+                        yearChart.resize();
                     }
-                    this._applyTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
-                    yearChart.setOption(opt, true);
-                    yearChart.resize();
                 }
             };
 
@@ -2303,6 +2395,97 @@ function wanosApp() {
                     });
                 });
             });
+        },
+
+        /** Format one water bucket timestamp for category-axis labels. */
+        _waterBucketLabel(tsMs, range) {
+            const t = this._normalizeTsMs(tsMs);
+            if (t == null) return "";
+            const d = new Date(t);
+            const tz = "Europe/Brussels";
+            if (range === "day") {
+                return d.toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit", timeZone: tz });
+            }
+            if (range === "month") {
+                return d.toLocaleDateString("nl-BE", { day: "numeric", month: "short", timeZone: tz });
+            }
+            return d.toLocaleDateString("nl-BE", { month: "short", year: "numeric", timeZone: tz });
+        },
+
+        _buildWaterChartPayload(data, range) {
+            const cold = data?.series?.cold || [];
+            const hot = data?.series?.hot || [];
+            const labels = [];
+            const coldVals = [];
+            const hotVals = [];
+            const n = Math.max(cold.length, hot.length);
+            for (let i = 0; i < n; i++) {
+                const cp = cold[i];
+                const hp = hot[i];
+                const ts = (cp && cp.t != null) ? cp.t : (hp && hp.t);
+                if (ts == null) continue;
+                labels.push(this._waterBucketLabel(ts, range));
+                coldVals.push(cp != null && cp.v != null ? Number(cp.v) : 0);
+                hotVals.push(hp != null && hp.v != null ? Number(hp.v) : 0);
+            }
+            return { labels, coldVals, hotVals };
+        },
+
+        /**
+         * Water consumption: category axis (one slot per hour/day/month bucket).
+         * Time axis + bar charts mis-render sparse buckets as solid slabs.
+         */
+        _renderWaterChart(chart, data, range) {
+            if (!chart) return;
+            const { labels, coldVals, hotVals } = this._buildWaterChartPayload(data, range);
+            if (!labels.length) return;
+
+            const opt = {
+                backgroundColor: "transparent",
+                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+                legend: { bottom: 0, textStyle: { color: "#9ca3af" } },
+                grid: { left: 48, right: 24, top: 24, bottom: labels.length > 10 ? 72 : 56 },
+                xAxis: {
+                    type: "category",
+                    data: labels,
+                    axisLabel: {
+                        color: "#9ca3af",
+                        hideOverlap: true,
+                        rotate: labels.length > 8 ? 35 : 0,
+                        fontSize: 10
+                    },
+                    axisTick: { alignWithLabel: true },
+                    splitLine: { show: false }
+                },
+                yAxis: {
+                    type: "value",
+                    name: "liters",
+                    min: 0,
+                    nameTextStyle: { color: "#9ca3af" },
+                    axisLabel: { color: "#9ca3af" },
+                    splitLine: { lineStyle: { color: "#374151" } }
+                },
+                series: [
+                    {
+                        name: "Cold",
+                        type: "bar",
+                        stack: "water",
+                        barMaxWidth: 40,
+                        data: coldVals,
+                        itemStyle: { color: "#38bdf8" }
+                    },
+                    {
+                        name: "Hot",
+                        type: "bar",
+                        stack: "water",
+                        barMaxWidth: 40,
+                        data: hotVals,
+                        itemStyle: { color: "#f87171" }
+                    }
+                ]
+            };
+            chart.setOption(opt, true);
+            chart.resize();
         },
 
         _climateDualAxisOption() {
