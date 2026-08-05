@@ -103,7 +103,7 @@ sudo ./wanos_bootstrap_phase1.sh
    * WanOS source directories (`main.py`, `core/`, `logic/`, `hardware/`, `integrations/`)
    * Config profiles (`config.yaml`, `config_hardware.yaml`, `config_zwave.auto.yaml`, `config_hue.yaml`, `automations.auto.yaml`, …)
    * `entity_registry.auto.yaml` — optional on first install; created/updated automatically at runtime (stable `entity_id` ↔ idx). See `docs/todo/install_blocky.md`.
-   * `requirements.txt` (Python dependency list including `certbot` and `requests`)
+   * `requirements.txt` (Python dependency list including `certbot`)
    * `.env` (Environment variables and configuration keys)
    * `docker-compose.yml`
    * `mosquitto-st.conf`
@@ -113,7 +113,7 @@ sudo ./wanos_bootstrap_phase1.sh
 
 ## Phase 2: Python Virtual Environment & Hardware Rules (Scripted)
 
-Phase 2 builds the isolated Python execution environment, updates pip dependencies (including `certbot` and `requests`), and sets up udev rules for external serial transceivers.
+Phase 2 builds the isolated Python execution environment, updates pip dependencies (including `certbot`), and sets up udev rules for external serial transceivers.
 
 ### 2.1 Execute Phase 2 Script
 SSH back into the Raspberry Pi as user `wannes` (do **NOT** run with `sudo`):
@@ -131,7 +131,7 @@ chmod +x wanos_bootstrap_phase2.sh
 > * Verifies `requirements.txt` exists in `/home/wannes/wanos/`.
 > * Creates a dedicated Python virtual environment (`wanos_venv`).
 > * Upgrades `pip`, `setuptools`, and `wheel` inside the virtual environment.
-> * Installs all Python dependencies listed in `requirements.txt` (including `certbot` and `requests`).
+> * Installs all Python dependencies listed in `requirements.txt` (including `certbot`).
 > * Creates udev rule `/etc/udev/rules.d/99-rfxcom.rules` mapping vendor `0403:6001` to `/dev/rfxcom`.
 > * Triggers `udevadm` rule reloading.
 
@@ -314,6 +314,9 @@ Because Nomeo DNS lacks a native Certbot API plugin, we use **ACME-DNS CNAME del
    sudo chmod 0700 /etc/letsencrypt/acme-dns-auth.py
    ```
 
+> Important: This setup uses the **manual auth hook** (`--manual-auth-hook /etc/letsencrypt/acme-dns-auth.py`) stored in Certbot’s renewal config.
+> You do **not** need (and should avoid) installing the `certbot-acme-dns` plugin; if present, it may cause Certbot plugin-load errors.
+
 ### 6.3 Run Initial Let's Encrypt ACME-DNS Issue Command
 Request the initial certificate using the downloaded authentication hook:
 
@@ -448,11 +451,11 @@ Because we use the virtual environment binary instead of the Debian APT package,
    ```
 2. Append the following schedule line:
    ```cron
-   30 3 * * * /home/wannes/wanos/wanos_venv/bin/certbot renew --quiet --post-hook "systemctl reload nginx"
+   40 3 * * * /home/wannes/wanos/wanos_venv/bin/certbot renew --quiet --post-hook "systemctl reload nginx"
    ```
 3. Test dry-run renewal to verify ACME-DNS connectivity:
    ```bash
-   sudo certbot renew --dry-run
+   sudo /home/wannes/wanos/wanos_venv/bin/certbot renew --dry-run
    ```
 
 ---
