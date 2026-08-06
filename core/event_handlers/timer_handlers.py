@@ -4,6 +4,7 @@ from typing import Any, Set, Tuple, Optional
 from core.models import Event, EventType, device_name
 from core.logger import automation_logger
 from core.well_known_entities import ENTITY_BATHROOM_HUM
+from logic.automation_rules import AutomationEngine
 
 
 async def handle_timer_scheduled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
@@ -108,7 +109,10 @@ async def handle_light_timer_expired(event: Event, manager: Any) -> Tuple[bool, 
             state_changed = True
             changed_domains.add("system")
 
-        automation_logger.info(f"Auto-off timer expired for light IDX {idx}, turning off light.")
+        automation_logger.info(
+            f"Auto-off timer expired for "
+            f"{AutomationEngine.format_device_ref(manager._state, idx)}, turning OFF."
+        )
         manager.dispatch(Event(
             type=EventType.HUB_STATE_CHANGED,
             # Explicitly inject the origin context into the new payload so the

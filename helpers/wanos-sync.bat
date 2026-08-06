@@ -7,8 +7,8 @@ REM ----------------------------------------------------------------------------
 REM Thin launcher for helpers\wanos-sync.ps1
 REM
 REM Modes (must match ValidateSet in the .ps1):
-REM   test      Dry-run Local-->Pi + Pi-->Local pull preview (needs Z:)
-REM   run       Real sync: normalize --> mirror Pi + CodeFolder --> pull (needs Z:)
+REM   test      Dry-run Local-->Pi + Pi-->Local + /var/log/wanos SSH preview (needs Z:)
+REM   run       Real sync: normalize --> mirror --> Samba pull --> SSH log pull (needs Z:)
 REM   runlocal  Mirror only to CodeFolder (no Z:, no pull)
 REM
 REM Optional 2nd arg:
@@ -62,10 +62,11 @@ REM -------------------------- HELP --------------------------------------------
 :show_help
 echo Usage:
 echo     wanos-sync.bat test [verbose]      -- Dry-run ^(no writes^). Needs Z:.
-echo     wanos-sync.bat run [verbose]       -- Full sync. Needs Z:.
+echo     wanos-sync.bat run [verbose]       -- Full sync. Needs Z: + SSH for /var/log/wanos.
 echo     wanos-sync.bat runlocal [verbose]  -- Mirror only to CodeFolder. No Z:.
 echo.
 echo     verbose  Show config load, path validation, skips, Source/Dest details.
+echo     Logs:    [PiSsh] in wanos-sync.config.txt --^> StatsDest\var-log-wanos\
 echo.
 exit /b 1
 

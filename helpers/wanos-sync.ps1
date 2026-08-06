@@ -6,13 +6,15 @@ ASCII-only file on purpose: Windows PowerShell 5.1 reads .ps1 as system ANSI
 unless a UTF-8 BOM is present. UTF-8 arrows/dashes/ellipsis become mojibake and
 can inject smart-quotes that break parsing (e.g. Run-StatsJob never defined).
 
-Two jobs (same idea as robocopy-sync.bat + wanos.rcj):
+Three jobs (same idea as robocopy-sync.bat + wanos.rcj):
 
 1) MIRROR JOB  - Local repo  -->  Pi (Z:\)   [and optionally CodeFolder]
 2) STATS / PULL JOB  - Pi (Z:\)  -->  Local
+3) LOG PULL JOB  - Pi /var/log/wanos  -->  StatsDest via SSH/SCP
 
 Includes / excludes: helpers/wanos-sync.config.txt (loaded at startup).
 Paths (repo, Z:, CodeFolder, StatsDest): still in this .ps1.
+SSH log pull: [PiSsh] in the config (not on Samba Z:).
 
 Modes:
    test | run | runlocal
@@ -89,6 +91,13 @@ function Read-WanosSyncConfig {
         "StatsInclude"       = New-Object System.Collections.Generic.List[string]
         "StatsRepoPull"      = New-Object System.Collections.Generic.List[string]
     }
+    $piSsh = @{
+        Host           = "10.32.251.30"
+        User           = "wannes"
+        RemoteLogDir   = "/var/log/wanos"
+        LocalLogSubdir = "var-log-wanos"
+        RemoteGlob     = "wanos*"
+    }
     $current = $null
 
     $lineNo = 0
@@ -101,6 +110,10 @@ function Read-WanosSyncConfig {
         # [SectionName]
         if ($line -match '^\[([A-Za-z0-9_]+)\]$') {
             $name = $Matches[1]
+            if ($name -eq "PiSsh") {
+                $current = "PiSsh"
+                continue
+            }
             if (-not $sectionLists.ContainsKey($name)) {
                 throw "Unknown config section [$name] at line $lineNo in $Path"
             }
@@ -113,10 +126,22 @@ function Read-WanosSyncConfig {
         }
 
         # Strip inline trailing comment: pattern  # comment
-        # (only when space+# so "file#1" stays intact if ever used)
         if ($line -match '^(.*?)\s+#') {
             $line = $Matches[1].Trim()
             if ($line.Length -eq 0) { continue }
+        }
+
+        if ($current -eq "PiSsh") {
+            if ($line -notmatch '^([A-Za-z0-9_]+)=(.*)$') {
+                throw "PiSsh expects key=value at line $lineNo in $Path : $line"
+            }
+            $key = $Matches[1]
+            $val = $Matches[2].Trim()
+            if (-not $piSsh.ContainsKey($key)) {
+                throw "Unknown PiSsh key '$key' at line $lineNo in $Path"
+            }
+            $piSsh[$key] = $val
+            continue
         }
 
         [void]$sectionLists[$current].Add($line)
@@ -133,6 +158,7 @@ function Read-WanosSyncConfig {
         MirrorExcludeFiles = @($sectionLists["MirrorExcludeFiles"])
         StatsInclude       = @($sectionLists["StatsInclude"])
         StatsRepoPull      = @($sectionLists["StatsRepoPull"])
+        PiSsh              = $piSsh
     }
 }
 
@@ -142,10 +168,12 @@ $MirrorExcludeDirs  = $SyncConfig.MirrorExcludeDirs
 $MirrorExcludeFiles = $SyncConfig.MirrorExcludeFiles
 $StatsInclude       = $SyncConfig.StatsInclude
 $StatsRepoPull      = $SyncConfig.StatsRepoPull
+$PiSsh              = $SyncConfig.PiSsh
 Write-SyncVerbose ("  MirrorExcludeDirs : {0}" -f $MirrorExcludeDirs.Count)
 Write-SyncVerbose ("  MirrorExcludeFiles: {0}" -f $MirrorExcludeFiles.Count)
 Write-SyncVerbose ("  StatsInclude      : {0}" -f $StatsInclude.Count)
 Write-SyncVerbose ("  StatsRepoPull     : {0}" -f $StatsRepoPull.Count)
+Write-SyncVerbose ("  PiSsh Host        : {0}@{1}:{2}" -f $PiSsh.User, $PiSsh.Host, $PiSsh.RemoteLogDir)
 Write-SyncVerbose ""
 
 # =============================================================================
@@ -462,6 +490,64 @@ function Invoke-WanosStatsJob {
 }
 
 # =============================================================================
+# JOB 3 - LOG PULL (Pi /var/log/wanos --> StatsDest via OpenSSH scp)
+# Soft-fail: missing scp/ssh or auth errors do not abort mirror/stats.
+# =============================================================================
+
+function Invoke-WanosLogPullJob {
+    param(
+        [hashtable]$Ssh,
+        [string]$StatsDest,
+        [switch]$DryRun
+    )
+
+    Write-Host "=== LOG PULL JOB (Pi /var/log/wanos --> Local via SSH) ==="
+
+    $scpCmd = Get-Command scp -ErrorAction SilentlyContinue
+    $sshCmd = Get-Command ssh -ErrorAction SilentlyContinue
+    if (-not $scpCmd -or -not $sshCmd) {
+        Write-Host "SKIP log pull: OpenSSH scp/ssh not found on PATH"
+        return
+    }
+
+    $localDir = Join-Path $StatsDest $Ssh.LocalLogSubdir
+    $remoteDir = $Ssh.RemoteLogDir.TrimEnd("/")
+    $remoteSpec = "{0}@{1}:{2}/{3}" -f $Ssh.User, $Ssh.Host, $remoteDir, $Ssh.RemoteGlob
+    $sshTarget = "{0}@{1}" -f $Ssh.User, $Ssh.Host
+    $sshOpts = @("-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new")
+
+    Write-SyncVerbose "Remote: $remoteSpec"
+    Write-SyncVerbose "Local:  $localDir"
+
+    Ensure-Directory -Path $localDir -DryRun:$DryRun
+
+    if ($DryRun) {
+        Write-Host "[DRY] Would scp: $remoteSpec --> $localDir\"
+        $lsRemote = "ls -lh -- $remoteDir/$($Ssh.RemoteGlob) 2>/dev/null || true"
+        Write-SyncVerbose "Listing remote: ssh $sshTarget $lsRemote"
+        & ssh.exe @sshOpts $sshTarget $lsRemote
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARN: remote log list failed (exit $LASTEXITCODE). Check SSH key / host."
+        }
+        return
+    }
+
+    # Quote-free single arg so PowerShell does not expand RemoteGlob locally.
+    & scp.exe @sshOpts $remoteSpec "$localDir\"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARN: log pull failed (exit $LASTEXITCODE). Mirror/stats already done; check SSH key / host."
+        return
+    }
+
+    $copied = @(Get-ChildItem -LiteralPath $localDir -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { Test-NameMatchesAny -Name $_.Name -Patterns @($Ssh.RemoteGlob) })
+    Write-Host ("LOG: pulled {0} file(s) --> {1}" -f $copied.Count, $localDir)
+    foreach ($f in $copied) {
+        Write-SyncVerbose ("  {0}  ({1:N0} bytes)" -f $f.Name, $f.Length)
+    }
+}
+
+# =============================================================================
 # VALIDATION (after all functions are defined)
 # =============================================================================
 
@@ -527,6 +613,10 @@ if ($Mode -ne "runlocal") {
         -RepoPullPatterns $StatsRepoPull `
         -SkipDirPatterns $MirrorExcludeDirs `
         -DryRun:$DryRun
+
+    # Job 3: application logs under /var/log/wanos (SSH; not on Samba Z:)
+    Write-Host ""
+    Invoke-WanosLogPullJob -Ssh $PiSsh -StatsDest $StatsDest -DryRun:$DryRun
 }
 
 Write-Host ""

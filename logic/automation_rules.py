@@ -84,10 +84,31 @@ class AutomationEngine:
         return idx
 
     @staticmethod
+    def format_device_ref(state: SystemState, idx: Optional[int]) -> str:
+        """Operator-facing device ref: entity_id (name, idx N) with thin-meta fallbacks."""
+        if idx is None:
+            return "unknown (idx —)"
+        eid = AutomationEngine.entity_id_for(state, idx)
+        name = device_name(state, idx, "")
+        if eid and name:
+            return f"{eid} ({name}, idx {idx})"
+        if eid:
+            return f"{eid} (idx {idx})"
+        if name:
+            return f"idx {idx} ({name})"
+        return f"idx {idx}"
+
+    @staticmethod
+    def format_rule_name(rule: Any) -> str:
+        """INFO/ACTION rule label — quoted name only (no uuid)."""
+        name = getattr(rule, "name", None) or "?"
+        return f'"{name}"'
+
+    @staticmethod
     def format_rule_ref(rule: Any) -> str:
         """
-        Locked B3 observability format for X1-expanded (and flat) rules:
-        rule=<parent-id> branch=on|off|- name="<base name>"
+        DEBUG / ERROR observability — keep uuid + branch + name:
+        rule=<id> branch=on|off|- name="<base name>"
         """
         rid = getattr(rule, "id", None)
         name = getattr(rule, "name", None) or ""
@@ -210,7 +231,9 @@ class AutomationEngine:
                         if trigger_idx == event_idx and AutomationEngine._states_match(
                                 t.state, new_state, state.device_metadata.get(trigger_idx, {})):
                             trigger_matched = True
-                            trigger_reason = f"IDX {event_idx} -> {new_state}"
+                            trigger_reason = (
+                                f"{AutomationEngine.format_device_ref(state, event_idx)} -> {new_state}"
+                            )
                             break
                     # ⚡ Support Native Door Telemetry: Map the semantic is_open boolean to standard ON/OFF string states
                     # Note: Hardware door events are inherently edge-triggered transitions, so is_transition is bypassed.
@@ -220,7 +243,9 @@ class AutomationEngine:
                         if trigger_idx == event_idx and AutomationEngine._states_match(
                                 t.state, mapped_state, state.device_metadata.get(trigger_idx, {})):
                             trigger_matched = True
-                            trigger_reason = f"Door Sensor {event_idx} -> {mapped_state}"
+                            trigger_reason = (
+                                f"Door {AutomationEngine.format_device_ref(state, event_idx)} -> {mapped_state}"
+                            )
                             # Temporarily inject the mapped state into the local loop context
                             # so downstream Action resolving doesn't fail if it relies on 'new_state'
                             new_state = mapped_state
@@ -261,7 +286,8 @@ class AutomationEngine:
                             if cond_idx is None:
                                 conditions_met = False
                                 automation_logger.debug(
-                                    f"[X-RAY] -> ABORTED. Condition failed: unresolved device ref.")
+                                    f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} -> "
+                                    f"ABORTED. Condition failed: unresolved device ref.")
                                 continue
                             # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
                             raw_state = state.devices.get(cond_idx)
@@ -270,7 +296,10 @@ class AutomationEngine:
                             if str(current_state).upper() != str(condition.condition_is).upper():
                                 conditions_met = False
                                 automation_logger.debug(
-                                    f"[X-RAY] -> ABORTED. Condition failed: Target IDX {cond_idx} is '{current_state}', but rule requires '{condition.condition_is}'.")
+                                    f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} -> "
+                                    f"ABORTED. Condition failed: "
+                                    f"{AutomationEngine.format_device_ref(state, cond_idx)} "
+                                    f"is '{current_state}', but rule requires '{condition.condition_is}'.")
 
                 # If all conditions pass, we calculate and dispatch the final actions
                 if conditions_met:
@@ -347,7 +376,10 @@ class AutomationEngine:
                             # Skip unknown cache unless this action is forced (explicit FORCE_ or origin policy).
                             if current_target_state is None and not is_force:
                                 automation_logger.debug(
-                                    f"[X-RAY] -> Action SKIPPED for target IDX {action_idx}: Current state is unknown (NULL).")
+                                    f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} -> "
+                                    f"Action SKIPPED for "
+                                    f"{AutomationEngine.format_device_ref(state, action_idx)}: "
+                                    f"Current state is unknown (NULL).")
                                 continue
 
                             # ⚡ RICH PAYLOAD EXTRACTION (Hue Presets & Direct Overrides)
@@ -444,18 +476,17 @@ class AutomationEngine:
                                 ))
 
                                 # --- TIER C: The Action Audit Trail (INFO) ---
-                                semantic_name = (
-                                    (meta.get("name") if isinstance(meta, dict) else None)
-                                    or device_name(state, action_idx, "Unknown")
-                                )
                                 final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
                                 preset_str = f" [Rich Payload]" if is_rich_action else ""
                                 automation_logger.info(
-                                    f"[ACTION] {AutomationEngine.format_rule_ref(rule)} -> "
-                                    f"Set target IDX {action_idx} ({semantic_name}) to {final_state_str}{preset_str}")
+                                    f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "
+                                    f"Set {AutomationEngine.format_device_ref(state, action_idx)} "
+                                    f"to {final_state_str}{preset_str}")
                             else:
                                 automation_logger.debug(
-                                    f"[X-RAY] -> Target IDX {action_idx} is already {target_action_state}"
+                                    f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} -> "
+                                    f"Target {AutomationEngine.format_device_ref(state, action_idx)} "
+                                    f"is already {target_action_state}"
                                     f"{' (rich satisfied)' if is_rich_action else ''}. Ignoring.")
 
                         # --- Action Type B: Native Hue Scene Trigger ---
@@ -471,8 +502,9 @@ class AutomationEngine:
                                              "origin": "AUTOMATION"}
                                 ))
                                 automation_logger.info(
-                                    f"[ACTION] {AutomationEngine.format_rule_ref(rule)} -> "
-                                    f"Dispatched Native Hue Scene [{scene_name}] on IDX {idx}")
+                                    f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "
+                                    f"Dispatched Native Hue Scene [{scene_name}] on "
+                                    f"{AutomationEngine.format_device_ref(state, idx)}")
                             else:
                                 automation_logger.error(
                                     f"🔴 [AUTOMATION ERROR] {AutomationEngine.format_rule_ref(rule)} "
@@ -504,7 +536,7 @@ class AutomationEngine:
 
                             payload_str = f" with payload: {action_payload}" if action_payload else ""
                             automation_logger.info(
-                                f"[ACTION] {AutomationEngine.format_rule_ref(rule)} -> "
+                                f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "
                                 f"Dispatched Internal Event [{action.event}]{payload_str}")
 
         # =========================================================================
@@ -561,8 +593,9 @@ class AutomationEngine:
                                 }
                             ))
                             automation_logger.info(
-                                f"[System Sweeper] Recovered missing auto-off timer for {light_eid} "
-                                f"({semantic_name}). Turning OFF in {delay_mins} min.")
+                                f"[System Sweeper] Recovered missing auto-off timer for "
+                                f"{AutomationEngine.format_device_ref(state, light_idx)}. "
+                                f"Turning OFF in {delay_mins} min.")
                             recovered_timers += 1
 
             # --- Audit B: Bathroom Climate Ventilation ---
@@ -667,10 +700,10 @@ class AutomationEngine:
         # =========================================================================
         if event_name == "HUB_STATE_CHANGED":
             idx = payload.get("idx")
-            semantic_name: str = device_name(state, idx, "Unknown")
-            light_eid = AutomationEngine.entity_id_for(state, idx)
+            dev_ref = AutomationEngine.format_device_ref(state, idx)
 
             # Only track devices that are explicitly registered in the lighting YAML config
+            light_eid = AutomationEngine.entity_id_for(state, idx)
             if (light_eid is not None and hasattr(config, "lighting")
                     and light_eid in config.lighting.managed_lights):
                 timer_id: str = f"light_auto_off_{idx}"
@@ -696,7 +729,7 @@ class AutomationEngine:
                             "event_type": EventType.LIGHT_TIMER_EXPIRED.value,
                             "event_payload": {
                                 "idx": idx,
-                                "name": semantic_name,
+                                "name": device_name(state, idx, "Unknown"),
                                 "type": "switch",
                                 "target_state": "OFF",
                                 "origin": "TIMER"
@@ -704,7 +737,7 @@ class AutomationEngine:
                         }
                     ))
                     automation_logger.info(
-                        f"[Lighting Auto-Off] {light_eid} ({semantic_name}) turned ON. "
+                        f"[Lighting Auto-Off] {dev_ref} turned ON. "
                         f"Scheduling OFF timer for {delay_mins} minutes (ID: {timer_id}).")
 
                 elif safe_state == "OFF":
@@ -718,7 +751,7 @@ class AutomationEngine:
                             payload={"timer_id": timer_id}
                         ))
                         automation_logger.info(
-                            f"[Lighting Auto-Off] {light_eid} ({semantic_name}) turned OFF. "
+                            f"[Lighting Auto-Off] {dev_ref} turned OFF. "
                             f"Cancelled pending auto-off timer.")
 
             # =========================================================================

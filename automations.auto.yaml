@@ -775,3 +775,4 @@ automations:
           - entity_id: blinds.cinema
             state: "0"
     id: e0970780-d016-4964-9330-f403e3e0da6e
+

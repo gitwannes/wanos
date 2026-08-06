@@ -8,6 +8,7 @@ vim               # Advanced text editor for manual configuration edits
 bat               # Syntax-highlighting cat clone (provides 'batcat' binary on Debian)
 curl              # Command-line utility for transferring data over URLs
 git               # Version control client required for log2ram installation and repository management
+rsync             # Remote sync over SSH (wanos-sync push/pull from the Windows workstation)
 
 # --- System & Hardware Access Tools ---
 samba             # SMB/CIFS file-sharing server for remote workstation access

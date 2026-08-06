@@ -3,7 +3,8 @@
 # Loaded by helpers/wanos-sync.ps1  |  wrapper: helpers/wanos-sync.bat
 # =============================================================================
 # Rules:
-#   - One pattern / name per line
+#   - One pattern / name per line (sections Mirror* / Stats*)
+#   - [PiSsh] uses key=value lines
 #   - Blank lines and lines starting with # are ignored
 #   - Do NOT pass this file to: robocopy /JOB:...
 #
@@ -11,10 +12,13 @@
 #   Dir patterns match ANY path segment. File patterns match file NAME only.
 #   Excluded = not copied AND not deleted on dest (robocopy /XD+/XF semantics).
 #
-# Job 2 PULL (Pi --> Local): StatsInclude + StatsRepoPull
-#   StatsInclude  = include-only file NAME patterns from Pi
+# Job 2 PULL (Pi Samba Z: --> Local): StatsInclude + StatsRepoPull
+#   StatsInclude  = include-only file NAME patterns from Pi share
 #   StatsRepoPull = subset that always overwrites into the git repo (Pi wins)
 #                   everything else in StatsInclude goes to StatsDest (newer-only)
+#
+# Job 3 LOG PULL (Pi /var/log/wanos --> StatsDest via SSH/SCP): [PiSsh]
+#   Not on Samba Z: - pulled with OpenSSH scp (key/agent auth, BatchMode).
 # =============================================================================
 
 [MirrorExcludeDirs]
@@ -62,10 +66,10 @@ dhcpcd.conf
 *.tmp
 
 [StatsInclude]
-# Repo pull (also listed under StatsRepoPull) — Pi is source of truth
+# Repo pull (also listed under StatsRepoPull) - Pi is source of truth
 entity_registry.auto.yaml
 automations.auto.yaml
-# Telemetry / logs --> StatsDest (OneDrive)
+# Telemetry --> StatsDest (OneDrive)
 *.db
 wanos-nvram.json
 wanos-nvram.json.tmp
@@ -75,3 +79,14 @@ wanos-nvram.json.tmp
 # Do NOT also mirror these Local-->Pi in the same run (that push+pull fights itself).
 entity_registry.auto.yaml
 automations.auto.yaml
+
+[PiSsh]
+# SSH pull of application logs (loguru under /var/log/wanos on the Pi).
+# Requires OpenSSH client on Windows and key-based login (BatchMode=yes).
+Host=10.32.251.30
+User=wannes
+RemoteLogDir=/var/log/wanos
+# Land under StatsDest\<LocalLogSubdir>\ (flat copy of matching files)
+LocalLogSubdir=var-log-wanos
+# Remote name glob (scp expands on the Pi)
+RemoteGlob=wanos*
