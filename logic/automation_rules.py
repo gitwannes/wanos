@@ -360,11 +360,49 @@ class AutomationEngine:
                             volume = getattr(action, "volume", None)
                             station = getattr(action, "station", None)
 
-                            # If rich attributes are provided, we must force the command because the power state
-                            # might already be "ON", but we still need to apply the changes.
-                            is_rich_action = bri is not None or xy is not None or volume is not None or station is not None
+                            is_rich_action = (
+                                bri is not None or xy is not None
+                                or volume is not None or station is not None
+                            )
+
+                            # Rich idempotency: only FORCE when power differs OR bri/xy/volume
+                            # actually differ from the live snapshot. Blind force on any rich
+                            # key re-triggers Sonos/Hue on every confirmation echo (e.g. Hue
+                            # sync rule → Sonos forced again while already playing).
+                            # `station` is not stored on device state; Sonos bridge already
+                            # no-ops identical streams — do not force solely for station.
+                            power_differs = (
+                                str(current_target_state).upper()
+                                != str(target_action_state).upper()
+                            )
+                            rich_differs = False
                             if is_rich_action:
-                                is_force = True
+                                if isinstance(raw_target_state, dict):
+                                    if volume is not None:
+                                        try:
+                                            cur_vol = raw_target_state.get("volume")
+                                            if cur_vol is None or int(cur_vol) != int(volume):
+                                                rich_differs = True
+                                        except (TypeError, ValueError):
+                                            rich_differs = True
+                                    if bri is not None:
+                                        try:
+                                            cur_bri = raw_target_state.get("bri")
+                                            if cur_bri is None or int(cur_bri) != int(bri):
+                                                rich_differs = True
+                                        except (TypeError, ValueError):
+                                            rich_differs = True
+                                    if xy is not None:
+                                        cur_xy = raw_target_state.get("xy")
+                                        if list(cur_xy or []) != list(xy):
+                                            rich_differs = True
+                                elif not power_differs and (
+                                    bri is not None or xy is not None or volume is not None
+                                ):
+                                    # Already at target power but no dict snapshot to compare —
+                                    # allow one forced apply for bri/xy/volume. Station-only
+                                    # has no comparable field; Sonos bridge no-ops same stream.
+                                    rich_differs = True
 
                             # ⚡ RFXCOM FORCE GUARD ⚡
                             # 433MHz is a stateless protocol. We automatically apply the FORCE flag
@@ -373,12 +411,14 @@ class AutomationEngine:
                             meta_origin: str = meta.get("origin", "") if isinstance(meta, dict) else ""
                             if meta_origin == "rfxcom":
                                 is_force = True
+                            elif rich_differs and not power_differs:
+                                # Same power, different bri/xy/volume — must force past duplicate filter.
+                                is_force = True
 
                             # STRING NORMALIZATION COMPARISON
                             # Coerced to uppercase strings to ensure integers (e.g., 100) and YAML strings (e.g., "100")
                             # or mixed-case status descriptors evaluate flawlessly, preventing duplicate command streams.
-                            if str(current_target_state).upper() != str(
-                            target_action_state).upper() or is_force:
+                            if power_differs or is_force or rich_differs:
                             # Use a distinct variable name to prevent shadowing the original event payload!
                             # Explicitly tags the origin as "AUTOMATION" for the IWHW Ledger
                                 action_payload = {"idx": action_idx, "state": target_action_state,
@@ -409,7 +449,8 @@ class AutomationEngine:
                                     f"Set target IDX {action_idx} ({semantic_name}) to {final_state_str}{preset_str}")
                             else:
                                 automation_logger.debug(
-                                    f"[X-RAY] -> Target IDX {action_idx} is already {target_action_state}. Ignoring.")
+                                    f"[X-RAY] -> Target IDX {action_idx} is already {target_action_state}"
+                                    f"{' (rich satisfied)' if is_rich_action else ''}. Ignoring.")
 
                         # --- Action Type B: Native Hue Scene Trigger ---
                         elif getattr(action, "target", None) == "hue_scene":

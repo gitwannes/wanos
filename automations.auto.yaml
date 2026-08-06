@@ -78,32 +78,32 @@ automations:
   # --------------------------------------------------------------------------
   # 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
   # --------------------------------------------------------------------------
-  - name: "Morning Blinds Open"
+  - name: Morning Blinds Open
     scene: false
     require_confirmation: false
     trigger:
       event: blinds
     cases:
-      - to_state: ON
+      - to_state: "ON"
         actions:
           - entity_id: blinds.gv_links
-            state: "0"
+            state: '0'
           - entity_id: blinds.gv_rechts
-            state: "0"
+            state: '0'
           - entity_id: blinds.sauna
-            state: "0"
+            state: '0'
           - entity_id: blinds.cinema
-            state: "0"
-      - to_state: OFF
+            state: '0'
+      - to_state: "OFF"
         actions:
           - entity_id: blinds.gv_links
-            state: "100"
+            state: '0'
           - entity_id: blinds.gv_rechts
-            state: "100"
+            state: '0'
           - entity_id: blinds.sauna
-            state: "100"
+            state: '0'
           - entity_id: blinds.cinema
-            state: "100"
+            state: '0'
     id: b3f9c1f0-700d-40e5-b98e-e818445b26c9
   - name: "Tuinlichten & kerststuff aan 's avonds"
     scene: false

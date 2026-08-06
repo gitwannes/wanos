@@ -25,10 +25,21 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
+        /* Top-row join: tablets+ (≥768). Below: hamburger (Explorer + WISC only). */
         #pc-nav-menu { display: none; }
-        @media (min-width: 1024px) {
+        #mobile-nav-menu { display: inline-flex; }
+        @media (min-width: 768px) {
             #pc-nav-menu { display: flex; }
+            #mobile-nav-menu { display: none !important; }
         }
+        #pc-nav-menu .join > .join-item.nav-mid {
+            border-left-color: var(--fallback-b3, oklch(var(--b3))) !important;
+            border-right-color: var(--fallback-b3, oklch(var(--b3))) !important;
+        }
+        #pc-nav-menu .join > .join-item.nav-end {
+            border-left-color: var(--fallback-b3, oklch(var(--b3))) !important;
+        }
+        [x-cloak] { display: none !important; }
     </style>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()" x-init="initSensorHistoryPage()">
@@ -53,19 +64,19 @@
             <div class="join bg-base-200 border border-base-300">
                 <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">Explorer</a>
                 <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">WISC</a>
-                <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-accent border-accent bg-accent/10">History</a>
+                <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-accent border-accent bg-accent/10" :class="isAdmin ? 'nav-mid' : 'nav-end'">History</a>
+                <a href="/blocky.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-warning" x-show="isAdmin" x-cloak>Automation</a>
             </div>
         </div>
 
         <div class="flex-none flex items-center gap-2">
-            <div class="dropdown dropdown-end">
+            <div id="mobile-nav-menu" class="dropdown dropdown-end">
                 <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                 </div>
                 <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
                     <li><a href="/deviceexplorer.html">Device Explorer</a></li>
                     <li><a href="/commander.html">WISC</a></li>
-                    <li><a href="/sensorhistory.html" class="text-accent font-bold">History</a></li>
                 </ul>
             </div>
             <a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" x-show="isAdmin" x-cloak title="Return to Admin">
@@ -139,6 +150,6 @@
             </div>
         </div>
     </main>
-    <script src="app.js?v=3.14"></script>
+    <script src="app.js?v=3.15"></script>
 </body>
 </html>

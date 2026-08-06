@@ -304,6 +304,25 @@ def _canonicalize_trigger(trigger: Any) -> Any:
     return trigger
 
 
+def _coerce_case_to_state(raw: Any) -> Any:
+    """
+    Normalize case to_state for expand/match.
+    YAML 1.1 loads unquoted ON/OFF as bool — map those (and TRUE/FALSE strings) back.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        return "ON" if raw else "OFF"
+    ts = str(raw).strip().upper()
+    if ts in ("TRUE", "YES"):
+        return "ON"
+    if ts in ("FALSE", "NO"):
+        return "OFF"
+    if ts in ("ON", "OFF", "OPEN", "CLOSED"):
+        return ts
+    return raw
+
+
 def _normalize_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
     cases_in = rule.get("cases") or []
     cases_out: List[Dict[str, Any]] = []
@@ -312,8 +331,7 @@ def _normalize_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
             continue
         case: Dict[str, Any] = {}
         if c.get("to_state") is not None:
-            ts = str(c["to_state"]).upper()
-            case["to_state"] = ts if ts in ("ON", "OFF", "OPEN", "CLOSED") else c["to_state"]
+            case["to_state"] = _coerce_case_to_state(c["to_state"])
         conds = c.get("conditions") or []
         if isinstance(conds, list) and conds:
             case["conditions"] = [_copy_condition(x) for x in conds]
@@ -428,7 +446,7 @@ def _expand_v2_case_to_flat(
 
     rule_id = base.get("id")
     name = base.get("name")
-    to_state = case.get("to_state")
+    to_state = _coerce_case_to_state(case.get("to_state"))
     to_state_u = str(to_state).upper() if to_state is not None else None
 
     flat_trigger: Any
@@ -442,12 +460,11 @@ def _expand_v2_case_to_flat(
         label = f" [case {case_index}]"
     elif isinstance(trigger, dict) and trigger.get("entity_id"):
         eid = trigger["entity_id"]
-        if to_state_u in ("ON", "OFF"):
+        if to_state_u in ("ON", "OFF", "OPEN", "CLOSED"):
             flat_trigger = {"entity_id": eid, "state": to_state_u}
             suffix = f"#{to_state_u.lower()}"
             label = f" [{to_state_u}]"
         elif to_state is not None:
-            # Blinds OPEN/CLOSED (or numeric) edge on device wake
             st = str(to_state)
             flat_trigger = {"entity_id": eid, "state": st}
             suffix = f"#{st.lower()}"

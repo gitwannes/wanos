@@ -15,13 +15,28 @@
     <meta name="apple-mobile-web-app-title" content="WanOS" />
     <link rel="manifest" href="/favicon/site.webmanifest" />
 
-    <title>WanOS - Blocky</title>
+    <title>WanOS - Automation</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="https://unpkg.com/blockly@13.2.1/blockly.min.js"></script>
 
     <style>
+        /* Top-row join: tablets+ (≥768). Below: hamburger (Explorer + WISC only). */
+        #pc-nav-menu { display: none; }
+        #mobile-nav-menu { display: inline-flex; }
+        @media (min-width: 768px) {
+            #pc-nav-menu { display: flex; }
+            #mobile-nav-menu { display: none !important; }
+        }
+        #pc-nav-menu .join > .join-item.nav-mid {
+            border-left-color: var(--fallback-b3, oklch(var(--b3))) !important;
+            border-right-color: var(--fallback-b3, oklch(var(--b3))) !important;
+        }
+        #pc-nav-menu .join > .join-item.nav-end {
+            border-left-color: var(--fallback-b3, oklch(var(--b3))) !important;
+        }
+        [x-cloak] { display: none !important; }
         /* Same constraints as helpers/blockly_minimal_test.html.
            Do NOT force .blocklySvg width/height — Blockly owns those pixels.
            Do NOT put Blockly on Alpine reactive state (Proxy breaks drag/snap). */
@@ -64,36 +79,55 @@
         }
     </style>
 </head>
-<body class="bg-base-300 min-h-screen text-base-content p-6" x-data="blockyApp()" x-init="init()">
+<body class="bg-base-300 min-h-screen text-base-content" x-data="blockyApp()" x-init="init()">
 
 <div x-show="!connected" x-cloak
      class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
     <span class="loading loading-infinity w-16 text-warning mb-4"></span>
     <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
-    <p class="text-warning mt-2 font-mono text-sm">Loading Blocky editor state...</p>
+    <p class="text-warning mt-2 font-mono text-sm">Loading automation editor...</p>
 </div>
 
-<header class="mb-8 flex justify-between items-center max-w-7xl mx-auto">
-    <div class="flex items-center gap-4">
-        <a href="/admin.html" class="btn btn-ghost btn-circle text-base-content/50 hover:text-primary transition-colors" title="Return to Admin">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-        </a>
-        <div>
-            <h1 class="text-2xl font-black text-warning uppercase tracking-widest">⚡ Blocky Automation Editor</h1>
-            <p class="text-xs text-base-content/50 font-mono mt-1">Schema v2 · one canvas · JSON power-user only</p>
+<header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center min-h-[3rem] relative z-[60]">
+    <div class="flex-1 flex items-center gap-2 min-w-0">
+        <div class="flex flex-col min-w-0 justify-center">
+            <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-warning truncate">⚡ WanOS // Automation</span>
         </div>
     </div>
 
-    <div class="flex gap-3 items-center">
-        <span class="badge font-bold hidden md:inline-flex" :class="connected ? 'badge-success' : 'badge-error'" x-text="connected ? 'CONNECTED' : 'OFFLINE'"></span>
-        <button class="btn btn-outline btn-sm" @click="refreshAll()" :disabled="busy">
-            <span x-show="!busy">Refresh</span>
+    <div id="pc-nav-menu" class="justify-center flex-1 min-w-0">
+        <div class="join bg-base-200 border border-base-300">
+            <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary" @click="navAway($event, '/deviceexplorer.html')">Explorer</a>
+            <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary" @click="navAway($event, '/commander.html')">WISC</a>
+            <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent" @click="navAway($event, '/sensorhistory.html')">History</a>
+            <a href="/blocky.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-warning border-warning bg-warning/10 nav-end">Automation</a>
+        </div>
+    </div>
+
+    <div class="flex-none flex items-center gap-2">
+        <button class="btn btn-ghost btn-xs text-base-content/50 hover:text-warning" @click="refreshAll()" :disabled="busy" title="Refresh">
+            <span x-show="!busy" class="font-mono text-[10px] tracking-wider">Refresh</span>
             <span x-show="busy" class="loading loading-spinner loading-xs"></span>
+        </button>
+        <div id="mobile-nav-menu" class="dropdown dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </div>
+            <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
+                <li><a href="/deviceexplorer.html" @click="navAway($event, '/deviceexplorer.html')">Device Explorer</a></li>
+                <li><a href="/commander.html" @click="navAway($event, '/commander.html')">WISC</a></li>
+            </ul>
+        </div>
+        <a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" title="Return to Admin" @click="navAway($event, '/admin.html')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        </a>
+        <button @click="editorDirty ? requestLeave({ type: 'logout' }) : logout()" class="btn btn-ghost btn-xs text-base-content/30 hover:text-error" title="Logout">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
         </button>
     </div>
 </header>
 
-<main class="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-3 gap-6">
+<main class="max-w-7xl mx-auto px-3 md:px-6 grid grid-cols-1 xl:grid-cols-3 gap-6 pb-10">
     <section class="xl:col-span-1 card bg-base-100 border border-base-200 shadow-xl">
         <div class="card-body p-4">
             <div class="flex justify-between items-center mb-3">
@@ -106,7 +140,7 @@
                     <button class="w-full btn btn-sm justify-start text-left normal-case gap-2 px-2"
                             :class="(selectedRule && !selectedRule.isDraft && selectedRule.id === rule.id) ? 'btn-warning' : (selectedRule && selectedRule.isDraft ? '' : 'btn-ghost')"
                             @click="selectRule(rule)">
-                        <span class="badge badge-xs shrink-0" :class="ruleListBadgeClass(rule)" x-text="ruleListKind(rule)"></span>
+                        <span x-show="ruleListKind(rule)" class="badge badge-xs shrink-0" :class="ruleListBadgeClass(rule)" x-text="ruleListKind(rule)"></span>
                         <span class="truncate flex-1 text-left" x-text="rule.name || '(unnamed)'"></span>
                     </button>
                 </template>
@@ -134,6 +168,7 @@
             <template x-if="selectedRule">
                 <div class="space-y-4">
                     <div x-show="selectedRule.isDraft" class="text-xs text-warning font-semibold">New rule — pick trigger + cases in Blockly, name it, then Save.</div>
+                    <div x-show="editorDirty" class="text-xs text-warning font-mono">Unsaved changes</div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <label class="form-control">
                             <span class="label-text text-xs">Name</span>
@@ -172,14 +207,14 @@
                         </p>
                         <p class="text-[11px] text-base-content/50 max-w-xl">
                             Trigger wakes the rule; cases are ordered if / else-if / else.
-                            Match options follow the trigger (device ON/OFF or blinds OPEN/CLOSED; schedule start/end; event/OR = conditions gate).
+                            Match options follow the trigger (device ON/OFF or blinds OPEN/CLOSED; start or end; event/OR = conditions gate).
                             Action/condition states follow device type. Speakers show as Sonos/Onkyo. OR edges only when root is “When any of”.
                             Rich fields (preset, volume, …) round-trip; authoring UX is Phase 6C.
                         </p>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200" x-show="editorMode === 'blockly'">
-                        <button class="btn btn-xs btn-outline" @click="loadV2IntoBlockly()">Reload canvas</button>
+                        <button class="btn btn-xs btn-outline" @click="requestLeave({ type: 'reload' })">Reload canvas</button>
                         <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
                     </div>
 
@@ -206,7 +241,7 @@
                         <div class="text-[11px] text-base-content/60" x-show="showBlocklyWorkspace && !blocklyFullscreen">
                             Trigger → chain of <b>if</b> cases → actions.
                             To change trigger type, drag another from <b>Trigger</b> (cases stay attached).
-                            Schedule (start→end): paired edges (e.g. morning-on → sunrise); not the same as blinds open/close.
+                            When start or end: paired edges (clock for blinds/twilight; session on/off for sauna/IR/cinema).
                             Snap blocks fully into notches · unsnapped leaves block Save · trash deletes.
                         </div>
                     </div>
@@ -231,6 +266,24 @@
     </section>
 </main>
 
-<script src="blocky.js?v=4.9"></script>
+<dialog id="unsaved_rule_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+    <div class="modal-box border border-warning/40 bg-base-300 shadow-2xl">
+        <h3 class="font-bold text-lg text-warning tracking-wide">Unsaved changes</h3>
+        <p class="py-3 text-sm text-base-content/80">
+            This rule has edits that are not saved. Leave and discard them, or save first?
+        </p>
+        <div class="modal-action flex-wrap gap-2">
+            <button type="button" class="btn btn-ghost btn-sm" @click="cancelUnsavedLeave()">Cancel</button>
+            <button type="button" class="btn btn-outline btn-error btn-sm" @click="discardUnsavedLeave()">Discard</button>
+            <button type="button" class="btn btn-warning btn-sm" @click="saveUnsavedLeave()" :disabled="busy">
+                <span x-show="!busy">Save</span>
+                <span x-show="busy" class="loading loading-spinner loading-xs"></span>
+            </button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button type="button" @click="cancelUnsavedLeave()">close</button></form>
+</dialog>
+
+<script src="blocky.js?v=4.14"></script>
 </body>
 </html>

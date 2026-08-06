@@ -2,6 +2,22 @@
 // Contextual dropdowns: only show entries valid for the current trigger / device type.
 // Phase 6C (TODO): rich action authoring UX — Hue preset, blinds open %, Sonos volume/station.
 
+/** Min viewport width for History / Automation and the top-row join (tablets+). */
+const WANOS_WIDE_MIN_PX = 768;
+
+/** History & Automation: bounce phones to Device Explorer (also on shrink).
+ *  Returns true when the viewport is too narrow (caller should abort init). */
+function wanosRedirectIfNarrow() {
+    const mq = window.matchMedia(`(min-width: ${WANOS_WIDE_MIN_PX}px)`);
+    const bounce = () => {
+        if (!mq.matches) window.location.replace("/deviceexplorer.html");
+    };
+    bounce();
+    if (typeof mq.addEventListener === "function") mq.addEventListener("change", bounce);
+    else if (typeof mq.addListener === "function") mq.addListener(bounce);
+    return !mq.matches;
+}
+
 /** Keep in sync with core/schedule_events.SCHEDULE_WINDOW_EDGES (enter, exit). */
 const BLOCKY_SCHEDULE_WINDOW_EDGES = {
     blinds: ["BLINDS_OPEN_TRIGGER", "BLINDS_CLOSE_TRIGGER"],
@@ -59,6 +75,9 @@ function blockyScheduleWindowHint(fam) {
     }
     if (fam === "twilight_morning" || fam === "twilight_evening") {
         return `Fires twice: at ${a}, then at ${b}. Not blinds open/close.`;
+    }
+    if (fam === "sauna" || fam === "ir" || fam === "cinema") {
+        return `Fires on either edge: ${a} or ${b}. Not a clock schedule.`;
     }
     return `Fires twice: ${a}, then ${b}.`;
 }
@@ -366,7 +385,7 @@ function defineBlockyBlocks(Blockly, providers) {
         init() {
             const block = this;
             this.appendDummyInput()
-                .appendField("When schedule (start→end)")
+                .appendField("When start or end")
                 .appendField(new Blockly.FieldDropdown(familyDd, (newVal) => {
                     block.updateScheduleHint_(newVal);
                     blockyRefreshCaseMatchLabels(block.getNextBlock());
@@ -487,7 +506,7 @@ function defineBlockyBlocks(Blockly, providers) {
 }
 
 function blockyToolboxDefinition(_presentTypes) {
-    // Always offer triggers so operators can swap device ↔ event ↔ schedule (start→end).
+    // Always offer triggers so operators can swap device ↔ event ↔ start/end.
     // Uniqueness keeps a single root and adopts the case chain onto the new trigger.
     const contents = [
         {
@@ -722,6 +741,7 @@ function blockyOnChange(ev) {
                 BlockyRT.app.editor.scene = false;
                 BlockyRT.app.editor.require_confirmation = false;
             }
+            BlockyRT.app.markEditorDirty();
         }
     }, 0);
 }
@@ -841,17 +861,20 @@ function blockyApp() {
         entityOptions: [],
         showHiddenEntities: false,
         editorMode: "blockly",
+        editorDirty: false,
+        suppressDirtyUntil: 0,
+        pendingNav: null,
         blocklyFullscreen: false,
-            blocklySchemaVersion: 30,
+            blocklySchemaVersion: 32,
         blocklyUiTick: 0,
         eventFamilies: ["blinds", "twilight_evening", "twilight_morning", "sauna", "ir", "cinema"],
         eventFamilyLabels: {
-            blinds: "Blinds",
-            twilight_evening: "Twilight evening",
-            twilight_morning: "Twilight morning",
-            sauna: "Sauna",
-            ir: "IR",
-            cinema: "Cinema"
+            blinds: "Blinds (open→close)",
+            twilight_evening: "Twilight evening (sunset→off)",
+            twilight_morning: "Twilight morning (on→sunrise)",
+            sauna: "Sauna on/off",
+            ir: "IR on/off",
+            cinema: "Cinema on/off"
         },
         curatedEvents: [
             "BLINDS_OPEN_TRIGGER", "BLINDS_CLOSE_TRIGGER",
@@ -931,30 +954,26 @@ function blockyApp() {
             }
         },
 
+        /** List badges: only dashboard (kiosk scene) and event (incl. family windows). */
         ruleListKind(rule) {
-            if (!rule || rule.isDraft) return "new";
+            if (!rule || rule.isDraft) return null;
             if (rule.scene) return "dashboard";
-            const cases = rule.cases || [];
-            if (cases.length >= 2) return "multi-case";
             let t = rule.trigger;
-            // Singleton list is not a real OR (legacy YAML style)
             if (Array.isArray(t) && t.length === 1) t = t[0];
-            if (Array.isArray(t)) return "or-trigger";
-            if (t && t.event && this.eventFamilies.includes(t.event)) return "window";
-            if (t && t.event) return "event";
-            if (cases.some((c) => c && (c.to_state === "ON" || c.to_state === "OFF"))) return "edged";
-            if (t && (t.state === "ON" || t.state === "OFF")) return "edged";
-            return "rule";
+            // OR of events still counts as event-triggered
+            if (Array.isArray(t)) {
+                if (t.length && t.every((x) => x && x.event && !x.entity_id)) return "event";
+                return null;
+            }
+            if (t && t.event && !t.entity_id) return "event";
+            return null;
         },
 
         ruleListBadgeClass(rule) {
             const k = this.ruleListKind(rule);
             if (k === "dashboard") return "badge-secondary";
-            if (k === "multi-case" || k === "window" || k === "edged") return "badge-success";
-            if (k === "or-trigger") return "badge-accent";
             if (k === "event") return "badge-warning";
-            if (k === "new") return "badge-ghost";
-            return "badge-info";
+            return "";
         },
 
         deviceTypeLabel(type, origin, idx) {
@@ -984,6 +1003,65 @@ function blockyApp() {
 
         eventFamilyLabel(fam) {
             return this.eventFamilyLabels[fam] || fam;
+        },
+
+        markEditorDirty() {
+            if (BlockyRT.loading || Date.now() < (this.suppressDirtyUntil || 0)) return;
+            if (!this.selectedRule) return;
+            this.editorDirty = true;
+        },
+
+        markEditorClean() {
+            this.editorDirty = false;
+            this.suppressDirtyUntil = Date.now() + 400;
+        },
+
+        requestLeave(action) {
+            if (!this.editorDirty) {
+                this.runLeaveAction(action);
+                return;
+            }
+            this.pendingNav = action;
+            const dlg = document.getElementById("unsaved_rule_modal");
+            if (dlg) dlg.showModal();
+        },
+
+        runLeaveAction(action) {
+            if (!action) return;
+            if (action.type === "select") this._doSelectRule(action.rule);
+            else if (action.type === "new") this._doNewRule();
+            else if (action.type === "href" && action.url) window.location.href = action.url;
+            else if (action.type === "reload") this.loadV2IntoBlockly();
+            else if (action.type === "logout") this.logout();
+        },
+
+        cancelUnsavedLeave() {
+            this.pendingNav = null;
+            document.getElementById("unsaved_rule_modal")?.close();
+        },
+
+        discardUnsavedLeave() {
+            const action = this.pendingNav;
+            this.pendingNav = null;
+            this.markEditorClean();
+            document.getElementById("unsaved_rule_modal")?.close();
+            this.runLeaveAction(action);
+        },
+
+        async saveUnsavedLeave() {
+            await this.saveRule();
+            if (this.errorMessage) return;
+            const action = this.pendingNav;
+            this.pendingNav = null;
+            document.getElementById("unsaved_rule_modal")?.close();
+            // saveRule already reselected the saved rule; still honor leave target.
+            this.runLeaveAction(action);
+        },
+
+        navAway(ev, url) {
+            if (!this.editorDirty) return;
+            ev.preventDefault();
+            this.requestLeave({ type: "href", url });
         },
 
         onEditorModeChanged() {
@@ -1062,6 +1140,14 @@ function blockyApp() {
             } catch (e) {
                 return false;
             }
+        },
+
+        async logout() {
+            try {
+                await fetch("/api/auth/logout", { method: "POST", headers: this.getAuthHeaders() });
+            } catch (e) { /* ignore */ }
+            localStorage.removeItem("wanos_jwt");
+            window.location.href = "/login.html";
         },
 
         isHardDeniedEntityId(eid) {
@@ -1412,6 +1498,7 @@ function blockyApp() {
                 if (wasEnabled) Events.enable();
                 if (!Events.isEnabled()) Events.enable();
                 BlockyRT.loading = false;
+                this.markEditorClean();
             }
         },
 
@@ -1492,7 +1579,7 @@ function blockyApp() {
             } else if (root.type === "b_trig_event") {
                 trigger = { event: root.getFieldValue("EVENT") };
             } else {
-                throw new Error("Unsupported trigger block. Use When device / event / schedule (start→end) / When any of.");
+                throw new Error("Unsupported trigger block. Use When device / event / start or end / When any of.");
             }
 
             const cases = [];
@@ -1593,6 +1680,11 @@ function blockyApp() {
         },
 
         newRule() {
+            this.requestLeave({ type: "new" });
+        },
+
+        _doNewRule() {
+            this.markEditorClean();
             this.selectedRule = { isDraft: true };
             this.editor = this.blankEditor();
             this.editorMode = "blockly";
@@ -1602,6 +1694,15 @@ function blockyApp() {
         },
 
         selectRule(rule) {
+            if (!rule) return;
+            if (this.selectedRule && !this.selectedRule.isDraft && rule.id && this.selectedRule.id === rule.id) {
+                return;
+            }
+            this.requestLeave({ type: "select", rule });
+        },
+
+        _doSelectRule(rule) {
+            this.markEditorClean();
             this.selectedRule = rule;
             this.errorMessage = "";
             this.infoMessage = "";
@@ -1641,11 +1742,11 @@ function blockyApp() {
                 const rulesPayload = await rulesRes.json();
                 this.automations = (rulesPayload.automations || []).filter((r) => r && typeof r === "object");
                 this.rebuildEntityOptions(state.device_metadata || {}, this.automations);
-                if (this.selectedRule && this.selectedRule.id) {
+                if (this.selectedRule && this.selectedRule.id && !this.editorDirty) {
                     const fresh = this.automations.find((r) => r.id === this.selectedRule.id);
-                    if (fresh) this.selectRule(fresh);
+                    if (fresh) this._doSelectRule(fresh);
                 }
-                if (this.showBlocklyWorkspace) this.scheduleBlocklyLoad();
+                if (this.showBlocklyWorkspace && !this.editorDirty) this.scheduleBlocklyLoad();
             } catch (e) {
                 this.errorMessage = String(e);
             } finally {
@@ -1701,11 +1802,12 @@ function blockyApp() {
                 this.infoMessage = isUpdate
                     ? "Automation updated (hot-reload queued)."
                     : "Automation created (hot-reload queued).";
+                this.markEditorClean();
                 await this.refreshAll();
                 const rid = (body.automation && body.automation.id) || payload.id;
                 if (rid) {
                     const fresh = this.automations.find((r) => r.id === rid);
-                    if (fresh) this.selectRule(fresh);
+                    if (fresh) this._doSelectRule(fresh);
                 }
                 await this.runPostWriteRegistryCheck();
             } catch (e) {
@@ -1735,8 +1837,9 @@ function blockyApp() {
                 const body = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(body.error || `DELETE failed (${res.status})`);
                 this.infoMessage = "Automation deleted (hot-reload queued).";
+                this.markEditorClean();
                 await this.refreshAll();
-                this.newRule();
+                this._doNewRule();
                 await this.runPostWriteRegistryCheck();
             } catch (e) {
                 this.errorMessage = String(e);
@@ -1747,6 +1850,7 @@ function blockyApp() {
 
         async init() {
             BlockyRT.app = this;
+            if (wanosRedirectIfNarrow()) return;
             const token = localStorage.getItem("wanos_jwt") || "";
             if (!token) {
                 window.location.href = "/login.html";
@@ -1756,6 +1860,16 @@ function blockyApp() {
                 window.location.href = "/deviceexplorer.html";
                 return;
             }
+            this._onBeforeUnload = (e) => {
+                if (!this.editorDirty) return;
+                e.preventDefault();
+                e.returnValue = "";
+            };
+            window.addEventListener("beforeunload", this._onBeforeUnload);
+            this.$watch("editor.name", () => this.markEditorDirty());
+            this.$watch("editor.scene", () => this.markEditorDirty());
+            this.$watch("editor.require_confirmation", () => this.markEditorDirty());
+            this.$watch("editor.ruleJson", () => this.markEditorDirty());
             await this.refreshAll();
             this.connected = true;
         }

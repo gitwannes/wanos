@@ -18,10 +18,10 @@ _YAML_BOOLISH = {
 
 
 def _quote_boolish_scalars(node: Any) -> None:
-    """In-place: quote state/is strings that YAML would otherwise load as bools."""
+    """In-place: quote state/is/to_state strings that YAML would otherwise load as bools."""
     if isinstance(node, dict):
         for key, val in list(node.items()):
-            if key in ("state", "is"):
+            if key in ("state", "is", "to_state"):
                 if isinstance(val, bool):
                     node[key] = DoubleQuotedScalarString("ON" if val else "OFF")
                 elif isinstance(val, str) and val in _YAML_BOOLISH:

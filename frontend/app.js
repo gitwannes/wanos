@@ -7,6 +7,22 @@
 const wanosHistoryCharts = { day: null, month: null, year: null };
 const wanosActuatorCharts = { day: null, month: null, year: null };
 
+/** Min viewport width for History / Automation and the top-row join (tablets+). */
+const WANOS_WIDE_MIN_PX = 768;
+
+/** History & Automation: bounce phones to Device Explorer (also on shrink).
+ *  Returns true when the viewport is too narrow (caller should abort init). */
+function wanosRedirectIfNarrow() {
+    const mq = window.matchMedia(`(min-width: ${WANOS_WIDE_MIN_PX}px)`);
+    const bounce = () => {
+        if (!mq.matches) window.location.replace("/deviceexplorer.html");
+    };
+    bounce();
+    if (typeof mq.addEventListener === "function") mq.addEventListener("change", bounce);
+    else if (typeof mq.addListener === "function") mq.addListener(bounce);
+    return !mq.matches;
+}
+
 function wanosApp() {
     return {
         connected: false,
@@ -1298,6 +1314,7 @@ function wanosApp() {
 
         async initSensorHistoryPage() {
             if (!window.location.pathname.includes("sensorhistory.html")) return;
+            if (wanosRedirectIfNarrow()) return;
             await this.$nextTick();
             this.historyTab = "sessions";
             await this.loadSessionHistory();
