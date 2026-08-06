@@ -126,9 +126,17 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
     is_push_button = payload.get("is_push_button", False)
     is_force = payload.get("force", False)
 
-    # RFXCOM FORCE GUARD
+    # Origin force policy (matches AutomationEngine):
+    # RFX always; Sonos / Onkyo / Epson on OFF only.
     meta_origin: str = manager._state.device_metadata.get(idx, {}).get("origin", "")
     if not is_force and meta_origin == "rfxcom":
+        is_force = True
+        payload["force"] = True
+    elif (
+        not is_force
+        and meta_origin in ("sonos", "onkyo", "epson")
+        and str(state_val).upper() == "OFF"
+    ):
         is_force = True
         payload["force"] = True
 

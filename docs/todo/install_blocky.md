@@ -94,9 +94,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE**. Phase **6B ✅ DONE** (incl. SYNC→ON/OFF on Pi). Contextual Blockly pickers (type-aware states, case match by trigger, OR-edges toolbox) shipped as a **6B follow-on**. Next: **6C** (rich action UX). Phase 7 = soft-hide UI; Phase 8 = lighting UI.
+**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE**. Phase **6B ✅ DONE** (incl. SYNC→ON/OFF on Pi). Contextual Blockly pickers (type-aware states, case match by trigger, OR-edges toolbox) shipped as a **6B follow-on**. Next: **6C** (rich action UX). Phase 7 = soft-hide UI; Phase 8 = lighting UI; Phase **9** = full Blockly↔JSON parity (JSON no longer required for any authorable rule).
 
-**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog. **Motion** is allowed as **When device** trigger only (garage/toilet); never as action. Soft-hidden / out-of-catalog eids that appear on the **open rule** are always listed for that picker role so Blockly does not fall back to the first device (e.g. `53?`). Actions = actuators only. Re-enable broader sensor pickers when needed.
+**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog. **Motion** is allowed as **When device** trigger only (garage/toilet); never as action. Soft-hidden / out-of-catalog eids that appear on the **open rule** are always listed for that picker role so Blockly does not fall back to the first device (e.g. `53?`). Actions = actuators only. Broader sensor / threshold authoring is **Phase 9** (after 6C rich actions).
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
@@ -218,14 +218,14 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 2. **Blinds position** — operator-facing **open %** (e.g. “open 10%” = 90% closed); map to stored 0–100 `state` per existing engine convention; document the mapping in-phase. (Interim: action dropdown already limits blinds to `0` / `100`.)
 3. **Sonos** — `volume` and `station` fields (station keys from config dictionary); enough to edit live rules like `pc_monitors` ON branch without JSON.
 
-**Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI, Phase 8 lighting config UI.
+**Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI, Phase 8 lighting config UI, full JSON↔Blockly parity (Phase **9** — 6C is the rich-action slice of that gap).
 
 ### Phase 7 — Unified soft-hide (“hidden from Explorer / pickers”) 🔜 TODO
 
 **Today (no UI):** soft-hide is already one runtime concept (D1) — `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes` → `hidden_explorer_idxs` / `meta.hidden` — but operators still face two YAML homes (`automations.auto.yaml` vs `config_zwave.auto.yaml`).
 
 **Phase 7 goal:** one operator-facing soft-hide model and admin UI (Blocky sibling page or Admin section):
-1. **One mental model** — “hide this `entity_id` from Explorer / Blocky pickers” is one action (D1 soft-hide). Blocky respects soft-hide unless “Show Explorer-hidden devices” is on (open-rule eids still listed for edit).
+1. **One mental model** — “hide this `entity_id` from Explorer / Blocky pickers” is one action (D1 soft-hide). Blocky respects soft-hide unless the **Hidden** toggle is on (currently selected eids stay sticky until cleared).
 2. **One edit surface** — view/edit the full soft-hide set as a single list (or clear union), not an exclude editor plus a footnote about Z-Wave.
 3. **Storage** — either collapse `hidden_nodes` into `deviceexplorer_exclude` (Z-Wave UI writes the same key), or keep dual files with the UI as the single writer of the union; runtime already treats them as one list.
 
@@ -238,6 +238,44 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 **Phase 8 goal:** admin UI (Blocky sibling page or Admin section) to view/edit lighting auto-off — managed lights list, default minutes, per-entity delay overrides.
 
 **Constraints:** surgical `ruamel` write of only `lighting:` (same pattern as automations CRUD); never rewrite unrelated keys; Admin Debug still GREEN after edits.
+
+### Phase 9 — Full Blockly ↔ JSON parity 🔜 TODO
+
+**Depends on:** Phase **6C** (rich action UX) must land first — that closes the largest live gap (`preset` / blinds open-% / Sonos `volume`+`station`). Phases **7** / **8** are orthogonal config UIs and may run in parallel; they are not prerequisites for 9.
+
+**Goal:** every automation that is valid to **author and save** as schema v2 can be created and edited entirely on the Blockly canvas. JSON mode remains only as a **debug / inspect** escape hatch (or is removed once parity is proven) — never required for operator workflow.
+
+**Today (gap inventory — JSON can, Blockly cannot or is unsafe):**
+
+| Gap | JSON | Blockly now | Phase 9 target |
+|-----|------|-------------|----------------|
+| Hue `preset`, Sonos `volume`/`station`, raw `bri`/`xy` | author | round-trip only (no fields) | **done in 6C**; 9 verifies no leftover rich-only JSON paths |
+| Blinds mid-position | author | 0/100 only (may coerce) | **done in 6C**; 9 verifies no coerce/loss |
+| Rich fields keyed by `entity_id` only | per-action | collision if same device twice with different rich | **per-action** rich on each action block |
+| Sensors / temp / power / energy / fluid as When / if | typeable | excluded from catalog | role-aware pickers + engine-legal ops only |
+| Numeric / threshold conditions (e.g. “> 80”) | not really (engine = equality today) | none | **engine + blocks** if we want true thresholds; else document “equality only” and expose sensor state equality in Blockly |
+| `FORCE_ON` / `FORCE_OFF` beyond switches | freeform | switches only | expose wherever engine already honors them |
+| Events outside curated E1 list | freeform | curated (+ sticky if already on rule) | either expand E1 with review UX, or allow “custom event” block that still validates on save |
+| Any other v2 field Blockly cannot emit | freeform | lost / stripped on canvas apply | inventory + block or explicit reject with message |
+
+**In scope:**
+
+1. **Parity audit** — every live rule in `automations.auto.yaml` opens, edits, and saves in Blockly with **zero semantic drift** (including rich, OR, multi-case, soft-hidden sticky, schedule families). Any rule that still needs JSON is a Phase 9 bug or an explicit hard-deny exception.
+2. **Finish / harden 6C leftovers** — confirm rich authoring is complete; fix per-action rich storage (no `entity_id`-only map); no silent coerce of blinds mid-values or rich keys on load/save.
+3. **Sensor-class devices in pickers (role-aware)** — allow sensors / temp / power / energy / fluid where the engine can evaluate them (trigger and/or condition). Motion policy stays: trigger OK, never action. Actions remain actuators (+ event fire).
+4. **Threshold / compare conditions (optional engine slice)** — if operators need “above/below” (not only `device_state` equality), add engine support **and** Blockly blocks together; do not leave compare-only in JSON.
+5. **Action/condition completeness** — every engine-supported action key and condition type has a Blockly control; unknown keys on load surface a clear warning instead of silent drop.
+6. **Event dictionary completeness** — curated list covers all events used in production; path to add a new event without hand-JSON (admin list edit or reviewed “custom event” field).
+7. **JSON demotion** — after DoD: Blockly is default and sufficient; JSON labeled debug-only (or removed). Doc + UI copy updated.
+
+**Intentional permanent exceptions (not Phase 9 “gaps”):**
+
+- **Hard deny** (`switch.safety.*`, `switch.ssr.*`, host/infra sensors, etc.) — never selectable in Blockly; save still rejects. JSON must not become a bypass (keep the same validation).
+- **Non-automation config** (`deviceexplorer_exclude`, `lighting:`) — Phases 7 / 8, not Blockly rule canvas.
+
+**Out of scope for 9:** redesign of schema v2 shape; Phase 7/8 storage UIs; kiosk/dashboard UX beyond existing `scene` / `require_confirmation` toggles.
+
+**Constraints:** Admin Debug GREEN after representative CRUD; no silent field loss on Blockly apply; hard-deny enforcement unchanged; prefer extending blocks over teaching operators JSON.
 
 ---
 
@@ -282,7 +320,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 9. **E1 dictionary scope = E1-v1:** start with approved schedule/scene/sauna trigger set used by automations; add new entries only by explicit review.
 10. **Hard-deny extras = H1:** keep hard-deny minimal in v1 (safety/SSR/internal classes only); avoid broader hard-deny expansion until real operator pain appears.
 11. **UI scope = new page, admin-only:** Blocky is a dedicated admin route/page, not mixed into end-user pages.
-12. **UI strategy = Option 2 (Hybrid):** keep the current JSON/form editor as fallback + debugging path, and add Blockly visual mode incrementally. Do not remove the fallback editor until Blockly covers all live rule patterns and proves stable.
+12. **UI strategy = Option 2 (Hybrid):** keep the current JSON/form editor as fallback + debugging path, and add Blockly visual mode incrementally. Do not remove the fallback editor until Blockly covers all live rule patterns and proves stable — that exit gate is **Phase 9** (after **6C** rich actions).
 
 ## ✅ Final spec lock checklist (no code)
 
@@ -467,6 +505,7 @@ Phase 5 does **not** require a rollback rehearsal that depends on hand-edit + Ad
 3. **Phase 6C:** rich action UX — Hue preset, blinds open %, Sonos volume + station.
 4. **Phase 7:** unified soft-hide UI (“hidden from Explorer / pickers”) — one surface for `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes`.
 5. **Phase 8:** admin UI for `lighting` auto-off in `automations.auto.yaml`.
+6. **Phase 9:** full Blockly ↔ JSON parity — every authorable v2 rule editable on canvas; JSON debug-only (or removed).
 
 ## ✅ Definition of Done (Option 2)
 
@@ -534,6 +573,18 @@ Regression harness (keep): `helpers/blockly_minimal_test.html` (double-click or 
 - [ ] **Hue presets:** Blockly (or unified form on the same canvas) can set/show `preset` (e.g. `relax_red`) and round-trip.
 - [ ] **Blinds open %:** operator sets open percentage; stored value matches engine convention; documented mapping.
 - [ ] **Sonos volume + station:** editable in Blocky; stations from config; sufficient for live rules such as `pc_monitors`.
+
+### Phase 9 DoD — Full Blockly ↔ JSON parity
+
+- [ ] **Live-rule audit:** every rule in production `automations.auto.yaml` opens / edits / saves in Blockly with no semantic drift (rich, OR, multi-case, schedule families, soft-hidden sticky).
+- [ ] **No required JSON:** operator can create and change any authorable v2 rule without opening JSON mode.
+- [ ] **Per-action rich:** two actions on the same `entity_id` with different preset/volume/etc. round-trip independently (no entity-keyed collision).
+- [ ] **No silent loss:** load→save in Blockly does not coerce away blinds mid-positions, rich keys, or unknown-but-legal fields without an explicit warning.
+- [ ] **Sensor-class pickers:** sensors / temp / power / energy / fluid selectable where engine-legal; motion remains trigger-only; hard-deny still blocked in UI and on save.
+- [ ] **Thresholds (if in scope):** compare conditions work in engine **and** Blockly together — or explicitly documented as out and not available in JSON either.
+- [ ] **Events:** all production events reachable from Blockly (curated expansion and/or reviewed custom-event path).
+- [ ] **JSON demoted:** UI/docs mark JSON as debug-only (or remove it); copy no longer says “power-user required for rich rules”.
+- [ ] **Pi smoke:** edit `pc_monitors` (rich), one sensor/condition rule (if enabled), one OR multi-case rule — Admin Debug GREEN.
 
 ### Phase 5 DoD — Hardening + rollout readiness ✅
 

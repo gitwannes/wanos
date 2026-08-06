@@ -609,13 +609,17 @@ function wanosApp() {
                 });
             }
 
-            // 5. Apply Status Filter (Hide sensors, scenes & shutters if ON/OFF is requested)
+            // 5. Apply Status Filter (ON/OFF)
+            // Sensors/scenes stay hidden. Blinds: only mid-travel (not fully open 0, not fully closed 100)
+            // appear — and in both ON and OFF filters.
             if (this.statusFilter !== "ALL") {
                 list = list.filter(item => {
-                    // Instantly drop legacy analog sensors, scenes, and shutters
-                    // (shutters only appear when status filter is ALL)
-                    if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'energy' || item.type === 'scene' || item.type === 'blinds') {
+                    if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum'
+                        || item.type === 'power' || item.type === 'energy' || item.type === 'scene') {
                         return false;
+                    }
+                    if (item.type === 'blinds') {
+                        return this._blindsIsPartialPosition(item.raw_value);
                     }
 
                     // ⚡ Analog String Filter: Safely drop environmental strings (like Lux/Temp) when filtering by binary states
@@ -792,6 +796,26 @@ function wanosApp() {
                 "Content-Type": "application/json",
                 "Authorization": token ? `Bearer ${token}` : ""
             };
+        },
+
+        /**
+         * Blinds closed-% (0 open … 100 closed). Mid-travel only — used by ON/OFF status filters
+         * so partially open blinds show under both filters; endpoints stay on ALL / BLINDS.
+         */
+        _blindsIsPartialPosition(raw) {
+            if (raw == null || raw === "DEAD" || raw === "Sync...") return false;
+            const n = parseInt(raw, 10);
+            return Number.isFinite(n) && n > 0 && n < 100;
+        },
+
+        /** History/actuator overview status: OPEN | CLOSED | "N%". */
+        _blindsIsPartialFromStatus(status) {
+            const st = String(status || "").trim().toUpperCase();
+            if (!st || st === "OPEN" || st === "CLOSED" || st === "—") return false;
+            const m = st.match(/^(\d+)\s*%$/);
+            if (!m) return false;
+            const n = parseInt(m[1], 10);
+            return Number.isFinite(n) && n > 0 && n < 100;
         },
 
         // ⚡ UNIVERSAL DEVICE ONLINE DECIPHER
@@ -1700,12 +1724,15 @@ function wanosApp() {
                 });
             }
 
-            // Shared status filter (binary actuators only; drop sensors/scenes/blinds like Explorer)
+            // Shared status filter: binary actuators + mid-travel blinds (both ON and OFF)
             if (this.statusFilter !== "ALL") {
                 list = list.filter(r => {
                     if (r.category !== "actuator") return false;
-                    if (["temp", "hum", "temp_hum", "power", "energy", "scene", "blinds", "host", "climate"].includes(r.type)) {
+                    if (["temp", "hum", "temp_hum", "power", "energy", "scene", "host", "climate"].includes(r.type)) {
                         return false;
+                    }
+                    if (r.type === "blinds") {
+                        return this._blindsIsPartialFromStatus(r.status);
                     }
                     const st = String(r.status || "").toUpperCase();
                     const isOn = st === "ON" || st === "CLOSED" || st === "HIT";
@@ -3450,7 +3477,8 @@ function wanosApp() {
                 || this.typeFilter !== "ALL"
                 || this.statusFilter !== "ALL"
                 || this.sortMode !== "NAME"
-                || this.actuatorFavoritesOnly === true;
+                || this.actuatorFavoritesOnly === true
+                || (this.isAdmin && this.showHiddenNodes === true);
         },
 
         // Rapidly clears all UI filters and sort modes back to their base defaults
@@ -3461,6 +3489,7 @@ function wanosApp() {
             this.statusFilter = "ALL";
             this.sortMode = "NAME";
             this.actuatorFavoritesOnly = false;
+            this.showHiddenNodes = false;
         },
 
         // Router for when a user clicks one of the 1-4 preset circles
@@ -3473,6 +3502,8 @@ function wanosApp() {
                 this.statusFilter = p.statusFilter || "ALL";
                 this.sortMode = p.sortMode || "NAME";
                 this.actuatorFavoritesOnly = p.favoritesOnly === true;
+                // Hidden is admin-only; non-admin always lands on normal (non-hidden) view
+                this.showHiddenNodes = this.isAdmin && p.showHiddenNodes === true;
             } else {
                 // SAVE PRESET: Slot is empty, verify if there is actually a modified view to save
                 if (!this.isFilterActive()) {
@@ -3493,6 +3524,7 @@ function wanosApp() {
                     statusFilter: this.statusFilter,
                     sortMode: this.sortMode,
                     favoritesOnly: this.actuatorFavoritesOnly === true,
+                    showHiddenNodes: this.isAdmin && this.showHiddenNodes === true,
                 };
                 this.presets[this.activePresetSlot] = payload;
                 localStorage.setItem('wanos_view_presets', JSON.stringify(this.presets));
@@ -3517,6 +3549,7 @@ function wanosApp() {
             if (p.typeFilter !== "ALL") parts.push(p.typeFilter);
             if (p.statusFilter !== "ALL") parts.push(p.statusFilter);
             if (p.favoritesOnly) parts.push("Favorites");
+            if (p.showHiddenNodes) parts.push("Hidden");
 
             if (p.sortMode === "STATUS") parts.push("Sort: Status");
             else if (p.sortMode === "TYPE") parts.push("Sort: Type, Name");

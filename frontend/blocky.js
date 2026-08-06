@@ -219,12 +219,14 @@ function blockyEdgeStateOptions(block) {
 }
 
 /**
- * Action state entries by device type.
- * Phase 6C: add Hue preset / Sonos volume+station / blinds open-% authoring (not just 0/100).
- * No “(legacy)” — stale values are coerced away.
+ * Action state entries by device type / origin.
+ * RFX / Sonos / Onkyo / Epson: no FORCE_* (engine always-forces RFX; OFF-only for the AV trio).
+ * Phase 6C: Hue preset / Sonos volume+station / blinds open-% authoring.
  */
 function blockyActionStateOptions(block) {
-    const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
+    const eid = block.getFieldValue("ENTITY");
+    const type = blockyEntityTypeOf(eid);
+    const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
     if (type === "blinds" || type === "shutter") {
         // Stored = closed % (0 open … 100 closed). Open-% picker is Phase 6C.
         return [
@@ -237,10 +239,14 @@ function blockyActionStateOptions(block) {
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
     if (type === "speaker" || type === "media_player") {
-        // Phase 6C: when ON, show volume + station (Sonos) fields.
+        // Sonos/Onkyo: ON/OFF only (engine forces OFF). Phase 6C: volume + station when ON.
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
-    // switch (and unknown actuators)
+    // RFX + Epson: always-forced at engine — no FORCE_* in the menu.
+    if (origin === "rfxcom" || origin === "epson") {
+        return [["ON", "ON"], ["OFF", "OFF"]];
+    }
+    // Z-Wave / generic switches — explicit FORCE remains available.
     return [
         ["ON", "ON"], ["OFF", "OFF"],
         ["FORCE_ON", "FORCE_ON"], ["FORCE_OFF", "FORCE_OFF"]
@@ -263,7 +269,15 @@ function blockyCoerceFieldToOptions(block, fieldName, optionsFn) {
         const f = block.getField(fieldName);
         if (!f) return;
         const opts = optionsFn(block);
-        const v = f.getValue();
+        let v = f.getValue();
+        // Legacy FORCE_* on always-forced origins → plain ON/OFF before menu coerce.
+        if (fieldName === "STATE" && typeof v === "string" && v.startsWith("FORCE_")) {
+            const stripped = v.slice("FORCE_".length);
+            if (opts.some((o) => o[1] === stripped)) {
+                f.setValue(stripped);
+                return;
+            }
+        }
         if (!opts.some((o) => o[1] === v)) {
             f.setValue(opts[0][1]);
         }
@@ -906,8 +920,11 @@ function blockyApp() {
             });
         },
 
+        /** Exclusive like Device Explorer: ON = only soft-hidden; OFF = only non-hidden. */
         get visibleEntityOptions() {
-            return this.entityOptions.filter((opt) => this.showHiddenEntities || !opt.softHidden);
+            return this.entityOptions.filter((opt) =>
+                this.showHiddenEntities ? opt.softHidden : !opt.softHidden
+            );
         },
 
         get showBlocklyWorkspace() {
@@ -1180,8 +1197,8 @@ function blockyApp() {
                     type,
                     origin,
                     typeLabel,
-                    // Honor Explorer soft-hide; do not auto-unhide just because another rule references it.
-                    // Open-rule eids are re-added in blocklyEntityDropdownOptions for round-trip.
+                    // Honor Explorer soft-hide; exclusive Hidden toggle filters via visibleEntityOptions.
+                    // Currently selected eids stay sticky in blocklyEntityDropdownOptions until cleared.
                     softHidden: Boolean(meta.hidden)
                 });
             }
@@ -1198,7 +1215,8 @@ function blockyApp() {
         /**
          * role: "trigger" | "condition" | "action"
          * Sensors/temp excluded; motion OK as trigger only; actions = actuators only.
-         * Round-trip guarantee is role-scoped — action eids must not leak into When-device.
+         * Sticky: eids still selected for this role stay in the menu on the wrong Hidden
+         * side (can clear, cannot re-pick once gone). Hard deny never sticky.
          */
         blocklyEntityDropdownOptions(optsIn) {
             const role = (optsIn && optsIn.role) || "action";
@@ -1207,8 +1225,8 @@ function blockyApp() {
             const seen = new Set(opts.map((o) => o[1]));
             const add = (eid) => {
                 if (!eid || seen.has(eid) || this.isHardDeniedEntityId(eid)) return;
-                // Always include open-rule eids for this role (soft-hidden / motion / etc.)
-                // so Blockly setFieldValue does not fall back to the first catalog entry.
+                // Keep currently selected eids in the menu (wrong Hidden side / missing meta)
+                // so Blockly does not snap the field to the first catalog entry.
                 seen.add(eid);
                 const meta = (this.entityOptions || []).find((o) => o.eid === eid);
                 if (meta) {
@@ -1217,11 +1235,50 @@ function blockyApp() {
                     opts.push([`${eid} · (missing metadata)`, eid]);
                 }
             };
+            this._stickyEntityIdsForRole(role).forEach(add);
+            return opts.length ? opts : [["(no entities)", ""]];
+        },
+
+        /**
+         * Live workspace wins once it has entity fields for this role (deselection drops sticky).
+         * Else open ruleJson (load hydrate / workspace not ready).
+         * Role-scoped — action sticky does not leak into When-device.
+         */
+        _stickyEntityIdsForRole(role) {
+            let ruleIds = [];
             try {
                 const rule = JSON.parse(this.editor.ruleJson || "{}");
-                this._ruleEntityIdsForRole(rule, role).forEach(add);
+                ruleIds = this._ruleEntityIdsForRole(rule, role);
             } catch (e) { /* ignore */ }
-            return opts.length ? opts : [["(no entities)", ""]];
+            const fromWs = this._workspaceEntityIdsForRole(role);
+            if (fromWs === null) return ruleIds;
+            if (fromWs.length > 0) return fromWs;
+            return ruleIds;
+        },
+
+        /** null = workspace not ready (caller falls back to ruleJson). */
+        _workspaceEntityIdsForRole(role) {
+            const ws = blockyWs();
+            if (!ws) return null;
+            const out = [];
+            const push = (eid) => {
+                if (eid) out.push(String(eid));
+            };
+            const blocks = ws.getAllBlocks(false);
+            for (const b of blocks) {
+                if (b.isInFlyout) continue;
+                const t = b.type;
+                if (role === "trigger") {
+                    if (t === "b_trig_device" || t === "b_trig_device_edge") {
+                        push(b.getFieldValue("ENTITY"));
+                    }
+                } else if (role === "condition") {
+                    if (t === "b_condition_device") push(b.getFieldValue("ENTITY"));
+                } else if (role === "action") {
+                    if (t === "b_action_device") push(b.getFieldValue("ENTITY"));
+                }
+            }
+            return out;
         },
 
         /** Only eids that belong in this picker role (prevents action→trigger leak). */
@@ -1754,7 +1811,10 @@ function blockyApp() {
             }
         },
 
-        async runPostWriteRegistryCheck() {
+        async runPostWriteRegistryCheck(opts = {}) {
+            const okMsg = opts.okMsg || "Rule saved";
+            const failMsg = opts.failMsg || "Saved, but registry check failed — open Admin → Debug.";
+            const verifyFailMsg = opts.verifyFailMsg || "Saved, but could not verify — open Admin → Debug.";
             this.registryCheckMessage = "";
             this.registryCheckOk = null;
             try {
@@ -1764,21 +1824,19 @@ function blockyApp() {
                 const report = await res.json().catch(() => ({}));
                 if (!res.ok) {
                     this.registryCheckOk = false;
-                    this.registryCheckMessage =
-                        `Admin Debug check failed: ${report.error || res.status}. Open Admin → Debug.`;
+                    this.registryCheckMessage = verifyFailMsg;
                     return;
                 }
-                const errN = (report.errors || []).length;
                 const warnN = (report.warnings || []).length;
                 this.registryCheckOk = !!report.ok;
                 this.registryCheckMessage = report.ok
                     ? (warnN
-                        ? `Admin Debug GREEN — entity_id / registry check passed (${warnN} non-blocking warning(s)).`
-                        : "Admin Debug GREEN — entity_id / registry check passed (not a behavior smoke test).")
-                    : `Admin Debug RED — ${errN} error(s), ${warnN} warning(s). Open Admin → Debug for the full report.`;
+                        ? `${okMsg} (warnings in Admin → Debug).`
+                        : okMsg)
+                    : failMsg;
             } catch (e) {
                 this.registryCheckOk = false;
-                this.registryCheckMessage = `Admin Debug check request failed: ${e}. Open Admin → Debug.`;
+                this.registryCheckMessage = verifyFailMsg;
             }
         },
 
@@ -1840,7 +1898,11 @@ function blockyApp() {
                 this.markEditorClean();
                 await this.refreshAll();
                 this._doNewRule();
-                await this.runPostWriteRegistryCheck();
+                await this.runPostWriteRegistryCheck({
+                    okMsg: "Rule deleted",
+                    failMsg: "Deleted, but registry check failed — open Admin → Debug.",
+                    verifyFailMsg: "Deleted, but could not verify — open Admin → Debug."
+                });
             } catch (e) {
                 this.errorMessage = String(e);
             } finally {

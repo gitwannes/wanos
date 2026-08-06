@@ -185,8 +185,8 @@ class AutomationEngine:
         # This block parses the `automations:` list (from automations.auto.yaml).
         # - Triggers can be a single item or a List (List = OR logic. If any trigger matches, it fires).
         # - Actions are a List (List = AND logic. All actions execute sequentially).
-        # - "FORCE_" modifier: Bypasses the StateManager's duplicate-filter, forcing the RF/MQTT command to broadcast
-        #   even if the backend thinks the device is already in that state.
+        # - Origin force policy: RFX always; Sonos/Onkyo/Epson force OFF only (stale cache).
+        # - Explicit "FORCE_" modifier still works for other origins (e.g. Z-Wave).
         # - Pure mirrors use explicit ON/OFF cases (SYNC / SYNCOPPOSITE retired).
         # =========================================================================
 
@@ -331,8 +331,21 @@ class AutomationEngine:
                             current_target_state = raw_target_state.get("state") if isinstance(raw_target_state,
                                                                                                dict) else raw_target_state
 
+                            meta = state.device_metadata.get(action_idx, {}) or {}
+                            meta_origin: str = meta.get("origin", "") if isinstance(meta, dict) else ""
+
+                            # Origin force policy (before NULL guard so unknown cache can still command):
+                            # - RFX: always force (stateless 433 / boot seed lies)
+                            # - Sonos / Onkyo / Epson: force OFF only (stale OFF while still on)
+                            target_u = str(target_action_state).upper() if target_action_state is not None else ""
+                            if meta_origin == "rfxcom":
+                                is_force = True
+                            elif meta_origin in ("sonos", "onkyo", "epson") and target_u == "OFF":
+                                is_force = True
+
                             # ⚡ UNINITIALIZED STATE GUARD
-                            if current_target_state is None:
+                            # Skip unknown cache unless this action is forced (explicit FORCE_ or origin policy).
+                            if current_target_state is None and not is_force:
                                 automation_logger.debug(
                                     f"[X-RAY] -> Action SKIPPED for target IDX {action_idx}: Current state is unknown (NULL).")
                                 continue
@@ -372,8 +385,8 @@ class AutomationEngine:
                             # `station` is not stored on device state; Sonos bridge already
                             # no-ops identical streams — do not force solely for station.
                             power_differs = (
-                                str(current_target_state).upper()
-                                != str(target_action_state).upper()
+                                current_target_state is None
+                                or str(current_target_state).upper() != target_u
                             )
                             rich_differs = False
                             if is_rich_action:
@@ -404,15 +417,8 @@ class AutomationEngine:
                                     # has no comparable field; Sonos bridge no-ops same stream.
                                     rich_differs = True
 
-                            # ⚡ RFXCOM FORCE GUARD ⚡
-                            # 433MHz is a stateless protocol. We automatically apply the FORCE flag
-                            # behind the scenes to guarantee the radio transmits the signal every time the rule executes.
-                            meta = state.device_metadata.get(action_idx, {}) or {}
-                            meta_origin: str = meta.get("origin", "") if isinstance(meta, dict) else ""
-                            if meta_origin == "rfxcom":
-                                is_force = True
-                            elif rich_differs and not power_differs:
-                                # Same power, different bri/xy/volume — must force past duplicate filter.
+                            # Rich same-power retune still needs force past the duplicate filter.
+                            if rich_differs and not power_differs:
                                 is_force = True
 
                             # STRING NORMALIZATION COMPARISON

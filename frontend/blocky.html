@@ -141,8 +141,8 @@
                                 </div>
                             </template>
                             <label class="label cursor-pointer gap-2">
-                                <span class="label-text text-xs">Show Explorer-hidden devices</span>
-                                <input type="checkbox" class="checkbox checkbox-sm" x-model="showHiddenEntities">
+                                <span class="label-text text-xs font-bold uppercase tracking-widest">Hidden</span>
+                                <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenEntities">
                             </label>
                         </div>
                         <p class="text-[11px] text-base-content/50 max-w-xl" x-show="canShowOnDashboard">
@@ -228,6 +228,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=2"></script>
-<script src="blocky.js?v=4.14"></script>
+<script src="blocky.js?v=4.17"></script>
 </body>
 </html>

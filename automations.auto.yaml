@@ -462,7 +462,7 @@ automations:
       - to_state: OFF
         actions:
           - entity_id: switch.buro_wannes_schemer
-            state: FORCE_OFF
+            state: "OFF"
     id: 1a1bdfaa-1b8e-40aa-b20a-3002411ec7ac
   - name: "PC Aux ON -> Buro Schemer + Sonos ON"
     scene: false
@@ -481,7 +481,7 @@ automations:
       - to_state: OFF
         actions:
           - entity_id: switch.buro_wannes_schemer
-            state: "FORCE_OFF"
+            state: "OFF"
           - entity_id: media_player.buro
             state: "OFF"
     id: 1b8371ae-8846-42e0-9e40-7ce11b2669da
@@ -729,7 +729,7 @@ automations:
     cases:
       - actions:
           - entity_id: switch.cinema_projector
-            state: "FORCE_ON"
+            state: "ON"
           - entity_id: blinds.cinema
             state: "100"
           - entity_id: switch.buro_licht
@@ -759,7 +759,7 @@ automations:
             is: dark
         actions:
           - entity_id: switch.cinema_projector
-            state: "FORCE_OFF"
+            state: "OFF"
           - entity_id: hue.group.cinema_hue
             state: "OFF"
           - entity_id: switch.cinema_licht
@@ -769,7 +769,7 @@ automations:
             is: light
         actions:
           - entity_id: switch.cinema_projector
-            state: "FORCE_OFF"
+            state: "OFF"
           - entity_id: hue.group.cinema_hue
             state: "OFF"
           - entity_id: blinds.cinema
