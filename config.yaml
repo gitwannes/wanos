@@ -45,6 +45,7 @@ weather:
   poll_interval_mins: 30
 
 sonos:
+  max_volume: 70
   device_map:
     60001:
       ip: "10.32.251.121"

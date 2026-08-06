@@ -35,11 +35,15 @@ def normalize_level(
     *,
     bri: Any = None,
     volume: Any = None,
+    level_max: float = 100.0,
 ) -> Optional[float]:
     """
-    Map device state to 0–100 chart level.
-    OFF/OPEN -> 0; ON -> volume/bri if present else 100; CLOSED -> 100; numeric as-is.
+    Map device state to chart level (0–level_max).
+    OFF/OPEN -> 0; ON -> volume/bri if present else level_max; CLOSED -> level_max; numeric as-is.
+    Speakers use device meta max_volume as level_max (Sonos/Onkyo); lights/blinds stay on 100.
     """
+    ceiling = float(level_max) if level_max and level_max > 0 else 100.0
+
     # Prefer explicit level from rich payload when power is ON
     power = None
     if isinstance(device_snapshot, dict):
@@ -52,37 +56,53 @@ def normalize_level(
         power = state
 
     if isinstance(state, (int, float)):
-        return float(max(0, min(100, state)))
+        return float(max(0, min(ceiling, state)))
 
     if isinstance(state, str):
         s = state.strip().upper()
         if s in ("OFF", "OPEN"):
             return 0.0
         if s == "CLOSED":
-            return 100.0
+            return ceiling
         if s == "ON":
             for cand in (volume, bri):
                 if isinstance(cand, (int, float)):
-                    return float(max(0, min(100, cand)))
+                    return float(max(0, min(ceiling, cand)))
             if isinstance(device_snapshot, dict):
                 for key in ("volume", "bri"):
                     v = device_snapshot.get(key)
                     if isinstance(v, (int, float)):
-                        return float(max(0, min(100, v)))
-            return 100.0
+                        return float(max(0, min(ceiling, v)))
+            return ceiling
         if s.endswith("%"):
             try:
-                return float(max(0, min(100, float(s.replace("%", "")))))
+                return float(max(0, min(ceiling, float(s.replace("%", "")))))
             except ValueError:
                 return None
         try:
-            return float(max(0, min(100, float(s))))
+            return float(max(0, min(ceiling, float(s))))
         except ValueError:
             return None
 
     if power is not None:
-        return normalize_level(power, device_snapshot, bri=bri, volume=volume)
+        return normalize_level(
+            power, device_snapshot, bri=bri, volume=volume, level_max=ceiling
+        )
     return None
+
+
+def level_max_for_idx(manager: Any, idx: int) -> float:
+    """Chart/history ceiling: speaker max_volume from meta, else 100."""
+    try:
+        meta = (getattr(manager, "_state", None) and manager._state.device_metadata or {}).get(idx) or {}
+        mv = meta.get("max_volume")
+        if mv is not None:
+            n = float(mv)
+            if n > 0:
+                return n
+    except (TypeError, ValueError):
+        pass
+    return 100.0
 
 
 class DeviceHistoryManager:
@@ -226,7 +246,10 @@ class DeviceHistoryManager:
         now = int(time.time())
         state_str = str(state) if state is not None else ""
         if level is None:
-            level = normalize_level(state_str, device_snapshot, bri=bri, volume=volume)
+            level = normalize_level(
+                state_str, device_snapshot, bri=bri, volume=volume,
+                level_max=level_max_for_idx(self.sm, idx),
+            )
 
         self._write_queue.append((idx, now, state_str, level))
         self._bump_rollup(idx, now, level)
@@ -530,6 +553,8 @@ class DeviceHistoryManager:
         since_ts: int,
         until_ts: int,
         prev_level: Optional[float],
+        *,
+        level_max: float = 100.0,
     ) -> List[Dict[str, Any]]:
         """
         Build a hold-last step series spanning the full window.
@@ -544,7 +569,9 @@ class DeviceHistoryManager:
         points.append({"t": since_ts * 1000, "v": level})
 
         for ts, state, raw_level in events:
-            lv = raw_level if raw_level is not None else normalize_level(state)
+            lv = raw_level if raw_level is not None else normalize_level(
+                state, level_max=level_max
+            )
             if lv is None:
                 continue
             level = float(lv)
@@ -565,6 +592,7 @@ class DeviceHistoryManager:
         name = meta.get("name") or f"IDX {idx}"
         dtype = meta.get("type", "")
         impulse = dtype in ("motion", "scene")
+        ceiling = level_max_for_idx(self.sm, idx)
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
@@ -586,12 +614,16 @@ class DeviceHistoryManager:
                 )
                 prev = c.fetchone()
                 if prev:
-                    prev_level = prev[1] if prev[1] is not None else normalize_level(prev[0])
+                    prev_level = prev[1] if prev[1] is not None else normalize_level(
+                        prev[0], level_max=ceiling
+                    )
             conn.close()
             if impulse:
                 level_pts = self._impulse_level_series(rows)
             else:
-                level_pts = self._step_level_series(rows, since, until_ts, prev_level)
+                level_pts = self._step_level_series(
+                    rows, since, until_ts, prev_level, level_max=ceiling
+                )
             return {
                 "idx": idx,
                 "name": name,

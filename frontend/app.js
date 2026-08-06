@@ -547,7 +547,13 @@ function wanosApp() {
                     name: meta.name,
                     type: meta.type,
                     origin: meta.origin, // dynamically label Sonos vs Onkyo
-                    max_volume: meta.max_volume !== undefined ? meta.max_volume : 100, // ⚡ Natively extract max_volume to avoid Alpine HTML evaluation race conditions
+                    // Same as Onkyo: config max_volume on meta; fallback by origin if meta missing.
+                    max_volume: (() => {
+                        if (meta.max_volume !== undefined && meta.max_volume !== null) return meta.max_volume;
+                        if (meta.origin === "onkyo") return 60;
+                        if (meta.origin === "sonos") return 70;
+                        return 100;
+                    })(),
                     raw_value: rawValue === 0 ? "0" : rawValue,
                     display_text: displayText,
                     ui_volume: uiVolume, // direct hardware integer slider UI
@@ -1559,12 +1565,13 @@ function wanosApp() {
             return "text-base-content/80";
         },
 
-        /** Hardware / configured level ceiling (Onkyo uses max_volume). */
+        /** Hardware / configured level ceiling (Sonos + Onkyo: meta.max_volume). */
         _actuatorLevelDeviceMax(idx) {
             const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
             const maxVol = meta.max_volume != null ? Number(meta.max_volume) : null;
             if (Number.isFinite(maxVol) && maxVol > 0) return maxVol;
             if (meta.origin === "onkyo") return 60;
+            if (meta.origin === "sonos") return 70;
             return 100;
         },
 
@@ -3041,13 +3048,14 @@ function wanosApp() {
             let current = this.state.devices[idx] || { state: 'ON' };
             if (typeof current !== 'object') current = { state: current };
 
-            // ⚡ Use pure hardware value directly without logarithmic translation
-            const rawVol = parseInt(uiVol, 10);
+            // Pure hardware integer; clamp to device max_volume (Sonos + Onkyo).
+            const meta = this.state.device_metadata[idx] || {};
+            const deviceMax = this._actuatorLevelDeviceMax(idx);
+            const rawVol = Math.max(0, Math.min(deviceMax, parseInt(uiVol, 10)));
             current.volume = rawVol;
             this.state.devices[idx] = current;
 
             // ⚡ DYNAMIC ROUTING: Dispatch to the correct integration based on the origin
-            const meta = this.state.device_metadata[idx];
             if (meta && meta.origin === 'onkyo') {
                 // ⚡ Optimistic UI Lock: Instantly force the "SYNC..." state in Alpine to disable the slider
                 // until the physical receiver answers back with the true volume value.
@@ -3066,8 +3074,8 @@ function wanosApp() {
             let current = this.state.devices[idx] || { state: 'ON' };
             if (typeof current !== 'object') current = { state: current };
 
-            // ⚡ Optimistically update the real volume directly without logarithmic translation
-            const rawVol = parseInt(uiVol, 10);
+            const deviceMax = this._actuatorLevelDeviceMax(idx);
+            const rawVol = Math.max(0, Math.min(deviceMax, parseInt(uiVol, 10)));
             current.volume = rawVol;
             this.state.devices[idx] = current;
         },

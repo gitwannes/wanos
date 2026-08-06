@@ -264,11 +264,11 @@ Session energy accounting and house utility history are complementary, not dupli
 
 Master–detail UI on `sensorhistory.html` → **Actuators** tab.
 
-### Mapping to chart level (0–100)
+### Mapping to chart level
 | Device | Rule |
 |--------|------|
-| Switch / light | OFF→0; ON→100 or **brightness** when ON |
-| Speaker | OFF→0; ON→**volume** |
+| Switch / light | OFF→0; ON→**brightness** when present else **100** |
+| Speaker (Sonos / Onkyo) | OFF→0; ON→**volume**; chart / clamp ceiling = device meta **`max_volume`** (`config.sonos.max_volume` / `config.onkyo.max_volume`) — not a forced 0–100 scale |
 | Blinds | native 0=OPEN … 100=CLOSED |
 | Door | OPEN→0; CLOSED→100 |
 

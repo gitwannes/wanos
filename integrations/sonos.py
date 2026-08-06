@@ -10,8 +10,10 @@ from core.models import Event, EventType
 class SonosBridge:
     def __init__(self, manager: Any) -> None:
         self.manager = manager
-        self.device_map = manager._config.sonos.device_map if manager._config.sonos else {}
-        self.stations = manager._config.sonos.stations if manager._config.sonos else {}
+        sonos_cfg = manager._config.sonos if manager._config.sonos else None
+        self.device_map = sonos_cfg.device_map if sonos_cfg else {}
+        self.stations = sonos_cfg.stations if sonos_cfg else {}
+        self.max_vol = getattr(sonos_cfg, "max_volume", 70) if sonos_cfg else 70
         self.speakers: Dict[int, soco.SoCo] = {}
         self._polling_task: Optional[asyncio.Task] = None
         self._running: bool = False
@@ -46,6 +48,8 @@ class SonosBridge:
                     info = await asyncio.to_thread(speaker.get_current_transport_info)
                     state = info.get('current_transport_state', 'UNKNOWN')
                     current_vol = await asyncio.to_thread(getattr, speaker, 'volume')
+                    # Cap like Onkyo: physical/app volume above config max_volume still shows/stores the ceiling.
+                    current_vol = min(self.max_vol, max(0, int(current_vol)))
 
                     is_on = state == 'PLAYING'
                     expected_state = "ON" if is_on else "OFF"
@@ -158,7 +162,7 @@ class SonosBridge:
 
             volume = payload.get("volume")
             if volume is not None:
-                volume = max(0, min(100, int(volume)))
+                volume = max(0, min(self.max_vol, int(volume)))
 
             station_key = payload.get("station")
             station_url = self.stations.get(station_key) if station_key else None

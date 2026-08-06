@@ -5,7 +5,7 @@ from typing import Any, Set, Tuple, Optional
 from core.models import Event, EventType
 from core.well_known_entities import ENTITY_SAUNA_DOOR
 from logic.alert_manager import AlertManager
-from logic.history_manager import normalize_level
+from logic.history_manager import normalize_level, level_max_for_idx
 
 # 1. Standard System Logger: Handles general INFO, DEBUG, and ERROR terminal outputs and system health
 from loguru import logger as system_logger
@@ -19,11 +19,14 @@ _shutter_debounce_tasks = {}
 
 def _log_actuator(manager: Any, idx: int, state: Any, device_snapshot: Any = None,
                   bri: Any = None, volume: Any = None, level: Optional[float] = None) -> None:
-    """Persist actuator transition with normalized 0–100 level."""
+    """Persist actuator transition with normalized chart level (speakers use max_volume)."""
     if not hasattr(manager, "history_manager"):
         return
     if level is None:
-        level = normalize_level(state, device_snapshot, bri=bri, volume=volume)
+        level = normalize_level(
+            state, device_snapshot, bri=bri, volume=volume,
+            level_max=level_max_for_idx(manager, idx),
+        )
     manager.history_manager.log_event(
         idx, str(state) if state is not None else "", level,
         device_snapshot=device_snapshot, bri=bri, volume=volume,

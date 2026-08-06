@@ -72,6 +72,7 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
             sonos_cfg = new_config.sonos
             bridge.device_map = sonos_cfg.device_map if sonos_cfg else {}
             bridge.stations = sonos_cfg.stations if sonos_cfg else {}
+            bridge.max_vol = sonos_cfg.max_volume if sonos_cfg else 70
             new_speakers = {}
             for idx, node in bridge.device_map.items():
                 existing = bridge.speakers.get(idx)

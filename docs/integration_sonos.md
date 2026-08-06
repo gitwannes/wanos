@@ -25,7 +25,7 @@ Once started, the `_poll_loop` enters an infinite `while self._running:` cycle.
 The Sonos bridge aligns with WanOS's Optimistic UI but handles data differently than stateless protocols.
 
 *   **Strict State-Diffing:** Unlike RFXCOM (which always blasts commands over the air), Sonos commands are highly stateful. The `StateManager` intercepts Sonos UI clicks and drops the event if the RAM already matches the requested state. This prevents WanOS from sending redundant `Play` commands to the UPnP API, which can cause audio buffer resets and micro-stutters.
-*   **Standardized 0-100% Volume:** Unlike Onkyo's raw hexadecimal boundaries, Sonos handles volume purely on a standard 0 to 100 integer percentage scale. 
+*   **Config `max_volume` ceiling:** Same pattern as Onkyo. `config.sonos.max_volume` (currently **70**) is written onto each speaker’s device meta and used by Device Explorer sliders, history chart Y-axis, command clamp, and poll sync. The SoCo API still speaks 0–100 natively; WanOS caps at the configured ceiling so a physical/app volume above the limit does not push the UI or history past `max_volume`.
 *   **Fall-Through Execution:** When parsing a command to switch radio stations, the code utilizes sequential fall-through execution. It loads the TuneIn URI first, and immediately cascades into the `play` command block to ensure playback starts instantly.
 
 ## 5. Failure, Disconnection, and Reconnecting

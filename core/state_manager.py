@@ -229,8 +229,12 @@ class StateManager:
                 self._state.devices[80001] = "OFF"
 
         if getattr(self._config, "sonos", None):
+            max_vol = getattr(self._config.sonos, "max_volume", 70)
             for idx, node in self._config.sonos.device_map.items():
-                self._state.device_metadata[idx] = {"name": node.name, "type": "speaker", "origin": "sonos"}
+                self._state.device_metadata[idx] = {
+                    "name": node.name, "type": "speaker", "origin": "sonos",
+                    "max_volume": max_vol,
+                }
                 yaml_idxs.add(idx)
                 if idx not in self._state.devices:
                     self._state.devices[idx] = None

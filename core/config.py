@@ -322,6 +322,7 @@ class SonosDeviceNode(BaseModel):
 
 
 class SonosConfig(BaseModel):
+    max_volume: int = 70
     device_map: Dict[int, SonosDeviceNode] = Field(default_factory=dict)
     stations: Dict[str, str] = Field(default_factory=dict)
 
