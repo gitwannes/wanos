@@ -56,9 +56,10 @@ hue:
     # 51110: "d96ecaf6-6a39-4641-9ce0-ee7547a48c25 | Hue overal"
 
   presets:
-    # The 'name' field is automatically injected into the frontend UI preset buttons
+    # Colour: exactly one of xy or rgb. rgb accepts "#FF8C00" or [255, 140, 0].
+    # Normalized to xy at load (same matrix as frontend hexToXY).
     # bathroom_red: { name: "badkamer_red", xy: [ 0.6750, 0.3220 ], bri: 254 }
-    relax_red: { name: "relax", xy: [ 0.96186, 0.3481 ], bri: 100 }
+    relax_red: { name: "relax", rgb: "#FF8C00", bri: 100 }
     my_white: { name: "helder", xy: [ 0.2901, 0.2479 ], bri: 100 }
 
     ## OLD Wisc

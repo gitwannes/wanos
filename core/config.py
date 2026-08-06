@@ -2,8 +2,8 @@
 import os
 import yaml
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, Dict, List, Union, Any
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from typing import Optional, Dict, List, Union, Any, Tuple
 from dotenv import load_dotenv
 
 from core.schedule_events import (  # noqa: F401 — re-export for existing imports
@@ -213,10 +213,94 @@ def _expand_branched_automations_for_engine(raw_automations: Any) -> List[dict]:
     from core.automations_schema_v2 import expand_automations_for_engine
     return expand_automations_for_engine(raw_automations)
 
+
+def _srgb_channel_to_linear(c: float) -> float:
+    return ((c + 0.055) / 1.055) ** 2.4 if c > 0.04045 else (c / 12.92)
+
+
+def rgb_bytes_to_xy(r: int, g: int, b: int) -> List[float]:
+    """
+    sRGB 0-255 -> CIE xy using the same Wide-RGB / Hue matrix as frontend hexToXY.
+    """
+    rl = _srgb_channel_to_linear(max(0, min(255, int(r))) / 255.0)
+    gl = _srgb_channel_to_linear(max(0, min(255, int(g))) / 255.0)
+    bl = _srgb_channel_to_linear(max(0, min(255, int(b))) / 255.0)
+
+    X = rl * 0.664511 + gl * 0.154324 + bl * 0.162028
+    Y = rl * 0.283881 + gl * 0.668433 + bl * 0.047685
+    Z = rl * 0.000088 + gl * 0.072310 + bl * 0.986039
+    s = X + Y + Z
+    if s <= 0:
+        return [0.3127, 0.3290]
+    return [round(X / s, 4), round(Y / s, 4)]
+
+
+def _parse_preset_rgb(value: Any) -> Tuple[int, int, int]:
+    """
+    Accept:
+      - "#FF8C00" / "FF8C00"
+      - ["#FF8C00"]
+      - [255, 140, 0]
+    """
+    if isinstance(value, str):
+        h = value.strip().lstrip("#")
+        if len(h) != 6:
+            raise ValueError(f"rgb hex must be 6 digits, got {value!r}")
+        return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+    if isinstance(value, list):
+        if len(value) == 1 and isinstance(value[0], str):
+            return _parse_preset_rgb(value[0])
+        if len(value) == 3:
+            try:
+                r, g, b = (int(value[0]), int(value[1]), int(value[2]))
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"rgb triple must be three integers, got {value!r}") from e
+            for c in (r, g, b):
+                if c < 0 or c > 255:
+                    raise ValueError(f"rgb channel out of range 0-255: {value!r}")
+            return r, g, b
+
+    raise ValueError(
+        "rgb must be \"#RRGGBB\", [\"#RRGGBB\"], or [r, g, b] with 0-255 ints"
+    )
+
+
 class HuePresetConfig(BaseModel):
+    """
+    Hue scene/button preset. Author with xy and/or rgb; runtime always has xy.
+
+    Accepted colour forms (exactly one of xy or rgb):
+      xy: [0.5958, 0.3881]
+      rgb: "#FF8C00"
+      rgb: [255, 140, 0]
+    """
     name: str
-    xy: List[float]
     bri: int
+    xy: Optional[List[float]] = None
+    rgb: Optional[Union[str, List[Any]]] = None
+
+    @model_validator(mode="after")
+    def _normalize_colour(self) -> "HuePresetConfig":
+        has_xy = self.xy is not None
+        has_rgb = self.rgb is not None
+        if has_xy and has_rgb:
+            raise ValueError("preset must set only one of xy or rgb")
+        if not has_xy and not has_rgb:
+            raise ValueError("preset requires xy or rgb")
+
+        if has_rgb:
+            r, g, b = _parse_preset_rgb(self.rgb)
+            self.xy = rgb_bytes_to_xy(r, g, b)
+            self.rgb = f"#{r:02X}{g:02X}{b:02X}"
+        else:
+            if not isinstance(self.xy, list) or len(self.xy) != 2:
+                raise ValueError("xy must be [x, y]")
+            self.xy = [float(self.xy[0]), float(self.xy[1])]
+            if self.xy[0] + self.xy[1] > 1.0 + 1e-6:
+                raise ValueError(f"invalid CIE xy (x+y must be <= 1): {self.xy}")
+
+        return self
 
 
 class HueConfig(BaseModel):
