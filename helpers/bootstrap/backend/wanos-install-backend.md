@@ -92,22 +92,32 @@ sudo ./wanos_bootstrap_phase1.sh
    sudo reboot
    ```
 
-3. **Mount Samba Network Share on Development Workstation:**
-   From your Windows PC command prompt, map the target folder to drive `Z:`:
+3. **Mount Samba Network Share on Development Workstation (optional browse):**
+   Samba is useful for Explorer browsing. **Day-to-day code sync does not use `Z:`** — use rsync over SSH instead (see step 4).
+   From your Windows PC command prompt, map the share if you want it:
    ```cmd
    net use Z: "\\10.32.251.30\wanos_share" /user:wannes
    ```
 
-4. **Sync Codebase to Samba Share (`Z:\` / `/home/wannes/wanos/`):**
-   Copy your WanOS application codebase and remaining deployment files into the share:
-   * WanOS source directories (`main.py`, `core/`, `logic/`, `hardware/`, `integrations/`)
-   * Config profiles (`config.yaml`, `config_hardware.yaml`, `config_zwave.auto.yaml`, `config_hue.yaml`, `automations.auto.yaml`, …)
-   * `entity_registry.auto.yaml` — optional on first install; created/updated automatically at runtime (stable `entity_id` ↔ idx). See `docs/todo/install_blocky.md`.
-   * `requirements.txt` (Python dependency list including `certbot`)
-   * `.env` (Environment variables and configuration keys)
-   * `docker-compose.yml`
-   * `mosquitto-st.conf`
-   * `wanos.service`
+4. **Sync codebase to the Pi (`/home/wannes/wanos/`):**
+   On the Windows workstation, set up SSH keys + rsync, then push/pull with `helpers\wanos-sync.bat`.
+
+   **Full fresh-PC procedure (OpenSSH, Scoop `rsync-msys2`, SSH key, first `test`/`run`):**  
+   → [`docs/wanos-sync.md`](../../../docs/wanos-sync.md)
+
+   After workstation setup:
+   ```text
+   helpers\wanos-sync.bat test
+   helpers\wanos-sync.bat run
+   ```
+
+   That deploys the WanOS tree to `/home/wannes/wanos/` (excludes venvs, docs, sync tooling, Pi-owned YAML/DBs). Ensure these are available on the Pi for later phases (via sync and/or bootstrap copy):
+   * WanOS source (`main.py`, `core/`, `logic/`, `hardware/`, `integrations/`, …)
+   * Config profiles (`config.yaml`, `config_hardware.yaml`, …)
+   * `entity_registry.auto.yaml` — optional on first install; created/updated at runtime. See `docs/todo/install_blocky.md`.
+   * `requirements.txt`
+   * `.env` (create on the Pi; never sync secrets from git)
+   * Bootstrap helpers already used in Phase 0/1 (`docker-compose.yml`, `mosquitto-st.conf`, `wanos.service`, …)
 
 ---
 

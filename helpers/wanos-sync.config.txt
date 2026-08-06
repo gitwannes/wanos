@@ -6,19 +6,17 @@
 #   - One pattern / name per line (sections Mirror* / Stats*)
 #   - [PiSsh] uses key=value lines
 #   - Blank lines and lines starting with # are ignored
-#   - Do NOT pass this file to: robocopy /JOB:...
 #
-# Job 1 MIRROR (Local --> Pi): MirrorExcludeDirs + MirrorExcludeFiles
+# Job 1 MIRROR (Local --> Pi via rsync/SSH): MirrorExcludeDirs + MirrorExcludeFiles
 #   Dir patterns match ANY path segment. File patterns match file NAME only.
-#   Excluded = not copied AND not deleted on dest (robocopy /XD+/XF semantics).
+#   Excluded = not copied AND not deleted on dest (rsync --exclude + --delete).
 #
-# Job 2 PULL (Pi Samba Z: --> Local): StatsInclude + StatsRepoPull
-#   StatsInclude  = include-only file NAME patterns from Pi share
+# Job 2 PULL (Pi --> Local via rsync/SSH): StatsInclude + StatsRepoPull
+#   StatsInclude  = include-only file NAME patterns from Pi WanOS root
 #   StatsRepoPull = subset that always overwrites into the git repo (Pi wins)
-#                   everything else in StatsInclude goes to StatsDest (newer-only)
+#                   everything else in StatsInclude goes to StatsDest (update/newer)
 #
-# Job 3 LOG PULL (Pi /var/log/wanos --> StatsDest via SSH/SCP): [PiSsh]
-#   Not on Samba Z: - pulled with OpenSSH scp (key/agent auth, BatchMode).
+# Job 3 LOG PULL (Pi /var/log/wanos --> StatsDest via rsync/SSH): [PiSsh]
 # =============================================================================
 
 [MirrorExcludeDirs]
@@ -50,8 +48,6 @@ wanos-nvram.json.tmp
 wanos-sync.bat
 wanos-sync.ps1
 wanos-sync.config.txt
-robocopy-sync.bat
-wanos.rcj
 *.bat
 *.rcj
 *.ps1
@@ -81,12 +77,12 @@ entity_registry.auto.yaml
 automations.auto.yaml
 
 [PiSsh]
-# SSH pull of application logs (loguru under /var/log/wanos on the Pi).
-# Requires OpenSSH client on Windows and key-based login (BatchMode=yes).
+# SSH + rsync for all jobs. Key auth BatchMode=yes. No Samba/Z: required.
 Host=10.32.251.30
 User=wannes
+RemoteRoot=/home/wannes/wanos
 RemoteLogDir=/var/log/wanos
 # Land under StatsDest\<LocalLogSubdir>\ (flat copy of matching files)
 LocalLogSubdir=var-log-wanos
-# Remote name glob (scp expands on the Pi)
+# Remote name glob for log pull
 RemoteGlob=wanos*

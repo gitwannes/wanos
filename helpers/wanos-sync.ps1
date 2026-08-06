@@ -4,75 +4,88 @@ WANOS Sync Script (PowerShell)
 --------------------------------------------------------------------------------
 ASCII-only file on purpose: Windows PowerShell 5.1 reads .ps1 as system ANSI
 unless a UTF-8 BOM is present. UTF-8 arrows/dashes/ellipsis become mojibake and
-can inject smart-quotes that break parsing (e.g. Run-StatsJob never defined).
+can inject smart-quotes that break parsing.
 
-Three jobs (same idea as robocopy-sync.bat + wanos.rcj):
+Three jobs (rsync over SSH -- no Samba/Z:):
 
-1) MIRROR JOB  - Local repo  -->  Pi (Z:\)   [and optionally CodeFolder]
-2) STATS / PULL JOB  - Pi (Z:\)  -->  Local
-3) LOG PULL JOB  - Pi /var/log/wanos  -->  StatsDest via SSH/SCP
+1) MIRROR JOB  - Local repo  -->  Pi WanOS root (rsync --delete + excludes)
+2) STATS / PULL JOB  - Pi  -->  Local (repo YAML Pi-wins; telemetry to StatsDest)
+3) LOG PULL JOB  - Pi /var/log/wanos  -->  StatsDest\<LocalLogSubdir>
 
-Includes / excludes: helpers/wanos-sync.config.txt (loaded at startup).
-Paths (repo, Z:, CodeFolder, StatsDest): still in this .ps1.
-SSH log pull: [PiSsh] in the config (not on Samba Z:).
+Includes / excludes: helpers/wanos-sync.config.txt
+Paths (repo, StatsDest): in this .ps1. Remote host/paths: [PiSsh] in config.
 
 Modes:
-   test | run | runlocal
+   test | run | codeimport
 
 Switches:
-   -VerboseSync   Extra diagnostics (config load, validation, skips, paths)
+   -VerboseSync              Extra diagnostics
+   -CodeImportPath <folder>  Required for mode codeimport
 
 Usage:
    powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode test
-   powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode test -VerboseSync
+   powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode run -VerboseSync
+   powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode codeimport -CodeImportPath C:\data\git\wanos\code-import
 ================================================================================
 #>
 
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("test", "run", "runlocal")]
+    [ValidateSet("test", "run", "codeimport")]
     [string]$Mode,
+
+    [string]$CodeImportPath = "",
 
     # Named VerboseSync (not -Verbose) to avoid clashing with PS common parameters.
     [switch]$VerboseSync
 )
 
-# Non-terminating errors (e.g. CommandNotFound) must fail the script so the
-# .bat wrapper does not print "finished OK".
 $ErrorActionPreference = "Stop"
-
-# Script-scoped so nested functions can see it
 $script:VerboseSync = [bool]$VerboseSync
 
 function Write-SyncVerbose {
     param([string]$Message)
     if ($script:VerboseSync) {
-        Write-Host $Message
+        Write-Host $Message -ForegroundColor DarkGray
+    }
+}
+
+function Write-SyncJobHeader {
+    param([string]$Message)
+    Write-Host $Message -ForegroundColor White
+}
+
+function Write-SyncSection {
+    param([string]$Message)
+    Write-Host $Message -ForegroundColor Cyan
+}
+
+function Write-SyncDone {
+    param([string]$Message)
+    Write-Host $Message -ForegroundColor Green
+}
+
+function Write-SyncFileLine {
+    param([string]$Line)
+    if ($Line -match '^deleting |Delete:|\[DRY\] Delete:') {
+        Write-Host $Line -ForegroundColor Red
+    } else {
+        Write-Host $Line -ForegroundColor Yellow
     }
 }
 
 # =============================================================================
-# PATHS (machine-local) + load includes/excludes from config file
+# PATHS (machine-local)
 # =============================================================================
 
-# Directories scanned for *.sh line-ending normalization
 $SourceDirs = @(
     "C:\data\git\wanos",
     "C:\data\git\wanos\helpers"
 )
 
-# Job 1 source = git working tree; Job 2 repo-pull destination uses the same path
 $MirrorSource = "C:\data\git\wanos"
-$MirrorDest   = "Z:\"   # Samba share / Pi WanOS root
-
-$CodeFolder = "C:\data\git\wanos\code-import"
-$StatsDest  = "C:\data\OneDrive\data\professional\wanos\logs"
-
-# Includes / excludes live here (not hardcoded below)
+$StatsDest    = "C:\data\OneDrive\data\professional\wanos\logs"
 $SyncConfigPath = Join-Path $PSScriptRoot "wanos-sync.config.txt"
-
-# Samba/FAT timestamp fuzz (robocopy /FFT ~= 2 seconds)
-$TimestampToleranceSeconds = 2
 
 # =============================================================================
 # CONFIG LOADER
@@ -94,6 +107,7 @@ function Read-WanosSyncConfig {
     $piSsh = @{
         Host           = "10.32.251.30"
         User           = "wannes"
+        RemoteRoot     = "/home/wannes/wanos"
         RemoteLogDir   = "/var/log/wanos"
         LocalLogSubdir = "var-log-wanos"
         RemoteGlob     = "wanos*"
@@ -107,7 +121,6 @@ function Read-WanosSyncConfig {
         if ($line.Length -eq 0) { continue }
         if ($line.StartsWith("#")) { continue }
 
-        # [SectionName]
         if ($line -match '^\[([A-Za-z0-9_]+)\]$') {
             $name = $Matches[1]
             if ($name -eq "PiSsh") {
@@ -125,7 +138,6 @@ function Read-WanosSyncConfig {
             throw "Config value before any [Section] at line $lineNo in $Path : $line"
         }
 
-        # Strip inline trailing comment: pattern  # comment
         if ($line -match '^(.*?)\s+#') {
             $line = $Matches[1].Trim()
             if ($line.Length -eq 0) { continue }
@@ -153,6 +165,10 @@ function Read-WanosSyncConfig {
         }
     }
 
+    if ([string]::IsNullOrWhiteSpace($piSsh.RemoteRoot)) {
+        throw "PiSsh RemoteRoot is required in $Path"
+    }
+
     return @{
         MirrorExcludeDirs  = @($sectionLists["MirrorExcludeDirs"])
         MirrorExcludeFiles = @($sectionLists["MirrorExcludeFiles"])
@@ -173,11 +189,11 @@ Write-SyncVerbose ("  MirrorExcludeDirs : {0}" -f $MirrorExcludeDirs.Count)
 Write-SyncVerbose ("  MirrorExcludeFiles: {0}" -f $MirrorExcludeFiles.Count)
 Write-SyncVerbose ("  StatsInclude      : {0}" -f $StatsInclude.Count)
 Write-SyncVerbose ("  StatsRepoPull     : {0}" -f $StatsRepoPull.Count)
-Write-SyncVerbose ("  PiSsh Host        : {0}@{1}:{2}" -f $PiSsh.User, $PiSsh.Host, $PiSsh.RemoteLogDir)
+Write-SyncVerbose ("  PiSsh             : {0}@{1}:{2}" -f $PiSsh.User, $PiSsh.Host, $PiSsh.RemoteRoot)
 Write-SyncVerbose ""
 
 # =============================================================================
-# PATH HELPERS
+# PATH / TOOL HELPERS
 # =============================================================================
 
 function Assert-PathExists {
@@ -228,8 +244,6 @@ function Test-NameMatchesAny {
     return $false
 }
 
-# True if this relative path should be ignored for mirror copy AND mirror delete
-# (robocopy /XD + /XF behaviour).
 function Test-MirrorExcluded {
     param(
         [string]$RelativePath,
@@ -242,7 +256,6 @@ function Test-MirrorExcluded {
         return $true
     }
 
-    # Match each path segment so "foo\.git\bar" and top-level ".git" both hit
     $segments = $RelativePath -split "[\\/]" | Where-Object { $_ -ne "" }
     foreach ($segment in $segments) {
         if (Test-NameMatchesAny -Name $segment -Patterns $ExcludeDirPatterns) {
@@ -252,26 +265,139 @@ function Test-MirrorExcluded {
     return $false
 }
 
-function Should-CopyFile {
-    param(
-        [System.IO.FileInfo]$Source,
-        [System.IO.FileInfo]$Dest,
-        [int]$ToleranceSeconds
-    )
-
-    # Missing on dest --> copy
-    if (-not $Dest) { return $true }
-
-    # Only copy when source is clearly newer (skip older / equal within tolerance)
-    $delta = ($Source.LastWriteTimeUtc - $Dest.LastWriteTimeUtc).TotalSeconds
-    return ($delta -gt $ToleranceSeconds)
-}
-
-# Samba/Z: can make Test-Path true while Get-Item throws (ghost/reparse quirks).
-# With $ErrorActionPreference=Stop that aborts the whole sync - always soft-get.
 function Get-ItemOrNull {
     param([string]$Path)
     return Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+}
+
+# C:\data\foo -> /c/data/foo  (MSYS2 / Scoop rsync-msys2)
+function ConvertTo-RsyncLocalPath {
+    param([string]$WindowsPath)
+
+    $full = [System.IO.Path]::GetFullPath($WindowsPath)
+    if ($full -match '^([A-Za-z]):\\(.*)$') {
+        $drive = $Matches[1].ToLowerInvariant()
+        $rest = ($Matches[2] -replace '\\', '/')
+        return "/{0}/{1}" -f $drive, $rest.TrimEnd('/')
+    }
+    return ($full -replace '\\', '/')
+}
+
+function Initialize-RsyncEnvironment {
+    $candidates = @(
+        (Join-Path $env:USERPROFILE "scoop\shims"),
+        (Join-Path $env:USERPROFILE "scoop\apps\git\current\usr\bin")
+    )
+    foreach ($dir in $candidates) {
+        if (Test-Path -LiteralPath $dir) {
+            if ($env:Path -notlike ("*{0}*" -f $dir)) {
+                $env:Path = "{0};{1}" -f $dir, $env:Path
+            }
+        }
+    }
+    # Avoid MSYS rewriting Windows paths / eating drive letters in args
+    $env:MSYS_NO_PATHCONV = "1"
+}
+
+function Assert-RsyncAvailable {
+    Initialize-RsyncEnvironment
+    $cmd = Get-Command rsync -ErrorAction SilentlyContinue
+    if (-not $cmd) {
+        Write-Error "rsync not found on PATH. See docs\wanos-sync.md (Scoop rsync-msys2 + Git usr\bin)."
+        exit 20
+    }
+    $ssh = Get-Command ssh -ErrorAction SilentlyContinue
+    if (-not $ssh) {
+        Write-Error "ssh not found on PATH. Install OpenSSH Client."
+        exit 21
+    }
+    Write-SyncVerbose ("rsync: {0}" -f $cmd.Source)
+    Write-SyncVerbose ("ssh:   {0}" -f $ssh.Source)
+}
+
+function Get-SshRsyncShellArg {
+    # LogLevel=ERROR hides OpenSSH post-quantum banner noise on LAN.
+    return "ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR"
+}
+
+function Get-RemoteSpec {
+    param(
+        [hashtable]$Ssh,
+        [string]$RemotePath
+    )
+    $path = $RemotePath.TrimEnd("/")
+    return "{0}@{1}:{2}" -f $Ssh.User, $Ssh.Host, $path
+}
+
+function ConvertTo-RsyncExcludeArgs {
+    param(
+        [string[]]$ExcludeDirs,
+        [string[]]$ExcludeFiles
+    )
+
+    # Use --exclude=PATTERN (one argv). Bare "*" / "*.db" as separate argv is
+    # expanded by MSYS runtime and breaks rsync ("Unexpected remote arg").
+    $args = New-Object System.Collections.Generic.List[string]
+    foreach ($d in $ExcludeDirs) {
+        if ($d -match '[\*\?\[]') {
+            [void]$args.Add(("--exclude={0}" -f $d))
+        } else {
+            [void]$args.Add(("--exclude={0}/" -f $d.TrimEnd('/', '\')))
+        }
+    }
+    foreach ($f in $ExcludeFiles) {
+        [void]$args.Add(("--exclude={0}" -f $f))
+    }
+    return @($args)
+}
+
+function Test-RsyncNoiseLine {
+    param([string]$Line)
+
+    if ([string]::IsNullOrWhiteSpace($Line)) { return $true }
+    if ($Line -match '^\*\*') { return $true }
+    if ($Line -match 'post-quantum|store now, decrypt|server may need to be upgraded') { return $true }
+    if ($Line -match '^(sending|receiving) incremental file list') { return $true }
+    if ($Line -match '^receiving file list') { return $true }
+    if ($Line -match '^sent \d+') { return $true }
+    if ($Line -match '^total size is') { return $true }
+    if ($Line -eq './') { return $true }
+    # Directory-only markers from rsync -a (keep "deleting dir/" though)
+    if ($Line -match '/$' -and $Line -notmatch '^deleting ') { return $true }
+    return $false
+}
+
+function Invoke-Rsync {
+    param(
+        [string[]]$RsyncArgs,
+        [string]$FailMessage
+    )
+
+    Write-SyncVerbose ("rsync {0}" -f ($RsyncArgs -join " "))
+    $raw = & rsync.exe @RsyncArgs 2>&1
+    $rc = $LASTEXITCODE
+
+    foreach ($item in @($raw)) {
+        if ($null -eq $item) { continue }
+        $text = if ($item -is [System.Management.Automation.ErrorRecord]) {
+            $item.ToString()
+        } else {
+            "$item"
+        }
+        if ($script:VerboseSync) {
+            if (Test-RsyncNoiseLine -Line $text) {
+                Write-Host $text -ForegroundColor DarkGray
+            } else {
+                Write-SyncFileLine -Line $text
+            }
+        } elseif (-not (Test-RsyncNoiseLine -Line $text)) {
+            Write-SyncFileLine -Line $text
+        }
+    }
+
+    if ($rc -ne 0) {
+        throw ("{0} (rsync exit {1})" -f $FailMessage, $rc)
+    }
 }
 
 # =============================================================================
@@ -281,7 +407,7 @@ function Get-ItemOrNull {
 function Normalize-ShFiles {
     param([string[]]$Dirs)
 
-    Write-Host "=== NORMALIZE .sh (CRLF --> LF) ==="
+    Write-Host "=== NORMALIZE .sh (CRLF --> LF) ===" -ForegroundColor White
 
     foreach ($dir in $Dirs) {
         if (-not (Test-Path -LiteralPath $dir)) {
@@ -289,7 +415,6 @@ function Normalize-ShFiles {
             continue
         }
 
-        # Non-recursive in repo root + helpers only (matches bat SRC_DIRS behaviour)
         Get-ChildItem -LiteralPath $dir -Filter *.sh -File -ErrorAction SilentlyContinue | ForEach-Object {
             $path = $_.FullName
             $bytes = [System.IO.File]::ReadAllBytes($path)
@@ -300,7 +425,6 @@ function Normalize-ShFiles {
                 $text = [System.Text.Encoding]::Default.GetString($bytes)
             }
 
-            # Drop UTF-8 BOM if present in the decoded string start
             if ($text.Length -gt 0 -and [int][char]$text[0] -eq 0xFEFF) {
                 $text = $text.Substring(1)
             }
@@ -308,7 +432,7 @@ function Normalize-ShFiles {
             $newText = $text -replace "`r`n", "`n" -replace "`r", "`n"
 
             if ($newText -ne $text) {
-                Write-Host "Converted CRLF-->LF: $path"
+                Write-Host "Converted CRLF-->LF: $path" -ForegroundColor Yellow
                 if (-not $script:DryRun) {
                     [System.IO.File]::WriteAllText($path, $newText, [System.Text.UTF8Encoding]::new($false))
                 }
@@ -320,10 +444,10 @@ function Normalize-ShFiles {
 }
 
 # =============================================================================
-# JOB 1 - MIRROR (Local --> Dest)
+# LOCAL MIRROR (codeimport only -- no SSH)
 # =============================================================================
 
-function Invoke-WanosMirrorJob {
+function Invoke-WanosLocalMirrorJob {
     param(
         [string]$Source,
         [string]$Dest,
@@ -332,10 +456,9 @@ function Invoke-WanosMirrorJob {
         [switch]$DryRun
     )
 
-    Write-Host "=== MIRROR JOB (Local --> Dest) ==="
+    Write-SyncJobHeader "=== LOCAL MIRROR (Local --> CodeImport folder) ==="
     Write-SyncVerbose "Source: $Source"
     Write-SyncVerbose "Dest:   $Dest"
-    Write-SyncVerbose "Note:   Pi-owned files (entity_registry.auto.yaml, *.db, ...) are excluded from copy AND delete"
 
     if (-not (Test-Path -LiteralPath $Source)) {
         throw "Mirror source missing: $Source"
@@ -343,14 +466,13 @@ function Invoke-WanosMirrorJob {
 
     Ensure-Directory -Path $Dest -DryRun:$DryRun
     if ($DryRun -and -not (Test-Path -LiteralPath $Dest)) {
-        Write-Host "[DRY] Dest missing - skipping walk"
+        Write-Host "[DRY] Dest missing - skipping walk" -ForegroundColor DarkYellow
         return
     }
 
     $sourceRoot = (Resolve-Path -LiteralPath $Source).Path
     $destRoot   = (Resolve-Path -LiteralPath $Dest).Path
 
-    # ----- Copy phase: repo --> dest (skip excluded; only if source newer) -----
     Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
         $src = $_
         $relative = Get-RelativePath -Root $sourceRoot -FullPath $src.FullName
@@ -362,25 +484,26 @@ function Invoke-WanosMirrorJob {
 
         $destPath = Join-Path $destRoot $relative
         $destFile = Get-ItemOrNull -Path $destPath
+        $shouldCopy = $true
+        if ($destFile) {
+            $delta = ($src.LastWriteTimeUtc - $destFile.LastWriteTimeUtc).TotalSeconds
+            $shouldCopy = ($delta -gt 2)
+        }
 
-        if (Should-CopyFile -Source $src -Dest $destFile -ToleranceSeconds $TimestampToleranceSeconds) {
+        if ($shouldCopy) {
             if ($DryRun) {
-                Write-Host "[DRY] Copy: $relative"
+                Write-SyncFileLine -Line ("[DRY] Copy: {0}" -f $relative)
             } else {
                 $destDir = Split-Path -Parent $destPath
                 if (-not (Test-Path -LiteralPath $destDir)) {
                     New-Item -ItemType Directory -Path $destDir -Force | Out-Null
                 }
                 Copy-Item -LiteralPath $src.FullName -Destination $destPath -Force
-                Write-Host "Copy: $relative"
+                Write-SyncFileLine -Line ("Copy: {0}" -f $relative)
             }
         }
     }
 
-    # ----- Delete phase: remove dest files not present in source -----
-    # CRITICAL: must honour the same excludes as robocopy /XF+/XD, otherwise
-    # Pi-only files (*.db, nvram, entity_registry.auto.yaml if ever missing locally, venvs)
-    # would be wiped because they are "extra" on the destination.
     if (-not (Test-Path -LiteralPath $destRoot)) { return }
 
     Get-ChildItem -LiteralPath $destRoot -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
@@ -395,218 +518,242 @@ function Invoke-WanosMirrorJob {
         $srcPath = Join-Path $sourceRoot $relative
         if (-not (Test-Path -LiteralPath $srcPath)) {
             if ($DryRun) {
-                Write-Host "[DRY] Delete: $relative"
+                Write-SyncFileLine -Line ("[DRY] Delete: {0}" -f $relative)
             } else {
                 Remove-Item -LiteralPath $dest.FullName -Force
-                Write-Host "Delete: $relative"
+                Write-SyncFileLine -Line ("Delete: {0}" -f $relative)
             }
         }
     }
 }
 
 # =============================================================================
-# JOB 2 - STATS / PULL (Pi --> Local, include-only, no deletes)
+# JOB 1 - MIRROR (Local --> Pi via rsync)
 # =============================================================================
 
-function Invoke-WanosStatsJob {
+function Invoke-WanosRsyncMirrorJob {
     param(
-        [string]$Source,              # Pi root (Z:\)
-        [string]$StatsDest,           # OneDrive logs (dbs, nvram)
-        [string]$RepoDest,            # Git repo root (entity_registry.auto.yaml)
-        [string[]]$IncludePatterns,
-        [string[]]$RepoPullPatterns,
-        [string[]]$SkipDirPatterns,   # do not walk Pi venvs etc.
+        [string]$Source,
+        [hashtable]$Ssh,
+        [string[]]$ExcludeDirs,
+        [string[]]$ExcludeFiles,
         [switch]$DryRun
     )
 
-    Write-Host "=== STATS / PULL JOB (Pi --> Local, include-only) ==="
-    Write-SyncVerbose "Source (Pi):     $Source"
-    Write-SyncVerbose "Stats dest:      $StatsDest"
-    Write-SyncVerbose "Repo pull dest:  $RepoDest  (patterns: $($RepoPullPatterns -join ', '))"
+    Write-SyncJobHeader "=== MIRROR JOB (Local --> Pi via rsync/SSH) ==="
 
-    if (-not (Test-Path -LiteralPath $Source)) {
-        throw "Stats source (Pi) missing: $Source"
+    $local = ConvertTo-RsyncLocalPath -WindowsPath $Source
+    if (-not $local.EndsWith("/")) { $local = $local + "/" }
+    $remote = (Get-RemoteSpec -Ssh $Ssh -RemotePath $Ssh.RemoteRoot)
+    if (-not $remote.EndsWith("/")) { $remote = $remote + "/" }
+
+    Write-SyncVerbose "Source: $local"
+    Write-SyncVerbose "Dest:   $remote"
+
+    $rsyncArgs = New-Object System.Collections.Generic.List[string]
+    [void]$rsyncArgs.Add("-avz")
+    if ($DryRun) { [void]$rsyncArgs.Add("-n") }
+    [void]$rsyncArgs.Add("--delete")
+    [void]$rsyncArgs.Add("-e")
+    [void]$rsyncArgs.Add((Get-SshRsyncShellArg))
+
+    foreach ($ex in (ConvertTo-RsyncExcludeArgs -ExcludeDirs $ExcludeDirs -ExcludeFiles $ExcludeFiles)) {
+        [void]$rsyncArgs.Add($ex)
     }
+
+    [void]$rsyncArgs.Add($local)
+    [void]$rsyncArgs.Add($remote)
+
+    Write-SyncSection "** rsync mirror Local --> Pi (see list below)"
+    Invoke-Rsync -RsyncArgs @($rsyncArgs) -FailMessage "Mirror push failed"
+    Write-Host ""
+    Write-SyncDone "MIRROR: done"
+}
+
+# =============================================================================
+# JOB 2 - STATS / PULL (Pi --> Local via rsync)
+# =============================================================================
+
+function Invoke-WanosRsyncStatsJob {
+    param(
+        [hashtable]$Ssh,
+        [string]$StatsDest,
+        [string]$RepoDest,
+        [string[]]$IncludePatterns,
+        [string[]]$RepoPullPatterns,
+        [string[]]$SkipDirPatterns,
+        [switch]$DryRun
+    )
+
+    Write-SyncJobHeader "=== STATS / PULL JOB (Pi --> Local via rsync/SSH) ==="
 
     Ensure-Directory -Path $StatsDest -DryRun:$DryRun
     Ensure-Directory -Path $RepoDest -DryRun:$DryRun
 
-    $sourceRoot = (Resolve-Path -LiteralPath $Source).Path
+    $remoteRoot = $Ssh.RemoteRoot.TrimEnd("/")
+    $sshShell = Get-SshRsyncShellArg
+    $repoLocal = ConvertTo-RsyncLocalPath -WindowsPath $RepoDest
+    if (-not $repoLocal.EndsWith("/")) { $repoLocal = $repoLocal + "/" }
+    $statsLocal = ConvertTo-RsyncLocalPath -WindowsPath $StatsDest
+    if (-not $statsLocal.EndsWith("/")) { $statsLocal = $statsLocal + "/" }
 
-    Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
-        $src = $_
-        $relative = Get-RelativePath -Root $sourceRoot -FullPath $src.FullName
+    # --- Repo pull: Pi wins (ignore times) ---
+    $repoIndex = 0
+    foreach ($name in $RepoPullPatterns) {
+        $repoIndex++
+        $remoteFile = Get-RemoteSpec -Ssh $Ssh -RemotePath ("{0}/{1}" -f $remoteRoot, $name)
+        $args = New-Object System.Collections.Generic.List[string]
+        [void]$args.Add("-avz")
+        if ($DryRun) { [void]$args.Add("-n") }
+        [void]$args.Add("--ignore-times")
+        [void]$args.Add("-e")
+        [void]$args.Add($sshShell)
+        [void]$args.Add($remoteFile)
+        [void]$args.Add($repoLocal)
 
-        # Skip noisy / huge Pi trees (venvs, caches)
-        $segments = $relative -split "[\\/]" | Where-Object { $_ -ne "" }
-        foreach ($segment in $segments) {
-            if (Test-NameMatchesAny -Name $segment -Patterns $SkipDirPatterns) {
-                return
-            }
-        }
+        Write-SyncSection ("** REPO{0}: {1} --> {2}" -f $repoIndex, $name, $RepoDest)
+        Invoke-Rsync -RsyncArgs @($args) -FailMessage ("Repo pull failed for {0}" -f $name)
+        Write-SyncDone ("* REPO{0}: done" -f $repoIndex)
+        Write-Host ""
+    }
 
-        # Include-only filter on file name
-        if (-not (Test-NameMatchesAny -Name $src.Name -Patterns $IncludePatterns)) {
-            return
-        }
+    # --- Telemetry pull: include-only, update (skip if local newer) ---
+    $telemetryPatterns = @($IncludePatterns | Where-Object {
+        -not (Test-NameMatchesAny -Name $_ -Patterns $RepoPullPatterns) -and
+        $_ -ne $null -and $_.Length -gt 0
+    })
 
-        # Route: system-owned YAML --> git repo; telemetry --> OneDrive logs
-        $isRepoPull = Test-NameMatchesAny -Name $src.Name -Patterns $RepoPullPatterns
-        $destRoot = if ($isRepoPull) { $RepoDest } else { $StatsDest }
-        $destPath = Join-Path $destRoot $relative
+    if ($telemetryPatterns.Count -eq 0) {
+        Write-SyncVerbose "No telemetry patterns after removing repo-pull names"
+        return
+    }
 
-        # entity_registry.auto.yaml lives at WanOS root on both sides - keep flat name at repo root
-        if ($isRepoPull) {
-            $destPath = Join-Path $RepoDest $src.Name
-        }
+    $args2 = New-Object System.Collections.Generic.List[string]
+    [void]$args2.Add("-avzu")
+    if ($DryRun) { [void]$args2.Add("-n") }
+    [void]$args2.Add("-e")
+    [void]$args2.Add($sshShell)
 
-        $destFile = Get-ItemOrNull -Path $destPath
-
-        # Repo-pull files (entity_registry.auto.yaml): Pi is source of truth - always
-        # overwrite local, even when the PC copy looks newer (stale upload / clock skew).
-        # Stats/telemetry: keep newer-only so we do not thrash OneDrive logs.
-        $shouldCopy = if ($isRepoPull) {
-            $true
+    foreach ($d in $SkipDirPatterns) {
+        if ($d -match '[\*\?\[]') {
+            [void]$args2.Add(("--exclude={0}" -f $d))
         } else {
-            Should-CopyFile -Source $src -Dest $destFile -ToleranceSeconds $TimestampToleranceSeconds
-        }
-
-        if ($shouldCopy) {
-            $label = if ($isRepoPull) { "REPO" } else { "STATS" }
-            if ($DryRun) {
-                Write-Host "[DRY] [$label] $($src.Name) --> $destPath"
-            } else {
-                $destDir = Split-Path -Parent $destPath
-                if (-not (Test-Path -LiteralPath $destDir)) {
-                    New-Item -ItemType Directory -Path $destDir -Force | Out-Null
-                }
-                Copy-Item -LiteralPath $src.FullName -Destination $destPath -Force
-                Write-Host "[$label] $($src.Name) --> $destPath"
-            }
-        } else {
-            Write-SyncVerbose "Skip (local newer/equal): $($src.Name)"
+            [void]$args2.Add(("--exclude={0}/" -f $d.TrimEnd('/', '\')))
         }
     }
+
+    # Include directories for traversal, then named patterns, then exclude everything else.
+    # One argv per flag (= form) so MSYS does not glob "*" / "*.db".
+    [void]$args2.Add("--include=*/")
+    foreach ($p in $telemetryPatterns) {
+        [void]$args2.Add(("--include={0}" -f $p))
+    }
+    [void]$args2.Add("--exclude=*")
+    [void]$args2.Add("--prune-empty-dirs")
+
+    $remoteTree = (Get-RemoteSpec -Ssh $Ssh -RemotePath $remoteRoot)
+    if (-not $remoteTree.EndsWith("/")) { $remoteTree = $remoteTree + "/" }
+    [void]$args2.Add($remoteTree)
+    [void]$args2.Add($statsLocal)
+
+    Write-SyncSection ("** STATS: telemetry --> {0}" -f $StatsDest)
+    Invoke-Rsync -RsyncArgs @($args2) -FailMessage "Stats/telemetry pull failed"
+    Write-SyncDone "* STATS: done"
 }
 
 # =============================================================================
-# JOB 3 - LOG PULL (Pi /var/log/wanos --> StatsDest via OpenSSH scp)
-# Soft-fail: missing scp/ssh or auth errors do not abort mirror/stats.
+# JOB 3 - LOG PULL (Pi /var/log/wanos --> StatsDest via rsync)
 # =============================================================================
 
-function Invoke-WanosLogPullJob {
+function Invoke-WanosRsyncLogPullJob {
     param(
         [hashtable]$Ssh,
         [string]$StatsDest,
         [switch]$DryRun
     )
 
-    Write-Host "=== LOG PULL JOB (Pi /var/log/wanos --> Local via SSH) ==="
-
-    $scpCmd = Get-Command scp -ErrorAction SilentlyContinue
-    $sshCmd = Get-Command ssh -ErrorAction SilentlyContinue
-    if (-not $scpCmd -or -not $sshCmd) {
-        Write-Host "SKIP log pull: OpenSSH scp/ssh not found on PATH"
-        return
-    }
+    Write-SyncJobHeader "=== LOG PULL JOB (Pi /var/log/wanos --> Local via rsync/SSH) ==="
 
     $localDir = Join-Path $StatsDest $Ssh.LocalLogSubdir
-    $remoteDir = $Ssh.RemoteLogDir.TrimEnd("/")
-    $remoteSpec = "{0}@{1}:{2}/{3}" -f $Ssh.User, $Ssh.Host, $remoteDir, $Ssh.RemoteGlob
-    $sshTarget = "{0}@{1}" -f $Ssh.User, $Ssh.Host
-    $sshOpts = @("-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new")
-
-    Write-SyncVerbose "Remote: $remoteSpec"
-    Write-SyncVerbose "Local:  $localDir"
-
     Ensure-Directory -Path $localDir -DryRun:$DryRun
 
-    if ($DryRun) {
-        Write-Host "[DRY] Would scp: $remoteSpec --> $localDir\"
-        $lsRemote = "ls -lh -- $remoteDir/$($Ssh.RemoteGlob) 2>/dev/null || true"
-        Write-SyncVerbose "Listing remote: ssh $sshTarget $lsRemote"
-        & ssh.exe @sshOpts $sshTarget $lsRemote
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "WARN: remote log list failed (exit $LASTEXITCODE). Check SSH key / host."
-        }
-        return
-    }
+    $localRsync = ConvertTo-RsyncLocalPath -WindowsPath $localDir
+    if (-not $localRsync.EndsWith("/")) { $localRsync = $localRsync + "/" }
 
-    # Quote-free single arg so PowerShell does not expand RemoteGlob locally.
-    & scp.exe @sshOpts $remoteSpec "$localDir\"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "WARN: log pull failed (exit $LASTEXITCODE). Mirror/stats already done; check SSH key / host."
-        return
-    }
+    $remoteDir = $Ssh.RemoteLogDir.TrimEnd("/")
+    $remoteSpec = "{0}@{1}:{2}/{3}" -f $Ssh.User, $Ssh.Host, $remoteDir, $Ssh.RemoteGlob
 
-    $copied = @(Get-ChildItem -LiteralPath $localDir -File -Force -ErrorAction SilentlyContinue |
-        Where-Object { Test-NameMatchesAny -Name $_.Name -Patterns @($Ssh.RemoteGlob) })
-    Write-Host ("LOG: pulled {0} file(s) --> {1}" -f $copied.Count, $localDir)
-    foreach ($f in $copied) {
-        Write-SyncVerbose ("  {0}  ({1:N0} bytes)" -f $f.Name, $f.Length)
-    }
+    Write-SyncVerbose "Remote: $remoteSpec"
+    Write-SyncVerbose "Local:  $localRsync"
+
+    $args = New-Object System.Collections.Generic.List[string]
+    [void]$args.Add("-avz")
+    if ($DryRun) { [void]$args.Add("-n") }
+    [void]$args.Add("-e")
+    [void]$args.Add((Get-SshRsyncShellArg))
+    [void]$args.Add($remoteSpec)
+    [void]$args.Add($localRsync)
+
+    Write-SyncSection ("** rsync logs: {0} --> {1}" -f $remoteSpec, $localDir)
+    Invoke-Rsync -RsyncArgs @($args) -FailMessage "Log pull failed"
+    Write-SyncDone ("* LOG: done --> {0}" -f $localDir)
 }
 
 # =============================================================================
-# VALIDATION (after all functions are defined)
+# VALIDATION + DISPATCH
 # =============================================================================
 
-Write-SyncVerbose "Validating configured paths..."
-Write-Host "Mode: $Mode"
+# Mode banner is printed by wanos-sync.bat; keep only in verbose when run via .ps1 alone
+Write-SyncVerbose "Mode: $Mode"
 Write-SyncVerbose "Timestamp: $(Get-Date)"
 Write-SyncVerbose ""
 
 Assert-PathExists -Path $MirrorSource -Description "Mirror source (repo)" -ExitCode 11
 
-if ($Mode -ne "runlocal") {
-    Assert-PathExists -Path $MirrorDest -Description "Mirror destination (Pi Z:)" -ExitCode 12
+if ($Mode -eq "codeimport") {
+    if ([string]::IsNullOrWhiteSpace($CodeImportPath)) {
+        Write-Error "Mode codeimport requires -CodeImportPath <windows-folder>. Example: -CodeImportPath C:\data\git\wanos\code-import"
+        exit 13
+    }
+    Ensure-Directory -Path $CodeImportPath -DryRun:($false)
 }
 
 foreach ($dir in $SourceDirs) {
     Assert-PathExists -Path $dir -Description "Normalization source directory" -ExitCode 15
 }
 
-$DryRun = ($Mode -eq "test")
+$script:DryRun = ($Mode -eq "test")
+$DryRun = $script:DryRun
 
-# CodeFolder / StatsDest are created on demand (bat already behaved this way for CodeFolder)
-if ($Mode -eq "runlocal" -or $Mode -eq "run" -or $Mode -eq "test") {
-    Ensure-Directory -Path $CodeFolder -DryRun:$DryRun
-}
-if ($Mode -ne "runlocal") {
+if ($Mode -ne "codeimport") {
+    Assert-RsyncAvailable
     Ensure-Directory -Path $StatsDest -DryRun:$DryRun
 }
 
-# =============================================================================
-# MODE DISPATCH
-# =============================================================================
-
-if ($Mode -eq "run" -or $Mode -eq "runlocal") {
+# Normalize on real writes (run + codeimport)
+if ($Mode -eq "run" -or $Mode -eq "codeimport") {
     Normalize-ShFiles -Dirs $SourceDirs
 }
 
-# Job 1: push code
-if ($Mode -eq "runlocal") {
-    Invoke-WanosMirrorJob -Source $MirrorSource -Dest $CodeFolder `
-        -ExcludeDirs $MirrorExcludeDirs -ExcludeFiles $MirrorExcludeFiles -DryRun:$DryRun
+if ($Mode -eq "codeimport") {
+    Invoke-WanosLocalMirrorJob `
+        -Source $MirrorSource `
+        -Dest $CodeImportPath `
+        -ExcludeDirs $MirrorExcludeDirs `
+        -ExcludeFiles $MirrorExcludeFiles `
+        -DryRun:$false
 } else {
-    # test / run --> Pi
-    Invoke-WanosMirrorJob -Source $MirrorSource -Dest $MirrorDest `
-        -ExcludeDirs $MirrorExcludeDirs -ExcludeFiles $MirrorExcludeFiles -DryRun:$DryRun
+    # test / run --> Pi via rsync
+    Invoke-WanosRsyncMirrorJob `
+        -Source $MirrorSource `
+        -Ssh $PiSsh `
+        -ExcludeDirs $MirrorExcludeDirs `
+        -ExcludeFiles $MirrorExcludeFiles `
+        -DryRun:$DryRun
 
-    # run also mirrors into CodeFolder (parity with robocopy-sync.bat)
-    if ($Mode -eq "run") {
-        Write-Host ""
-        Invoke-WanosMirrorJob -Source $MirrorSource -Dest $CodeFolder `
-            -ExcludeDirs $MirrorExcludeDirs -ExcludeFiles $MirrorExcludeFiles -DryRun:$DryRun
-    }
-}
-
-# Job 2: pull from Pi (not in runlocal)
-if ($Mode -ne "runlocal") {
     Write-Host ""
-    # Reuse mirror dir-excludes so we do not recurse into wanos_venv etc. on Z:\
-    Invoke-WanosStatsJob `
-        -Source $MirrorDest `
+    Invoke-WanosRsyncStatsJob `
+        -Ssh $PiSsh `
         -StatsDest $StatsDest `
         -RepoDest $MirrorSource `
         -IncludePatterns $StatsInclude `
@@ -614,10 +761,12 @@ if ($Mode -ne "runlocal") {
         -SkipDirPatterns $MirrorExcludeDirs `
         -DryRun:$DryRun
 
-    # Job 3: application logs under /var/log/wanos (SSH; not on Samba Z:)
     Write-Host ""
-    Invoke-WanosLogPullJob -Ssh $PiSsh -StatsDest $StatsDest -DryRun:$DryRun
+    Invoke-WanosRsyncLogPullJob `
+        -Ssh $PiSsh `
+        -StatsDest $StatsDest `
+        -DryRun:$DryRun
 }
 
 Write-Host ""
-Write-Host "Done."
+Write-SyncDone "--> All done."
