@@ -889,8 +889,11 @@ function wanosApp() {
 
                     if (payload.role === "admin") {
                         this.isAdmin = true;
-                    } else if (payload.role === "user" && window.location.pathname.includes("admin.html")) {
-                        // ⚡ THE BOUNCER: user role cannot open admin.html (History/sessions are allowed)
+                    } else if (payload.role === "user" && (
+                        window.location.pathname.includes("admin.html") ||
+                        window.location.pathname.includes("sensorhistory.html")
+                    )) {
+                        // ⚡ THE BOUNCER: user role cannot open Admin or Session History
                         console.warn("Unauthorized access attempt. Redirecting...");
                         window.location.href = "/deviceexplorer.html";
                         return;

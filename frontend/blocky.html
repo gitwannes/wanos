@@ -17,26 +17,12 @@
 
     <title>WanOS - Automation</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="/wanos.css?v=1" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="https://unpkg.com/blockly@13.2.1/blockly.min.js"></script>
 
     <style>
-        /* Top-row join: tablets+ (≥768). Below: hamburger (Explorer + WISC only). */
-        #pc-nav-menu { display: none; }
-        #mobile-nav-menu { display: inline-flex; }
-        @media (min-width: 768px) {
-            #pc-nav-menu { display: flex; }
-            #mobile-nav-menu { display: none !important; }
-        }
-        #pc-nav-menu .join > .join-item.nav-mid {
-            border-left-color: var(--fallback-b3, oklch(var(--b3))) !important;
-            border-right-color: var(--fallback-b3, oklch(var(--b3))) !important;
-        }
-        #pc-nav-menu .join > .join-item.nav-end {
-            border-left-color: var(--fallback-b3, oklch(var(--b3))) !important;
-        }
-        [x-cloak] { display: none !important; }
         /* Same constraints as helpers/blockly_minimal_test.html.
            Do NOT force .blocklySvg width/height — Blockly owns those pixels.
            Do NOT put Blockly on Alpine reactive state (Proxy breaks drag/snap). */
@@ -81,51 +67,8 @@
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="blockyApp()" x-init="init()">
 
-<div x-show="!connected" x-cloak
-     class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
-    <span class="loading loading-infinity w-16 text-warning mb-4"></span>
-    <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
-    <p class="text-warning mt-2 font-mono text-sm">Loading automation editor...</p>
-</div>
-
-<header class="navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center min-h-[3rem] relative z-[60]">
-    <div class="flex-1 flex items-center gap-2 min-w-0">
-        <div class="flex flex-col min-w-0 justify-center">
-            <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-warning truncate">⚡ WanOS // Automation</span>
-        </div>
-    </div>
-
-    <div id="pc-nav-menu" class="justify-center flex-1 min-w-0">
-        <div class="join bg-base-200 border border-base-300">
-            <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary" @click="navAway($event, '/deviceexplorer.html')">Explorer</a>
-            <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary" @click="navAway($event, '/commander.html')">WISC</a>
-            <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent" @click="navAway($event, '/sensorhistory.html')">History</a>
-            <a href="/blocky.html" class="btn btn-sm join-item font-mono font-bold tracking-widest text-warning border-warning bg-warning/10 nav-end">Automation</a>
-        </div>
-    </div>
-
-    <div class="flex-none flex items-center gap-2">
-        <button class="btn btn-ghost btn-xs text-base-content/50 hover:text-warning" @click="refreshAll()" :disabled="busy" title="Refresh">
-            <span x-show="!busy" class="font-mono text-[10px] tracking-wider">Refresh</span>
-            <span x-show="busy" class="loading loading-spinner loading-xs"></span>
-        </button>
-        <div id="mobile-nav-menu" class="dropdown dropdown-end">
-            <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-            </div>
-            <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
-                <li><a href="/deviceexplorer.html" @click="navAway($event, '/deviceexplorer.html')">Device Explorer</a></li>
-                <li><a href="/commander.html" @click="navAway($event, '/commander.html')">WISC</a></li>
-            </ul>
-        </div>
-        <a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1" title="Return to Admin" @click="navAway($event, '/admin.html')">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-        </a>
-        <button @click="editorDirty ? requestLeave({ type: 'logout' }) : logout()" class="btn btn-ghost btn-xs text-base-content/30 hover:text-error" title="Logout">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-        </button>
-    </div>
-</header>
+<div data-wanos-offline data-tone="warning" data-message="Loading automation editor..."></div>
+<div data-wanos-nav="blocky"></div>
 
 <main class="max-w-7xl mx-auto px-3 md:px-6 grid grid-cols-1 xl:grid-cols-3 gap-6 pb-10">
     <section class="xl:col-span-1 card bg-base-100 border border-base-200 shadow-xl">
@@ -284,6 +227,7 @@
     <form method="dialog" class="modal-backdrop"><button type="button" @click="cancelUnsavedLeave()">close</button></form>
 </dialog>
 
+<script src="wanos-shell.js?v=2"></script>
 <script src="blocky.js?v=4.14"></script>
 </body>
 </html>

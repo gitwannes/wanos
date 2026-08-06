@@ -22,17 +22,13 @@
 
     <title>Z-Wave Configuration Editor</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="/wanos.css?v=1" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content p-6" x-data="zwaveApp()">
 
-    <div x-show="!connected" x-cloak
-         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
-         <span class="loading loading-infinity w-16 text-error mb-4"></span>
-        <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
-        <p class="text-error mt-2 font-mono text-sm">Establishing connection stream to WanOS backend...</p>
-    </div>
+    <div data-wanos-offline data-tone="error"></div>
 
     <header class="mb-8 flex justify-between items-center max-w-7xl mx-auto">
         <div class="flex items-center gap-4">
@@ -168,6 +164,7 @@
 
     </main>
 
+    <script src="wanos-shell.js?v=2"></script>
     <script src="zwave.js?v=1.1"></script>
 
 </body>

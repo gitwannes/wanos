@@ -22,6 +22,7 @@
 
     <title>WanOS - Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="/wanos.css?v=1" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <!--
@@ -30,90 +31,11 @@
     Get js from web: https://raw.githubusercontent.com/jaames/iro.js/master/dist/iro.min.js
     -->
     <script src="iro.min.js"></script>
-    <style>
-        /* Top-row join: tablets+ (≥768). Below: hamburger (Explorer + WISC only). */
-        #pc-nav-menu { display: none; }
-        #mobile-nav-menu { display: inline-flex; }
-        @media (min-width: 768px) {
-            #pc-nav-menu { display: flex; }
-            #mobile-nav-menu { display: none !important; }
-        }
-    </style>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()">
 
-    <div x-show="!connected"
-         class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
-         <span class="loading loading-infinity w-16 text-error mb-4"></span>
-        <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
-        <p class="text-error mt-2 font-mono text-sm">Establishing connection stream to WanOS backend...</p>
-    </div>
-
-    <header class="navbar bg-base-100 shadow-md px-6 mb-8 flex-wrap gap-4 z-40 relative">
-        <div class="flex-1 flex items-center gap-2 min-w-0">
-            <div class="flex flex-col min-w-0 justify-center">
-                <span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin</span>
-                <span class="text-[9px] font-mono text-base-content/40 leading-none mt-0.5 tracking-wider select-none" x-text="state.system.version_major"></span>
-            </div>
-        </div>
-
-        <div id="pc-nav-menu" class="justify-center flex-1 min-w-0">
-            <div class="join bg-base-200 border border-base-300">
-                <a href="/deviceexplorer.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-primary">Explorer</a>
-                <a href="/commander.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-secondary">WISC</a>
-                <a href="/sensorhistory.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-accent">History</a>
-                <a href="/blocky.html" class="btn btn-sm join-item font-mono tracking-widest text-base-content/70 hover:text-warning">Automation</a>
-            </div>
-        </div>
-
-        <div class="flex-none flex items-center gap-3">
-            <span class="text-[10px] font-mono text-base-content/40 select-none hidden sm:inline" x-text="state.system.version_full"></span>
-
-            <div id="mobile-nav-menu" class="dropdown dropdown-end">
-                <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-                </div>
-                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">
-                    <li><a href="/deviceexplorer.html">Device Explorer</a></li>
-                    <li><a href="/commander.html">WISC</a></li>
-                </ul>
-            </div>
-
-            <button @click="logout()" class="btn btn-ghost btn-xs text-base-content/30 hover:text-error" title="Logout">                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            </button>
-
-            <div class="dropdown dropdown-end">
-                <div tabindex="0" role="button" class="btn btn-ghost btn-circle relative">
-
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                    <span class="badge badge-xs badge-error indicator-item absolute top-1 right-1" x-show="unreadAlertCount > 0" x-text="unreadAlertCount"></span>
-                </div>
-                <div tabindex="0" class="dropdown-content z-50 menu p-4 shadow-xl bg-base-200 rounded-box w-80 sm:w-96 mt-4 border border-base-300">
-                    <div class="flex justify-between items-center mb-3 border-b border-base-300 pb-2">
-                        <span class="font-bold text-sm uppercase text-base-400">System Notifications</span>
-                        <button class="btn btn-xs btn-outline btn-error" @click="clearNonCriticalAlerts()" x-show="unreadAlertCount > 0">Clear All</button>
-                    </div>
-                    <div class="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">
-                        <template x-for="msg in nonCriticalAlerts" :key="msg.id">
-                            <div class="bg-base-300 rounded p-3 text-sm border-l-4 shadow-sm" :class="msg.level === 'success' ? 'border-success' : (msg.level === 'warning' ? 'border-warning' : 'border-info')">
-                                <div class="flex justify-between items-start gap-2 mb-1">
-                                    <span class="font-bold flex-1 break-words leading-tight" :class="msg.level === 'success' ? 'text-success' : (msg.level === 'warning' ? 'text-warning' : 'text-info')" x-text="msg.message"></span>
-                                    <button @click="dismissAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle text-base-400 hover:text-white shrink-0 -mt-1 -mr-1">✕</button>
-                                </div>
-                                <div class="flex justify-between items-center text-[10px] text-base-400 font-mono mt-2">
-                                    <span x-text="msg.timestamp"></span>
-                                    <span class="badge badge-neutral badge-xs font-bold" x-show="msg.count > 1" x-text="msg.count + 'x'"></span>
-                                </div>
-                            </div>
-                        </template>
-                        <div x-show="unreadAlertCount === 0" class="text-center text-base-400 py-6 text-xs italic">
-                            No recent system events.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
+    <div data-wanos-offline data-tone="error"></div>
+    <div data-wanos-nav="admin"></div>
 
     <main class="container mx-auto px-4 max-w-[90rem] pb-10 flex flex-col xl:flex-row gap-6 items-start">
 
@@ -828,53 +750,7 @@
             </form>
         </dialog>
 
-        <dialog id="light_control_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
-            <div class="modal-box border border-primary/20 bg-base-300 shadow-2xl">
-                <h3 class="font-bold text-lg flex items-center gap-2 uppercase tracking-widest text-primary border-b border-base-200 pb-3 mb-4">
-                    <span x-text="activeLightName"></span>
-                </h3>
-
-                <div class="flex flex-col gap-6">
-                    <div>
-                        <div class="flex justify-between text-xs font-mono font-bold text-base-400 mb-2 uppercase tracking-wider">
-                            <span>Brightness</span>
-                            <span class="text-warning" x-text="(activeLightBri ?? 100) + '%'"></span>
-                        </div>
-                        <input type="range" min="1" max="100" class="range range-warning shadow-inner"
-                               x-model="activeLightBri"
-                               @input.debounce.100ms="updateActiveLightState()" />
-                    </div>
-
-                    <div>
-                        <div class="flex justify-between text-xs font-mono font-bold text-base-400 mb-2 uppercase tracking-wider">
-                            <span>Color Output</span>
-                            <span class="text-info" x-text="activeLightHex || '#FFD180'"></span>
-                        </div>
-                        <div class="flex flex-col items-center justify-center bg-base-200 p-4 rounded-box border border-base-300">
-                            <div id="color-picker-container"></div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <template x-for="(preset, key) in state.system.hue_presets" :key="key">
-                            <button class="btn btn-sm btn-outline border-base-content/20 text-[10px] font-mono tracking-wide truncate shadow-sm hover:text-primary"
-                                    x-text="preset.name || key"
-                                    @click="applyPreset(preset)"></button>
-                        </template>
-                    </div>
-                </div>
-
-                <div class="modal-action border-t border-base-200 pt-4 mt-6">
-                    <form method="dialog" class="w-full flex justify-between">
-                        <button class="btn btn-error btn-sm font-mono shadow-sm text-neutral-900" @click="injectLabHubStateChange(activeLightId, false)">TURN OFF</button>
-                        <button class="btn btn-outline btn-sm font-mono text-base-content/70">Close</button>
-                    </form>
-                </div>
-            </div>
-            <form method="dialog" class="modal-backdrop">
-                <button>close</button>
-            </form>
-        </dialog>
+        <div data-wanos-light-modal></div>
 
         <dialog id="zwave_diagnostics_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
             <div class="modal-box border bg-base-300 shadow-2xl border-base-content/20">
@@ -939,4 +815,5 @@
             </form>
         </dialog>
     </main>
-    <script src="app.js?v=3.15"></script>
+    <script src="wanos-shell.js?v=2"></script>
+    <script src="app.js?v=3.17"></script>

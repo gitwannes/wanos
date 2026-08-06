@@ -1,0 +1,21 @@
+/* Shared WanOS UI — nav breakpoints, join active edges, Alpine cloak.
+   Linked from admin / explorer / WISC / history / automation pages. */
+
+/* Top-row join: tablets+ (≥768). Below: hamburger (Explorer + WISC only). */
+#pc-nav-menu { display: none; }
+#mobile-nav-menu { display: inline-flex; }
+@media (min-width: 768px) {
+    #pc-nav-menu { display: flex; }
+    #mobile-nav-menu { display: none !important; }
+}
+
+/* Active join tab: keep grey inter-item dividers; color only the end-cap that belongs to that slot. */
+#pc-nav-menu .join > .join-item.nav-mid {
+    border-left-color: var(--fallback-b3, oklch(var(--b3))) !important;
+    border-right-color: var(--fallback-b3, oklch(var(--b3))) !important;
+}
+#pc-nav-menu .join > .join-item.nav-end {
+    border-left-color: var(--fallback-b3, oklch(var(--b3))) !important;
+}
+
+[x-cloak] { display: none !important; }
