@@ -40,10 +40,6 @@ wanos:
 epson:
   ip_address: "10.32.251.75"
 
-weather:
-  location: "Borsbeek,BE"
-  poll_interval_mins: 30
-
 sonos:
   max_volume: 70
   device_map:
@@ -124,6 +120,7 @@ weather:
   name: "Outside temp & hum"
   location: "Borsbeek,BE"
   poll_interval_mins: 30
+  sun_refresh_hour: 3  # once-daily sunrise/sunset + env schedule (≥ this local hour)
 
 hardware_links:
   # Maps switch entity_ids to linked power meter entity_ids.

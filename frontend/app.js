@@ -1549,6 +1549,8 @@ function wanosApp() {
          */
         explorerHistoryValueText(item) {
             if (!item) return "—";
+            // Scenes are stateless triggers — no live value in History.
+            if (item.type === "scene") return "";
             if (item.is_dead) return "DEAD";
             if (item.raw_value === null || item.raw_value === undefined) return "SYNC...";
 

@@ -87,7 +87,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)
-* `open_weather.py`: REST polling framework capturing outside climate metrics and tripwiring integrations off if connections fail.
+* `open_weather.py`: OWM loop — climate (temp/humidity) on `poll_interval_mins`; sunrise/sunset once daily at `sun_refresh_hour` (plus boot/enable). Climate no longer emits sun events. Tripwires off on HTTP failure.
 * `onkyo.py`: Persistent asynchronous bridge maintaining zero-latency TCP sockets with Onkyo/Pioneer AV receivers, handling legacy hardware protocol variations.
 * `rfxcom.py`: Direct asyncio serial protocol driving the 433MHz antenna transceiver, utilizing custom packet generation blocks to protect against library crashes.
 * `sonos.py`: Asynchronous network integration tracking UPnP/HTTP topologies for Sonos speakers.
@@ -222,7 +222,7 @@ To communicate with the system, payloads must align with the exact structural da
   ```json
   { "type": "HUB_STATE_CHANGED", "payload": { "idx": 51005, "state": "ON", "bri": 254, "xy": [0.6915, 0.3083], "force": true } }
   ```
-* **External Weather Synchronization:**
+* **Sun cycle / env schedule refresh** (daily ≥ `sun_refresh_hour`, and on OWM enable/boot — not on climate polls):
   ```json
   { "type": "EXTERNAL_WEATHER_UPDATED", "payload": { "sunrise": 1782201000, "sunset": 1782256000 } }
   ```

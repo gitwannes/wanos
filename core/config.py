@@ -19,6 +19,8 @@ class WeatherConfig(BaseModel):
     name: str
     location: str
     poll_interval_mins: int
+    # Local wall-clock hour for the once-daily sun/schedule refresh (default 03:00).
+    sun_refresh_hour: int = 3
     api_key: Optional[str] = None
 
 

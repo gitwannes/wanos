@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import asyncio
+import time
+from datetime import date, datetime
+
 import aiohttp
+
 from core.models import Event, EventType
 from core.state_manager import StateManager
 
 
 async def weather_polling_loop(state_manager: StateManager) -> None:
-    """Polls OpenWeatherMap for outside temp, humidity, and sun cycle times."""
+    """OWM loop: climate on poll_interval; sun cycle once daily (+ boot/enable)."""
     config = state_manager._config.weather
 
     if not config.api_key:
@@ -14,103 +20,120 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
 
     url = f"https://api.openweathermap.org/data/2.5/weather?q={config.location}&appid={config.api_key}&units=metric"
     poll_seconds = config.poll_interval_mins * 60
+    sun_hour = int(getattr(config, "sun_refresh_hour", 3) or 3)
+    climate_idx = int(getattr(config, "idx", None) or 30001)
 
-    await state_manager.logger.success(f"[OWM] polling initialized for {config.location}.")
+    await state_manager.logger.success(
+        f"[OWM] polling initialized for {config.location} "
+        f"(climate every {config.poll_interval_mins}m; sun daily ≥{sun_hour:02d}:00)."
+    )
 
-    # EARLY GATE DUPLICATE FILTER
     last_temp = None
     last_hum = None
-
     last_enabled_state = False
-    seconds_since_last_fetch = poll_seconds  # Max out counter to force immediate fetch on start
+    last_sun_refresh_date: date | None = None
+    seconds_since_last_climate = float(poll_seconds)  # force climate on first enabled tick
+    force_sun = True  # boot / enable always refresh sun once
+    sun_backoff_until = 0.0
 
     async with aiohttp.ClientSession() as session:
         while True:
-            # Fast 2-second background evaluation loop instead of blocking for 30 minutes!
             await asyncio.sleep(2.0)
 
             is_enabled = state_manager._state.system.owm_integration_enabled
 
-            # Catch OFF -> ON transition
             if is_enabled and not last_enabled_state:
                 await state_manager.logger.success("[OWM] Integration ENABLED via UI.")
-                await state_manager.logger.info("[OWM] Fetching weather...")
-                seconds_since_last_fetch = poll_seconds  # Force instant fetch execution
-
-            # Catch ON -> OFF transition
+                await state_manager.logger.info("[OWM] Fetching climate + sun cycle...")
+                seconds_since_last_climate = float(poll_seconds)
+                force_sun = True
+                sun_backoff_until = 0.0
             elif not is_enabled and last_enabled_state:
                 await state_manager.logger.info("[OWM] Integration DISABLED via UI.")
 
             last_enabled_state = is_enabled
-
             if not is_enabled:
                 continue
 
-            seconds_since_last_fetch += 2.0
+            seconds_since_last_climate += 2.0
+            now_local = datetime.now()
+            today = now_local.date()
+            now_mono = time.monotonic()
 
-            if seconds_since_last_fetch >= poll_seconds:
-                seconds_since_last_fetch = 0.0
-                try:
-                    async with session.get(url, timeout=10) as response:
-                        if response.status == 200:
-                            data = await response.json()
+            need_climate = seconds_since_last_climate >= poll_seconds
+            need_sun = force_sun or (
+                last_sun_refresh_date != today and now_local.hour >= sun_hour
+            )
+            if need_sun and now_mono < sun_backoff_until:
+                need_sun = False
 
-                            # Extract 1: Temperature & Humidity
-                            temp = round(float(data['main']['temp']) * 2) / 2
-                            hum = int(data['main']['humidity'])
+            if not need_climate and not need_sun:
+                continue
 
-                            # Extract 2: Sunrise & Sunset
-                            sunrise = int(data['sys']['sunrise'])
-                            sunset = int(data['sys']['sunset'])
+            # Consume climate budget up front (same as legacy: wait a full interval after any attempt).
+            if need_climate:
+                seconds_since_last_climate = 0.0
 
-                            # Check if the weather actually changed
-                            if temp == last_temp and hum == last_hum:
-                                await state_manager.logger.debug(
-                                    f"[OWM] Weather update ignored (duplicate: already {temp}°C, {hum}%)")
-                            else:
-                                last_temp = temp
-                                last_hum = hum
+            try:
+                async with session.get(url, timeout=10) as response:
+                    if response.status != 200:
+                        await state_manager.logger.error(f"[OWM] HTTP Error {response.status}")
+                        if need_sun:
+                            sun_backoff_until = time.monotonic() + poll_seconds
+                        continue
 
-                                # Dispatch Temperature strictly using the 30001 Virtual IDX
-                                state_manager.dispatch(Event(
-                                    type=EventType.TEMP_UPDATED,
-                                    payload={"idx": 30001, "value": temp}
-                                ))
+                    data = await response.json()
 
-                                # Dispatch Humidity strictly using the 30001 Virtual IDX
-                                state_manager.dispatch(Event(
-                                    type=EventType.HUMIDITY_UPDATED,
-                                    payload={"idx": 30001, "value": hum}
-                                ))
+                    if need_climate:
+                        temp = round(float(data["main"]["temp"]) * 2) / 2
+                        hum = int(data["main"]["humidity"])
 
-                                # Dispatch Sun Cycle (Specialized macro event updates both simultaneously)
-                                state_manager.dispatch(Event(
-                                    type=EventType.EXTERNAL_WEATHER_UPDATED,
-                                    payload={"sunrise": sunrise, "sunset": sunset}
-                                ))
-
-                                await state_manager.logger.debug(f"[OWM] Weather updated: {temp}°C, {hum}%")
+                        if temp == last_temp and hum == last_hum:
+                            await state_manager.logger.debug(
+                                f"[OWM] Climate ignored (duplicate: already {temp}°C, {hum}%)"
+                            )
                         else:
-                            await state_manager.logger.error(f"[OWM] HTTP Error {response.status}")
+                            last_temp = temp
+                            last_hum = hum
+                            state_manager.dispatch(Event(
+                                type=EventType.TEMP_UPDATED,
+                                payload={"idx": climate_idx, "value": temp}
+                            ))
+                            state_manager.dispatch(Event(
+                                type=EventType.HUMIDITY_UPDATED,
+                                payload={"idx": climate_idx, "value": hum}
+                            ))
+                            await state_manager.logger.debug(
+                                f"[OWM] Climate updated: {temp}°C, {hum}%"
+                            )
 
-                except asyncio.CancelledError:
-                    break
-
-                except Exception as e:
-                    await state_manager.logger.error(f"Error fetching OpenWeatherMap data: {e}")
-
-                    # SAFETY TRIPWIRE: Automatically disable OWM integration on HTTP failure
-                    if state_manager._state.system.owm_integration_enabled:
-                        owm_err = "🌩️ OpenWeatherMap HTTP Connection lost! Integration disabled."
-
-                        # 1. Fire the toggle event to turn the UI switch OFF *AND* pass the error string
+                    if need_sun:
+                        sunrise = int(data["sys"]["sunrise"])
+                        sunset = int(data["sys"]["sunset"])
                         state_manager.dispatch(Event(
-                            type=EventType.OWM_TOGGLED,
-                            payload={
-                                "enabled": False,
-                                "error_msg": owm_err
-                            }
+                            type=EventType.EXTERNAL_WEATHER_UPDATED,
+                            payload={"sunrise": sunrise, "sunset": sunset}
                         ))
+                        last_sun_refresh_date = today
+                        force_sun = False
+                        sun_backoff_until = 0.0
+                        await state_manager.logger.info(
+                            f"[OWM] Sun cycle refreshed for {today.isoformat()} "
+                            f"(sunrise={sunrise}, sunset={sunset})"
+                        )
 
-                        # 2. Push a high-priority error to the live MQTT console logs
-                        await state_manager.logger.error(owm_err)
+            except asyncio.CancelledError:
+                break
+
+            except Exception as e:
+                await state_manager.logger.error(f"Error fetching OpenWeatherMap data: {e}")
+                if need_sun:
+                    sun_backoff_until = time.monotonic() + poll_seconds
+
+                if state_manager._state.system.owm_integration_enabled:
+                    owm_err = "🌩️ OpenWeatherMap HTTP Connection lost! Integration disabled."
+                    state_manager.dispatch(Event(
+                        type=EventType.OWM_TOGGLED,
+                        payload={"enabled": False, "error_msg": owm_err}
+                    ))
+                    await state_manager.logger.error(owm_err)

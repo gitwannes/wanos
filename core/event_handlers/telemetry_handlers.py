@@ -46,11 +46,11 @@ async def handle_power_updated(event: Event, manager: Any) -> Tuple[bool, Set[st
 
 
 async def handle_external_weather_updated(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Apply sunrise/sunset and recalculate blinds/twilight schedule (sun path only)."""
     payload = event.payload or {}
     manager._state.sensors.sunrise_unix = payload.get("sunrise")
     manager._state.sensors.sunset_unix = payload.get("sunset")
 
-    # Trigger recalculation instantly when weather cycles shift
     EnvironmentScheduler.recalculate_schedule(manager._state, manager._config, manager._start_time, manager.dispatch)
 
     return True, {"sensors"}

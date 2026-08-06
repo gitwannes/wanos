@@ -17,8 +17,8 @@ class EnvironmentScheduler:
     @staticmethod
     def recalculate_schedule(state: SystemState, config: AppConfig, start_time: float, dispatch_fn) -> None:
         """
-        Runs whenever OWM fetches weather, applying Min/Max logic (Clamps) to prevent edge cases
-        like blinds opening at 4:30 AM in mid-summer. Deploys timeline events directly to the StateManager queue.
+        Runs after OWM sun-cycle refresh (daily / boot / enable), applying Min/Max clamps
+        so blinds do not open at e.g. 4:30 AM in mid-summer. Deploys timeline events to the queue.
         """
         sns = state.sensors
         cfg = config.environmental_schedule
