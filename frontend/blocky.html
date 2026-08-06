@@ -150,17 +150,22 @@
                         <p class="text-[11px] text-base-content/50 max-w-xl" x-show="canShowOnDashboard">
                             Dashboard = kiosk scene button (event-triggered rules only). Confirmation = mis-click modal for that button.
                         </p>
-                        <p class="text-[11px] text-base-content/50 max-w-xl">
-                            Trigger wakes the rule; cases are ordered if / else-if / else.
-                            Match options follow the trigger (device ON/OFF or blinds OPEN/CLOSED; start or end; event/OR = conditions gate).
-                            Action/condition states follow device type. Speakers show as Sonos/Onkyo. OR edges only when root is “When any of”.
-                            Rich actions: Hue color = named preset <b>or</b> custom (Explorer color wheel); blinds open %; Sonos volume+station / Onkyo volume.
-                        </p>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200" x-show="editorMode === 'blockly'">
-                        <button class="btn btn-xs btn-outline" @click="requestLeave({ type: 'reload' })">Reload canvas</button>
+                        <template x-if="editorDirty">
+                            <button type="button" class="btn btn-xs btn-outline" @click="requestLeave({ type: 'reload' })">Reset blocks</button>
+                        </template>
                         <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                        <button type="button"
+                                class="btn btn-xs btn-ghost btn-circle ml-auto text-base-content/50 hover:text-info"
+                                title="How Blocky rules work"
+                                aria-label="How Blocky rules work"
+                                @click="document.getElementById('blocky_help_modal').showModal()">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
                     </div>
 
                     <div id="blocklyPanel"
@@ -176,6 +181,15 @@
                                 <div class="text-sm font-semibold mt-1" x-text="editor.name || '(unnamed rule)'"></div>
                             </div>
                             <div class="flex gap-2">
+                                <button type="button"
+                                        class="btn btn-sm btn-ghost btn-circle text-base-content/50 hover:text-info"
+                                        title="How Blocky rules work"
+                                        aria-label="How Blocky rules work"
+                                        @click="document.getElementById('blocky_help_modal').showModal()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
                                 <button class="btn btn-sm btn-outline" @click="toggleBlocklyFullscreen()">Exit full screen</button>
                                 <button class="btn btn-sm btn-warning" @click="saveRule()" :disabled="busy">Save</button>
                             </div>
@@ -183,13 +197,6 @@
                         <div id="blocklyWorkspace"
                              class="w-full rounded border border-base-300 bg-base-100"
                              :class="blocklyFullscreen && showBlocklyWorkspace ? 'blockly-fs' : ''"></div>
-                        <div class="text-[11px] text-base-content/60" x-show="showBlocklyWorkspace && !blocklyFullscreen">
-                            Trigger → chain of <b>if</b> cases → actions.
-                            To change trigger type, drag another from <b>Trigger</b> (cases stay attached).
-                            When start or end: paired edges (clock for blinds/twilight; session on/off for sauna/IR/cinema).
-                            Snap blocks fully into notches · unsnapped leaves block Save · trash deletes.
-                            <span class="opacity-40"> · js 4.31</span>
-                        </div>
                     </div>
 
                     <div x-show="editorMode === 'json'">
@@ -211,6 +218,28 @@
         </div>
     </section>
 </main>
+
+<dialog id="blocky_help_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[100002]">
+    <div class="modal-box border border-info/30 bg-base-300 shadow-2xl max-w-lg">
+        <h3 class="font-bold text-lg tracking-wide">How Blocky rules work</h3>
+        <div class="py-3 text-sm text-base-content/80 space-y-3">
+            <p>A rule is: <b>trigger → if / else-if / else cases → actions</b>.</p>
+            <ul class="list-disc pl-5 space-y-2">
+                <li>One blue trigger per rule. Delete it (or drag a new one) to change type — cases stay attached.</li>
+                <li>Match and action options follow the device (lights, blinds, Sonos/Onkyo, etc.).</li>
+                <li>For open/close pairs (blinds, sauna, cinema), use <b>When start or end</b> — not two triggers.</li>
+                <li>Use <b>When any of</b> when several devices should OR together.</li>
+            </ul>
+            <p>Snap blocks fully into the notches. Loose blocks block Save. Trash deletes.</p>
+        </div>
+        <div class="modal-action">
+            <form method="dialog">
+                <button type="submit" class="btn btn-sm">Close</button>
+            </form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 
 <dialog id="unsaved_rule_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
     <div class="modal-box border border-warning/40 bg-base-300 shadow-2xl">
@@ -264,7 +293,7 @@
     <form method="dialog" class="modal-backdrop" @submit="closeBlockyHueColor()"><button>close</button></form>
 </dialog>
 
-<script src="wanos-shell.js?v=2"></script>
-<script src="blocky.js?v=4.31"></script>
+<script src="wanos-shell.js?v=3"></script>
+<script src="blocky.js?v=4.32"></script>
 </body>
 </html>

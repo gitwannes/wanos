@@ -28,19 +28,29 @@ const BLOCKY_SCHEDULE_WINDOW_EDGES = {
     cinema: ["SCENE_CINEMA_ON", "SCENE_CINEMA_OFF"]
 };
 
-const BLOCKY_EDGE_SHORT = {
-    BLINDS_OPEN_TRIGGER: "blinds open",
-    BLINDS_CLOSE_TRIGGER: "blinds close",
-    MORNING_ON_TRIGGER: "morning-on",
-    SUNRISE_TRIGGER: "sunrise",
-    SUNSET_TRIGGER: "sunset",
-    EVENING_OFF_TRIGGER: "evening-off",
-    SAUNA_ON: "sauna ON",
-    SAUNA_OFF: "sauna OFF",
-    IR_ON: "IR ON",
-    IR_OFF: "IR OFF",
-    SCENE_CINEMA_ON: "cinema ON",
-    SCENE_CINEMA_OFF: "cinema OFF"
+/** Display labels for concrete events (dropdowns + schedule hints). Stored values stay canonical. */
+const BLOCKY_EVENT_LABELS = {
+    BLINDS_OPEN_TRIGGER: "Blinds open",
+    BLINDS_CLOSE_TRIGGER: "Blinds close",
+    MORNING_ON_TRIGGER: "Morning on",
+    SUNRISE_TRIGGER: "Sunrise",
+    SUNSET_TRIGGER: "Sunset",
+    EVENING_OFF_TRIGGER: "Evening off",
+    SAUNA_ON: "Sauna on",
+    SAUNA_OFF: "Sauna off",
+    IR_ON: "IR on",
+    IR_OFF: "IR off",
+    SCENE_CINEMA_ON: "Cinema on",
+    SCENE_CINEMA_OFF: "Cinema off",
+    SCENE_ALL_OFF: "All off",
+    SCENE_GOCOSY: "Go cosy",
+    SCENE_GV_OFF: "Ground floor off",
+    SCENE_VERDIEP1_OFF: "Floor 1 off",
+    SCENE_VERDIEP2_OFF: "Floor 2 off",
+    TWILIGHT_MORNING_ON_TRIGGER: "Morning on",
+    TWILIGHT_MORNING_OFF_TRIGGER: "Sunrise",
+    TWILIGHT_EVENING_ON_TRIGGER: "Sunset",
+    TWILIGHT_EVENING_OFF_TRIGGER: "Evening off"
 };
 
 const BLOCKY_EDGE_STATES = [
@@ -61,8 +71,16 @@ const BLOCKY_ACTUATOR_TYPES = new Set([
     "switch", "light", "blinds", "shutter", "speaker", "media_player"
 ]);
 
+function blockyEventLabel(ev) {
+    const key = String(ev || "");
+    if (BLOCKY_EVENT_LABELS[key]) return BLOCKY_EVENT_LABELS[key];
+    const pretty = key.replace(/_TRIGGER$/i, "").replace(/_/g, " ").toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    return pretty || key;
+}
+
 function blockyEdgeShort(ev) {
-    return BLOCKY_EDGE_SHORT[ev] || String(ev || "").replace(/_TRIGGER$/i, "").replace(/_/g, " ").toLowerCase();
+    return blockyEventLabel(ev);
 }
 
 function blockyScheduleWindowHint(fam) {
@@ -1084,8 +1102,8 @@ function defineBlockyBlocks(Blockly, providers) {
 }
 
 function blockyToolboxDefinition(_presentTypes) {
-    // Always offer triggers so operators can swap device ↔ event ↔ start/end.
-    // Uniqueness keeps a single root and adopts the case chain onto the new trigger.
+    // Trigger flyout always available so operators can replace a deleted root.
+    // Uniqueness still enforces one blue root on the canvas (extras are dropped).
     const contents = [
         {
             kind: "category",
@@ -1099,7 +1117,6 @@ function blockyToolboxDefinition(_presentTypes) {
             ]
         }
     ];
-    // OR edges only snap inside “When any of” — hide the category otherwise.
     let showOrEdges = false;
     try {
         const ws = blockyWs();
@@ -1108,6 +1125,7 @@ function blockyToolboxDefinition(_presentTypes) {
             showOrEdges = roots.some((b) => b.type === "b_trig_or");
         }
     } catch (e) { /* ignore */ }
+    // OR edges only snap inside “When any of” — hide the category otherwise.
     if (showOrEdges) {
         contents.push({
             kind: "category",
@@ -1211,26 +1229,6 @@ function blockyCancelUniqueness() {
     // Do not clear richTimer / pendingRichOpts — field validators own that path.
 }
 
-function blockyMoveCaseChain(fromRoot, toRoot) {
-    if (!fromRoot || !toRoot || fromRoot === toRoot) return;
-    const firstCase = fromRoot.getNextBlock();
-    if (!firstCase || firstCase.type !== "b_case") return;
-    try {
-        if (fromRoot.nextConnection && fromRoot.nextConnection.isConnected()) {
-            fromRoot.nextConnection.disconnect();
-        }
-        if (toRoot.nextConnection && toRoot.nextConnection.isConnected()) {
-            const existing = toRoot.getNextBlock();
-            if (existing) {
-                try { existing.dispose(false); } catch (e) { /* ignore */ }
-            }
-        }
-        if (toRoot.nextConnection && firstCase.previousConnection) {
-            toRoot.nextConnection.connect(firstCase.previousConnection);
-        }
-    } catch (e) { /* ignore */ }
-}
-
 function blockyBlockCaseScope(b) {
     let p = b;
     while (p) {
@@ -1272,21 +1270,21 @@ function blockyEnforceUniqueness(forceToolbox) {
                 }
             }
         }
-        // Only one root trigger — keep the newly dragged one; move cases across
+        // Only one root trigger — keep the existing rule; reject extras.
         const roots = ws.getTopBlocks(false).filter((b) => BLOCKY_ROOT_TRIGGERS.has(b.type));
         if (roots.length > 1) {
-            let keep = roots[roots.length - 1];
-            const preferId = BlockyRT.pendingCreateRootId;
-            if (preferId) {
-                const preferred = roots.find((b) => b.id === preferId);
-                if (preferred) keep = preferred;
-            }
+            const newId = BlockyRT.pendingCreateRootId;
+            let keep = roots.find((b) => !newId || b.id !== newId) || roots[0];
+            let rejected = false;
             roots.forEach((b) => {
                 if (b.id === keep.id) return;
-                blockyMoveCaseChain(b, keep);
-                try { b.dispose(false); changed = true; } catch (e) { /* ignore */ }
+                try { b.dispose(false); changed = true; rejected = true; } catch (e) { /* ignore */ }
             });
             blockyRefreshCaseMatchLabels(keep.getNextBlock());
+            if (rejected && BlockyRT.app) {
+                BlockyRT.app.infoMessage =
+                    "Only one trigger per rule — delete the current blue block before adding another type.";
+            }
         }
         BlockyRT.pendingCreateRootId = null;
         const seen = new Map();
@@ -1319,9 +1317,15 @@ function blockyOnChange(ev) {
     const t = ev.type;
     const isCreate = t === Events.BLOCK_CREATE || t === "create";
     const isChange = (t === Events.BLOCK_CHANGE || t === "change") && ev.element === "field";
-    const isMoveConnect = (t === Events.BLOCK_MOVE || t === "move") && !!ev.newParentId;
+    // Connect or disconnect (not free XY nudges — those are not in saved JSON).
+    const isMoveRelink = (t === Events.BLOCK_MOVE || t === "move") && (!!ev.newParentId || !!ev.oldParentId);
     const isDelete = t === Events.BLOCK_DELETE || t === "delete";
-    if (!isCreate && !isChange && !isMoveConnect && !isDelete) return;
+    if (!isCreate && !isChange && !isMoveRelink && !isDelete) return;
+
+    // Mark dirty immediately. The uniqueness timer below can be cancelled (e.g. by
+    // loadV2IntoBlockly → blockyCancelUniqueness) and must not be the only dirty path.
+    if (BlockyRT.app) BlockyRT.app.markEditorDirty();
+
     if (isCreate) {
         const ws = blockyWs();
         const ids = ev.ids || (ev.blockId ? [ev.blockId] : []);
@@ -1373,7 +1377,6 @@ function blockyOnChange(ev) {
                 BlockyRT.app.editor.scene = false;
                 BlockyRT.app.editor.require_confirmation = false;
             }
-            BlockyRT.app.markEditorDirty();
         }
     }, 0);
 }
@@ -1488,6 +1491,7 @@ function blockyApp() {
     return {
         connected: false,
         busy: false,
+        isAdmin: false,
         errorMessage: "",
         infoMessage: "",
         registryCheckMessage: "",
@@ -1511,12 +1515,12 @@ function blockyApp() {
         blocklyUiTick: 0,
         eventFamilies: ["blinds", "twilight_evening", "twilight_morning", "sauna", "ir", "cinema"],
         eventFamilyLabels: {
-            blinds: "Blinds (open→close)",
-            twilight_evening: "Twilight evening (sunset→off)",
-            twilight_morning: "Twilight morning (on→sunrise)",
-            sauna: "Sauna on/off",
-            ir: "IR on/off",
-            cinema: "Cinema on/off"
+            blinds: "Blinds open & close",
+            twilight_evening: "Twilight evening: sunset & evening-off",
+            twilight_morning: "Twilight morning: morning-on & sunrise",
+            sauna: "Sauna on & off",
+            ir: "IR on & off",
+            cinema: "Cinema on & off"
         },
         curatedEvents: [
             "BLINDS_OPEN_TRIGGER", "BLINDS_CLOSE_TRIGGER",
@@ -1940,14 +1944,16 @@ function blockyApp() {
         },
 
         blocklyEventDropdownOptions() {
-            const opts = this.curatedEvents.map((e) => [e, e]);
+            const opts = this.curatedEvents.map((e) => [blockyEventLabel(e), e]);
             const seen = new Set(this.curatedEvents);
             try {
                 const rule = JSON.parse(this.editor.ruleJson || "{}");
                 const addEv = (ev) => {
                     if (!ev || seen.has(ev)) return;
+                    // Skip family keys — those belong on “When start or end”, not concrete events.
+                    if (this.eventFamilies.includes(ev)) return;
                     seen.add(ev);
-                    opts.push([ev, ev]);
+                    opts.push([blockyEventLabel(ev), ev]);
                 };
                 const t = rule.trigger;
                 if (Array.isArray(t)) t.forEach((x) => x && addEv(x.event));
@@ -2542,6 +2548,7 @@ function blockyApp() {
                 window.location.href = "/deviceexplorer.html";
                 return;
             }
+            this.isAdmin = true;
             this._onBeforeUnload = (e) => {
                 if (!this.editorDirty) return;
                 e.preventDefault();

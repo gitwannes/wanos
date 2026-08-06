@@ -78,7 +78,7 @@ automations:
   # --------------------------------------------------------------------------
   # 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
   # --------------------------------------------------------------------------
-  - name: Morning Blinds Open
+  - name: Blinds Open/Close
     scene: false
     require_confirmation: false
     trigger:
@@ -97,13 +97,13 @@ automations:
       - to_state: "OFF"
         actions:
           - entity_id: blinds.gv_links
-            state: '0'
+            state: '100'
           - entity_id: blinds.gv_rechts
-            state: '0'
+            state: '100'
           - entity_id: blinds.sauna
-            state: '0'
+            state: '100'
           - entity_id: blinds.cinema
-            state: '0'
+            state: '100'
     id: b3f9c1f0-700d-40e5-b98e-e818445b26c9
   - name: "Tuinlichten & kerststuff aan 's avonds"
     scene: false
@@ -360,24 +360,24 @@ automations:
           - entity_id: switch.toilet
             state: "ON"
     id: 284fe67e-827e-4d38-a4b9-58a8b2ae67a5
-  - name: "garage_waskot_OFF"
+  - name: Garage waskot OFF
     scene: false
     require_confirmation: false
     trigger:
       entity_id: switch.licht_garage
     cases:
-      - to_state: OFF
+      - to_state: "OFF"
         actions:
           - entity_id: switch.waskot
             state: "OFF"
     id: ce50613a-8f88-496d-a078-10facd819776
-  - name: gang_boven_berging_OFF
+  - name: Gang boven berging OFF
     scene: false
     require_confirmation: false
     trigger:
       entity_id: switch.gang_boven
     cases:
-      - to_state: OFF
+      - to_state: "OFF"
         actions:
           - entity_id: switch.berging_2e
             state: "OFF"
@@ -485,17 +485,17 @@ automations:
           - entity_id: media_player.buro
             state: "OFF"
     id: 1b8371ae-8846-42e0-9e40-7ce11b2669da
-  - name: "toilet_gv_ventilatie_on"
+  - name: Toilet gv ventilatie
     scene: false
     require_confirmation: false
     trigger:
       entity_id: switch.vent.toilet_ventilatie
     cases:
-      - to_state: ON
+      - to_state: "ON"
         actions:
           - entity_id: switch.vent.toilet_ventilatie_motor
             state: "ON"
-      - to_state: OFF
+      - to_state: "OFF"
         actions:
           - entity_id: switch.vent.toilet_ventilatie_motor
             state: "OFF"
@@ -696,13 +696,13 @@ automations:
           - entity_id: switch.slpk_wannes_hue_physical
             state: "OFF"
     id: dc3edc7c-f4c5-4d7f-be9e-41f532c57486
-  - name: "Sauna Lights ON"
+  - name: Sauna ON/OFF
     scene: false
     require_confirmation: false
     trigger:
       event: sauna
     cases:
-      - to_state: ON
+      - to_state: "ON"
         actions:
           - entity_id: hue.group.verd_1_hue
             state: "ON"
@@ -710,14 +710,14 @@ automations:
             state: "ON"
           - entity_id: switch.sauna_zoutlamp
             state: "ON"
-      - to_state: OFF
+      - to_state: "OFF"
         actions:
           - entity_id: hue.group.verd_1_hue
             state: "ON"
-            preset: "my_white"
+            preset: my_white
           - entity_id: hue.group.living_hue
             state: "ON"
-            preset: "my_white"
+            preset: my_white
           - entity_id: switch.sauna_zoutlamp
             state: "OFF"
     id: e4fa952f-e625-4fd9-b2c9-dad8ec4d26cb

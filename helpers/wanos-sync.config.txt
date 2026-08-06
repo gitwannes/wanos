@@ -17,6 +17,7 @@
 #                   everything else in StatsInclude goes to StatsDest (update/newer)
 #
 # Job 3 LOG PULL (Pi /var/log/wanos --> StatsDest via rsync/SSH): [PiSsh]
+#   Empty LocalLogSubdir = land flat next to DBs; otherwise StatsDest\<LocalLogSubdir>\
 # =============================================================================
 
 [MirrorExcludeDirs]
@@ -82,7 +83,7 @@ Host=10.32.251.30
 User=wannes
 RemoteRoot=/home/wannes/wanos
 RemoteLogDir=/var/log/wanos
-# Land under StatsDest\<LocalLogSubdir>\ (flat copy of matching files)
-LocalLogSubdir=var-log-wanos
+# Land flat under StatsDest (same folder as sensor_history.db). Set a name to use a subdir.
+LocalLogSubdir=
 # Remote name glob for log pull
 RemoteGlob=wanos*

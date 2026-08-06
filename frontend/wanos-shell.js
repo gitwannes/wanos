@@ -142,13 +142,16 @@
             '<div class="bg-base-300 rounded p-3 text-sm border-l-4 shadow-sm" ' +
             ':class="msg.level === \'success\' ? \'border-success\' : (msg.level === \'warning\' ? \'border-warning\' : \'border-info\')">' +
             '<div class="flex justify-between items-start gap-2 mb-1">' +
-            '<span class="font-bold flex-1 break-words leading-tight" ' +
+            '<div class="flex-1 min-w-0 break-words leading-tight">' +
+            '<span class="font-mono text-[10px] text-base-400 mr-2 whitespace-nowrap" ' +
+            'x-show="msg.timestamp" x-text="msg.timestamp"></span>' +
+            '<span class="font-bold" ' +
             ':class="msg.level === \'success\' ? \'text-success\' : (msg.level === \'warning\' ? \'text-warning\' : \'text-info\')" x-text="msg.message"></span>' +
+            '</div>' +
             '<button @click="dismissAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle text-base-400 hover:text-white shrink-0 -mt-1 -mr-1">✕</button>' +
             "</div>" +
-            '<div class="flex justify-between items-center text-[10px] text-base-400 font-mono mt-2">' +
-            '<span x-text="msg.timestamp"></span>' +
-            '<span class="badge badge-neutral badge-xs font-bold" x-show="msg.count > 1" x-text="msg.count + \'x\'"></span>' +
+            '<div class="flex justify-end items-center text-[10px] text-base-400 font-mono mt-2" x-show="msg.count > 1">' +
+            '<span class="badge badge-neutral badge-xs font-bold" x-text="msg.count + \'x\'"></span>' +
             "</div></div></template>" +
             '<div x-show="unreadAlertCount === 0" class="text-center text-base-400 py-6 text-xs italic">No recent system events.</div>' +
             "</div></div></div>"

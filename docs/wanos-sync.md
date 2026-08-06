@@ -19,7 +19,7 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 |-----|-----------|-----------|
 | Mirror | Local → Pi | `rsync --delete` + excludes from config |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) |
-| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\var-log-wanos` |
+| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (flat; same folder as DBs) |
 
 Also: LF-normalize `*.sh` on `run` / `codeimport`.
 
@@ -129,7 +129,7 @@ helpers\wanos-sync.bat run
 
 - `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`)
 - `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite)
-- `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir, RemoteGlob
+- `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob
 
 Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine.
 

@@ -411,6 +411,9 @@ function wanosApp() {
                     if (meta.type === 'blinds') {
                         // Shutters: > 0% = ON
                         isOn = parseInt(rawValue, 10) > 0;
+                    } else if (meta.type === 'door') {
+                        // OPEN = active / ajar (matches History status emphasis)
+                        isOn = rawValue === 'OPEN';
                     } else if (meta.type === 'switch' || meta.type === 'light' || meta.type === 'speaker' || meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy') {
                         // ⚡ ANALOG vs BINARY DISTINCTION
                         // Ensure power (W) and energy (kWh) natively map to analog UI elements rather than binary switches
@@ -452,6 +455,10 @@ function wanosApp() {
                             const vol = rawValue.volume !== undefined ? rawValue.volume : 0;
                             displayText = `${vol}`;
                         }
+                    } else if (meta.type === 'light') {
+                        displayText = (rawValue.state === 'ON' || rawValue.state === 'OFF')
+                            ? rawValue.state
+                            : (isOn ? 'ON' : 'OFF');
                     } else if (meta.type === 'sensor' || meta.type === 'temp' || meta.type === 'hum' || meta.type === 'temp_hum' || meta.type === 'power' || meta.type === 'energy') {
                         if (rawValue.temp !== undefined && rawValue.hum !== undefined) {
                             displayText = `${parseFloat(rawValue.temp).toFixed(1)} °C / ${rawValue.hum} %`;
@@ -703,21 +710,25 @@ function wanosApp() {
             return this.historyCapabilityByIdx[Number(idx)] != null;
         },
 
-        /** Control list as-is; History mode applies hybrid C + water pair merge. */
+        /** Control vs History: one list source for the shared row UI. */
+        get explorerActiveList() {
+            return this.explorerMode === "history" ? this.explorerDisplayList : this.unifiedDeviceList;
+        },
+
+        /** Control list as-is; History = same inventory + water pair merge (no series filter). */
         get explorerDisplayList() {
             const base = this.unifiedDeviceList;
             if (this.explorerMode !== "history") return base;
-            const withHist = base.filter(item => this.deviceHasHistory(item.id));
             // Drop secondary fluid row (hot) when cold/hot are merged into one Water detail.
             const hotSecondary = new Set();
-            for (const item of withHist) {
+            for (const item of base) {
                 const cap = this.historyCapabilityByIdx[Number(item.id)];
                 if (cap && cap.kind === "water" && cap.hotIdx != null && Number(item.id) === Number(cap.hotIdx)
                     && Number(cap.hotIdx) !== Number(cap.primaryIdx)) {
                     hotSecondary.add(Number(item.id));
                 }
             }
-            return withHist
+            return base
                 .filter(item => !hotSecondary.has(Number(item.id)))
                 .map(item => {
                     const cap = this.historyCapabilityByIdx[Number(item.id)];
@@ -757,7 +768,7 @@ function wanosApp() {
         historyRowSubtitle(item) {
             if (!item) return "";
             if (this.isWaterHistoryItem(item)) return "fluid";
-            return item.id + " · " + (item.type || "");
+            return item.type || "";
         },
 
         isColdWaterItem(item) {
@@ -776,11 +787,6 @@ function wanosApp() {
             if (cap && cap.kind === "water" && cap.hotIdx != null) return id === Number(cap.hotIdx);
             const n = String(item.name || "").toLowerCase();
             return item.type === "fluid" && (n.includes("warm") || n.includes("hot"));
-        },
-
-        /** Admin-only hint: how many Control-visible rows were dropped by hybrid C. */
-        get historyWithoutSeriesCount() {
-            return (this.unifiedDeviceList || []).filter(item => !this.deviceHasHistory(item.id)).length;
         },
 
         // ⏱️ Mathematical duration translator for history tallies
@@ -1421,15 +1427,36 @@ function wanosApp() {
 
         async selectExplorerHistoryItem(item) {
             if (!item || this.explorerMode !== "history") return;
+            // No series → no-op (UI shows red "(no history)" on the name).
+            if (!this.deviceHasHistory(item.id)) return;
             const cap = this.historyCapabilityByIdx[Number(item.id)];
             if (!cap) return;
-            const idx = cap.primaryIdx != null ? cap.primaryIdx : item.id;
+
+            // Already open for this row (or its water primary) → collapse.
+            if (this.isExplorerHistoryRowSelected(item)) {
+                this.closeHistoryDetail();
+                return;
+            }
+            const primary = Number(cap.primaryIdx != null ? cap.primaryIdx : item.id);
             await this.selectHistoryRow({
-                idx,
+                idx: primary,
                 name: cap.name || item.name,
                 category: cap.category,
                 type: item.type,
             });
+        },
+
+        /** True when History detail is open for this list row (handles water primaryIdx remap). */
+        isExplorerHistoryRowSelected(item) {
+            if (!item || this.selectedSensorIdx == null) return false;
+            const selected = Number(this.selectedSensorIdx);
+            const id = Number(item.id);
+            if (selected === id) return true;
+            const cap = this.historyCapabilityByIdx[id];
+            if (!cap) return false;
+            const primary = Number(cap.primaryIdx != null ? cap.primaryIdx : id);
+            return selected === primary
+                && (this.selectedSensorKind == null || this.selectedSensorKind === cap.category);
         },
 
         _isHistoryRowHidden(idx, explicitHidden) {
@@ -1438,6 +1465,16 @@ function wanosApp() {
             const hiddenIdxs = this.state.system.hidden_explorer_idxs || [];
             return explicitHidden === true || meta.hidden === true
                 || hiddenIdxs.includes(idx) || hiddenIdxs.includes(Number(idx));
+        },
+
+        /** Hue color-dot CSS for the shared Explorer leading slot. */
+        explorerHueSwatchStyle(item) {
+            if (!item || !item.is_on) return "background-color: #333; opacity: 0.5;";
+            const raw = item.raw_value;
+            const hex = (typeof raw === "object" && raw && raw.xy)
+                ? this.xyToHex(raw.xy[0], raw.xy[1], raw.bri)
+                : "#FFD180";
+            return `background-color: ${hex}; box-shadow: 0 0 10px ${hex};`;
         },
 
         /** Display label for History type chips (Device Explorer keeps raw `type`). */
@@ -1460,6 +1497,7 @@ function wanosApp() {
             if (type === "speaker") return origin === "onkyo" ? "📻" : "🔊";
             if (type === "scene") return "✨";
             if (type === "blinds") return "↕️";
+            if (type === "door") return "🚪";
             if (name.includes("water") || name.includes("liter") || type === "water") return "💧";
             if (type === "temp_hum" || type === "climate") return "🌡️💧";
             if (type === "temp" || (type === "sensor" && name.includes("temp")) || (type === "host" && name.includes("temp"))) return "🌡️";
@@ -1470,20 +1508,20 @@ function wanosApp() {
             if ((type === "sensor" || type === "generic") && name.includes("motion")) return "🏃";
             if (type === "light") return "💡";
             if ((name.includes("cinema") || name.includes("epson") || name.includes("projector"))
-                && type !== "blinds" && type !== "speaker" && type !== "scene"
+                && type !== "blinds" && type !== "speaker" && type !== "scene" && type !== "door"
                 && type !== "temp_hum" && type !== "temp"
                 && !(type === "sensor" && (name.includes("temp") || name.includes("volt") || name.includes("motion")))) {
                 return "🎬";
             }
             if ((name.includes("sauna") || name.includes("zoutlamp"))
-                && type !== "blinds" && type !== "speaker" && type !== "scene"
+                && type !== "blinds" && type !== "speaker" && type !== "scene" && type !== "door"
                 && type !== "temp_hum" && type !== "temp" && type !== "power" && type !== "energy"
                 && !name.includes("cinema")
                 && !(type === "sensor" && (name.includes("temp") || name.includes("volt") || name.includes("motion")))) {
                 return "♨️";
             }
             if ((name.includes(" ir ") || name.startsWith("ir ") || name === "ir" || name.includes("infrarood"))
-                && type !== "blinds" && type !== "speaker" && type !== "scene"
+                && type !== "blinds" && type !== "speaker" && type !== "scene" && type !== "door"
                 && type !== "temp_hum" && type !== "temp" && type !== "power" && type !== "energy"
                 && !name.includes("sauna")
                 && !(type === "sensor" && (name.includes("temp") || name.includes("volt") || name.includes("motion")))) {
@@ -1537,7 +1575,27 @@ function wanosApp() {
                 return "Open " + openPct + "%";
             }
 
-            return item.display_text != null ? String(item.display_text) : "—";
+            if (item.type === "door") {
+                const st = String(item.raw_value || item.display_text || "").toUpperCase();
+                if (st === "OPEN" || st === "CLOSED") return st;
+                return item.display_text != null ? String(item.display_text) : "—";
+            }
+
+            if (item.type === "switch" || item.type === "light" || item.is_hue) {
+                const raw = item.raw_value;
+                if (typeof raw === "object" && raw !== null && (raw.state === "ON" || raw.state === "OFF")) {
+                    return raw.state;
+                }
+                if (raw === "ON" || raw === "OFF") return raw;
+                return item.is_on ? "ON" : "OFF";
+            }
+
+            const dt = item.display_text;
+            if (dt != null && typeof dt === "object") {
+                if (dt.state === "ON" || dt.state === "OFF") return dt.state;
+                return "—";
+            }
+            return dt != null ? String(dt) : "—";
         },
 
         /** Match Control-mode value colors in History mode. */
@@ -1560,7 +1618,10 @@ function wanosApp() {
                 return item.is_on ? "text-warning" : "text-base-content/70";
             }
             if (item.type === "blinds") return "text-info";
-            if (item.type === "switch" || item.type === "light") {
+            if (item.type === "door") {
+                return item.is_on ? "text-error animate-pulse" : "text-base-500";
+            }
+            if (item.type === "switch" || item.type === "light" || item.is_hue) {
                 return item.is_on ? "text-warning" : "text-base-500";
             }
             return "text-base-content/80";
@@ -1819,6 +1880,8 @@ function wanosApp() {
                 this.closeHistoryDetail();
                 return;
             }
+            // Generation token: ignore stale async completions after a newer click/close.
+            const gen = (this._historySelectGen = (this._historySelectGen || 0) + 1);
             this._disposeHistoryCharts();
             this._disposeActuatorCharts();
             this.selectedSensorIdx = id;
@@ -1828,8 +1891,11 @@ function wanosApp() {
             this.selectedActuatorIdx = kind === "actuator" ? id : null;
             this.selectedActuatorName = kind === "actuator" ? row.name : "";
             await this.$nextTick();
+            if (gen !== this._historySelectGen) return;
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            if (gen !== this._historySelectGen) return;
             await this.reloadSelectedSensorDetail();
+            if (gen !== this._historySelectGen) return;
             const anchor = kind === "actuator"
                 ? document.getElementById("chart-act-day")
                 : document.getElementById("chart-day");
@@ -1851,6 +1917,7 @@ function wanosApp() {
         },
 
         closeHistoryDetail() {
+            this._historySelectGen = (this._historySelectGen || 0) + 1;
             this._disposeHistoryCharts();
             this._disposeActuatorCharts();
             this.selectedSensorIdx = null;
@@ -3570,9 +3637,21 @@ function wanosApp() {
 
         // Simple ephemeral UI feedback manager
         showToast(msg) {
-            this.toastMessage = msg;
+            const ts = this._uiClockStamp();
+            this.toastMessage = ts ? (ts + " · " + msg) : msg;
             if (this.toastTimeout) clearTimeout(this.toastTimeout);
             this.toastTimeout = setTimeout(() => { this.toastMessage = ""; }, 3000);
+        },
+
+        /** Local HH:MM:SS for ephemeral toasts (system alerts carry server timestamp). */
+        _uiClockStamp() {
+            try {
+                const d = new Date();
+                const p = (n) => String(n).padStart(2, "0");
+                return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+            } catch (e) {
+                return "";
+            }
         }
     };
 }

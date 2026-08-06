@@ -46,7 +46,7 @@ class AlertManager:
 
             clean_msg = clean_msg.strip()
 
-            timestamp: str = datetime.now().strftime("%-d/%b %H:%M:%S")
+            timestamp: str = datetime.now().strftime("%d %b %H:%M:%S")
             msg_handled = False
 
             # Prevent spam & increment counter: Check if base message is already active

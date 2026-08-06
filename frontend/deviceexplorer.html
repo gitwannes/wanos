@@ -133,395 +133,245 @@
             </div>
         </div>
 
-        <p class="font-mono text-[10px] text-base-content/50 px-1"
-           x-show="isAdmin && explorerMode === 'history' && historyWithoutSeriesCount > 0" x-cloak
-           x-text="historyWithoutSeriesCount + ' devices without history hidden'"></p>
-
-        <!-- CONTROL MODE LIST -->
-        <div class="card bg-base-100 shadow-xl border border-base-200 overflow-hidden" x-show="explorerMode === 'control'" x-cloak>
+        <!-- SHARED CONTROL / HISTORY LIST -->
+        <div class="card bg-base-100 shadow-xl border border-base-200 overflow-hidden"
+             x-show="explorerMode === 'control' || explorerMode === 'history'" x-cloak>
             <ul class="flex flex-col w-full divide-y divide-base-200/50">
-                <template x-for="item in unifiedDeviceList" :key="'c-' + item.id">
-
-                    <li class="flex flex-row items-center justify-between py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-1 md:gap-6 overflow-hidden w-full"
-                    :class="item.is_dead ? 'opacity-50 grayscale bg-base-200/30' : ''">
-                        <div class="shrink-0 pr-1" @click.stop>
-                            <input type="checkbox" class="checkbox checkbox-xs checkbox-accent"
-                                   :checked="isActuatorFavorite(item.id)"
-                                   @change="toggleActuatorFavorite(item.id)"
-                                   title="Favorite" />
-                        </div>
-                        <div class="flex-1 min-w-0 pr-1 md:pr-2 flex flex-col justify-center">
-                            <template x-if="item.is_hue">
-                                <button class="text-left hover:text-primary transition-colors flex items-center gap-3 w-full" @click="openLightModal(item)">
-                                    <div class="w-4 h-4 md:w-5 md:h-5 rounded-full border border-base-content/20 shrink-0 transition-all duration-300"
-                                         :style="item.is_on ?
-                                            'background-color: ' + (typeof item.raw_value === 'object' && item.raw_value.xy ? xyToHex(item.raw_value.xy[0], item.raw_value.xy[1], item.raw_value.bri) : '#FFD180') +
-                                            '; box-shadow: 0 0 10px ' + (typeof item.raw_value === 'object' && item.raw_value.xy ? xyToHex(item.raw_value.xy[0], item.raw_value.xy[1], item.raw_value.bri) : '#FFD180') :
-                                            'background-color: #333; opacity: 0.5;'"></div>
-                                    <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate w-full underline decoration-dashed underline-offset-4 decoration-base-content/30" x-text="item.name"></div>
-                                </button>
-                            </template>
-                            <template x-if="!item.is_hue">
-                                <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate w-full flex items-center gap-1.5 select-none"
-                                     :class="((item.type === 'blinds' || item.type === 'speaker') && !item.is_dead && item.raw_value !== null) ? 'cursor-pointer hover:text-primary transition-colors' : ''"
-                                     @click="if(item.type === 'blinds') handleShutterNameClick(item); if(item.type === 'speaker') handleSpeakerNameClick(item)">
-
-                                    <template x-if="item.type === 'speaker' && item.origin !== 'onkyo'">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><circle cx="12" cy="14" r="4"></circle><line x1="12" y1="6" x2="12.01" y2="6"></line></svg>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider" x-text="item.origin"></span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'speaker' && item.origin === 'onkyo'">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <!-- ⚡ Custom AV Receiver Icon: Wide box, right volume dial, left digital display line -->
-                                            <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="1.5"></rect><circle cx="17" cy="12" r="2"></circle><line x1="6" y1="12" x2="10" y2="12"></line></svg>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider" x-text="item.origin"></span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'scene'">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <svg class="w-3.5 h-3.5 text-accent shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"></path><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"></path><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"></path></svg>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">Scene</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'blinds'">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm">↕️</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'switch' || item.type === 'light'">
-                                        <div class="flex items-center gap-1 shrink-0" x-show="explorerItemIcon(item)">
-                                            <span class="text-sm leading-none" x-text="explorerItemIcon(item)"></span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.name.toLowerCase().includes('water') || item.name.toLowerCase().includes('liter') || item.type === 'fluid'">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm"
-                                                  :class="isHotWaterItem(item) ? 'text-error' : 'text-info'">💧</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'temp_hum' && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-[10px] md:text-xs">🌡️💧</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="(item.type === 'temp' || (item.type === 'sensor' && item.name.toLowerCase().includes('temp'))) && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm">🌡️</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'energy' && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm opacity-80">🔌</span>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">energy</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'power' && !item.name.toLowerCase().includes('water') && !item.name.toLowerCase().includes('liter')">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm text-warning">⚡</span>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">power</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'sensor' && item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('water')">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm text-info">⚡</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="item.type === 'sensor' && item.name.toLowerCase().includes('motion')">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm">🏃</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="(item.name.toLowerCase().includes('cinema') || item.name.toLowerCase().includes('epson') || item.name.toLowerCase().includes('projector')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'switch' && item.type !== 'light' && item.type !== 'temp_hum' && item.type !== 'temp' && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm">🎬</span>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">cinema</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="(item.name.toLowerCase().includes('sauna') || item.name.toLowerCase().includes('zoutlamp')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'switch' && item.type !== 'light' && item.type !== 'temp_hum' && item.type !== 'temp' && item.type !== 'power' && item.type !== 'energy' && !item.name.toLowerCase().includes('cinema') && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm">♨️</span>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">sauna</span>
-                                        </div>
-                                    </template>
-
-                                    <template x-if="(item.name.toLowerCase().includes(' ir ') || item.name.toLowerCase().startsWith('ir ') || item.name.toLowerCase() === 'ir' || item.name.toLowerCase().includes('infrarood')) && item.type !== 'blinds' && item.type !== 'speaker' && item.type !== 'scene' && item.type !== 'switch' && item.type !== 'light' && item.type !== 'temp_hum' && item.type !== 'temp' && item.type !== 'power' && item.type !== 'energy' && !item.name.toLowerCase().includes('sauna') && (!item.type || item.type !== 'sensor' || (!item.name.toLowerCase().includes('temp') && !item.name.toLowerCase().includes('volt') && !item.name.toLowerCase().includes('motion')))">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="text-sm">🟥</span>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider">IR</span>
-                                        </div>
-                                    </template>
-
-                                    <span class="truncate" x-text="item.name"></span>
-                                </div>
-                            </template>
-
-                            <!-- ⏱️ ROLE-RESTRICTED DESKTOP TIMER BADGE -->
-                            <!-- Only instantiates if the session is Admin and an active auto-off countdown is ticking -->
-                            <template x-if="isAdmin && item.auto_off_countdown">
-                                <span class="inline-flex text-[10px] font-mono font-bold text-error/80 mt-0.5 select-none tracking-wider uppercase"
-                                      x-text="'auto off in ' + item.auto_off_countdown"></span>
-                            </template>
-                        </div>
-                        </div>
-
-                        <div class="shrink-0 flex items-center justify-end">
-
-                            <template x-if="item.type === 'switch' || item.type === 'light'">
-                                <div class="flex items-center justify-end gap-2 md:gap-3 shrink-0">
-                                    <span class="font-mono text-[9px] md:text-xs"
-                                          :class="item.is_dead ? 'text-error font-bold' : (item.raw_value === null ? 'text-gray-500 italic' : (item.is_on ? 'text-warning font-bold animate-pulse' : 'text-base-500'))"
-                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value === null ? 'SYNC...' : (item.is_on ? 'ON' : 'OFF'))"></span>
-                                    <input type="checkbox" class="toggle toggle-sm md:toggle-md toggle-warning shadow shrink-0"
-                                           :disabled="item.raw_value === null || item.is_dead"
-                                           :checked="item.is_on"
-                                           @change="injectLabHubStateChange(item.id, $event.target.checked)" />
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'blinds'">
-                                <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
-                                    <span class="badge badge-neutral font-mono text-[8px] md:text-[11px] px-1 py-0 h-3.5 md:h-4 shrink-0 min-w-[1.75rem] justify-center"
-                                          :class="item.is_dead ? 'text-error font-bold' : ''"
-                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value !== null ? item.raw_value + '%' : '--')"></span>
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-info cursor-pointer hover:text-primary transition-colors"
-                                          @click="setShutterState(item.id, 0)">OPEN</span>
-
-                                    <input type="range" min="0" max="100" step="1" class="range range-info range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 touch-pan-y"
-                                           :disabled="item.raw_value === null || item.is_dead"
-                                           :value="item.raw_value !== null ? item.raw_value : 0"
-                                           @pointerdown="let t = $event.touches ? $event.touches[0] : $event; $el._startX = t.clientX; $el._startY = t.clientY; $el._verified = false; $el._orig = $el.value;"
-                                           @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
-                                           @input="
-                                               if (!$el._verified) {
-                                                   $event.target.value = $el._orig;
-                                                   return;
-                                               }
-                                               updateShutterOptimistic(item.id, $event.target.value);
-                                           "
-                                           @change="
-                                               if (!$el._verified) {
-                                                   $event.target.value = $el._orig;
-                                                   return;
-                                               }
-                                               setShutterState(item.id, parseInt($event.target.value, 10));
-                                           " />
-
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"
-                                          @click="setShutterState(item.id, 100)">CLOSED</span>
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'speaker'">
-                                <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
-                                    <span class="badge font-mono text-[8px] md:text-[11px] px-1 py-0 h-3.5 md:h-4 shrink-0 min-w-[1.75rem] justify-center transition-colors"
-                                          :class="item.is_dead ? 'badge-neutral text-error font-bold' : (item.is_on ? 'badge-success text-neutral-900 shadow-sm' : 'badge-neutral text-base-content/50')"
-                                          x-text="item.is_dead ? 'DEAD' : (item.display_text !== null ? item.display_text : '--')"></span>
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
-                                          @click="toggleSpeakerPower(item.id, true)">PLAY</span>
-
-                                    <input type="range" min="0" :max="item.max_volume" step="1"
-                                           class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer touch-pan-y"
-                                           :disabled="item.is_syncing || item.is_dead || !item.is_on"
-                                           :key="'spkvol-' + item.id + '-' + (item.ui_volume ?? 'x') + '-' + item.is_on + '-' + item.is_syncing"
-                                           :value="(!item.is_syncing && item.is_on && item.ui_volume !== undefined && item.ui_volume !== null) ? item.ui_volume : 0"
-                                           x-effect="if (!item.is_syncing && item.is_on && item.ui_volume !== undefined && item.ui_volume !== null) { $el.value = item.ui_volume }"
-                                           @pointerdown="let t = $event.touches ? $event.touches[0] : $event; $el._startX = t.clientX; $el._startY = t.clientY; $el._verified = false; $el._orig = $el.value;"
-                                           @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
-                                           @input="
-                                               if (!$el._verified) {
-                                                   $event.target.value = $el._orig;
-                                                   return;
-                                               }
-                                               updateSpeakerOptimistic(item.id, $event.target.value);
-                                           "
-                                           @change="
-                                               if (!$el._verified) {
-                                                   $event.target.value = $el._orig;
-                                                   return;
-                                               }
-                                               setSpeakerVolume(item.id, parseInt($event.target.value, 10));
-                                           " />
-                                    <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-warning cursor-pointer hover:text-primary transition-colors"
-                                          @click="toggleSpeakerPower(item.id, false)">PAUSE</span>
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'temp'">
-                                <div class="flex justify-end shrink-0">
-                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
-                                          :class="item.is_dead ? 'text-error' : 'text-orange-400'"
-                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C')"></span>
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'hum'">
-                                <div class="flex justify-end shrink-0">
-                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
-                                          :class="item.is_dead ? 'text-error' : 'text-info'"
-                                          x-text="item.is_dead ? 'DEAD' : (item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %')"></span>
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'temp_hum'">
-                                <div class="flex justify-end font-mono text-[10px] md:text-sm whitespace-nowrap shrink-0">
-                                    <template x-if="item.is_dead">
-                                        <span class="font-bold text-error">DEAD</span>
-                                    </template>
-                                    <template x-if="!item.is_dead">
-                                        <div>
-                                            <span class="font-bold text-orange-400" x-text="item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C'"></span>
-                                            <span class="mx-1 text-base-content/50">/</span>
-                                            <span class="font-bold text-info" x-text="item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %'"></span>
-                                        </div>
-                                    </template>
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'power' || item.type === 'energy'">
-                                <div class="flex justify-end shrink-0">
-                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
-                                          :class="item.is_dead ? 'text-error' : (item.type === 'energy' ? 'text-success' : 'text-warning')"
-                                          x-text="item.display_text"></span>
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'fluid'">
-                                <div class="flex justify-end shrink-0">
-                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
-                                          :class="item.is_dead ? 'text-error' : (isHotWaterItem(item) ? 'text-error' : 'text-info')"
-                                          x-text="item.display_text"></span>
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'sensor'">
-                                <div class="flex items-center justify-end shrink-0">
-                                    <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
-                                          :class="item.is_dead ? 'text-error' : (item.is_on === true ? 'text-error animate-pulse' : (item.is_on === false ? 'text-base-500' : 'text-success'))"
-                                          x-text="item.display_text"></span>
-                                </div>
-                            </template>
-
-                            <template x-if="item.type === 'scene'">
-                                <div class="flex justify-end shrink-0">
-                                    <button class="btn btn-outline btn-accent btn-xs md:btn-sm font-mono tracking-widest text-[9px] md:text-xs px-3 md:px-6 shadow-sm"
-                                            @click="item.require_confirmation ? openSceneModal(item) : dispatchEvent(item.id)">
-                                        GO
-                                    </button>
-                                </div>
-                            </template>
-
-                        </div>
-                    </li>
-                </template>
-
-                <li x-show="unifiedDeviceList.length === 0" class="p-6 text-center text-base-400 font-mono text-xs md:text-sm italic w-full">
-                    No hardware nodes match the current filter criteria.
-                </li>
-            </ul>
-        </div>
-
-        <!-- HISTORY MODE LIST + DETAIL -->
-        <div class="card bg-base-100 shadow-xl border border-base-200 overflow-hidden" x-show="explorerMode === 'history'" x-cloak>
-            <ul class="flex flex-col w-full divide-y divide-base-200/50">
-                <template x-for="item in explorerDisplayList" :key="'h-' + item.id">
+                <template x-for="item in explorerActiveList" :key="explorerMode + '-' + item.id">
                     <li class="flex flex-col w-full"
-                        :class="Number(selectedSensorIdx) === Number(item.id) ? 'bg-accent/5' : ''">
-                        <div class="flex flex-row items-center justify-between py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-2 md:gap-4 cursor-pointer w-full"
-                             :class="item.is_dead ? 'opacity-50 grayscale' : ''"
-                             @click="selectExplorerHistoryItem(item)">
-                            <div class="shrink-0 pr-1" @click.stop>
+                        :class="(explorerMode === 'history' && isExplorerHistoryRowSelected(item)) ? 'bg-accent/5' : ''">
+                        <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-x-1 md:gap-x-6 w-full"
+                             :class="[
+                                 item.is_dead ? 'opacity-50 grayscale' : '',
+                                 (explorerMode === 'history' && deviceHasHistory(item.id)) ? 'cursor-pointer' : ''
+                             ]"
+                             @click="explorerMode === 'history' && selectExplorerHistoryItem(item)">
+
+                            <div class="pr-1" @click.stop>
                                 <input type="checkbox" class="checkbox checkbox-xs checkbox-accent"
                                        :checked="isActuatorFavorite(item.id)"
                                        @change="toggleActuatorFavorite(item.id)"
                                        title="Favorite" />
                             </div>
-                            <div class="flex-1 min-w-0 flex flex-col justify-center">
-                                <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate flex items-center gap-1.5">
-                                    <template x-if="item.type === 'speaker' && item.origin !== 'onkyo'">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><circle cx="12" cy="14" r="4"></circle><line x1="12" y1="6" x2="12.01" y2="6"></line></svg>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider" x-text="item.origin"></span>
+
+                            <div class="min-w-0 flex flex-col justify-center pr-1 md:pr-2">
+                                <template x-if="item.is_hue">
+                                    <div class="flex items-center gap-1.5 min-w-0 flex-1"
+                                         :class="explorerMode === 'control' ? 'cursor-pointer hover:text-primary transition-colors' : ''"
+                                         @click="if (explorerMode === 'control') { $event.stopPropagation(); openLightModal(item); }">
+                                        <div class="w-5 h-5 shrink-0 flex items-center justify-center">
+                                            <div class="w-4 h-4 rounded-full border border-base-content/20"
+                                                 :style="explorerHueSwatchStyle(item)"></div>
                                         </div>
-                                    </template>
-                                    <template x-if="item.type === 'speaker' && item.origin === 'onkyo'">
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <svg class="w-3.5 h-3.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="1.5"></rect><circle cx="17" cy="12" r="2"></circle><line x1="6" y1="12" x2="10" y2="12"></line></svg>
-                                            <span class="hidden md:inline text-base-content/50 text-[10px] uppercase font-bold tracking-wider" x-text="item.origin"></span>
-                                        </div>
-                                    </template>
-                                    <template x-if="item.type === 'blinds'">
-                                        <span class="text-sm shrink-0">↕️</span>
-                                    </template>
-                                    <template x-if="item.type === 'switch' || item.type === 'light'">
-                                        <span class="text-sm leading-none shrink-0" x-show="explorerItemIcon(item)" x-text="explorerItemIcon(item)"></span>
-                                    </template>
-                                    <template x-if="item.type === 'temp_hum'">
-                                        <span class="text-[10px] md:text-xs shrink-0">🌡️💧</span>
-                                    </template>
-                                    <template x-if="item.type === 'temp' || (item.type === 'sensor' && String(item.name || '').toLowerCase().includes('temp'))">
-                                        <span class="text-sm shrink-0">🌡️</span>
-                                    </template>
-                                    <template x-if="item.type === 'hum'">
-                                        <span class="text-sm shrink-0">💧</span>
-                                    </template>
-                                    <template x-if="item.type === 'energy'">
-                                        <span class="text-sm opacity-80 shrink-0">🔌</span>
-                                    </template>
-                                    <template x-if="item.type === 'power'">
-                                        <span class="text-sm text-warning shrink-0">⚡</span>
-                                    </template>
-                                    <template x-if="item.type === 'fluid' || String(item.name || '').toLowerCase().includes('water') || String(item.name || '').toLowerCase().includes('liter')">
-                                        <span class="text-sm shrink-0"
-                                              :class="isHotWaterItem(item) ? 'text-error' : 'text-info'">💧</span>
-                                    </template>
-                                    <template x-if="item.type === 'sensor' && String(item.name || '').toLowerCase().includes('volt')">
-                                        <span class="text-sm text-info shrink-0">⚡</span>
-                                    </template>
-                                    <template x-if="item.type === 'sensor' && String(item.name || '').toLowerCase().includes('motion')">
-                                        <span class="text-sm shrink-0">🏃</span>
-                                    </template>
-                                    <template x-if="!['speaker','blinds','switch','light','temp_hum','temp','hum','energy','power','fluid'].includes(item.type) && !(item.type === 'sensor' && (String(item.name || '').toLowerCase().includes('temp') || String(item.name || '').toLowerCase().includes('volt') || String(item.name || '').toLowerCase().includes('motion'))) && !String(item.name || '').toLowerCase().includes('water') && !String(item.name || '').toLowerCase().includes('liter')">
-                                        <span class="text-sm leading-none shrink-0" x-show="explorerItemIcon(item)" x-text="explorerItemIcon(item)"></span>
-                                    </template>
-                                    <span class="truncate" x-text="item.name"></span>
-                                </div>
-                                <div class="text-[10px] text-base-content/40 font-mono"
-                                     x-text="historyRowSubtitle(item)"></div>
-                            </div>
-                            <div class="shrink-0 font-mono text-xs md:text-sm font-bold max-w-[55%] text-right">
-                                <template x-if="isWaterHistoryItem(item)">
-                                    <div class="whitespace-nowrap">
-                                        <span class="text-info"
-                                              x-text="'C ' + _waterLitersText(historyCapabilityByIdx[Number(item.id)]?.coldIdx)"></span>
-                                        <span class="text-base-content/40"> · </span>
-                                        <span class="text-error"
-                                              x-text="'H ' + _waterLitersText(historyCapabilityByIdx[Number(item.id)]?.hotIdx)"></span>
+                                        <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate underline decoration-dashed underline-offset-4 decoration-base-content/30"
+                                             x-text="item.name"></div>
+                                        <span class="shrink-0 text-error text-[10px] font-mono font-bold"
+                                              x-show="explorerMode === 'history' && !deviceHasHistory(item.id)">(no history)</span>
                                     </div>
                                 </template>
-                                <template x-if="!isWaterHistoryItem(item)">
-                                    <div class="truncate"
-                                         :class="explorerHistoryValueClass(item)"
-                                         x-text="explorerHistoryValueText(item)"></div>
+                                <template x-if="!item.is_hue">
+                                    <div class="flex items-center gap-1.5 min-w-0 flex-1"
+                                         :class="(explorerMode === 'control' && (item.type === 'blinds' || item.type === 'speaker') && !item.is_dead && item.raw_value !== null) ? 'cursor-pointer hover:text-primary transition-colors' : ''"
+                                         @click="if (explorerMode === 'control') { $event.stopPropagation(); if (item.type === 'blinds') handleShutterNameClick(item); if (item.type === 'speaker') handleSpeakerNameClick(item); }">
+                                        <div class="w-5 h-5 shrink-0 flex items-center justify-center">
+                                            <span class="text-sm leading-none" x-show="explorerItemIcon(item)" x-text="explorerItemIcon(item)"></span>
+                                        </div>
+                                        <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate"
+                                             x-text="item.name"></div>
+                                        <span class="shrink-0 text-error text-[10px] font-mono font-bold"
+                                              x-show="explorerMode === 'history' && !deviceHasHistory(item.id)">(no history)</span>
+                                    </div>
                                 </template>
+
+                                <template x-if="explorerMode === 'control' && isAdmin && item.auto_off_countdown">
+                                    <span class="inline-flex text-[10px] font-mono font-bold text-error/80 mt-0.5 select-none tracking-wider uppercase"
+                                          x-text="'auto off in ' + item.auto_off_countdown"></span>
+                                </template>
+                            </div>
+
+                            <div class="justify-self-end flex items-center justify-end min-w-max">
+
+                                <template x-if="explorerMode === 'control'">
+                                    <div class="flex items-center justify-end">
+
+                                        <template x-if="item.type === 'switch' || item.type === 'light'">
+                                            <div class="flex items-center justify-end gap-2 md:gap-3 shrink-0">
+                                                <span class="font-mono text-[9px] md:text-xs"
+                                                      :class="item.is_dead ? 'text-error font-bold' : (item.raw_value === null ? 'text-gray-500 italic' : (item.is_on ? 'text-warning font-bold animate-pulse' : 'text-base-500'))"
+                                                      x-text="item.is_dead ? 'DEAD' : (item.raw_value === null ? 'SYNC...' : (item.is_on ? 'ON' : 'OFF'))"></span>
+                                                <input type="checkbox" class="toggle toggle-sm md:toggle-md toggle-warning shadow shrink-0"
+                                                       :disabled="item.raw_value === null || item.is_dead"
+                                                       :checked="item.is_on"
+                                                       @change="injectLabHubStateChange(item.id, $event.target.checked)" />
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'door'">
+                                            <div class="flex justify-end shrink-0">
+                                                <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                                      :class="item.is_dead ? 'text-error' : (item.raw_value === null ? 'text-gray-500 italic' : (item.is_on ? 'text-error animate-pulse' : 'text-base-500'))"
+                                                      x-text="item.is_dead ? 'DEAD' : (item.raw_value === null ? 'SYNC...' : (item.raw_value === 'OPEN' || item.raw_value === 'CLOSED' ? item.raw_value : (item.display_text || '—')))"></span>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'blinds'">
+                                            <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
+                                                <span class="badge badge-neutral font-mono text-[8px] md:text-[11px] px-1 py-0 h-3.5 md:h-4 shrink-0 min-w-[1.75rem] justify-center"
+                                                      :class="item.is_dead ? 'text-error font-bold' : ''"
+                                                      x-text="item.is_dead ? 'DEAD' : (item.raw_value !== null ? item.raw_value + '%' : '--')"></span>
+                                                <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-info cursor-pointer hover:text-primary transition-colors"
+                                                      @click="setShutterState(item.id, 0)">OPEN</span>
+
+                                                <input type="range" min="0" max="100" step="1" class="range range-info range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 touch-pan-y"
+                                                       :disabled="item.raw_value === null || item.is_dead"
+                                                       :value="item.raw_value !== null ? item.raw_value : 0"
+                                                       @pointerdown="let t = $event.touches ? $event.touches[0] : $event; $el._startX = t.clientX; $el._startY = t.clientY; $el._verified = false; $el._orig = $el.value;"
+                                                       @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
+                                                       @input="
+                                                           if (!$el._verified) {
+                                                               $event.target.value = $el._orig;
+                                                               return;
+                                                           }
+                                                           updateShutterOptimistic(item.id, $event.target.value);
+                                                       "
+                                                       @change="
+                                                           if (!$el._verified) {
+                                                               $event.target.value = $el._orig;
+                                                               return;
+                                                           }
+                                                           setShutterState(item.id, parseInt($event.target.value, 10));
+                                                       " />
+
+                                                <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"
+                                                      @click="setShutterState(item.id, 100)">CLOSED</span>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'speaker'">
+                                            <div class="flex items-center justify-end gap-1.5 md:gap-3 shrink-0">
+                                                <span class="badge font-mono text-[8px] md:text-[11px] px-1 py-0 h-3.5 md:h-4 shrink-0 min-w-[1.75rem] justify-center transition-colors"
+                                                      :class="item.is_dead ? 'badge-neutral text-error font-bold' : (item.is_on ? 'badge-success text-neutral-900 shadow-sm' : 'badge-neutral text-base-content/50')"
+                                                      x-text="item.is_dead ? 'DEAD' : (item.display_text !== null ? item.display_text : '--')"></span>
+                                                <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-success cursor-pointer hover:text-primary transition-colors"
+                                                      @click="toggleSpeakerPower(item.id, true)">PLAY</span>
+
+                                                <input type="range" min="0" :max="item.max_volume" step="1"
+                                                       class="range range-success range-xs w-16 sm:w-20 md:w-32 shadow-inner shrink-0 cursor-pointer touch-pan-y"
+                                                       :disabled="item.is_syncing || item.is_dead || !item.is_on"
+                                                       :key="'spkvol-' + item.id + '-' + (item.ui_volume ?? 'x') + '-' + item.is_on + '-' + item.is_syncing"
+                                                       :value="(!item.is_syncing && item.is_on && item.ui_volume !== undefined && item.ui_volume !== null) ? item.ui_volume : 0"
+                                                       x-effect="if (!item.is_syncing && item.is_on && item.ui_volume !== undefined && item.ui_volume !== null) { $el.value = item.ui_volume }"
+                                                       @pointerdown="let t = $event.touches ? $event.touches[0] : $event; $el._startX = t.clientX; $el._startY = t.clientY; $el._verified = false; $el._orig = $el.value;"
+                                                       @pointermove="if (!$el._verified && $el._startX) { let t = $event.touches ? $event.touches[0] : $event; let dx = Math.abs(t.clientX - $el._startX); let dy = Math.abs(t.clientY - $el._startY); if (dx > 10 && dx > dy) { $el._verified = true; } }"
+                                                       @input="
+                                                           if (!$el._verified) {
+                                                               $event.target.value = $el._orig;
+                                                               return;
+                                                           }
+                                                           updateSpeakerOptimistic(item.id, $event.target.value);
+                                                       "
+                                                       @change="
+                                                           if (!$el._verified) {
+                                                               $event.target.value = $el._orig;
+                                                               return;
+                                                           }
+                                                           setSpeakerVolume(item.id, parseInt($event.target.value, 10));
+                                                       " />
+                                                <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-warning cursor-pointer hover:text-primary transition-colors"
+                                                      @click="toggleSpeakerPower(item.id, false)">PAUSE</span>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'temp'">
+                                            <div class="flex justify-end shrink-0">
+                                                <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                                      :class="item.is_dead ? 'text-error' : 'text-orange-400'"
+                                                      x-text="item.is_dead ? 'DEAD' : (item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C')"></span>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'hum'">
+                                            <div class="flex justify-end shrink-0">
+                                                <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                                      :class="item.is_dead ? 'text-error' : 'text-info'"
+                                                      x-text="item.is_dead ? 'DEAD' : (item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %')"></span>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'temp_hum'">
+                                            <div class="flex justify-end font-mono text-[10px] md:text-sm whitespace-nowrap shrink-0">
+                                                <template x-if="item.is_dead">
+                                                    <span class="font-bold text-error">DEAD</span>
+                                                </template>
+                                                <template x-if="!item.is_dead">
+                                                    <div>
+                                                        <span class="font-bold text-orange-400" x-text="item.raw_value && item.raw_value.temp !== undefined ? parseFloat(item.raw_value.temp).toFixed(1) + ' °C' : '--.- °C'"></span>
+                                                        <span class="mx-1 text-base-content/50">/</span>
+                                                        <span class="font-bold text-info" x-text="item.raw_value && item.raw_value.hum !== undefined ? item.raw_value.hum + ' %' : '-- %'"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'power' || item.type === 'energy'">
+                                            <div class="flex justify-end shrink-0">
+                                                <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                                      :class="item.is_dead ? 'text-error' : (item.type === 'energy' ? 'text-success' : 'text-warning')"
+                                                      x-text="item.display_text"></span>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'fluid'">
+                                            <div class="flex justify-end shrink-0">
+                                                <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                                      :class="item.is_dead ? 'text-error' : (isHotWaterItem(item) ? 'text-error' : 'text-info')"
+                                                      x-text="item.display_text"></span>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'sensor'">
+                                            <div class="flex items-center justify-end shrink-0">
+                                                <span class="font-mono font-bold text-xs md:text-sm whitespace-nowrap"
+                                                      :class="item.is_dead ? 'text-error' : (item.is_on === true ? 'text-error animate-pulse' : (item.is_on === false ? 'text-base-500' : 'text-success'))"
+                                                      x-text="item.display_text"></span>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="item.type === 'scene'">
+                                            <div class="flex justify-end shrink-0">
+                                                <button class="btn btn-outline btn-accent btn-xs md:btn-sm font-mono tracking-widest text-[9px] md:text-xs px-3 md:px-6 shadow-sm"
+                                                        @click="item.require_confirmation ? openSceneModal(item) : dispatchEvent(item.id)">
+                                                    GO
+                                                </button>
+                                            </div>
+                                        </template>
+
+                                    </div>
+                                </template>
+
+                                <template x-if="explorerMode === 'history'">
+                                    <div class="font-mono text-xs md:text-sm font-bold text-right whitespace-nowrap min-w-max">
+                                        <template x-if="isWaterHistoryItem(item)">
+                                            <div class="whitespace-nowrap">
+                                                <span class="text-info"
+                                                      x-text="'C ' + _waterLitersText(historyCapabilityByIdx[Number(item.id)]?.coldIdx)"></span>
+                                                <span class="text-base-content/40"> · </span>
+                                                <span class="text-error"
+                                                      x-text="'H ' + _waterLitersText(historyCapabilityByIdx[Number(item.id)]?.hotIdx)"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="!isWaterHistoryItem(item)">
+                                            <div class="whitespace-nowrap"
+                                                 :class="explorerHistoryValueClass(item)"
+                                                 x-text="explorerHistoryValueText(item)"></div>
+                                        </template>
+                                    </div>
+                                </template>
+
                             </div>
                         </div>
 
-                        <template x-if="Number(selectedSensorIdx) === Number(item.id)">
+                        <template x-if="explorerMode === 'history' && isExplorerHistoryRowSelected(item)">
                             <div class="px-3 md:px-4 pb-4 pt-1 bg-base-200/40 border-t border-base-300" @click.stop>
                                 <div class="flex flex-col gap-4">
                                     <div class="flex items-center justify-between gap-2">
@@ -664,9 +514,8 @@
                     </li>
                 </template>
 
-                <li x-show="explorerDisplayList.length === 0" class="p-6 text-center text-base-400 font-mono text-xs md:text-sm italic w-full">
-                    No history nodes match the current filter criteria.
-                </li>
+                <li x-show="explorerActiveList.length === 0" class="p-6 text-center text-base-400 font-mono text-xs md:text-sm italic w-full"
+                    x-text="'No hardware nodes match the current filter criteria.'"></li>
             </ul>
         </div>
 
@@ -748,7 +597,7 @@
         </div>
 
     </main>
-    <script src="wanos-shell.js?v=2"></script>
-    <script src="app.js?v=3.19"></script>
+    <script src="wanos-shell.js?v=3"></script>
+    <script src="app.js?v=3.24"></script>
 </body>
 </html>

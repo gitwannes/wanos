@@ -10,7 +10,7 @@ Three jobs (rsync over SSH -- no Samba/Z:):
 
 1) MIRROR JOB  - Local repo  -->  Pi WanOS root (rsync --delete + excludes)
 2) STATS / PULL JOB  - Pi  -->  Local (repo YAML Pi-wins; telemetry to StatsDest)
-3) LOG PULL JOB  - Pi /var/log/wanos  -->  StatsDest\<LocalLogSubdir>
+3) LOG PULL JOB  - Pi /var/log/wanos  -->  StatsDest (or StatsDest\<LocalLogSubdir>)
 
 Includes / excludes: helpers/wanos-sync.config.txt
 Paths (repo, StatsDest): in this .ps1. Remote host/paths: [PiSsh] in config.
@@ -109,7 +109,7 @@ function Read-WanosSyncConfig {
         User           = "wannes"
         RemoteRoot     = "/home/wannes/wanos"
         RemoteLogDir   = "/var/log/wanos"
-        LocalLogSubdir = "var-log-wanos"
+        LocalLogSubdir = ""
         RemoteGlob     = "wanos*"
     }
     $current = $null
@@ -674,7 +674,13 @@ function Invoke-WanosRsyncLogPullJob {
 
     Write-SyncJobHeader "=== LOG PULL JOB (Pi /var/log/wanos --> Local via rsync/SSH) ==="
 
-    $localDir = Join-Path $StatsDest $Ssh.LocalLogSubdir
+    $subdir = if ($null -eq $Ssh.LocalLogSubdir) { "" } else { [string]$Ssh.LocalLogSubdir }
+    $subdir = $subdir.Trim().Trim('\', '/')
+    $localDir = if ([string]::IsNullOrWhiteSpace($subdir)) {
+        $StatsDest
+    } else {
+        Join-Path $StatsDest $subdir
+    }
     Ensure-Directory -Path $localDir -DryRun:$DryRun
 
     $localRsync = ConvertTo-RsyncLocalPath -WindowsPath $localDir

@@ -58,7 +58,13 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            <span x-text="msg.message" class="font-semibold text-left break-words"></span>
+                            <div class="min-w-0 text-left break-words">
+                                <span class="font-mono text-[11px] opacity-80 mr-2 whitespace-nowrap"
+                                      x-show="msg.timestamp" x-text="msg.timestamp"></span>
+                                <span x-text="msg.message" class="font-semibold"></span>
+                                <span class="font-mono text-[11px] opacity-80 ml-2"
+                                      x-show="msg.count > 1" x-text="'×' + msg.count"></span>
+                            </div>
                         </div>
                         <button @click="dismissAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle shrink-0 text-error-content hover:bg-black/10">
                             ✕
@@ -815,5 +821,5 @@
             </form>
         </dialog>
     </main>
-    <script src="wanos-shell.js?v=2"></script>
-    <script src="app.js?v=3.19"></script>
+    <script src="wanos-shell.js?v=3"></script>
+    <script src="app.js?v=3.23"></script>
