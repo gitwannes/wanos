@@ -153,11 +153,11 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 - `core/automations_schema_v2.py` — convert / expand / Cinema merge / canonical `name`…`id` last
 - Loader dual-read via `expand_automations_for_engine`
 - API POST/PUT persist **v2 only**; GET returns raw v2 (Phase 6B)
-- `helpers/migrate_automations_v2.py` — `--dry-run` / `--write` (+ backup)
+- One-shot migrator `helpers/migrate_automations_v2.py` (removed after Pi `--write` 2026-08-05)
 - Rich action fields preserved on canvas apply / API dump
 
 **Operator on Pi (completed 2026-08-05):**
-1. Deploy code; `python3 helpers/migrate_automations_v2.py --dry-run`
+1. Deploy code; migrator `--dry-run` (script since removed)
 2. Review plan (Cinema OFF merge)
 3. `--write` → Admin Debug GREEN + clean boot
 4. Smoke: Cinema OFF dark/light cases, OR triggers, ex-mirror rules (now ON/OFF cases)
@@ -536,7 +536,7 @@ Use this as strict phase gates. Do not mark a phase complete unless all items ar
 - [x] **Mode boundary clarity:** UI clearly indicates when a rule must be edited in fallback mode (if Blockly cannot represent it yet).
 - [x] **No schema mutation (pre-6A):** persisted shape remained Y1 + flat compatible through Phase 4–5 (no ad-hoc schema). Phase **6A** replaces this baseline with unified schema v2 by design.
 - [x] **Operator confidence checks:** `pc_monitors`, bathroom pair, scene-triggered rule from Blockly — **OK**.
-- [x] **Drag/connect correctness:** conditions and actions snap into the branch slots and can be dragged out again; verified on `helpers/blockly_minimal_test.html` and live Blocky (Alpine-safe `BlockyRT` workspace).
+- [x] **Drag/connect correctness:** conditions and actions snap into the branch slots and can be dragged out again; verified on live Blocky (Alpine-safe `BlockyRT` workspace).
 - [x] **Uniqueness:** one trigger / one ON / one OFF / one Then; no duplicate condition/action fingerprints on the canvas (toolbox hides singletons).
 
 #### Snapping / un-snapping — root cause and fix
@@ -546,12 +546,10 @@ Symptom: blocks rendered and chained to each other, but would not drop into the 
 
 Root causes (fixed):
 1. Inject / layout while hidden (`x-show` → `display:none`) or zero-size host → broken hit-testing.
-2. Storing `WorkspaceSvg` on Alpine reactive state (Proxy) → drag/snap broken vs the plain-`ws` minimal test.
+2. Storing `WorkspaceSvg` on Alpine reactive state (Proxy) → drag/snap broken.
 3. Tailwind `svg { max-width: 100% }` distorting Blockly SVG metrics.
 
-Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `display:none`, inject options matching the minimal test, `svgResize` + ResizeObserver, typed Condition/Action sockets.
-
-Regression harness (keep): `helpers/blockly_minimal_test.html` (double-click or serve locally).
+Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `display:none`, correct inject options, `svgResize` + ResizeObserver, typed Condition/Action sockets.
 
 ### Phase 6A DoD — Unified schema v2 + migrator ✅
 
