@@ -21,6 +21,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="https://unpkg.com/blockly@13.2.1/blockly.min.js"></script>
+    <!-- Same color wheel as Device Explorer (iro.js local copy). -->
+    <script src="iro.min.js"></script>
 
     <style>
         /* Blockly layout constraints:
@@ -152,7 +154,7 @@
                             Trigger wakes the rule; cases are ordered if / else-if / else.
                             Match options follow the trigger (device ON/OFF or blinds OPEN/CLOSED; start or end; event/OR = conditions gate).
                             Action/condition states follow device type. Speakers show as Sonos/Onkyo. OR edges only when root is “When any of”.
-                            Rich fields (preset, volume, …) round-trip; authoring UX is Phase 6C.
+                            Rich actions: Hue color = named preset <b>or</b> custom (Explorer color wheel); blinds open %; Sonos volume+station / Onkyo volume.
                         </p>
                     </div>
 
@@ -186,6 +188,7 @@
                             To change trigger type, drag another from <b>Trigger</b> (cases stay attached).
                             When start or end: paired edges (clock for blinds/twilight; session on/off for sauna/IR/cinema).
                             Snap blocks fully into notches · unsnapped leaves block Save · trash deletes.
+                            <span class="opacity-40"> · js 4.31</span>
                         </div>
                     </div>
 
@@ -227,7 +230,41 @@
     <form method="dialog" class="modal-backdrop"><button type="button" @click="cancelUnsavedLeave()">close</button></form>
 </dialog>
 
+<dialog id="blocky_hue_color_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[100001]">
+    <div class="modal-box border border-primary/20 bg-base-300 shadow-2xl">
+        <h3 class="font-bold text-lg uppercase tracking-widest text-primary border-b border-base-200 pb-3 mb-4">
+            Custom color
+        </h3>
+        <div class="flex flex-col gap-6">
+            <div>
+                <div class="flex justify-between text-xs font-mono font-bold text-base-content/50 mb-2 uppercase tracking-wider">
+                    <span>Brightness</span>
+                    <span class="text-warning" x-text="(blockyColorBri ?? 100) + '%'"></span>
+                </div>
+                <input type="range" min="1" max="100" class="range range-warning shadow-inner"
+                       x-model.number="blockyColorBri" />
+            </div>
+            <div>
+                <div class="flex justify-between text-xs font-mono font-bold text-base-content/50 mb-2 uppercase tracking-wider">
+                    <span>Color</span>
+                    <span class="text-info" x-text="blockyColorHex || '#FFD180'"></span>
+                </div>
+                <div class="flex flex-col items-center justify-center bg-base-200 p-4 rounded-box border border-base-300">
+                    <div id="blocky-color-picker-container"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-action border-t border-base-200 pt-4 mt-6">
+            <form method="dialog" class="w-full flex justify-end gap-2">
+                <button type="submit" class="btn btn-ghost btn-sm" @click="closeBlockyHueColor()">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" @click="applyBlockyHueColor()">Apply to action</button>
+            </form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop" @submit="closeBlockyHueColor()"><button>close</button></form>
+</dialog>
+
 <script src="wanos-shell.js?v=2"></script>
-<script src="blocky.js?v=4.17"></script>
+<script src="blocky.js?v=4.31"></script>
 </body>
 </html>

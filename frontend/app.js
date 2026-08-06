@@ -56,7 +56,8 @@ function wanosApp() {
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
                 available_scenes: [], // ⚡ Holds dynamically extracted stateless automations
                 hidden_explorer_idxs: [], // ⚡ Devices to hide from the Device Explorer
-                hue_presets: {} // ⚡ Dynamically injected from config_hue.yaml
+                hue_presets: {}, // ⚡ Dynamically injected from config_hue.yaml
+                sonos_stations: {} // ⚡ TuneIn station key → URI from config.yaml (Blocky 6C)
             },
             sensors: {
                 sunrise_unix: null,

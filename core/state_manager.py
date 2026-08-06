@@ -280,6 +280,11 @@ class StateManager:
         if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
             self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
 
+        if getattr(self._config, "sonos", None) and getattr(self._config.sonos, "stations", None):
+            self._state.system.sonos_stations = dict(self._config.sonos.stations)
+        else:
+            self._state.system.sonos_stations = {}
+
         nvram_data = self.nvm.load()
         for nv_idx, nv_val in nvram_data.items():
             self._state.devices[nv_idx] = nv_val

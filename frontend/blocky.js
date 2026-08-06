@@ -1,6 +1,6 @@
 // Phase 6B: unified Blockly canvas for schema v2 (trigger + ordered cases).
 // Contextual dropdowns: only show entries valid for the current trigger / device type.
-// Phase 6C (TODO): rich action authoring UX — Hue preset, blinds open %, Sonos volume/station.
+// Phase 6C: rich action authoring — Hue preset XOR custom color (iro→bri/xy), blinds open %, Sonos/Onkyo volume, Sonos station.
 
 /** Min viewport width for History / Automation and the top-row join (tablets+). */
 const WANOS_WIDE_MIN_PX = 768;
@@ -221,25 +221,19 @@ function blockyEdgeStateOptions(block) {
 /**
  * Action state entries by device type / origin.
  * RFX / Sonos / Onkyo / Epson: no FORCE_* (engine always-forces RFX; OFF-only for the AV trio).
- * Phase 6C: Hue preset / Sonos volume+station / blinds open-% authoring.
+ * Blinds: STATE is a placeholder; position lives in OPEN_PCT (operator open %).
  */
 function blockyActionStateOptions(block) {
     const eid = block.getFieldValue("ENTITY");
     const type = blockyEntityTypeOf(eid);
     const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
     if (type === "blinds" || type === "shutter") {
-        // Stored = closed % (0 open … 100 closed). Open-% picker is Phase 6C.
-        return [
-            ["0 — open", "0"],
-            ["100 — closed", "100"]
-        ];
+        return [["position", "POS"]];
     }
     if (type === "light" || type === "hue") {
-        // Phase 6C: when ON, show preset dropdown from hue_presets.
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
     if (type === "speaker" || type === "media_player") {
-        // Sonos/Onkyo: ON/OFF only (engine forces OFF). Phase 6C: volume + station when ON.
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
     // RFX + Epson: always-forced at engine — no FORCE_* in the menu.
@@ -262,6 +256,568 @@ function blockyConditionStateOptions(block) {
         return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"]];
     }
     return [["ON", "ON"], ["OFF", "OFF"]];
+}
+
+/** Stored blinds state = closed % (0 open … 100 closed). UI = open %. */
+function blockyOpenPctFromStored(stored) {
+    const n = Number(stored);
+    if (!Number.isFinite(n)) return 100;
+    return Math.max(0, Math.min(100, 100 - n));
+}
+
+function blockyStoredFromOpenPct(openPct) {
+    const n = Number(openPct);
+    if (!Number.isFinite(n)) return "0";
+    return String(Math.max(0, Math.min(100, Math.round(100 - n))));
+}
+
+function blockyHuePresetsMap() {
+    const app = BlockyRT.app;
+    if (app && app.huePresets && typeof app.huePresets === "object") return app.huePresets;
+    if (app && app.state && app.state.system && app.state.system.hue_presets) {
+        return app.state.system.hue_presets;
+    }
+    return {};
+}
+
+function blockySonosStationsMap() {
+    const app = BlockyRT.app;
+    if (app && app.sonosStations && typeof app.sonosStations === "object") return app.sonosStations;
+    if (app && app.state && app.state.system && app.state.system.sonos_stations) {
+        return app.state.system.sonos_stations;
+    }
+    return {};
+}
+
+function blockyHuePresetOptions(stickyKey) {
+    const presets = blockyHuePresetsMap();
+    const keys = Object.keys(presets);
+    const opts = [];
+    const seen = new Set();
+    keys.forEach((k) => {
+        const p = presets[k];
+        const label = (p && p.name) ? String(p.name) : k;
+        opts.push([label, k]);
+        seen.add(k);
+    });
+    blockyStickyRichKeys("preset", stickyKey).forEach((k) => {
+        if (!seen.has(k)) {
+            const label = keys.length ? `${k} · (missing)` : k;
+            opts.push([label, k]);
+            seen.add(k);
+        }
+    });
+    // Never offer empty "(none)" — preset mode always needs a real key.
+    return opts.length ? opts : [["(no presets in config)", ""]];
+}
+
+/** Station keys from config + sticky (open rule / pending load) so setValue cannot be rejected. */
+function blockySonosStationOptions(stickyKey) {
+    const stations = blockySonosStationsMap();
+    const known = Object.keys(stations);
+    const opts = [["(none)", ""]];
+    const seen = new Set([""]);
+    known.forEach((k) => {
+        opts.push([k, k]);
+        seen.add(k);
+    });
+    blockyStickyRichKeys("station", stickyKey).forEach((k) => {
+        if (!seen.has(k)) {
+            const label = known.length ? `${k} · (missing from config)` : k;
+            opts.push([label, k]);
+            seen.add(k);
+        }
+    });
+    return opts;
+}
+
+/** Collect preset/station keys from open ruleJson, pending apply, and workspace fields. */
+function blockyStickyRichKeys(kind, stickyKey) {
+    const out = new Set();
+    if (stickyKey) out.add(String(stickyKey));
+    const app = BlockyRT.app;
+    if (app && app._pendingRichSticky && app._pendingRichSticky[kind]) {
+        app._pendingRichSticky[kind].forEach((k) => out.add(String(k)));
+    }
+    try {
+        const rule = JSON.parse((app && app.editor && app.editor.ruleJson) || "{}");
+        (rule.cases || []).forEach((c) => {
+            (c.actions || []).forEach((a) => {
+                if (kind === "station" && a.station) out.add(String(a.station));
+                if (kind === "preset" && a.preset) out.add(String(a.preset));
+            });
+        });
+    } catch (e) { /* ignore */ }
+    try {
+        const ws = blockyWs();
+        const field = kind === "station" ? "STATION" : "PRESET";
+        if (ws) {
+            ws.getAllBlocks(false).forEach((b) => {
+                if (b.type !== "b_action_device" || !b.getField(field)) return;
+                const v = b.getFieldValue(field);
+                if (v) out.add(String(v));
+            });
+        }
+    } catch (e) { /* ignore */ }
+    return [...out].filter(Boolean);
+}
+
+function blockyEntityMaxVolume(eid) {
+    const opt = blockyEntityMeta(eid);
+    if (opt && opt.max_volume != null) {
+        const n = Number(opt.max_volume);
+        if (Number.isFinite(n) && n > 0) return n;
+    }
+    const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
+    if (origin === "onkyo") return 60;
+    if (origin === "sonos") return 70;
+    return 100;
+}
+
+function blockySafeSetField(block, name, value) {
+    if (!block || value == null) return;
+    try {
+        const f = block.getField(name);
+        if (!f) return;
+        f.setValue(value);
+    } catch (e) { /* ignore */ }
+}
+
+/** CIE xy + bri → hex (same math as Device Explorer). */
+function blockyXyToHex(x, y, bri) {
+    if (x === undefined || y === undefined || x == null || y == null) return "#FFD180";
+    let z = 1.0 - x - y;
+    const Y = (bri !== undefined && bri != null ? bri : 100) / 100.0;
+    if (!y) return "#FFD180";
+    const X = (Y / y) * x;
+    const Z = (Y / y) * z;
+    let r = X * 1.656492 - Y * 0.354851 - Z * 0.255038;
+    let g = -X * 0.707196 + Y * 1.655397 + Z * 0.036152;
+    let b = X * 0.051713 - Y * 0.121364 + Z * 1.011530;
+    r = r <= 0.0031308 ? 12.92 * r : (1.0 + 0.055) * Math.pow(r, (1.0 / 2.4)) - 0.055;
+    g = g <= 0.0031308 ? 12.92 * g : (1.0 + 0.055) * Math.pow(g, (1.0 / 2.4)) - 0.055;
+    b = b <= 0.0031308 ? 12.92 * b : (1.0 + 0.055) * Math.pow(b, (1.0 / 2.4)) - 0.055;
+    r = Math.max(0, Math.min(1, r));
+    g = Math.max(0, Math.min(1, g));
+    b = Math.max(0, Math.min(1, b));
+    const toHex = (c) => Math.round(c * 255).toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
+/** Hex → CIE xy (same math as Device Explorer). */
+function blockyHexToXy(hex) {
+    let h = String(hex || "").replace("#", "");
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    if (h.length !== 6) return [0.4575, 0.4099];
+    let r = parseInt(h.slice(0, 2), 16) / 255;
+    let g = parseInt(h.slice(2, 4), 16) / 255;
+    let b = parseInt(h.slice(4, 6), 16) / 255;
+    r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+    g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+    b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+    const X = r * 0.664511 + g * 0.154324 + b * 0.162028;
+    const Y = r * 0.283881 + g * 0.668433 + b * 0.047685;
+    const Z = r * 0.000088 + g * 0.072310 + b * 0.986039;
+    const sum = X + Y + Z;
+    if (sum <= 0) return [0.4575, 0.4099];
+    return [X / sum, Y / sum];
+}
+
+function blockyCloseHueColorModal() {
+    // Drop any queued reopen from HUE_MODE / COLOR_PICK validators.
+    if (BlockyRT.pendingRichOpts) BlockyRT.pendingRichOpts.openWheel = false;
+    const app = BlockyRT.app;
+    if (app) app.blockyColorTargetId = null;
+    const dlg = document.getElementById("blocky_hue_color_modal");
+    if (dlg && typeof dlg.close === "function") {
+        try { dlg.close(); } catch (e) { /* ignore */ }
+    }
+}
+
+function blockyOpenHueColorModal(block) {
+    const app = BlockyRT.app;
+    if (!app || !block || block._hueSuppressWheel || block._richUpdating) return;
+    app.blockyColorTargetId = block.id;
+    app.blockyColorBri = block._hueBri != null ? Number(block._hueBri) : 100;
+    app.blockyColorHex = block._hueHex || "#FFD180";
+    const dlg = document.getElementById("blocky_hue_color_modal");
+    if (!dlg) return;
+    if (!dlg.open) dlg.showModal();
+    queueMicrotask(() => {
+        if (!window.iro || !dlg.open) return;
+        const host = document.getElementById("blocky-color-picker-container");
+        if (!host) return;
+        if (!BlockyRT.colorPicker) {
+            host.innerHTML = "";
+            BlockyRT.colorPicker = new iro.ColorPicker(host, {
+                width: 220,
+                color: app.blockyColorHex,
+                layout: [{ component: iro.ui.Wheel, options: {} }]
+            });
+            BlockyRT.colorPicker.on("color:change", (color) => {
+                if (BlockyRT.app) BlockyRT.app.blockyColorHex = color.hexString;
+            });
+        } else {
+            try { BlockyRT.colorPicker.color.hexString = app.blockyColorHex; } catch (e) { /* ignore */ }
+        }
+    });
+}
+
+function blockyApplyHueColorModal() {
+    const app = BlockyRT.app;
+    const ws = blockyWs();
+    if (!app || !ws || !app.blockyColorTargetId) {
+        blockyCloseHueColorModal();
+        return;
+    }
+    const block = ws.getBlockById(app.blockyColorTargetId);
+    if (!block) {
+        blockyCloseHueColorModal();
+        return;
+    }
+    const bri = Math.max(1, Math.min(100, Number(app.blockyColorBri) || 100));
+    const hex = String(app.blockyColorHex || "#FFD180");
+    const xy = blockyHexToXy(hex);
+    block._hueBri = bri;
+    block._hueXy = xy;
+    block._hueHex = hex.toUpperCase();
+    // Prevent HUE_MODE/COLOR_PICK validators from reopening the wheel while we sync shape.
+    block._hueSuppressWheel = true;
+    try {
+        blockyActionUpdateRichShape(block, { forceState: "ON", forceHueMode: "CUSTOM" });
+        blockySafeSetField(block, "COLOR_HEX", block._hueHex);
+    } finally {
+        block._hueSuppressWheel = false;
+    }
+    if (typeof app.markEditorDirty === "function") app.markEditorDirty();
+    blockyCloseHueColorModal();
+}
+
+/** Remove a named dummy input if present (never throws). */
+function blockyRemoveInput(block, name) {
+    if (!block || !block.getInput(name)) return;
+    try { block.removeInput(name); } catch (e) { /* ignore */ }
+}
+
+/**
+ * Queue rich-shape sync after the current field commit finishes.
+ * Independent of uniqueness timer so load/cancel cannot drop UI updates.
+ */
+function blockyQueueRichShape(block, opts) {
+    if (!block || block.isInFlyout) return;
+    opts = opts || {};
+    BlockyRT.pendingRichOpts = Object.assign({}, BlockyRT.pendingRichOpts || {}, opts, {
+        blockId: block.id
+    });
+    if (BlockyRT.richTimer) clearTimeout(BlockyRT.richTimer);
+    BlockyRT.richTimer = setTimeout(() => {
+        BlockyRT.richTimer = null;
+        const pending = BlockyRT.pendingRichOpts;
+        BlockyRT.pendingRichOpts = null;
+        if (!pending || !pending.blockId) return;
+        const ws = blockyWs();
+        const blk = ws && ws.getBlockById(pending.blockId);
+        if (!blk || blk.type !== "b_action_device") return;
+        const openWheel = !!pending.openWheel;
+        delete pending.openWheel;
+        delete pending.blockId;
+        blockyActionUpdateRichShape(blk, pending);
+        if (openWheel) blockyOpenHueColorModal(blk);
+    }, 0);
+}
+
+/** Ensure Hue mode dropdown exists once — never dispose it while light is ON. */
+function blockyEnsureHueModeInput(block) {
+    if (block.getInput("RICH_HUE_MODE")) return;
+    const modeOpts = [
+        ["named preset", "PRESET"],
+        ["custom color", "CUSTOM"],
+        ["(no color)", "NONE"]
+    ];
+    block.appendDummyInput("RICH_HUE_MODE")
+        .appendField("color")
+        .appendField(new Blockly.FieldDropdown(modeOpts, (newMode) => {
+            // Skip side-effects during programmatic shape sync / apply.
+            if (block._richUpdating || block._hueSuppressWheel) return newMode;
+            // Validator runs before value commits — schedule shape after.
+            if (newMode === "CUSTOM") {
+                blockyQueueRichShape(block, {
+                    forceState: "ON",
+                    forceHueMode: "CUSTOM",
+                    openWheel: true
+                });
+            } else {
+                if (newMode !== "PRESET") block._pendingPreset = null;
+                blockyQueueRichShape(block, {
+                    forceState: "ON",
+                    forceHueMode: newMode
+                });
+            }
+            return newMode;
+        }), "HUE_MODE");
+}
+
+/**
+ * Sync optional rich inputs on b_action_device from entity type + STATE.
+ * Critical: never dispose HUE_MODE / STATE while that field is being edited —
+ * only add/remove sibling rows (preset / custom / audio / blinds).
+ * opts.forceState / opts.forceHueMode: caller-supplied values (validators / events).
+ */
+function blockyActionUpdateRichShape(block, opts) {
+    if (!block || !window.Blockly || block._richUpdating) return;
+    opts = opts || {};
+    block._richUpdating = true;
+    const Events = Blockly.Events;
+    const wasEnabled = Events.isEnabled();
+    try {
+        Events.disable();
+        const eid = block.getFieldValue("ENTITY");
+        const type = blockyEntityTypeOf(eid);
+        const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
+        const state = String(
+            opts.forceState != null ? opts.forceState : (block.getFieldValue("STATE") || "")
+        );
+
+        const snap = {};
+        ["OPEN_PCT", "HUE_MODE", "PRESET", "VOLUME", "STATION"].forEach((n) => {
+            try {
+                const f = block.getField(n);
+                if (f) snap[n] = f.getValue();
+            } catch (e) { /* ignore */ }
+        });
+
+        const wantBlinds = type === "blinds" || type === "shutter";
+        const wantHue = (type === "light" || type === "hue") && state === "ON";
+        const wantAudio = (type === "speaker" || type === "media_player") && state === "ON";
+
+        if (!wantBlinds) blockyRemoveInput(block, "RICH_BLINDS");
+        if (!wantHue) {
+            blockyRemoveInput(block, "RICH_HUE_MODE");
+            blockyRemoveInput(block, "RICH_HUE_PRESET");
+            blockyRemoveInput(block, "RICH_HUE_CUSTOM");
+        }
+        if (!wantAudio) blockyRemoveInput(block, "RICH_AUDIO");
+
+        if (wantBlinds) {
+            if (!block.getInput("RICH_BLINDS")) {
+                const openDefault = snap.OPEN_PCT != null ? Number(snap.OPEN_PCT) : 100;
+                block.appendDummyInput("RICH_BLINDS")
+                    .appendField("open")
+                    .appendField(new Blockly.FieldNumber(
+                        Number.isFinite(openDefault) ? openDefault : 100, 0, 100, 1
+                    ), "OPEN_PCT")
+                    .appendField("%  (stored closed % = 100−open)");
+            }
+            if (state !== "POS") {
+                blockySafeSetField(block, "OPEN_PCT", blockyOpenPctFromStored(state));
+                blockySafeSetField(block, "STATE", "POS");
+            } else if (snap.OPEN_PCT != null) {
+                blockySafeSetField(block, "OPEN_PCT", snap.OPEN_PCT);
+            }
+            return;
+        }
+
+        if (wantHue) {
+            blockyEnsureHueModeInput(block);
+
+            let mode = opts.forceHueMode != null ? opts.forceHueMode : snap.HUE_MODE;
+            if (!mode || (mode !== "PRESET" && mode !== "CUSTOM" && mode !== "NONE")) {
+                if (snap.PRESET || block._pendingPreset) mode = "PRESET";
+                else if (block._hueBri != null || block._hueXy) mode = "CUSTOM";
+                else mode = "NONE";
+            }
+            if (mode === "CUSTOM" || mode === "NONE") block._pendingPreset = null;
+
+            // Keep HUE_MODE field — only set its value (do not recreate).
+            blockySafeSetField(block, "HUE_MODE", mode);
+
+            if (mode === "PRESET") {
+                blockyRemoveInput(block, "RICH_HUE_CUSTOM");
+                const presetOpts = blockyHuePresetOptions(
+                    snap.PRESET || block._pendingPreset || ""
+                );
+                let stickyPreset = snap.PRESET || block._pendingPreset || "";
+                if (!stickyPreset || !presetOpts.some((o) => o[1] === stickyPreset)) {
+                    stickyPreset = presetOpts[0] ? presetOpts[0][1] : "";
+                }
+                if (!block.getInput("RICH_HUE_PRESET")) {
+                    block.appendDummyInput("RICH_HUE_PRESET")
+                        .appendField("preset")
+                        .appendField(new Blockly.FieldDropdown(
+                            () => blockyHuePresetOptions(
+                                block.getFieldValue("PRESET") || block._pendingPreset || stickyPreset
+                            )
+                        ), "PRESET");
+                }
+                if (stickyPreset) blockySafeSetField(block, "PRESET", stickyPreset);
+            } else if (mode === "CUSTOM") {
+                blockyRemoveInput(block, "RICH_HUE_PRESET");
+                if (block._hueBri == null) block._hueBri = 100;
+                if (!block._hueXy) block._hueXy = [0.4575, 0.4099];
+                if (!block._hueHex) {
+                    block._hueHex = blockyXyToHex(block._hueXy[0], block._hueXy[1], block._hueBri);
+                }
+                const hex = block._hueHex || "#FFD180";
+                if (!block.getInput("RICH_HUE_CUSTOM")) {
+                    block.appendDummyInput("RICH_HUE_CUSTOM")
+                        .appendField(new Blockly.FieldLabel(hex), "COLOR_HEX")
+                        .appendField(new Blockly.FieldDropdown([
+                            ["pick with wheel…", "OPEN"],
+                            ["—", "-"]
+                        ], (v) => {
+                            if (v === "OPEN" && !block._richUpdating && !block._hueSuppressWheel) {
+                                queueMicrotask(() => blockyOpenHueColorModal(block));
+                            }
+                            return "-";
+                        }), "COLOR_PICK");
+                } else {
+                    blockySafeSetField(block, "COLOR_HEX", hex);
+                }
+                blockySafeSetField(block, "COLOR_PICK", "-");
+            } else {
+                blockyRemoveInput(block, "RICH_HUE_PRESET");
+                blockyRemoveInput(block, "RICH_HUE_CUSTOM");
+            }
+            return;
+        }
+
+        if (wantAudio) {
+            const maxVol = blockyEntityMaxVolume(eid);
+            const vol = snap.VOLUME != null && snap.VOLUME !== "" ? Number(snap.VOLUME) : 0;
+            const needStation = origin === "sonos";
+            const hasAudio = !!block.getInput("RICH_AUDIO");
+            const hasStation = !!block.getField("STATION");
+            if (!hasAudio || (!!hasStation) !== needStation) {
+                blockyRemoveInput(block, "RICH_AUDIO");
+                const input = block.appendDummyInput("RICH_AUDIO")
+                    .appendField("volume")
+                    .appendField(new Blockly.FieldNumber(
+                        Number.isFinite(vol) ? Math.min(maxVol, Math.max(0, vol)) : 0,
+                        0, maxVol, 1
+                    ), "VOLUME");
+                if (needStation) {
+                    const stickyStation = snap.STATION || block._pendingStation || "";
+                    input.appendField("station")
+                        .appendField(new Blockly.FieldDropdown(
+                            () => blockySonosStationOptions(
+                                block.getFieldValue("STATION") || block._pendingStation || stickyStation
+                            )
+                        ), "STATION");
+                    if (stickyStation) blockySafeSetField(block, "STATION", stickyStation);
+                    else if (snap.STATION) blockySafeSetField(block, "STATION", snap.STATION);
+                }
+            } else if (snap.VOLUME != null) {
+                blockySafeSetField(block, "VOLUME", snap.VOLUME);
+            }
+        }
+    } finally {
+        if (wasEnabled) Events.enable();
+        block._richUpdating = false;
+        try {
+            if (block.rendered && typeof block.render === "function") block.render();
+        } catch (e) { /* ignore */ }
+    }
+}
+
+/** Apply YAML/JSON action rich keys onto a block after shape is built (per-action, not by entity). */
+function blockyApplyActionRich(block, action) {
+    if (!block || !action) return;
+    const eid = action.entity_id || block.getFieldValue("ENTITY");
+    const type = blockyEntityTypeOf(eid);
+
+    // Seed sticky keys before shape build so FieldDropdown accepts setValue.
+    if (action.station) block._pendingStation = String(action.station);
+    if (action.preset) block._pendingPreset = String(action.preset);
+
+    if (type === "blinds" || type === "shutter") {
+        blockySafeSetField(block, "STATE", "POS");
+        blockyActionUpdateRichShape(block);
+        blockySafeSetField(block, "OPEN_PCT", blockyOpenPctFromStored(action.state));
+        return;
+    }
+
+    if ((type === "light" || type === "hue") && String(action.state || "").toUpperCase() === "ON") {
+        if (action.preset) {
+            // _pendingPreset seeds HUE_MODE=PRESET + sticky dropdown option
+            blockyActionUpdateRichShape(block);
+            blockySafeSetField(block, "PRESET", action.preset);
+        } else if (action.bri != null || action.xy != null) {
+            if (action.bri != null) block._hueBri = Number(action.bri);
+            if (Array.isArray(action.xy) && action.xy.length >= 2) {
+                block._hueXy = [Number(action.xy[0]), Number(action.xy[1])];
+            }
+            block._hueHex = blockyXyToHex(
+                (block._hueXy && block._hueXy[0]) || 0.4575,
+                (block._hueXy && block._hueXy[1]) || 0.4099,
+                block._hueBri != null ? block._hueBri : 100
+            );
+            blockyActionUpdateRichShape(block);
+            blockySafeSetField(block, "HUE_MODE", "CUSTOM");
+            blockyActionUpdateRichShape(block);
+        } else {
+            blockyActionUpdateRichShape(block);
+        }
+        delete block._pendingPreset;
+        return;
+    }
+
+    if ((type === "speaker" || type === "media_player") && String(action.state || "").toUpperCase() === "ON") {
+        blockyActionUpdateRichShape(block);
+        if (action.volume != null) blockySafeSetField(block, "VOLUME", Number(action.volume));
+        if (action.station) blockySafeSetField(block, "STATION", action.station);
+        delete block._pendingStation;
+        return;
+    }
+
+    blockyActionUpdateRichShape(block);
+    delete block._pendingStation;
+    delete block._pendingPreset;
+}
+
+function blockyReadActionRich(block) {
+    const entity = block.getFieldValue("ENTITY");
+    const type = blockyEntityTypeOf(entity);
+    const origin = String(blockyEntityOriginOf(entity) || "").toLowerCase();
+    const out = { entity_id: entity, state: block.getFieldValue("STATE") };
+
+    if (type === "blinds" || type === "shutter") {
+        const openPct = block.getFieldValue("OPEN_PCT");
+        out.state = blockyStoredFromOpenPct(openPct != null ? openPct : 100);
+        return out;
+    }
+
+    if ((type === "light" || type === "hue") && out.state === "ON") {
+        const mode = block.getFieldValue("HUE_MODE") || "NONE";
+        if (mode === "PRESET") {
+            const preset = block.getFieldValue("PRESET");
+            if (preset) out.preset = preset;
+        } else if (mode === "CUSTOM") {
+            const bri = block._hueBri;
+            const xy = block._hueXy;
+            if (bri != null && !Number.isNaN(Number(bri))) out.bri = Number(bri);
+            if (Array.isArray(xy) && xy.length >= 2) {
+                const x = Number(xy[0]);
+                const y = Number(xy[1]);
+                if (!Number.isNaN(x) && !Number.isNaN(y)) out.xy = [x, y];
+            }
+        }
+        return out;
+    }
+
+    if ((type === "speaker" || type === "media_player") && out.state === "ON") {
+        const vol = block.getFieldValue("VOLUME");
+        if (vol !== "" && vol != null) {
+            const n = Number(vol);
+            if (!Number.isNaN(n)) out.volume = n;
+        }
+        if (origin === "sonos") {
+            const station = block.getFieldValue("STATION");
+            if (station) out.station = station;
+        }
+        return out;
+    }
+
+    return out;
 }
 
 function blockyCoerceFieldToOptions(block, fieldName, optionsFn) {
@@ -490,22 +1046,30 @@ function defineBlockyBlocks(Blockly, providers) {
     Blockly.Blocks.b_action_device = {
         init() {
             const block = this;
-            this.appendDummyInput()
+            this.appendDummyInput("MAIN")
                 .appendField("set device")
-                .appendField(new Blockly.FieldDropdown(entityActionDd), "ENTITY")
+                .appendField(new Blockly.FieldDropdown(entityActionDd, (newEid) => {
+                    queueMicrotask(() => {
+                        blockyCoerceFieldToOptions(block, "STATE", blockyActionStateOptions);
+                        blockyQueueRichShape(block, {});
+                    });
+                    return newEid;
+                }), "ENTITY")
                 .appendField("to")
-                .appendField(new Blockly.FieldDropdown(() => blockyActionStateOptions(block)), "STATE");
-            // Phase 6C: append preset / volume / station / open-% fields when entity type warrants it.
+                .appendField(new Blockly.FieldDropdown(
+                    () => blockyActionStateOptions(block),
+                    (newState) => {
+                        blockyQueueRichShape(block, { forceState: newState });
+                        return newState;
+                    }
+                ), "STATE");
             this.setPreviousStatement(true, "Action");
             this.setNextStatement(true, "Action");
             this.setColour(290);
+            blockyActionUpdateRichShape(this);
         },
-        onchange(ev) {
-            if (!this.workspace || this.isInFlyout) return;
-            if (ev && ev.type === "change" && ev.name === "ENTITY") {
-                blockyCoerceFieldToOptions(this, "STATE", blockyActionStateOptions);
-            }
-        }
+        // Shape updates come from field validators + blockyQueueRichShape (not onchange).
+        onchange() { /* intentional no-op */ }
     };
     Blockly.Blocks.b_action_event = {
         init() {
@@ -597,7 +1161,9 @@ const BlockyRT = {
     resizeObserver: null,
     windowResize: null,
     app: null,
-    richByEntity: {}
+    colorPicker: null,
+    pendingRichOpts: null,
+    richTimer: null
 };
 
 function blockyWs() {
@@ -614,7 +1180,12 @@ function blockyFingerprint(block) {
         }
         if (t === "b_condition_time") return `cond:time:${block.getFieldValue("TOD")}`;
         if (t === "b_action_device") {
-            return `act:device:${block.getFieldValue("ENTITY")}:${block.getFieldValue("STATE")}`;
+            const eid = block.getFieldValue("ENTITY");
+            const type = blockyEntityTypeOf(eid);
+            if (type === "blinds" || type === "shutter") {
+                return `act:device:${eid}:open:${block.getFieldValue("OPEN_PCT")}`;
+            }
+            return `act:device:${eid}:${block.getFieldValue("STATE")}`;
         }
         if (t === "b_action_event") return `act:event:${block.getFieldValue("EVENT")}`;
         // Cases and OR edges are allowed as multiples — no fingerprint
@@ -637,6 +1208,7 @@ function blockyCancelUniqueness() {
     BlockyRT.uniquenessScheduled = false;
     BlockyRT.pendingFieldEv = null;
     BlockyRT.pendingCreateRootId = null;
+    // Do not clear richTimer / pendingRichOpts — field validators own that path.
 }
 
 function blockyMoveCaseChain(fromRoot, toRoot) {
@@ -659,6 +1231,15 @@ function blockyMoveCaseChain(fromRoot, toRoot) {
     } catch (e) { /* ignore */ }
 }
 
+function blockyBlockCaseScope(b) {
+    let p = b;
+    while (p) {
+        if (p.type === "b_case") return p.id;
+        try { p = p.getParent(); } catch (e) { break; }
+    }
+    return "top";
+}
+
 function blockyEnforceUniqueness(forceToolbox) {
     const ws = blockyWs();
     if (BlockyRT.loading || BlockyRT.enforcing || !ws || !window.Blockly) return;
@@ -674,11 +1255,19 @@ function blockyEnforceUniqueness(forceToolbox) {
             const blk = ws.getBlockById(fieldEv.blockId);
             if (blk) {
                 const fp = blockyFingerprint(blk);
-                const other = fp && ws.getAllBlocks(false).find(
-                    (b) => b.id !== blk.id && blockyFingerprint(b) === fp
-                );
+                // Scope by case — ON-case Sonos OFF must not collide with OFF-case Sonos OFF.
+                const scope = blockyBlockCaseScope(blk);
+                const other = fp && ws.getAllBlocks(false).find((b) => (
+                    b.id !== blk.id
+                    && blockyFingerprint(b) === fp
+                    && blockyBlockCaseScope(b) === scope
+                ));
                 if (other) {
                     try { blk.setFieldValue(fieldEv.oldValue, fieldEv.name); } catch (e) { /* ignore */ }
+                    if (blk.type === "b_action_device"
+                        && (fieldEv.name === "STATE" || fieldEv.name === "ENTITY" || fieldEv.name === "HUE_MODE")) {
+                        blockyActionUpdateRichShape(blk);
+                    }
                     changed = true;
                 }
             }
@@ -705,6 +1294,7 @@ function blockyEnforceUniqueness(forceToolbox) {
         ws.getAllBlocks(false).forEach((b) => {
             const fp = blockyFingerprint(b);
             if (!fp || fp === "trigger") return;
+            // Immediate parent scope: allows same device twice in one case (per-action rich).
             const parent = b.getParent();
             const scope = parent ? parent.id : "top";
             const key = `${scope}::${fp}`;
@@ -742,13 +1332,41 @@ function blockyOnChange(ev) {
             }
         });
     }
-    if (isChange) BlockyRT.pendingFieldEv = ev;
+    let touchedActionId = null;
+    if (isChange) {
+        BlockyRT.pendingFieldEv = ev;
+        // Backup path: field validators usually queue rich shape; this covers setFieldValue.
+        if (ev.blockId && (ev.name === "STATE" || ev.name === "ENTITY" || ev.name === "HUE_MODE")) {
+            const ws = blockyWs();
+            const blk = ws && ws.getBlockById(ev.blockId);
+            if (blk && blk.type === "b_action_device") {
+                touchedActionId = blk.id;
+                const opts = {};
+                if (ev.name === "STATE") opts.forceState = ev.newValue;
+                if (ev.name === "HUE_MODE") {
+                    opts.forceHueMode = ev.newValue;
+                    opts.forceState = "ON";
+                    if (ev.newValue === "CUSTOM") opts.openWheel = true;
+                }
+                blockyQueueRichShape(blk, opts);
+            }
+        }
+    }
     if (BlockyRT.uniquenessScheduled) return;
     BlockyRT.uniquenessScheduled = true;
     BlockyRT.uniquenessTimer = setTimeout(() => {
         BlockyRT.uniquenessScheduled = false;
         BlockyRT.uniquenessTimer = null;
         blockyEnforceUniqueness(false);
+        // After uniqueness may revert STATE — re-sync from live fields (skip if a
+        // richer queued update with force* / openWheel is already pending).
+        if (touchedActionId && !BlockyRT.pendingRichOpts) {
+            const ws = blockyWs();
+            const blk = ws && ws.getBlockById(touchedActionId);
+            if (blk && blk.type === "b_action_device") {
+                blockyActionUpdateRichShape(blk);
+            }
+        }
         if (BlockyRT.app) {
             BlockyRT.app.blocklyUiTick = (BlockyRT.app.blocklyUiTick || 0) + 1;
             if (!BlockyRT.app.canShowOnDashboard) {
@@ -807,6 +1425,11 @@ function blockyConnectNext(start, blocks) {
 
 function blockyDestroyWorkspace() {
     blockyCancelUniqueness();
+    if (BlockyRT.richTimer) {
+        clearTimeout(BlockyRT.richTimer);
+        BlockyRT.richTimer = null;
+    }
+    BlockyRT.pendingRichOpts = null;
     if (BlockyRT.resizeObserver) {
         try { BlockyRT.resizeObserver.disconnect(); } catch (e) { /* ignore */ }
         BlockyRT.resizeObserver = null;
@@ -873,13 +1496,18 @@ function blockyApp() {
         automations: [],
         selectedRule: null,
         entityOptions: [],
+        huePresets: {},
+        sonosStations: {},
+        blockyColorTargetId: null,
+        blockyColorBri: 100,
+        blockyColorHex: "#FFD180",
         showHiddenEntities: false,
         editorMode: "blockly",
         editorDirty: false,
         suppressDirtyUntil: 0,
         pendingNav: null,
         blocklyFullscreen: false,
-            blocklySchemaVersion: 32,
+            blocklySchemaVersion: 41,
         blocklyUiTick: 0,
         eventFamilies: ["blinds", "twilight_evening", "twilight_morning", "sauna", "ir", "cinema"],
         eventFamilyLabels: {
@@ -1026,6 +1654,14 @@ function blockyApp() {
             if (BlockyRT.loading || Date.now() < (this.suppressDirtyUntil || 0)) return;
             if (!this.selectedRule) return;
             this.editorDirty = true;
+        },
+
+        applyBlockyHueColor() {
+            blockyApplyHueColorModal();
+        },
+
+        closeBlockyHueColor() {
+            blockyCloseHueColorModal();
         },
 
         markEditorClean() {
@@ -1197,6 +1833,7 @@ function blockyApp() {
                     type,
                     origin,
                     typeLabel,
+                    max_volume: meta.max_volume != null ? Number(meta.max_volume) : null,
                     // Honor Explorer soft-hide; exclusive Hidden toggle filters via visibleEntityOptions.
                     // Currently selected eids stay sticky in blocklyEntityDropdownOptions until cleared.
                     softHidden: Boolean(meta.hidden)
@@ -1465,18 +2102,18 @@ function blockyApp() {
                     return blockyMkBlock("b_action_event", { EVENT: a.event });
                 }
                 if (a.entity_id) {
-                    // Phase 6C: move rich fields onto the action block (keyed by entity alone can collide).
-                    BlockyRT.richByEntity[a.entity_id] = {
-                        preset: a.preset || "",
-                        bri: a.bri ?? "",
-                        xy: Array.isArray(a.xy) ? JSON.stringify(a.xy) : (a.xy || ""),
-                        volume: a.volume ?? "",
-                        station: a.station || ""
-                    };
+                    const type = blockyEntityTypeOf(a.entity_id);
+                    const isBlinds = type === "blinds" || type === "shutter";
+                    const blk = blockyMkBlock("b_action_device", {
+                        ENTITY: a.entity_id || this.firstEntityId("action"),
+                        STATE: isBlinds ? "POS" : (a.state || "ON")
+                    });
+                    blockyApplyActionRich(blk, a);
+                    return blk;
                 }
                 return blockyMkBlock("b_action_device", {
-                    ENTITY: a.entity_id || this.firstEntityId("action"),
-                    STATE: a.state || "ON"
+                    ENTITY: this.firstEntityId("action"),
+                    STATE: "ON"
                 });
             });
         },
@@ -1498,7 +2135,6 @@ function blockyApp() {
             if (!this.ensureBlocklyReady()) return;
             blockyCancelUniqueness();
             BlockyRT.loading = true;
-            BlockyRT.richByEntity = {};
             const Events = Blockly.Events;
             const wasEnabled = Events.isEnabled();
             try {
@@ -1532,10 +2168,11 @@ function blockyApp() {
                     blockyRefreshCaseMatchLabels(root.getNextBlock());
                 }
 
-                // Coerce action/condition STATE to type-valid options after load.
+                // Coerce action/condition STATE to type-valid options after load; rebuild rich shapes.
                 ws.getAllBlocks(false).forEach((b) => {
                     if (b.type === "b_action_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyActionStateOptions);
+                        blockyActionUpdateRichShape(b);
                     } else if (b.type === "b_condition_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyConditionStateOptions);
                     } else if (b.type === "b_case") {
@@ -1573,29 +2210,7 @@ function blockyApp() {
         _readActions(start) {
             return blockyReadChain(start, (b) => {
                 if (b.type === "b_action_event") return { event: b.getFieldValue("EVENT") };
-                const entity = b.getFieldValue("ENTITY");
-                const rich = BlockyRT.richByEntity[entity] || {};
-                const out = {
-                    entity_id: entity,
-                    state: b.getFieldValue("STATE")
-                };
-                if (rich.preset) out.preset = rich.preset;
-                if (rich.station) out.station = rich.station;
-                if (rich.bri !== "" && rich.bri != null) {
-                    const n = Number(rich.bri);
-                    if (!Number.isNaN(n)) out.bri = n;
-                }
-                if (rich.volume !== "" && rich.volume != null) {
-                    const n = Number(rich.volume);
-                    if (!Number.isNaN(n)) out.volume = n;
-                }
-                if (rich.xy) {
-                    try {
-                        const xy = JSON.parse(String(rich.xy));
-                        if (Array.isArray(xy)) out.xy = xy;
-                    } catch (e) { /* ignore */ }
-                }
-                return out;
+                return blockyReadActionRich(b);
             });
         },
 
@@ -1799,6 +2414,11 @@ function blockyApp() {
                 const rulesPayload = await rulesRes.json();
                 this.automations = (rulesPayload.automations || []).filter((r) => r && typeof r === "object");
                 this.rebuildEntityOptions(state.device_metadata || {}, this.automations);
+                const sys = (state && state.system) || {};
+                this.huePresets = (sys.hue_presets && typeof sys.hue_presets === "object")
+                    ? sys.hue_presets : {};
+                this.sonosStations = (sys.sonos_stations && typeof sys.sonos_stations === "object")
+                    ? sys.sonos_stations : {};
                 if (this.selectedRule && this.selectedRule.id && !this.editorDirty) {
                     const fresh = this.automations.find((r) => r.id === this.selectedRule.id);
                     if (fresh) this._doSelectRule(fresh);

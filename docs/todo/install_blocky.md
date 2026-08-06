@@ -1,6 +1,6 @@
 # ⚡ WanOS: Visual Automation Editor (IFTTT) Architecture Guide
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (next).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases 0–6C **done**; next = 7 / 8 / 9).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -94,9 +94,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE**. Phase **6B ✅ DONE** (incl. SYNC→ON/OFF on Pi). Contextual Blockly pickers (type-aware states, case match by trigger, OR-edges toolbox) shipped as a **6B follow-on**. Next: **6C** (rich action UX). Phase 7 = soft-hide UI; Phase 8 = lighting UI; Phase **9** = full Blockly↔JSON parity (JSON no longer required for any authorable rule).
+**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE**. Phase **6B ✅ DONE** (incl. SYNC→ON/OFF on Pi). Contextual Blockly pickers shipped as a **6B follow-on**. Phase **6C ✅ DONE** (rich action UX: Hue preset XOR custom color → bri/xy, blinds open %, Sonos/Onkyo volume, Sonos stations, per-action rich; operator smoke OK on Pi **2026-08-06**). Next: Phase 7 = soft-hide UI; Phase 8 = lighting UI; Phase **9** = full Blockly↔JSON parity.
 
-**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog. **Motion** is allowed as **When device** trigger only (garage/toilet); never as action. Soft-hidden / out-of-catalog eids that appear on the **open rule** are always listed for that picker role so Blockly does not fall back to the first device (e.g. `53?`). Actions = actuators only. Broader sensor / threshold authoring is **Phase 9** (after 6C rich actions).
+**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog. **Motion** is allowed as **When device** trigger only (garage/toilet); never as action. Soft-hidden / out-of-catalog eids that appear on the **open rule** are always listed for that picker role so Blockly does not fall back to the first device (e.g. `53?`). Actions = actuators only. Broader sensor / threshold authoring is **Phase 9** (6C rich actions closed).
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
@@ -166,7 +166,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 - `name`, `scene`, `require_confirmation`, …
 - `trigger` — wake-up only: one device, one event/family, or **OR-list** (edge discrimination lives in `cases` when using cases).
 - `cases` — ordered if / else-if / else: matchers (`to_state`, and/or `conditions`) + `actions`.
-- Action payloads may include rich keys (`preset`, `bri`, `xy`, `volume`, `station`, numeric blinds `state`) — **preserved**; authoring UX is Phase **6C**.
+- Action payloads may include rich keys (`preset`, `bri`, `xy`, `volume`, `station`, numeric blinds `state`) — **preserved**; Blocky rich authoring shipped in Phase **6C**.
 - `id` — last key in YAML.
 
 **Legacy → v2 map (migrator):**
@@ -192,7 +192,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 **Implemented:**
 1. Blockly read/write **v2 only**; retired branched/flat dual modes; schedule-window UX; one device root + cases; dashboard toggles only for event triggers.
 2. API GET/POST/PUT return **raw v2**.
-3. Cinema OFF (merged) + multi-trigger OR on one canvas; rich keys pass through pending 6C.
+3. Cinema OFF (merged) + multi-trigger OR on one canvas; rich keys authored in Blockly (Phase **6C**).
 4. SYNC/SYNCOPPOSITE retired → ON/OFF cases (see cutover below).
 
 **Operator smoke:** ✅ OK on Pi (2026-08-05) — Cinema, OR, ex-Y1/ex-mirror, schedule windows.
@@ -208,31 +208,33 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 **Rollback (emergency):** restore pre-cutover `automations.auto.yaml` **and** a build that still understood SYNC (current engine will not run leftover SYNC actions).
 
-### Phase 6C — Rich device action UX 🔜 TODO
+### Phase 6C — Rich device action UX ✅ DONE
 
-**Depends on:** 6B (one canvas) strongly preferred; can start after 6A if form/JSON still used, but ship Blockly UX against the unified canvas.
+**Depends on:** 6B (one canvas).
 
 **Goal:** author rich actions in Blocky without hand-YAML. Engine already supports these payloads; 6C is **editor UX + pickers** only.
 
 **Locked decisions (2026-08-06):**
 
-1. **Hue** — expose **preset** dropdown **and** raw **`bri` / `xy`** fields (not preserve-only). **Mutually exclusive on one action (A):** either `preset` **or** `bri`/`xy`, never both (keeps named presets as first-class; engine would overwrite bri/xy from preset anyway). `bri` range matches Hue bridge clamp: **0–100**. `xy` = numeric pair (same payload shape as YAML / engine).
-2. **Per-action rich storage** — fix in **6C** (not deferred to 9): rich keys live on each action block; retire `richByEntity[entity_id]` collision (same device twice with different rich must round-trip independently).
-3. **Sonos stations dictionary** — expose station keys to Blocky (mirror `hue_presets` pattern onto `/api/state` or equivalent); keys from `config.yaml` → `sonos.stations`.
+1. **Hue** — color mode on light **ON** actions: **named preset** | **custom color** (Explorer **iro** wheel → payload `bri`/`xy`) | **(no color)**. **Mutually exclusive on one action:** either `preset` **or** `bri`/`xy`, never both (named presets stay first-class; engine would overwrite bri/xy from preset anyway). Operator bri slider **1–100** (Explorer parity); engine clamp remains **0–100**. `xy` = numeric pair (same payload shape as YAML / engine).
+2. **Per-action rich storage** — rich keys live on each action block; retire `richByEntity[entity_id]` collision (same device twice with different rich must round-trip independently).
+3. **Sonos stations dictionary** — expose station keys to Blocky (mirror `hue_presets` onto `/api/state` as `system.sonos_stations`); keys from `config.yaml` → `sonos.stations`.
 4. **Volume bounds** — same ceilings as Device Explorer / bridges (device meta `max_volume`):
    - **Sonos:** **0–`max_volume`** from `config.sonos.max_volume` (currently **70**).
    - **Onkyo:** **0–`max_volume`** from `config.onkyo.max_volume` (currently **60**).
 5. **Onkyo in scope** — same volume authoring as Sonos. **`station` is Sonos-only** (no Onkyo station dictionary in code).
 6. **Blinds mid-position** — in scope: operator-facing **open %** including intermediate values (not only 0/100).
 
-**Work items:**
+**Shipped:**
 
-1. **Hue** — preset dropdown from `state.system.hue_presets`; editable `bri` / `xy` on light actions (exclusive of preset per #1); round-trip with device ON actions.
-2. **Blinds position** — operator **open %** (e.g. “open 10%” = stored `state: 90`); stored = **closed %** (`0` open … `100` closed), same as Device Explorer (`openPct = 100 - level`); document mapping in-phase. Replace interim action dropdown limited to `0` / `100`.
-3. **Sonos + Onkyo** — `volume` when ON (bounds per #4). Sonos also `station` from config dictionary. Enough to edit live rules like `pc_monitors` ON branch (Sonos rich) without JSON; Onkyo volume authorable even where live YAML is OFF-only today.
-4. **Per-action rich** — load/save rich on the action block itself (see locked #2).
+1. **Hue** — color mode named preset | custom color (wheel) | (no color) on light ON; presets from `state.system.hue_presets`; custom emits `bri`/`xy` only.
+2. **Blinds** — operator **open %** field; stored `state` = closed % (`100 − open`). Same **storage** convention as Device Explorer (Explorer UI is closed %; Blocky UI is open %).
+3. **Sonos + Onkyo** — `volume` when ON (bounds per #4). Sonos also `station` from `state.system.sonos_stations`.
+4. **Per-action rich** — fields on each `b_action_device` block (no `richByEntity`).
 
-**Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI, Phase 8 lighting config UI, full JSON↔Blockly parity (Phase **9** — 6C is the rich-action slice of that gap).
+**Operator smoke:** ✅ OK on Pi (**2026-08-06**) — Hue OFF clears color rows; named preset; custom color wheel Apply/Cancel; blinds mid open %; Sonos volume+station; Onkyo volume; uniqueness scoped by case (e.g. `pc_monitors`).
+
+**Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI, Phase 8 lighting config UI, full JSON↔Blockly parity (Phase **9** — 6C is the rich-action slice of that gap). XOR is enforced on the Blockly emit path; hand-edited JSON may still carry both `preset` and `bri`/`xy` until rewritten in Blockly.
 
 ### Phase 7 — Unified soft-hide (“hidden from Explorer / pickers”) 🔜 TODO
 
@@ -255,7 +257,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ### Phase 9 — Full Blockly ↔ JSON parity 🔜 TODO
 
-**Depends on:** Phase **6C** (rich action UX) must land first — that closes the largest live gap (`preset` / `bri`/`xy` / blinds open-% / Sonos+Onkyo `volume` / Sonos `station` / per-action rich). Phases **7** / **8** are orthogonal config UIs and may run in parallel; they are not prerequisites for 9.
+**Depends on:** Phase **6C** (landed 2026-08-06) — closed the largest live gap (`preset` / custom `bri`/`xy` / blinds open-% / Sonos+Onkyo `volume` / Sonos `station` / per-action rich). Phases **7** / **8** are orthogonal config UIs and may run in parallel; they are not prerequisites for 9.
 
 **Goal:** every automation that is valid to **author and save** as schema v2 can be created and edited entirely on the Blockly canvas. JSON mode remains only as a **debug / inspect** escape hatch (or is removed once parity is proven) — never required for operator workflow.
 
@@ -263,9 +265,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 | Gap | JSON | Blockly now | Phase 9 target |
 |-----|------|-------------|----------------|
-| Hue `preset` + raw `bri`/`xy`; Sonos `volume`/`station`; Onkyo `volume` | author | round-trip only (no fields) | **done in 6C**; 9 verifies no leftover rich-only JSON paths |
-| Blinds mid-position | author | 0/100 only (may coerce) | **done in 6C**; 9 verifies no coerce/loss |
-| Rich fields keyed by `entity_id` only | per-action | collision if same device twice with different rich | **done in 6C** (rich on each action block); 9 verifies |
+| Hue `preset` + custom `bri`/`xy` (wheel); Sonos `volume`/`station`; Onkyo `volume` | author | **done in 6C** (preset XOR custom color) | 9 verifies no leftover rich-only JSON paths |
+| Blinds mid-position | author | **done in 6C** (open %) | 9 verifies no coerce/loss |
+| Rich fields keyed by `entity_id` only | per-action | **done in 6C** (rich on each action block) | 9 verifies |
 | Sensors / temp / power / energy / fluid as When / if | typeable | excluded from catalog | role-aware pickers + engine-legal ops only |
 | Numeric / threshold conditions (e.g. “> 80”) | not really (engine = equality today) | none | **engine + blocks** if we want true thresholds; else document “equality only” and expose sensor state equality in Blockly |
 | `FORCE_ON` / `FORCE_OFF` beyond switches | freeform | switches only | expose wherever engine already honors them |
@@ -309,7 +311,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 🚦 Decisions locked (Blocky — ON/OFF merge)
 
-> **Phase 6A–6C supersession:** items below lock the **pre-v2** baseline (Y1 + X1) used through Phase 5. **Phase 6A** replaces dual Y1/flat **storage** with unified schema v2 (`trigger` + `cases`); **6B** unifies Blockly/list UX; **6C** adds rich action authoring. Until 6A migrates the file, these locks still describe production YAML.
+> **Phase 6A–6C supersession:** items below lock the **pre-v2** baseline (Y1 + X1) used through Phase 5. **Phase 6A** replaced dual Y1/flat **storage** with unified schema v2 (`trigger` + `cases`); **6B** unified Blockly/list UX; **6C** added rich action authoring (closed 2026-08-06). Production YAML is v2.
 
 1. **Persistence = first-class branched rule** (proposal B): one YAML rule with ON/OFF (or event-pair) branches — not two sibling flat rules kept forever. Blocky CRUD reads/writes the branched shape; runtime starts as **X1 expand-at-load**, then **X2 native** once CRUD is stable.
 2. **Pair key = same trigger `entity_id`** (device) or same event family for event pairs. Auto-group / migrate by that key.
@@ -334,7 +336,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 9. **E1 dictionary scope = E1-v1:** start with approved schedule/scene/sauna trigger set used by automations; add new entries only by explicit review.
 10. **Hard-deny extras = H1:** keep hard-deny minimal in v1 (safety/SSR/internal classes only); avoid broader hard-deny expansion until real operator pain appears.
 11. **UI scope = new page, admin-only:** Blocky is a dedicated admin route/page, not mixed into end-user pages.
-12. **UI strategy = Option 2 (Hybrid):** keep the current JSON/form editor as fallback + debugging path, and add Blockly visual mode incrementally. Do not remove the fallback editor until Blockly covers all live rule patterns and proves stable — that exit gate is **Phase 9** (after **6C** rich actions).
+12. **UI strategy = Option 2 (Hybrid):** keep the current JSON/form editor as fallback + debugging path, and add Blockly visual mode incrementally. Do not remove the fallback editor until Blockly covers all live rule patterns and proves stable — that exit gate is **Phase 9** (**6C** rich actions closed 2026-08-06).
 
 ## ✅ Final spec lock checklist (no code)
 
@@ -516,7 +518,7 @@ Phase 5 does **not** require a rollback rehearsal that depends on hand-edit + Ad
 
 1. **Phase 6A:** ✅ schema v2 + one-shot migrator + key order + preserve rich action fields on round-trip.
 2. **Phase 6B:** ✅ one Blockly canvas + Cinema one list entry + OR-trigger + SYNC→ON/OFF on Pi; JSON power-user only.
-3. **Phase 6C:** rich action UX — Hue preset + bri/xy, blinds open % (incl. mid), Sonos/Onkyo volume, Sonos station, per-action rich.
+3. **Phase 6C:** ✅ rich action UX — Hue preset XOR custom color (iro → bri/xy), blinds open % (incl. mid), Sonos/Onkyo volume, Sonos station, per-action rich; smoke OK Pi **2026-08-06**.
 4. **Phase 7:** unified soft-hide UI (“hidden from Explorer / pickers”) — one surface for `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes`.
 5. **Phase 8:** admin UI for `lighting` auto-off in `automations.auto.yaml`.
 6. **Phase 9:** full Blockly ↔ JSON parity — every authorable v2 rule editable on canvas; JSON debug-only (or removed).
@@ -580,14 +582,16 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [x] **Multi-trigger OR:** e.g. `KeukenLivingEetk_EetkHue` editable in Blockly without JSON.
 - [x] **Round-trip (Pi smoke):** ex-Y1, ex-flat/ex-mirror, merged Cinema — OK (2026-08-05).
 
-### Phase 6C DoD — Rich device action UX
+### Phase 6C DoD — Rich device action UX ✅
 
-- [ ] **Hue preset + bri/xy:** Blockly can set/show `preset` (e.g. `relax_red`) **or** raw `bri` (0–100) / `xy` on a light action — **not both**; round-trip.
-- [ ] **Blinds open % (incl. mid):** operator sets open percentage (not only 0/100); stored = closed % (`100 − open`); mapping documented.
-- [ ] **Sonos volume + station:** editable in Blocky; volume **0–`max_volume`** (`config.sonos.max_volume`, currently 70); stations from config via state/API; sufficient for live rules such as `pc_monitors`.
-- [ ] **Onkyo volume:** editable in Blocky; volume **0–`max_volume`** (device meta / `config.onkyo.max_volume`, currently 60); no station field.
-- [ ] **Per-action rich:** two actions on the same `entity_id` with different preset/volume/etc. round-trip independently (no `richByEntity` collision).
-- [ ] **Stations exposed:** Sonos station keys reachable from Blocky (not hand-YAML / hard-coded).
+**Operator smoke:** ✅ OK on Pi (**2026-08-06**).
+
+- [x] **Hue preset + custom color:** Blockly can set/show `preset` (display name from `hue_presets`) **or** custom color via Explorer iro wheel → `bri` (1–100 UI) / `xy` — **not both**; OFF clears color rows; wheel Apply/Cancel close cleanly; round-trip.
+- [x] **Blinds open % (incl. mid):** operator sets open percentage (not only 0/100); stored = closed % (`100 − open`); Blocky UI = open %, Explorer UI = closed %, same storage.
+- [x] **Sonos volume + station:** editable in Blocky; volume **0–`max_volume`** (`config.sonos.max_volume`, currently 70); stations from `state.system.sonos_stations`; sufficient for live rules such as `pc_monitors`.
+- [x] **Onkyo volume:** editable in Blocky; volume **0–`max_volume`** (device meta / `config.onkyo.max_volume`, currently 60); no station field.
+- [x] **Per-action rich:** two actions on the same `entity_id` with different preset/volume/etc. round-trip independently (no `richByEntity` collision); uniqueness scoped by case so ON/OFF cases do not fight.
+- [x] **Stations exposed:** Sonos station keys on `/api/state` as `system.sonos_stations`.
 
 ### Phase 9 DoD — Full Blockly ↔ JSON parity
 
