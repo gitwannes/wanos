@@ -391,9 +391,11 @@ function wanosApp() {
                 const idx = parseInt(idxStr, 10);
                 // Internal virtual lock flags should never be visible in Explorer (user or admin).
                 if (idx === 90001) continue;
+                // Hard-deny (Pi power) — never visible, even with Hidden toggle.
+                if (idx === 71040 || meta.entity_id === "switch.safety.safety_wisc_5v") continue;
 
                 // Hidden = meta.hidden or idx in system.hidden_explorer_idxs
-                // (from automations.auto.yaml deviceexplorer_exclude + Z-Wave hidden_nodes)
+                // (from automations.auto.yaml deviceexplorer_hide)
                 const hiddenIdxs = this.state.system.hidden_explorer_idxs || [];
                 const isHiddenDevice = meta.hidden === true
                     || hiddenIdxs.includes(idx) || hiddenIdxs.includes(Number(idxStr));

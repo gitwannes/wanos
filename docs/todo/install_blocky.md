@@ -73,7 +73,7 @@ Z-Wave slug source: **`| name |` segment only**.
 * Full cutover; **zero dual support** for numeric device idxs in rules.
 * Event-only triggers (`event: …`) unchanged.
 * Unresolved `entity_id` at runtime: **log + skip — do not kill the engine**.
-* Automatic domains live in **`automations.auto.yaml`** (`deviceexplorer_exclude`, `lighting`, `automations`).
+* Automatic domains live in **`automations.auto.yaml`** (`deviceexplorer_hide`, `lighting`, `automations`).
 
 ### Migration & cutover tooling (complete)
 
@@ -94,15 +94,15 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 0–5 **✅ DONE**. Phase **6A ✅ DONE**. Phase **6B ✅ DONE** (incl. SYNC→ON/OFF on Pi). Contextual Blockly pickers shipped as a **6B follow-on**. Phase **6C ✅ DONE** (rich action UX: Hue preset XOR custom color → bri/xy, blinds open %, Sonos/Onkyo volume, Sonos stations, per-action rich; operator smoke OK on Pi **2026-08-06**). Next: Phase 7 = soft-hide UI; Phase 8 = lighting UI; Phase **9** = full Blockly↔JSON parity.
+**Current status:** Phase 0–5 **✅ DONE**. Phase **6A–6C ✅ DONE**. **Phase 7 ✅ DONE** (`deviceexplorer_hide`, `/api/soft-hide`, `hiddendevices.html`; `zwave.hidden_nodes` / `deviceexplorer_exclude` removed). Next: Phase **8** = lighting UI; Phase **9** = full Blockly↔JSON parity.
 
 **Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog. **Motion** is allowed as **When device** trigger only (garage/toilet); never as action. Soft-hidden / out-of-catalog eids that appear on the **open rule** are always listed for that picker role so Blockly does not fall back to the first device (e.g. `53?`). Actions = actuators only. Broader sensor / threshold authoring is **Phase 9** (6C rich actions closed).
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
 1. Define **automation device deny-list** (which `entity_id`s / prefixes must not appear in pickers: safety, SSR, system-only, hidden, etc.).
-2. Automations / lighting / excludes already live in **`automations.auto.yaml`** — Blocky writes target that file (`ruamel` surgical write of `automations:`).
-   - **Comment (locked for current phase):** Write scope is **only `automations:`**. Keep soft-hide (`deviceexplorer_exclude` / Z-Wave `hidden_nodes`) for **Phase 7**; keep `lighting:` for **Phase 8**.
+2. Automations / lighting / soft-hide already live in **`automations.auto.yaml`** — Blocky writes target that file (`ruamel` surgical write of `automations:`).
+   - **Comment (historical through 6C):** Blocky write scope was **only `automations:`**. Soft-hide → **`deviceexplorer_hide`** = **Phase 7** ✅; `lighting:` = **Phase 8**.
 3. Inventory system events for the event dropdown dictionary.
 4. **ON/OFF merge model** — locked below (schema + migration of existing sibling pairs).
 
@@ -234,18 +234,31 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 **Operator smoke:** ✅ OK on Pi (**2026-08-06**) — Hue OFF clears color rows; named preset; custom color wheel Apply/Cancel; blinds mid open %; Sonos volume+station; Onkyo volume; uniqueness scoped by case (e.g. `pc_monitors`).
 
-**Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI, Phase 8 lighting config UI, full JSON↔Blockly parity (Phase **9** — 6C is the rich-action slice of that gap). XOR is enforced on the Blockly emit path; hand-edited JSON may still carry both `preset` and `bri`/`xy` until rewritten in Blockly.
+**Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI (✅ done), Phase 8 lighting config UI, full JSON↔Blockly parity (Phase **9** — 6C is the rich-action slice of that gap). XOR is enforced on the Blockly emit path; hand-edited JSON may still carry both `preset` and `bri`/`xy` until rewritten in Blockly.
 
-### Phase 7 — Unified soft-hide (“hidden from Explorer / pickers”) 🔜 TODO
+### Phase 7 — Unified soft-hide (“hidden from Explorer / pickers”) ✅ DONE
 
-**Today (no UI):** soft-hide is already one runtime concept (D1) — `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes` → `hidden_explorer_idxs` / `meta.hidden` — but operators still face two YAML homes (`automations.auto.yaml` vs `config_zwave.auto.yaml`).
+**Shipped:** one soft-hide model — SoT = **`deviceexplorer_hide`** in `automations.auto.yaml`; Admin → **Explorer hidden devices** (`hiddendevices.html` + `/api/soft-hide`); shared nav gear (no notifications bell); Z-Wave page has no hide UX; hard-deny = **71040** only (code fence); **71036** soft-hide + commandable + Blocky-selectable.
 
-**Phase 7 goal:** one operator-facing soft-hide model and admin UI (Blocky sibling page or Admin section):
-1. **One mental model** — “hide this `entity_id` from Explorer / Blocky pickers” is one action (D1 soft-hide). Blocky respects soft-hide unless the **Hidden** toggle is on (currently selected eids stay sticky until cleared).
-2. **One edit surface** — view/edit the full soft-hide set as a single list (or clear union), not an exclude editor plus a footnote about Z-Wave.
-3. **Storage** — either collapse `hidden_nodes` into `deviceexplorer_exclude` (Z-Wave UI writes the same key), or keep dual files with the UI as the single writer of the union; runtime already treats them as one list.
+**Historical (pre-cutover):** soft-hide was `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes`. One-shot `helpers/migrate_soft_hide.py` ran on Pi then was **removed** (same habit as 6A).
 
-**Constraints:** surgical `ruamel` writes of only soft-hide keys (same pattern as automations CRUD); never rewrite unrelated keys; Z-Wave map / other `config_zwave.auto.yaml` fields stay intact if dual storage remains; Admin Debug still GREEN after edits.
+#### Locked (as implemented)
+
+1. **Storage key = `deviceexplorer_hide`** in `automations.auto.yaml` (renamed from `deviceexplorer_exclude`). Soft-hide SoT = this key only. **No** dual-read of the old key.
+2. **`zwave.hidden_nodes` deleted** — membership migrated into `deviceexplorer_hide`. Runtime does **not** read `hidden_nodes`.
+3. **UI** — Admin → System Commands → **“Explorer hidden devices”** → **`hiddendevices.html`** (admin-only).
+4. **Z-Wave page** — map / USB / mesh only; must not emit soft-hide.
+5. **API** — admin **`GET` + full-list `PUT /api/soft-hide`**; body/response **`entity_ids: string[]`**; surgical `ruamel` write of **only** `deviceexplorer_hide:`; `CONFIG_RELOAD_REQUESTED` on save. Reject unknown eids; reject **71040** if present in PUT. Sorted unique eids on write.
+6. **List UX** — name + type; Explorer-equivalent search/filter; All / Hidden only / Non-hidden only; select / deselect all visible; clickable Name/Type sort. Inventory omits **71040** and internal `90001`; checked = hidden.
+7. **Hard-deny = 71040 only** — `switch.safety.safety_wisc_5v`: stays in Z-Wave `device_map`; **never** visible / selectable / switchable in Explorer, soft-hide page, or Blocky; bridge **keeps** outbound command drop. Hide via **code only (A)** — **not** in `deviceexplorer_hide`.
+8. **71036 SSR** — soft-hidden (in `deviceexplorer_hide`); **commandable**; **Blocky-selectable**.
+9. **Host / DB gauges** — soft-hide only (in `deviceexplorer_hide`); not hard-deny.
+10. **Hot-reload** — yes (same policy as Blocky Save).
+
+#### Constraints / notes
+
+- Surgical write of **only** `deviceexplorer_hide:` (never `automations:` / `lighting:` / unrelated keys).
+- D1 / Phase 0 historical prose: Phase 7 **supersedes** hard-deny to **71040 only** (+ `90001` skip unchanged); soft-hide key name = **`deviceexplorer_hide`**.
 
 ### Phase 8 — Config editor for `lighting` auto-off 🔜 TODO
 
@@ -286,8 +299,8 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 **Intentional permanent exceptions (not Phase 9 “gaps”):**
 
-- **Hard deny** (`switch.safety.*`, `switch.ssr.*`, host/infra sensors, etc.) — never selectable in Blockly; save still rejects. JSON must not become a bypass (keep the same validation).
-- **Non-automation config** (`deviceexplorer_exclude`, `lighting:`) — Phases 7 / 8, not Blockly rule canvas.
+- **Hard deny** — Phase 7: **`switch.safety.safety_wisc_5v` (71040) only** (code fence; not soft-hide). Internal `90001` remains skipped. JSON must not bypass. (Older D1 host_*/SSR hard-deny prefixes superseded for operator policy.)
+- **Non-automation config** (`deviceexplorer_hide`, `lighting:`) — Phases 7 / 8, not Blockly rule canvas.
 
 **Out of scope for 9:** redesign of schema v2 shape; Phase 7/8 storage UIs; kiosk/dashboard UX beyond existing `scene` / `require_confirmation` toggles.
 
@@ -322,10 +335,11 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 🚦 Decisions locked (Blocky — Phase 0 open items)
 
-1. **Deny-list = D1 (role-aware):**
-   * **Hard deny** (never in trigger / condition / action pickers): `switch.safety.*`, `switch.ssr.*`, host/infra sensors (`sensor.generic.host_*`, `sensor.temp_hum.host_*`, `sensor.generic.wanos_db_size`), virtual/internal (`90001` vent lock).
-   * **Soft hide** (picker default off; “Show Explorer-hidden devices”): union of `deviceexplorer_exclude` ∪ zwave `hidden_nodes`. Soft-hidden devices stay out of pickers unless the checkbox is on. **Exception:** eids already used in the **open rule** (same picker role) remain listed so that rule can still round-trip / edit.
-   * Everything else in live `device_metadata` (status ≠ removed) is allow.
+1. **Deny-list = D1 (role-aware)** — **Phase 7 supersession:**  
+   * **Hard deny** (never in Explorer / soft-hide page / Blocky pickers; never commandable): **`switch.safety.safety_wisc_5v` (71040) only** — code fence, not in `deviceexplorer_hide`.  
+   * **Soft hide** (picker/Explorer default off; “Show Explorer-hidden” / soft-hide page): **`deviceexplorer_hide`** only. Soft-hidden devices stay out of Blocky pickers unless the checkbox is on. **Exception:** eids already used in the **open rule** (same picker role) remain listed so that rule can still round-trip / edit.  
+   * **Internal:** idx `90001` vent lock skipped in Explorer (unchanged).  
+   * Everything else in live `device_metadata` (status ≠ removed) is allow (subject to role-aware picker filters).
 2. **YAML branch keys = Y1:** trigger without edge state; top-level `on:` / `off:` each with optional `conditions` + `actions`. One-sided = omit the unused key. Event pairs use the same ON/OFF metaphor (mapped via curated event dictionary).
 3. **Event dropdown = E1:** curated allow-list with friendly labels (not full `EventType`). Starter set = events already used in automations + intentional scene/schedule hooks; exclude toggles, telemetry, heartbeats, config/bus internals.
 4. **Migration = M1 (conservative):** auto-merge only when exactly one ON + one OFF sibling share the same trigger `entity_id` (or mapped event-ON + event-OFF), and neither is `SYNC`. Do **not** auto-merge when multiple ON (or multiple OFF) rules share an eid — leave for operator / later Blocky UX. Known case today: `switch.living_special` (3 rules × OR ON|OFF, condition-discriminated).
@@ -344,7 +358,7 @@ Mark each item `LOCKED` before implementation starts.
 
 ### A) Already locked
 
-- [x] **Scope:** Blocky writes only `automations:` (leave soft-hide for **Phase 7**, `lighting:` for **Phase 8**).
+- [x] **Scope:** Blocky writes only `automations:` through 6C; soft-hide → **`deviceexplorer_hide`** in **Phase 7**; `lighting:` in **Phase 8**.
 - [x] **UI access:** new page, admin-only.
 - [x] **Persistence model:** branched YAML (`on:` / `off:`), one-sided allowed.
 - [x] **Pairing rule:** same trigger `entity_id` (device) or mapped event family.
@@ -441,7 +455,7 @@ Run **once** on the Pi, **after** Phase 1 (Y1 loader) is deployed, **before** yo
 4. Run migration helper **`python3 helpers/migrate_automations_m1.py --dry-run`**. Read the plan. Stop if anything looks wrong.
 5. Dry-run must show: merges for clean ON/OFF pairs (e.g. `pc_monitors`, bathrooms); **no** merge for `SYNC` or `living_special`.
 6. Run migration helper **`python3 helpers/migrate_automations_m1.py --write`**.
-7. Diff backup vs new file. `lighting:` and `deviceexplorer_exclude:` must be unchanged.
+7. Diff backup vs new file. `lighting:` and `deviceexplorer_hide:` must be unchanged.
 8. Admin → reload config (`CONFIG_RELOAD_REQUESTED`).
 9. Admin → Debug → entity-registry check → **GREEN**.
 10. Smoke test: `pc_monitors` ON/OFF; bathroom 1e/2e; spare button (`living_special`); one SYNC rule; one scene if easy.
@@ -519,7 +533,7 @@ Phase 5 does **not** require a rollback rehearsal that depends on hand-edit + Ad
 1. **Phase 6A:** ✅ schema v2 + one-shot migrator + key order + preserve rich action fields on round-trip.
 2. **Phase 6B:** ✅ one Blockly canvas + Cinema one list entry + OR-trigger + SYNC→ON/OFF on Pi; JSON power-user only.
 3. **Phase 6C:** ✅ rich action UX — Hue preset XOR custom color (iro → bri/xy), blinds open % (incl. mid), Sonos/Onkyo volume, Sonos station, per-action rich; smoke OK Pi **2026-08-06**.
-4. **Phase 7:** unified soft-hide UI (“hidden from Explorer / pickers”) — one surface for `deviceexplorer_exclude` ∪ Z-Wave `hidden_nodes`.
+4. **Phase 7:** ✅ unified soft-hide — **`deviceexplorer_hide`**; `hiddendevices.html` + `/api/soft-hide`; hard-deny = 71040 (A); 71036 soft-hide + commandable + Blocky-selectable; migrator removed after cutover.
 5. **Phase 8:** admin UI for `lighting` auto-off in `automations.auto.yaml`.
 6. **Phase 9:** full Blockly ↔ JSON parity — every authorable v2 rule editable on canvas; JSON debug-only (or removed).
 
@@ -592,6 +606,21 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [x] **Onkyo volume:** editable in Blocky; volume **0–`max_volume`** (device meta / `config.onkyo.max_volume`, currently 60); no station field.
 - [x] **Per-action rich:** two actions on the same `entity_id` with different preset/volume/etc. round-trip independently (no `richByEntity` collision); uniqueness scoped by case so ON/OFF cases do not fight.
 - [x] **Stations exposed:** Sonos station keys on `/api/state` as `system.sonos_stations`.
+
+### Phase 7 DoD — Unified soft-hide UI ✅
+
+- [x] **One source + rename:** soft-hide = **`deviceexplorer_hide`** only in `automations.auto.yaml`; legacy `deviceexplorer_exclude` removed; `hidden_nodes` migrated + deduped then **deleted**; runtime does not read old keys.
+- [x] **Helpers migrator:** ran on Pi then **removed** from tree; 71040 stripped from hide list; Debug GREEN after restart.
+- [x] **Admin entry:** System Commands → **“Explorer hidden devices”** opens **`hiddendevices.html`** (admin-only).
+- [x] **Z-Wave UX removed:** Z-Wave config page no longer edits or writes `hidden_nodes`.
+- [x] **API:** `GET` + full-list `PUT /api/soft-hide` (`entity_ids`); surgical write of `deviceexplorer_hide:` only; hot-reload on save.
+- [x] **List UX:** name + type; Explorer-equivalent search/filter; select/deselect all **visible**.
+- [x] **Hard-deny (A):** only `switch.safety.safety_wisc_5v` (**71040**) — code-filtered from Explorer / soft-hide page / Blocky; **not** in `deviceexplorer_hide`; outbound commands still dropped.
+- [x] **71036:** soft-hidden via `deviceexplorer_hide` / new page; **commandable** (no bridge outbound drop); **Blocky-selectable**; host_* / `wanos_db_size` soft-hidden only (not hard-deny).
+- [x] **Surgical write + hot-reload:** save writes only `deviceexplorer_hide:`; dispatches `CONFIG_RELOAD_REQUESTED`; no routine Admin reload.
+- [x] **Runtime / Explorer / Blocky:** soft-hide set matches saved list after reload; 71040 never appears; Explorer Hidden toggle + Blocky soft-hide / sticky behavior still correct for soft-hidden eids.
+- [x] **Admin Debug GREEN** after representative hide/unhide.
+- [x] **Pi smoke:** hide/unhide path exercised; Z-Wave save does not write soft-hide; 71040 absent from operator UIs.
 
 ### Phase 9 DoD — Full Blockly ↔ JSON parity
 

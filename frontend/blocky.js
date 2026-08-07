@@ -1530,10 +1530,7 @@ function blockyApp() {
             "SCENE_CINEMA_ON", "SCENE_CINEMA_OFF", "SCENE_ALL_OFF", "SCENE_GOCOSY",
             "SCENE_GV_OFF", "SCENE_VERDIEP1_OFF", "SCENE_VERDIEP2_OFF"
         ],
-        hardDenyPrefixes: [
-            "switch.safety.", "switch.ssr.",
-            "sensor.generic.host_", "sensor.temp_hum.host_", "sensor.generic.wanos_db_size"
-        ],
+        hardDenyEntityIds: ["switch.safety.safety_wisc_5v"],
         editor: {
             id: "",
             name: "",
@@ -1810,7 +1807,7 @@ function blockyApp() {
         isHardDeniedEntityId(eid) {
             if (!eid) return false;
             const v = String(eid);
-            return this.hardDenyPrefixes.some((p) => v.startsWith(p));
+            return (this.hardDenyEntityIds || []).includes(v);
         },
 
         rebuildEntityOptions(deviceMetadata, _automations) {

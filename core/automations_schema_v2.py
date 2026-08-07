@@ -678,7 +678,9 @@ def migrate_rules_to_v2(
 
 
 def validate_v2_entity_ids(rule: Dict[str, Any]) -> None:
-    """Raise ValueError if any entity_id looks numeric."""
+    """Raise ValueError if any entity_id looks numeric or is hard-deny."""
+    from core.well_known_entities import is_hard_deny_entity_id
+
     def visit(node: Any, path: str) -> None:
         if isinstance(node, list):
             for i, it in enumerate(node):
@@ -689,6 +691,8 @@ def validate_v2_entity_ids(rule: Dict[str, Any]) -> None:
         eid = node.get("entity_id")
         if isinstance(eid, str) and _NUMERIC_IDX_RE.match(eid):
             raise ValueError(f"{path}.entity_id must not be a numeric idx")
+        if isinstance(eid, str) and is_hard_deny_entity_id(eid):
+            raise ValueError(f"{path}.entity_id blocked by hard-deny policy: {eid}")
         for k, v in node.items():
             visit(v, f"{path}.{k}" if path else k)
 

@@ -1,4 +1,3 @@
-
   # ==============================================================================
   # config_zwave.auto.yaml
 
@@ -11,7 +10,6 @@ zwave:
   # The physical hardware path used by WanOS to verify the stick is plugged in
   usb_path: "/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00"
 
-  hidden_nodes: [switch.badk_1e_hue_physical, switch.badk_2e_hue_physical, switch.vent.toilet_ventilatie_motor, switch.badk_2e_binnen_unused, switch.slpk_wannes_hue_physical, switch.living_special, switch.sauna_hue_physical, switch.ssr.safety_ssr_12v, switch.safety.safety_wisc_5v, switch.53, sensor.generic.mains_voltage, switch.pc, switch.kerst_lichten_tuin, sensor.power.pc_power, sensor.power.pc_monitors_power, sensor.generic.garage_motion, sensor.generic.toilet_motion]
 
   device_map:
     # 71000: light
@@ -47,7 +45,8 @@ zwave:
     71035: "76/37/2 | sauna hue physical | 7561"
     71036: "78/37/1 | safety SSR (12V) | 8567 = SSR"
     71038: "79/37/1 | sauna ventilator | 8577"
-    71040: "80/37/1 | safety Wisc (5V) | 8668 = power to the Pi itself - if this is OFF, this code cannot run :-)"
+    71040: "80/37/1 | safety Wisc (5V) | 8668 = power to the Pi itself - if this is
+      OFF, this code cannot run :-)"
     71043: "84/37/1 | toilet | 9645"
     71044: "84/37/2 | toilet ventilatie | 9648"
     71045: "53/37/0 | 53?"

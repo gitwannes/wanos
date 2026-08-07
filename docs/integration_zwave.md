@@ -32,7 +32,7 @@ The Z-Wave bridge incorporates several specialized routing mechanisms to handle 
 *   **100% Clamping (CC 38):** Hardware Z-Wave dimmers and blinds max out at an internal byte limit of `99`. The bridge explicitly intercepts a `99` value and translates it to `100` so the WanOS UI sliders show a perfect 100%. When a user sends a `100%` command, the bridge translates it back to `99` before MQTT transmission.
 *   **Dual-Dispatch (Power & Sensors):** For sensors reporting power (W), temperature (deg C), or humidity (%), the bridge dispatches two distinct events simultaneously. One routes the raw float for background math engines (`POWER_UPDATED`, `TEMP_UPDATED`), while the other routes a pre-formatted string (e.g., `233.0 V` or `15 W`) directly to the Device Explorer UI (`HUB_STATE_CHANGED`).
 *   **Infinite Echo Guard:** If an outbound command originates from `zwave` itself, the bridge silently drops it to prevent bouncing commands back into the MQTT broker, unless explicitly flagged with `force: True`.
-*   **Read-Only Safety Interlock:** To protect foundational hardware, the bridge explicitly intercepts and drops unauthorized outbound switch commands to the master 5V and 12V safety relays (IDXs `71036` and `71040`).
+*   **Read-Only Safety Interlock:** To protect foundational hardware, the bridge explicitly intercepts and drops unauthorized outbound switch commands to the Pi power safety relay (IDX `71040` / `switch.safety.safety_wisc_5v`). SSR (`71036`) is commandable; soft-hide via `deviceexplorer_hide` only.
 
 ## 5. The Continuous Listening Loop (The Inbox)
 While armed, the bridge parses all incoming MQTT JSON payloads. 

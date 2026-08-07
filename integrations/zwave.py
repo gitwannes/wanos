@@ -446,20 +446,8 @@ class ZWaveJSUIBridge(WanosComponent):
                         ))
                         await self.logger.warning(f"[Z-Wave] Orphaned node (IDX {old_idx}) purged from RAM.")
 
-                # Extract currently loaded baseline exclusions to seamlessly merge tracking lists
+                # Soft-hide baseline from deviceexplorer_hide (+ motion auto-hide below)
                 hidden_list: list[int] = list(self.state_manager._state.system.hidden_explorer_idxs)
-
-                # ⚡ Merge dedicated Z-Wave hidden entity_ids into the global UI exclusion list
-                zwave_hidden_nodes = getattr(zwave_conf, "hidden_nodes", []) or []
-                for ref in zwave_hidden_nodes:
-                    h_idx = self.state_manager.resolve_entity_id(str(ref))
-                    if h_idx is None:
-                        await self.logger.warning(
-                            f"[Z-Wave] hidden_nodes: unresolved entity_id '{ref}'"
-                        )
-                        continue
-                    if h_idx not in hidden_list:
-                        hidden_list.append(h_idx)
 
                 self.idx_to_name.clear()
                 self.name_to_idx.clear()
@@ -560,15 +548,13 @@ class ZWaveJSUIBridge(WanosComponent):
             if origin == "zwave" and not is_force:
                 continue
 
-            # ⚡ READ-ONLY MASTER SAFETY INTERLOCK:
-            # Hard-block outbound state changes to our foundational 5V power supply modules.
-            # Even if a user bypasses the UI and forces an API event, the bridge will silently
-            # drop the command to preserve the physical hardware AND-gate interlock.
-            if idx in [71036, 71040]:
-                # 71036 = safety 12V = SSR
-                # 71040 = safety 5V = Pi itself - without this this code cannot run :-)
+            # ⚡ READ-ONLY HARD-DENY INTERLOCK: Pi power relay only (71040).
+            # SSR 71036 is commandable; soft-hidden via deviceexplorer_hide.
+            if idx == 71040:
                 await self.logger.warning(
-                    f"🛡️ Z-Wave Bridge intercepted and dropped an unauthorized outbound command to Master Safety Relay (IDX {idx}).")
+                    f"🛡️ Z-Wave Bridge intercepted and dropped an unauthorized outbound command to "
+                    f"Pi safety relay (IDX {idx})."
+                )
                 continue
 
             prop_path = self.idx_to_name.get(idx)

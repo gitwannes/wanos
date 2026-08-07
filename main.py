@@ -41,6 +41,8 @@ from core.automations_store import (
     read_automations,
     update_automation,
 )
+from core.soft_hide_store import read_soft_hide_entity_ids, write_soft_hide_entity_ids
+from core.well_known_entities import is_hard_deny_entity_id
 from core.automations_schema_v2 import (
     is_v2_rule,
     legacy_to_v2,
@@ -548,6 +550,59 @@ async def delete_automation_api(req_body: AutomationsRuleIdRequest, req: Request
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
     return {"status": "Success"}
+
+
+class SoftHidePutRequest(BaseModel):
+    entity_ids: list[str]
+
+
+@app.get("/api/soft-hide")
+async def get_soft_hide(req: Request) -> dict[str, Any]:
+    """Admin: list soft-hidden entity_ids (deviceexplorer_hide)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    return {"entity_ids": read_soft_hide_entity_ids()}
+
+
+@app.put("/api/soft-hide")
+async def put_soft_hide(body: SoftHidePutRequest, req: Request) -> dict[str, Any]:
+    """Admin: replace soft-hide list; surgical write + hot-reload."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    # Validate known eids against live registry when available
+    unknown: list[str] = []
+    denied: list[str] = []
+    for raw in body.entity_ids:
+        eid = str(raw).strip()
+        if not eid:
+            continue
+        if is_hard_deny_entity_id(eid):
+            denied.append(eid)
+            continue
+        if state_manager.resolve_entity_id(eid) is None:
+            unknown.append(eid)
+    if denied:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Hard-deny entity_ids not allowed: {', '.join(denied)}"},
+        )
+    if unknown:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Unknown entity_ids: {', '.join(unknown)}"},
+        )
+
+    try:
+        written = write_soft_hide_entity_ids(body.entity_ids)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        logger.error(f"soft-hide write failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to write soft-hide list."})
+
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    return {"status": "Success", "entity_ids": written}
 
 
 @app.get("/api/state")

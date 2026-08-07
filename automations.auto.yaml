@@ -1,44 +1,41 @@
-# ==============================================================================
-# WanOS automatic / UI-owned configuration (automations.auto.yaml)
-# ==============================================================================
-# Owned by WanOS / future UI (Device Explorer exclude, lighting auto-off, automations).
-# Manual runtime settings remain in config.yaml.
-# Z-Wave mesh hidden_nodes live in config_zwave.auto.yaml (merged at runtime).
-# ==============================================================================
-
-
-# Devices hidden from Device Explorer (and Sensor History list unless "Hidden" is on).
-# entity_ids for WanOS-owned devices. Z-Wave mesh uses config_zwave.auto.yaml → hidden_nodes
-# (merged into the same runtime list at bridge start).
-deviceexplorer_exclude:
-  - switch.cinema_projector
-  - switch.kerstboom
-  - switch.kerst_lichten_voor
-  - switch.kerst_lichten_tuin
+deviceexplorer_hide:
   - hue.group.verd_0_hue
   - hue.group.verd_1_hue
   - hue.group.verd_2_hue
   - sensor.energy.kwh_meter
   - sensor.fluid.koud_water
   - sensor.fluid.warm_water
-  - sensor.door.sauna_deur
-  - sensor.door.badkamer_deur
-  - sensor.temp_hum.host_cpu_temperature
+  - sensor.generic.garage_motion
   - sensor.generic.host_cpu_usage
-  - sensor.generic.host_memory_free
   - sensor.generic.host_disk_free_root
-  - sensor.generic.host_log2ram_free
+  - sensor.generic.host_load_average_15m
   - sensor.generic.host_load_average_1m
   - sensor.generic.host_load_average_5m
-  - sensor.generic.host_load_average_15m
+  - sensor.generic.host_log2ram_free
+  - sensor.generic.host_memory_free
+  - sensor.generic.mains_voltage
+  - sensor.generic.toilet_motion
   - sensor.generic.wanos_db_size
+  - sensor.power.pc_monitors_power
+  - sensor.power.pc_power
+  - sensor.temp_hum.host_cpu_temperature
   - sensor.temp_hum.sauna_high
   - sensor.temp_hum.sauna_low
-
-# ==============================================================================
-# LIGHTING (managed lights / auto-off delays)
-# ==============================================================================
-
+  - switch.53
+  - switch.badk_1e_hue_physical
+  - switch.badk_2e_binnen_unused
+  - switch.badk_2e_hue_physical
+  - switch.cinema_projector
+  - switch.kerst_lichten_tuin
+  - switch.kerst_lichten_voor
+  - switch.kerstboom
+  - switch.living_special
+  - switch.pc
+  - switch.sauna_hue_physical
+  - switch.slpk_wannes_hue_physical
+  - switch.ssr.safety_ssr_12v
+  - switch.vent.sauna_ventilator
+  - switch.vent.toilet_ventilatie_motor
 lighting:
   # The engine will ONLY apply auto-off rules to entity_ids explicitly listed here
   managed_lights: [switch.licht_living, switch.licht_keuken, switch.gang_beneden,
@@ -721,17 +718,17 @@ automations:
           - entity_id: switch.sauna_zoutlamp
             state: "OFF"
     id: e4fa952f-e625-4fd9-b2c9-dad8ec4d26cb
-  - name: "--- CINEMA ON"
+  - name: '--- CINEMA ON'
     scene: true
     require_confirmation: true
     trigger:
-      event: "SCENE_CINEMA_ON"
+      event: SCENE_CINEMA_ON
     cases:
       - actions:
           - entity_id: switch.cinema_projector
             state: "ON"
           - entity_id: blinds.cinema
-            state: "100"
+            state: '100'
           - entity_id: switch.buro_licht
             state: "OFF"
           - entity_id: switch.cinema_licht
@@ -740,13 +737,15 @@ automations:
             state: "OFF"
           - entity_id: switch.gang_boven
             state: "OFF"
+          - entity_id: switch.buro_wannes_schemer
+            state: "OFF"
           - entity_id: switch.pc_monitors
             state: "OFF"
           - entity_id: media_player.buro
             state: "OFF"
           - entity_id: hue.group.cinema_hue
             state: "ON"
-            preset: "relax_red"
+            preset: relax_red
     id: e5a56e29-3ad8-46bf-9f1b-3bdeca33ee35
   - name: "--- CINEMA OFF"
     scene: true

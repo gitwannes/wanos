@@ -311,15 +311,15 @@ class StateManager:
                 yaml_idxs.add(i)
                 self.ensure_entity_id(i)
 
-        # Exclude-list placeholders (entity_id in YAML → resolve to idx)
+        # Soft-hide placeholders (entity_id in YAML → resolve to idx)
         exclusions: list[int] = []
-        for ref in (getattr(self._config, "deviceexplorer_exclude", None) or []):
+        for ref in (getattr(self._config, "deviceexplorer_hide", None) or []):
             eid = str(ref).strip()
             if not eid:
                 continue
             idx = self.entity_registry.resolve(eid)
             if idx is None:
-                logger.warning(f"deviceexplorer_exclude: unresolved entity_id '{eid}'")
+                logger.warning(f"deviceexplorer_hide: unresolved entity_id '{eid}'")
                 continue
             exclusions.append(idx)
             yaml_idxs.add(idx)
@@ -363,7 +363,7 @@ class StateManager:
                 }
             ))
 
-        # Apply hidden flags from deviceexplorer_exclude (Z-Wave merges call this again)
+        # Apply hidden flags from deviceexplorer_hide
         self.sync_hidden_metadata()
 
         # Birth / freeze entity_ids for every live metadata row; persist entity_registry.auto.yaml
@@ -388,8 +388,7 @@ class StateManager:
         """
         Single rule for Explorer / History visibility:
         meta.hidden = idx in system.hidden_explorer_idxs
-        (populated from automations.auto.yaml deviceexplorer_exclude entity_ids → idxs,
-         then Z-Wave hidden_nodes entity_ids merged at bridge start).
+        (populated from automations.auto.yaml deviceexplorer_hide entity_ids → idxs).
         """
         hidden = set()
         for x in (self._state.system.hidden_explorer_idxs or []):

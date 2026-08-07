@@ -232,7 +232,7 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
             put(idx, name=name, dtype="speaker", origin="onkyo")
     if cfg.get("epson"):
         put(80001, name="cinema projector", dtype="switch", origin="epson")
-    for eid in auto_cfg.get("deviceexplorer_exclude") or cfg.get("deviceexplorer_exclude") or []:
+    for eid in auto_cfg.get("deviceexplorer_hide") or cfg.get("deviceexplorer_hide") or []:
         if eid:
             hidden.add(str(eid).strip())
 
@@ -267,9 +267,6 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
     zw = load_yaml(root / "config_zwave.auto.yaml") or {}
     zwave = zw.get("zwave") if isinstance(zw, dict) else None
     if isinstance(zwave, dict):
-        for eid in zwave.get("hidden_nodes") or []:
-            if eid:
-                hidden.add(str(eid).strip())
         for idx, raw in (zwave.get("device_map") or {}).items():
             try:
                 i = int(idx)

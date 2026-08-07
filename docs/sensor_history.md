@@ -344,4 +344,4 @@ Same retention and Sensors-list master–detail as actuators. Motion stays defau
 
 `22009` = sum of `sensor_history.db` + `device_history.db` + `sauna_sessions.db` including `-wal`/`-shm` sidecars.
 
-Ingested from `HUB_STATE_CHANGED` (health_monitor ~60s; Z-Wave voltage). Charts: day line + month/year min/max (same shape as power). Visibility follows `deviceexplorer_exclude` / Hidden toggle (same as Device Explorer; excludes live in `automations.auto.yaml`).
+Ingested from `HUB_STATE_CHANGED` (health_monitor ~60s; Z-Wave voltage). Charts: day line + month/year min/max (same shape as power). Visibility follows `deviceexplorer_hide` / Hidden toggle (same as Device Explorer; hide list lives in `automations.auto.yaml`).

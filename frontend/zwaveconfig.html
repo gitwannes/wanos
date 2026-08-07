@@ -20,67 +20,59 @@
 
     <link rel="manifest" href="/favicon/site.webmanifest" />
 
-    <title>Z-Wave Configuration Editor</title>
+    <title>WanOS // Admin - Z-Wave</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="/wanos.css?v=1" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
-<body class="bg-base-300 min-h-screen text-base-content p-6" x-data="zwaveApp()">
+<body class="bg-base-300 min-h-screen text-base-content" x-data="zwaveApp()" x-init="init()">
 
     <div data-wanos-offline data-tone="error"></div>
+    <div data-wanos-nav="zwave"></div>
 
-    <header class="mb-8 flex justify-between items-center max-w-7xl mx-auto">
-        <div class="flex items-center gap-4">
-            <a href="admin.html" class="btn btn-ghost btn-circle text-base-content/50 hover:text-primary transition-colors" title="Return to Admin">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-            </a>
-            <div>
-                <h1 class="text-2xl font-black text-primary uppercase tracking-widest">⚡ Z-Wave Provisioning</h1>
-                <p class="text-xs text-base-content/50 font-mono mt-1">Unified Endpoint Editor</p>
-            </div>
-        </div>
+    <main class="flex flex-col gap-6 max-w-7xl mx-auto px-3 md:px-6 pb-10">
 
-        <div class="flex gap-4 items-center">
-            <span class="badge font-bold mr-2 hidden md:inline-flex" :class="connected ? 'badge-success' : 'badge-error'" x-text="connected ? 'SSE CONNECTED' : 'OFFLINE'"></span>
-
-            <button class="btn btn-outline btn-warning btn-sm font-bold tracking-widest shadow-sm shrink-0" @click="requestConfigReload()" :disabled="configReloading">
-                <span x-show="!configReloading">RELOAD CONFIG</span>
-                <span x-show="configReloading" class="loading loading-spinner loading-xs"></span>
-            </button>
-            <button @click="injectAndDownloadYAML()" class="btn btn-primary btn-sm font-bold uppercase tracking-wider shadow-lg">Inject Config & Download</button>
-        </div>
-    </header>
-
-    <main class="flex flex-col gap-6 max-w-7xl mx-auto">
-
-        <div x-show="errorMessage" x-transition class="alert alert-error font-bold font-mono text-sm shadow-md border-red-500 py-3">
+        <div x-show="errorMessage" x-transition class="alert alert-error font-bold font-mono text-sm shadow-md border-red-500 py-3" x-cloak>
             <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             <span x-text="errorMessage"></span>
         </div>
+        <div x-show="infoMessage" class="alert alert-success text-sm" x-cloak>
+            <span x-text="infoMessage"></span>
+        </div>
 
         <div class="bg-base-100 shadow-xl border border-base-200 rounded-box p-3">
-            <div class="flex flex-col md:flex-row gap-3 items-center w-full">
-                <div class="form-control flex-1 w-full">
-                    <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 focus-within:outline-none focus-within:border-primary w-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
-                        <input type="text" class="grow font-mono text-xs w-full" placeholder="Search nodes, paths or IDXs..." x-model="searchQuery" />
-                    </label>
-                </div>
-                <select class="select select-bordered select-sm w-full md:w-auto font-mono text-xs bg-base-200" x-model="typeFilter">
-                    <option value="ALL">All Types</option>
-                    <option value="switch">Switch</option>
-                    <option value="shutter">Shutter</option>
-                    <option value="power">Power</option>
-                    <option value="motion">Motion</option>
-                    <option value="temp&hum">Temp & Hum</option>
-                </select>
+            <div class="flex flex-col gap-3 w-full">
+                <div class="flex flex-col md:flex-row gap-3 items-center w-full">
+                    <div class="form-control flex-1 w-full">
+                        <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 focus-within:outline-none focus-within:border-primary w-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
+                            <input type="text" class="grow font-mono text-xs w-full" placeholder="Search nodes, paths or IDXs..." x-model="searchQuery" />
+                        </label>
+                    </div>
+                    <select class="select select-bordered select-sm w-full md:w-auto font-mono text-xs bg-base-200" x-model="typeFilter">
+                        <option value="ALL">All Types</option>
+                        <option value="switch">Switch</option>
+                        <option value="shutter">Shutter</option>
+                        <option value="power">Power</option>
+                        <option value="motion">Motion</option>
+                        <option value="temp&hum">Temp & Hum</option>
+                    </select>
 
-                <select class="select select-bordered select-sm w-full md:w-auto font-mono text-xs bg-base-200" x-model="sortMode">
-                    <option value="NODE">Sort by Node/Path</option>
-                    <option value="IDX">Sort by IDX</option>
-                    <option value="NAME">Sort by Name</option>
-                </select>
+                    <select class="select select-bordered select-sm w-full md:w-auto font-mono text-xs bg-base-200" x-model="sortMode">
+                        <option value="NODE">Sort by Node/Path</option>
+                        <option value="IDX">Sort by IDX</option>
+                        <option value="NAME">Sort by Name</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-wrap gap-2 items-center">
+                    <button type="button" class="btn btn-primary btn-sm ml-auto font-bold tracking-wider"
+                            @click="saveAndReloadConfig()" :disabled="configReloading || !dirty">
+                        <span x-show="!configReloading">Save &amp; reload config</span>
+                        <span x-show="configReloading" class="loading loading-spinner loading-xs"></span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -91,13 +83,21 @@
                         <thead>
                             <tr class="text-base-400 font-mono text-[10px] uppercase tracking-wider">
                                 <th>Add</th>
-                                <th>Hide</th>
                                 <th>Node</th>
-                                <th>Type</th>
-                                <th>MQTT Path</th>
+                                <th class="cursor-pointer select-none hover:text-base-content"
+                                    @click="toggleSort('TYPE')">
+                                    <span x-text="'Type' + sortIndicator('TYPE')"></span>
+                                </th>
+                                <th class="cursor-pointer select-none hover:text-base-content"
+                                    @click="toggleSort('PATH')">
+                                    <span x-text="'MQTT Path' + sortIndicator('PATH')"></span>
+                                </th>
                                 <th>Latest Value</th>
                                 <th>IDX</th>
-                                <th>Name</th>
+                                <th class="cursor-pointer select-none hover:text-base-content"
+                                    @click="toggleSort('NAME')">
+                                    <span x-text="'Name' + sortIndicator('NAME')"></span>
+                                </th>
                                 <th>Comment</th>
                             </tr>
                         </thead>
@@ -106,9 +106,6 @@
                                 <tr class="hover:bg-base-200/50 transition-colors" :class="item.selected ? (item.is_mapped ? 'bg-base-200/30' : 'bg-primary/10') : 'opacity-50'">
                                     <td>
                                         <input type="checkbox" class="checkbox checkbox-primary checkbox-sm" x-model="item.selected" @change="recalculateIDXs()">
-                                    </td>
-                                    <td>
-                                        <input type="checkbox" class="checkbox checkbox-error checkbox-xs" title="Hide from Dashboard" x-model="item.is_hidden" :disabled="!item.selected">
                                     </td>
                                     <td class="font-bold text-base-content/70" x-text="item.node"></td>
 
@@ -164,8 +161,8 @@
 
     </main>
 
-    <script src="wanos-shell.js?v=3"></script>
-    <script src="zwave.js?v=1.1"></script>
+    <script src="/wanos-shell.js?v=4"></script>
+    <script src="/zwave.js?v=4"></script>
 
 </body>
 </html>

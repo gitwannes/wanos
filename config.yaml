@@ -151,7 +151,7 @@ history:
     - sensor.power.pc_monitors_power
 
 # ==============================================================================
-# Automatic sections (deviceexplorer_exclude, lighting, automations) live in:
+# Automatic sections (deviceexplorer_hide, lighting, automations) live in:
 #   automations.auto.yaml
 # ==============================================================================
 sauna:

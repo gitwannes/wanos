@@ -3,19 +3,63 @@
 function zwaveApp() {
     return {
         connected: false,
+        isAdmin: true,
         eventSource: null,
         usbPath: "",
         errorMessage: "",
+        infoMessage: "",
         deviceList: [],
         configReloading: false,
         searchQuery: "",
         typeFilter: "ALL",
-        sortMode: "NODE", // "NODE", "IDX", "NAME"
+        sortMode: "NODE", // "NODE", "IDX", "NAME", "TYPE", "PATH"
+        sortDir: "asc",
+        savedFingerprint: "",
+        _baselinePending: false,
+
+        logout() {
+            localStorage.removeItem("wanos_jwt");
+            window.location.href = "/login.html";
+        },
+
+        _mapFingerprint() {
+            const rows = this.deviceList
+                .filter((i) => i.selected)
+                .map((i) => [
+                    i.idx,
+                    i.path,
+                    i.type,
+                    (i.name || "").trim(),
+                    (i.comment_str || "").toString().trim(),
+                ].join("\t"))
+                .sort();
+            return rows.join("\n") + `\nusb:${this.usbPath || ""}`;
+        },
+
+        get dirty() {
+            if (!this.savedFingerprint) return false;
+            return this._mapFingerprint() !== this.savedFingerprint;
+        },
+
+        sortIndicator(mode) {
+            if (this.sortMode !== mode) return "";
+            return this.sortDir === "asc" ? " ▲" : " ▼";
+        },
+
+        toggleSort(mode) {
+            if (this.sortMode === mode) {
+                this.sortDir = this.sortDir === "asc" ? "desc" : "asc";
+            } else {
+                this.sortMode = mode;
+                this.sortDir = "asc";
+            }
+        },
 
         // ⚡ Reactive filtering pipeline
         get visibleDeviceList() {
             const shutterNodes = new Set(this.deviceList.filter(i => i.type === 'shutter').map(i => i.node));
             const switchNodes = new Set(this.deviceList.filter(i => i.type === 'switch').map(i => i.node));
+            const dir = this.sortDir === "asc" ? 1 : -1;
 
             return this.deviceList.filter(item => {
                 // Rule 1: Drop dead probes
@@ -37,19 +81,25 @@ function zwaveApp() {
 
                 return true;
             }).sort((a, b) => {
-                // ⚡ Reactive Sorting Logic
                 if (this.sortMode === "IDX") {
                     const idxA = a.idx !== null ? a.idx : Number.MAX_SAFE_INTEGER;
                     const idxB = b.idx !== null ? b.idx : Number.MAX_SAFE_INTEGER;
-                    if (idxA !== idxB) return idxA - idxB;
+                    if (idxA !== idxB) return (idxA - idxB) * dir;
                 } else if (this.sortMode === "NAME") {
-                    return a.name.localeCompare(b.name);
+                    const cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+                    if (cmp !== 0) return cmp * dir;
+                } else if (this.sortMode === "TYPE") {
+                    const cmp = String(a.type || "").localeCompare(String(b.type || ""), undefined, { sensitivity: "base" });
+                    if (cmp !== 0) return cmp * dir;
+                } else if (this.sortMode === "PATH") {
+                    const cmp = String(a.path || "").localeCompare(String(b.path || ""), undefined, { sensitivity: "base" });
+                    if (cmp !== 0) return cmp * dir;
                 }
 
                 // Default / Fallback: Sort by Node Number, then Type, then Path
                 const nodeA = parseInt(a.node, 10) || 0;
                 const nodeB = parseInt(b.node, 10) || 0;
-                if (nodeA !== nodeB) return nodeA - nodeB;
+                if (nodeA !== nodeB) return (nodeA - nodeB) * (this.sortMode === "NODE" ? dir : 1);
                 if (a.type !== b.type) return a.type.localeCompare(b.type);
                 return a.path.localeCompare(b.path);
             });
@@ -213,12 +263,12 @@ function zwaveApp() {
                                 original_idx: idx,
                                 entity_id: (fullState.device_metadata && fullState.device_metadata[idx]
                                     ? fullState.device_metadata[idx].entity_id : null),
-                                is_hidden: fullState.system.hidden_explorer_idxs.includes(idx)
                             });
                             listModified = true;
                         }
                     }
                     this._initialMapDone = true;
+                    this._baselinePending = true;
                 }
             }
 
@@ -277,7 +327,6 @@ function zwaveApp() {
                             name: "",
                             comment_str: "",
                             original_idx: null,
-                            is_hidden: false
                         });
                         listModified = true;
                     }
@@ -286,6 +335,10 @@ function zwaveApp() {
 
             if (listModified) {
                 this.recalculateIDXs();
+            }
+            if (this._baselinePending) {
+                this.savedFingerprint = this._mapFingerprint();
+                this._baselinePending = false;
             }
 
             // 3. Clear reloading spinner if a fresh snapshot indicates reload is complete
@@ -332,50 +385,13 @@ function zwaveApp() {
             }
         },
 
-        async requestConfigReload() {
-            if (this.configReloading) return;
-            this.configReloading = true;
+        async saveAndReloadConfig() {
             this.errorMessage = "";
-
-            try {
-                // Fetch credentials from persistent browser space
-                const token = localStorage.getItem("wanos_jwt") || "";
-                const res = await fetch("/api/event", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ type: "CONFIG_RELOAD_REQUESTED", payload: {} })
-                });
-
-                if (!res.ok) throw new Error("Failed to trigger reload signal to backend.");
-
-                // Failsafe timeout in case the SSE response doesn't clear the lock
-                setTimeout(() => {
-                    if (this.configReloading) this.configReloading = false;
-                }, 10000);
-            } catch (err) {
-                this.configReloading = false;
-                this.errorMessage = "Failed to reload: " + err.message;
-            }
-        },
-
-        async injectAndDownloadYAML() {
-            this.errorMessage = "";
+            this.infoMessage = "";
             let finalMap = [];
-            let hiddenNodes = [];
 
             for (const item of this.deviceList) {
                 if (item.selected) {
-                    if (item.is_hidden && item.idx !== null) {
-                        const eid = item.entity_id
-                            || (this._lastMeta && this._lastMeta[item.idx] && this._lastMeta[item.idx].entity_id);
-                        if (eid) {
-                            hiddenNodes.push(eid);
-                        }
-                    }
-
                     if (item.name.trim() === "") {
                         this.errorMessage = `Validation Failed: Please provide a name for Node ${item.node} (${item.type})`;
                         return;
@@ -410,11 +426,6 @@ function zwaveApp() {
             yamlLines.push(`  usb_path: "${this.usbPath}"`);
             yamlLines.push(``);
 
-            if (hiddenNodes.length > 0) {
-                yamlLines.push(`  hidden_nodes: [${hiddenNodes.join(', ')}]`);
-                yamlLines.push(``);
-            }
-
             yamlLines.push(`  device_map:`);
             yamlLines.push(`    # 71000: light`);
             yamlLines.push(`    # 72000: switch`);
@@ -437,9 +448,8 @@ function zwaveApp() {
 
             const finalYamlString = yamlLines.join('\n');
 
+            this.configReloading = true;
             try {
-                // 1. Inject Config into the Backend Directory
-                // Pull credentials from persistent container
                 const token = localStorage.getItem("wanos_jwt") || "";
                 const res = await fetch("/api/config/zwave", {
                     method: "POST",
@@ -451,29 +461,30 @@ function zwaveApp() {
                 });
 
                 if (!res.ok) {
-                    const errorData = await res.json();
+                    const errorData = await res.json().catch(() => ({}));
                     throw new Error(errorData.error || `HTTP Error ${res.status}`);
                 }
 
-                // 2. Provide Local Download Fallback
-                const blob = new Blob([finalYamlString], { type: "text/yaml" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "config_zwave.auto.yaml.txt";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                this.infoMessage = "Saved. Config reloading…";
+                const reloadRes = await fetch("/api/event", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ type: "CONFIG_RELOAD_REQUESTED", payload: {} })
+                });
+                if (!reloadRes.ok) throw new Error("Failed to trigger reload signal to backend.");
 
-                // Alert the user and suggest an automatic configuration reload
-                this.errorMessage = "";
+                this.infoMessage = "Config reload requested";
+                this.savedFingerprint = this._mapFingerprint();
                 setTimeout(() => {
-                    this.requestConfigReload();
-                }, 1000);
-
+                    if (this.configReloading) this.configReloading = false;
+                }, 10000);
             } catch (err) {
-                this.errorMessage = "Failed to inject configuration to server: " + err.message;
+                this.configReloading = false;
+                this.errorMessage = "Failed to save configuration: " + err.message;
+                this.infoMessage = "";
             }
         }
     };

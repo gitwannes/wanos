@@ -342,10 +342,11 @@ class OnkyoConfig(BaseModel):
 
 class ZwaveConfig(BaseModel):
     """Configuration mapping for the Z-Wave JS UI hardware stick and node map."""
+    model_config = ConfigDict(extra="ignore")
+
     usb_path: str
     mqtt_prefix: str = "zwave"  # ⚡ Global prefix for dynamic MQTT routing
     device_map: Dict[int, str] = Field(default_factory=dict)
-    hidden_nodes: List[str] = Field(default_factory=list)  # entity_ids hidden from Explorer (Z-Wave UI writes these)
 
 
 class AuthConfig(BaseModel):
@@ -409,7 +410,7 @@ class AppConfig(BaseModel):
     sonos: Optional[SonosConfig] = None
     onkyo: Optional[OnkyoConfig] = None
     zwave: Optional[ZwaveConfig] = None
-    deviceexplorer_exclude: List[str] = Field(default_factory=list)  # entity_ids hidden from Explorer/History; Z-Wave merges hidden_nodes at runtime
+    deviceexplorer_hide: List[str] = Field(default_factory=list)  # entity_ids soft-hidden from Explorer/History/Blocky pickers
     hardware_links: Optional[HardwareLinksConfig] = None
     history: HistoryConfig = Field(default_factory=HistoryConfig)
     auth: AuthConfig
@@ -476,7 +477,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             if isinstance(zwave_file_raw, dict):
                 zwave_data = zwave_file_raw.get("zwave", zwave_file_raw)
 
-    # 3c. Read automatic automations / lighting / explorer-exclude profile
+    # 3c. Read automatic automations / lighting / soft-hide profile
     auto_data: Dict[str, Any] = {}
     if automations_yaml_path.exists():
         with open(automations_yaml_path, "r", encoding="utf-8") as file:
@@ -484,9 +485,8 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             if isinstance(auto_raw, dict):
                 auto_data = auto_raw
 
-    # Prefer automations.auto.yaml; fall back to legacy keys still in config.yaml during migration
-    deviceexplorer_exclude = auto_data.get(
-        "deviceexplorer_exclude", runtime_data.get("deviceexplorer_exclude", [])
+    deviceexplorer_hide = auto_data.get(
+        "deviceexplorer_hide", runtime_data.get("deviceexplorer_hide", [])
     )
     lighting_data = auto_data.get("lighting", runtime_data.get("lighting", {}))
     automations_data = auto_data.get("automations", runtime_data.get("automations", []))
@@ -504,7 +504,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "sonos": runtime_data.get("sonos"),
         "onkyo": runtime_data.get("onkyo"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile
-        "deviceexplorer_exclude": deviceexplorer_exclude,  # ⚡ From automations.auto.yaml
+        "deviceexplorer_hide": deviceexplorer_hide,  # ⚡ From automations.auto.yaml
         "hardware_links": runtime_data.get("hardware_links"),
         "history": runtime_data.get("history") or {},
         "auth": {

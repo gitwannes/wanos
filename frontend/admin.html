@@ -470,6 +470,10 @@
                                     <a href="/zwaveconfig.html" class="btn btn-outline btn-secondary btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0">OPEN</a>
                                 </div>
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
+                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">Explorer hidden devices</span>
+                                    <a href="/hiddendevices.html" class="btn btn-outline btn-secondary btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0">OPEN</a>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Reload Config</span>
                                     <button class="btn btn-outline btn-warning btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="requestConfigReload()" :disabled="configReloading">
                                         <span x-show="!configReloading">GO</span>
@@ -821,5 +825,5 @@
             </form>
         </dialog>
     </main>
-    <script src="wanos-shell.js?v=3"></script>
+    <script src="wanos-shell.js?v=4"></script>
     <script src="app.js?v=3.23"></script>

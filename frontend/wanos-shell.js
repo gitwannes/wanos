@@ -111,6 +111,20 @@
                 "</div>"
             );
         }
+        if (page === "hiddendevices") {
+            return (
+                '<div class="flex flex-col min-w-0 justify-center">' +
+                '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin - Explorer Hidden Devices</span>' +
+                "</div>"
+            );
+        }
+        if (page === "zwave") {
+            return (
+                '<div class="flex flex-col min-w-0 justify-center">' +
+                '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin - Z-Wave</span>' +
+                "</div>"
+            );
+        }
         return "";
     }
 
@@ -193,8 +207,9 @@
 
         let gear = "";
         if (page !== "admin") {
+            const alwaysGear = page === "blocky" || page === "hiddendevices" || page === "zwave";
             const gearClick = page === "blocky" ? ' @click="navAway($event, \'/admin.html\')"' : "";
-            const gearShow = page === "blocky" ? "" : ' x-show="isAdmin" x-cloak';
+            const gearShow = alwaysGear ? "" : ' x-show="isAdmin" x-cloak';
             gear =
                 '<a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1"' +
                 gearShow + ' title="Return to Admin"' + gearClick + ">" + GEAR_SVG + "</a>";

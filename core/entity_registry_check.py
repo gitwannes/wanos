@@ -207,9 +207,7 @@ def run_entity_cutover_checks(
 
     # Merge auto domains (auto file wins; legacy config.yaml fallback)
     merged_auto = {
-        "deviceexplorer_exclude": raw_auto.get(
-            "deviceexplorer_exclude", raw_cfg.get("deviceexplorer_exclude")
-        ),
+        "deviceexplorer_hide": raw_auto.get("deviceexplorer_hide"),
         "lighting": raw_auto.get("lighting", raw_cfg.get("lighting")),
         "automations": raw_auto.get("automations", raw_cfg.get("automations")),
     }
@@ -230,12 +228,18 @@ def run_entity_cutover_checks(
                 else:
                     errors.append(f"{label} refs unknown entity_id '{eid}'")
 
-    exclude = merged_auto.get("deviceexplorer_exclude") or []
-    if not isinstance(exclude, list):
-        errors.append("deviceexplorer_exclude must be a list")
+    hide = merged_auto.get("deviceexplorer_hide")
+    if hide is None:
+        errors.append("deviceexplorer_hide missing from automations.auto.yaml")
+    elif not isinstance(hide, list):
+        errors.append("deviceexplorer_hide must be a list")
     else:
-        _require_eids("deviceexplorer_exclude", exclude)
-        stats["deviceexplorer_exclude"] = len(exclude)
+        _require_eids("deviceexplorer_hide", hide)
+        stats["deviceexplorer_hide"] = len(hide)
+        for ref in hide:
+            eid = str(ref).strip()
+            if eid == "switch.safety.safety_wisc_5v":
+                errors.append("deviceexplorer_hide must not contain hard-deny eid switch.safety.safety_wisc_5v")
 
     hw = (raw_cfg.get("hardware_links") or {}).get("power_meters") or {}
     if not isinstance(hw, dict):
@@ -270,14 +274,9 @@ def run_entity_cutover_checks(
     zwave_path = root / "config_zwave.auto.yaml"
     if zwave_path.exists():
         try:
-            zw = yaml.safe_load(zwave_path.read_text(encoding="utf-8")) or {}
+            yaml.safe_load(zwave_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
             errors.append(f"config_zwave.auto.yaml parse error: {exc}")
-            zw = {}
-        hidden = (zw.get("zwave") or zw).get("hidden_nodes") or []
-        if isinstance(hidden, list):
-            _require_eids("zwave.hidden_nodes", hidden)
-            stats["zwave_hidden_nodes"] = len(hidden)
 
     # Live metadata (optional — when WanOS is running)
     if device_metadata is not None:
@@ -328,13 +327,12 @@ _STAT_HELP: Dict[str, str] = {
     "registry_removed": "orphan rows kept with status=removed (not purged)",
     "automation_leftover_idxs": "numeric idx: still under automations: (must be 0)",
     "automation_entity_ids": "entity_id refs found in automations: rules",
-    "deviceexplorer_exclude": "entity_ids hidden from Device Explorer",
+    "deviceexplorer_hide": "entity_ids soft-hidden from Device Explorer",
     "power_meter_links": "switch->meter links in hardware_links.power_meters",
     "blinds_travel_times": "per-blind travel overrides in blinds.travel_times",
     "managed_lights": "lights/groups in lighting.managed_lights (auto-off)",
     "tracked_entities": "sensors in history.tracked_entities",
-    "zwave_hidden_nodes": "entity_ids in config_zwave.auto.yaml hidden_nodes",
-    "automations_source": "file providing automations/lighting/exclude (auto preferred)",
+    "automations_source": "file providing automations/lighting/hide (auto preferred)",
     "python_magic_idx_hits": "bare device idxs still in Python (warnings only)",
     "live_metadata_with_entity_id": "live RAM devices that already have entity_id",
     "live_metadata_missing_entity_id": "live RAM devices missing entity_id (error if >0)",
