@@ -112,8 +112,9 @@ fi
 # -------------------------
 if [ "$CMD" = "automationlog" ]; then
   ensure_readable_file_or_exit "$AUTOM_LOG_FILE"
-  log "Tailing automation log ($AUTOM_LOG_FILE). Showing last $TAIL_LINES lines then following."
-  exec tail -n "$TAIL_LINES" -F "$AUTOM_LOG_FILE"
+  log "Tailing automation log ($AUTOM_LOG_FILE). Showing last $TAIL_LINES lines then following (DEBUG omitted)."
+  tail -n "$TAIL_LINES" -F "$AUTOM_LOG_FILE" | grep --line-buffered -v DEBUG
+  exit $?
 fi
 
 # -------------------------
@@ -188,8 +189,9 @@ EOF
       ;;
     4)
       ensure_readable_file_or_exit "$AUTOM_LOG_FILE"
-      log "Tailing automation log ($AUTOM_LOG_FILE). Showing last $lines lines then following."
-      exec tail -n "$lines" -F "$AUTOM_LOG_FILE"
+      log "Tailing automation log ($AUTOM_LOG_FILE). Showing last $lines lines then following (DEBUG omitted)."
+      tail -n "$lines" -F "$AUTOM_LOG_FILE" | grep --line-buffered -v DEBUG
+      exit $?
       ;;
     5)
       ensure_readable_file_or_exit "$POWER_LOG_FILE"

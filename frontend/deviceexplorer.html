@@ -50,26 +50,33 @@
             <span x-text="disabledIntegrationsText"></span>
         </div>
 
-        <div class="flex items-center justify-between bg-base-100 shadow-md border border-base-200 rounded-box py-1.5 px-3">
-            <div class="flex items-center gap-3">
-                <button class="btn btn-xs btn-circle btn-ghost text-error/70 hover:text-error hover:bg-error/20 mr-3 md:mr-5 border border-error/10"
+        <div class="flex items-start justify-between bg-base-100 shadow-md border border-base-200 rounded-box py-1.5 px-3">
+            <div class="flex items-start gap-3 min-w-0">
+                <button class="btn btn-xs btn-circle btn-ghost text-error/70 hover:text-error hover:bg-error/20 mr-3 md:mr-5 border border-error/10 mt-0.5"
                         title="Clear all filters"
                         @click="clearAllFilters()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
-                <div class="flex gap-2">
-                    <template x-for="(preset, index) in presets" :key="index">
-                        <button class="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold font-mono text-[11px] md:text-sm transition-colors duration-200 border border-base-content/20"
-                                :class="preset !== null ? 'bg-primary text-primary-content border-primary shadow-md' : 'bg-transparent text-base-content/40 hover:border-primary/50'"
-                                @click="handlePresetClick(index)">
-                            <span x-text="index + 1"></span>
-                        </button>
-                    </template>
+                <div class="flex flex-col gap-0.5 min-w-0">
+                    <div class="flex gap-2">
+                        <template x-for="(preset, index) in presets" :key="index">
+                            <button class="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold font-mono text-[11px] md:text-sm transition-colors duration-200 border border-base-content/20"
+                                    :class="preset !== null ? 'bg-primary text-primary-content border-primary shadow-md' : 'bg-transparent text-base-content/40 hover:border-primary/50'"
+                                    :title="preset !== null ? getPresetSummary(index, true) : ''"
+                                    @click="handlePresetClick(index)">
+                                <span x-text="index + 1"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <div class="text-[9px] md:text-[10px] font-mono text-base-content/55 truncate leading-tight pl-0.5"
+                         x-show="appliedPresetIndex !== null && presets[appliedPresetIndex]"
+                         x-cloak
+                         x-text="getPresetSummary(appliedPresetIndex, true)"></div>
                 </div>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 shrink-0 pt-0.5">
                 <label class="label cursor-pointer gap-2 py-0">
                     <input type="checkbox" class="toggle toggle-sm toggle-accent" x-model="actuatorFavoritesOnly" />
                     <span class="label-text font-mono text-[10px] uppercase tracking-widest hidden sm:inline">Favorites</span>
@@ -86,7 +93,8 @@
             </div>
         </div>
 
-        <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3 flex flex-col gap-2 md:gap-3">
+        <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3 flex flex-col gap-2 md:gap-3"
+             data-explorer-sticky-filters>
             <div class="join self-start border border-base-300">
                 <button type="button" class="btn btn-sm join-item font-mono tracking-widest"
                         :class="explorerMode === 'control' ? 'btn-primary' : 'btn-ghost'"
@@ -101,7 +109,9 @@
                 <div class="form-control col-span-2 md:col-auto md:flex-1 w-full">
                     <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 focus-within:outline-none focus-within:border-primary w-full">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3 md:w-4 md:h-4 opacity-70"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
-                        <input type="text" class="grow font-mono text-[10px] md:text-xs w-full" placeholder="Search devices or scenes..." x-model="searchQuery" />
+                        <input type="text" class="grow font-mono text-[10px] md:text-xs w-full"
+                               placeholder='Search… e.g. "hue slpk -wannes"'
+                               x-model="searchQuery" />
                     </label>
                 </div>
 
@@ -131,6 +141,8 @@
                     <option value="STATUS">Sort by Status</option>
                 </select>
             </div>
+            <div class="text-[9px] md:text-[10px] font-mono text-base-content/50 leading-none pl-0.5"
+                 x-text="'listing ' + explorerActiveList.length + ' device' + (explorerActiveList.length === 1 ? '' : 's')"></div>
         </div>
 
         <!-- SHARED CONTROL / HISTORY LIST -->
@@ -139,6 +151,7 @@
             <ul class="flex flex-col w-full divide-y divide-base-200/50">
                 <template x-for="item in explorerActiveList" :key="explorerMode + '-' + item.id">
                     <li class="flex flex-col w-full"
+                        :id="'explorer-row-' + item.id"
                         :class="(explorerMode === 'history' && isExplorerHistoryRowSelected(item)) ? 'bg-accent/5' : ''">
                         <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-x-1 md:gap-x-6 w-full"
                              :class="[
@@ -163,7 +176,8 @@
                                             <div class="w-4 h-4 rounded-full border border-base-content/20"
                                                  :style="explorerHueSwatchStyle(item)"></div>
                                         </div>
-                                        <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate underline decoration-dashed underline-offset-4 decoration-base-content/30"
+                                        <div class="font-bold text-[12px] md:text-sm tracking-wide text-base-content truncate"
+                                             :class="explorerMode === 'control' ? 'underline decoration-dashed underline-offset-4 decoration-base-content/30' : ''"
                                              x-text="item.name"></div>
                                         <span class="shrink-0 text-error text-[10px] font-mono font-bold"
                                               x-show="explorerMode === 'history' && !deviceHasHistory(item.id)">(no history)</span>
@@ -239,8 +253,10 @@
                                                                $event.target.value = $el._orig;
                                                                return;
                                                            }
-                                                           setShutterState(item.id, parseInt($event.target.value, 10));
-                                                       " />
+                                                           commitShutterDrag(item.id, $event.target.value, true);
+                                                       "
+                                                       @pointerup="commitShutterDrag(item.id, $el.value, $el._verified)"
+                                                       @pointercancel="commitShutterDrag(item.id, $el.value, $el._verified)" />
 
                                                 <span class="hidden md:inline font-mono text-[10px] uppercase font-bold text-error cursor-pointer hover:text-primary transition-colors"
                                                       @click="setShutterState(item.id, 100)">CLOSED</span>
@@ -598,6 +614,6 @@
 
     </main>
     <script src="wanos-shell.js?v=3"></script>
-    <script src="app.js?v=3.25"></script>
+    <script src="app.js?v=3.26"></script>
 </body>
 </html>

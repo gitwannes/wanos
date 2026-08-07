@@ -117,9 +117,11 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
                         last_sun_refresh_date = today
                         force_sun = False
                         sun_backoff_until = 0.0
+                        sunrise_hm = datetime.fromtimestamp(sunrise).strftime("%H:%M")
+                        sunset_hm = datetime.fromtimestamp(sunset).strftime("%H:%M")
                         await state_manager.logger.info(
                             f"[OWM] Sun cycle refreshed for {today.isoformat()} "
-                            f"(sunrise={sunrise}, sunset={sunset})"
+                            f"(sunrise={sunrise_hm}, sunset={sunset_hm})"
                         )
 
             except asyncio.CancelledError:

@@ -129,7 +129,7 @@ async def handle_system_sweep_requested(event: Event, manager: Any) -> Tuple[boo
     uptime = int(time.time() - manager._start_time)
 
     if is_passive_sweep or uptime < 180:
-        logger.info(
+        logger.debug(
             f"[Sweeper] Skipping time-series hardware alignment to respect passive baseline (Uptime: {uptime}s).")
     else:
         if sns.env_schedule_blinds_open_unix and sns.env_schedule_blinds_close_unix:

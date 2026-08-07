@@ -457,7 +457,6 @@ def _expand_v2_case_to_flat(
         # OR multi-trigger: keep as list (engine supports it)
         flat_trigger = copy.deepcopy(trigger)
         suffix = f"#c{case_index}"
-        label = f" [case {case_index}]"
     elif isinstance(trigger, dict) and trigger.get("entity_id"):
         eid = trigger["entity_id"]
         if to_state_u in ("ON", "OFF", "OPEN", "CLOSED"):
@@ -476,7 +475,6 @@ def _expand_v2_case_to_flat(
             # No edge — should not match device transitions usefully; still emit
             flat_trigger = {"entity_id": eid}
             suffix = f"#c{case_index}"
-            label = f" [case {case_index}]"
     elif isinstance(trigger, dict) and trigger.get("event"):
         ev = str(trigger["event"])
         if ev in SCHEDULE_WINDOW_EDGES and to_state_u in ("ON", "OFF"):
@@ -488,11 +486,9 @@ def _expand_v2_case_to_flat(
             # Concrete event (e.g. SCENE_CINEMA_OFF) with condition-discriminated cases
             flat_trigger = {"event": canonicalize_schedule_event(ev)}
             suffix = f"#c{case_index}"
-            label = f" [case {case_index}]"
     else:
         flat_trigger = copy.deepcopy(trigger)
         suffix = f"#c{case_index}"
-        label = f" [case {case_index}]"
 
     out = {
         "id": f"{rule_id}{suffix}" if rule_id else None,

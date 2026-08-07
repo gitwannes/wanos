@@ -660,22 +660,22 @@ class StateManager:
             if is_simulation_action or is_boot_baseline_seed:
                 origin_tag = " [SIMULATION]" if is_simulation_action else " [BOOT_SEED]"
                 logger.debug(f"Event Received [{event_name}]{origin_tag}: {payload}")
-            elif event_name == "HUB_STATE_CHANGED" and payload.get("is_initialization") and payload.get(
-                    "origin") == "sonos":
-                logger.debug(f"Event Received [{event_name}] [SONOS_SYNC]: {payload}")
             elif event_name == "HUB_STATE_CHANGED" and payload.get("origin") == "system":
                 # COMPLETE SILENCE: Do not log high-frequency host stats (CPU, RAM, Load) at all
                 pass
             else:
-                # TELEMETRY ROUTING GATEWAY: Move Power, lux, hum, temperature, and background flushes from INFO to DEBUG
-                is_telemetry = (
-                        event_name in ["POWER_UPDATED", "TEMP_UPDATED", "HUMIDITY_UPDATED", "ZWAVE_HEARTBEAT",
-                                       "NVRAM_FLUSH_TRIGGER"] or
-                        (event_name == "HUB_STATE_CHANGED" and payload.get("device_type") in ["power", "sensor"]) or
-                        (event_name == "ZWAVE_DISCOVERY" and payload.get("command_class") in ["48", "49"])
-                    # 48 = motion
-                    # 49 = sensor (power, illuminance, temperature)
-                )
+                # High-chatter bus events → DEBUG (IWHW / dedicated lines keep the audit trail)
+                is_debug_event = event_name in [
+                    "POWER_UPDATED",
+                    "TEMP_UPDATED",
+                    "HUMIDITY_UPDATED",
+                    "ZWAVE_HEARTBEAT",
+                    "NVRAM_FLUSH_TRIGGER",
+                    "HUB_STATE_CHANGED",
+                    "ZWAVE_DISCOVERY",
+                    "TIMER_SCHEDULED",
+                    "TIMER_CANCELLED",
+                ]
 
                 # HARDWARE PULSE GUARD: Only log 1 in 10 pulses to prevent terminal I/O saturation
                 if event_name == "WATER_PULSE":
@@ -683,7 +683,7 @@ class StateManager:
                     self._pulse_log_counters[target_idx] = self._pulse_log_counters.get(target_idx, 0) + 1
                     if self._pulse_log_counters[target_idx] % 10 == 0:
                         logger.debug(f"Event Received [{event_name}] (Every 10th pulse): {payload}")
-                elif is_telemetry:
+                elif is_debug_event:
                     logger.debug(f"Event Received [{event_name}]: {payload}")
                 else:
                     logger.info(f"Event Received [{event_name}]: {payload}")

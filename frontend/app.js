@@ -148,6 +148,9 @@ function wanosApp() {
         // ⚡ Optimistic UI Locks (Anti-Rubberbanding)
         // Tracks timestamp of last user action per IDX: { idx: expiration_timestamp }
         uiLocks: {},
+        // Active blinds slider drag (Device Explorer). Keeps the row in ON/OFF mid-travel
+        // filters until commit so @change is not lost when optimistic value hits 0/100.
+        shutterDragIdx: null,
 
         // ⚡ Light Control Modal State
         activeLightId: null,
@@ -169,6 +172,7 @@ function wanosApp() {
         // ⚡ View Presets State
         presets: [null, null, null, null, null], // Array of 5 slots to hold view filter dictionaries
         activePresetSlot: null, // Tracks which slot is currently being saved
+        appliedPresetIndex: null, // Last applied view-preset slot (UI caption / highlight)
         toastMessage: "", // Ephemeral UI feedback message
 
         // ⚡ Sensor History / Explorer History mode
@@ -602,10 +606,13 @@ function wanosApp() {
                 });
             }
 
-            // 3. Apply Text Search
-            if (this.searchQuery.trim() !== "") {
-                const q = this.searchQuery.toLowerCase();
-                list = list.filter(item => item.name.toLowerCase().includes(q));
+            // 3. Apply Text Search (multi-term AND + `-exclude`, case-insensitive)
+            // History applies an enriched query in explorerDisplayList (includes "(no history)").
+            if (this.explorerMode !== "history" && this.searchQuery.trim() !== "") {
+                const parsed = this._parseTextQuery(this.searchQuery);
+                if (parsed) {
+                    list = list.filter(item => this._matchesTextQuery(this._explorerSearchHaystack(item), parsed));
+                }
             }
 
             // 4. Apply Type Filter
@@ -633,7 +640,7 @@ function wanosApp() {
                         return false;
                     }
                     if (item.type === 'blinds') {
-                        return this._blindsIsPartialPosition(item.raw_value);
+                        return this._blindsVisibleInStatusFilter(item.id, item.raw_value);
                     }
 
                     // ⚡ Analog String Filter: Safely drop environmental strings (like Lux/Temp) when filtering by binary states
@@ -728,7 +735,7 @@ function wanosApp() {
                     hotSecondary.add(Number(item.id));
                 }
             }
-            return base
+            let list = base
                 .filter(item => !hotSecondary.has(Number(item.id)))
                 .map(item => {
                     const cap = this.historyCapabilityByIdx[Number(item.id)];
@@ -739,6 +746,16 @@ function wanosApp() {
                         display_text: this._waterPairLiveStatus(cap),
                     };
                 });
+
+            // History search: name + live values + "(no history)" so `-history` / `24` / `ON` work.
+            const parsed = this._parseTextQuery(this.searchQuery);
+            if (parsed) {
+                list = list.filter(item => {
+                    const marker = this.deviceHasHistory(item.id) ? "" : "(no history)";
+                    return this._matchesTextQuery(this._explorerSearchHaystack(item, marker), parsed);
+                });
+            }
+            return list;
         },
 
         _waterPairLiveStatus(cap) {
@@ -812,6 +829,68 @@ function wanosApp() {
         },
 
         /**
+         * Multi-term search: space-separated tokens, AND includes, `-token` excludes.
+         * Case-insensitive. Example: "hue slpk -wannes"
+         */
+        _parseTextQuery(query) {
+            const raw = String(query || "").trim();
+            if (!raw) return null;
+            const include = [];
+            const exclude = [];
+            for (const tok of raw.split(/\s+/)) {
+                if (!tok) continue;
+                // Exclude only "-word" (dash + letter/digit). "---" / "--" are literal includes.
+                if (/^-[a-zA-Z0-9]/.test(tok)) {
+                    exclude.push(tok.slice(1).toLowerCase());
+                } else {
+                    include.push(tok.toLowerCase());
+                }
+            }
+            if (!include.length && !exclude.length) return null;
+            return { include, exclude };
+        },
+
+        _matchesTextQuery(haystack, query) {
+            const parsed = (query && typeof query === "object" && Array.isArray(query.include))
+                ? query
+                : this._parseTextQuery(query);
+            if (!parsed) return true;
+            const hay = String(haystack || "").toLowerCase();
+            for (const t of parsed.include) {
+                if (!hay.includes(t)) return false;
+            }
+            for (const t of parsed.exclude) {
+                if (hay.includes(t)) return false;
+            }
+            return true;
+        },
+
+        /** Name + live value/status for explorer search (temp/hum figures, ON/OFF/OPEN/CLOSED, …). */
+        _explorerSearchHaystack(item, extra = "") {
+            if (!item) return String(extra || "");
+            const parts = [item.name, item.display_text, extra];
+            const raw = item.raw_value;
+            if (raw != null && raw !== "DEAD") {
+                if (typeof raw === "object") {
+                    if (raw.temp != null) parts.push(String(raw.temp));
+                    if (raw.hum != null) parts.push(String(raw.hum));
+                    if (raw.state != null) parts.push(String(raw.state));
+                    if (raw.volume != null) parts.push(String(raw.volume));
+                } else {
+                    parts.push(String(raw));
+                }
+            }
+            if (item.is_on === true) parts.push("ON");
+            else if (item.is_on === false) parts.push("OFF");
+            if (item.type === "blinds") {
+                const n = parseInt(raw, 10);
+                if (n === 0) parts.push("OPEN");
+                else if (n === 100) parts.push("CLOSED");
+            }
+            return parts.filter(p => p != null && p !== "").join(" ");
+        },
+
+        /**
          * Blinds closed-% (0 open … 100 closed). Mid-travel only — used by ON/OFF status filters
          * so partially open blinds show under both filters; endpoints stay on ALL / BLINDS.
          */
@@ -819,6 +898,14 @@ function wanosApp() {
             if (raw == null || raw === "DEAD" || raw === "Sync...") return false;
             const n = parseInt(raw, 10);
             return Number.isFinite(n) && n > 0 && n < 100;
+        },
+
+        /** Mid-travel OR currently dragging this shutter (avoid filter eviction before commit). */
+        _blindsVisibleInStatusFilter(idx, raw) {
+            if (this.shutterDragIdx != null && Number(this.shutterDragIdx) === Number(idx)) {
+                return true;
+            }
+            return this._blindsIsPartialPosition(raw);
         },
 
         /** History/actuator overview status: OPEN | CLOSED | "N%". */
@@ -1443,6 +1530,7 @@ function wanosApp() {
                 name: cap.name || item.name,
                 category: cap.category,
                 type: item.type,
+                scrollIdx: item.id,
             });
         },
 
@@ -1814,12 +1902,12 @@ function wanosApp() {
                 });
             }
 
-            const q = (this.actuatorSearchQuery || this.searchQuery || "").trim().toLowerCase();
-            if (q) {
+            const parsed = this._parseTextQuery(this.actuatorSearchQuery || this.searchQuery || "");
+            if (parsed) {
                 list = list.filter(r => {
                     const typeLabel = this.historyTypeLabel(r.type) || "";
-                    const hay = `${r.idx} ${r.name || ""} ${r.type || ""} ${typeLabel} ${r.status || ""} ${r.category}`.toLowerCase();
-                    return hay.includes(q);
+                    const hay = `${r.idx} ${r.name || ""} ${r.type || ""} ${typeLabel} ${r.status || ""} ${r.category}`;
+                    return this._matchesTextQuery(hay, parsed);
                 });
             }
             list.sort((a, b) => {
@@ -1896,12 +1984,20 @@ function wanosApp() {
             if (gen !== this._historySelectGen) return;
             await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             if (gen !== this._historySelectGen) return;
+            const scrollIdx = row.scrollIdx != null ? row.scrollIdx : id;
+            this._scrollExplorerRowToTop(scrollIdx);
             await this.reloadSelectedSensorDetail();
             if (gen !== this._historySelectGen) return;
-            const anchor = kind === "actuator"
-                ? document.getElementById("chart-act-day")
-                : document.getElementById("chart-day");
-            anchor?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        },
+
+        /** Pin the clicked history name row under the sticky filter bar. */
+        _scrollExplorerRowToTop(idx) {
+            const row = document.getElementById(`explorer-row-${idx}`);
+            if (!row) return;
+            const sticky = document.querySelector("[data-explorer-sticky-filters]");
+            const margin = (sticky ? sticky.getBoundingClientRect().height : 0) + 8;
+            const top = row.getBoundingClientRect().top + window.pageYOffset - margin;
+            window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
         },
 
         async reloadSelectedSensorDetail() {
@@ -3100,6 +3196,10 @@ function wanosApp() {
         },
 
         setShutterState(idx, targetState) {
+            if (this.shutterDragIdx != null && Number(this.shutterDragIdx) === Number(idx)) {
+                this.shutterDragIdx = null;
+            }
+
             // Set Optimistic UI Lock expiration to ignore incoming Z-Wave state updates
             this.uiLocks[idx] = Date.now() + this.getUiLockTime('blinds', false);
 
@@ -3152,10 +3252,18 @@ function wanosApp() {
 
         updateShutterOptimistic(idx, val) {
             const numVal = parseInt(val, 10);
+            this.shutterDragIdx = parseInt(idx, 10);
             this.uiLocks[idx] = Date.now() + this.getUiLockTime('blinds', true);
 
             // ⚡ Immediately update the reactive dictionary so the slider and % text move live with the mouse pointer
             this.state.devices[idx] = numVal;
+        },
+
+        /** Commit after drag; safe if @change was skipped because the row left the filter. */
+        commitShutterDrag(idx, val, verified) {
+            if (!verified) return;
+            if (this.shutterDragIdx == null || Number(this.shutterDragIdx) !== Number(idx)) return;
+            this.setShutterState(idx, parseInt(val, 10));
         },
 
         // =========================================================================
@@ -3568,6 +3676,7 @@ function wanosApp() {
             this.sortMode = "NAME";
             this.actuatorFavoritesOnly = false;
             this.showHiddenNodes = false;
+            this.appliedPresetIndex = null;
         },
 
         // Router for when a user clicks one of the 1-4 preset circles
@@ -3582,6 +3691,7 @@ function wanosApp() {
                 this.actuatorFavoritesOnly = p.favoritesOnly === true;
                 // Hidden is admin-only; non-admin always lands on normal (non-hidden) view
                 this.showHiddenNodes = this.isAdmin && p.showHiddenNodes === true;
+                this.appliedPresetIndex = index;
             } else {
                 // SAVE PRESET: Slot is empty, verify if there is actually a modified view to save
                 if (!this.isFilterActive()) {
@@ -3606,6 +3716,7 @@ function wanosApp() {
                 };
                 this.presets[this.activePresetSlot] = payload;
                 localStorage.setItem('wanos_view_presets', JSON.stringify(this.presets));
+                this.appliedPresetIndex = this.activePresetSlot;
                 this.activePresetSlot = null; // Release the lock
                 document.getElementById('preset_save_modal').close();
             }
@@ -3614,11 +3725,13 @@ function wanosApp() {
         // Clears a specific slot and flushes the deletion to persistent storage
         removePreset(index) {
             this.presets[index] = null;
+            if (this.appliedPresetIndex === index) this.appliedPresetIndex = null;
             localStorage.setItem('wanos_view_presets', JSON.stringify(this.presets));
         },
 
-        // Compiles a human-readable summary of the payload for the edit menu
-        getPresetSummary(index) {
+        // Compiles a human-readable summary of the payload for the edit menu / tooltip / caption.
+        // omitSort: true → skip Sort: … (hover tooltip + selected caption under presets).
+        getPresetSummary(index, omitSort = false) {
             const p = this.presets[index];
             if (!p) return "Empty";
 
@@ -3629,9 +3742,11 @@ function wanosApp() {
             if (p.favoritesOnly) parts.push("Favorites");
             if (p.showHiddenNodes) parts.push("Hidden");
 
-            if (p.sortMode === "STATUS") parts.push("Sort: Status");
-            else if (p.sortMode === "TYPE") parts.push("Sort: Type, Name");
-            else if (p.sortMode === "NAME") parts.push("Sort: Name");
+            if (!omitSort) {
+                if (p.sortMode === "STATUS") parts.push("Sort: Status");
+                else if (p.sortMode === "TYPE") parts.push("Sort: Type, Name");
+                else if (p.sortMode === "NAME") parts.push("Sort: Name");
+            }
 
             // Fallback for edge cases, though isFilterActive normally guards against saving empty states
             return parts.length > 0 ? parts.join(" • ") : "Default View";

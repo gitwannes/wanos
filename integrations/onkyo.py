@@ -93,7 +93,7 @@ class OnkyoBridge:
         pack_func = pack_legacy_malformed if is_legacy else pack_standard
 
         while self._running:
-            logger.info(f"Onkyo {idx}: Attempting TCP connection to {ip}:60128...")
+            logger.debug(f"Onkyo {idx}: Attempting TCP connection to {ip}:60128...")
             try:
                 reader, writer = await asyncio.wait_for(asyncio.open_connection(ip, 60128), timeout=5.0)
                 self.receivers[idx] = writer
