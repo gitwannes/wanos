@@ -1,6 +1,6 @@
 # ⚡ WanOS: Visual Automation Editor (IFTTT) Architecture Guide
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases 0–6C **done**; next = 7 / 8 / 9).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases 0–8 **done**; next = **9A** / **9B**).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -94,9 +94,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 0–5 **✅ DONE**. Phase **6A–6C ✅ DONE**. **Phase 7 ✅ DONE**. **Phase 8 ✅ DONE** (`auto_off_devices`, `/api/auto-off-timer`, `lightingautooff.html`; migrator removed after cutover). Next: Phase **9** = full Blockly↔JSON parity.
+**Current status:** Phase 0–5 **✅ DONE**. Phase **6A–6C ✅ DONE**. **Phase 7 ✅ DONE**. **Phase 8 ✅ DONE**. **Phase 9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase 9B** = bathroom climate + **H4/H5/H12** (OR groups, notify→Gmail, hysteresis) — **deferred**. Future HA patterns (H1–H3, H6–H11) backlog only.
 
-**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog. **Motion** is allowed as **When device** trigger only (garage/toilet); never as action. Soft-hidden / out-of-catalog eids that appear on the **open rule** are always listed for that picker role so Blockly does not fall back to the first device (e.g. `53?`). Actions = actuators only. Broader sensor / threshold authoring is **Phase 9** (6C rich actions closed).
+**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog **until Phase 9A**. **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **9A** = sensor/threshold/host-gauge authoring + JSON removal. **9B** = bathroom climate + H4/H5/H12 (OR groups, notify→Gmail, hysteresis).
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
@@ -274,8 +274,8 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 2. **API** — admin **`GET` + full-replace `PUT /api/auto-off-timer`**; hot-reload on save.
 3. **YAML** — `auto_off_devices:` with `managed_auto_off`, `default_auto_off_minutes`, `default_pertype_auto_off_minutes`, `auto_off_delays`. No dual-read of `lighting:`.
 4. **Precedence** — per-device → type → general. Minutes **1–720**.
-5. **Membership** — checkbox → `managed_auto_off`; uncheck clears `auto_off_delays` entry; empty list allowed.
-6. **UI** — general + type rows (`switch` / `light` / `speaker`) + device list; effective minutes; soft-hide All/Hidden/Non-hidden; **Auto-off ON/OFF/All** membership filter (checkbox, not lamp power); sort Name/Type/Override.
+5. **Membership** — checkbox → `managed_auto_off`; uncheck clears `auto_off_delays` entry; empty list allowed. Enable leaves per-device blank (inherit).
+6. **UI** — general + type rows (`switch` / `light` / `speaker`) + device list; single **Effective** column (no separate Override): blank = inherit type/general shown muted italic until first keystroke; typed value = per-device pin; clear field → inherit; soft-hide All/Hidden/Non-hidden; **Auto-off ON/OFF/All** membership filter (checkbox, not lamp power); sort Name/Type/Effective by resolved minutes (unmanaged last); unmanaged Effective empty/disabled.
 7. **Eligibility** — types `switch`/`light`/`speaker`; vents in; projector/SSR/71040/denylist out.
 8. **Validation** — reject unresolved / orphan / ineligible / bad type keys; sorted unique writes.
 9. **Comments** — not preserved under the block (UI-owned).
@@ -284,43 +284,140 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart → Debug GREEN → **operator smoke OK** (**2026-08-08**). Migrator **deleted** from tree after cutover.
 
-### Phase 9 — Full Blockly ↔ JSON parity 🔜 TODO
+### Phase 9A — Full Blockly parity + sensors/thresholds + remove JSON 🔜 TODO (spec locked — impl not started)
 
-**Depends on:** Phase **6C** (landed 2026-08-06) — closed the largest live gap (`preset` / custom `bri`/`xy` / blinds open-% / Sonos+Onkyo `volume` / Sonos `station` / per-action rich). Phases **7** / **8** are orthogonal config UIs and may run in parallel; they are not prerequisites for 9.
+**Depends on:** Phase **6C** ✅ (rich actions). Phases **7** / **8** ✅ (orthogonal; not prerequisites).
 
-**Goal:** every automation that is valid to **author and save** as schema v2 can be created and edited entirely on the Blockly canvas. JSON mode remains only as a **debug / inspect** escape hatch (or is removed once parity is proven) — never required for operator workflow.
+**Goal:** every authorable schema-v2 automation is create/edit-able entirely on Blockly. **JSON mode is removed** (same PR as parity green). Sensors / thresholds / host gauges become first-class where engine-legal.
 
-**Today (gap inventory — JSON can, Blockly cannot or is unsafe):**
+**Split:** **9A** = parity audit + sensor/host pickers + compare + FORCE + E1 expand + **remove JSON**. **9B** = bathroom climate + **H4** (condition AND/OR groups) + **H5** (notify/alert → extend with Gmail per `docs/todo/integration_gmail.md`) + **H12** (hysteresis block). Vent **min-runtime lock stays in hub code**.
 
-| Gap | JSON | Blockly now | Phase 9 target |
-|-----|------|-------------|----------------|
-| Hue `preset` + custom `bri`/`xy` (wheel); Sonos `volume`/`station`; Onkyo `volume` | author | **done in 6C** (preset XOR custom color) | 9 verifies no leftover rich-only JSON paths |
-| Blinds mid-position | author | **done in 6C** (open %) | 9 verifies no coerce/loss |
-| Rich fields keyed by `entity_id` only | per-action | **done in 6C** (rich on each action block) | 9 verifies |
-| Sensors / temp / power / energy / fluid as When / if | typeable | excluded from catalog | role-aware pickers + engine-legal ops only |
-| Numeric / threshold conditions (e.g. “> 80”) | not really (engine = equality today) | none | **engine + blocks** if we want true thresholds; else document “equality only” and expose sensor state equality in Blockly |
-| `FORCE_ON` / `FORCE_OFF` beyond switches | freeform | switches only | expose wherever engine already honors them |
-| Events outside curated E1 list | freeform | curated (+ sticky if already on rule) | either expand E1 with review UX, or allow “custom event” block that still validates on save |
-| Any other v2 field Blockly cannot emit | freeform | lost / stripped on canvas apply | inventory + block or explicit reject with message |
+#### Locked (2026-08-08 — do not re-litigate without explicit change)
 
-**In scope:**
+1. **Delivery order** — **audit-first**, then build; **post-audit** propose HA-inspired patterns (adoption separate).
+2. **Thresholds / compare** — **in 9A:** engine + Blockly. Operators = `==`, `!=`, `>`, `>=`, `<`, `<=`. **Hysteresis / for-duration = 9B only**.
+3. **Sensor-class types IN** — `sensor`, `temp_hum`, `temp`, `hum`, `power`, `energy`, `fluid`, `door`, **plus host gauges** (`sensor.*.host_*`, DB size, etc.). Motion = **trigger OK, never action**.
+4. **Roles** — **both** When + if (engine-legal per type).
+5. **`temp_hum` attributes** — separate fields: `temperature` and `humidity`.
+6. **Sensor When semantics** — **discrete** (door / motion): any change; **numeric**: compare **becomes** true (edge / threshold-cross).
+7. **Value UX (O1)** — **discrete = dropdown**; **numeric = Blockly `FieldNumber`** (same pattern as volume / blinds open %).
+8. **FORCE_*** — every origin engine already honors; RFX/Epson omit redundant FORCE.
+9. **Silent-loss = B+C** — opaque preserve unknown-but-legal keys; **block Save** when a drop would be non-preservable or structure cannot load safely.
+10. **JSON** — **remove in same PR** as parity green.
+11. **Events (O2 = A)** — **curated E1 expand only** (no custom-event field). Add **`SAUNA_SETPOINT_REACHED`** now; further keys only by explicit review + code/docs.
+12. **O9 (doc chore)** — when JSON is removed, update Phase 0 **decision #12** (Hybrid / JSON fallback) so it no longer says “keep JSON until Phase 9”. Not a product fork — mechanical supersession at 9A ship.
+13. **9B features** — bathroom climate (humidity band → Blockly); **H4** condition AND/OR groups; **H5** notify/alert action (**extend with Gmail** / `EMAIL_REQUESTED` per `docs/todo/integration_gmail.md`); **H12** generic hysteresis block. Feasibility for bathroom below. **Vent min-runtime lock (`90001` + timer) stays in hub code**.
+14. **9B scope** — bathroom climate + H4 + H5 + H12. Hot-water→vent / sauna grace / other sweeper = **out** unless reopened. Other HA patterns (**H1–H3, H6–H11**) = **future possibilities** only (not 9A/9B).
+15. **O7 disposition (2026-08-08)** — H4/H5/H12 → **9B**; remaining H\* → future backlog. **No** new HA primitives in **9A**. Post-audit step may still *note* gaps; it does not re-open this bucket without explicit change.
+16. **Pi smoke** — operator broad smoke; DoD not exhaustive.
+17. **Permanent exceptions** — hard-deny **71040** only; soft-hide / auto-off UIs stay 7/8.
 
-1. **Parity audit** — every live rule in `automations.auto.yaml` opens, edits, and saves in Blockly with **zero semantic drift** (including rich, OR, multi-case, soft-hidden sticky, schedule families). Any rule that still needs JSON is a Phase 9 bug or an explicit hard-deny exception.
-2. **Verify 6C closed** — rich authoring + per-action rich already shipped in 6C; 9 audits no silent coerce of blinds mid-values or rich keys on load/save, and no leftover `entity_id`-only rich map.
-3. **Sensor-class devices in pickers (role-aware)** — allow sensors / temp / power / energy / fluid where the engine can evaluate them (trigger and/or condition). Motion policy stays: trigger OK, never action. Actions remain actuators (+ event fire).
-4. **Threshold / compare conditions (optional engine slice)** — if operators need “above/below” (not only `device_state` equality), add engine support **and** Blockly blocks together; do not leave compare-only in JSON.
-5. **Action/condition completeness** — every engine-supported action key and condition type has a Blockly control; unknown keys on load surface a clear warning instead of silent drop.
-6. **Event dictionary completeness** — curated list covers all events used in production; path to add a new event without hand-JSON (admin list edit or reviewed “custom event” field).
-7. **JSON demotion** — after DoD: Blockly is default and sufficient; JSON labeled debug-only (or removed). Doc + UI copy updated.
+#### Open
 
-**Intentional permanent exceptions (not Phase 9 “gaps”):**
+| ID | Topic | Status |
+|----|--------|--------|
+| *(none for 9A product locks)* | — | 9A ready to audit/impl; 9B ordering/details at 9B kickoff |
 
-- **Hard deny** — Phase 7: **`switch.safety.safety_wisc_5v` (71040) only** (code fence; not soft-hide). Internal `90001` remains skipped. JSON must not bypass. (Older D1 host_*/SSR hard-deny prefixes superseded for operator policy.)
-- **Non-automation config** (`deviceexplorer_hide`, `auto_off_devices:`) — Phases 7 / 8, not Blockly rule canvas.
+#### O7 — HA-inspired patterns — **disposition locked**
 
-**Out of scope for 9:** redesign of schema v2 shape; Phase 7/8 storage UIs; kiosk/dashboard UX beyond existing `scene` / `require_confirmation` toggles.
+**9B (in):**
 
-**Constraints:** Admin Debug GREEN after representative CRUD; no silent field loss on Blockly apply; hard-deny enforcement unchanged; prefer extending blocks over teaching operators JSON.
+| # | Pattern | 9B note |
+|---|---------|---------|
+| **H4** | Condition AND/OR groups | Schema + Blockly; today conditions are flat AND |
+| **H5** | Notify / alert action | UI alert first; **extend with Gmail** — Blockly/automation emits `EMAIL_REQUESTED` only (never calls Gmail). SoT: `docs/todo/integration_gmail.md` (OAuth outbox, producer hysteresis, transport dedup) |
+| **H12** | Generic hysteresis / dual-threshold block | Vehicle for bathroom humidity band; reusable |
+
+**Future possibilities (not 9A/9B):** H1 sustained-for · H2 delay/wait sequence · H3 cooldown · H6 input_number helper · H7 presence/mode · H8 area trigger · H9 sun elevation · H10 blueprints · H11 general choose/switch beyond ON/OFF cases.
+
+#### Facts
+
+- Engine `device_state` today = string equality only → 9A extends compares.
+- Live YAML has no numeric-threshold rules yet.
+- Host gauges may be soft-hidden → Hidden toggle / open-rule sticky unchanged.
+
+#### Gap inventory (9A targets)
+
+| Gap | 9A target |
+|-----|-----------|
+| Rich 6C | verify no coerce/loss |
+| Sensors + host gauges | When + if; UX = dropdown / FieldNumber |
+| Compare ops | `== != > >= < <=` (no hysteresis) |
+| FORCE | all engine-honored origins |
+| Events | E1 expand only; + `SAUNA_SETPOINT_REACHED` |
+| Silent loss | B+C |
+| JSON | remove same PR; supersede decision #12 |
+
+#### In scope (9A)
+
+1. Live-rule parity audit + gap list.
+2. Post-audit: note any remaining gaps; **do not** adopt H\* into 9A (disposition locked).
+3. Verify 6C rich / per-action / blinds mid.
+4. Sensor + host-gauge pickers; motion trigger-only.
+5. Compare conditions (no hysteresis — **H12 is 9B**).
+6. FORCE completeness.
+7. E1 + `SAUNA_SETPOINT_REACHED`.
+8. JSON removal + B+C + update decision #12 prose.
+
+**Out of scope for 9A:** bathroom climate; H4/H5/H12; vent-lock Blockly; H1–H3/H6–H11; schema v2 redesign; Phase 7/8 UIs; Gmail stack (see `integration_gmail.md` — hooks land in **9B H5**). Bathroom feasibility write-up lives under **Phase 9B** (not a 9A deliverable).
+
+**Constraints:** Admin Debug GREEN; B+C no silent strip; hard-deny unchanged.
+
+---
+
+### Phase 9B — Bathroom climate + H4 / H5 / H12 🔜 DEFERRED (feasibility done for bathroom)
+
+**Not 9A.** 9A supplies compare / sensor / `humidity` primitives only.
+
+**Goal:**
+
+1. **Bathroom climate** — humidity ON/OFF band in Blockly; retire hardcoded climate paths; **vent min-runtime lock stays in hub**.
+2. **H12** — generic hysteresis / dual-threshold block (bathroom is the first consumer).
+3. **H4** — condition AND/OR groups in schema + Blockly.
+4. **H5** — notify/alert action; **extend with Gmail** via `EMAIL_REQUESTED` only (see `docs/todo/integration_gmail.md`). Rules never call Gmail directly.
+
+#### Assessment — packing H4/H5/H12 into 9B (2026-08-08)
+
+| Item | Fits 9B? | Dependency / risk |
+|------|----------|-------------------|
+| **H12** + bathroom | **Strong** | Natural vehicle for 80/74 band; do H12 before or with bathroom cutover |
+| **H4** OR groups | **Useful** | Schema change; bathroom may not need OR day-one, but notify rules (`CPU>80 OR mem>90`) will; order after basic compares exist (9A) |
+| **H5** UI alert | **Small** | Wire Blockly → existing `ALERT_INJECTED` (or equivalent) |
+| **H5** Gmail | **Larger / cross-doc** | Needs outbox + OAuth from `integration_gmail.md`; automation hook = emit `EMAIL_REQUESTED`. Gmail **transport** can ship outside Blocky; **9B** owns the Blockly/action shape. Producer hysteresis in gmail MD aligns with **H12** (prefer stability before mail) |
+| H1 sustained-for | **Out** (future) | Overlaps H12/for-duration — do not dual-build in 9B |
+| H3 cooldown | **Out** (future) | Gmail MD already has **transport** dedup; rule-level cooldown can wait |
+| H6 helpers | **Out** (future) | Would ease `bathroom1.vent_*` literals later; not required if literals OK for v1 band |
+
+**Suggested 9B impl order (proposal, not locked):** H12 → bathroom cutover → H4 → H5 alert → H5 email (when Gmail spooler ready).
+
+**Risk:** 9B scope grew from “bathroom only” — treat H4/H5 as explicit sub-deliverables; bathroom+H12 can DoD independently of Gmail if email lags.
+
+#### Feasibility — bathroom climate / vent (2026-08-08) ✅ DONE
+
+Pre-impl write-up (moved out of 9A in-scope; owned by **9B**).
+
+**What is hardcoded today**
+
+1. **Event path** (`HUMIDITY_UPDATED` on bathroom SHT11): if `hum >= vent_on_humidity` → vent ON; if `hum <= vent_off_humidity` and vent ON and **not** lock → vent OFF. Thresholds from `config.yaml` → `bathroom1.vent_on_humidity` / `vent_off_humidity` (80 / 74).
+2. **Min-runtime lock** (`90001`): on vent rising edge ON, hub sets `devices[90001]=True` and schedules `BATH1_VENT_LOCK_EXPIRED` after `vent_min_runtime_mins`; expiry clears lock and re-dispatches `HUMIDITY_UPDATED` to re-evaluate OFF. **Stays in code (locked 2026-08-08).**
+3. **Sweeper recovery** (Audit B): same ON/OFF thresholds on manual sweep — recovers desynced vent state.
+4. **Related (out of 9B scope):** hot-water pulse → vent ON — not part of this phase unless reopened.
+
+**Can humidity band become Blockly-authorable?**
+
+| Piece | Verdict |
+|-------|---------|
+| `humidity >= 80` → vent ON | **Yes after 9A** (numeric When + `humidity` + action) |
+| `humidity <= 74` → vent OFF | **9B** — hysteresis / dual-threshold (or two-rule pattern) |
+| Min-runtime lock | **Keep in hub code** — Blockly-unaware side-effect on vent ON |
+| Sweeper recovery | Decide at 9B impl: thin keep vs rely on next humidity event |
+| `bathroom1.vent_*` in `config.yaml` | 9B migration: literals in automations and/or retire config keys |
+
+**Verdict:** **Yes for 9B** for the humidity band, with lock remaining in code. Not a 9A deliverable.
+
+**Locked 9B approach:** humidity band → Blockly via **H12**; **lock stays in hub**; plus **H4** + **H5** (alert → Gmail). Hot-water/sauna-grace still out.
+
+**Not started (impl).**
 
 ---
 
@@ -366,7 +463,7 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 9. **E1 dictionary scope = E1-v1:** start with approved schedule/scene/sauna trigger set used by automations; add new entries only by explicit review.
 10. **Hard-deny extras = H1:** keep hard-deny minimal in v1 (safety/SSR/internal classes only); avoid broader hard-deny expansion until real operator pain appears.
 11. **UI scope = new page, admin-only:** Blocky is a dedicated admin route/page, not mixed into end-user pages.
-12. **UI strategy = Option 2 (Hybrid):** keep the current JSON/form editor as fallback + debugging path, and add Blockly visual mode incrementally. Do not remove the fallback editor until Blockly covers all live rule patterns and proves stable — that exit gate is **Phase 9** (**6C** rich actions closed 2026-08-06).
+12. **UI strategy = Option 2 (Hybrid):** keep the current JSON/form editor as fallback + debugging path, and add Blockly visual mode incrementally. Do not remove the fallback editor until Blockly covers all live rule patterns and proves stable — that exit gate is **Phase 9A**. **Supersession:** when 9A removes JSON, rewrite this bullet to “Blockly-only; JSON removed” (doc chore **O9** — locked as mechanical, not a product reopen).
 
 ## ✅ Final spec lock checklist (no code)
 
@@ -551,7 +648,9 @@ Phase 5 does **not** require a rollback rehearsal that depends on hand-edit + Ad
 3. **Phase 6C:** ✅ rich action UX — Hue preset XOR custom color (iro → bri/xy), blinds open % (incl. mid), Sonos/Onkyo volume, Sonos station, per-action rich; smoke OK Pi **2026-08-06**.
 4. **Phase 7:** ✅ unified soft-hide — **`deviceexplorer_hide`**; `hiddendevices.html` + `/api/soft-hide`; hard-deny = 71040 (A); 71036 soft-hide + commandable + Blocky-selectable; migrator removed after cutover.
 5. **Phase 8:** ✅ auto-off timers UI + engine — `auto_off_devices:`; `lightingautooff.html` + `/api/auto-off-timer`; migrator removed after cutover.
-6. **Phase 9:** full Blockly ↔ JSON parity — every authorable v2 rule editable on canvas; JSON debug-only (or removed).
+6. **Phase 9A:** Blockly parity + sensor/threshold/host-gauge authoring + **remove JSON** — **spec locked**.
+7. **Phase 9B:** bathroom climate + **H12** hysteresis + **H4** condition OR groups + **H5** notify (→ Gmail per `integration_gmail.md`); vent lock stays in hub — deferred.
+8. **Later:** HA patterns H1–H3, H6–H11 (future possibilities).
 
 ## ✅ Definition of Done (Option 2)
 
@@ -644,24 +743,38 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [x] **Engine:** auto-off only for eids in `managed_auto_off`; delay = per-device → `default_pertype_auto_off_minutes[type]` → `default_auto_off_minutes`.
 - [x] **Admin entry:** System Commands → **“Auto-off timers”** (under Hidden Devices) → `lightingautooff.html` (admin-only; no shell nav).
 - [x] **API:** `GET` + full-replace `PUT /api/auto-off-timer`; surgical write of **`auto_off_devices:`** only; hot-reload on save; reject unresolved / orphan / ineligible / bad type keys; enforce `auto_off_delays` ⊆ `managed_auto_off`; sorted unique lists/maps; minutes 1–720.
-- [x] **UI:** general + type rows (`switch` / `light` / `speaker`) + eligible device list (checkbox + optional override); uncheck clears delay; effective minutes; soft-hide All / Hidden / Non-hidden; **Auto-off ON / OFF / All** membership filter; sort Name / Type / Override; 71040 omitted; vents + speakers eligible.
+- [x] **UI:** general + type rows (`switch` / `light` / `speaker`) + eligible device list (checkbox + **Effective** minutes); blank = inherit (muted italic resolved); typed = per-device pin; uncheck clears delay; soft-hide All / Hidden / Non-hidden; **Auto-off ON / OFF / All** membership filter; sort Name / Type / Effective (resolved; unmanaged last); 71040 omitted; vents + speakers eligible.
 - [x] **Eligibility:** denylist + device extras enforced in inventory and on PUT; migrator stripped ineligible leftovers (kept vents).
 - [x] **Comments:** block rewritten without preserving hand comments.
 - [x] **Docs:** `install_blocky.md` Phase 8 closed + `docs/reference.md` API line.
 - [x] **Admin Debug GREEN** after cutover / representative saves.
-- [x] **Pi smoke:** migrator/rename; Auto-off timers page; general / type / device override path; uncheck clears delay; membership Auto-off ON/OFF filter; ON→timer uses expected delay; Debug GREEN — **OK on Pi (2026-08-08)**.
+- [x] **Pi smoke:** migrator/rename; Auto-off timers page; general / type / per-device Effective pin; blank inherit (muted); uncheck clears delay; membership Auto-off ON/OFF filter; ON→timer uses expected delay; Debug GREEN — **OK on Pi (2026-08-08)** (Effective-column UX follow-up after that date).
 
-### Phase 9 DoD — Full Blockly ↔ JSON parity
+### Phase 9A DoD — Blockly parity + sensors/thresholds + remove JSON
 
-- [ ] **Live-rule audit:** every rule in production `automations.auto.yaml` opens / edits / saves in Blockly with no semantic drift (rich, OR, multi-case, schedule families, soft-hidden sticky).
-- [ ] **No required JSON:** operator can create and change any authorable v2 rule without opening JSON mode.
-- [ ] **Per-action rich:** verify 6C — two actions on the same `entity_id` with different preset/volume/etc. round-trip independently (no entity-keyed collision).
-- [ ] **No silent loss:** load→save in Blockly does not coerce away blinds mid-positions, rich keys, or unknown-but-legal fields without an explicit warning.
-- [ ] **Sensor-class pickers:** sensors / temp / power / energy / fluid selectable where engine-legal; motion remains trigger-only; hard-deny still blocked in UI and on save.
-- [ ] **Thresholds (if in scope):** compare conditions work in engine **and** Blockly together — or explicitly documented as out and not available in JSON either.
-- [ ] **Events:** all production events reachable from Blockly (curated expansion and/or reviewed custom-event path).
-- [ ] **JSON demoted:** UI/docs mark JSON as debug-only (or remove it); copy no longer says “power-user required for rich rules”.
-- [ ] **Pi smoke:** edit `pc_monitors` (rich), one sensor/condition rule (if enabled), one OR multi-case rule — Admin Debug GREEN.
+- [ ] **Live-rule audit:** every production rule opens / edits / saves in Blockly with no semantic drift; written gap list.
+- [ ] **Post-audit note:** confirm no pressure to pull H\* into 9A (H4/H5/H12 wait for 9B).
+- [ ] **Per-action rich:** verify 6C round-trip independence.
+- [ ] **Silent-loss B+C:** unknown-legal keys preserved; Save blocked when a non-preservable drop would occur.
+- [ ] **Sensor + host-gauge pickers:** When + if; motion trigger-only; hard-deny blocked; discrete dropdown / numeric `FieldNumber`.
+- [ ] **Thresholds:** ops `== != > >= < <=` in engine **and** Blockly; no hysteresis; `temp_hum` → separate temperature / humidity; numeric When = edge-cross, discrete = any change.
+- [ ] **FORCE:** all engine-honored origins.
+- [ ] **Events:** E1 expand only; `SAUNA_SETPOINT_REACHED` present.
+- [ ] **JSON removed** in same PR as parity green; decision #12 prose updated to Blockly-only.
+- [ ] **Pi smoke:** operator broad smoke + Admin Debug GREEN.
+
+### Phase 9B DoD — Bathroom climate + H4 / H5 / H12
+
+- [x] **Bathroom feasibility:** write-up under Phase 9B (**2026-08-08**).
+- [ ] **H12:** generic hysteresis / dual-threshold authorable in Blockly + engine.
+- [ ] **Bathroom:** humidity ON/OFF band via H12; hardcoded climate paths retired; **vent min-runtime lock remains in hub**.
+- [ ] **`bathroom1.vent_*` cutover** decided and applied.
+- [ ] **Sweeper** climate recovery: keep-thin or drop — explicit at impl.
+- [ ] **H4:** condition AND/OR groups in schema + Blockly + engine.
+- [ ] **H5 alert:** Blockly notify/alert action (UI path).
+- [ ] **H5 Gmail:** action emits `EMAIL_REQUESTED` only; aligns with `docs/todo/integration_gmail.md` (outbox/OAuth may land in parallel; email DoD can trail alert if needed).
+- [ ] Hot-water/sauna-grace still out unless reopened.
+- [ ] Pi smoke + Admin Debug GREEN.
 
 ### Phase 5 DoD — Hardening + rollout readiness ✅
 

@@ -27,8 +27,9 @@
     <section class="card bg-base-100 border border-base-200 shadow-xl">
         <div class="card-body p-4 gap-4">
             <p class="text-xs text-base-content/60">
-                Auto-off applies only to checked devices. Delay = per-device override → type default → general.
-                Minutes 1–720. Unchecking clears any override.
+                Auto-off applies only to checked devices. Effective: blank inherits type/general (muted italic);
+                typed value pins per-device. Precedence: per-device → type → general. Minutes 1–720.
+                Unchecking clears any per-device delay.
             </p>
 
             <div x-show="errorMessage" class="alert alert-error text-sm" x-cloak>
@@ -102,22 +103,21 @@
 
             <div class="max-h-[55vh] overflow-y-auto border border-base-300 rounded-box">
                 <table class="table table-sm">
-                    <thead class="sticky top-0 bg-base-200 z-10">
+                    <thead class="sticky top-0 z-20">
                         <tr class="text-base-400 font-mono text-[10px] uppercase tracking-wider">
-                            <th class="w-12">On</th>
-                            <th class="w-24 cursor-pointer select-none hover:text-base-content"
+                            <th class="w-12 bg-base-200">On</th>
+                            <th class="w-24 bg-base-200 cursor-pointer select-none hover:text-base-content"
                                 @click="toggleSort('type')">
                                 <span x-text="'Type' + sortIndicator('type')"></span>
                             </th>
-                            <th class="cursor-pointer select-none hover:text-base-content"
+                            <th class="bg-base-200 cursor-pointer select-none hover:text-base-content"
                                 @click="toggleSort('name')">
                                 <span x-text="'Name' + sortIndicator('name')"></span>
                             </th>
-                            <th class="w-24 cursor-pointer select-none hover:text-base-content"
-                                @click="toggleSort('override')">
-                                <span x-text="'Override' + sortIndicator('override')"></span>
+                            <th class="w-24 bg-base-200 cursor-pointer select-none hover:text-base-content"
+                                @click="toggleSort('effective')">
+                                <span x-text="'Effective' + sortIndicator('effective')"></span>
                             </th>
-                            <th class="w-20">Effective</th>
                         </tr>
                     </thead>
                     <tbody class="text-sm">
@@ -132,15 +132,18 @@
                                     x-text="row.typeLabel"></td>
                                 <td class="font-medium" x-text="row.name"></td>
                                 <td>
-                                    <input type="number" min="1" max="720"
-                                           class="input input-bordered input-xs w-20 font-mono"
-                                           :disabled="!row.managed"
-                                           :placeholder="String(effectiveFor(row))"
-                                           :value="row.override ?? ''"
-                                           @input="setOverride(row, $event.target.value)">
+                                    <div class="relative w-20">
+                                        <span x-show="row.managed && !isExplicit(row)"
+                                              class="pointer-events-none absolute inset-0 flex items-center px-2 font-mono text-xs italic text-base-content/40"
+                                              x-text="effectiveFor(row)"></span>
+                                        <input type="number" min="1" max="720"
+                                               class="input input-bordered input-xs w-20 font-mono relative bg-transparent"
+                                               :class="row.managed && !isExplicit(row) ? 'text-transparent caret-base-content' : ''"
+                                               :disabled="!row.managed"
+                                               :value="isExplicit(row) ? row.override : ''"
+                                               @input="setEffective(row, $event.target.value)">
+                                    </div>
                                 </td>
-                                <td class="font-mono text-xs text-base-content/70"
-                                    x-text="effectiveFor(row) + 'm'"></td>
                             </tr>
                         </template>
                     </tbody>
@@ -154,6 +157,6 @@
 </main>
 
 <script src="/wanos-shell.js?v=5"></script>
-<script src="/lightingautooff.js?v=3"></script>
+<script src="/lightingautooff.js?v=5"></script>
 </body>
 </html>

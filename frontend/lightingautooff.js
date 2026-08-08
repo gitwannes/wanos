@@ -19,7 +19,7 @@ function autoOffTimersApp() {
         viewMode: "visible",
         /** @type {"all"|"on"|"off"} — auto-off membership (checkbox), not lamp power */
         managedFilter: "all",
-        /** @type {"name"|"type"|"override"} */
+        /** @type {"name"|"type"|"effective"} */
         sortKey: "name",
         /** @type {"asc"|"desc"} */
         sortDir: "asc",
@@ -69,14 +69,10 @@ function autoOffTimersApp() {
             const key = this.sortKey;
             const dir = this.sortDir === "asc" ? 1 : -1;
             list.sort((a, b) => {
-                if (key === "override") {
-                    const av = a.override == null || a.override === "" ? null : Number(a.override);
-                    const bv = b.override == null || b.override === "" ? null : Number(b.override);
-                    if (av == null && bv == null) {
-                        return String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" });
-                    }
-                    if (av == null) return 1;
-                    if (bv == null) return -1;
+                if (key === "effective") {
+                    if (!!a.managed !== !!b.managed) return a.managed ? -1 : 1;
+                    const av = this.effectiveFor(a);
+                    const bv = this.effectiveFor(b);
                     if (av !== bv) return (av - bv) * dir;
                     return String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" });
                 }
@@ -138,8 +134,14 @@ function autoOffTimersApp() {
             return ALLOWED.has(this.normType(type));
         },
 
+        /** Stored per-device delay (explicit pin). */
+        isExplicit(row) {
+            return row.override != null && row.override !== "" && !Number.isNaN(Number(row.override));
+        },
+
+        /** Resolved minutes: per-device → type → general. */
         effectiveFor(row) {
-            if (row.override != null && row.override !== "") {
+            if (this.isExplicit(row)) {
                 return Number(row.override);
             }
             const t = row.typeKey;
@@ -164,7 +166,7 @@ function autoOffTimersApp() {
             this._syncDraftFromRows();
         },
 
-        setOverride(row, raw) {
+        setEffective(row, raw) {
             const v = String(raw || "").trim();
             row.override = v === "" ? null : Number(v);
             this._syncDraftFromRows();
@@ -176,7 +178,7 @@ function autoOffTimersApp() {
             for (const row of this.rows) {
                 if (!row.managed) continue;
                 managed.push(row.eid);
-                if (row.override != null && row.override !== "" && !Number.isNaN(Number(row.override))) {
+                if (this.isExplicit(row)) {
                     delays[row.eid] = Number(row.override);
                 }
             }

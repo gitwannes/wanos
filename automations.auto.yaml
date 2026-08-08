@@ -40,12 +40,13 @@ deviceexplorer_hide:
   - switch.vent.toilet_ventilatie_motor
 auto_off_devices:
   managed_auto_off:
+    - hue.group.badk_1e_hue
+    - hue.group.badk_2e_hue
     - hue.group.cinema_hue
     - hue.group.eetkamer_hue
     - hue.group.living_hue
     - hue.group.slpk_dries_hue
     - hue.group.slpk_wannes_hue
-    - switch.badk_1e_hue_physical
     - switch.berging_2e
     - switch.buro_licht
     - switch.buro_wannes_schemer
@@ -69,14 +70,19 @@ auto_off_devices:
   default_auto_off_minutes: 300
   default_pertype_auto_off_minutes: {}
   auto_off_delays:
+    hue.group.badk_1e_hue: 60
+    hue.group.badk_2e_hue: 60
     hue.group.slpk_dries_hue: 30
     hue.group.slpk_wannes_hue: 90
-    switch.badk_1e_hue_physical: 120
     switch.berging_2e: 1
+    switch.buro_licht: 120
+    switch.cinema_licht: 120
     switch.eetkamer: 30
+    switch.gang_beneden: 15
     switch.gang_boven: 10
-    switch.licht_garage: 10
+    switch.licht_garage: 15
     switch.slpk_dries: 30
+    switch.slpk_liene: 60
     switch.slpk_wannes: 30
     switch.toilet: 10
     switch.vent.badk_2e_ventilatie: 30
