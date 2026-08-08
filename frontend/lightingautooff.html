@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="WanOS" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+    <title>WanOS // Admin - Auto-off Timers</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="/wanos.css?v=1" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-base-300 min-h-screen text-base-content" x-data="autoOffTimersApp()" x-init="init()">
+
+<div data-wanos-offline data-tone="warning" data-message="Loading…"></div>
+<div data-wanos-nav="lightingautooff"></div>
+
+<main class="max-w-3xl mx-auto px-3 md:px-6 pb-10">
+    <section class="card bg-base-100 border border-base-200 shadow-xl">
+        <div class="card-body p-4 gap-4">
+            <p class="text-xs text-base-content/60">
+                Auto-off applies only to checked devices. Delay = per-device override → type default → general.
+                Minutes 1–720. Unchecking clears any override.
+            </p>
+
+            <div x-show="errorMessage" class="alert alert-error text-sm" x-cloak>
+                <span x-text="errorMessage"></span>
+            </div>
+            <div x-show="infoMessage" class="alert alert-success text-sm" x-cloak>
+                <span x-text="infoMessage"></span>
+            </div>
+
+            <!-- Tier 1: general -->
+            <div class="flex flex-wrap items-end gap-3 border-b border-base-300 pb-3">
+                <label class="form-control w-40">
+                    <span class="label-text text-[10px] font-mono uppercase tracking-wider text-base-content/50">General default (min)</span>
+                    <input type="number" min="1" max="720" class="input input-bordered input-sm font-mono"
+                           x-model.number="draft.default_auto_off_minutes">
+                </label>
+                <button type="button" class="btn btn-primary btn-sm ml-auto" @click="save()" :disabled="busy || !dirty">
+                    <span x-show="!busy">Save &amp; reload config</span>
+                    <span x-show="busy" class="loading loading-spinner loading-xs"></span>
+                </button>
+            </div>
+
+            <!-- Tier 2: type defaults -->
+            <div class="border-b border-base-300 pb-3">
+                <div class="text-[10px] font-mono uppercase tracking-wider text-base-content/50 mb-2">Type defaults (min)</div>
+                <div class="flex flex-wrap gap-3">
+                    <template x-for="t in typeKeys" :key="t">
+                        <label class="form-control w-28">
+                            <span class="label-text text-[10px] font-mono uppercase" x-text="t"></span>
+                            <input type="number" min="1" max="720" class="input input-bordered input-sm font-mono"
+                                   :placeholder="String(draft.default_auto_off_minutes)"
+                                   :value="draft.default_pertype_auto_off_minutes[t] ?? ''"
+                                   @input="setTypeDefault(t, $event.target.value)">
+                        </label>
+                    </template>
+                </div>
+                <p class="text-[10px] text-base-content/40 mt-1">Blank type = use general default.</p>
+            </div>
+
+            <!-- Tier 3: devices -->
+            <div class="flex flex-wrap gap-2 items-center">
+                <div class="join">
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="viewMode === 'all' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="viewMode = 'all'">All</button>
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="viewMode === 'hidden' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="viewMode = 'hidden'">Hidden only</button>
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="viewMode === 'visible' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="viewMode = 'visible'">Non-hidden only</button>
+                </div>
+                <div class="join" title="Filter by auto-off membership (checkbox), not light power">
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="managedFilter === 'all' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="managedFilter = 'all'">All</button>
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="managedFilter === 'on' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="managedFilter = 'on'">Auto-off ON</button>
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="managedFilter === 'off' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="managedFilter = 'off'">Auto-off OFF</button>
+                </div>
+                <input type="text" class="input input-bordered input-sm flex-1 min-w-[12rem] font-mono"
+                       placeholder="Search name or type"
+                       x-model="searchQuery">
+            </div>
+
+            <div class="text-[10px] font-mono text-base-content/50"
+                 x-text="visibleRows.length + ' listed · ' + managedCount + ' managed · ' + (dirty ? 'unsaved' : 'saved')"></div>
+
+            <div class="max-h-[55vh] overflow-y-auto border border-base-300 rounded-box">
+                <table class="table table-sm">
+                    <thead class="sticky top-0 bg-base-200 z-10">
+                        <tr class="text-base-400 font-mono text-[10px] uppercase tracking-wider">
+                            <th class="w-12">On</th>
+                            <th class="w-24 cursor-pointer select-none hover:text-base-content"
+                                @click="toggleSort('type')">
+                                <span x-text="'Type' + sortIndicator('type')"></span>
+                            </th>
+                            <th class="cursor-pointer select-none hover:text-base-content"
+                                @click="toggleSort('name')">
+                                <span x-text="'Name' + sortIndicator('name')"></span>
+                            </th>
+                            <th class="w-24 cursor-pointer select-none hover:text-base-content"
+                                @click="toggleSort('override')">
+                                <span x-text="'Override' + sortIndicator('override')"></span>
+                            </th>
+                            <th class="w-20">Effective</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm">
+                        <template x-for="row in visibleRows" :key="row.eid">
+                            <tr class="hover:bg-base-200/40">
+                                <td>
+                                    <input type="checkbox" class="checkbox checkbox-sm checkbox-secondary"
+                                           :checked="row.managed"
+                                           @change="toggleManaged(row, $event.target.checked)">
+                                </td>
+                                <td class="font-mono text-xs text-base-content/60 uppercase tracking-wide"
+                                    x-text="row.typeLabel"></td>
+                                <td class="font-medium" x-text="row.name"></td>
+                                <td>
+                                    <input type="number" min="1" max="720"
+                                           class="input input-bordered input-xs w-20 font-mono"
+                                           :disabled="!row.managed"
+                                           :placeholder="String(effectiveFor(row))"
+                                           :value="row.override ?? ''"
+                                           @input="setOverride(row, $event.target.value)">
+                                </td>
+                                <td class="font-mono text-xs text-base-content/70"
+                                    x-text="effectiveFor(row) + 'm'"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                <div x-show="visibleRows.length === 0" class="p-6 text-center text-xs text-base-content/50 italic">
+                    No eligible devices match this filter.
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script src="/wanos-shell.js?v=5"></script>
+<script src="/lightingautooff.js?v=3"></script>
+</body>
+</html>

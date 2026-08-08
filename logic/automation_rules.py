@@ -7,6 +7,7 @@ from core.models import Event, EventType, SystemState, device_name
 from core.config import load_config
 from core.logger import automation_logger  # explicitly isolated logger for logic rules
 from core.schedule_events import canonicalize_schedule_event
+from core.auto_off_policy import resolve_auto_off_minutes
 from core.well_known_entities import (
     ENTITY_BATHROOM_HUM,
     ENTITY_BATHROOM_VENT,
@@ -553,9 +554,9 @@ class AutomationEngine:
             recovered_timers: int = 0
             recovered_vents: int = 0
 
-            # --- Audit A: Lighting Timers ---
-            if hasattr(config, "lighting") and config.lighting.managed_lights:
-                for light_eid in config.lighting.managed_lights:
+            # --- Audit A: Auto-off Timers ---
+            if hasattr(config, "auto_off_devices") and config.auto_off_devices.managed_auto_off:
+                for light_eid in config.auto_off_devices.managed_auto_off:
                     light_idx = AutomationEngine.resolve_entity_id(state, light_eid)
                     if light_idx is None:
                         continue
@@ -571,8 +572,15 @@ class AutomationEngine:
                         timer_exists = AutomationEngine._timer_exists(state.system.active_timers, timer_id)
 
                         if not timer_exists:
-                            delay_mins: int = config.lighting.auto_off_delays.get(
-                                light_eid, config.lighting.default_auto_off_minutes)
+                            meta = state.device_metadata.get(light_idx) or {}
+                            dtype = meta.get("type") if isinstance(meta, dict) else None
+                            delay_mins: int = resolve_auto_off_minutes(
+                                eid=light_eid,
+                                device_type=dtype,
+                                auto_off_delays=config.auto_off_devices.auto_off_delays,
+                                default_pertype=config.auto_off_devices.default_pertype_auto_off_minutes,
+                                default_minutes=config.auto_off_devices.default_auto_off_minutes,
+                            )
                             deadline: int = int(time.time()) + delay_mins * 60
                             semantic_name: str = device_name(state, light_idx, "Unknown")
 
@@ -691,21 +699,21 @@ class AutomationEngine:
                                 f"[X-RAY] Bathroom humidity ({val}%) is low enough to turn off, but 5-minute safety lock is still engaged. Waiting.")
 
         # =========================================================================
-        # 4. LIGHTING AUTO-OFF TIMERS
+        # 4. AUTO-OFF TIMERS (auto_off_devices)
         # =========================================================================
         # Prevents lights in transitive rooms (hallways, toilets, pantries) from being left on indefinitely.
-        # - Only affects entity_ids explicitly listed in `managed_lights` in automations.auto.yaml.
-        # - Looks up specific time limits (e.g. Toilet = 15m, Hallway = 10m) from `auto_off_delays`.
+        # - Only affects entity_ids explicitly listed in `managed_auto_off`.
+        # - Delay = per-device override → type default → general default.
         # - Re-schedules the deadline dynamically if motion is re-triggered while already ON.
         # =========================================================================
         if event_name == "HUB_STATE_CHANGED":
             idx = payload.get("idx")
             dev_ref = AutomationEngine.format_device_ref(state, idx)
 
-            # Only track devices that are explicitly registered in the lighting YAML config
+            # Only track devices that are explicitly registered in the auto-off YAML config
             light_eid = AutomationEngine.entity_id_for(state, idx)
-            if (light_eid is not None and hasattr(config, "lighting")
-                    and light_eid in config.lighting.managed_lights):
+            if (light_eid is not None and hasattr(config, "auto_off_devices")
+                    and light_eid in config.auto_off_devices.managed_auto_off):
                 timer_id: str = f"light_auto_off_{idx}"
 
                 # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
@@ -716,9 +724,15 @@ class AutomationEngine:
                 safe_state = str(current_state).upper() if current_state else ""
 
                 if safe_state == "ON":
-                    # Look up specific delay, fallback to the global default
-                    delay_mins: int = config.lighting.auto_off_delays.get(
-                        light_eid, config.lighting.default_auto_off_minutes)
+                    meta = state.device_metadata.get(idx) or {}
+                    dtype = meta.get("type") if isinstance(meta, dict) else None
+                    delay_mins: int = resolve_auto_off_minutes(
+                        eid=light_eid,
+                        device_type=dtype,
+                        auto_off_delays=config.auto_off_devices.auto_off_delays,
+                        default_pertype=config.auto_off_devices.default_pertype_auto_off_minutes,
+                        default_minutes=config.auto_off_devices.default_auto_off_minutes,
+                    )
                     deadline: int = int(time.time()) + delay_mins * 60
 
                     follow_up_events.append(Event(

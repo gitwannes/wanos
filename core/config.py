@@ -84,14 +84,16 @@ class BathroomConfig(BaseModel):
     vent_min_runtime_mins: int
 
 
-class LightingConfig(BaseModel):
+class AutoOffDevicesConfig(BaseModel):
+    """Auto-off timers in automations.auto.yaml (`auto_off_devices:`)."""
     default_auto_off_minutes: int = 300
-    managed_lights: List[str] = Field(default_factory=list)
+    managed_auto_off: List[str] = Field(default_factory=list)
+    default_pertype_auto_off_minutes: Dict[str, int] = Field(default_factory=dict)
     auto_off_delays: Dict[str, int] = Field(default_factory=dict)
 
-    @field_validator("auto_off_delays", mode="before")
+    @field_validator("auto_off_delays", "default_pertype_auto_off_minutes", mode="before")
     @classmethod
-    def coerce_delay_keys(cls, value: Any) -> Any:
+    def coerce_map_keys(cls, value: Any) -> Any:
         if not isinstance(value, dict):
             return value
         return {str(k): int(v) for k, v in value.items()}
@@ -420,7 +422,7 @@ class AppConfig(BaseModel):
     sauna: SaunaRuntimeConfig
     ir: IRRuntimeConfig
     bathroom1: BathroomConfig
-    lighting: LightingConfig
+    auto_off_devices: AutoOffDevicesConfig
     blinds: Optional[BlindsConfig] = None
     environmental_schedule: Optional[EnvironmentalScheduleConfig] = None
     weather: WeatherConfig
@@ -437,7 +439,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     lab_yaml_path = BASE_DIR / "config_lab.yaml"
     hue_yaml_path = BASE_DIR / "config_hue.yaml"  # ⚡ Segregated lighting profile path entry
     zwave_yaml_path = BASE_DIR / "config_zwave.auto.yaml"  # ⚡ UI/system-owned Z-Wave profile
-    automations_yaml_path = BASE_DIR / "automations.auto.yaml"  # ⚡ UI/system-owned exclude/lighting/rules
+    automations_yaml_path = BASE_DIR / "automations.auto.yaml"  # ⚡ UI/system-owned hide / auto-off / rules
 
     # STRICT CHECK 1: Ensure .env file physically exists
     if not env_path.exists():
@@ -477,7 +479,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             if isinstance(zwave_file_raw, dict):
                 zwave_data = zwave_file_raw.get("zwave", zwave_file_raw)
 
-    # 3c. Read automatic automations / lighting / soft-hide profile
+    # 3c. Read automatic automations / auto-off / soft-hide profile
     auto_data: Dict[str, Any] = {}
     if automations_yaml_path.exists():
         with open(automations_yaml_path, "r", encoding="utf-8") as file:
@@ -488,7 +490,10 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     deviceexplorer_hide = auto_data.get(
         "deviceexplorer_hide", runtime_data.get("deviceexplorer_hide", [])
     )
-    lighting_data = auto_data.get("lighting", runtime_data.get("lighting", {}))
+    # auto_off_devices only (no dual-read of legacy lighting:)
+    auto_off_data = auto_data.get(
+        "auto_off_devices", runtime_data.get("auto_off_devices", {})
+    )
     automations_data = auto_data.get("automations", runtime_data.get("automations", []))
 
     # X1 expansion (Y1 branched -> flat engine rules)
@@ -529,7 +534,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "sauna": runtime_data["sauna"],
         "ir": runtime_data["ir"],
         "bathroom1": runtime_data["bathroom1"],
-        "lighting": lighting_data,
+        "auto_off_devices": auto_off_data or {},
         "blinds": runtime_data.get("blinds"),
         "environmental_schedule": runtime_data.get("environmental_schedule"),
         "weather": runtime_data["weather"],

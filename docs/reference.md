@@ -5,8 +5,8 @@ This document serves as the master blueprint and reference guide for the directo
 ## 1. Directory & File Structure Blueprint
 
 **Root Directory (`/home/wannes/wanos/`)**
-* `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and manual integration settings. (Manual / human-edited; comments preserved.) Automatic domains (`deviceexplorer_hide`, `lighting`, `automations`) live in `automations.auto.yaml`.
-* `automations.auto.yaml`: UI/system-owned automatic sections — Explorer soft-hide (`deviceexplorer_hide`), lighting auto-off, and automation rules/scenes.
+* `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and manual integration settings. (Manual / human-edited; comments preserved.) Automatic domains (`deviceexplorer_hide`, `auto_off_devices`, `automations`) live in `automations.auto.yaml`.
+* `automations.auto.yaml`: UI/system-owned automatic sections — Explorer soft-hide (`deviceexplorer_hide`), auto-off timers (`auto_off_devices`), and automation rules/scenes.
 * `config_hue.yaml`: Segregated lighting profile path tracking local network Philips Hue Bridge API endpoints and structural group/scene UUID allocations.
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
 * `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
@@ -158,6 +158,7 @@ The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer o
 * **`POST /api/event`** | Universal application entry point. Accepts standard `type` and `payload` properties to inject commands onto the async bus. Protects admin-only payloads via RBAC token inspection.
 * **`GET /api/debug/entity-registry-check`** | Admin-only. Runs `run_entity_cutover_checks` (plus live `device_metadata`) and returns JSON including annotated `report_text` for the Admin Debug modal. Blocky also calls this after automation Save/Delete and shows GREEN/RED in-page.
 * **`GET/PUT /api/soft-hide`** | Admin. Full-list replace of `deviceexplorer_hide` in `automations.auto.yaml` (`entity_ids: string[]`). PUT dispatches `CONFIG_RELOAD_REQUESTED`. Hard-deny `switch.safety.safety_wisc_5v` rejected. Admin UI: `hiddendevices.html`.
+* **`GET/PUT /api/auto-off-timer`** | Admin. Full-replace of `auto_off_devices` in `automations.auto.yaml` (`managed_auto_off`, `default_auto_off_minutes`, `default_pertype_auto_off_minutes`, `auto_off_delays`). PUT validates eligibility / orphans / minutes 1–720; dispatches `CONFIG_RELOAD_REQUESTED`. Admin UI: `lightingautooff.html`.
 * **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET returns raw v2. Each write dispatches `CONFIG_RELOAD_REQUESTED`. Schedule families: `SCHEDULE_WINDOW_EDGES` (`core/schedule_events.py`). See `docs/todo/install_blocky.md`.
 
 ---

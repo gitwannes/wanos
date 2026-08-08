@@ -211,7 +211,7 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
                 continue
             put(node.get("idx"), name=node.get("name"), dtype="temp_hum", origin="sht11")
 
-    # --- config.yaml (master) + automations.auto.yaml (exclude / lighting / rules) ---
+    # --- config.yaml (master) + automations.auto.yaml (hide / auto-off / rules) ---
     cfg = load_yaml(root / "config.yaml") or {}
     auto_cfg = load_yaml(root / "automations.auto.yaml") or {}
     weather = cfg.get("weather") or {}

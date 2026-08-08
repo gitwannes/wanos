@@ -64,7 +64,7 @@ def write_soft_hide_entity_ids(entity_ids: List[str]) -> List[str]:
         new_root = CommentedMap()
         inserted = False
         for k, v in root.items():
-            if not inserted and k in ("lighting", "automations"):
+            if not inserted and k in ("auto_off_devices", "automations"):
                 new_root[HIDE_KEY] = seq
                 inserted = True
             if k == LEGACY_EXCLUDE_KEY:

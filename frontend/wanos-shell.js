@@ -118,6 +118,13 @@
                 "</div>"
             );
         }
+        if (page === "lightingautooff") {
+            return (
+                '<div class="flex flex-col min-w-0 justify-center">' +
+                '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin - Auto-off Timers</span>' +
+                "</div>"
+            );
+        }
         if (page === "zwave") {
             return (
                 '<div class="flex flex-col min-w-0 justify-center">' +
@@ -207,7 +214,7 @@
 
         let gear = "";
         if (page !== "admin") {
-            const alwaysGear = page === "blocky" || page === "hiddendevices" || page === "zwave";
+            const alwaysGear = page === "blocky" || page === "hiddendevices" || page === "lightingautooff" || page === "zwave";
             const gearClick = page === "blocky" ? ' @click="navAway($event, \'/admin.html\')"' : "";
             const gearShow = alwaysGear ? "" : ' x-show="isAdmin" x-cloak';
             gear =

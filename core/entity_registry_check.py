@@ -208,10 +208,16 @@ def run_entity_cutover_checks(
     # Merge auto domains (auto file wins; legacy config.yaml fallback)
     merged_auto = {
         "deviceexplorer_hide": raw_auto.get("deviceexplorer_hide"),
-        "lighting": raw_auto.get("lighting", raw_cfg.get("lighting")),
+        "auto_off_devices": raw_auto.get("auto_off_devices", raw_cfg.get("auto_off_devices")),
         "automations": raw_auto.get("automations", raw_cfg.get("automations")),
     }
     stats["automations_source"] = auto_source
+
+    if "lighting" in raw_auto or "lighting" in (raw_cfg or {}):
+        errors.append(
+            "legacy lighting: must not exist — SoT is auto_off_devices: "
+            "(delete lighting: or restore from cutover backup)"
+        )
 
     def _require_eids(label: str, refs: List[Any]) -> None:
         for ref in refs:
@@ -254,14 +260,56 @@ def run_entity_cutover_checks(
         _require_eids("blinds.travel_times", list(travel.keys()))
         stats["blinds_travel_times"] = len(travel)
 
-    lighting = merged_auto.get("lighting") or {}
-    managed = lighting.get("managed_lights") or []
-    delays = lighting.get("auto_off_delays") or {}
-    if isinstance(managed, list):
-        _require_eids("lighting.managed_lights", managed)
-        stats["managed_lights"] = len(managed)
-    if isinstance(delays, dict):
-        _require_eids("lighting.auto_off_delays", list(delays.keys()))
+    auto_off = merged_auto.get("auto_off_devices")
+    if auto_off is None:
+        errors.append("auto_off_devices missing from automations.auto.yaml")
+    elif not isinstance(auto_off, dict):
+        errors.append("auto_off_devices must be a mapping")
+    else:
+        from core.auto_off_policy import (
+            AUTO_OFF_ALLOWED_TYPES,
+            is_auto_off_eligible,
+            metadata_type_for_eid,
+        )
+
+        managed = auto_off.get("managed_auto_off") or []
+        delays = auto_off.get("auto_off_delays") or {}
+        pertype = auto_off.get("default_pertype_auto_off_minutes") or {}
+        if "managed_lights" in auto_off:
+            errors.append("auto_off_devices.managed_lights is legacy — use managed_auto_off")
+        if isinstance(managed, list):
+            _require_eids("auto_off_devices.managed_auto_off", managed)
+            stats["managed_auto_off"] = len(managed)
+            for ref in managed:
+                eid = str(ref).strip()
+                if not eid:
+                    continue
+                if not is_auto_off_eligible(eid, metadata_type_for_eid(eid)):
+                    errors.append(f"auto_off_devices.managed_auto_off has ineligible eid '{eid}'")
+        else:
+            errors.append("auto_off_devices.managed_auto_off must be a list")
+        if isinstance(delays, dict):
+            _require_eids("auto_off_devices.auto_off_delays", list(delays.keys()))
+            managed_set = {str(x).strip() for x in (managed or []) if str(x).strip()}
+            for k in delays:
+                eid = str(k).strip()
+                if eid and eid not in managed_set:
+                    errors.append(
+                        f"auto_off_devices.auto_off_delays orphan '{eid}' "
+                        "(must be in managed_auto_off)"
+                    )
+        elif delays:
+            errors.append("auto_off_devices.auto_off_delays must be a map")
+        if isinstance(pertype, dict):
+            for t in pertype:
+                key = str(t).strip().lower()
+                if key not in AUTO_OFF_ALLOWED_TYPES:
+                    errors.append(
+                        f"auto_off_devices.default_pertype_auto_off_minutes "
+                        f"has invalid type '{t}'"
+                    )
+        elif pertype:
+            errors.append("auto_off_devices.default_pertype_auto_off_minutes must be a map")
 
     history = raw_cfg.get("history") or {}
     if "tracked_idxs" in history:
@@ -330,9 +378,9 @@ _STAT_HELP: Dict[str, str] = {
     "deviceexplorer_hide": "entity_ids soft-hidden from Device Explorer",
     "power_meter_links": "switch->meter links in hardware_links.power_meters",
     "blinds_travel_times": "per-blind travel overrides in blinds.travel_times",
-    "managed_lights": "lights/groups in lighting.managed_lights (auto-off)",
+    "managed_auto_off": "devices in auto_off_devices.managed_auto_off",
     "tracked_entities": "sensors in history.tracked_entities",
-    "automations_source": "file providing automations/lighting/hide (auto preferred)",
+    "automations_source": "file providing automations/auto-off/hide (auto preferred)",
     "python_magic_idx_hits": "bare device idxs still in Python (warnings only)",
     "live_metadata_with_entity_id": "live RAM devices that already have entity_id",
     "live_metadata_missing_entity_id": "live RAM devices missing entity_id (error if >0)",

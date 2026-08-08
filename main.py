@@ -42,6 +42,15 @@ from core.automations_store import (
     update_automation,
 )
 from core.soft_hide_store import read_soft_hide_entity_ids, write_soft_hide_entity_ids
+from core.auto_off_store import read_auto_off_config, write_auto_off_config
+from core.auto_off_policy import (
+    AUTO_OFF_ALLOWED_TYPES,
+    is_auto_off_eligible,
+    normalize_minutes,
+    sanitize_delay_map,
+    sanitize_managed_list,
+    sanitize_pertype_map,
+)
 from core.well_known_entities import is_hard_deny_entity_id
 from core.automations_schema_v2 import (
     is_v2_rule,
@@ -603,6 +612,97 @@ async def put_soft_hide(body: SoftHidePutRequest, req: Request) -> dict[str, Any
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
     return {"status": "Success", "entity_ids": written}
+
+
+class AutoOffPutRequest(BaseModel):
+    managed_auto_off: list[str] = []
+    default_auto_off_minutes: int = 300
+    default_pertype_auto_off_minutes: dict[str, int] = {}
+    auto_off_delays: dict[str, int] = {}
+
+
+def _live_type_for_eid(eid: str) -> Optional[str]:
+    idx = state_manager.resolve_entity_id(eid)
+    if idx is None:
+        return None
+    meta = state_manager.get_state_snapshot().device_metadata.get(idx) or {}
+    if isinstance(meta, dict) and meta.get("type"):
+        return str(meta.get("type"))
+    return None
+
+
+@app.get("/api/auto-off-timer")
+async def get_auto_off_timer(req: Request) -> dict[str, Any]:
+    """Admin: read auto_off_devices block."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    return read_auto_off_config()
+
+
+@app.put("/api/auto-off-timer")
+async def put_auto_off_timer(body: AutoOffPutRequest, req: Request) -> dict[str, Any]:
+    """Admin: full-replace auto_off_devices; surgical write + hot-reload."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    try:
+        managed = sanitize_managed_list(body.managed_auto_off)
+        general = normalize_minutes(body.default_auto_off_minutes)
+        pertype = sanitize_pertype_map(body.default_pertype_auto_off_minutes)
+        delays = sanitize_delay_map(body.auto_off_delays)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+    managed_set = set(managed)
+    unknown: list[str] = []
+    ineligible: list[str] = []
+    for eid in managed:
+        if state_manager.resolve_entity_id(eid) is None:
+            unknown.append(eid)
+            continue
+        dtype = _live_type_for_eid(eid)
+        if not is_auto_off_eligible(eid, dtype):
+            ineligible.append(eid)
+    for eid in delays:
+        if eid not in managed_set:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"auto_off_delays orphan '{eid}' (must be in managed_auto_off)"},
+            )
+        if state_manager.resolve_entity_id(eid) is None and eid not in unknown:
+            unknown.append(eid)
+    bad_types = [t for t in pertype if t not in AUTO_OFF_ALLOWED_TYPES]
+    if bad_types:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Invalid type keys: {', '.join(bad_types)}"},
+        )
+    if unknown:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Unknown entity_ids: {', '.join(unknown)}"},
+        )
+    if ineligible:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Ineligible entity_ids: {', '.join(ineligible)}"},
+        )
+
+    try:
+        written = write_auto_off_config(
+            managed_auto_off=managed,
+            default_auto_off_minutes=general,
+            default_pertype_auto_off_minutes=pertype,
+            auto_off_delays=delays,
+        )
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        logger.error(f"auto-off-timer write failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to write auto-off config."})
+
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    return {"status": "Success", **written}
 
 
 @app.get("/api/state")

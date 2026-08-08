@@ -73,7 +73,7 @@ Z-Wave slug source: **`| name |` segment only**.
 * Full cutover; **zero dual support** for numeric device idxs in rules.
 * Event-only triggers (`event: …`) unchanged.
 * Unresolved `entity_id` at runtime: **log + skip — do not kill the engine**.
-* Automatic domains live in **`automations.auto.yaml`** (`deviceexplorer_hide`, `lighting`, `automations`).
+* Automatic domains live in **`automations.auto.yaml`** (`deviceexplorer_hide`, `auto_off_devices`, `automations`).
 
 ### Migration & cutover tooling (complete)
 
@@ -94,15 +94,15 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase 0–5 **✅ DONE**. Phase **6A–6C ✅ DONE**. **Phase 7 ✅ DONE** (`deviceexplorer_hide`, `/api/soft-hide`, `hiddendevices.html`; `zwave.hidden_nodes` / `deviceexplorer_exclude` removed). Next: Phase **8** = lighting UI; Phase **9** = full Blockly↔JSON parity.
+**Current status:** Phase 0–5 **✅ DONE**. Phase **6A–6C ✅ DONE**. **Phase 7 ✅ DONE**. **Phase 8 ✅ DONE** (`auto_off_devices`, `/api/auto-off-timer`, `lightingautooff.html`; migrator removed after cutover). Next: Phase **9** = full Blockly↔JSON parity.
 
 **Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog. **Motion** is allowed as **When device** trigger only (garage/toilet); never as action. Soft-hidden / out-of-catalog eids that appear on the **open rule** are always listed for that picker role so Blockly does not fall back to the first device (e.g. `53?`). Actions = actuators only. Broader sensor / threshold authoring is **Phase 9** (6C rich actions closed).
 
 ### Phase 0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
 1. Define **automation device deny-list** (which `entity_id`s / prefixes must not appear in pickers: safety, SSR, system-only, hidden, etc.).
-2. Automations / lighting / soft-hide already live in **`automations.auto.yaml`** — Blocky writes target that file (`ruamel` surgical write of `automations:`).
-   - **Comment (historical through 6C):** Blocky write scope was **only `automations:`**. Soft-hide → **`deviceexplorer_hide`** = **Phase 7** ✅; `lighting:` = **Phase 8**.
+2. Automations / auto-off / soft-hide already live in **`automations.auto.yaml`** — Blocky writes target that file (`ruamel` surgical write of `automations:`).
+   - **Comment (historical through 6C):** Blocky write scope was **only `automations:`**. Soft-hide → **`deviceexplorer_hide`** = **Phase 7** ✅; auto-off → **`auto_off_devices:`** (was `lighting:`) = **Phase 8** ✅.
 3. Inventory system events for the event dropdown dictionary.
 4. **ON/OFF merge model** — locked below (schema + migration of existing sibling pairs).
 
@@ -234,7 +234,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 **Operator smoke:** ✅ OK on Pi (**2026-08-06**) — Hue OFF clears color rows; named preset; custom color wheel Apply/Cancel; blinds mid open %; Sonos volume+station; Onkyo volume; uniqueness scoped by case (e.g. `pc_monitors`).
 
-**Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI (✅ done), Phase 8 lighting config UI, full JSON↔Blockly parity (Phase **9** — 6C is the rich-action slice of that gap). XOR is enforced on the Blockly emit path; hand-edited JSON may still carry both `preset` and `bri`/`xy` until rewritten in Blockly.
+**Out of scope for 6C:** new engine semantics, Phase 7 soft-hide UI (✅ done), Phase 8 auto-off config UI (✅ done), full JSON↔Blockly parity (Phase **9** — 6C is the rich-action slice of that gap). XOR is enforced on the Blockly emit path; hand-edited JSON may still carry both `preset` and `bri`/`xy` until rewritten in Blockly.
 
 ### Phase 7 — Unified soft-hide (“hidden from Explorer / pickers”) ✅ DONE
 
@@ -257,16 +257,32 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 #### Constraints / notes
 
-- Surgical write of **only** `deviceexplorer_hide:` (never `automations:` / `lighting:` / unrelated keys).
+- Surgical write of **only** `deviceexplorer_hide:` (never `automations:` / `auto_off_devices:` / unrelated keys).
 - D1 / Phase 0 historical prose: Phase 7 **supersedes** hard-deny to **71040 only** (+ `90001` skip unchanged); soft-hide key name = **`deviceexplorer_hide`**.
 
-### Phase 8 — Config editor for `lighting` auto-off 🔜 TODO
+### Phase 8 — Auto-off timers config UI + engine ✅ DONE
 
-**Today (no UI):** `lighting:` lives in **`automations.auto.yaml`** (top of file). Auto-off = `lighting.managed_lights` + `default_auto_off_minutes` + `auto_off_delays`.
+**Operator smoke:** ✅ OK on Pi (**2026-08-08**).
 
-**Phase 8 goal:** admin UI (Blocky sibling page or Admin section) to view/edit lighting auto-off — managed lights list, default minutes, per-entity delay overrides.
+**Shipped:** SoT = **`auto_off_devices:`** in `automations.auto.yaml` (`managed_auto_off` + general + per-type + per-device delays); Admin → **Auto-off timers** (`lightingautooff.html` + `/api/auto-off-timer`); engine honors membership + precedence device→type→general; legacy `lighting:` / `managed_lights` removed.
 
-**Constraints:** surgical `ruamel` write of only `lighting:` (same pattern as automations CRUD); never rewrite unrelated keys; Admin Debug still GREEN after edits.
+**Historical (pre-cutover):** auto-off lived under `lighting:` + `managed_lights`. One-shot `helpers/migrate_auto_off_devices.py` ran on Pi then was **removed** (same habit as Phase 7 / 6A).
+
+#### Locked (as implemented)
+
+1. **Placement** — `lightingautooff.html`; Admin System Commands **“Auto-off timers”** under Explorer hidden devices; Admin-link only.
+2. **API** — admin **`GET` + full-replace `PUT /api/auto-off-timer`**; hot-reload on save.
+3. **YAML** — `auto_off_devices:` with `managed_auto_off`, `default_auto_off_minutes`, `default_pertype_auto_off_minutes`, `auto_off_delays`. No dual-read of `lighting:`.
+4. **Precedence** — per-device → type → general. Minutes **1–720**.
+5. **Membership** — checkbox → `managed_auto_off`; uncheck clears `auto_off_delays` entry; empty list allowed.
+6. **UI** — general + type rows (`switch` / `light` / `speaker`) + device list; effective minutes; soft-hide All/Hidden/Non-hidden; **Auto-off ON/OFF/All** membership filter (checkbox, not lamp power); sort Name/Type/Override.
+7. **Eligibility** — types `switch`/`light`/`speaker`; vents in; projector/SSR/71040/denylist out.
+8. **Validation** — reject unresolved / orphan / ineligible / bad type keys; sorted unique writes.
+9. **Comments** — not preserved under the block (UI-owned).
+
+#### Operator cutover (Pi) — completed ✅
+
+Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart → Debug GREEN → **operator smoke OK** (**2026-08-08**). Migrator **deleted** from tree after cutover.
 
 ### Phase 9 — Full Blockly ↔ JSON parity 🔜 TODO
 
@@ -300,7 +316,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 **Intentional permanent exceptions (not Phase 9 “gaps”):**
 
 - **Hard deny** — Phase 7: **`switch.safety.safety_wisc_5v` (71040) only** (code fence; not soft-hide). Internal `90001` remains skipped. JSON must not bypass. (Older D1 host_*/SSR hard-deny prefixes superseded for operator policy.)
-- **Non-automation config** (`deviceexplorer_hide`, `lighting:`) — Phases 7 / 8, not Blockly rule canvas.
+- **Non-automation config** (`deviceexplorer_hide`, `auto_off_devices:`) — Phases 7 / 8, not Blockly rule canvas.
 
 **Out of scope for 9:** redesign of schema v2 shape; Phase 7/8 storage UIs; kiosk/dashboard UX beyond existing `scene` / `require_confirmation` toggles.
 
@@ -358,7 +374,7 @@ Mark each item `LOCKED` before implementation starts.
 
 ### A) Already locked
 
-- [x] **Scope:** Blocky writes only `automations:` through 6C; soft-hide → **`deviceexplorer_hide`** in **Phase 7**; `lighting:` in **Phase 8**.
+- [x] **Scope:** Blocky writes only `automations:` through 6C; soft-hide → **`deviceexplorer_hide`** in **Phase 7**; auto-off → **`auto_off_devices:`** in **Phase 8**.
 - [x] **UI access:** new page, admin-only.
 - [x] **Persistence model:** branched YAML (`on:` / `off:`), one-sided allowed.
 - [x] **Pairing rule:** same trigger `entity_id` (device) or mapped event family.
@@ -455,7 +471,7 @@ Run **once** on the Pi, **after** Phase 1 (Y1 loader) is deployed, **before** yo
 4. Run migration helper **`python3 helpers/migrate_automations_m1.py --dry-run`**. Read the plan. Stop if anything looks wrong.
 5. Dry-run must show: merges for clean ON/OFF pairs (e.g. `pc_monitors`, bathrooms); **no** merge for `SYNC` or `living_special`.
 6. Run migration helper **`python3 helpers/migrate_automations_m1.py --write`**.
-7. Diff backup vs new file. `lighting:` and `deviceexplorer_hide:` must be unchanged.
+7. Diff backup vs new file. Auto domains (`deviceexplorer_hide:` / then-`lighting:` now `auto_off_devices:`) must be unchanged by M1.
 8. Admin → reload config (`CONFIG_RELOAD_REQUESTED`).
 9. Admin → Debug → entity-registry check → **GREEN**.
 10. Smoke test: `pc_monitors` ON/OFF; bathroom 1e/2e; spare button (`living_special`); one SYNC rule; one scene if easy.
@@ -492,7 +508,7 @@ Run **once** on the Pi, **after** Phase 1 (Y1 loader) is deployed, **before** yo
 | Rule saved but nothing fires | Unresolved eid (logged+skipped), wrong branch, conditions | Grep `[AUTOMATION] Unresolved` / `[X-RAY]`; fix eid or conditions |
 | YAML bool / state weirdness | Unquoted `ON`/`OFF` in old hand-edits | Prefer Blocky save (quotes); engine coerces bool→string on load |
 | Blockly won't snap | Stale cache / old JS | Hard-refresh (`blocky.js?v=…`); confirm panel not `display:none` |
-| Sync Local↔Pi fight on automations | Old sync mirroring automations | `automations.auto.yaml` is **MirrorExclude**; Pi is source of truth for live rules |
+| Sync Local↔Pi fight on automations | Old sync mirroring automations | `automations.auto.yaml` is **MirrorExclude** + **StatsRepoPull** (Pi wins); never push Local→Pi for hide/auto-off/rules |
 | Expecting Admin reload after Blocky save | Not needed | CRUD already dispatches `CONFIG_RELOAD_REQUESTED` |
 
 #### E3 — Regression matrix (operator fill on Pi)
@@ -534,7 +550,7 @@ Phase 5 does **not** require a rollback rehearsal that depends on hand-edit + Ad
 2. **Phase 6B:** ✅ one Blockly canvas + Cinema one list entry + OR-trigger + SYNC→ON/OFF on Pi; JSON power-user only.
 3. **Phase 6C:** ✅ rich action UX — Hue preset XOR custom color (iro → bri/xy), blinds open % (incl. mid), Sonos/Onkyo volume, Sonos station, per-action rich; smoke OK Pi **2026-08-06**.
 4. **Phase 7:** ✅ unified soft-hide — **`deviceexplorer_hide`**; `hiddendevices.html` + `/api/soft-hide`; hard-deny = 71040 (A); 71036 soft-hide + commandable + Blocky-selectable; migrator removed after cutover.
-5. **Phase 8:** admin UI for `lighting` auto-off in `automations.auto.yaml`.
+5. **Phase 8:** ✅ auto-off timers UI + engine — `auto_off_devices:`; `lightingautooff.html` + `/api/auto-off-timer`; migrator removed after cutover.
 6. **Phase 9:** full Blockly ↔ JSON parity — every authorable v2 rule editable on canvas; JSON debug-only (or removed).
 
 ## ✅ Definition of Done (Option 2)
@@ -621,6 +637,19 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [x] **Runtime / Explorer / Blocky:** soft-hide set matches saved list after reload; 71040 never appears; Explorer Hidden toggle + Blocky soft-hide / sticky behavior still correct for soft-hidden eids.
 - [x] **Admin Debug GREEN** after representative hide/unhide.
 - [x] **Pi smoke:** hide/unhide path exercised; Z-Wave save does not write soft-hide; 71040 absent from operator UIs.
+
+### Phase 8 DoD — Auto-off timers UI + engine ✅
+
+- [x] **Cutover:** `lighting:` → `auto_off_devices:`; `managed_lights` → `managed_auto_off`; migrator `--dry-run` / `--write` on Pi then **removed**; runtime does not read old keys.
+- [x] **Engine:** auto-off only for eids in `managed_auto_off`; delay = per-device → `default_pertype_auto_off_minutes[type]` → `default_auto_off_minutes`.
+- [x] **Admin entry:** System Commands → **“Auto-off timers”** (under Hidden Devices) → `lightingautooff.html` (admin-only; no shell nav).
+- [x] **API:** `GET` + full-replace `PUT /api/auto-off-timer`; surgical write of **`auto_off_devices:`** only; hot-reload on save; reject unresolved / orphan / ineligible / bad type keys; enforce `auto_off_delays` ⊆ `managed_auto_off`; sorted unique lists/maps; minutes 1–720.
+- [x] **UI:** general + type rows (`switch` / `light` / `speaker`) + eligible device list (checkbox + optional override); uncheck clears delay; effective minutes; soft-hide All / Hidden / Non-hidden; **Auto-off ON / OFF / All** membership filter; sort Name / Type / Override; 71040 omitted; vents + speakers eligible.
+- [x] **Eligibility:** denylist + device extras enforced in inventory and on PUT; migrator stripped ineligible leftovers (kept vents).
+- [x] **Comments:** block rewritten without preserving hand comments.
+- [x] **Docs:** `install_blocky.md` Phase 8 closed + `docs/reference.md` API line.
+- [x] **Admin Debug GREEN** after cutover / representative saves.
+- [x] **Pi smoke:** migrator/rename; Auto-off timers page; general / type / device override path; uncheck clears delay; membership Auto-off ON/OFF filter; ON→timer uses expected delay; Debug GREEN — **OK on Pi (2026-08-08)**.
 
 ### Phase 9 DoD — Full Blockly ↔ JSON parity
 

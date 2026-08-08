@@ -2,6 +2,8 @@ deviceexplorer_hide:
   - hue.group.verd_0_hue
   - hue.group.verd_1_hue
   - hue.group.verd_2_hue
+  - sensor.door.badkamer_deur
+  - sensor.door.sauna_deur
   - sensor.energy.kwh_meter
   - sensor.fluid.koud_water
   - sensor.fluid.warm_water
@@ -36,40 +38,51 @@ deviceexplorer_hide:
   - switch.ssr.safety_ssr_12v
   - switch.vent.sauna_ventilator
   - switch.vent.toilet_ventilatie_motor
-lighting:
-  # The engine will ONLY apply auto-off rules to entity_ids explicitly listed here
-  managed_lights: [switch.licht_living, switch.licht_keuken, switch.gang_beneden,
-    switch.licht_garage, switch.badk_1e_hue_physical, switch.gang_boven, 
-        switch.buro_licht, switch.cinema_licht, switch.waskot, 
-        switch.voorraad_gv, switch.slpk_dries, switch.vent.badk_2e_ventilatie, 
-        switch.cinema_schemer, switch.buro_wannes_schemer, switch.living_schemer,
-    switch.slpk_liene, switch.berging_2e, switch.eetkamer, switch.slpk_wannes, 
-        hue.group.slpk_wannes_hue, hue.group.eetkamer_hue, hue.group.living_hue, 
-        hue.group.slpk_dries_hue, hue.group.cinema_hue, switch.toilet, 
-        switch.vent.toilet_ventilatie]
+auto_off_devices:
+  managed_auto_off:
+    - hue.group.cinema_hue
+    - hue.group.eetkamer_hue
+    - hue.group.living_hue
+    - hue.group.slpk_dries_hue
+    - hue.group.slpk_wannes_hue
+    - switch.badk_1e_hue_physical
+    - switch.berging_2e
+    - switch.buro_licht
+    - switch.buro_wannes_schemer
+    - switch.cinema_licht
+    - switch.cinema_schemer
+    - switch.eetkamer
+    - switch.gang_beneden
+    - switch.gang_boven
+    - switch.licht_garage
+    - switch.licht_keuken
+    - switch.licht_living
+    - switch.living_schemer
+    - switch.slpk_dries
+    - switch.slpk_liene
+    - switch.slpk_wannes
+    - switch.toilet
+    - switch.vent.badk_2e_ventilatie
+    - switch.vent.toilet_ventilatie
+    - switch.voorraad_gv
+    - switch.waskot
   default_auto_off_minutes: 300
-  # Specific delay overrides in minutes
+  default_pertype_auto_off_minutes: {}
   auto_off_delays:
-    hue.group.slpk_wannes_hue: 90
     hue.group.slpk_dries_hue: 30
-    switch.licht_garage: 10
+    hue.group.slpk_wannes_hue: 90
     switch.badk_1e_hue_physical: 120
-    switch.gang_boven: 10
-    switch.waskot: 5
-    switch.voorraad_gv: 1
-    switch.slpk_dries: 30
-    switch.vent.badk_2e_ventilatie: 30
     switch.berging_2e: 1
     switch.eetkamer: 30
+    switch.gang_boven: 10
+    switch.licht_garage: 10
+    switch.slpk_dries: 30
     switch.slpk_wannes: 30
     switch.toilet: 10
+    switch.vent.badk_2e_ventilatie: 30
     switch.vent.toilet_ventilatie: 5
-
-
-# ==============================================================================
-# AUTOMATION RULES & SCENES
-# ==============================================================================
-
+    switch.voorraad_gv: 1
+    switch.waskot: 5
 automations:
 
   # --------------------------------------------------------------------------
