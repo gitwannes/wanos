@@ -1,6 +1,8 @@
 // Phase 6B: unified Blockly canvas for schema v2 (trigger + ordered cases).
 // Contextual dropdowns: only show entries valid for the current trigger / device type.
 // Phase 6C: rich action authoring — Hue preset XOR custom color (iro→bri/xy), blinds open %, Sonos/Onkyo volume, Sonos station.
+// Phase B10A: editor trust — Hue picker-only / type-switch rebuild / no restore-modal;
+//   toolbar Delete (no trashcan); Blockly Events disable/enable paired (v13 refcount); dirty from canvas.
 
 /** Min viewport width for History / Automation and the top-row join (tablets+). */
 const WANOS_WIDE_MIN_PX = 768;
@@ -246,7 +248,7 @@ function blockyActionStateOptions(block) {
     const type = blockyEntityTypeOf(eid);
     const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
     if (type === "blinds" || type === "shutter") {
-        return [["position", "POS"]];
+        return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"], ["position %", "POS"]];
     }
     if (type === "light" || type === "hue") {
         return [["ON", "ON"], ["OFF", "OFF"]];
@@ -287,6 +289,16 @@ function blockyStoredFromOpenPct(openPct) {
     const n = Number(openPct);
     if (!Number.isFinite(n)) return "0";
     return String(Math.max(0, Math.min(100, Math.round(100 - n))));
+}
+
+/** Map stored blinds closed-% (or OPEN/CLOSED) → Blockly STATE value. */
+function blockyBlindsUiStateFromStored(stored) {
+    if (stored === "OPEN" || stored === "CLOSED" || stored === "POS") return stored;
+    const n = Number(stored);
+    if (n === 0) return "OPEN";
+    if (n === 100) return "CLOSED";
+    if (Number.isFinite(n)) return "POS";
+    return "OPEN";
 }
 
 function blockyHuePresetsMap() {
@@ -442,7 +454,7 @@ function blockyHexToXy(hex) {
 }
 
 function blockyCloseHueColorModal() {
-    // Drop any queued reopen from HUE_MODE / COLOR_PICK validators.
+    // Drop any queued reopen from HUE_MODE validators.
     if (BlockyRT.pendingRichOpts) BlockyRT.pendingRichOpts.openWheel = false;
     const app = BlockyRT.app;
     if (app) app.blockyColorTargetId = null;
@@ -455,6 +467,7 @@ function blockyCloseHueColorModal() {
 function blockyOpenHueColorModal(block) {
     const app = BlockyRT.app;
     if (!app || !block || block._hueSuppressWheel || block._richUpdating) return;
+    if (BlockyRT.loading || BlockyRT.suppressHueWheel) return;
     app.blockyColorTargetId = block.id;
     app.blockyColorBri = block._hueBri != null ? Number(block._hueBri) : 100;
     app.blockyColorHex = block._hueHex || "#FFD180";
@@ -499,16 +512,41 @@ function blockyApplyHueColorModal() {
     block._hueBri = bri;
     block._hueXy = xy;
     block._hueHex = hex.toUpperCase();
-    // Prevent HUE_MODE/COLOR_PICK validators from reopening the wheel while we sync shape.
+    // Prevent HUE_MODE validators from reopening the wheel while we sync shape.
     block._hueSuppressWheel = true;
     try {
         blockyActionUpdateRichShape(block, { forceState: "ON", forceHueMode: "CUSTOM" });
-        blockySafeSetField(block, "COLOR_HEX", block._hueHex);
+        blockyPaintHueSwatch(block);
     } finally {
         block._hueSuppressWheel = false;
     }
     if (typeof app.markEditorDirty === "function") app.markEditorDirty();
     blockyCloseHueColorModal();
+}
+
+function blockyPaintHueSwatch(block) {
+    const f = block && block.getField("COLOR_SWATCH");
+    if (!f) return;
+    const hex = block._hueHex || "#FFD180";
+    try {
+        const el = (typeof f.getTextElement === "function" ? f.getTextElement() : null)
+            || f.textElement_;
+        if (el) el.style.fill = hex;
+    } catch (e) { /* ignore */ }
+}
+
+function blockyClearActionRichSticky(block) {
+    if (!block) return;
+    delete block._hueBri;
+    delete block._hueXy;
+    delete block._hueHex;
+    delete block._pendingPreset;
+    delete block._pendingStation;
+    blockyRemoveInput(block, "RICH_BLINDS");
+    blockyRemoveInput(block, "RICH_HUE_MODE");
+    blockyRemoveInput(block, "RICH_HUE_PRESET");
+    blockyRemoveInput(block, "RICH_HUE_CUSTOM");
+    blockyRemoveInput(block, "RICH_AUDIO");
 }
 
 /** Remove a named dummy input if present (never throws). */
@@ -540,8 +578,26 @@ function blockyQueueRichShape(block, opts) {
         delete pending.openWheel;
         delete pending.blockId;
         blockyActionUpdateRichShape(blk, pending);
-        if (openWheel) blockyOpenHueColorModal(blk);
+        if (openWheel && !BlockyRT.loading && !BlockyRT.suppressHueWheel) {
+            blockyOpenHueColorModal(blk);
+        }
     }, 0);
+}
+
+function blockyRemoveHueSwatchField(block) {
+    if (!block || !block.getField("COLOR_SWATCH")) return;
+    const input = block.getInput("RICH_HUE_MODE");
+    if (!input) return;
+    try { input.removeField("COLOR_SWATCH"); } catch (e) { /* ignore */ }
+}
+
+function blockyEnsureHueSwatchField(block) {
+    if (!block || block.getField("COLOR_SWATCH")) return;
+    const input = block.getInput("RICH_HUE_MODE");
+    if (!input) return;
+    try {
+        input.appendField(new Blockly.FieldLabel("⬤"), "COLOR_SWATCH");
+    } catch (e) { /* ignore */ }
 }
 
 /** Ensure Hue mode dropdown exists once — never dispose it while light is ON. */
@@ -555,8 +611,9 @@ function blockyEnsureHueModeInput(block) {
     block.appendDummyInput("RICH_HUE_MODE")
         .appendField("color")
         .appendField(new Blockly.FieldDropdown(modeOpts, (newMode) => {
-            // Skip side-effects during programmatic shape sync / apply.
-            if (block._richUpdating || block._hueSuppressWheel) return newMode;
+            if (block._richUpdating || block._hueSuppressWheel || BlockyRT.loading || BlockyRT.suppressHueWheel) {
+                return newMode;
+            }
             // Validator runs before value commits — schedule shape after.
             if (newMode === "CUSTOM") {
                 blockyQueueRichShape(block, {
@@ -586,9 +643,9 @@ function blockyActionUpdateRichShape(block, opts) {
     opts = opts || {};
     block._richUpdating = true;
     const Events = Blockly.Events;
-    const wasEnabled = Events.isEnabled();
+    // Blockly 13 refcounts disable/enable — always pair 1:1 (never gate enable on wasEnabled).
+    Events.disable();
     try {
-        Events.disable();
         const eid = block.getFieldValue("ENTITY");
         const type = blockyEntityTypeOf(eid);
         const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
@@ -617,20 +674,25 @@ function blockyActionUpdateRichShape(block, opts) {
         if (!wantAudio) blockyRemoveInput(block, "RICH_AUDIO");
 
         if (wantBlinds) {
-            if (!block.getInput("RICH_BLINDS")) {
-                const openDefault = snap.OPEN_PCT != null ? Number(snap.OPEN_PCT) : 100;
-                block.appendDummyInput("RICH_BLINDS")
-                    .appendField("open")
-                    .appendField(new Blockly.FieldNumber(
-                        Number.isFinite(openDefault) ? openDefault : 100, 0, 100, 1
-                    ), "OPEN_PCT")
-                    .appendField("%  (stored closed % = 100−open)");
+            let st = state;
+            if (st !== "OPEN" && st !== "CLOSED" && st !== "POS") {
+                st = blockyBlindsUiStateFromStored(st);
+                blockyForceDropdownValue(block, "STATE", st);
             }
-            if (state !== "POS") {
-                blockySafeSetField(block, "OPEN_PCT", blockyOpenPctFromStored(state));
-                blockySafeSetField(block, "STATE", "POS");
-            } else if (snap.OPEN_PCT != null) {
-                blockySafeSetField(block, "OPEN_PCT", snap.OPEN_PCT);
+            if (st === "POS") {
+                if (!block.getInput("RICH_BLINDS")) {
+                    const openDefault = snap.OPEN_PCT != null ? Number(snap.OPEN_PCT) : 50;
+                    block.appendDummyInput("RICH_BLINDS")
+                        .appendField("open")
+                        .appendField(new Blockly.FieldNumber(
+                            Number.isFinite(openDefault) ? openDefault : 50, 0, 100, 1
+                        ), "OPEN_PCT")
+                        .appendField("%  (stored closed % = 100−open)");
+                } else if (snap.OPEN_PCT != null) {
+                    blockySafeSetField(block, "OPEN_PCT", snap.OPEN_PCT);
+                }
+            } else {
+                blockyRemoveInput(block, "RICH_BLINDS");
             }
             return;
         }
@@ -639,10 +701,15 @@ function blockyActionUpdateRichShape(block, opts) {
             blockyEnsureHueModeInput(block);
 
             let mode = opts.forceHueMode != null ? opts.forceHueMode : snap.HUE_MODE;
-            if (!mode || (mode !== "PRESET" && mode !== "CUSTOM" && mode !== "NONE")) {
-                if (snap.PRESET || block._pendingPreset) mode = "PRESET";
-                else if (block._hueBri != null || block._hueXy) mode = "CUSTOM";
-                else mode = "NONE";
+            // Prefer sticky/pending rich over a bare NONE left by an earlier shape rebuild
+            // (e.g. coerce before apply, or ENTITY microtask). Do not override an
+            // already-committed PRESET/CUSTOM — only upgrade from NONE/invalid.
+            if (opts.forceHueMode == null) {
+                if (mode !== "PRESET" && mode !== "CUSTOM") {
+                    if (block._pendingPreset || snap.PRESET) mode = "PRESET";
+                    else if (block._hueBri != null || block._hueXy) mode = "CUSTOM";
+                    else mode = "NONE";
+                }
             }
             if (mode === "CUSTOM" || mode === "NONE") block._pendingPreset = null;
 
@@ -651,6 +718,7 @@ function blockyActionUpdateRichShape(block, opts) {
 
             if (mode === "PRESET") {
                 blockyRemoveInput(block, "RICH_HUE_CUSTOM");
+                blockyRemoveHueSwatchField(block);
                 const presetOpts = blockyHuePresetOptions(
                     snap.PRESET || block._pendingPreset || ""
                 );
@@ -670,31 +738,24 @@ function blockyActionUpdateRichShape(block, opts) {
                 if (stickyPreset) blockySafeSetField(block, "PRESET", stickyPreset);
             } else if (mode === "CUSTOM") {
                 blockyRemoveInput(block, "RICH_HUE_PRESET");
+                // Drop legacy third-row "edit color…" chrome (re-select custom opens wheel).
+                blockyRemoveInput(block, "RICH_HUE_CUSTOM");
                 if (block._hueBri == null) block._hueBri = 100;
                 if (!block._hueXy) block._hueXy = [0.4575, 0.4099];
                 if (!block._hueHex) {
                     block._hueHex = blockyXyToHex(block._hueXy[0], block._hueXy[1], block._hueBri);
                 }
-                const hex = block._hueHex || "#FFD180";
-                if (!block.getInput("RICH_HUE_CUSTOM")) {
-                    block.appendDummyInput("RICH_HUE_CUSTOM")
-                        .appendField(new Blockly.FieldLabel(hex), "COLOR_HEX")
-                        .appendField(new Blockly.FieldDropdown([
-                            ["pick with wheel…", "OPEN"],
-                            ["—", "-"]
-                        ], (v) => {
-                            if (v === "OPEN" && !block._richUpdating && !block._hueSuppressWheel) {
-                                queueMicrotask(() => blockyOpenHueColorModal(block));
-                            }
-                            return "-";
-                        }), "COLOR_PICK");
-                } else {
-                    blockySafeSetField(block, "COLOR_HEX", hex);
-                }
-                blockySafeSetField(block, "COLOR_PICK", "-");
+                // Swatch on the same row as color / custom color.
+                blockyEnsureHueSwatchField(block);
+                blockyPaintHueSwatch(block);
             } else {
                 blockyRemoveInput(block, "RICH_HUE_PRESET");
                 blockyRemoveInput(block, "RICH_HUE_CUSTOM");
+                blockyRemoveHueSwatchField(block);
+                // Drop sticky custom so a later bare rebuild does not bounce back to CUSTOM.
+                delete block._hueBri;
+                delete block._hueXy;
+                delete block._hueHex;
             }
             return;
         }
@@ -729,11 +790,12 @@ function blockyActionUpdateRichShape(block, opts) {
             }
         }
     } finally {
-        if (wasEnabled) Events.enable();
+        Events.enable();
         block._richUpdating = false;
         try {
             if (block.rendered && typeof block.render === "function") block.render();
         } catch (e) { /* ignore */ }
+        blockyPaintHueSwatch(block);
     }
 }
 
@@ -748,16 +810,21 @@ function blockyApplyActionRich(block, action) {
     if (action.preset) block._pendingPreset = String(action.preset);
 
     if (type === "blinds" || type === "shutter") {
-        blockySafeSetField(block, "STATE", "POS");
-        blockyActionUpdateRichShape(block);
-        blockySafeSetField(block, "OPEN_PCT", blockyOpenPctFromStored(action.state));
+        const ui = blockyBlindsUiStateFromStored(action.state);
+        // Must refresh dropdown options first — stale ON/OFF cache rejects CLOSED/POS
+        // and coerce then snaps to OPEN (same class of bug as Hue after save→reload).
+        blockyForceDropdownValue(block, "STATE", ui);
+        blockyActionUpdateRichShape(block, { forceState: ui });
+        if (ui === "POS") {
+            blockySafeSetField(block, "OPEN_PCT", blockyOpenPctFromStored(action.state));
+        }
         return;
     }
 
     if ((type === "light" || type === "hue") && String(action.state || "").toUpperCase() === "ON") {
         if (action.preset) {
-            // _pendingPreset seeds HUE_MODE=PRESET + sticky dropdown option
-            blockyActionUpdateRichShape(block);
+            // forceHueMode — do not let a prior NONE snap wipe _pendingPreset.
+            blockyActionUpdateRichShape(block, { forceHueMode: "PRESET" });
             blockySafeSetField(block, "PRESET", action.preset);
         } else if (action.bri != null || action.xy != null) {
             if (action.bri != null) block._hueBri = Number(action.bri);
@@ -769,11 +836,9 @@ function blockyApplyActionRich(block, action) {
                 (block._hueXy && block._hueXy[1]) || 0.4099,
                 block._hueBri != null ? block._hueBri : 100
             );
-            blockyActionUpdateRichShape(block);
-            blockySafeSetField(block, "HUE_MODE", "CUSTOM");
-            blockyActionUpdateRichShape(block);
+            blockyActionUpdateRichShape(block, { forceHueMode: "CUSTOM" });
         } else {
-            blockyActionUpdateRichShape(block);
+            blockyActionUpdateRichShape(block, { forceHueMode: "NONE" });
         }
         delete block._pendingPreset;
         return;
@@ -799,8 +864,13 @@ function blockyReadActionRich(block) {
     const out = { entity_id: entity, state: block.getFieldValue("STATE") };
 
     if (type === "blinds" || type === "shutter") {
-        const openPct = block.getFieldValue("OPEN_PCT");
-        out.state = blockyStoredFromOpenPct(openPct != null ? openPct : 100);
+        const ui = block.getFieldValue("STATE");
+        if (ui === "OPEN") out.state = "0";
+        else if (ui === "CLOSED") out.state = "100";
+        else {
+            const openPct = block.getFieldValue("OPEN_PCT");
+            out.state = blockyStoredFromOpenPct(openPct != null ? openPct : 50);
+        }
         return out;
     }
 
@@ -842,20 +912,49 @@ function blockyCoerceFieldToOptions(block, fieldName, optionsFn) {
     try {
         const f = block.getField(fieldName);
         if (!f) return;
+        // Refresh dynamic menu before setValue — stale cache rejects valid new values
+        // (e.g. light ON/OFF cache rejecting blinds OPEN).
+        try { f.getOptions(false); } catch (e) { /* ignore */ }
         const opts = optionsFn(block);
+        if (!opts || !opts.length) return;
         let v = f.getValue();
         // Legacy FORCE_* on always-forced origins → plain ON/OFF before menu coerce.
         if (fieldName === "STATE" && typeof v === "string" && v.startsWith("FORCE_")) {
             const stripped = v.slice("FORCE_".length);
             if (opts.some((o) => o[1] === stripped)) {
                 f.setValue(stripped);
+                if (typeof f.forceRerender === "function") f.forceRerender();
                 return;
+            }
+        }
+        // Blinds may still hold a stored closed-% ("100") or light leftover ("ON") after
+        // mkBlock — map closed-% before falling through to opts[0] (OPEN).
+        if (fieldName === "STATE" && !opts.some((o) => o[1] === v)) {
+            const et = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
+            if (et === "blinds" || et === "shutter") {
+                const mapped = blockyBlindsUiStateFromStored(v);
+                if (opts.some((o) => o[1] === mapped)) {
+                    f.setValue(mapped);
+                    if (typeof f.forceRerender === "function") f.forceRerender();
+                    return;
+                }
             }
         }
         if (!opts.some((o) => o[1] === v)) {
             f.setValue(opts[0][1]);
         }
+        if (typeof f.forceRerender === "function") f.forceRerender();
     } catch (e) { /* ignore */ }
+}
+
+/** Set a dynamic dropdown value after refreshing its option list. */
+function blockyForceDropdownValue(block, fieldName, value) {
+    if (!block || value == null || value === "") return;
+    const f = block.getField(fieldName);
+    if (!f) return;
+    try { f.getOptions(false); } catch (e) { /* ignore */ }
+    try { f.setValue(String(value)); } catch (e) { /* ignore */ }
+    if (typeof f.forceRerender === "function") f.forceRerender();
 }
 
 function blockyRefreshCaseMatchLabels(fromBlock) {
@@ -1067,9 +1166,30 @@ function defineBlockyBlocks(Blockly, providers) {
             this.appendDummyInput("MAIN")
                 .appendField("set device")
                 .appendField(new Blockly.FieldDropdown(entityActionDd, (newEid) => {
+                    // Validator runs before commit — ENTITY field still holds previous id.
+                    const prevEid = block.getFieldValue("ENTITY");
+                    const prevType = blockyEntityTypeOf(prevEid);
+                    const nextType = blockyEntityTypeOf(newEid);
                     queueMicrotask(() => {
+                        // Load path applies rich itself — do not clear sticky after mkBlock setField.
+                        if (BlockyRT.loading) return;
+                        let forceSt = null;
+                        if (prevEid && prevType !== nextType) {
+                            blockyClearActionRichSticky(block);
+                            if (nextType === "blinds" || nextType === "shutter") forceSt = "OPEN";
+                            else if (nextType === "light" || nextType === "hue") forceSt = "ON";
+                        }
+                        if (forceSt) {
+                            blockyForceDropdownValue(block, "STATE", forceSt);
+                        }
+                        // Always coerce so invalid leftovers (ON on blinds) snap to OPEN/etc.
                         blockyCoerceFieldToOptions(block, "STATE", blockyActionStateOptions);
-                        blockyQueueRichShape(block, {});
+                        if (forceSt && block.getFieldValue("STATE") !== forceSt) {
+                            blockyForceDropdownValue(block, "STATE", forceSt);
+                        }
+                        const st = block.getFieldValue("STATE") || forceSt;
+                        blockyQueueRichShape(block, { forceState: st });
+                        if (BlockyRT.app) BlockyRT.app.markEditorDirty();
                     });
                     return newEid;
                 }), "ENTITY")
@@ -1077,7 +1197,9 @@ function defineBlockyBlocks(Blockly, providers) {
                 .appendField(new Blockly.FieldDropdown(
                     () => blockyActionStateOptions(block),
                     (newState) => {
-                        blockyQueueRichShape(block, { forceState: newState });
+                        if (!BlockyRT.loading) {
+                            blockyQueueRichShape(block, { forceState: newState });
+                        }
                         return newState;
                     }
                 ), "STATE");
@@ -1181,7 +1303,8 @@ const BlockyRT = {
     app: null,
     colorPicker: null,
     pendingRichOpts: null,
-    richTimer: null
+    richTimer: null,
+    suppressHueWheel: false
 };
 
 function blockyWs() {
@@ -1201,7 +1324,11 @@ function blockyFingerprint(block) {
             const eid = block.getFieldValue("ENTITY");
             const type = blockyEntityTypeOf(eid);
             if (type === "blinds" || type === "shutter") {
-                return `act:device:${eid}:open:${block.getFieldValue("OPEN_PCT")}`;
+                const ui = block.getFieldValue("STATE");
+                if (ui === "POS") {
+                    return `act:device:${eid}:open:${block.getFieldValue("OPEN_PCT")}`;
+                }
+                return `act:device:${eid}:${ui || "OPEN"}`;
             }
             return `act:device:${eid}:${block.getFieldValue("STATE")}`;
         }
@@ -1241,14 +1368,26 @@ function blockyBlockCaseScope(b) {
 function blockyEnforceUniqueness(forceToolbox) {
     const ws = blockyWs();
     if (BlockyRT.loading || BlockyRT.enforcing || !ws || !window.Blockly) return;
+    // Rich-shape mutate + uniqueness both use timeout 0 — never dispose mid-reshape
+    // (dispose without heal was leaving “not snapped” orphans on Save).
+    if (BlockyRT.richTimer || BlockyRT.pendingRichOpts) {
+        if (!BlockyRT.uniquenessScheduled) {
+            BlockyRT.uniquenessScheduled = true;
+            BlockyRT.uniquenessTimer = setTimeout(() => {
+                BlockyRT.uniquenessScheduled = false;
+                BlockyRT.uniquenessTimer = null;
+                blockyEnforceUniqueness(forceToolbox);
+            }, 0);
+        }
+        return;
+    }
     BlockyRT.enforcing = true;
     const Events = Blockly.Events;
-    const wasEnabled = Events.isEnabled();
     const fieldEv = BlockyRT.pendingFieldEv;
     BlockyRT.pendingFieldEv = null;
     let changed = !!forceToolbox;
+    Events.disable();
     try {
-        Events.disable();
         if (fieldEv && fieldEv.element === "field" && fieldEv.blockId) {
             const blk = ws.getBlockById(fieldEv.blockId);
             if (blk) {
@@ -1257,6 +1396,7 @@ function blockyEnforceUniqueness(forceToolbox) {
                 const scope = blockyBlockCaseScope(blk);
                 const other = fp && ws.getAllBlocks(false).find((b) => (
                     b.id !== blk.id
+                    && !b.isInsertionMarker
                     && blockyFingerprint(b) === fp
                     && blockyBlockCaseScope(b) === scope
                 ));
@@ -1278,7 +1418,8 @@ function blockyEnforceUniqueness(forceToolbox) {
             let rejected = false;
             roots.forEach((b) => {
                 if (b.id === keep.id) return;
-                try { b.dispose(false); changed = true; rejected = true; } catch (e) { /* ignore */ }
+                // healStack true — keep case chain attached to the surviving trigger.
+                try { b.dispose(true); changed = true; rejected = true; } catch (e) { /* ignore */ }
             });
             blockyRefreshCaseMatchLabels(keep.getNextBlock());
             if (rejected && BlockyRT.app) {
@@ -1290,6 +1431,7 @@ function blockyEnforceUniqueness(forceToolbox) {
         const seen = new Map();
         const toDispose = [];
         ws.getAllBlocks(false).forEach((b) => {
+            if (b.isInsertionMarker) return;
             const fp = blockyFingerprint(b);
             if (!fp || fp === "trigger") return;
             // Immediate parent scope: allows same device twice in one case (per-action rich).
@@ -1300,11 +1442,11 @@ function blockyEnforceUniqueness(forceToolbox) {
             else seen.set(key, b.id);
         });
         toDispose.forEach((b) => {
-            try { b.dispose(false); changed = true; } catch (e) { /* ignore */ }
+            // healStack true — do not leave the next action as a floating orphan.
+            try { b.dispose(true); changed = true; } catch (e) { /* ignore */ }
         });
     } finally {
-        if (wasEnabled) Events.enable();
-        if (!Events.isEnabled()) Events.enable();
+        Events.enable();
         BlockyRT.enforcing = false;
         // Always refresh — OR-edges category depends on whether root is “When any of”.
         blockyRefreshToolbox();
@@ -1312,7 +1454,23 @@ function blockyEnforceUniqueness(forceToolbox) {
 }
 
 function blockyOnChange(ev) {
-    if (BlockyRT.loading || !blockyWs() || !ev || ev.isUiEvent) return;
+    if (!blockyWs() || !ev) return;
+    // Selection / UI — refresh Delete button enabled state.
+    if (ev.isUiEvent) {
+        if (BlockyRT.app) {
+            // Blockly Selected: newElementId is the block id (or null when cleared).
+            const selType = Blockly.Events && Blockly.Events.SELECTED;
+            if (ev.type === selType || ev.type === "selected" || ev.element === "selected") {
+                const nid = ev.newElementId != null ? ev.newElementId : ev.newValue;
+                BlockyRT.app._blocklySelectedId = nid || null;
+            } else if (typeof BlockyRT.app._captureSelectedBlock === "function") {
+                BlockyRT.app._captureSelectedBlock();
+            }
+            BlockyRT.app.blocklyUiTick = (BlockyRT.app.blocklyUiTick || 0) + 1;
+        }
+        return;
+    }
+    if (BlockyRT.loading) return;
     const Events = Blockly.Events;
     const t = ev.type;
     const isCreate = t === Events.BLOCK_CREATE || t === "create";
@@ -1350,7 +1508,7 @@ function blockyOnChange(ev) {
                 if (ev.name === "HUE_MODE") {
                     opts.forceHueMode = ev.newValue;
                     opts.forceState = "ON";
-                    if (ev.newValue === "CUSTOM") opts.openWheel = true;
+                    if (ev.newValue === "CUSTOM" && !BlockyRT.suppressHueWheel) opts.openWheel = true;
                 }
                 blockyQueueRichShape(blk, opts);
             }
@@ -1450,10 +1608,12 @@ function blockyDestroyWorkspace() {
 function blockyOrphanLeaves(ws) {
     return ws.getAllBlocks(false).filter((b) => {
         if (!b) return false;
+        if (b.isInsertionMarker) return false;
+        if (typeof b.isDeadOrDying === "function" && b.isDeadOrDying()) return false;
         if (BLOCKY_ROOT_TRIGGERS.has(b.type)) return false;
         if (b.type === "b_case") {
             const prev = b.previousConnection;
-            return !b.getParent() && !(prev && prev.isConnected());
+            return !(prev && prev.isConnected());
         }
         // trig edges may be inside OR
         if (b.type === "b_trig_device_edge" || b.type === "b_trig_event_edge") {
@@ -1463,7 +1623,9 @@ function blockyOrphanLeaves(ws) {
         }
         if (b.type === "b_condition_device" || b.type === "b_condition_time"
             || b.type === "b_action_device" || b.type === "b_action_event") {
-            return !b.getParent();
+            // Statement stacks: previousConnection is authoritative (getParent can lag).
+            const prev = b.previousConnection;
+            return !(prev && prev.isConnected());
         }
         return false;
     });
@@ -1511,7 +1673,7 @@ function blockyApp() {
         suppressDirtyUntil: 0,
         pendingNav: null,
         blocklyFullscreen: false,
-            blocklySchemaVersion: 41,
+            blocklySchemaVersion: 44,
         blocklyUiTick: 0,
         eventFamilies: ["blinds", "twilight_evening", "twilight_morning", "sauna", "ir", "cinema"],
         eventFamilyLabels: {
@@ -1655,6 +1817,54 @@ function blockyApp() {
             if (BlockyRT.loading || Date.now() < (this.suppressDirtyUntil || 0)) return;
             if (!this.selectedRule) return;
             this.editorDirty = true;
+            this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
+        },
+
+        get hasBlocklySelection() {
+            void this.blocklyUiTick;
+            const ws = blockyWs();
+            if (!ws) return false;
+            if (this._blocklySelectedId && ws.getBlockById(this._blocklySelectedId)) return true;
+            return !!this._captureSelectedBlock();
+        },
+
+        _captureSelectedBlock() {
+            if (!window.Blockly || !blockyWs()) return null;
+            let sel = null;
+            try {
+                if (typeof Blockly.getSelected === "function") sel = Blockly.getSelected();
+                else if (Blockly.common && typeof Blockly.common.getSelected === "function") {
+                    sel = Blockly.common.getSelected();
+                }
+            } catch (e) { /* ignore */ }
+            if (!sel || sel.isInFlyout || sel.workspace !== blockyWs()) return null;
+            this._blocklySelectedId = sel.id;
+            return sel;
+        },
+
+        /** mousedown.prevent on Delete — capture id before Blockly clears selection on button focus. */
+        onDeletePointerDown(ev) {
+            if (ev) ev.preventDefault();
+            this._captureSelectedBlock();
+            this._deleteTargetId = this._blocklySelectedId || null;
+        },
+
+        deleteSelectedBlock() {
+            const ws = blockyWs();
+            if (!ws) return;
+            const id = this._deleteTargetId || this._blocklySelectedId;
+            this._deleteTargetId = null;
+            let sel = id ? ws.getBlockById(id) : null;
+            if (!sel) sel = this._captureSelectedBlock();
+            if (!sel || sel.isInFlyout) return;
+            try {
+                sel.dispose(true);
+            } catch (e) {
+                try { sel.dispose(false); } catch (e2) { /* ignore */ }
+            }
+            this._blocklySelectedId = null;
+            this.markEditorDirty();
+            this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
         },
 
         applyBlockyHueColor() {
@@ -1749,8 +1959,10 @@ function blockyApp() {
                     inj.style.top = "0";
                     inj.style.right = "0";
                     inj.style.bottom = "0";
-                    inj.style.width = "100%";
-                    inj.style.height = "100%";
+                    // Do not force width/height % — that skews Blockly metrics and
+                    // can park the vertical scrollbar as a gray bar over the canvas.
+                    inj.style.removeProperty("width");
+                    inj.style.removeProperty("height");
                 }
                 Blockly.svgResize(ws);
                 if (ws.scrollbar && typeof ws.scrollbar.resize === "function") ws.scrollbar.resize();
@@ -1844,10 +2056,39 @@ function blockyApp() {
             this.entityOptions = opts;
         },
 
-        firstEntityId(role = "trigger") {
+        firstEntityId(role = "trigger", preferTypes = null) {
             const opts = this.blocklyEntityDropdownOptions({ role });
+            const types = preferTypes
+                ? (Array.isArray(preferTypes) ? preferTypes : [preferTypes])
+                : null;
+            if (types && types.length) {
+                const hit = opts.find((o) => {
+                    if (!o[1]) return false;
+                    const t = blockyEntityTypeOf(o[1]);
+                    return types.includes(t);
+                });
+                if (hit) return hit[1];
+            }
             const first = opts.find((o) => o[1]);
             return first ? first[1] : "";
+        },
+
+        /** Prefer two different lights for new-rule trigger + action defaults. */
+        defaultLightPair() {
+            const trigOpts = this.blocklyEntityDropdownOptions({ role: "trigger" })
+                .filter((o) => o[1] && (blockyEntityTypeOf(o[1]) === "light" || blockyEntityTypeOf(o[1]) === "hue"))
+                .map((o) => o[1]);
+            const actOpts = this.blocklyEntityDropdownOptions({ role: "action" })
+                .filter((o) => o[1] && (blockyEntityTypeOf(o[1]) === "light" || blockyEntityTypeOf(o[1]) === "hue"))
+                .map((o) => o[1]);
+            const triggerEid = trigOpts[0]
+                || this.firstEntityId("trigger", ["light", "hue"])
+                || this.firstEntityId("trigger");
+            const actionEid = actOpts.find((e) => e !== triggerEid)
+                || actOpts[0]
+                || this.firstEntityId("action", ["light", "hue"])
+                || this.firstEntityId("action");
+            return { triggerEid, actionEid };
         },
 
         /**
@@ -2053,7 +2294,7 @@ function blockyApp() {
             });
             BlockyRT.ws = Blockly.inject(host, {
                 toolbox: blockyToolboxDefinition(new Set()),
-                trashcan: true,
+                trashcan: false,
                 scrollbars: true,
                 move: { scrollbars: true, drag: true, wheel: true },
                 zoom: { controls: true, wheel: false, startScale: 1.0 }
@@ -2109,7 +2350,7 @@ function blockyApp() {
                     const isBlinds = type === "blinds" || type === "shutter";
                     const blk = blockyMkBlock("b_action_device", {
                         ENTITY: a.entity_id || this.firstEntityId("action"),
-                        STATE: isBlinds ? "POS" : (a.state || "ON")
+                        STATE: isBlinds ? blockyBlindsUiStateFromStored(a.state) : (a.state || "ON")
                     });
                     blockyApplyActionRich(blk, a);
                     return blk;
@@ -2138,10 +2379,10 @@ function blockyApp() {
             if (!this.ensureBlocklyReady()) return;
             blockyCancelUniqueness();
             BlockyRT.loading = true;
+            BlockyRT.suppressHueWheel = true;
             const Events = Blockly.Events;
-            const wasEnabled = Events.isEnabled();
+            Events.disable();
             try {
-                Events.disable();
                 const ws = blockyWs();
                 ws.clear();
 
@@ -2183,6 +2424,39 @@ function blockyApp() {
                     }
                 });
 
+                // Re-apply rich from rule JSON (authoritative) — defeats any stray shape
+                // rebuild that lost _hueBri / preset during coerce.
+                {
+                    let caseNode = root ? root.getNextBlock() : null;
+                    let ci = 0;
+                    while (caseNode && caseNode.type === "b_case") {
+                        const acts = (cases[ci] && cases[ci].actions) || [];
+                        let ab = caseNode.getInputTargetBlock("ACTIONS");
+                        let ai = 0;
+                        while (ab) {
+                            if (ab.type === "b_action_device") {
+                                if (acts[ai] && acts[ai].entity_id) {
+                                    blockyApplyActionRich(ab, acts[ai]);
+                                }
+                                ai += 1;
+                            } else if (ab.type === "b_action_event") {
+                                ai += 1;
+                            }
+                            ab = ab.getNextBlock();
+                        }
+                        ci += 1;
+                        caseNode = caseNode.getNextBlock();
+                    }
+                }
+
+                // Drop any rich/uniqueness work queued by field validators during mkBlock.
+                if (BlockyRT.richTimer) {
+                    clearTimeout(BlockyRT.richTimer);
+                    BlockyRT.richTimer = null;
+                }
+                BlockyRT.pendingRichOpts = null;
+                blockyCancelUniqueness();
+
                 if (ws.render) ws.render();
                 this.resizeBlockly();
                 this.scrollBlocklyToTopLeft();
@@ -2192,10 +2466,14 @@ function blockyApp() {
                     requestAnimationFrame(() => this.resizeBlockly());
                 });
             } finally {
-                if (wasEnabled) Events.enable();
-                if (!Events.isEnabled()) Events.enable();
-                BlockyRT.loading = false;
+                Events.enable();
                 this.markEditorClean();
+                // ENTITY validators from mkBlock setField are queued as microtasks.
+                // Keep loading=true until after they run so they do not clear Hue rich.
+                queueMicrotask(() => {
+                    BlockyRT.loading = false;
+                    BlockyRT.suppressHueWheel = false;
+                });
             }
         },
 
@@ -2342,14 +2620,16 @@ function blockyApp() {
         },
 
         blankEditor() {
+            // Defaults live here (New rule). Prefer light trigger + different light action.
+            const { triggerEid, actionEid } = this.defaultLightPair();
             return {
                 id: "",
                 name: "",
                 scene: false,
                 require_confirmation: false,
                 ruleJson: JSON.stringify({
-                    trigger: { entity_id: this.firstEntityId("trigger") },
-                    cases: [{ to_state: "ON", actions: [{ entity_id: this.firstEntityId("action"), state: "ON" }] }]
+                    trigger: { entity_id: triggerEid },
+                    cases: [{ to_state: "ON", actions: [{ entity_id: actionEid, state: "ON" }] }]
                 }, null, 2)
             };
         },

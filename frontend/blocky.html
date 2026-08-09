@@ -40,8 +40,6 @@
         #blocklyWorkspace .injectionDiv {
             position: absolute;
             inset: 0;
-            width: 100% !important;
-            height: 100% !important;
         }
         #blocklyWorkspace svg,
         .blocklySvg,
@@ -50,9 +48,18 @@
             max-width: none !important;
             max-height: none !important;
         }
+        /* Trashcan disabled — hide any leftover chrome. */
+        .blocklyTrash,
+        .blocklyTrashBackground,
+        .blocklyTrashBody,
+        .blocklyTrashLid {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
         .blocklyScrollbarVertical,
         .blocklyScrollbarHorizontal {
-            opacity: 0.55;
+            opacity: 0.45;
         }
         .blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTooltipDiv { z-index: 100000 !important; }
         .blocklyToolboxDiv { z-index: 20; }
@@ -157,6 +164,11 @@
                             <button type="button" class="btn btn-xs btn-outline" @click="requestLeave({ type: 'reload' })">Reset blocks</button>
                         </template>
                         <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                        <button type="button" class="btn btn-xs btn-outline btn-error"
+                                @mousedown="onDeletePointerDown($event)"
+                                @click="deleteSelectedBlock()"
+                                :disabled="!hasBlocklySelection"
+                                title="Delete selected block">Delete</button>
                         <button type="button"
                                 class="btn btn-xs btn-ghost btn-circle ml-auto text-base-content/50 hover:text-info"
                                 title="How Blocky rules work"
@@ -191,7 +203,12 @@
                                     </svg>
                                 </button>
                                 <button class="btn btn-sm btn-outline" @click="toggleBlocklyFullscreen()">Exit full screen</button>
-                                <button class="btn btn-sm btn-warning" @click="saveRule()" :disabled="busy">Save</button>
+                                <button type="button" class="btn btn-sm btn-outline btn-error"
+                                        @mousedown="onDeletePointerDown($event)"
+                                        @click="deleteSelectedBlock()"
+                                        :disabled="!hasBlocklySelection"
+                                        title="Delete selected block">Delete</button>
+                                <button class="btn btn-sm btn-warning" @click="saveRule()" :disabled="busy || !editorDirty">Save</button>
                             </div>
                         </div>
                         <div id="blocklyWorkspace"
@@ -207,7 +224,7 @@
                     </div>
 
                     <div class="flex gap-2 pt-2">
-                        <button class="btn btn-warning btn-sm" @click="saveRule()" :disabled="busy">
+                        <button class="btn btn-warning btn-sm" @click="saveRule()" :disabled="busy || !editorDirty">
                             <span x-show="!busy">Save</span>
                             <span x-show="busy" class="loading loading-spinner loading-xs"></span>
                         </button>
@@ -230,7 +247,7 @@
                 <li>For open/close pairs (blinds, sauna, cinema), use <b>When start or end</b> — not two triggers.</li>
                 <li>Use <b>When any of</b> when several devices should OR together.</li>
             </ul>
-            <p>Snap blocks fully into the notches. Loose blocks block Save. Trash deletes.</p>
+            <p>Snap blocks fully into the notches. Loose blocks block Save. Select a block and use <b>Delete</b> (toolbar), or Delete/Backspace on desktop.</p>
         </div>
         <div class="modal-action">
             <form method="dialog">
@@ -294,6 +311,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=3"></script>
-<script src="blocky.js?v=4.32"></script>
+<script src="blocky.js?v=4.38"></script>
 </body>
 </html>

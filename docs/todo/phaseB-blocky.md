@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** **done**; ship-next = **B10A** then **B10B**; queued **B9A** / **B9B** — **spec locked**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** **done**; ship-next = **C1** then shell / **B10B**; queued **B9A** / **B9B** — **spec locked**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -94,7 +94,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** — **deferred**. **Phase B10A** = Blockly editor fixes; **Phase B10B** = user events + rule enable — **spec locked** (from intermediary split → phase C/D docs). Future HA patterns (H1–H3, H6–H11) backlog only.
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** — **deferred**. **Phase B10B** = user events + rule enable — **spec locked**. Future HA patterns (H1–H3, H6–H11) backlog only.
 
 **Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog **until Phase B9A**. **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9A** = sensor/threshold/host-gauge authoring + JSON removal. **B9B** = bathroom climate + H4/H5/H12 (OR groups, notify→Gmail, hysteresis).
 
@@ -650,7 +650,7 @@ Phase B5 does **not** require a rollback rehearsal that depends on hand-edit + A
 5. **Phase B8:** ✅ auto-off timers UI + engine — `auto_off_devices:`; `lightingautooff.html` + `/api/auto-off-timer`; migrator removed after cutover.
 6. **Phase B9A:** Blockly parity + sensor/threshold/host-gauge authoring + **remove JSON** — **spec locked**.
 7. **Phase B9B:** bathroom climate + **H12** hysteresis + **H4** condition OR groups + **H5** notify (→ Gmail per `phaseE-gmail.md`); vent lock stays in hub — deferred.
-8. **Phase B10A:** Blockly editor fixes (Hue a/b/c, toolbar Delete, dirty leave) — **spec locked**; ship before B10B.
+8. **Phase B10A:** ✅ Blockly editor fixes (Hue picker-only a/b/c, toolbar Delete, dirty leave; Hue/blinds rich survive save→reload); smoke OK Pi **2026-08-09**.
 9. **Phase B10B:** user events / scenes + per-rule enable — **spec locked**; schedule vs B9A/B9B is operator choice.
 10. **Later:** HA patterns H1–H3, H6–H11; multi-flow one Blockly page (after B10B).
 
@@ -778,23 +778,26 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [ ] Hot-water/sauna-grace still out unless reopened.
 - [ ] Pi smoke + Admin Debug GREEN.
 
-### Phase B10A — Blockly editor fixes 🔜 TODO (spec locked)
+### Phase B10A — Blockly editor fixes ✅ DONE
 
-**Origin:** intermediary Blocky slice (now in this file). **Do first** (trust); no schema/migrator.
+**Origin:** intermediary Blocky slice (now in this file). FE-only; no schema/migrator.
 
-| ID | Issue | Intent |
+**Operator smoke:** ✅ OK on Pi (**2026-08-09**).
+
+| ID | Issue | Intent (locked) |
 |---|---|---|
-| **Hue a** | Custom color: hex + dead `-` dropdown | One line color + hex; re-select custom reopens wheel |
-| **Hue b** | Blinds → Hue leaves Position; no color UI | Full rebuild STATE/rich on device-type change |
-| **Hue c** | Save reopens color picker | Restore custom without opening modal |
-| **Delete** | Tablet: trash/select delete broken | Toolbar **Delete** when block selected; **remove** trashcan |
-| **Dirty** | Leave after edits: no prompt | Fix all paths (select/New/Reset/shell/logout/`beforeunload`) — regression |
+| **Hue a** | Custom color: hex + dead `-` dropdown | **Picker only** — swatch on same row as color mode; re-select **custom color** opens wheel (no extra “edit color” row) |
+| **Hue b** | Blinds → Hue leaves Position; no color UI | Full STATE/rich rebuild on **any** device-type change; blinds→Hue defaults **ON**; Hue→blinds defaults **OPEN** |
+| **Hue c** | Save/load reopens color picker | Restore custom **without** opening modal |
+| **Delete** | Tablet: trash/select delete broken | Toolbar **Delete** next to Full screen; **disabled** when nothing selected; **remove** trashcan; Del/Backspace stay on desktop; update help copy |
+| **Dirty** | Canvas edits never set dirty (name OK) | Blockly workspace edits must set `editorDirty`; leave modal on select/New/Reset/shell/logout; `beforeunload` when dirty; clean after save/discard |
 
 #### Phase B10A DoD
 
-- [ ] Hue a/b/c fixed on Pi smoke.
-- [ ] Toolbar Delete works (incl. tablet); trashcan removed; Delete/Backspace still OK on desktop.
-- [ ] Dirty leave prompts on all leave paths; clean after save/discard.
+- [x] Hue a/b/c fixed on Pi smoke (picker-only custom; type-switch rebuild; no modal on restore).
+- [x] Toolbar Delete works (incl. tablet); trashcan removed; Del/Backspace OK on desktop; help text updated.
+- [x] Canvas edits show **Unsaved changes**; dirty leave prompts on all leave paths; clean after save/discard.
+- [x] Hue named preset / custom color and blinds CLOSED / position % survive save→reload (dropdown option cache + load microtask).
 
 ---
 

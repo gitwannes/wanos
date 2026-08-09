@@ -10,6 +10,7 @@ High-level **what’s next** and where the detailed specs live. This file does *
 
 | Band | Meaning |
 |---|---|
+| **Done** | Shipped + Pi smoke OK — keep for history; not in Sequence |
 | **Now / next** | Spec locked; implement when capacity allows |
 | **Queued** | Spec exists; schedule after “now” |
 | **Ops / Manual** | Operator / site work — stays in this file |
@@ -25,34 +26,43 @@ High-level **what’s next** and where the detailed specs live. This file does *
 | **F** | Public bridge / perimeter security | [`phaseF-security.md`](phaseF-security.md) |
 | **G** | Integrations reliability (Hue state, Epson) | [`phaseG-integrations.md`](phaseG-integrations.md) |
 
-**Naming note:** Deny-list decision **D1** in Blocky ≠ phase **D**.
+**Naming note:** Deny-list decision **D1** in Blocky ≠ phase **D**. When a phase completes: move it from **Sequence** → **Done**, and drop its bullet from **Why this order**.
+
+---
+
+## Done
+
+| Phase | Notes |
+|---|---|
+| **B0–B8** | Schema v2, rich actions, soft-hide, auto-off — Pi smoke through **2026-08-08** |
+| **B10A** | Blocky editor trust (Hue / Delete / dirty) — Pi smoke **2026-08-09** |
+
+Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md).
 
 ---
 
 ## Sequence
 
 ```text
-1. B10A     Blocky editor trust (Hue / Delete / dirty)
-2. C1       Explorer chrome
-3. C2       Admin + system pages
-4. C5       History graphs (landscape / dew / Y-axis)
-5. B10B     user events + rule enable
-6. D        switch vs light typing
-7. B9A      sensors / thresholds / remove JSON
-8. E        Gmail transport / outbox
-9. B9B      bathroom + H4/H5/H12  (H5 email needs E)
-10. C3      Force ALL-OFF
-11. C4      Rename HTML entrypoints
-12. G2      Hue color/bri truth (assess → fix)
-13. G1      Epson get_power_state (analysis → impl)
-14. F       Security bridge (F1→F7 as deployed)
-15. Later B multi-flow; HA H1–H3/H6–H11
-16. Ops     Inbox below when convenient
+1. C1       Explorer chrome
+2. C2       Admin + system pages
+3. C5       History graphs (landscape / dew / Y-axis)
+4. B10B     user events + rule enable
+5. D        switch vs light typing
+6. B9A      sensors / thresholds / remove JSON
+7. E        Gmail transport / outbox
+8. B9B      bathroom + H4/H5/H12  (H5 email needs E)
+9. C3       Force ALL-OFF
+10. C4      Rename HTML entrypoints
+11. G2      Hue color/bri truth (assess → fix)
+12. G1      Epson get_power_state (analysis → impl)
+13. F       Security bridge (F1→F7 as deployed)
+14. Later B multi-flow; HA H1–H3/H6–H11
+15. Ops     Inbox below when convenient
 ```
 
 ### Why this order
 
-* **B10A first** — daily Blocky trust bugs; FE-only; unblocks operator confidence before bigger model work.
 * **C1 → C2 next** — small shell polish; no schema; ships while Blocky calm.
 * **C5 after C2** — History chart UX; same shell letter; phone landscape pain is daily-path; not Blocky/B9A.
 * **B10B before B9A** — user events / rule enable are the live scene pain; sensors/JSON removal is larger and can wait.
@@ -61,9 +71,9 @@ High-level **what’s next** and where the detailed specs live. This file does *
 * **C3 / C4 later** — Admin force-sweep is powerful but not daily-path; HTML renames are mechanical and safer after shell churn settles.
 * **G2 before G1** — Hue color lie affects daily Explorer; Epson boot query is analysis-gated and rarer. Swap if Epson pain wins.
 * **F when deploying remote access** — independent perimeter track; interleave only when exposing the bridge.
-* **Do not fold B10\* into B9\*** — different jobs (trust/events vs sensors/climate). **G2 ≠ B10A** — runtime bridge truth vs Blockly editor chrome.
+* **Do not fold B10\* into B9\*** — different jobs (trust/events vs sensors/climate). **G2 ≠ B10A** — runtime bridge truth vs Blockly editor chrome (B10A done).
 
-Near-term = **B10A → C1 → C2 → C5**. Then **B10B** / **D** / **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking.
+Near-term = **C1 → C2 → C5**. Then **B10B** / **D** / **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking.
 
 ---
 
@@ -71,7 +81,6 @@ Near-term = **B10A → C1 → C2 → C5**. Then **B10B** / **D** / **B9A** flexi
 
 | Step | Detail |
 |---|---|
-| **B10A** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10A — Hue a/b/c · toolbar Delete · dirty leave |
 | **C1** | [`phaseC-shell.md`](phaseC-shell.md) § C1 — Hidden filter · favorites |
 | **C2** | [`phaseC-shell.md`](phaseC-shell.md) § C2 — Planned Automations · bell · reboot · leave-guards |
 | **C5** | [`phaseC-shell.md`](phaseC-shell.md) § C5 — landscape filters · dew point · Y-axis 5°/10% |
@@ -138,5 +147,6 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-09 | Intermediary shell/typing + pipeline; letter rename B/C/D/E/F/G. |
 | 2026-08-09 | Specs collapsed to `phaseX-yyy.md`; this file = sequence + ops only. |
 | 2026-08-09 | Added **C5** History graphs; **G2** Hue state; renamed G file → `phaseG-integrations.md`. |
+| 2026-08-09 | **B10A** → **Done**; Sequence starts at **C1**. Rule: completed phases leave Sequence + Why-this-order. |
 
 Detail chronology / DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md).

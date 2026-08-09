@@ -68,7 +68,9 @@ auto_off_devices:
     - switch.voorraad_gv
     - switch.waskot
   default_auto_off_minutes: 300
-  default_pertype_auto_off_minutes: {}
+  default_pertype_auto_off_minutes:
+    speaker: 240
+    switch: 240
   auto_off_delays:
     hue.group.badk_1e_hue: 60
     hue.group.badk_2e_hue: 60
@@ -192,36 +194,40 @@ automations:
           - entity_id: switch.tuin
             state: "OFF"
     id: 40617bd0-7c40-429d-abdc-efc2b3056b3e
-  - name: "ALL OFF gv"
+  - name: ALL OFF gv
     scene: true
     require_confirmation: false
     trigger:
-      event: "SCENE_GV_OFF"
+      event: SCENE_GV_OFF
     cases:
       - actions:
-          - entity_id: switch.gang_beneden
-            state: "OFF"
-          - entity_id: switch.licht_living
-            state: "OFF"
-          - entity_id: switch.licht_keuken
-            state: "OFF"
           - entity_id: switch.voorraad_gv
             state: "OFF"
           - entity_id: switch.eetkamer
             state: "OFF"
+          - entity_id: hue.group.eetkamer_hue
+            state: "OFF"
+          - entity_id: switch.licht_keuken
+            state: "OFF"
+          - entity_id: switch.licht_living
+            state: "OFF"
+          - entity_id: hue.group.living_hue
+            state: "OFF"
           - entity_id: switch.living_schemer
             state: "OFF"
+          - entity_id: media_player.living
+            state: "OFF"
+          - entity_id: media_player.living_2
+            state: "OFF"
           - entity_id: switch.kerstboom
+            state: "OFF"
+          - entity_id: switch.gang_beneden
             state: "OFF"
           - entity_id: switch.toilet
             state: "OFF"
           - entity_id: switch.licht_garage
             state: "OFF"
           - entity_id: switch.tuin
-            state: "OFF"
-          - entity_id: hue.group.verd_0_hue
-            state: "OFF"
-          - entity_id: media_player.living
             state: "OFF"
     id: be05646d-d637-41f4-93b6-980366e6af44
   - name: "ALL OFF 1eV"
@@ -291,34 +297,38 @@ automations:
           - event: "SCENE_VERDIEP1_OFF"
           - event: "SCENE_VERDIEP2_OFF"
     id: c8519732-38d6-444b-937e-1bc588bd01ee
-  - name: "GoCosy gv"
+  - name: GoCosy gv
     scene: true
     require_confirmation: false
     trigger:
-      event: "SCENE_GOCOSY"
+      event: SCENE_GOCOSY
     cases:
       - actions:
           - entity_id: switch.licht_living
             state: "OFF"
           - entity_id: hue.group.living_hue
             state: "ON"
-            preset: "relax_red"
+            preset: relax_red
           - entity_id: switch.living_schemer
             state: "ON"
-          - entity_id: switch.kerstboom
-            state: "ON"
+          - entity_id: switch.licht_keuken
+            state: "OFF"
     id: 0edc9fce-f788-4801-9ddf-730fa191d184
-  - name: "Slpk_Dries"
+  - name: Slpk_Dries
     scene: false
     require_confirmation: false
     trigger:
       entity_id: switch.slpk_dries
     cases:
-      - to_state: ON
+      - to_state: "ON"
         actions:
           - entity_id: hue.group.slpk_dries_hue
             state: "ON"
-      - to_state: OFF
+            bri: 100
+            xy:
+              - 0.1368974980240959
+              - 0.04645321326991772
+      - to_state: "OFF"
         actions:
           - entity_id: hue.group.slpk_dries_hue
             state: "OFF"
@@ -432,7 +442,7 @@ automations:
         actions:
           - event: "SCENE_GOCOSY"
     id: 364ac941-35c6-467d-9232-37b2b2b29568
-  - name: "Spare Button: Hue OFF + Day -> Red Accent"
+  - name: 'Spare Button: Hue OFF + Day -> Red Accent'
     scene: false
     require_confirmation: false
     trigger:
@@ -442,15 +452,15 @@ automations:
         state: "OFF"
     cases:
       - conditions:
-          - type: "device_state"
+          - type: device_state
             entity_id: hue.group.living_hue
             is: "OFF"
-          - type: "time_of_day"
-            is: "light"
+          - type: time_of_day
+            is: light
         actions:
           - entity_id: hue.group.living_hue
             state: "ON"
-            preset: "relax_red"
+            preset: relax_red
           - entity_id: switch.licht_living
             state: "OFF"
     id: 48e294b0-8784-40b6-a9eb-cf6e5a991407
@@ -794,3 +804,29 @@ automations:
             state: "0"
     id: e0970780-d016-4964-9330-f403e3e0da6e
 
+  - name: Rolluik cinema half (zon)
+    scene: false
+    require_confirmation: false
+    trigger:
+      entity_id: blinds.cinema
+    cases:
+      - to_state: OPEN
+        actions:
+          - entity_id: hue.group.badk_1e_hue
+            state: "ON"
+            bri: 100
+            xy:
+              - 0.5393614265583356
+              - 0.43434128228363705
+    id: 8c1a0535-4f16-4ffe-bd76-7479dae7e6ca
+  - name: test
+    scene: false
+    require_confirmation: false
+    trigger:
+      entity_id: hue.group.badk_1e_hue
+    cases:
+      - to_state: "ON"
+        actions:
+          - entity_id: blinds.cinema
+            state: '100'
+    id: c5f1571a-3016-4798-a0fb-8da2861f12b5

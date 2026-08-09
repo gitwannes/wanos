@@ -4,7 +4,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 
 **Status:** Spec **LOCKED**. Subphases **C1 → C2 → C5 → C3 → C4** (C5 with shell chrome; C3/C4 later unless needed sooner).
 
-**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** then **B10B**). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
+**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** ✅; next Blocky = **B10B**). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
 **Moved to Blocky (B10A/B10B):** former user events, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (+ multi-flow follow-up).
 
