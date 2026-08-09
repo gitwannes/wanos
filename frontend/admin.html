@@ -66,7 +66,7 @@
                                       x-show="msg.count > 1" x-text="'×' + msg.count"></span>
                             </div>
                         </div>
-                        <button @click="dismissAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle shrink-0 text-error-content hover:bg-black/10">
+                        <button @click="dismissBannerAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle shrink-0 text-error-content hover:bg-black/10">
                             ✕
                         </button>
                     </div>
@@ -448,7 +448,7 @@
                                                 <span class="badge badge-neutral text-[9px] font-mono px-1.5 tabular-nums min-w-[70px] justify-center" x-text="item.relTime"></span>
                                                 <div class="flex flex-col">
                                                     <span class="font-bold text-xs text-white" x-text="item.name"></span>
-                                                    <span class="text-[10px] text-base-400 font-mono" x-show="item.idx !== null" x-text="'IDX ' + item.idx"></span>
+                                                    <span class="text-[10px] text-base-400 font-mono" x-show="item.type" x-text="item.type"></span>
                                                 </div>
                                             </div>
                                             <div class="text-right">
@@ -516,6 +516,10 @@
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">Reload UI</span>
                                     <button class="btn btn-outline btn-info btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="reloadFrontend()">GO</button>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-error/40 rounded-box shadow-sm gap-2 min-w-0">
+                                    <span class="text-error uppercase font-bold text-[10px] truncate">Reboot WanOS</span>
+                                    <button class="btn btn-outline btn-error btn-xs w-20 font-bold tracking-widest shadow-sm shrink-0" @click="requestWanosRestart()">GO</button>
                                 </div>
                             </div>
                         </div>
@@ -828,6 +832,21 @@
                 <button>close</button>
             </form>
         </dialog>
+
+        <dialog id="wanos_restart_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+            <div class="modal-box border border-error/40 bg-base-300 shadow-2xl">
+                <h3 class="font-bold text-lg text-error tracking-wide">Reboot WanOS</h3>
+                <p class="py-3 text-sm text-base-content/80">
+                    Restart the <span class="font-bold">WanOS service</span> only (not the host).
+                    The UI will reconnect when the service is back (~60–90s).
+                </p>
+                <div class="modal-action flex-wrap gap-2">
+                    <button type="button" class="btn btn-ghost btn-sm" @click="cancelWanosRestart()">Cancel</button>
+                    <button type="button" class="btn btn-error btn-sm" @click="confirmWanosRestart()">Restart service</button>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button type="button" @click="cancelWanosRestart()">close</button></form>
+        </dialog>
     </main>
-    <script src="wanos-shell.js?v=4"></script>
-    <script src="app.js?v=3.23"></script>
+    <script src="wanos-shell.js?v=5"></script>
+    <script src="app.js?v=3.31"></script>

@@ -74,7 +74,7 @@ sudo ./wanos_bootstrap_phase1.sh
 > * Disables and masks the `hciuart` service.
 > * Sets up custom Bash aliases, console monitors, `.vimrc`, and `.config/bat` defaults.
 > * Adds user `wannes` to groups `dialout`, `i2c`, and `gpio`.
-> * Configures passwordless sudo policies for `log2ram write`.
+> * Configures passwordless sudo policies for `log2ram write` and `systemctl restart wanos.service` (Admin “Reboot WanOS”).
 > * Creates `/var/log/wanos` owned by `wannes:wannes`.
 > * Downloads, installs, and configures `log2ram` with a 256M RAM buffer.
 > * Copies external `smb.conf` to `/etc/samba/smb.conf` and enables `smbd`.
@@ -290,6 +290,39 @@ sudo systemctl status wanos.service
 # Stream live application console output using the helper logger script
 /home/wannes/wanos/wanoslog.sh 1
 ```
+
+### 5.4 Passwordless service restart (Admin “Reboot WanOS”)
+
+Phase 1 writes this into `/etc/sudoers.d/wannes_sudo_policy`. Required so the Admin API can restart the **WanOS service only** (not the host) without a password prompt:
+
+```text
+wannes ALL=(root) NOPASSWD: /usr/bin/systemctl restart wanos.service
+```
+
+**Fresh install:** already applied by `wanos_bootstrap_phase1.sh`. After the unit is enabled (5.2), verify as user `wannes`:
+
+```bash
+# Must exit 0 with no password prompt
+sudo -n systemctl restart wanos.service
+echo "exit=$?"
+```
+
+**Existing Pi (upgrade / policy missing):** append the line (or re-run Phase 1 sudoers block), then validate:
+
+```bash
+# Edit as root (visudo-safe)
+sudo visudo -f /etc/sudoers.d/wannes_sudo_policy
+# Add:
+#   wannes ALL=(root) NOPASSWD: /usr/bin/systemctl restart wanos.service
+
+sudo visudo -c -f /etc/sudoers.d/wannes_sudo_policy
+
+# As user wannes — must exit 0
+sudo -n systemctl restart wanos.service
+echo "exit=$?"
+```
+
+If `sudo: a password is required`, the Admin Reboot button will show a UI error until NOPASSWD is fixed.
 
 ---
 

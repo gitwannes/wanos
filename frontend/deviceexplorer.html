@@ -37,6 +37,21 @@
         @media (min-width: 768px) {
             .hist-chart { height: 320px; }
         }
+        /* C5: landscape phone + chart open → collapse sticky filter detail so chart owns the screen */
+        @media (orientation: landscape) and (max-height: 500px) {
+            [data-explorer-sticky-filters].explorer-chart-open .explorer-filter-detail {
+                display: none !important;
+            }
+            [data-explorer-sticky-filters].explorer-chart-open {
+                padding-top: 0.35rem;
+                padding-bottom: 0.35rem;
+                gap: 0.25rem;
+            }
+            [data-explorer-sticky-filters].explorer-chart-open .explorer-filter-compact-hint {
+                display: inline !important;
+            }
+        }
+        .explorer-filter-compact-hint { display: none; }
     </style>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="wanosApp()" x-init="initDeviceExplorerPage()">
@@ -76,15 +91,27 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-3 shrink-0 pt-0.5">
-                <label class="label cursor-pointer gap-2 py-0">
-                    <input type="checkbox" class="toggle toggle-sm toggle-accent" x-model="actuatorFavoritesOnly" />
-                    <span class="label-text font-mono text-[10px] uppercase tracking-widest hidden sm:inline">Favorites</span>
+            <div class="flex items-center gap-2 md:gap-3 shrink-0 pt-0.5">
+                <!-- C1: Favorites filter only when at least one favorite exists; label+toggle one line -->
+                <label class="label cursor-pointer gap-1.5 py-0 flex-row items-center"
+                       x-show="actuatorFavorites.length > 0" x-cloak>
+                    <span class="label-text font-mono text-[10px] uppercase tracking-widest whitespace-nowrap">Favorites</span>
+                    <input type="checkbox" class="toggle toggle-sm toggle-accent"
+                           :checked="actuatorFavoritesOnly"
+                           @change="actuatorFavoritesOnly = $event.target.checked" />
                 </label>
-                <div class="form-control flex flex-row items-center gap-2" x-show="isAdmin" x-cloak>
-                    <span class="text-[10px] font-bold text-base-content/70 uppercase">Hidden</span>
-                    <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenNodes" />
-                </div>
+                <!-- C1: Edit / Done favorites (idle = no row checkboxes) -->
+                <button type="button" class="btn btn-xs btn-ghost font-mono text-[10px] tracking-widest px-1.5"
+                        :class="favoritesEditMode ? 'text-accent' : 'text-base-content/50'"
+                        :title="favoritesEditMode ? 'Done editing favorites' : 'Edit favorites'"
+                        @click="toggleFavoritesEditMode()">
+                    <span x-text="favoritesEditMode ? 'Done' : 'Edit'"></span>
+                </button>
+                <!-- C1: Hidden label+toggle one line (admin); stays in presets pane -->
+                <label class="label cursor-pointer gap-1.5 py-0 flex-row items-center" x-show="isAdmin" x-cloak>
+                    <span class="label-text font-mono text-[10px] uppercase tracking-widest whitespace-nowrap">Hidden</span>
+                    <input type="checkbox" class="toggle toggle-sm toggle-error shadow" x-model="showHiddenNodes" />
+                </label>
                 <button class="btn btn-sm btn-ghost text-lg hover:bg-base-200"
                         title="Manage Presets"
                         @click="document.getElementById('preset_edit_modal').showModal()">
@@ -94,7 +121,8 @@
         </div>
 
         <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3 flex flex-col gap-2 md:gap-3"
-             data-explorer-sticky-filters>
+             data-explorer-sticky-filters
+             :class="historyChartOpen ? 'explorer-chart-open' : ''">
             <div class="join self-start border border-base-300">
                 <button type="button" class="btn btn-sm join-item font-mono tracking-widest"
                         :class="explorerMode === 'control' ? 'btn-primary' : 'btn-ghost'"
@@ -103,8 +131,11 @@
                         :class="explorerMode === 'history' ? 'btn-accent' : 'btn-ghost'"
                         @click="setExplorerMode('history')">History</button>
             </div>
+            <div class="explorer-filter-compact-hint text-[9px] font-mono text-base-content/50 pl-0.5">
+                Filters collapsed · rotate or close chart to edit
+            </div>
 
-            <div class="grid grid-cols-2 md:flex md:flex-row gap-2 md:gap-3 items-center w-full">
+            <div class="explorer-filter-detail grid grid-cols-2 md:flex md:flex-row gap-2 md:gap-3 items-center w-full">
 
                 <div class="form-control col-span-2 md:col-auto md:flex-1 w-full">
                     <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200 focus-within:outline-none focus-within:border-primary w-full">
@@ -141,7 +172,7 @@
                     <option value="STATUS">Sort by Status</option>
                 </select>
             </div>
-            <div class="text-[9px] md:text-[10px] font-mono text-base-content/50 leading-none pl-0.5"
+            <div class="explorer-filter-detail text-[9px] md:text-[10px] font-mono text-base-content/50 leading-none pl-0.5"
                  x-text="'listing ' + explorerActiveList.length + ' device' + (explorerActiveList.length === 1 ? '' : 's')"></div>
         </div>
 
@@ -153,14 +184,16 @@
                     <li class="flex flex-col w-full"
                         :id="'explorer-row-' + item.id"
                         :class="(explorerMode === 'history' && isExplorerHistoryRowSelected(item)) ? 'bg-accent/5' : ''">
-                        <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-x-1 md:gap-x-6 w-full"
+                        <div class="grid items-center py-4 px-3 md:py-5 md:px-4 hover:bg-base-200/50 transition-colors gap-x-1 md:gap-x-6 w-full"
                              :class="[
+                                 favoritesEditMode ? 'grid-cols-[auto_minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)_auto]',
                                  item.is_dead ? 'opacity-50 grayscale' : '',
                                  (explorerMode === 'history' && deviceHasHistory(item.id)) ? 'cursor-pointer' : ''
                              ]"
                              @click="explorerMode === 'history' && selectExplorerHistoryItem(item)">
 
-                            <div class="pr-1" @click.stop>
+                            <!-- C1: selection UI only while Edit favorites is active -->
+                            <div class="pr-1" @click.stop x-show="favoritesEditMode" x-cloak>
                                 <input type="checkbox" class="checkbox checkbox-xs checkbox-accent"
                                        :checked="isActuatorFavorite(item.id)"
                                        @change="toggleActuatorFavorite(item.id)"
@@ -613,7 +646,7 @@
         </div>
 
     </main>
-    <script src="wanos-shell.js?v=3"></script>
-    <script src="app.js?v=3.26"></script>
+    <script src="wanos-shell.js?v=5"></script>
+    <script src="app.js?v=3.31"></script>
 </body>
 </html>

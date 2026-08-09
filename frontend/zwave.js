@@ -16,10 +16,67 @@ function zwaveApp() {
         sortDir: "asc",
         savedFingerprint: "",
         _baselinePending: false,
+        // C2 leave-guard (Blocky-style Cancel / Discard / Save)
+        pendingNav: null,
 
         logout() {
             localStorage.removeItem("wanos_jwt");
             window.location.href = "/login.html";
+        },
+
+        requestLeave(action) {
+            if (!this.dirty) {
+                this.runLeaveAction(action);
+                return;
+            }
+            this.pendingNav = action;
+            document.getElementById("unsaved_changes_modal")?.showModal();
+        },
+
+        runLeaveAction(action) {
+            if (!action) return;
+            if (action.type === "href" && action.url) window.location.href = action.url;
+            else if (action.type === "logout") this.logout();
+        },
+
+        cancelUnsavedLeave() {
+            this.pendingNav = null;
+            document.getElementById("unsaved_changes_modal")?.close();
+        },
+
+        async discardUnsavedLeave() {
+            const action = this.pendingNav;
+            this.pendingNav = null;
+            document.getElementById("unsaved_changes_modal")?.close();
+            // Reload map from live state (discards local edits)
+            try {
+                const token = localStorage.getItem("wanos_jwt") || "";
+                const res = await fetch("/api/state", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.processBackendState(data);
+                }
+            } catch (e) {
+                console.error("discard reload failed", e);
+            }
+            this.runLeaveAction(action);
+        },
+
+        async saveUnsavedLeave() {
+            await this.saveAndReloadConfig();
+            if (this.errorMessage) return;
+            const action = this.pendingNav;
+            this.pendingNav = null;
+            document.getElementById("unsaved_changes_modal")?.close();
+            this.runLeaveAction(action);
+        },
+
+        navAway(ev, url) {
+            if (!this.dirty) return;
+            ev.preventDefault();
+            this.requestLeave({ type: "href", url });
         },
 
         _mapFingerprint() {
@@ -134,6 +191,13 @@ function zwaveApp() {
                 this.processBackendState(data);
                 this.connectSSE(token);
             }).catch(err => console.error("Failed to fetch state:", err));
+
+            this._onBeforeUnload = (e) => {
+                if (!this.dirty) return;
+                e.preventDefault();
+                e.returnValue = "";
+            };
+            window.addEventListener("beforeunload", this._onBeforeUnload);
         },
 
         connectSSE(token) {

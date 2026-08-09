@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** **done**; ship-next = **C1** then shell / **B10B**; queued **B9A** / **B9B** — **spec locked**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** **done**; ship-next = **B10C** then **B10B**; queued **B9A** / **B9B** — **spec locked**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6** flicker); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -94,7 +94,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** — **deferred**. **Phase B10B** = user events + rule enable — **spec locked**. Future HA patterns (H1–H3, H6–H11) backlog only.
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C** = soft-hide device picker regression — **next**. **Phase B10B** = user events + rule enable — **spec locked**. **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** — **deferred**. Future HA patterns (H1–H3, H6–H11) backlog only.
 
 **Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog **until Phase B9A**. **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9A** = sensor/threshold/host-gauge authoring + JSON removal. **B9B** = bathroom climate + H4/H5/H12 (OR groups, notify→Gmail, hysteresis).
 
@@ -801,9 +801,38 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 
 ---
 
+### Phase B10C — Soft-hide device picker 🔜 TODO (regression)
+
+**Origin:** operator report **2026-08-09** (rule **`all off gv`**). B7/B3 picker regression — not folded into B9\*. **Before B10B.** FE action-device dropdown only; YAML not corrupted.
+
+#### Locked intent (exclusive Hidden, sticky current)
+
+Blockly **HIDDEN** toggle filters **action** `set device` dropdowns only (When-device / condition out of scope for this DoD):
+
+| HIDDEN | Dropdown contents |
+|---|---|
+| **OFF** | Device(s) **already configured on that block** (even if soft-hidden) **+ all non-hidden** devices |
+| **ON** | Device(s) **already configured on that block** (even if non-hidden) **+ all soft-hidden** devices |
+
+Hard-deny (**71040**) never appears. Not inclusive “show everything when ON”.
+
+#### Observed failure (smoke repro)
+
+1. Open **`all off gv`** with HIDDEN **OFF** → action device labels OK.
+2. Turn HIDDEN **ON**, select another rule, return to **`all off gv`** → many actions show **`53?`** instead of real names — **no rule edits**.
+3. Toggle HIDDEN again, leave, reopen → correct labels return. **YAML / eids unchanged** — display/picker rebuild bug only.
+4. Toggle ON **without** leave/reopen does **not** trigger the failure (leave → reopen required).
+
+#### Phase B10C DoD
+
+- [ ] HIDDEN OFF/ON match the table above for **action** device pickers (sticky current + exclusive catalog).
+- [ ] Repro path: HIDDEN ON → leave rule → re-open **`all off gv`** → labels stay correct (no `53?` / blank / snap).
+- [ ] Untouched save does not change action `entity_id`s; Pi smoke both toggle states + leave/reopen.
+---
+
 ### Phase B10B — User events / scenes + rule enable 🔜 TODO (spec locked)
 
-**Origin:** same split. **After B10A.** Numbering = next after B9A/B9B; may run before/parallel/after B9A — not folded into B9A/B9B.
+**Origin:** same split. **After B10A / B10C.** Numbering = next after B9A/B9B; may run before/parallel/after B9A — not folded into B9A/B9B.
 
 #### User events (scenes) — pure signal
 

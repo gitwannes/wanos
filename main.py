@@ -745,6 +745,56 @@ async def admin_entity_id_list(req: Request):
     )
 
 
+@app.post("/api/admin/restart")
+async def admin_restart_wanos(req: Request) -> JSONResponse:
+    """Admin: restart WanOS systemd unit (service only — not the host).
+
+    Requires passwordless sudo for:
+      /usr/bin/systemctl restart wanos.service
+    Returns 202 when the restart command is accepted; UI reconnects after the unit is back.
+    """
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    cmd = ["sudo", "-n", "/usr/bin/systemctl", "restart", "wanos.service"]
+    try:
+        # Fire-and-forget-ish: accept quickly; systemd will kill this process during restart.
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        # Brief wait so we can surface sudo/NOPASSWD failures before the unit dies.
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+        except asyncio.TimeoutError:
+            # Restart likely accepted and this process is being stopped — treat as success.
+            logger.info("admin restart: systemctl still running after 3s (likely restarting)")
+            return JSONResponse(status_code=202, content={"ok": True, "message": "Restart accepted"})
+
+        if proc.returncode != 0:
+            err = (stderr or b"").decode("utf-8", errors="replace").strip()
+            out = (stdout or b"").decode("utf-8", errors="replace").strip()
+            detail = err or out or f"systemctl exit {proc.returncode}"
+            logger.error(f"admin restart failed: {detail}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": (
+                        "Failed to restart WanOS service. "
+                        "Check passwordless sudo for "
+                        "'systemctl restart wanos.service'. "
+                        f"Detail: {detail}"
+                    )
+                },
+            )
+        logger.info("admin restart: systemctl restart wanos.service accepted")
+        return JSONResponse(status_code=202, content={"ok": True, "message": "Restart accepted"})
+    except Exception as e:
+        logger.error(f"admin restart exception: {e}")
+        return JSONResponse(status_code=500, content={"error": f"Restart failed: {e}"})
+
+
 def _require_history_reader(req: Request):
     """Device/session history is available to admin and user roles."""
     if req.state.role not in ("admin", "user"):

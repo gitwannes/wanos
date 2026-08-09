@@ -827,6 +827,10 @@ automations:
     cases:
       - to_state: "ON"
         actions:
-          - entity_id: blinds.cinema
-            state: '100'
+          - entity_id: hue.group.badk_2e_hue
+            state: "ON"
+            bri: 100
+            xy:
+              - 0.36542188926705216
+              - 0.1536401517962337
     id: c5f1571a-3016-4798-a0fb-8da2861f12b5

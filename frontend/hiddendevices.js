@@ -19,10 +19,58 @@ function hiddenDevicesApp() {
         isAdmin: true,
         errorMessage: "",
         infoMessage: "",
+        // C2 leave-guard (Blocky-style Cancel / Discard / Save)
+        pendingNav: null,
 
         logout() {
             localStorage.removeItem("wanos_jwt");
             window.location.href = "/login.html";
+        },
+
+        requestLeave(action) {
+            if (!this.dirty) {
+                this.runLeaveAction(action);
+                return;
+            }
+            this.pendingNav = action;
+            document.getElementById("unsaved_changes_modal")?.showModal();
+        },
+
+        runLeaveAction(action) {
+            if (!action) return;
+            if (action.type === "href" && action.url) window.location.href = action.url;
+            else if (action.type === "logout") this.logout();
+        },
+
+        cancelUnsavedLeave() {
+            this.pendingNav = null;
+            document.getElementById("unsaved_changes_modal")?.close();
+        },
+
+        discardUnsavedLeave() {
+            const action = this.pendingNav;
+            this.pendingNav = null;
+            this.draftHidden = new Set(this.savedHidden);
+            for (const row of this.rows) {
+                row.hidden = this.draftHidden.has(row.eid);
+            }
+            document.getElementById("unsaved_changes_modal")?.close();
+            this.runLeaveAction(action);
+        },
+
+        async saveUnsavedLeave() {
+            await this.save();
+            if (this.errorMessage) return;
+            const action = this.pendingNav;
+            this.pendingNav = null;
+            document.getElementById("unsaved_changes_modal")?.close();
+            this.runLeaveAction(action);
+        },
+
+        navAway(ev, url) {
+            if (!this.dirty) return;
+            ev.preventDefault();
+            this.requestLeave({ type: "href", url });
         },
 
         get dirty() {
@@ -125,6 +173,12 @@ function hiddenDevicesApp() {
                 return;
             }
             this.reload();
+            this._onBeforeUnload = (e) => {
+                if (!this.dirty) return;
+                e.preventDefault();
+                e.returnValue = "";
+            };
+            window.addEventListener("beforeunload", this._onBeforeUnload);
         },
 
         async reload() {

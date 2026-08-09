@@ -137,6 +137,8 @@ cat << 'EOF' > /etc/sudoers.d/wannes_sudo_policy
 Defaults timestamp_timeout=30
 wannes ALL=(ALL) ALL
 wannes ALL=(root) NOPASSWD: /usr/local/bin/log2ram write
+# Admin UI / API: POST /api/admin/restart → passwordless service restart (not host reboot)
+wannes ALL=(root) NOPASSWD: /usr/bin/systemctl restart wanos.service
 EOF
 chmod 0440 /etc/sudoers.d/wannes_sudo_policy
 
@@ -145,6 +147,18 @@ visudo -c -f /etc/sudoers.d/wannes_sudo_policy || {
     rm /etc/sudoers.d/wannes_sudo_policy
     exit 1
 }
+
+# Non-interactive check (must exit 0 once wanos.service exists; safe to skip early in Phase 1)
+if systemctl cat wanos.service &>/dev/null; then
+    if su - wannes -c 'sudo -n /usr/bin/systemctl restart wanos.service'; then
+        echo "OK: passwordless systemctl restart wanos.service works for user wannes"
+    else
+        echo "WARN: sudo -n systemctl restart wanos.service failed for wannes — check sudoers"
+    fi
+else
+    echo "NOTE: wanos.service not installed yet — after Phase 5, verify as user wannes:"
+    echo "      sudo -n systemctl restart wanos.service"
+fi
 
 # 5. WanOS Logging Directory
 echo "[5/7] Creating Log Directories..."

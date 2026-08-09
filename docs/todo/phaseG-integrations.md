@@ -1,10 +1,10 @@
 # ⚡ WanOS Phase G — Integrations
 
-Integrations reliability — Hue color/state truth and Epson projector power truth.
+Integrations reliability — Hue color/state truth, Epson projector power truth, and OWM outside climate poll.
 
-**Status:** Spec **LOCKED** (intent). G2 assess-on-Pi first; G1 analysis-gated.
+**Status:** Spec **LOCKED** (intent). G2 assess-on-Pi first; G1 analysis-gated; **G3** config anytime.
 
-**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); this phase is **runtime** bridge ↔ WanOS state/UI.
+**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C**. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM poll).
 
 ---
 
@@ -14,8 +14,9 @@ Integrations reliability — Hue color/state truth and Epson projector power tru
 |---|---|
 | **G2 — Hue state** | Boot + live color/bri truth; UI must match bridge |
 | **G1 — Epson boot** | `get_power_state` when safe |
+| **G3 — OWM poll** | Outside temp/hum every **10′** (was 30′) |
 
-Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies.
+Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G3** is config-only and may ship anytime.
 
 ---
 
@@ -50,3 +51,14 @@ Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot 
 **to be checked:** call timing constraints.
 
 **G1 DoD:** Boot path queries power when safe; documented when *not* to call; Pi smoke shows consistent Epson state after restart.
+
+---
+
+## 📋 G3 — OWM outside poll interval 🔜 TODO
+
+**Origin:** operator request **2026-08-09**.
+
+* Only production outside source: OWM **`30001`** / `sensor.temp_hum.outside_temp_hum` (`config.yaml` `weather.poll_interval_mins`).
+* Change **30 → 10** minutes. Lab `outside_tick` unchanged.
+
+**G3 DoD:** Live OWM climate refresh ≤10′; Pi smoke outside temp/hum updates on that cadence.

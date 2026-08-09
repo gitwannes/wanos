@@ -156,20 +156,21 @@
             '<div tabindex="0" class="dropdown-content z-50 menu p-4 shadow-xl bg-base-200 rounded-box w-80 sm:w-96 mt-4 border border-base-300">' +
             '<div class="flex justify-between items-center mb-3 border-b border-base-300 pb-2">' +
             '<span class="font-bold text-sm uppercase text-base-400">System Notifications</span>' +
-            '<button class="btn btn-xs btn-outline btn-error" @click="clearNonCriticalAlerts()" x-show="unreadAlertCount > 0">Clear All</button>' +
+            '<button class="btn btn-xs btn-outline btn-error" @click="clearNonCriticalAlerts()" x-show="nonCriticalAlerts.length > 0">Clear All</button>' +
             "</div>" +
             '<div class="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">' +
-            '<template x-for="msg in nonCriticalAlerts" :key="msg.id">' +
+            // C2: criticals also in bell; dismissBellAlert is independent of banner dismiss
+            '<template x-for="msg in bellAlerts" :key="msg.id">' +
             '<div class="bg-base-300 rounded p-3 text-sm border-l-4 shadow-sm" ' +
-            ':class="msg.level === \'success\' ? \'border-success\' : (msg.level === \'warning\' ? \'border-warning\' : \'border-info\')">' +
+            ':class="msg.level === \'critical\' ? \'border-error\' : (msg.level === \'success\' ? \'border-success\' : (msg.level === \'warning\' ? \'border-warning\' : \'border-info\'))">' +
             '<div class="flex justify-between items-start gap-2 mb-1">' +
             '<div class="flex-1 min-w-0 break-words leading-tight">' +
             '<span class="font-mono text-[10px] text-base-400 mr-2 whitespace-nowrap" ' +
             'x-show="msg.timestamp" x-text="msg.timestamp"></span>' +
             '<span class="font-bold" ' +
-            ':class="msg.level === \'success\' ? \'text-success\' : (msg.level === \'warning\' ? \'text-warning\' : \'text-info\')" x-text="msg.message"></span>' +
+            ':class="msg.level === \'critical\' ? \'text-error\' : (msg.level === \'success\' ? \'text-success\' : (msg.level === \'warning\' ? \'text-warning\' : \'text-info\'))" x-text="msg.message"></span>' +
             '</div>' +
-            '<button @click="dismissAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle text-base-400 hover:text-white shrink-0 -mt-1 -mr-1">✕</button>' +
+            '<button @click="dismissBellAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle text-base-400 hover:text-white shrink-0 -mt-1 -mr-1">✕</button>' +
             "</div>" +
             '<div class="flex justify-end items-center text-[10px] text-base-400 font-mono mt-2" x-show="msg.count > 1">' +
             '<span class="badge badge-neutral badge-xs font-bold" x-text="msg.count + \'x\'"></span>' +
@@ -184,22 +185,30 @@
             ? "navbar bg-base-100 shadow-md px-6 mb-8 flex-wrap gap-4 z-40 relative"
             : "navbar bg-base-100 shadow-md px-3 md:px-6 mb-6 flex-nowrap gap-2 items-center min-h-[3rem] relative z-[60]";
 
-        const join =
-            '<div class="join bg-base-200 border border-base-300">' +
-            joinItem({ page, id: "explorer", href: "/deviceexplorer.html", label: "Explorer", idleHover: "primary", activeTone: "primary" }) +
-            joinItem({ page, id: "commander", href: "/commander.html", label: "WISC", idleHover: "secondary", activeTone: "secondary" }) +
-            joinItem({ page, id: "history", href: "/sensorhistory.html", label: "Session History", idleHover: "accent", activeTone: "accent" }) +
-            joinItem({ page, id: "blocky", href: "/blocky.html", label: "Automation", idleHover: "warning", activeTone: "warning" }) +
-            "</div>";
+        // C2: system-command pages are gear → Admin only (no Explorer/WISC/History/Automation join)
+        const systemCmd = page === "hiddendevices" || page === "lightingautooff" || page === "zwave";
 
-        const mobile =
-            '<div id="mobile-nav-menu" class="dropdown dropdown-end">' +
-            '<div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">' + MENU_SVG + "</div>" +
-            '<ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">' +
-            mobileActive(page, "explorer", "Device Explorer") +
-            mobileActive(page, "commander", "WISC") +
-            // History / Automation only on wide screens (top join); hamburger stays Explorer+WISC
-            "</ul></div>";
+        const join = systemCmd
+            ? ""
+            : (
+                '<div class="join bg-base-200 border border-base-300">' +
+                joinItem({ page, id: "explorer", href: "/deviceexplorer.html", label: "Explorer", idleHover: "primary", activeTone: "primary" }) +
+                joinItem({ page, id: "commander", href: "/commander.html", label: "WISC", idleHover: "secondary", activeTone: "secondary" }) +
+                joinItem({ page, id: "history", href: "/sensorhistory.html", label: "Session History", idleHover: "accent", activeTone: "accent" }) +
+                joinItem({ page, id: "blocky", href: "/blocky.html", label: "Automation", idleHover: "warning", activeTone: "warning" }) +
+                "</div>"
+            );
+
+        const mobile = systemCmd
+            ? ""
+            : (
+                '<div id="mobile-nav-menu" class="dropdown dropdown-end">' +
+                '<div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/70">' + MENU_SVG + "</div>" +
+                '<ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow bg-base-200 rounded-box w-52 border border-base-300 mt-4">' +
+                mobileActive(page, "explorer", "Device Explorer") +
+                mobileActive(page, "commander", "WISC") +
+                "</ul></div>"
+            );
 
         let leadingExtras = "";
         if (page === "admin") {
@@ -214,17 +223,22 @@
 
         let gear = "";
         if (page !== "admin") {
-            const alwaysGear = page === "blocky" || page === "hiddendevices" || page === "lightingautooff" || page === "zwave";
-            const gearClick = page === "blocky" ? ' @click="navAway($event, \'/admin.html\')"' : "";
+            const alwaysGear = page === "blocky" || systemCmd;
+            const gearClick = (page === "blocky" || systemCmd)
+                ? ' @click="navAway($event, \'/admin.html\')"'
+                : "";
             const gearShow = alwaysGear ? "" : ' x-show="isAdmin" x-cloak';
             gear =
                 '<a href="/admin.html" class="btn btn-ghost btn-xs text-base-content/30 hover:text-primary mr-1"' +
                 gearShow + ' title="Return to Admin"' + gearClick + ">" + GEAR_SVG + "</a>";
         }
 
-        const logoutClick = page === "blocky"
-            ? '@click="editorDirty ? requestLeave({ type: \'logout\' }) : logout()"'
-            : '@click="logout()"';
+        let logoutClick = '@click="logout()"';
+        if (page === "blocky") {
+            logoutClick = '@click="editorDirty ? requestLeave({ type: \'logout\' }) : logout()"';
+        } else if (systemCmd) {
+            logoutClick = '@click="dirty ? requestLeave({ type: \'logout\' }) : logout()"';
+        }
 
         const trailing =
             '<div class="flex-none flex items-center gap-' + (page === "admin" ? "3" : "2") + '">' +
@@ -237,7 +251,9 @@
         return (
             '<header class="' + headerCls + '">' +
             '<div class="flex-1 flex items-center gap-2 min-w-0">' + titleBlock(page) + "</div>" +
-            '<div id="pc-nav-menu" class="justify-center flex-1 min-w-0">' + join + "</div>" +
+            (join
+                ? '<div id="pc-nav-menu" class="justify-center flex-1 min-w-0">' + join + "</div>"
+                : "") +
             trailing +
             "</header>"
         );

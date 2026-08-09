@@ -1,12 +1,12 @@
 # ⚡ WanOS Phase C — Operator shell
 
-Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Session History chart polish.
+Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. Subphases **C1 → C2 → C5 → C3 → C4** (C5 with shell chrome; C3/C4 later unless needed sooner).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). Remaining: **C6** (flicker) → **C3 → C4**.
 
-**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** ✅; next Blocky = **B10B**). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
+**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** ✅; next Blocky = **B10C** then **B10B**). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
-**Moved to Blocky (B10A/B10B):** former user events, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (+ multi-flow follow-up).
+**Moved to Blocky (B10A/B10B/B10C):** former user events, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (+ multi-flow follow-up); soft-hide picker regression → **B10C**.
 
 ---
 
@@ -14,59 +14,94 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 
 | Subphase | Items | Character |
 |---|---|---|
-| **C1 — Explorer chrome** | Hidden filter; favorites edit/filter | Frontend-only, fast |
+| **C1 — Explorer chrome** | Hidden + Favorites in presets pane; edit favorites | Frontend-only, fast |
 | **C2 — Admin + system pages** | Planned Automations; bell; reboot; gear-only nav; leave-guards | Admin UI + one API |
-| **C5 — History graphs** | Landscape filters; dew point; Y-axis snap | Session History charts |
+| **C5 — History graphs** | Landscape filters; dew point; Y-axis snap; climate smooth (d/m/y) | Explorer History charts |
+| **C6 — History flicker** | Auto-refresh redraw flash (all charts) | C5 soft-refresh follow-up |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-Ship **C1 → C2** near-term; **C5** after C2 (same letter, History page); **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6** next shell slice. **C3/C4** later unless needed sooner.
 
 ---
 
-## 📋 C1 — Explorer chrome 🔜 TODO
+## 📋 C1 — Explorer chrome ✅ DONE
 
-### Hidden switch → filter pane
+**Operator smoke:** ✅ OK on Pi (**2026-08-09**).
 
-* **Hidden** label + toggle on **one line**.
-* Move from presets / toolbar into the sticky **filter** pane.
+### Hidden + Favorites in presets pane
+
+* Keep **both** in the **presets** pane (not the sticky filter pane).
+* Each control: **label + toggle on one line** (not split / stacked).
 
 ### Favorites edit + Favorites filter
 
+* **Edit / Done** (industry pattern): control next to Favorites (pencil / “Edit”).
+  * **Idle:** no row checkboxes, no stars / indicators.
+  * **Edit:** checkboxes on rows; tap toggles favorite; **Done** exits.
 * Hide Favorites **filter** when there are **no favorites** (not when view-presets empty).
-* **Edit favorites** mode: selection UI only while editing; outside = low-emphasis indicator (or none).
 * Filter: show only when `actuatorFavorites.length > 0`; last favorite removed → clear filter + hide toggle.
-* View-presets may store `favoritesOnly`; apply with zero favorites → ignore that bit.
+* View-presets may store `favoritesOnly`; apply with zero favorites → ignore that bit + force filter off.
 
-**C1 DoD:** Hidden in filter pane (one line); edit-favorites safe; Favorites filter iff favorites exist.
+**C1 DoD:** Hidden + Favorites in presets pane (one line each); Edit/Done favorites; Favorites filter iff favorites exist.
 
 ---
 
-## 📋 C2 — Admin + system-command pages 🔜 TODO
+## 📋 C2 — Admin + system-command pages ✅ DONE
+
+**Operator smoke:** ✅ OK on Pi (**2026-08-09**).
 
 ### Planned Automations pane
 
-* No IDX; show **name + type**; drop/rename **“will …”**.
+* No IDX; show **name + type** (today’s metadata types; Phase **D** later for light vs switch).
+* Keep action intent; **only remove the word “will”** → e.g. `CLOSE`, `turn ON`, `execute scene`.
 
 ### Critical alerts in bell
 
-* Bell **Admin-only**; criticals also in bell; banner dismiss ≠ bell dismiss.
+* Bell **Admin-only**; criticals also in bell.
+* **Two independent dismiss states** per alert: banner dismiss ≠ bell dismiss.
 
 ### Admin Debug: “Reboot Wanos”
 
-* Restart **WanOS service** (not host). Confirm modal. `POST /api/admin/restart` → 202.
-* Primary: `startwanos.sh restart` / `systemctl restart wanos.service` (Pi sudo/polkit as needed).
-* Fallback: process exit + unit `Restart=always`. Client reconnect UX (~60–90s timeout).
+* Restart **WanOS service only** (not host). Confirm modal. `POST /api/admin/restart` → 202 on accept.
+* **Locked ops path:** passwordless sudo for the exact restart unit command (same pattern as existing `wisc-kivy` NOPASSWD). Not a stored password/hash; not silent process-exit as primary.
+* Backend invokes `systemctl restart wanos.service` via that NOPASSWD grant (or equivalent thin wrapper later if desired).
+* On failure: **UI error message**.
+* Client reconnect UX (~60–90s timeout) after accepted restart.
 
 ### System-command header nav
 
-* Gear → Admin only; no Explorer / WISC / History / Automation joins. Clear page title.
+* Pages: **`hiddendevices`**, **`lightingautooff`**, **`zwave`**.
+* Gear → Admin only; **no** Explorer / WISC / History / Automation joins. Clear page title.
 
-### Discard + leave-guard (hidden devices + auto-off)
+### Discard + leave-guard
 
-* Discard when dirty + confirm; leave-guard on gear/browser leave (Cancel / Discard / Save).
+* Same pattern as **Blocky**: dirty → Cancel / Discard / Save on gear/browser leave.
+* Applies to: soft-hide, auto-off, **and Z-Wave**.
 
-**C2 DoD:** Timeline polish; bell/criticals; reboot works on Pi; system-command shells gear-only; discard + leave-guard on soft-hide + auto-off.
+**C2 DoD:** Timeline polish; bell/criticals with dual dismiss; reboot works on Pi (after Ops); three system pages gear-only; discard + leave-guard on hide / auto-off / zwave.
+
+### Ops — passwordless restart (prereq for reboot DoD)
+
+**Best / locked option:** sudoers NOPASSWD for the single restart command (narrow). Alternatives (polkit, self-exit + `Restart=always`, root helper) rejected as primary for C2.
+
+**Bootstrap / procedure (source of truth for installs):**
+
+* Script: [`helpers/bootstrap/backend/wanos_bootstrap_phase1.sh`](../../helpers/bootstrap/backend/wanos_bootstrap_phase1.sh) → `/etc/sudoers.d/wannes_sudo_policy`
+* Guide: [`helpers/bootstrap/backend/wanos-install-backend.md`](../../helpers/bootstrap/backend/wanos-install-backend.md) § **5.4**
+
+```text
+wannes ALL=(root) NOPASSWD: /usr/bin/systemctl restart wanos.service
+```
+
+Verify as `wannes` (must exit 0, no password prompt):
+
+```bash
+sudo -n systemctl restart wanos.service
+echo "exit=$?"
+```
+
+Checked on Pi (`wannes`, 2026-08-09): was **missing** (only `wisc-kivy` / `log2ram` NOPASSWD). Apply via bootstrap or §5.4 upgrade steps before reboot DoD.
 
 ---
 
@@ -131,36 +166,84 @@ The **Admin Force Sweep** bypasses idempotency checks and transmits physical OFF
 
 ---
 
-## 📋 C5 — History graphs 🔜 TODO
+## 📋 C5 — History graphs ✅ DONE
 
-Session History (`sensorhistory`) chart polish — not Blocky, not B9A sensors-in-automations.
+**Operator smoke:** ✅ OK on Pi (**2026-08-09**).
+
+**Explorer → History** chart polish (`deviceexplorer` / climate + host + utility charts) — **not** `sensorhistory` (sauna/IR session table), not Blocky, not B9A.
 
 ### Landscape filters
 
-* Smartphone **landscape**: filter boxes must not consume ~half the viewport.
-* Find a compact pattern (collapse / drawer / icon-only / overlay) so the **chart owns** the screen.
+* Smartphone **landscape**: when a **chart is open**, filter chrome must not consume ~half the viewport.
+* Compact pattern (collapse / drawer / icon-only / overlay) so the **chart owns** the screen.
+* When no chart open: leave filter layout as today.
 
 ### Dew point
 
-* Add **dew point** on temp/hum graphs (derived from temp + humidity; FE series is enough unless storage is needed later).
+* On **temp/hum** graphs only; **hide dew** when humidity is missing (temp-only).
+* FE-derived series (no DB storage required for C5).
+* Values rounded to **1 decimal**.
+* **Locked:** Sonntag Magnus (\(T\) in °C, \(RH\) 0–100). Buck-style constants considered, not used.
+
+\[
+\gamma(T, RH) = \ln\left(\frac{RH}{100}\right) + \frac{b\, T}{c + T}
+\qquad
+T_{dp} = \frac{c \cdot \gamma}{b - \gamma}
+\]
+
+Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\)).
 
 ### Y-axis autoscale
 
-* Min/max from the **visible** graph series (not a fixed full-scale).
-* Snap: **temperature** ticks / bounds on **5°**; **humidity** on **10%**.
+* Min/max from series in the **dataZoom window** (not full loaded series / fixed full-scale).
+* Snap bounds / ticks by unit:
 
-**C5 DoD:** Landscape phone: chart primary, filters compact; dew point visible on temp/hum; Y-axis tracks visible data with 5° / 10% snap. Smoke on phone + desktop.
+| Series / unit | Snap |
+|---|---|
+| Temperature (°C) — climate + host CPU temp | **5°** |
+| Humidity (%) | **10%** |
+| Host % (CPU, mem free, disk, log2ram, load) | **10%** |
+| Power (W) | **10 W** |
+| Water (L) | **10 L** (day); **50 L** (month/year) |
+| Mains (V) | **5 V** |
+| DB size (MB) | **50 MB** |
+| Actuator level (0–100) | **10** |
+| Actuator event counts | integer / auto (no fixed snap) |
+
+### Climate line smoothing (day / month / year) ✅
+
+**Why:** Day temp / humidity / dew charts used ECharts `step: "end"` plus sparse deadband samples → stair-step “jumps”.
+
+**Locked / shipped:**
+
+* **Day / month / year** climate series (temp, humidity, dew min/max): ECharts **`smooth: true`** — no `step`.
+* FE draw style only (no extra DB samples).
+* Actuator day `step: "end"`: out of scope.
+
+**C5 DoD:** Landscape + chart open → filters compact; dew on temp/hum (formula above, 1 decimal); Y-axis from dataZoom window with snaps in table; climate day/month/year with `smooth: true` (no step); smoke phone + desktop.
+
+---
+
+## 📋 C6 — History auto-refresh flicker 🔜 TODO
+
+**Origin:** operator report **2026-08-09**. C5 soft-refresh follow-up — **not** reopening C5 DoD.
+
+* Explorer → History: on auto-refresh, chart **flickers** (line appears to reset then redraw).
+* Scope: **all** History graphs (climate / actuators / host / utility; day/month/year as applicable).
+
+**C6 DoD:** Auto-refresh updates series without visible reset/flicker; Pi smoke all chart families.
 
 ---
 
 ## 🚦 Decisions locked (summary)
 
-* **C1:** Hidden → filter; edit favorites; filter iff favorites.
-* **C2:** Planned Automations name+type; bell/criticals; service reboot; gear-only system pages; discard + leave-guard.
-* **C5:** History landscape filters compact; dew point on temp/hum; Y-axis from visible series (temp/5°, hum/10%).
+* **C1:** Hidden + Favorites stay in presets pane (one line each); Edit/Done favorites; idle = no indicators; filter iff favorites exist.
+* **C2:** Timeline name+type, strip “will”; dual banner/bell dismiss; service reboot via sudoers `NOPASSWD: systemctl restart wanos.service` + UI error on fail; gear-only on hide / auto-off / zwave; leave-guard on those three (Blocky-style). Types = today’s metadata until **D**.
+* **C5:** Explorer History (not `sensorhistory`); compact filters only when chart open; dew via **Sonntag Magnus** (1 decimal) when temp+hum; Y from dataZoom; snaps per table (power **10 W**); climate day/month/year lines **`smooth: true`** (no `step`).
+* **C6:** History auto-refresh must not flicker/reset the line (all chart families).
 * **C3:** Force ALL-OFF parallel-per-integration + 300ms pace + exclusion tags + confirm UX.
 * **C4:** Rename entrypoints; update all consumers.
 
 ## ❓ Residual Open Qs
 
-**None.** *(Ops: Pi passwordless restart for primary reboot path. C5 filter chrome pattern = impl choice.)*
+* *(none for C1 / C2 / C5 — closed by Pi smoke **2026-08-09**. C6 / C3 / C4 open as above.)*

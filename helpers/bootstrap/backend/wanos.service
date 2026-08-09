@@ -24,3 +24,8 @@ WantedBy=multi-user.target
 #sudo systemctl daemon-reload
 #sudo systemctl enable wanos.service
 #sudo systemctl start wanos.service
+#
+# Admin “Reboot WanOS” (POST /api/admin/restart) needs passwordless sudo for user wannes:
+#   wannes ALL=(root) NOPASSWD: /usr/bin/systemctl restart wanos.service
+# Written by helpers/bootstrap/backend/wanos_bootstrap_phase1.sh → /etc/sudoers.d/wannes_sudo_policy
+# Verify as wannes:  sudo -n systemctl restart wanos.service
