@@ -4,9 +4,9 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 
 **Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). Remaining: **C6** (flicker) → **C3 → C4**.
 
-**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** ✅; next Blocky = **B10C** then **B10B**). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
+**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** ✅; next Blocky = **B10B** — `events:` UUID catalog). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
-**Moved to Blocky (B10A/B10B/B10C):** former user events, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (+ multi-flow follow-up); soft-hide picker regression → **B10C**.
+**Moved to Blocky (B10A/B10B/B10C):** events catalog / scenes, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (+ multi-flow follow-up); soft-hide picker regression → **B10C** ✅.
 
 ---
 

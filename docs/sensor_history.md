@@ -319,12 +319,12 @@ IDX **20101** registered as `sauna temp` (`type: temp_hum`, origin `system`).
 
 ---
 
-## 16. Motion & scene history
+## 16. Motion & scene / event history
 
 | Source | Behaviour |
 |--------|-----------|
 | Motion `75xxx` | Rising edge only (`ON`); day chart = impulse spike; insights = today / avg/day |
-| Scenes (`scene: true`) | Log on every fire (manual + automation); synthetic IDX `900000 + (crc32(event) & 0xFFFF)` |
+| Dashboard / user events (pre-B10B: `scene: true`) | Log on every fire (manual + automation). **B10B:** synthetic series keyed by **event UUID** (migrator remaps old `900000 + (crc32(event) & 0xFFFF)`). |
 
 Same retention and Sensors-list master–detail as actuators. Motion stays default-hidden (`75xxx`); use Hidden toggle / favorites.
 

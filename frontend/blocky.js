@@ -2096,6 +2096,7 @@ function blockyApp() {
          * Sensors/temp excluded; motion OK as trigger only; actions = actuators only.
          * Sticky: eids still selected for this role stay in the menu on the wrong Hidden
          * side (can clear, cannot re-pick once gone). Hard deny never sticky.
+         * HIDDEN is exclusive (ON = soft-hidden catalog; OFF = non-hidden) + sticky current.
          */
         blocklyEntityDropdownOptions(optsIn) {
             const role = (optsIn && optsIn.role) || "action";
@@ -2119,8 +2120,10 @@ function blockyApp() {
         },
 
         /**
-         * Live workspace wins once it has entity fields for this role (deselection drops sticky).
-         * Else open ruleJson (load hydrate / workspace not ready).
+         * Live workspace wins once load is finished (deselection drops sticky).
+         * During load, always use full open-rule eids — a partial workspace list
+         * (blocks created one-by-one) would omit later action eids and FieldDropdown
+         * would snap them to options[0] (seen as identical wrong labels when HIDDEN ON).
          * Role-scoped — action sticky does not leak into When-device.
          */
         _stickyEntityIdsForRole(role) {
@@ -2129,6 +2132,8 @@ function blockyApp() {
                 const rule = JSON.parse(this.editor.ruleJson || "{}");
                 ruleIds = this._ruleEntityIdsForRole(rule, role);
             } catch (e) { /* ignore */ }
+            // Load path: ruleJson is complete; workspace is still being filled.
+            if (BlockyRT.loading) return ruleIds;
             const fromWs = this._workspaceEntityIdsForRole(role);
             if (fromWs === null) return ruleIds;
             if (fromWs.length > 0) return fromWs;
@@ -2436,6 +2441,9 @@ function blockyApp() {
                         while (ab) {
                             if (ab.type === "b_action_device") {
                                 if (acts[ai] && acts[ai].entity_id) {
+                                    // Re-assert ENTITY after full sticky catalog exists (heals
+                                    // any mid-load snap if options were still incomplete).
+                                    blockySafeSetField(ab, "ENTITY", acts[ai].entity_id);
                                     blockyApplyActionRich(ab, acts[ai]);
                                 }
                                 ai += 1;

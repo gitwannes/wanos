@@ -36,6 +36,7 @@ High-level **what’s next** and where the detailed specs live. This file does *
 |---|---|
 | **B0–B8** | Schema v2, rich actions, soft-hide, auto-off — Pi smoke through **2026-08-08** |
 | **B10A** | Blocky editor trust (Hue / Delete / dirty) — Pi smoke **2026-08-09** |
+| **B10C** | Soft-hide action device picker (exclusive + sticky) — Pi smoke **2026-08-09** |
 | **C1 / C2 / C5** | Explorer chrome · Admin/system pages · History graphs — Pi smoke **2026-08-09** |
 
 Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md).
@@ -44,29 +45,34 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 ## Sequence
 
+**Size** = relative delivery weight (rough): **low** = small/local · **mid** = multi-file or careful edge cases · **high** = schema/API/engine or large surface. Not calendar days.
+
 ```text
-1. B10C     Blocky soft-hide device picker (regression)
-2. B10B     user events + rule enable
-3. C6       History auto-refresh flicker
-4. D        switch vs light typing
-5. B9A      sensors / thresholds / remove JSON
-6. E        Gmail transport / outbox
-7. B9B      bathroom + H4/H5/H12  (H5 email needs E)
-8. C3       Force ALL-OFF
-9. C4       Rename HTML entrypoints
-10. G2      Hue color/bri truth (assess → fix)
-11. G1      Epson get_power_state (analysis → impl)
-12. G3      OWM outside poll 10′ (config)
-13. F       Security bridge (F1→F7 as deployed)
-14. Later B multi-flow; HA H1–H3/H6–H11
-15. Ops     Inbox below when convenient
+#  Size   Phase    What
+1. high   B10B     events catalog (UUID) + rule enable + family cutover
+2. low    B10D     unique rule names (case-insensitive)
+3. low    B10E     Automations list sort (name / type+name)
+4. low    C6       History auto-refresh flicker
+5. mid    D        switch vs light typing
+6. high   B9A      sensors / thresholds / remove JSON
+7. high   E        Gmail transport / outbox
+8. high   B9B      bathroom + H4/H5/H12  (H5 email needs E)
+9. mid    C3       Force ALL-OFF
+10. mid   C4       Rename HTML entrypoints
+11. mid   G2       Hue color/bri truth (assess → fix)
+12. mid   G1       Epson get_power_state (analysis → impl)
+13. low   G3       OWM outside poll 10′ (config)
+14. high  F        Security bridge (F1→F7 as deployed)
+15. high  Later B  multi-flow; HA H1–H3/H6–H11
+16. —     Ops      Inbox below when convenient
 ```
 
 ### Why this order
 
-* **B10C before B10B** — soft-hide picker regression breaks authoring trust; fix before new Blocky features.
-* **C6 after B10C** — History soft-refresh flicker (all charts); shell follow-up, not Blocky.
-* **B10B before B9A** — user events / rule enable are the live scene pain; sensors/JSON removal is larger and can wait.
+* **B10D after B10B** — small name-uniqueness (FE + API); not folded into B9\*. May ship with/before B10B if capacity.
+* **B10E after B10D** — Automations sidebar sort (name ↔ type+name via AUTOMATIONS header); FE-only.
+* **C6 after B10B** — History soft-refresh flicker (all charts); shell follow-up, not Blocky. May swap ahead of B10B if flicker pain wins.
+* **B10B before B9A** — events catalog / scenes / rule enable are the live pain; sensors/JSON removal is larger and can wait.
 * **D after B10B / with C2 consumers** — typing benefits Planned Automations and Blocky light/switch wording; not a Blocky editor rewrite.
 * **B9A then E then B9B** — compares/sensors first; Gmail transport (**E**) can start early but **B9B H5 email** waits on E; bathroom/H12/H4 sit on B9A primitives.
 * **C3 / C4 later** — Admin force-sweep is powerful but not daily-path; HTML renames are mechanical and safer after shell churn settles.
@@ -75,7 +81,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 * **F when deploying remote access** — independent perimeter track; interleave only when exposing the bridge.
 * **Do not fold B10\* into B9\*** — different jobs (trust/events vs sensors/climate). **G2 ≠ B10A** — runtime bridge truth vs Blockly editor chrome (B10A done).
 
-Near-term = **B10C → B10B → C6**. Then **D** / **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking. **G3** whenever convenient.
+Near-term = **B10B → B10D → B10E → C6**. Then **D** / **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking. **G3** whenever convenient.
 
 ---
 
@@ -83,8 +89,9 @@ Near-term = **B10C → B10B → C6**. Then **D** / **B9A** flexible. **E** may r
 
 | Step | Detail |
 |---|---|
-| **B10C** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10C — soft-hide device picker (exclusive + sticky; `all off gv` / `53?`) |
-| **B10B** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10B — `user_events` · rule `enabled` |
+| **B10B** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10B — `events:` (UUID bus) · rule `enabled` · family/`SCENE_*` cutover |
+| **B10D** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10D — unique rule names (case-insensitive; FE + API) |
+| **B10E** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10E — Automations list sort (name ↔ type+name; event→dashboard→other) |
 | **C6** | [`phaseC-shell.md`](phaseC-shell.md) § C6 — History auto-refresh flicker |
 | **D** | [`phaseD-typing.md`](phaseD-typing.md) — infer + override · freeze `entity_id` · 71/72 |
 
@@ -152,5 +159,10 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-09 | **C5** + climate smooth day/month/year (drop stair-step draw). |
 | 2026-08-09 | **C1 / C2 / C5** → **Done**; Sequence starts at **B10B**. |
 | 2026-08-09 | Inbox triage: **B10C** soft-hide picker bug; **C6** History flicker; **G3** OWM poll 10′. Sequence → **B10C**. |
+| 2026-08-09 | **B10C** → **Done**; Sequence starts at **B10B**. |
+| 2026-08-09 | Inbox: **B10D** unique rule names (case-insensitive; FE + API). |
+| 2026-08-09 | Inbox: **B10E** Automations sidebar sort (name ↔ type+name via AUTOMATIONS header). |
+| 2026-08-09 | Sequence: added **Size** column (low / mid / high). |
+| 2026-08-09 | **B10B** spec fully locked: `events:` UUID bus, family/`SCENE_*` cutover, rule enable; `EMAIL_REQUESTED` waits for **E**. |
 
 Detail chronology / DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md).

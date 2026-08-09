@@ -123,20 +123,20 @@ automations:
           - entity_id: blinds.cinema
             state: '100'
     id: b3f9c1f0-700d-40e5-b98e-e818445b26c9
-  - name: "Tuinlichten & kerststuff aan 's avonds"
+  - name: Tuinlichten & kerststuff aan 's avonds
     scene: false
     require_confirmation: false
     trigger:
-      - event: "SUNSET_TRIGGER"
+      event: SUNSET_TRIGGER
     cases:
       - actions:
           - entity_id: switch.tuin
             state: "ON"
-          - entity_id: switch.kerstboom
-            state: "ON"
           - entity_id: switch.kerst_lichten_tuin
             state: "ON"
           - entity_id: switch.kerst_lichten_voor
+            state: "ON"
+          - entity_id: switch.kerstboom
             state: "ON"
     id: ea2ab903-fe8c-4375-a771-3bb47a7c9417
   - name: "Tuinlichten & kerststuff uit 's avonds"
@@ -174,26 +174,6 @@ automations:
           - entity_id: switch.kerst_lichten_voor
             state: "OFF"
     id: b53fb293-fe1f-481d-97ac-9f5acedd0a00
-  - name: "Tuinlichten Evening ON"
-    scene: false
-    require_confirmation: false
-    trigger:
-      event: "SUNSET_TRIGGER"
-    cases:
-      - actions:
-          - entity_id: switch.tuin
-            state: "ON"
-    id: 806a7710-cee6-437b-bd2e-c0e7dc96f0c2
-  - name: "Tuinlichten Evening OFF"
-    scene: false
-    require_confirmation: false
-    trigger:
-      event: "EVENING_OFF_TRIGGER"
-    cases:
-      - actions:
-          - entity_id: switch.tuin
-            state: "OFF"
-    id: 40617bd0-7c40-429d-abdc-efc2b3056b3e
   - name: ALL OFF gv
     scene: true
     require_confirmation: false
@@ -834,3 +814,14 @@ automations:
               - 0.36542188926705216
               - 0.1536401517962337
     id: c5f1571a-3016-4798-a0fb-8da2861f12b5
+  - name: test
+    scene: false
+    require_confirmation: false
+    trigger:
+      entity_id: sensor.door.sauna_deur
+    cases:
+      - to_state: "ON"
+        actions:
+          - entity_id: hue.group.badk_2e_hue
+            state: "ON"
+    id: 029431e3-7fb6-459f-ab4b-24b969844772

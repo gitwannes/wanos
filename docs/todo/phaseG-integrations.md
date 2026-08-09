@@ -4,7 +4,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 
 **Status:** Spec **LOCKED** (intent). G2 assess-on-Pi first; G1 analysis-gated; **G3** config anytime.
 
-**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C**. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM poll).
+**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM poll).
 
 ---
 

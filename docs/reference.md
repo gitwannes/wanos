@@ -159,7 +159,8 @@ The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer o
 * **`GET /api/debug/entity-registry-check`** | Admin-only. Runs `run_entity_cutover_checks` (plus live `device_metadata`) and returns JSON including annotated `report_text` for the Admin Debug modal. Blocky also calls this after automation Save/Delete and shows GREEN/RED in-page.
 * **`GET/PUT /api/soft-hide`** | Admin. Full-list replace of `deviceexplorer_hide` in `automations.auto.yaml` (`entity_ids: string[]`). PUT dispatches `CONFIG_RELOAD_REQUESTED`. Hard-deny `switch.safety.safety_wisc_5v` rejected. Admin UI: `hiddendevices.html`.
 * **`GET/PUT /api/auto-off-timer`** | Admin. Full-replace of `auto_off_devices` in `automations.auto.yaml` (`managed_auto_off`, `default_auto_off_minutes`, `default_pertype_auto_off_minutes`, `auto_off_delays`). PUT validates eligibility / orphans / minutes 1–720; dispatches `CONFIG_RELOAD_REQUESTED`. Admin UI: `lightingautooff.html`.
-* **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET returns raw v2. Each write dispatches `CONFIG_RELOAD_REQUESTED`. Schedule families: `SCHEDULE_WINDOW_EDGES` (`core/schedule_events.py`). See `docs/todo/phaseB-blocky.md`.
+* **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET returns raw v2. Each write dispatches `CONFIG_RELOAD_REQUESTED`. Event triggers/fire-actions store **event UUID** after **B10B** (see `docs/todo/phaseB-blocky.md` § B10B). Pre-B10B schedule families (`SCHEDULE_WINDOW_EDGES`) removed on that cutover.
+* **`GET/POST/PUT/DELETE /api/events`** | Admin. **B10B** — CRUD for `events:` in `automations.auto.yaml` (system + user). Bus token = row `id` (UUID). System: no create/delete; PATCH `show_on_dashboard` only. Surgical write + `CONFIG_RELOAD_REQUESTED`. Detail: `phaseB-blocky.md` § B10B.
 
 ---
 
