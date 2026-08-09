@@ -1,4 +1,6 @@
-# WanOS Security Architecture: Hybrid HMAC & Network Perimeter Defenses
+# ⚡ WanOS Phase F — Security
+
+Hybrid HMAC & network perimeter defenses. Sequence → [`pipeline.md`](pipeline.md). Substeps **F1–F7** below. Own perimeter track — not Blocky.
 
 This document outlines the zero-exposure, cryptographic bridge security architecture designed to securely expose the WanOS Python backend to a public web server (`hofmans.be`) via port-forwarding, while maintaining an unauthenticated local-network bypass for home automation hardware and family terminals.
 
@@ -464,7 +466,7 @@ app.add_middleware(
 
 Because we are building a custom cryptographic bridge, the order of operations is critical. Establish the secrets and the router rules *before* turning on the Python middleware to avoid locking yourself out.
 
-### Phase 1: Infrastructure & Secrets Preparation
+### Phase F1: Infrastructure & Secrets Preparation
 
 1. **Generate the Shared Secret:**
    ```bash
@@ -476,24 +478,24 @@ Because we are building a custom cryptographic bridge, the order of operations i
 
 3. **Home WAN IP / DDNS:** Ensure Dynamic DNS is active (e.g. DuckDNS, Cloudflare DDNS). Configure `proxy.php` to target your home address via the DDNS hostname, not a hardcoded IP.
 
-### Phase 2: System User & Filesystem Preparation (Raspberry Pi)
+### Phase F2: System User & Filesystem Preparation (Raspberry Pi)
 
 1. Create `wanos_user` and add it to the `gpio` group (see Section 5.3). Missing the `gpio` group causes silent hardware control failures at runtime.
 2. Set ownership and permissions on the WanOS directory and TLS key files.
 
-### Phase 3: TLS Certificate Generation (Raspberry Pi)
+### Phase F3: TLS Certificate Generation (Raspberry Pi)
 
 1. Run the `openssl` command from Section 5.1, substituting your Pi's actual LAN IP in the SAN field.
 2. Set `chmod 600` on both `.pem` files and `chown` them to `wanos_user`.
 3. Transfer `wanos_cert.pem` to `hofmans.be` — store it alongside `proxy.php`'s private config directory (outside the web root).
 
-### Phase 4: Router Configuration (The Invisible Shield)
+### Phase F4: Router Configuration (The Invisible Shield)
 
 1. **Create the Port Forwarding Rule:** Forward external port `18443` to your Pi's LAN IP on port `8000`.
 2. **Apply Source IP Whitelisting:** Set the *Source IP* / *External Host* field to `103.149.169.109`.
    - *Security check:* Connect your phone to 4G mobile data and try `https://<your-home-wan-ip>:18443`. It should time out with no response.
 
-### Phase 5: Backend Security Enactment (The Bouncer)
+### Phase F5: Backend Security Enactment (The Bouncer)
 
 1. **Update `.env`:** Add `WANOS_BRIDGE_SECRET` and `ALLOWED_CLOUD_IP="103.149.169.109"`.
 2. **Update `core/config.py`:** Load and validate these fields on boot via Pydantic.
@@ -501,7 +503,7 @@ Because we are building a custom cryptographic bridge, the order of operations i
 4. **Register `WanOSSecurityMiddleware`** in `main.py` (Section 5.7).
 5. **Update `wanos_boot.sh`:** Add TLS flags and run as `wanos_user` (Section 5.3).
 
-### Phase 6: Cloud Host Implementation (The Proxy Signer)
+### Phase F6: Cloud Host Implementation (The Proxy Signer)
 
 1. **Create the private config directory** above the web root and store `WANOS_BRIDGE_SECRET` and `pi_cert.pem` there with `chmod 700` / `chmod 600` (Section 5.4).
 2. **Create `proxy.php`** (Section 5.5). Verify it:
@@ -511,7 +513,7 @@ Because we are building a custom cryptographic bridge, the order of operations i
    - Uses `CURLOPT_CAINFO` pointing to `pi_cert.pem` — never `CURLOPT_SSL_VERIFYPEER = false`.
    - Enforces per-session rate limiting.
 
-### Phase 7: Frontend Routing Adjustment (The Smart Dashboard)
+### Phase F7: Frontend Routing Adjustment (The Smart Dashboard)
 
 1. **Dynamic API Paths in `app.js`:** Detect `window.location.hostname` and branch:
    - **Local** (`10.32.251.x`): commands → `/api/event` directly, live updates → SSE at `/api/state/sse`.

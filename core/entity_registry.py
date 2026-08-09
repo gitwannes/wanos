@@ -3,7 +3,7 @@
 System-owned stable entity_id ↔ idx registry.
 
 Persists to entity_registry.auto.yaml at the WanOS root. Ids are assigned once at
-device birth and frozen across display-name renames. See docs/todo/install_blocky.md.
+device birth and frozen across display-name renames. See docs/todo/phaseB-blocky.md.
 """
 from __future__ import annotations
 

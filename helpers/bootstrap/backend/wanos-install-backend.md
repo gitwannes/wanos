@@ -114,7 +114,7 @@ sudo ./wanos_bootstrap_phase1.sh
    That deploys the WanOS tree to `/home/wannes/wanos/` (excludes venvs, docs, sync tooling, Pi-owned YAML/DBs). Ensure these are available on the Pi for later phases (via sync and/or bootstrap copy):
    * WanOS source (`main.py`, `core/`, `logic/`, `hardware/`, `integrations/`, …)
    * Config profiles (`config.yaml`, `config_hardware.yaml`, …)
-   * `entity_registry.auto.yaml` — optional on first install; created/updated at runtime. See `docs/todo/install_blocky.md`.
+   * `entity_registry.auto.yaml` — optional on first install; created/updated at runtime. See `docs/todo/phaseB-blocky.md`.
    * `requirements.txt`
    * `.env` (create on the Pi; never sync secrets from git)
    * Bootstrap helpers already used in Phase 0/1 (`docker-compose.yml`, `mosquitto-st.conf`, `wanos.service`, …)

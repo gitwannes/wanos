@@ -11,7 +11,7 @@ This document serves as the master blueprint and reference guide for the directo
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
 * `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
 * `config_zwave.auto.yaml`: Z-Wave device map (UI/system-owned via `zwaveconfig.html`; not hand-edited as primary workflow).
-* `entity_registry.auto.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/install_blocky.md`.
+* `entity_registry.auto.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/phaseB-blocky.md`.
 
 ### Entity ID types (prefixes)
 
@@ -159,7 +159,7 @@ The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer o
 * **`GET /api/debug/entity-registry-check`** | Admin-only. Runs `run_entity_cutover_checks` (plus live `device_metadata`) and returns JSON including annotated `report_text` for the Admin Debug modal. Blocky also calls this after automation Save/Delete and shows GREEN/RED in-page.
 * **`GET/PUT /api/soft-hide`** | Admin. Full-list replace of `deviceexplorer_hide` in `automations.auto.yaml` (`entity_ids: string[]`). PUT dispatches `CONFIG_RELOAD_REQUESTED`. Hard-deny `switch.safety.safety_wisc_5v` rejected. Admin UI: `hiddendevices.html`.
 * **`GET/PUT /api/auto-off-timer`** | Admin. Full-replace of `auto_off_devices` in `automations.auto.yaml` (`managed_auto_off`, `default_auto_off_minutes`, `default_pertype_auto_off_minutes`, `auto_off_delays`). PUT validates eligibility / orphans / minutes 1–720; dispatches `CONFIG_RELOAD_REQUESTED`. Admin UI: `lightingautooff.html`.
-* **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET returns raw v2. Each write dispatches `CONFIG_RELOAD_REQUESTED`. Schedule families: `SCHEDULE_WINDOW_EDGES` (`core/schedule_events.py`). See `docs/todo/install_blocky.md`.
+* **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET returns raw v2. Each write dispatches `CONFIG_RELOAD_REQUESTED`. Schedule families: `SCHEDULE_WINDOW_EDGES` (`core/schedule_events.py`). See `docs/todo/phaseB-blocky.md`.
 
 ---
 
