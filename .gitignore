@@ -9,7 +9,9 @@
 !.gitignore
 !.gitattributes
 
-# Project Cursor rules (ship with repo; keep other .cursor/* local)
+# Keep project Cursor rules in git; ignore other .cursor local state.
+# !.cursor/ is required: leading .* would otherwise ignore the parent dir
+# and block any re-include of files underneath.
 !.cursor/
 .cursor/*
 !.cursor/rules/
