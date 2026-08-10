@@ -4,6 +4,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 from core.models import Event, EventType, SystemState
+from core.event_catalog import legacy_key_for_bus_token
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
@@ -228,7 +229,8 @@ class NativeRFXCOMBridge(WanosComponent):
                 return
 
             for event in events:
-                if event.type != EventType.HUB_STATE_CHANGED:
+                # B10B: catalog events arrive as UUID bus tokens; compare via legacy key.
+                if legacy_key_for_bus_token(event.type) != "HUB_STATE_CHANGED":
                     continue
 
                 idx = event.payload.get("idx")

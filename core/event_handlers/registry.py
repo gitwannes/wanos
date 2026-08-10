@@ -19,7 +19,7 @@ from .timer_handlers import (
     handle_vent_wait_expired, handle_vent_run_expired, handle_bath1_vent_lock_expired
 )
 from .hub_handlers import (
-    handle_door_changed, handle_hub_state_changed, handle_lighting_state_changed
+    handle_door_changed, handle_hub_state_changed
 )
 from .sauna_handlers import (
     handle_sauna_on, handle_sauna_off, handle_sauna_timer_adjusted, handle_sauna_hold_toggled,
@@ -53,6 +53,8 @@ EVENT_ROUTERS = {
     "NVRAM_FLUSH_TRIGGER": handle_nvram_flush_trigger,
 
     "POWER_UPDATED": handle_power_updated,
+    "SUNRISE_SUNSET_UPDATE": handle_external_weather_updated,
+    # Legacy alias until all emitters use SUNRISE_SUNSET_UPDATE
     "EXTERNAL_WEATHER_UPDATED": handle_external_weather_updated,
     "SYSTEM_METRICS_UPDATED": handle_system_metrics_updated,
     "TEMP_UPDATED": handle_temp_updated,
@@ -69,7 +71,6 @@ EVENT_ROUTERS = {
 
     "DOOR_CHANGED": handle_door_changed,
     "HUB_STATE_CHANGED": handle_hub_state_changed,
-    "LIGHTING_STATE_CHANGED": handle_lighting_state_changed,
 
     "SAUNA_ON": handle_sauna_on,
     "SAUNA_OFF": handle_sauna_off,
@@ -92,3 +93,12 @@ EVENT_ROUTERS = {
     "SYSTEM_SWEEP_REQUESTED": handle_system_sweep_requested,
     "ZWAVE_DISCOVERY": handle_zwave_discovery
 }
+
+# B10B: catalog system events also arrive as fixed UUIDs on the bus.
+# Alias each legacy EventType key router under its SYSTEM_KEY_TO_UUID so
+# EVENT_ROUTERS.get(bus_uuid) resolves without callers rewriting every emit.
+from core.event_catalog import SYSTEM_KEY_TO_UUID  # noqa: E402
+
+for _key, _uuid in SYSTEM_KEY_TO_UUID.items():
+    if _key in EVENT_ROUTERS:
+        EVENT_ROUTERS[_uuid] = EVENT_ROUTERS[_key]

@@ -232,7 +232,8 @@
                         <span class="font-black text-xs uppercase tracking-wider">Badkamer<br>Vent</span>
                     </button>
 
-                    <button @click="dispatchEvent('SCENE_VERDIEP1_OFF')"
+                    <!-- SCENE_VERDIEP1_OFF -->
+                    <button @click="dispatchEvent('afa69b69-ae2d-4549-99fa-7455cc8bf95c')"
                             class="rounded-2xl border border-red-200 bg-red-100 hover:bg-red-200 flex flex-col items-center justify-center text-center p-2 transition-all duration-200 shadow-sm active:scale-95">
                         <span class="font-black text-red-600 text-xs uppercase tracking-widest">1e Verdiep<br>ALL OFF</span>
                     </button>
@@ -291,7 +292,8 @@
                                 class="flex-1 py-4 rounded-xl bg-white hover:bg-stone-100 text-stone-600 text-sm font-bold uppercase tracking-wider border border-stone-200 transition-colors shadow-sm">
                             Cancel
                         </button>
-                        <button @click="dispatchEvent(state.devices[80001] === 'ON' ? 'SCENE_CINEMA_OFF' : 'SCENE_CINEMA_ON'); showCinemaModal = false;"
+                        <!-- ON → SCENE_CINEMA_OFF / OFF → SCENE_CINEMA_ON -->
+                        <button @click="dispatchEvent(state.devices[80001] === 'ON' ? '44667b31-c281-4487-9d05-9093ba111a86' : '5954cf0b-8648-4f78-8104-e0fcfcab4530'); showCinemaModal = false;"
                                 class="flex-1 py-4 rounded-xl text-white text-sm font-black uppercase tracking-wider transition-all shadow-md"
                                 :class="state.devices[80001] === 'ON' ? 'bg-red-400 hover:bg-red-500' : 'bg-emerald-400 hover:bg-emerald-500'">
                             Confirm Action

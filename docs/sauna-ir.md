@@ -2,7 +2,7 @@
 
 This document serves as the master specification for the physical topography, operational lifecycle, safety interlocks, thermodynamic equations, and analytics pipelines governing the Sauna and Infrared (IR) heating systems within WanOS.
 
-**Related:** Long-term utility and session **history** (power/water time-series tiers, retention, Sensor History UI, gap policy, and session field `temp_outside_start`) is specified in [sensor_history.md](sensor_history.md). This document remains authoritative for live sauna/IR safety, leak filtering, RLS extraction, and the core session schemas.
+**Related:** Long-term utility and session **history** (power/water time-series tiers, retention, Sensor History UI, gap policy, and session field `temp_outside_start`) is specified in [sensor_history.md](sensor_history.md). This document remains authoritative for live sauna/IR safety, leak filtering, RLS extraction, and the core session schemas. Sauna ON/OFF and IR ON/OFF are **system catalog events (SE)** with hardcoded handlers; fire-action allowlist + Library (**UE/UR/SE/SR/D**) rules: [`env-schedule-and-system-events.md`](env-schedule-and-system-events.md) and [`todo/phaseB-blocky.md`](todo/phaseB-blocky.md) § B10E. **Assess** whether device actions can move to rules: [`todo/phaseB-blocky.md`](todo/phaseB-blocky.md) § **B17** (assess only).
 
 ---
 

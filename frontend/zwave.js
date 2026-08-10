@@ -536,7 +536,7 @@ function zwaveApp() {
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${token}`
                     },
-                    body: JSON.stringify({ type: "CONFIG_RELOAD_REQUESTED", payload: {} })
+                    body: JSON.stringify({ type: "CONFIG_RELOAD_REQUESTED", payload: { source: "api" } })
                 });
                 if (!reloadRes.ok) throw new Error("Failed to trigger reload signal to backend.");
 

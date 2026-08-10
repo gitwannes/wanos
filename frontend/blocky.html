@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="WanOS" />
     <link rel="manifest" href="/favicon/site.webmanifest" />
 
-    <title>WanOS - Automation</title>
+    <title>WanOS - Automations</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="/wanos.css?v=1" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -27,15 +27,20 @@
     <style>
         /* Blockly layout constraints:
            Do NOT force .blocklySvg width/height — Blockly owns those pixels.
-           Do NOT put Blockly on Alpine reactive state (Proxy breaks drag/snap). */
+           Do NOT put Blockly on Alpine reactive state (Proxy breaks drag/snap).
+           Tailwind svg{max-width:100%} skews metrics → grey scrollbar ghosts. */
         #blocklyWorkspace {
             position: relative;
             overflow: hidden;
             width: 100%;
             height: 520px;
         }
+        /* Fullscreen: fill remaining flex space (toolbar + alerts). A 100vh
+           fixed height overflows the panel and parks scrollbar tracks wrong. */
         #blocklyWorkspace.blockly-fs {
-            height: calc(100vh - 5.5rem);
+            flex: 1 1 0;
+            min-height: 200px;
+            height: auto !important;
         }
         #blocklyWorkspace .injectionDiv {
             position: absolute;
@@ -57,11 +62,35 @@
             visibility: hidden !important;
             pointer-events: none !important;
         }
-        .blocklyScrollbarVertical,
-        .blocklyScrollbarHorizontal {
-            opacity: 0.45;
+        /* ROOT CAUSE of recurring mid-canvas grey bar (Blockly #5840):
+           Tailwind/Daisy preflight sets `svg { display: block }`, which overrides
+           Blockly's SVG *attribute* display="none" on scrollbar outerSvg nodes.
+           Blockly 13.2.1 still does: outerSvg.setAttribute("display","none").
+           When a toolbox category closes, the flyout uses style.display (OK) but its
+           .blocklyFlyoutScrollbar keeps rendering as a thin vertical grey strip
+           through the blocks. Same trap breaks workspace setVisibleInternal().
+           Prior "fixes" (transparent tracks, metrics, FS flex, trash hide) never
+           addressed this CSS specificity conflict — so the bar kept returning. */
+        svg[display="none"] {
+            display: none !important;
+        }
+        /* Paired scrollbars keep their background track even when content fits
+           (Blockly does not auto-hide paired bars). Transparent track = no grey line;
+           JS also setVisibleInternal(false) when content fits — now actually honored
+           because of svg[display="none"] above. */
+        .blocklyScrollbarBackground {
+            fill: transparent !important;
+            stroke: none !important;
+        }
+        .blocklyScrollbarHandle {
+            opacity: 0.5;
         }
         .blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTooltipDiv { z-index: 100000 !important; }
+        /* Tall entity/event menus: scroll inside the popup instead of growing off-screen. */
+        .blocklyDropDownContent {
+            max-height: min(40vh, 280px) !important;
+            overflow-y: auto !important;
+        }
         .blocklyToolboxDiv { z-index: 20; }
         #blocklyPanel.is-parked {
             position: fixed !important;
@@ -72,6 +101,28 @@
             pointer-events: none !important;
             z-index: -1 !important;
         }
+        /* B10E Library kind badges (opaque, left of name) — UE/UR/SE/SR/D (+ C on UE). */
+        .lib-ico {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.55rem;
+            height: 1.25rem;
+            padding: 0 0.2rem;
+            border-radius: 9999px;
+            font-size: 0.55rem;
+            font-weight: 700;
+            line-height: 1;
+            flex-shrink: 0;
+            color: #fff;
+            letter-spacing: 0;
+        }
+        .lib-ico-ue { background: #0d9488; } /* teal — user event */
+        .lib-ico-ur { background: #0ea5e9; } /* sky — user-event rule */
+        .lib-ico-se { background: #64748b; } /* slate — system event */
+        .lib-ico-sr { background: #475569; } /* darker slate — system rule */
+        .lib-ico-d { background: #d97706; } /* amber — device rule */
+        .lib-ico-c { background: #e11d48; } /* rose — require confirmation on UE */
     </style>
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="blockyApp()" x-init="init()">
@@ -82,18 +133,63 @@
 <main class="max-w-7xl mx-auto px-3 md:px-6 grid grid-cols-1 xl:grid-cols-3 gap-6 pb-10">
     <section class="xl:col-span-1 card bg-base-100 border border-base-200 shadow-xl">
         <div class="card-body p-4">
-            <div class="flex justify-between items-center mb-3">
-                <h2 class="card-title text-sm uppercase tracking-wider">Automations</h2>
-                <button class="btn btn-xs btn-warning" @click="newRule()">New</button>
+            <!-- Page is Automations; left column is Library. Click title toggles sort mode. -->
+            <div class="flex justify-between items-center gap-2 mb-2">
+                <button type="button"
+                        class="card-title text-sm uppercase tracking-wider hover:text-warning transition-colors text-left"
+                        title="Toggle sort: kind then name ↔ name only"
+                        @click="toggleLibrarySortMode()"
+                        x-text="librarySortMode === 'name' ? 'Library · name' : 'Library'"></button>
             </div>
-            <input type="text" class="input input-bordered input-sm mb-3 font-mono" placeholder="Filter by name" x-model="filterText">
+            <div class="flex gap-2 mb-3">
+                <button type="button" class="btn btn-xs btn-warning flex-1" @click="newRule()">New rule</button>
+                <button type="button" class="btn btn-xs btn-outline flex-1" @click="newUserEvent()">New user event</button>
+            </div>
+            <input type="text" class="input input-bordered input-sm mb-2 font-mono" placeholder="Filter by name"
+                   x-model="filterText">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 text-xs">
+                <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="User event">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.ue">
+                    <span class="text-xs">UE</span>
+                </label>
+                <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="User-event rule">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.ur">
+                    <span class="text-xs">UR</span>
+                </label>
+                <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="System event">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.se">
+                    <span class="text-xs">SE</span>
+                </label>
+                <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="System rule">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.sr">
+                    <span class="text-xs">SR</span>
+                </label>
+                <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="Device rule">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.d">
+                    <span class="text-xs">D</span>
+                </label>
+            </div>
+            <!-- Exclusive Show disabled/unused: never both sides at once.
+                 UE/UR/SR/D: ON = disabled only; OFF = enabled only.
+                 SE: ON = unused only (no listening SR); OFF = used only.
+                 inline-flex (not DaisyUI .label) so toggle + text stay adjacent. -->
+            <label class="inline-flex items-center gap-2 cursor-pointer py-0 mb-3"
+                   title="UE/UR/SR/D: disabled only when on. SE: unused only when on (no listening SR).">
+                <input type="checkbox" class="toggle toggle-xs toggle-warning" x-model="showDisabledOnly">
+                <span class="text-xs">Show disabled/unused</span>
+            </label>
             <div class="max-h-[70vh] overflow-y-auto pr-1 flex flex-col gap-1 items-stretch w-full">
-                <template x-for="rule in filteredRules" :key="rule.id || rule.name">
-                    <button class="w-full btn btn-sm justify-start text-left normal-case gap-2 px-2"
-                            :class="(selectedRule && !selectedRule.isDraft && selectedRule.id === rule.id) ? 'btn-warning' : (selectedRule && selectedRule.isDraft ? '' : 'btn-ghost')"
-                            @click="selectRule(rule)">
-                        <span x-show="ruleListKind(rule)" class="badge badge-xs shrink-0" :class="ruleListBadgeClass(rule)" x-text="ruleListKind(rule)"></span>
-                        <span class="truncate flex-1 text-left" x-text="rule.name || '(unnamed)'"></span>
+                <template x-for="row in filteredLibrary" :key="libraryRowKey(row)">
+                    <button type="button"
+                            :class="libraryRowButtonClass(row)"
+                            @click="selectRule(row)">
+                        <span class="lib-ico" :class="'lib-ico-' + libraryKind(row)"
+                              :title="({ue:'User event',ur:'User-event rule',se:'System event',sr:'System rule',d:'Device rule'})[libraryKind(row)] || ''"
+                              x-text="(libraryKind(row) || '').toUpperCase()"></span>
+                        <span class="lib-ico lib-ico-c" x-show="libraryKind(row) === 'ue' && row.require_confirmation"
+                              title="Require confirmation"
+                              aria-label="Requires confirmation">C</span>
+                        <span class="truncate flex-1 text-left" x-text="libraryRowLabel(row)"></span>
                     </button>
                 </template>
             </div>
@@ -114,52 +210,148 @@
             </div>
 
             <template x-if="!selectedRule">
-                <div class="text-base-content/60 text-sm">Select a rule from the list, or click <b>New</b> to create one.</div>
+                <div class="text-base-content/60 text-sm">Select an item from the Library, or click <b>New rule</b> / <b>New user event</b>.</div>
             </template>
 
             <template x-if="selectedRule">
                 <div class="space-y-4">
-                    <div x-show="selectedRule.isDraft" class="text-xs text-warning font-semibold">New rule — pick trigger + cases in Blockly, name it, then Save.</div>
+                    <div x-show="selectedRule.isDraft && !selectedRule.isEventRow && !selectedRule.isSystemEventRow"
+                         class="text-xs text-warning font-semibold">New rule — pick trigger + cases in Blockly, name it, then Save.</div>
+                    <div x-show="selectedRule.isDraft && selectedRule.isEventRow" class="text-xs text-warning font-semibold">New user event — set name and explorer flags, then Save (no Blockly).</div>
+                    <div x-show="selectedRule.isSystemEventRow" class="text-xs text-slate-300/90 font-semibold">
+                        System event (catalog) — view only. Create a listening rule via <b>New rule</b> → When system event (unused SEs only).
+                    </div>
                     <div x-show="editorDirty" class="text-xs text-warning font-mono">Unsaved changes</div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <label class="form-control">
-                            <span class="label-text text-xs">Name</span>
-                            <input class="input input-bordered input-sm" x-model="editor.name">
-                        </label>
-                        <label class="form-control">
-                            <span class="label-text text-xs">Editor</span>
-                            <select class="select select-bordered select-sm" x-model="editorMode" @change="onEditorModeChanged()">
-                                <option value="blockly">Blockly (primary)</option>
-                                <option value="json">JSON (power-user)</option>
-                            </select>
-                        </label>
+
+                    <!-- ========== UE form (user event catalog — never Blockly) ========== -->
+                    <div class="space-y-3" x-show="selectedRule.isEventRow">
+                        <div class="form-control w-full max-w-md">
+                            <div class="label py-1">
+                                <span class="label-text text-xs font-semibold">Event name</span>
+                                <span class="label-text-alt text-error text-xs"
+                                      x-show="!(editor.name || '').trim()">required</span>
+                            </div>
+                            <input type="text"
+                                   class="input input-bordered input-sm w-full"
+                                   x-model="editor.name"
+                                   placeholder="e.g. Cinema on"
+                                   :class="!(editor.name || '').trim() ? 'border-warning' : ''"
+                                   autocomplete="off">
+                        </div>
+                        <!-- Appear on explorer always shown (default off). Confirm always shown but blocked unless explorer ON. -->
+                        <div class="flex flex-col gap-2 p-3 rounded border border-base-300 bg-base-200/60">
+                            <label class="label cursor-pointer justify-start gap-2 py-0">
+                                <input type="checkbox" class="checkbox checkbox-sm"
+                                       x-model="editor.eventShowOnDashboard"
+                                       @change="onExplorerFlagChanged()">
+                                <span class="label-text text-xs">Appear on explorer</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-2 py-0"
+                                   :class="!editor.eventShowOnDashboard ? 'opacity-50' : ''">
+                                <input type="checkbox" class="checkbox checkbox-sm"
+                                       x-model="editor.eventRequireConfirmation"
+                                       :disabled="!editor.eventShowOnDashboard"
+                                       @change="markEditorDirty()">
+                                <span class="label-text text-xs">Require confirmation</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-2 py-0"
+                                   :class="eventDisableBlocked ? 'opacity-50' : ''">
+                                <input type="checkbox" class="checkbox checkbox-sm"
+                                       x-model="editor.eventEnabled"
+                                       :disabled="eventDisableBlocked"
+                                       @change="markEditorDirty()">
+                                <span class="label-text text-xs">Event enabled</span>
+                            </label>
+                            <p class="text-[11px] text-base-content/50 max-w-xl" x-show="!editor.eventShowOnDashboard">
+                                Confirmation is only available when Appear on explorer is on.
+                            </p>
+                            <p class="text-[11px] text-warning/80 max-w-xl" x-show="eventDisableBlocked">
+                                Disable blocked — rules still listen to or fire this event.
+                            </p>
+                            <div x-show="fireRefRuleNames.length" class="flex items-center gap-2">
+                                <button type="button" class="btn btn-outline btn-xs"
+                                        @click="showEventUsagesModal()">Show usages</button>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="flex flex-col gap-1">
-                        <div class="flex flex-wrap gap-4 items-center">
-                            <template x-if="canShowOnDashboard">
-                                <div class="flex flex-wrap gap-4 items-center">
-                                    <label class="label cursor-pointer gap-2">
-                                        <span class="label-text text-xs">Show on dashboard</span>
-                                        <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.scene">
-                                    </label>
-                                    <label class="label cursor-pointer gap-2">
-                                        <span class="label-text text-xs">Require confirmation</span>
-                                        <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.require_confirmation">
-                                    </label>
-                                </div>
-                            </template>
-                            <label class="label cursor-pointer gap-2">
-                                <span class="label-text text-xs font-bold uppercase tracking-widest">Hidden</span>
-                                <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenEntities">
-                            </label>
+                    <!-- ========== SE catalog (system event — view-only / immutable) ========== -->
+                    <div class="space-y-3" x-show="selectedRule.isSystemEventRow">
+                        <div class="form-control w-full max-w-md">
+                            <div class="label py-1">
+                                <span class="label-text text-xs font-semibold">System event name</span>
+                            </div>
+                            <input type="text"
+                                   class="input input-bordered input-sm w-full"
+                                   :value="editor.name"
+                                   readonly
+                                   title="System events are catalog seeds (immutable)">
                         </div>
-                        <p class="text-[11px] text-base-content/50 max-w-xl" x-show="canShowOnDashboard">
-                            Dashboard = kiosk scene button (event-triggered rules only). Confirmation = mis-click modal for that button.
+                        <div class="form-control w-full max-w-xl">
+                            <div class="label py-1">
+                                <span class="label-text text-xs font-semibold">Event id</span>
+                            </div>
+                            <input type="text"
+                                   class="input input-bordered input-sm w-full font-mono text-xs"
+                                   :value="editor.id"
+                                   readonly>
+                        </div>
+                        <p class="text-[11px] text-base-content/60 max-w-xl" x-show="selectedSeListenerName">
+                            Listening system rule (SR): <span class="font-semibold" x-text="selectedSeListenerName"></span>
+                        </p>
+                        <p class="text-[11px] text-base-content/60 max-w-xl" x-show="!selectedSeListenerName">
+                            Unused — no system rule (SR) listens yet. Unused is not the same as disabled.
                         </p>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200" x-show="editorMode === 'blockly'">
+                    <!-- ========== UR / SR / D rule editor ========== -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3"
+                         x-show="!selectedRule.isEventRow && !selectedRule.isSystemEventRow">
+                        <div class="form-control w-full">
+                            <div class="label py-1">
+                                <span class="label-text text-xs font-semibold">Rule name</span>
+                                <span class="label-text-alt text-error text-xs"
+                                      x-show="!(editor.name || '').trim()">required</span>
+                            </div>
+                            <input type="text"
+                                   class="input input-bordered input-sm w-full"
+                                   x-model="editor.name"
+                                   placeholder="e.g. Badkamer deur licht aan"
+                                   :class="!(editor.name || '').trim() ? 'border-warning' : ''"
+                                   :readonly="libraryKind(selectedRule) === 'sr'"
+                                   :title="libraryKind(selectedRule) === 'sr' ? 'System rules use the companion SE catalog name (locked)' : ''"
+                                   autocomplete="off">
+                        </div>
+                        <div class="form-control w-full">
+                            <div class="label py-1">
+                                <span class="label-text text-xs font-semibold">Editor</span>
+                            </div>
+                            <select class="select select-bordered select-sm w-full" x-model="editorMode" @change="onEditorModeChanged()">
+                                <option value="blockly">Blockly (primary)</option>
+                                <option value="json">JSON (power-user)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-4 items-center"
+                         x-show="!selectedRule.isEventRow && !selectedRule.isSystemEventRow">
+                        <label class="label cursor-pointer gap-2"
+                               :class="ruleDisableBlocked ? 'opacity-50' : ''">
+                            <span class="label-text text-xs">Rule enabled</span>
+                            <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.enabled"
+                                   :disabled="ruleDisableBlocked">
+                        </label>
+                        <label class="label cursor-pointer gap-2">
+                            <span class="label-text text-xs font-bold uppercase tracking-widest">Show hidden devices</span>
+                            <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenEntities">
+                        </label>
+                        <button type="button" class="btn btn-ghost btn-xs underline"
+                                x-show="ruleDisableBlocked"
+                                @click="showEventUsagesModal()">Show usages</button>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200"
+                         x-show="editorMode === 'blockly' && !selectedRule.isEventRow && !selectedRule.isSystemEventRow">
                         <template x-if="editorDirty">
                             <button type="button" class="btn btn-xs btn-outline" @click="requestLeave({ type: 'reload' })">Reset blocks</button>
                         </template>
@@ -211,24 +403,39 @@
                                 <button class="btn btn-sm btn-warning" @click="saveRule()" :disabled="busy || !editorDirty">Save</button>
                             </div>
                         </div>
+                        <!-- Save/error banners must live inside the FS overlay (card-top alerts sit under z-200). -->
+                        <div x-show="blocklyFullscreen && showBlocklyWorkspace" class="flex flex-col gap-2 mb-2 shrink-0">
+                            <div x-show="errorMessage" class="alert alert-error text-sm py-2">
+                                <span x-text="errorMessage"></span>
+                            </div>
+                            <div x-show="infoMessage" class="alert alert-success text-sm py-2">
+                                <span x-text="infoMessage"></span>
+                            </div>
+                            <div x-show="registryCheckMessage" class="alert text-sm py-2"
+                                 :class="registryCheckOk === false ? 'alert-error' : (registryCheckOk === true ? 'alert-success' : 'alert-info')">
+                                <span x-text="registryCheckMessage"></span>
+                            </div>
+                        </div>
                         <div id="blocklyWorkspace"
                              class="w-full rounded border border-base-300 bg-base-100"
                              :class="blocklyFullscreen && showBlocklyWorkspace ? 'blockly-fs' : ''"></div>
                     </div>
 
-                    <div x-show="editorMode === 'json'">
+                    <div x-show="editorMode === 'json' && !selectedRule.isEventRow && !selectedRule.isSystemEventRow">
                         <label class="form-control">
                             <span class="label-text text-xs">Rule JSON (schema v2)</span>
                             <textarea class="textarea textarea-bordered textarea-sm font-mono h-80" x-model="editor.ruleJson"></textarea>
                         </label>
                     </div>
 
-                    <div class="flex gap-2 pt-2">
+                    <div class="flex gap-2 pt-2" x-show="!selectedRule.isSystemEventRow">
                         <button class="btn btn-warning btn-sm" @click="saveRule()" :disabled="busy || !editorDirty">
                             <span x-show="!busy">Save</span>
                             <span x-show="busy" class="loading loading-spinner loading-xs"></span>
                         </button>
-                        <button class="btn btn-outline btn-error btn-sm" @click="deleteRule()" :disabled="busy || !editor.id">Delete</button>
+                        <button class="btn btn-outline btn-error btn-sm" @click="deleteRule()"
+                                :disabled="busy || !editor.id"
+                                x-text="selectedRule.isEventRow ? 'Delete event' : 'Delete'"></button>
                     </div>
                 </div>
             </template>
@@ -240,12 +447,13 @@
     <div class="modal-box border border-info/30 bg-base-300 shadow-2xl max-w-lg">
         <h3 class="font-bold text-lg tracking-wide">How Blocky rules work</h3>
         <div class="py-3 text-sm text-base-content/80 space-y-3">
-            <p>A rule is: <b>trigger → if / else-if / else cases → actions</b>.</p>
+            <p>A rule is: <b>trigger → cases (conditions + actions)</b>. Event triggers store a catalog <b>UUID</b>; the UI shows the event name.</p>
             <ul class="list-disc pl-5 space-y-2">
                 <li>One blue trigger per rule. Delete it (or drag a new one) to change type — cases stay attached.</li>
                 <li>Match and action options follow the device (lights, blinds, Sonos/Onkyo, etc.).</li>
-                <li>For open/close pairs (blinds, sauna, cinema), use <b>When start or end</b> — not two triggers.</li>
-                <li>Use <b>When any of</b> when several devices should OR together.</li>
+                <li>Use <b>When user event</b> / <b>When system event</b> (and matching Fire actions). Family “start or end” triggers are gone.</li>
+                <li>Use <b>When any of</b> when several devices or events should OR together.</li>
+                <li>Explorer / confirm flags live on the <b>user event</b> (UE form) — not on rules. Disable a rule with <b>Rule enabled</b>. System events (SE) are catalog-only.</li>
             </ul>
             <p>Snap blocks fully into the notches. Loose blocks block Save. Select a block and use <b>Delete</b> (toolbar), or Delete/Backspace on desktop.</p>
         </div>
@@ -256,6 +464,35 @@
         </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<dialog id="event_usages_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+    <div class="modal-box border border-info/30 bg-base-300 shadow-2xl">
+        <h3 class="font-bold text-lg tracking-wide">Event usages</h3>
+        <p class="py-2 text-sm text-base-content/70">
+            Automation rules that listen to or fire this event:
+        </p>
+        <ul class="list-disc pl-5 text-sm space-y-1 max-h-60 overflow-y-auto">
+            <template x-for="nm in fireRefRuleNames" :key="nm">
+                <li x-text="nm"></li>
+            </template>
+        </ul>
+        <div class="modal-action">
+            <button type="button" class="btn btn-sm" @click="closeEventUsagesModal()">OK</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button type="button" @click="closeEventUsagesModal()">close</button></form>
+</dialog>
+
+<dialog id="event_delete_blocked_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
+    <div class="modal-box border border-error/40 bg-base-300 shadow-2xl">
+        <h3 class="font-bold text-lg text-error tracking-wide">Cannot delete event</h3>
+        <p class="py-3 text-sm text-base-content/80" x-text="eventDeleteBlockedMessage || 'This event is still in use.'"></p>
+        <div class="modal-action">
+            <button type="button" class="btn btn-sm" @click="closeEventDeleteBlockedModal()">OK</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button type="button" @click="closeEventDeleteBlockedModal()">close</button></form>
 </dialog>
 
 <dialog id="unsaved_rule_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[9999]">
@@ -311,6 +548,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=3"></script>
-<script src="blocky.js?v=4.39"></script>
+<script src="blocky.js?v=4.63"></script>
 </body>
 </html>

@@ -201,6 +201,31 @@ class EntityRegistry:
         self._dirty = True
         logger.info(f"Entity registry: idx {idx} ({eid}) marked status=removed.")
 
+    def purge_synthetic_scene_history_rows(self) -> int:
+        """
+        B10B: history UUID idxs (900000+) and scene.* rows are not devices.
+        Hard-delete them from the registry so they are not reborn / do not collide.
+        Returns number of rows removed.
+        """
+        from logic.history_ids import SCENE_IDX_BASE
+
+        self.load()
+        removed = 0
+        for idx in list(self._by_idx.keys()):
+            row = self._by_idx.get(idx) or {}
+            eid = str(row.get("entity_id") or "")
+            if int(idx) >= SCENE_IDX_BASE or eid.startswith("scene."):
+                if eid and self._entity_to_idx.get(eid) == idx:
+                    self._entity_to_idx.pop(eid, None)
+                del self._by_idx[idx]
+                removed += 1
+                self._dirty = True
+        if removed:
+            logger.info(
+                f"B10B: purged {removed} synthetic scene/history entity_registry row(s)."
+            )
+        return removed
+
     def _allocate_unique(self, prefix: str, slug: str) -> str:
         base = f"{prefix}.{slug}"
         if base not in self._entity_to_idx:
@@ -215,10 +240,17 @@ class EntityRegistry:
     def ensure(self, idx: int, meta: Dict[str, Any]) -> str:
         """
         Ensure meta has a frozen entity_id. Births if missing. Mutates meta in place.
-        Returns the entity_id.
+        Returns the entity_id (empty string for B10B synthetic history idxs — not devices).
         """
+        from logic.history_ids import SCENE_IDX_BASE
+
         self.load()
         idx = int(idx)
+        # B10B: UUID-event history keys (900000+) must not birth scene.* entity_ids.
+        if idx >= SCENE_IDX_BASE:
+            meta.pop("entity_id", None)
+            return ""
+
         existing_row = self._by_idx.get(idx)
         if existing_row and existing_row.get("entity_id"):
             eid = str(existing_row["entity_id"])
@@ -267,7 +299,10 @@ class EntityRegistry:
         Ensure every live metadata dict has an entity_id.
         Does NOT mark missing registry rows as removed — Z-Wave (and others) may
         load after the first rebuild; removal is only via explicit purge paths.
+        B10B: skips synthetic history idxs (900000+).
         """
+        from logic.history_ids import SCENE_IDX_BASE
+
         self.load()
         active: Set[int] = set()
         for key, meta in list(device_metadata.items()):
@@ -276,6 +311,9 @@ class EntityRegistry:
             try:
                 idx = int(key)
             except (TypeError, ValueError):
+                continue
+            if idx >= SCENE_IDX_BASE:
+                meta.pop("entity_id", None)
                 continue
             active.add(idx)
             self.ensure(idx, meta)

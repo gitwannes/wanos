@@ -2,11 +2,13 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). Remaining: **C6** (flicker) → **C7** (Explorer follow-ups) → **C3 → C4**.
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). Remaining: **C6** (flicker) → **C7** (Explorer follow-ups) → **C8** (alert dismiss logs) → **C9** (Z-Wave send-log type/name) → **C3 → C4**.
 
-**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** ✅; next Blocky = **B10B** — `events:` UUID catalog). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
+**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** ✅; **B10F** queued). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
-**Moved to Blocky (B10A/B10B/B10C):** events catalog / scenes, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (+ multi-flow follow-up); soft-hide picker regression → **B10C** ✅.
+**DoD convention:** every open subphase ends with **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (see [`pipeline.md`](pipeline.md) § DoD / close-out).
+
+**Moved to Blocky (B10A/B10B/B10C):** events catalog / scenes, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (+ multi-flow → **B11**); soft-hide picker regression → **B10C** ✅.
 
 ---
 
@@ -19,10 +21,12 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C5 — History graphs** | Landscape filters; dew point; Y-axis snap; climate smooth (d/m/y) | Explorer History charts |
 | **C6 — History flicker** | Auto-refresh redraw flash (all charts) | C5 soft-refresh follow-up |
 | **C7 — Explorer follow-ups** | Favorites portrait layout; filter restore after SSE; landscape chart chrome; legend dots | FE; C1/C5 leftovers |
+| **C8 — Alert dismiss logs** | Banner + bell dismiss → app log `info` | C2 dismiss follow-up |
+| **C9 — Z-Wave send-log type/name** | Command Sent / FORCED lines include type + friendly name | Ops log parity with automation log |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6** then **C7**. **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6** then **C7** then **C8** then **C9**. **C3/C4** later unless needed sooner.
 
 ---
 
@@ -44,7 +48,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 * Filter: show only when `actuatorFavorites.length > 0`; last favorite removed → clear filter + hide toggle.
 * View-presets may store `favoritesOnly`; apply with zero favorites → ignore that bit + force filter off.
 
-**C1 DoD:** Hidden + Favorites in presets pane (one line each); Edit/Done favorites; Favorites filter iff favorites exist.
+**C1 DoD:** Hidden + Favorites in presets pane (one line each); Edit/Done favorites; Favorites filter iff favorites exist. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-10** (re-audit).
 
 ---
 
@@ -80,7 +84,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 * Same pattern as **Blocky**: dirty → Cancel / Discard / Save on gear/browser leave.
 * Applies to: soft-hide, auto-off, **and Z-Wave**.
 
-**C2 DoD:** Timeline polish; bell/criticals with dual dismiss; reboot works on Pi (after Ops); three system pages gear-only; discard + leave-guard on hide / auto-off / zwave.
+**C2 DoD:** Timeline polish; bell/criticals with dual dismiss; reboot works on Pi (after Ops); three system pages gear-only; discard + leave-guard on hide / auto-off / zwave. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-10** (re-audit).
 
 ### Ops — passwordless restart (prereq for reboot DoD)
 
@@ -152,7 +156,7 @@ The **Admin Force Sweep** bypasses idempotency checks and transmits physical OFF
 * **Integrations / dispatcher:** 300ms pace after each OFF.
 * **Frontend:** Admin/Kiosk button, confirm modal, start/complete toasts.
 
-**C3 DoD:** Sweep runs on Pi with pacing; exclusions honored; Admin UX confirms + reports completion.
+**C3 DoD:** Sweep runs on Pi with pacing; exclusions honored; Admin UX confirms + reports completion. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -163,7 +167,7 @@ The **Admin Force Sweep** bypasses idempotency checks and transmits physical OFF
 
 **to be checked:** All links, redirects, shell nav, kiosk, nginx/static routes, bookmarks. Shell chrome — not Blocky logic.
 
-**C4 DoD:** New names live everywhere operators hit; old URLs redirect or 404 intentionally documented.
+**C4 DoD:** New names live everywhere operators hit; old URLs redirect or 404 intentionally documented. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -221,7 +225,7 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 * FE draw style only (no extra DB samples).
 * Actuator day `step: "end"`: out of scope.
 
-**C5 DoD:** Landscape + chart open → filters compact; dew on temp/hum (formula above, 1 decimal); Y-axis from dataZoom window with snaps in table; climate day/month/year with `smooth: true` (no step); smoke phone + desktop.
+**C5 DoD:** Landscape + chart open → filters compact; dew on temp/hum (formula above, 1 decimal); Y-axis from dataZoom window with snaps in table; climate day/month/year with `smooth: true` (no step); smoke phone + desktop. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-10** (re-audit).
 
 ---
 
@@ -232,7 +236,7 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 * Explorer → History: on auto-refresh, chart **flickers** (line appears to reset then redraw).
 * Scope: **all** History graphs (climate / actuators / host / utility; day/month/year as applicable).
 
-**C6 DoD:** Auto-refresh updates series without visible reset/flicker; Pi smoke all chart families.
+**C6 DoD:** Auto-refresh updates series without visible reset/flicker; Pi smoke all chart families. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -260,7 +264,28 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 
 * All Explorer History chart legends: show **line style/color only** — **remove** legend marker dots (graph series stay lines without point markers).
 
-**C7 DoD:** Portrait favorites no overlap; SSE reconnect restores filters + blue active; landscape+chart hides Control/History + collapsed hint; legends without dots; Pi smoke phone portrait/landscape.
+**C7 DoD:** Portrait favorites no overlap; SSE reconnect restores filters + blue active; landscape+chart hides Control/History + collapsed hint; legends without dots; Pi smoke phone portrait/landscape. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C8 — Alert dismiss → app log 🔜 TODO
+
+**Origin:** operator request **2026-08-10**. C2 dual-dismiss follow-up — **not** reopening C2 DoD.
+
+* When an operator dismisses a **UI banner alert** or a **bell alert**, write an **`info`** line to the WanOS app log (`/var/log/wanos/wanos.log`).
+* Both dismiss paths (independent per C2).
+
+**C8 DoD:** Banner dismiss and bell dismiss each produce an `info` line in `wanos.log`; Pi smoke both paths. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C9 — Z-Wave Command Sent logs + type/name 🔜 TODO
+
+**Origin:** operator inbox **2026-08-10**. Shell/ops visibility — **not** Blocky.
+
+* Lines like `⚡ [FORCED] Z-Wave Command Sent: 66/37/2 -> OFF` or `[Z-Wave] Command Sent: 31/37/1 -> ON` must also include **type and name**, same shape as automation log, e.g. `switch.buro_wannes_schemer (buro Wannes schemer, idx 40002)`.
+
+**C9 DoD:** Forced and normal Z-Wave Command Sent lines include type + friendly name (+ idx as in automation log); Pi smoke both paths. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -271,9 +296,11 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 * **C5:** Explorer History (not `sensorhistory`); compact filters only when chart open; dew via **Sonntag Magnus** (1 decimal) when temp+hum; Y from dataZoom; snaps per table (power **10 W**); climate day/month/year lines **`smooth: true`** (no `step`).
 * **C6:** History auto-refresh must not flicker/reset the line (all chart families).
 * **C7:** Portrait favorites wrap; SSE filter restore (all four + blue); landscape+chart hide Control/History + hint row; legend dots removed.
+* **C8:** Banner + bell dismiss → `info` in `/var/log/wanos/wanos.log`.
+* **C9:** Z-Wave Command Sent / FORCED logs include type + name (automation-log parity).
 * **C3:** Force ALL-OFF parallel-per-integration + 300ms pace + exclusion tags + confirm UX.
 * **C4:** Rename entrypoints; update all consumers.
 
 ## ❓ Residual Open Qs
 
-* *(none for C1 / C2 / C5 — closed by Pi smoke **2026-08-09**. C6 / C7 / C3 / C4 open as above.)*
+* *(none for C1 / C2 / C5 — closed by Pi smoke **2026-08-09**. C6 / C7 / C8 / C9 / C3 / C4 open as above.)*

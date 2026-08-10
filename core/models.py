@@ -74,23 +74,21 @@ class EventType(str, Enum):
 
     # External Events
     HUB_STATE_CHANGED = "HUB_STATE_CHANGED"
-    LIGHTING_STATE_CHANGED = "LIGHTING_STATE_CHANGED"
+    # B10E: sun-cycle refresh (was EXTERNAL_WEATHER_UPDATED)
+    SUNRISE_SUNSET_UPDATE = "SUNRISE_SUNSET_UPDATE"
+    # Legacy bus token — same handler as SUNRISE_SUNSET_UPDATE until emitters soak
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
 
     # Environment Schedule Events
-    # Blinds: clamped daylight window (≠ raw sunrise/sunset — see core/schedule_events.py).
+    # Blinds: clamped daylight window (≠ raw sunrise/sunset — see logic/environment_scheduler.py).
     BLINDS_OPEN_TRIGGER = "BLINDS_OPEN_TRIGGER"
     BLINDS_CLOSE_TRIGGER = "BLINDS_CLOSE_TRIGGER"
-    # Twilight window edges (canonical names). Legacy TWILIGHT_* aliases: schedule_events.SCHEDULE_EVENT_ALIASES.
+    # Twilight window edges (canonical names). TWILIGHT_* aliases / SCHEDULE_EVENT_ALIASES
+    # removed with B10B migrator delete (D1, 2026-08-10).
     MORNING_ON_TRIGGER = "MORNING_ON_TRIGGER"      # configured morning-on clock
     SUNRISE_TRIGGER = "SUNRISE_TRIGGER"            # end morning twilight (= sunrise); NOT blinds open
     SUNSET_TRIGGER = "SUNSET_TRIGGER"              # start evening twilight (= sunset); NOT blinds close
     EVENING_OFF_TRIGGER = "EVENING_OFF_TRIGGER"    # configured evening-off clock
-    # Deprecated Enum members kept so EventType("TWILIGHT_…") still parses until callers migrate.
-    TWILIGHT_MORNING_ON_TRIGGER = "TWILIGHT_MORNING_ON_TRIGGER"
-    TWILIGHT_MORNING_OFF_TRIGGER = "TWILIGHT_MORNING_OFF_TRIGGER"
-    TWILIGHT_EVENING_ON_TRIGGER = "TWILIGHT_EVENING_ON_TRIGGER"
-    TWILIGHT_EVENING_OFF_TRIGGER = "TWILIGHT_EVENING_OFF_TRIGGER"
 
     # Timer Events
     TIMER_SCHEDULED = "TIMER_SCHEDULED"
@@ -125,8 +123,9 @@ class SystemAdminState(BaseModel):
     system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # Upgraded to structured dicts {id, level, message, timestamp, count}
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
     native_rfx_devices: list[dict] = Field(default_factory=list)  # Pushed dynamically to UI panel
-    available_scenes: list[dict[str, Any]] = Field(
-        default_factory=list)  # Extracted stateless triggers for UI (Allows boolean values)
+    # B10B: Explorer dashboard buttons from events: catalog
+    # (show ∧ enabled-listener). Shape: {id, name, require_confirmation}.
+    dashboard_events: list[dict[str, Any]] = Field(default_factory=list)
     hidden_explorer_idxs: list[int] = Field(default_factory=list)  # Devices explicitly hidden from Device Explorer
     hue_presets: dict[str, Any] = Field(default_factory=dict)  # UI Button Configurations pushed from YAML
     sonos_stations: dict[str, str] = Field(default_factory=dict)  # TuneIn station key → URI (Blocky / Explorer)

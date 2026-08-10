@@ -111,7 +111,7 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
                         sunrise = int(data["sys"]["sunrise"])
                         sunset = int(data["sys"]["sunset"])
                         state_manager.dispatch(Event(
-                            type=EventType.EXTERNAL_WEATHER_UPDATED,
+                            type=EventType.SUNRISE_SUNSET_UPDATE,
                             payload={"sunrise": sunrise, "sunset": sunset}
                         ))
                         last_sun_refresh_date = today

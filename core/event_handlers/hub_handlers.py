@@ -386,18 +386,3 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                 changed_domains |= dom
 
     return state_changed, changed_domains
-
-
-async def handle_lighting_state_changed(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
-    payload = event.payload or {}
-    state_changed = False
-    changed_domains = set()
-
-    idx = payload.get("idx")
-    state_val = payload.get("state")
-    if manager._state.devices.get(idx) != state_val:
-        manager._state.devices[idx] = state_val
-        state_changed = True
-        changed_domains.add("devices")
-
-    return state_changed, changed_domains

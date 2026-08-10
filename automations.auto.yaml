@@ -96,14 +96,12 @@ automations:
   # --------------------------------------------------------------------------
   # 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
   # --------------------------------------------------------------------------
-  - name: Blinds Open/Close
-    scene: false
-    require_confirmation: false
+  - name: Blinds open
+    enabled: true
     trigger:
-      event: blinds
+      event: a130c1d4-1bc9-4491-b126-81f716c045c9
     cases:
-      - to_state: "ON"
-        actions:
+      - actions:
           - entity_id: blinds.gv_links
             state: '0'
           - entity_id: blinds.gv_rechts
@@ -112,22 +110,26 @@ automations:
             state: '0'
           - entity_id: blinds.cinema
             state: '0'
-      - to_state: "OFF"
-        actions:
-          - entity_id: blinds.gv_links
-            state: '100'
-          - entity_id: blinds.gv_rechts
-            state: '100'
-          - entity_id: blinds.sauna
-            state: '100'
-          - entity_id: blinds.cinema
-            state: '100'
-    id: b3f9c1f0-700d-40e5-b98e-e818445b26c9
-  - name: Tuinlichten & kerststuff aan 's avonds
-    scene: false
-    require_confirmation: false
+    id: 9d518d73-fbf2-4e11-8aeb-0f2ab7ba7320
+  - name: Blinds close
+    enabled: true
     trigger:
-      event: SUNSET_TRIGGER
+      event: 70716703-5fc0-438b-8af5-db6a1cb1bd07
+    cases:
+      - actions:
+          - entity_id: blinds.gv_links
+            state: '100'
+          - entity_id: blinds.gv_rechts
+            state: '100'
+          - entity_id: blinds.sauna
+            state: '100'
+          - entity_id: blinds.cinema
+            state: '100'
+    id: 2460e48d-6dfc-42fc-92ac-7595f71be7c1
+  - name: Tuinlichten & kerststuff aan 's avonds
+    enabled: true
+    trigger:
+      event: bd0413be-926a-45ef-bdb8-1adfe3b7e8ab
     cases:
       - actions:
           - entity_id: switch.tuin
@@ -138,12 +140,13 @@ automations:
             state: "ON"
           - entity_id: switch.kerstboom
             state: "ON"
+          - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
     id: ea2ab903-fe8c-4375-a771-3bb47a7c9417
-  - name: "Tuinlichten & kerststuff uit 's avonds"
     scene: false
     require_confirmation: false
+  - name: "Tuinlichten & kerststuff uit 's avonds"
     trigger:
-      - event: "EVENING_OFF_TRIGGER"
+      - event: 443765ef-992a-4c90-9bda-5fce40cb70d2
     cases:
       - actions:
           - entity_id: switch.tuin
@@ -155,30 +158,32 @@ automations:
           - entity_id: switch.kerst_lichten_voor
             state: "OFF"
     id: da035d08-aa2b-4cf2-8e98-8a79402819fb
-  - name: "Kerstverlichting voor & achter aan 's morgens"
-    scene: false
-    require_confirmation: false
+    enabled: true
+  - name: Morning on
+    enabled: true
     trigger:
-      event: twilight_morning
+      event: 9a6f9e9a-a571-472e-89ef-4b866b5c2525
     cases:
-      - to_state: ON
-        actions:
+      - actions:
           - entity_id: switch.kerst_lichten_tuin
             state: "ON"
           - entity_id: switch.kerst_lichten_voor
             state: "ON"
-      - to_state: OFF
-        actions:
-          - entity_id: switch.kerst_lichten_tuin
-            state: "OFF"
-          - entity_id: switch.kerst_lichten_voor
-            state: "OFF"
-    id: b53fb293-fe1f-481d-97ac-9f5acedd0a00
-  - name: ALL OFF gv
-    scene: true
-    require_confirmation: false
+    id: 8ed9faf0-5462-44b9-9102-5018434ca016
+  - name: Sunrise
+    enabled: true
     trigger:
-      event: SCENE_GV_OFF
+      event: 7dd2bc22-f1fa-491f-a97d-085fd9b9d0c8
+    cases:
+      - actions:
+          - entity_id: switch.kerst_lichten_tuin
+            state: "OFF"
+          - entity_id: switch.kerst_lichten_voor
+            state: "OFF"
+    id: 1617947b-42be-4e2b-8c4b-6dc9e8ef4078
+  - name: ALL OFF gv
+    trigger:
+      event: f5542238-ccf1-4116-88f9-963c03d7c7c3
     cases:
       - actions:
           - entity_id: switch.voorraad_gv
@@ -210,11 +215,10 @@ automations:
           - entity_id: switch.tuin
             state: "OFF"
     id: be05646d-d637-41f4-93b6-980366e6af44
+    enabled: true
   - name: "ALL OFF 1eV"
-    scene: true
-    require_confirmation: false
     trigger:
-      event: "SCENE_VERDIEP1_OFF"
+      event: afa69b69-ae2d-4549-99fa-7455cc8bf95c
     cases:
       - actions:
           - entity_id: switch.cinema_licht
@@ -238,11 +242,10 @@ automations:
           - entity_id: media_player.buro
             state: "OFF"
     id: 419e34c2-dfdf-4eab-ba6c-77852e965a6d
+    enabled: true
   - name: "ALL OFF 2eV"
-    scene: true
-    require_confirmation: false
     trigger:
-      event: "SCENE_VERDIEP2_OFF"
+      event: daefdc0b-51b1-4afe-bcd0-7d334dff0d47
     cases:
       - actions:
           - entity_id: switch.gang_boven
@@ -266,37 +269,18 @@ automations:
           - entity_id: media_player.slpk_dries
             state: "OFF"
     id: 938b6b82-746f-4761-a080-32abe7658a98
+    enabled: true
   - name: "ALL OFF overal"
-    scene: true
-    require_confirmation: true
     trigger:
-      event: "SCENE_ALL_OFF"
+      event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
     cases:
       - actions:
-          - event: "SCENE_GV_OFF"
-          - event: "SCENE_VERDIEP1_OFF"
-          - event: "SCENE_VERDIEP2_OFF"
+          - event: f5542238-ccf1-4116-88f9-963c03d7c7c3
+          - event: afa69b69-ae2d-4549-99fa-7455cc8bf95c
+          - event: daefdc0b-51b1-4afe-bcd0-7d334dff0d47
     id: c8519732-38d6-444b-937e-1bc588bd01ee
-  - name: GoCosy gv
-    scene: true
-    require_confirmation: false
-    trigger:
-      event: SCENE_GOCOSY
-    cases:
-      - actions:
-          - entity_id: switch.licht_living
-            state: "OFF"
-          - entity_id: hue.group.living_hue
-            state: "ON"
-            preset: relax_red
-          - entity_id: switch.living_schemer
-            state: "ON"
-          - entity_id: switch.licht_keuken
-            state: "OFF"
-    id: 0edc9fce-f788-4801-9ddf-730fa191d184
+    enabled: true
   - name: Slpk_Dries
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.slpk_dries
     cases:
@@ -313,9 +297,8 @@ automations:
           - entity_id: hue.group.slpk_dries_hue
             state: "OFF"
     id: 70b7e4a3-b773-4bdd-83ea-4c18a9b1c61b
+    enabled: true
   - name: KeukenLivingEetk_EetkHue
-    scene: false
-    require_confirmation: false
     trigger:
       - entity_id: switch.licht_living
         state: "ON"
@@ -328,9 +311,8 @@ automations:
           - entity_id: hue.group.eetkamer_hue
             state: "ON"
     id: 0db26b54-0576-4821-bc79-e35de11d640e
+    enabled: true
   - name: "BuroCinemaPC_cosy"
-    scene: false
-    require_confirmation: false
     trigger:
       - entity_id: switch.buro_licht
         state: "ON"
@@ -341,9 +323,8 @@ automations:
           - entity_id: switch.buro_wannes_schemer
             state: "ON"
     id: a9491c48-f233-413e-86d4-2cdcf713ac63
+    enabled: true
   - name: "garage_motion"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: sensor.generic.garage_motion
     cases:
@@ -355,9 +336,8 @@ automations:
           - entity_id: switch.licht_garage
             state: "ON"
     id: 30541a25-0d37-448b-b874-df8c0bf64aeb
+    enabled: true
   - name: "toilet_motion"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: sensor.generic.toilet_motion
     cases:
@@ -366,9 +346,8 @@ automations:
           - entity_id: switch.toilet
             state: "ON"
     id: 284fe67e-827e-4d38-a4b9-58a8b2ae67a5
+    enabled: true
   - name: Garage waskot OFF
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.licht_garage
     cases:
@@ -377,9 +356,8 @@ automations:
           - entity_id: switch.waskot
             state: "OFF"
     id: ce50613a-8f88-496d-a078-10facd819776
+    enabled: true
   - name: Gang boven berging OFF
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.gang_boven
     cases:
@@ -388,9 +366,8 @@ automations:
           - entity_id: switch.berging_2e
             state: "OFF"
     id: 513ef949-cd33-4a7d-8417-4959c4c829d2
+    enabled: true
   - name: "Spare Button: Hue is ON -> Trigger ALL OFF"
-    scene: false
-    require_confirmation: false
     trigger:
       - entity_id: switch.living_special
         state: "ON"
@@ -402,11 +379,11 @@ automations:
             entity_id: hue.group.living_hue
             is: "ON"
         actions:
-          - event: "SCENE_ALL_OFF"
+          - event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
     id: 839d64aa-6216-4405-9fee-b75287adb039
-  - name: "Spare Button: Hue OFF + Night -> Go Cosy"
-    scene: false
-    require_confirmation: false
+    enabled: true
+  - name: 'Spare Button: Hue OFF + Night -> Go Cosy'
+    enabled: true
     trigger:
       - entity_id: switch.living_special
         state: "ON"
@@ -414,17 +391,23 @@ automations:
         state: "OFF"
     cases:
       - conditions:
-          - type: "device_state"
+          - type: device_state
             entity_id: hue.group.living_hue
             is: "OFF"
-          - type: "time_of_day"
-            is: "dark"
+          - type: time_of_day
+            is: dark
         actions:
-          - event: "SCENE_GOCOSY"
+          - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
+      - conditions:
+          - type: device_state
+            entity_id: hue.group.living_hue
+            is: "ON"
+        actions:
+          - event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
     id: 364ac941-35c6-467d-9232-37b2b2b29568
-  - name: 'Spare Button: Hue OFF + Day -> Red Accent'
     scene: false
     require_confirmation: false
+  - name: 'Spare Button: Hue OFF + Day -> Red Accent'
     trigger:
       - entity_id: switch.living_special
         state: "ON"
@@ -444,9 +427,8 @@ automations:
           - entity_id: switch.licht_living
             state: "OFF"
     id: 48e294b0-8784-40b6-a9eb-cf6e5a991407
+    enabled: true
   - name: PC ON/OFF -> PC Aux ON/OFF
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.pc
     cases:
@@ -459,9 +441,8 @@ automations:
           - entity_id: switch.pc_monitors
             state: "OFF"
     id: 06b759d4-5636-4063-8657-ed72b5b5deb7
+    enabled: true
   - name: PC OFF -> Buro Schemer FORCE OFF
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.pc_monitors
     cases:
@@ -470,9 +451,8 @@ automations:
           - entity_id: switch.buro_wannes_schemer
             state: "OFF"
     id: 1a1bdfaa-1b8e-40aa-b20a-3002411ec7ac
+    enabled: true
   - name: "PC Aux ON -> Buro Schemer + Sonos ON"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.pc_monitors
     cases:
@@ -491,9 +471,8 @@ automations:
           - entity_id: media_player.buro
             state: "OFF"
     id: 1b8371ae-8846-42e0-9e40-7ce11b2669da
+    enabled: true
   - name: Toilet gv ventilatie
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.vent.toilet_ventilatie
     cases:
@@ -506,22 +485,8 @@ automations:
           - entity_id: switch.vent.toilet_ventilatie_motor
             state: "OFF"
     id: 7ffde6cb-61e2-4754-a392-47d136a0b0b4
-  - name: "gocosy-savonds"
-    scene: false
-    require_confirmation: false
-    trigger:
-      event: SUNSET_TRIGGER
-    cases:
-      - conditions:
-          - type: "device_state"
-            entity_id: switch.licht_living
-            is: "ON"
-        actions:
-          - event: SCENE_GOCOSY
-    id: db6338f5-dc44-4482-994b-cdc620a381c8
+    enabled: true
   - name: "Badk 1e: Main Switch ON -> Hue Red"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.badk_1e_hue_physical
     cases:
@@ -547,9 +512,8 @@ automations:
           - entity_id: media_player.badk_1e
             state: "OFF"
     id: 9133d4f5-453d-464e-86df-e5f2bc61be8b
+    enabled: true
   - name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.badk_1e_wastafel
     cases:
@@ -572,9 +536,8 @@ automations:
             state: "ON"
             preset: "relax_red"
     id: 751cdc57-c079-488b-91ca-708246f15e3a
+    enabled: true
   - name: "Badk 1e: Hue App Syncs to Main Switch-ON"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: hue.group.badk_1e_hue
     cases:
@@ -593,9 +556,8 @@ automations:
           - entity_id: media_player.badk_1e
             state: "OFF"
     id: caa74273-e140-4354-8021-741bf7c311ca
+    enabled: true
   - name: "Badk 2e: Main Switch ON -> Hue Red"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.badk_2e_hue_physical
     cases:
@@ -621,9 +583,8 @@ automations:
           - entity_id: media_player.badk_boven
             state: "OFF"
     id: 618d15f6-c094-44c9-8fb5-13c44d80dee7
+    enabled: true
   - name: "Badk 2e: Wastafel ON -> Hue White (If already in room)"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.badk_2e_wastafel
     cases:
@@ -646,9 +607,8 @@ automations:
             state: "ON"
             preset: "relax_red"
     id: b1dc143b-bc38-4d44-a723-05b9fe0278be
+    enabled: true
   - name: "Badk 2e: Hue App Syncs to Main Switch-ON"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: hue.group.badk_2e_hue
     cases:
@@ -667,9 +627,8 @@ automations:
           - entity_id: media_player.badk_boven
             state: "OFF"
     id: 90f7b517-3323-46af-abf7-11f98cdfb5e7
+    enabled: true
   - name: "Slpk Wannes: Switch ON -> Hue Red (If Room was Dark)"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: switch.slpk_wannes_hue_physical
     cases:
@@ -687,9 +646,8 @@ automations:
           - entity_id: hue.group.slpk_wannes_hue
             state: "OFF"
     id: 4c96bf42-317d-4e79-a9bd-3b83edd7d668
+    enabled: true
   - name: "Slpk Wannes: Hue App Syncs to Switch"
-    scene: false
-    require_confirmation: false
     trigger:
       entity_id: hue.group.slpk_wannes_hue
     cases:
@@ -702,22 +660,30 @@ automations:
           - entity_id: switch.slpk_wannes_hue_physical
             state: "OFF"
     id: dc3edc7c-f4c5-4d7f-be9e-41f532c57486
-  - name: Sauna ON/OFF
-    scene: false
-    require_confirmation: false
+    enabled: true
+  - name: Sauna ON
+    enabled: true
     trigger:
-      event: sauna
+      event: 39120e7f-93e2-46ba-af70-9b6d7bf08df3
     cases:
-      - to_state: "ON"
-        actions:
+      - actions:
+          - entity_id: hue.group.sauna_hue
+            state: "ON"
+          - entity_id: switch.sauna_zoutlamp
+            state: "ON"
           - entity_id: hue.group.verd_1_hue
             state: "ON"
           - entity_id: hue.group.living_hue
             state: "ON"
-          - entity_id: switch.sauna_zoutlamp
-            state: "ON"
-      - to_state: "OFF"
-        actions:
+    id: b152cd04-9713-4ee2-a001-d94be5078529
+    scene: false
+    require_confirmation: false
+  - name: Sauna OFF
+    enabled: true
+    trigger:
+      event: 08b79199-86aa-4a1e-a29c-20ef2eb74e98
+    cases:
+      - actions:
           - entity_id: hue.group.verd_1_hue
             state: "ON"
             preset: my_white
@@ -726,12 +692,10 @@ automations:
             preset: my_white
           - entity_id: switch.sauna_zoutlamp
             state: "OFF"
-    id: e4fa952f-e625-4fd9-b2c9-dad8ec4d26cb
+    id: 9bb07614-9395-4c8c-8622-6dba8c6152bc
   - name: '--- CINEMA ON'
-    scene: true
-    require_confirmation: true
     trigger:
-      event: SCENE_CINEMA_ON
+      event: 5954cf0b-8648-4f78-8104-e0fcfcab4530
     cases:
       - actions:
           - entity_id: switch.cinema_projector
@@ -756,72 +720,281 @@ automations:
             state: "ON"
             preset: relax_red
     id: e5a56e29-3ad8-46bf-9f1b-3bdeca33ee35
-  - name: "--- CINEMA OFF"
-    scene: true
-    require_confirmation: true
+    enabled: true
+  - name: '--- CINEMA OFF'
+    enabled: true
     trigger:
-      event: SCENE_CINEMA_OFF
+      event: 44667b31-c281-4487-9d05-9093ba111a86
     cases:
-      - conditions:
-          - type: time_of_day
-            is: dark
-        actions:
+      - actions:
           - entity_id: switch.cinema_projector
             state: "OFF"
           - entity_id: hue.group.cinema_hue
             state: "OFF"
+      - conditions:
+          - type: time_of_day
+            is: dark
+        actions:
           - entity_id: switch.cinema_licht
             state: "ON"
       - conditions:
           - type: time_of_day
             is: light
         actions:
-          - entity_id: switch.cinema_projector
-            state: "OFF"
-          - entity_id: hue.group.cinema_hue
-            state: "OFF"
           - entity_id: blinds.cinema
-            state: "0"
+            state: '0'
     id: e0970780-d016-4964-9330-f403e3e0da6e
-
-  - name: Rolluik cinema half (zon)
     scene: false
     require_confirmation: false
+  - name: GoCosy gv
+    enabled: true
     trigger:
-      entity_id: blinds.cinema
+      event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
     cases:
-      - to_state: OPEN
-        actions:
-          - entity_id: hue.group.badk_1e_hue
+      - actions:
+          - entity_id: hue.group.living_hue
             state: "ON"
-            bri: 100
-            xy:
-              - 0.5393614265583356
-              - 0.43434128228363705
-    id: 8c1a0535-4f16-4ffe-bd76-7479dae7e6ca
-  - name: test
+            preset: relax_red
+          - entity_id: switch.living_schemer
+            state: "ON"
+          - entity_id: switch.licht_keuken
+            state: "OFF"
+      - conditions:
+          - type: device_state
+            entity_id: switch.licht_living
+            is: "ON"
+        actions:
+          - entity_id: switch.licht_living
+            state: "OFF"
+    id: 08bc4a13-4375-4bf9-b3af-b0b48687d0d3
     scene: false
     require_confirmation: false
-    trigger:
-      entity_id: hue.group.badk_1e_hue
-    cases:
-      - to_state: "ON"
-        actions:
-          - entity_id: hue.group.badk_2e_hue
-            state: "ON"
-            bri: 100
-            xy:
-              - 0.36542188926705216
-              - 0.1536401517962337
-    id: c5f1571a-3016-4798-a0fb-8da2861f12b5
-  - name: test
-    scene: false
+events:
+  - id: a130c1d4-1bc9-4491-b126-81f716c045c9
+    name: Blinds open
+    origin: system
+    show_on_dashboard: false
     require_confirmation: false
-    trigger:
-      entity_id: sensor.door.sauna_deur
-    cases:
-      - to_state: "ON"
-        actions:
-          - entity_id: hue.group.badk_2e_hue
-            state: "ON"
-    id: 029431e3-7fb6-459f-ab4b-24b969844772
+    enabled: true
+  - id: 70716703-5fc0-438b-8af5-db6a1cb1bd07
+    name: Blinds close
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 9a6f9e9a-a571-472e-89ef-4b866b5c2525
+    name: Morning lights on
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 7dd2bc22-f1fa-491f-a97d-085fd9b9d0c8
+    name: Morning lights off
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: bd0413be-926a-45ef-bdb8-1adfe3b7e8ab
+    name: Evening lights on
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 443765ef-992a-4c90-9bda-5fce40cb70d2
+    name: Evening lights off
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 39120e7f-93e2-46ba-af70-9b6d7bf08df3
+    name: Sauna ON
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 08b79199-86aa-4a1e-a29c-20ef2eb74e98
+    name: Sauna OFF
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 056c3ade-659a-49e0-87f2-2c60e84ca792
+    name: IR ON
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: a97bba4d-78d3-4ce2-b134-fff36c2cd88c
+    name: IR OFF
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 9fa21346-3952-4267-b2fd-c3362e520431
+    name: Sauna setpoint changed
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: b94ab2e2-a5d6-4651-9ff8-c832221c9169
+    name: Sauna modulation updated
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 60821356-d372-4e53-a00b-fdd0377fe0e6
+    name: Sauna setpoint reached
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 718d81a1-c9bb-4f02-8b92-78de27c9aae9
+    name: Sauna hold
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 25df4527-8989-433d-8ee7-c52fe8273289
+    name: Sauna timer expired
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 97f7eb14-c136-4230-9a11-c393fb8eec19
+    name: Sauna hold toggled
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 8af93aec-f43a-422f-b022-1a1f9558c7f7
+    name: Sauna timer adjusted
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: b751d97c-38e0-413e-bcb1-fe03d14ec36b
+    name: Sauna paused (door open)
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 94bbfd22-d226-4408-bc6d-3b4897b1ec81
+    name: Sauna ventilator run start
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 26a640cd-2ba3-4541-bf1d-17e45d5d60d0
+    name: Sauna ventilator run expired
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 8bcbaacf-b072-422d-a270-b7810228684b
+    name: IR modulation updated
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 0b334052-620b-4379-89fb-8a548948873e
+    name: Temperature updated
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 317b453b-18bb-4083-8b62-e14ba2bc4d26
+    name: Humidity updated
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: d6bebc9e-394e-4806-a007-4f863a7ccf5e
+    name: Power updated
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: cef390eb-f9e0-4757-ae34-0e7918d49a9e
+    name: Water pulse
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: a1f2fe49-82db-4011-a9bb-c8afdbd46358
+    name: kWh pulse
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 02d6b1d7-de0b-41f1-b89b-f371e2d35cea
+    name: Door state changed
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: c3457c08-c26e-4ab7-8c32-76e0a746d6c3
+    name: Hub state changed
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 0117e989-cf45-4359-98d3-9656284eb577
+    name: Sunrise/sunset update
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: fff4c790-1b10-4084-a11f-4d7bf519ce40
+    name: Sensor error
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: f5542238-ccf1-4116-88f9-963c03d7c7c3
+    name: ALL OFF gv
+    origin: user
+    show_on_dashboard: true
+    require_confirmation: false
+    enabled: true
+  - id: afa69b69-ae2d-4549-99fa-7455cc8bf95c
+    name: ALL OFF 1eV
+    origin: user
+    show_on_dashboard: true
+    require_confirmation: false
+    enabled: true
+  - id: daefdc0b-51b1-4afe-bcd0-7d334dff0d47
+    name: ALL OFF 2eV
+    origin: user
+    show_on_dashboard: true
+    require_confirmation: false
+    enabled: true
+  - id: 9bb384f0-1787-44a8-aaa2-5fee007552d3
+    name: ALL OFF overal
+    origin: user
+    show_on_dashboard: true
+    require_confirmation: true
+    enabled: true
+  - id: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
+    name: GoCosy gv
+    origin: user
+    show_on_dashboard: true
+    require_confirmation: false
+    enabled: true
+  - id: 5954cf0b-8648-4f78-8104-e0fcfcab4530
+    name: '--- CINEMA ON'
+    origin: user
+    show_on_dashboard: true
+    require_confirmation: true
+    enabled: true
+  - id: 44667b31-c281-4487-9d05-9093ba111a86
+    name: '--- CINEMA OFF'
+    origin: user
+    show_on_dashboard: true
+    require_confirmation: true
+    enabled: true
+  - id: 2032db6a-ab97-45ad-9ae8-fa3794e2629a
+    name: testevent
+    origin: user
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: false

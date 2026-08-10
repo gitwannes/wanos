@@ -13,7 +13,7 @@ from .config import load_config
 from .entity_registry import EntityRegistry
 from core.event_handlers.registry import EVENT_ROUTERS
 from core.nvm_manager import NVRAMManager
-from core.schedule_events import canonicalize_schedule_event
+from core.event_catalog import to_bus_token, legacy_key_for_bus_token
 
 from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
@@ -297,8 +297,11 @@ class StateManager:
 
         self._extract_scenes_from_config()
 
-        # Scene synthetic IDXs (900000+) are config-derived history keys — keep them
-        # out of orphan eviction and birth stable scene.* entity_ids.
+        # B10B: purge legacy scene.* / 900000+ registry rows (history idxs ≠ devices).
+        self.entity_registry.purge_synthetic_scene_history_rows()
+
+        # Synthetic history IDXs (900000+) stay in RAM for chart name resolve, but
+        # must NOT birth entity_ids (Explorer uses dashboard_events only).
         for idx, meta in list(self._state.device_metadata.items()):
             if not isinstance(meta, dict):
                 continue
@@ -309,7 +312,8 @@ class StateManager:
             if i >= SCENE_IDX_BASE or (
                     meta.get("origin") == "automation" and meta.get("type") == "scene"):
                 yaml_idxs.add(i)
-                self.ensure_entity_id(i)
+                # Strip any stamped entity_id; do not ensure/birth.
+                meta.pop("entity_id", None)
 
         # Soft-hide placeholders (entity_id in YAML → resolve to idx)
         exclusions: list[int] = []
@@ -371,10 +375,16 @@ class StateManager:
 
     def ensure_entity_id(self, idx: int) -> Optional[str]:
         """Stamp a frozen entity_id onto device_metadata[idx] (does not flush disk)."""
+        if int(idx) >= SCENE_IDX_BASE:
+            meta = self._state.device_metadata.get(idx)
+            if isinstance(meta, dict):
+                meta.pop("entity_id", None)
+            return None
         meta = self._state.device_metadata.get(idx)
         if not isinstance(meta, dict):
             return None
-        return self.entity_registry.ensure(int(idx), meta)
+        eid = self.entity_registry.ensure(int(idx), meta)
+        return eid or None
 
     def flush_entity_registry(self) -> None:
         """Persist dirty entity_registry.auto.yaml once (call after batch ensures)."""
@@ -406,29 +416,29 @@ class StateManager:
             meta["hidden"] = i in hidden
 
     def _extract_scenes_from_config(self) -> None:
-        self._state.system.available_scenes.clear()
-        if hasattr(self._config, "automations"):
-            for rule in self._config.automations:
-                if getattr(rule, "scene", False) is not True:
-                    continue
-                triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
-                for t in triggers:
-                    if t.event:
-                        # Safely use .get() since values are now mixed types (strings and booleans)
-                        if not any(s.get("event") == t.event for s in self._state.system.available_scenes):
-                            self._state.system.available_scenes.append({
-                                "name": rule.name,
-                                "event": t.event,
-                                "require_confirmation": getattr(rule, "require_confirmation", False)
-                            })
-                        # Synthetic history IDX for scene fires (900000 + crc16)
-                        s_idx = scene_history_idx(t.event)
-                        self._state.device_metadata[s_idx] = {
-                            "name": rule.name,
-                            "type": "scene",
-                            "origin": "automation",
-                            "event": t.event,
-                        }
+        """
+        B10B: rebuild Explorer dashboard_events from events: catalog (+ listener rules).
+
+        System-seed YAML merge runs in load_config() (not here) so RAM rebuilds on
+        CONFIG_RELOAD do not rewrite automations.auto.yaml on every extract.
+        """
+        from core.events_store import build_dashboard_events, read_events
+
+        self._state.system.dashboard_events = build_dashboard_events()
+
+        # Seed history metadata for catalog events (UUID → 900000+ idx) so charts
+        # resolve the current label. Not Explorer devices — no entity_id birth.
+        for row in read_events():
+            eid = str(row.get("id") or "")
+            if not eid:
+                continue
+            s_idx = scene_history_idx(eid)
+            self._state.device_metadata[s_idx] = {
+                "name": str(row.get("name") or eid),
+                "type": "scene",
+                "origin": "automation",
+                "event": eid,
+            }
 
     def register_listener(self, callback: Any) -> None:
         self._state_listeners.append(callback)
@@ -514,6 +524,15 @@ class StateManager:
         await self.logger.warning("State Manager worker stopped.")
 
     def dispatch(self, event: Event) -> None:
+        """
+        Enqueue an event. Catalog keys (SAUNA_ON, …) are normalized to their fixed
+        UUID bus token via to_bus_token so the queue always carries UUID-on-bus for
+        pickable/system catalog events; internals stay readable EventType strings.
+        """
+        bus = to_bus_token(event.type)
+        raw = event.type.value if hasattr(event.type, "value") else str(event.type)
+        if bus != raw:
+            event = Event(type=bus, payload=event.payload or {})
         try:
             loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
             loop.call_soon_threadsafe(self._queue.put_nowait, event)
@@ -521,11 +540,12 @@ class StateManager:
             self._queue.put_nowait(event)
 
     async def _dispatch_from_timer(self, event_type_str: str, payload: dict) -> None:
-        canonical = canonicalize_schedule_event(event_type_str) or event_type_str
+        # Timers may store legacy keys or UUIDs; always normalize to bus token.
+        bus = to_bus_token(event_type_str)
         try:
-            e_type = EventType(canonical)
+            e_type: Any = EventType(bus)
         except ValueError:
-            e_type = canonical
+            e_type = bus
         self.dispatch(Event(type=e_type, payload=payload))
 
     def get_state_snapshot(self) -> SystemState:
@@ -548,7 +568,8 @@ class StateManager:
                     changed_domains.update(domains)
                     batch_events.append(event) 
             except Exception as e:
-                await self.logger.error(f"Error handling event {event.type.value}: {e}")
+                type_label = event.type.value if hasattr(event.type, "value") else str(event.type)
+                await self.logger.error(f"Error handling event {type_label}: {e}")
             finally:
                 self._queue.task_done()
 
@@ -576,7 +597,16 @@ class StateManager:
                     batch_events.clear()
 
     async def _handle_event(self, event: Event) -> tuple[bool, Set[str]]:
-        event_name = event.type.value if hasattr(event.type, 'value') else str(event.type)
+        # B10B dual-mode bus: catalog events travel as UUIDs; internals stay enum strings.
+        # legacy_name maps system UUIDs back to EventType keys for existing == "SAUNA_ON" checks.
+        bus_token = to_bus_token(event.type)
+        legacy_name = legacy_key_for_bus_token(bus_token)
+        raw_type = event.type.value if hasattr(event.type, "value") else str(event.type)
+        if raw_type != bus_token:
+            event = Event(type=bus_token, payload=event.payload or {})
+
+        # All string comparisons below use legacy_name (readable key or pass-through token).
+        event_name = legacy_name
         payload = event.payload or {}
         state_changed: bool = False
         changed_domains: Set[str] = set()
@@ -737,10 +767,10 @@ class StateManager:
                                     payload={"msg_text": f"⚠️ {sys_name} start blocked: {', '.join(reasons)}"}))
                 return state_changed, changed_domains
 
-        # SCENE EXECUTION INTERCEPTOR (IWHW Ledger + history)
-        for scene in self._state.system.available_scenes:
-            if scene.get("event") == event_name:
-                name: str = scene.get("name", "Unknown")
+        # DASHBOARD EVENT INTERCEPTOR (IWHW Ledger + history) — match by event UUID id
+        for dash_ev in self._state.system.dashboard_events:
+            if dash_ev.get("id") == bus_token:
+                name: str = dash_ev.get("name", "Unknown")
                 origin_tag: str = str(payload.get("origin", "MANUAL")).upper()[:10]
 
                 # Format is explicitly handled in Python to guarantee vertical column alignment
@@ -756,8 +786,8 @@ class StateManager:
             if isinstance(old_state_raw, dict):
                 old_state_raw = old_state_raw.copy()
 
-        # ROUTE TO STRATEGY PATTERN HANDLER
-        handler = EVENT_ROUTERS.get(event_name)
+        # ROUTE TO STRATEGY PATTERN HANDLER (UUID alias or legacy key)
+        handler = EVENT_ROUTERS.get(bus_token) or EVENT_ROUTERS.get(legacy_name)
         if handler:
             ch, dom = await handler(event, self)
             state_changed |= ch
@@ -1024,7 +1054,7 @@ class StateManager:
             state_changed = True
             changed_domains.add("sauna")
 
-        # AUTOMATION ENGINE HOOK
+        # AUTOMATION ENGINE HOOK — pass Event with bus UUID type (catalog) for rule matching
         if self._state.system.automations_enabled:
             for auto_event in AutomationEngine.evaluate(event, self._state):
                 self.dispatch(auto_event)

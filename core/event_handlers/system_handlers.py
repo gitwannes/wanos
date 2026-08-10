@@ -38,7 +38,15 @@ async def handle_alert_injected(event: Event, manager: Any) -> Tuple[bool, Set[s
 
 
 async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
-    await manager.logger.info("🔄 Configuration hot-reload requested via UI button.")
+    # Distinguish Admin "Reload" button from surgical API writes (Blocky save, soft-hide, …).
+    payload = event.payload or {}
+    source = str(payload.get("source") or "").strip().lower()
+    if not source and str(payload.get("origin") or "").upper() == "MANUAL":
+        source = "ui_button"
+    if source in ("ui_button", "ui", "manual", "button"):
+        await manager.logger.info("🔄 Configuration hot-reload requested via UI button.")
+    else:
+        await manager.logger.info("🔄 Configuration hot-reload (auto — after config write).")
     state_changed = False
     changed_domains = set()
 

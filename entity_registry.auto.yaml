@@ -379,39 +379,3 @@ entities:
     entity_id: unknown.idx_90001
     status: active
     name_at_birth: idx_90001
-  920871:
-    entity_id: scene.morning_blinds_open_off
-    status: active
-    name_at_birth: Morning Blinds Open [OFF]
-  924446:
-    entity_id: scene.gocosy_gv
-    status: active
-    name_at_birth: GoCosy gv
-  934076:
-    entity_id: scene.all_off_overal
-    status: active
-    name_at_birth: ALL OFF overal
-  943339:
-    entity_id: scene.all_off_gv
-    status: active
-    name_at_birth: ALL OFF gv
-  948850:
-    entity_id: scene.all_off_1ev
-    status: active
-    name_at_birth: ALL OFF 1eV
-  950178:
-    entity_id: scene.all_off_2ev
-    status: active
-    name_at_birth: ALL OFF 2eV
-  963287:
-    entity_id: scene.cinema_on
-    status: active
-    name_at_birth: '--- CINEMA ON'
-  963295:
-    entity_id: scene.morning_blinds_open_on
-    status: active
-    name_at_birth: Morning Blinds Open [ON]
-  963960:
-    entity_id: scene.cinema_off
-    status: active
-    name_at_birth: '--- CINEMA OFF'

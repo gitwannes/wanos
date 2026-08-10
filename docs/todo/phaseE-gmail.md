@@ -166,3 +166,9 @@ Distribute logic so the event loop stays decoupled:
 *   Priority / non-FIFO scheduling
 *   Reading or managing the mailbox (send-only scope)
 *   Colocating the outbox inside history databases
+
+---
+
+## 10. DoD (standing)
+
+When this phase ships: transport live; Blockly/producers emit `EMAIL_REQUESTED` only; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

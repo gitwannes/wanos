@@ -21,7 +21,7 @@ Switch vs light infer + override. Cross-cuts Explorer, auto-off, Planned Automat
 | **Blockly** | Non-Hue light = ON/OFF only (B10B consumers). Hue = color when ON. |
 | **IDX 71/72** | Fix `recalculateIDXs` / config to match override. |
 
-**D DoD:** Infer + override live; frozen ids; 71/72 aligned; Explorer / auto-off / timeline consistent.
+**D DoD:** Infer + override live; frozen ids; 71/72 aligned; Explorer / auto-off / timeline consistent. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

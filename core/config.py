@@ -6,14 +6,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator, ConfigD
 from typing import Optional, Dict, List, Union, Any, Tuple
 from dotenv import load_dotenv
 
-from core.schedule_events import (  # noqa: F401 — re-export for existing imports
-    EVENT_FAMILY_TO_ON_OFF,
-    SCHEDULE_EVENT_ALIASES,
-    SCHEDULE_WINDOW_EDGES,
-    canonicalize_schedule_event,
-)
-
-
 class WeatherConfig(BaseModel):
     idx: int
     name: str
@@ -202,8 +194,12 @@ class AutomationRuleConfig(BaseModel):
     id: Optional[str] = None
 
     name: str
-    scene: bool = False  # ⚡ Expose this automation rule as a manually triggerable scene in the UI
-    require_confirmation: bool = False  # ⚡ Prevents accidental misclicks by requiring a modal confirmation
+    # B10B: per-rule enable (engine skips when False). Missing YAML → True.
+    enabled: bool = True
+    # Deprecated pre-B10B dashboard flags — ignored at runtime (confirm/dashboard live on events:).
+    # Kept optional so old YAML / migrator input still validates until cutover strips them.
+    scene: bool = False
+    require_confirmation: bool = False
     trigger: Union[TriggerConfig, List[TriggerConfig]]
     conditions: Optional[List[ConditionConfig]] = None
     actions: List[ActionConfig]
@@ -479,13 +475,33 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             if isinstance(zwave_file_raw, dict):
                 zwave_data = zwave_file_raw.get("zwave", zwave_file_raw)
 
-    # 3c. Read automatic automations / auto-off / soft-hide profile
+    # 3c. Read automatic automations / auto-off / soft-hide / events profile
     auto_data: Dict[str, Any] = {}
     if automations_yaml_path.exists():
         with open(automations_yaml_path, "r", encoding="utf-8") as file:
             auto_raw = yaml.safe_load(file)
             if isinstance(auto_raw, dict):
                 auto_data = auto_raw
+
+    # B10B Y1: merge fixed system event seeds into automations.auto.yaml once per
+    # load_config that sees the file. Idempotent (keeps show_on_dashboard; forces
+    # name/origin/confirm/enabled from constants). Not called from dashboard extract
+    # so hot paths that only rebuild RAM do not rewrite YAML. FileNotFound → skip.
+    try:
+        from core.events_store import merge_system_seeds_into_yaml
+
+        if automations_yaml_path.exists():
+            merge_system_seeds_into_yaml()
+    except FileNotFoundError:
+        pass
+    except Exception:
+        # Non-fatal: engine can still boot; Admin/events API will surface write errors later.
+        import logging
+
+        logging.getLogger("wanos.config").warning(
+            "B10B: merge_system_seeds_into_yaml failed; continuing with on-disk events",
+            exc_info=True,
+        )
 
     deviceexplorer_hide = auto_data.get(
         "deviceexplorer_hide", runtime_data.get("deviceexplorer_hide", [])

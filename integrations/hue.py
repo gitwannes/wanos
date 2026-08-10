@@ -8,6 +8,7 @@ import aiohttp
 from loguru import logger
 
 from core.models import Event, EventType, SystemState, device_name
+from core.event_catalog import legacy_key_for_bus_token
 from core.state_manager import StateManager
 from core.config import AppConfig
 
@@ -293,7 +294,8 @@ class HueLocalBridge:
             return
 
         for event in batch_events:
-            if event.type != EventType.HUB_STATE_CHANGED:
+            # B10B: catalog events arrive as UUID bus tokens; compare via legacy key.
+            if legacy_key_for_bus_token(event.type) != "HUB_STATE_CHANGED":
                 continue
 
             payload = event.payload

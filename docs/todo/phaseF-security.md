@@ -2,6 +2,8 @@
 
 Hybrid HMAC & network perimeter defenses. Sequence → [`pipeline.md`](pipeline.md). Substeps **F1–F7** below. Own perimeter track — not Blocky.
 
+**DoD convention:** each F subphase close-out includes **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (see [`pipeline.md`](pipeline.md) § DoD / close-out).
+
 This document outlines the zero-exposure, cryptographic bridge security architecture designed to securely expose the WanOS Python backend to a public web server (`hofmans.be`) via port-forwarding, while maintaining an unauthenticated local-network bypass for home automation hardware and family terminals.
 
 ---
@@ -520,6 +522,8 @@ Because we are building a custom cryptographic bridge, the order of operations i
    - **Remote** (`hofmans.be`): commands → `proxy.php`, live updates → HTTP polling at `/api/state` every 2 seconds.
 
 > **⚠️ Critical Architecture Warning (Shared Hosting & SSE):** Standard PHP shared hosting enforces output buffering and a `max_execution_time` of ~60 seconds, which terminates long-running SSE streams. The remote dashboard path must use polling, not SSE.
+
+**F7 DoD (with F1–F6 as deployed):** remote path uses proxy + polling; local SSE unchanged; Pi + cloud smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

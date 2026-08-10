@@ -30,7 +30,6 @@ from datetime import datetime, timedelta, timezone
 
 # WanOS specific
 from core.models import Event, EventType
-from core.schedule_events import canonicalize_schedule_event
 from core.mqtt_transport import MqttClientManager
 from core.mqtt_publisher import MqttPublisher
 from core.state_manager import StateManager
@@ -40,6 +39,23 @@ from core.automations_store import (
     delete_automation,
     read_automations,
     update_automation,
+)
+from core.events_store import (
+    create_user_event,
+    delete_event,
+    find_event,
+    merge_system_seeds_into_yaml,
+    read_events,
+    update_event,
+    count_system_event_listeners,
+    rule_fire_refs_to_event,
+    rule_trigger_refs_to_event,
+)
+from core.event_catalog import (
+    to_bus_token,
+    normalize_event_name_key,
+    SYSTEM_UUID_TO_KEY,
+    SYSTEM_UUID_TO_NAME,
 )
 from core.soft_hide_store import read_soft_hide_entity_ids, write_soft_hide_entity_ids
 from core.auto_off_store import read_auto_off_config, write_auto_off_config
@@ -479,9 +495,43 @@ async def list_automations(req: Request) -> dict[str, Any]:
     return {"automations": out}
 
 
+def _primary_trigger_event_id(rule: dict[str, Any]) -> Optional[str]:
+    """First event UUID on a v2 trigger (dict or list of edges)."""
+    trig = rule.get("trigger")
+    if isinstance(trig, dict) and trig.get("event"):
+        return str(trig["event"])
+    if isinstance(trig, list):
+        for t in trig:
+            if isinstance(t, dict) and t.get("event"):
+                return str(t["event"])
+    return None
+
+
+def _bind_sr_name_to_se_catalog(rule: dict[str, Any]) -> None:
+    """
+    SR invariant: rule name always equals companion SE catalog name.
+
+    On automations POST/PUT, if the primary trigger is a system event, overwrite
+    ``name`` from the live catalog (YAML events:) or seed constant so YAML cannot
+    drift (e.g. old free-text SR titles).
+    """
+    eid = _primary_trigger_event_id(rule)
+    if not eid or eid not in SYSTEM_UUID_TO_KEY:
+        return
+    cat = find_event(eid)
+    cat_name = ""
+    if isinstance(cat, dict) and cat.get("name"):
+        cat_name = str(cat["name"]).strip()
+    if not cat_name:
+        cat_name = str(SYSTEM_UUID_TO_NAME.get(eid) or "").strip()
+    if cat_name:
+        rule["name"] = cat_name
+
+
 def _persist_automation_payload(rule: dict[str, Any]) -> dict[str, Any]:
     """
     Accept Y1 / flat / v2 payloads; always persist canonical v2 (Phase 6A).
+    SR: force name = SE catalog name when trigger is a system event.
     """
     import uuid
 
@@ -498,6 +548,11 @@ def _persist_automation_payload(rule: dict[str, Any]) -> dict[str, Any]:
     v2 = ordered_v2_dict(legacy_to_v2(intermediate))
     if not v2.get("id"):
         v2["id"] = str(uuid.uuid4())
+    # B10B: default enabled when missing on write.
+    if "enabled" not in v2:
+        v2["enabled"] = True
+    # SR ↔ SE: same name (overwrite free-text / drifted YAML titles).
+    _bind_sr_name_to_se_catalog(v2)
     validate_v2_entity_ids(v2)
     if not v2.get("cases"):
         raise ValueError("Automation must contain at least one case with actions.")
@@ -505,6 +560,61 @@ def _persist_automation_payload(rule: dict[str, Any]) -> dict[str, Any]:
         if not (c.get("actions") or []):
             raise ValueError("Each case must contain at least one action.")
     return v2
+
+
+def _assert_one_system_listener(rule: dict[str, Any]) -> Optional[str]:
+    """
+    B10E: at most one SR may listen to a given system event (SE).
+    Returns an error message or None.
+    """
+    eid = _primary_trigger_event_id(rule)
+    if not eid or eid not in SYSTEM_UUID_TO_KEY:
+        return None
+    exclude = str(rule.get("id") or "") or None
+    if count_system_event_listeners(eid, exclude_rule_id=exclude) >= 1:
+        return (
+            f"System event already has a listening rule (SR) "
+            f"(one flow per system event). Event id={eid}."
+        )
+    return None
+
+
+def _assert_u_rule_disable_allowed(rule: dict[str, Any]) -> Optional[str]:
+    """
+    B10E: cannot disable a user-event rule (UR) while its trigger UE is fire-referenced.
+    Returns an error message or None. SR disable is always allowed here.
+    """
+    if rule.get("enabled", True) is not False:
+        return None
+    eid = _primary_trigger_event_id(rule)
+    if not eid or eid in SYSTEM_UUID_TO_KEY:
+        return None
+    fire_refs = rule_fire_refs_to_event(eid)
+    if not fire_refs:
+        return None
+    return (
+        "Cannot disable: trigger event is fired as action by: "
+        + ", ".join(fire_refs)
+    )
+
+
+def _automation_name_clash(name: str, exclude_id: Optional[str] = None) -> Optional[str]:
+    """
+    B10D: return conflicting rule id if name collides (trim + casefold), else None.
+    Same-id update may keep its own name (exclude_id).
+    """
+    needle = normalize_event_name_key(name)  # trim + casefold helper
+    if not needle:
+        return "empty"
+    for row in read_automations():
+        if not isinstance(row, dict):
+            continue
+        rid = str(row.get("id") or "")
+        if exclude_id and rid == exclude_id:
+            continue
+        if normalize_event_name_key(str(row.get("name") or "")) == needle:
+            return rid or "?"
+    return None
 
 
 @app.post("/api/automations")
@@ -518,12 +628,29 @@ async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Invalid automation payload: {e}"})
 
+    clash = _automation_name_clash(str(new_rule.get("name") or ""))
+    if clash == "empty":
+        return JSONResponse(status_code=400, content={"error": "Automation name is required."})
+    if clash:
+        return JSONResponse(
+            status_code=409,
+            content={"error": f"Automation name already in use (id={clash})."},
+        )
+
+    sys_err = _assert_one_system_listener(new_rule)
+    if sys_err:
+        return JSONResponse(status_code=409, content={"error": sys_err})
+
+    disable_err = _assert_u_rule_disable_allowed(new_rule)
+    if disable_err:
+        return JSONResponse(status_code=409, content={"error": disable_err})
+
     current = read_automations()
     if any(isinstance(r, dict) and r.get("id") == new_rule["id"] for r in current if isinstance(r, dict)):
         return JSONResponse(status_code=409, content={"error": "Duplicate automation id."})
 
     append_automation(new_rule)
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
     return {"status": "Success", "automation": new_rule}
 
 
@@ -541,10 +668,27 @@ async def update_automation_api(rule: dict[str, Any], req: Request) -> dict[str,
     if not dumped.get("id"):
         return JSONResponse(status_code=400, content={"error": "PUT requires a stable automation rule `id`."})
 
+    clash = _automation_name_clash(str(dumped.get("name") or ""), exclude_id=str(dumped["id"]))
+    if clash == "empty":
+        return JSONResponse(status_code=400, content={"error": "Automation name is required."})
+    if clash:
+        return JSONResponse(
+            status_code=409,
+            content={"error": f"Automation name already in use (id={clash})."},
+        )
+
+    sys_err = _assert_one_system_listener(dumped)
+    if sys_err:
+        return JSONResponse(status_code=409, content={"error": sys_err})
+
+    disable_err = _assert_u_rule_disable_allowed(dumped)
+    if disable_err:
+        return JSONResponse(status_code=409, content={"error": disable_err})
+
     if not update_automation(dumped["id"], dumped):
         return JSONResponse(status_code=404, content={"error": f"Automation id '{dumped['id']}' not found."})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
     return {"status": "Success", "automation": dumped}
 
 
@@ -557,7 +701,112 @@ async def delete_automation_api(req_body: AutomationsRuleIdRequest, req: Request
     if not delete_automation(req_body.id):
         return JSONResponse(status_code=404, content={"error": f"Automation id '{req_body.id}' not found."})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    return {"status": "Success"}
+
+
+class EventsIdRequest(BaseModel):
+    """DELETE /api/events body — mirror AutomationsRuleIdRequest."""
+    id: str
+
+
+@app.get("/api/events")
+async def list_events_api(req: Request) -> dict[str, Any]:
+    """Admin: list events: catalog rows (ensure Y1 system seeds merged first)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    try:
+        merge_system_seeds_into_yaml()
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Failed to merge system event seeds: {e}"})
+    return {"events": read_events()}
+
+
+@app.post("/api/events")
+async def create_event_api(body: dict[str, Any], req: Request) -> dict[str, Any]:
+    """Admin: create a user event row (server assigns UUID)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    try:
+        row = create_user_event(
+            str(body.get("name") or ""),
+            show_on_dashboard=bool(body.get("show_on_dashboard", False)),
+            require_confirmation=bool(body.get("require_confirmation", False)),
+            enabled=bool(body.get("enabled", True)),
+        )
+    except ValueError as e:
+        msg = str(e)
+        code = 409 if "already in use" in msg or "Duplicate event id" in msg else 400
+        return JSONResponse(status_code=code, content={"error": msg})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Invalid event payload: {e}"})
+
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    return {"status": "Success", "event": row}
+
+
+@app.put("/api/events")
+async def update_event_api(body: dict[str, Any], req: Request) -> dict[str, Any]:
+    """Admin: replace event by id (B10E: system dashboard rejected; confirm coerced)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    try:
+        row = update_event(body)
+    except KeyError as e:
+        return JSONResponse(status_code=404, content={"error": str(e)})
+    except ValueError as e:
+        msg = str(e)
+        code = 409 if "already in use" in msg or "Cannot disable" in msg else 400
+        return JSONResponse(status_code=code, content={"error": msg})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Invalid event payload: {e}"})
+
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    return {"status": "Success", "event": row}
+
+
+@app.get("/api/events/{event_id}/usages")
+async def event_usages_api(event_id: str, req: Request) -> dict[str, Any]:
+    """
+    Admin: Show usages — rules that listen (trigger) OR fire this event.
+    Both sides block user-event disable; UI lists the union of names.
+    """
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    listened_by = rule_trigger_refs_to_event(event_id)
+    fired_by = rule_fire_refs_to_event(event_id)
+    # Stable unique union (listeners first, then fire-only names).
+    seen: set[str] = set()
+    used_by: list[str] = []
+    for nm in listened_by + fired_by:
+        if nm not in seen:
+            seen.add(nm)
+            used_by.append(nm)
+    return {
+        "event_id": event_id,
+        "listened_by": listened_by,
+        "fired_by": fired_by,
+        "used_by": used_by,
+    }
+
+
+@app.delete("/api/events")
+async def delete_event_api(req_body: EventsIdRequest, req: Request) -> dict[str, Any]:
+    """Admin: delete a user event by id (guards → 409)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    try:
+        delete_event(req_body.id)
+    except KeyError as e:
+        return JSONResponse(status_code=404, content={"error": str(e)})
+    except ValueError as e:
+        return JSONResponse(status_code=409, content={"error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
     return {"status": "Success"}
 
 
@@ -610,7 +859,7 @@ async def put_soft_hide(body: SoftHidePutRequest, req: Request) -> dict[str, Any
         logger.error(f"soft-hide write failed: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to write soft-hide list."})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
     return {"status": "Success", "entity_ids": written}
 
 
@@ -701,7 +950,7 @@ async def put_auto_off_timer(body: AutoOffPutRequest, req: Request) -> dict[str,
         logger.error(f"auto-off-timer write failed: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to write auto-off config."})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={}))
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
     return {"status": "Success", **written}
 
 
@@ -863,6 +1112,8 @@ async def history_series(idx: int, req: Request, range: str = "day"):
 @app.post("/api/event")
 async def inject_event(request: GenericEventRequest, req: Request) -> dict[str, Union[str, Event]]:
     e_type_str = request.type.value if hasattr(request.type, 'value') else str(request.type)
+    # Normalize catalog keys → UUID before admin checks / dispatch.
+    bus_token = to_bus_token(e_type_str)
 
     # Block users/kiosks from performing system-level administration toggles
     admin_only_events = ["CONFIG_RELOAD_REQUESTED", "SYSTEM_SWEEP_REQUESTED", "SIMULATIONS_TOGGLED"]
@@ -871,10 +1122,9 @@ async def inject_event(request: GenericEventRequest, req: Request) -> dict[str, 
             return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
     try:
-        canonical = canonicalize_schedule_event(request.type) or request.type
-        e_type = EventType(canonical)
+        e_type: Any = EventType(bus_token)
     except ValueError:
-        e_type = canonicalize_schedule_event(request.type) or request.type
+        e_type = bus_token
 
     event: Event = Event(type=e_type, payload=request.payload)
     state_manager.dispatch(event)

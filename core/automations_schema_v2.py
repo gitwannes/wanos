@@ -13,14 +13,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 _NUMERIC_IDX_RE = re.compile(r"^\d+$")
 
-from core.schedule_events import (  # noqa: E402
-    SCHEDULE_WINDOW_EDGES,
-    canonicalize_schedule_event,
-)
-
-# Deprecated name — prefer SCHEDULE_WINDOW_EDGES
-EVENT_FAMILY_TO_ON_OFF = SCHEDULE_WINDOW_EDGES
-
 try:
     from loguru import logger as _logger
 except ImportError:  # pragma: no cover
@@ -34,23 +26,14 @@ def _warn(msg: str) -> None:
     except Exception:
         print(msg)
 
-# Canonical dump order: name first … id last (Phase 6A).
+# Canonical dump order: name first … id last (Phase 6A + B10B enabled).
 _V2_KEY_ORDER = (
     "name",
-    "scene",
-    "require_confirmation",
+    "enabled",
     "trigger",
     "cases",
     "id",
 )
-
-_OFF_EVENT_TO_FAMILY = {off: fam for fam, (_on, off) in SCHEDULE_WINDOW_EDGES.items()}
-_ON_EVENT_TO_FAMILY = {on: fam for fam, (on, _off) in SCHEDULE_WINDOW_EDGES.items()}
-# Legacy concrete events still reverse-map to families during cutover
-_ON_EVENT_TO_FAMILY["TWILIGHT_MORNING_ON_TRIGGER"] = "twilight_morning"
-_ON_EVENT_TO_FAMILY["TWILIGHT_EVENING_ON_TRIGGER"] = "twilight_evening"
-_OFF_EVENT_TO_FAMILY["TWILIGHT_MORNING_OFF_TRIGGER"] = "twilight_morning"
-_OFF_EVENT_TO_FAMILY["TWILIGHT_EVENING_OFF_TRIGGER"] = "twilight_evening"
 
 
 def is_v2_rule(rule: Any) -> bool:
@@ -121,6 +104,8 @@ def legacy_to_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
         return ordered_v2_dict(_normalize_v2(rule))
 
     name = rule.get("name") or ""
+    # B10B: missing enabled → True (same default as AutomationRuleConfig / engine).
+    enabled = bool(rule.get("enabled", True))
     scene = bool(rule.get("scene", False))
     require_confirmation = bool(rule.get("require_confirmation", False))
     rule_id = rule.get("id")
@@ -157,6 +142,7 @@ def legacy_to_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
 
         return ordered_v2_dict({
             "name": name,
+            "enabled": enabled,
             "scene": scene,
             "require_confirmation": require_confirmation,
             "trigger": out_trigger,
@@ -195,6 +181,7 @@ def legacy_to_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
 
     provisional = ordered_v2_dict({
         "name": name,
+        "enabled": enabled,
         "scene": scene,
         "require_confirmation": require_confirmation,
         "trigger": out_trigger_f,
@@ -290,13 +277,11 @@ def _migrate_sync_to_cases(rule: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _canonicalize_trigger(trigger: Any) -> Any:
-    """Rewrite legacy twilight event strings on triggers (dict or OR-list)."""
+    """Strip retired SYNC from triggers (dict or OR-list). Event tokens stay as-is (UUIDs)."""
     if isinstance(trigger, list):
         return [_canonicalize_trigger(t) for t in trigger]
     if isinstance(trigger, dict):
         out = copy.deepcopy(trigger)
-        if out.get("event"):
-            out["event"] = canonicalize_schedule_event(out["event"])
         # Strip retired SYNC from trigger (cases carry edges after _migrate_sync_to_cases)
         if str(out.get("state") or "").upper() in ("SYNC", "SYNCOPPOSITE"):
             out.pop("state", None)
@@ -337,12 +322,11 @@ def _normalize_v2(rule: Dict[str, Any]) -> Dict[str, Any]:
             case["conditions"] = [_copy_condition(x) for x in conds]
         acts = c.get("actions") or []
         case["actions"] = [_copy_action(a) for a in acts] if isinstance(acts, list) else []
-        for a in case["actions"]:
-            if isinstance(a, dict) and a.get("event"):
-                a["event"] = canonicalize_schedule_event(a["event"])
         cases_out.append(case)
     out = {
         "name": rule.get("name") or "",
+        # B10B: preserve per-rule enable through normalize (default True).
+        "enabled": bool(rule.get("enabled", True)),
         "scene": bool(rule.get("scene", False)),
         "require_confirmation": bool(rule.get("require_confirmation", False)),
         "trigger": copy.deepcopy(rule.get("trigger")),
@@ -367,6 +351,7 @@ def v2_to_editor_projection(rule: Dict[str, Any]) -> Dict[str, Any]:
     trigger = v2.get("trigger")
     base = {
         "name": v2.get("name"),
+        "enabled": bool(v2.get("enabled", True)),
         "scene": bool(v2.get("scene", False)),
         "require_confirmation": bool(v2.get("require_confirmation", False)),
         "id": v2.get("id"),
@@ -386,13 +371,8 @@ def v2_to_editor_projection(rule: Dict[str, Any]) -> Dict[str, Any]:
         if trigger.get("entity_id"):
             out_trig = {"entity_id": trigger["entity_id"]}
         elif trigger.get("event"):
-            # Keep family name if already family; else leave concrete event as family-like
-            ev = trigger["event"]
-            fam = _ON_EVENT_TO_FAMILY.get(ev) or _OFF_EVENT_TO_FAMILY.get(ev) or ev
-            if fam in SCHEDULE_WINDOW_EDGES:
-                out_trig = {"event": fam}
-            else:
-                out_trig = {"event": ev}
+            # B10B: keep event bus token as-is (UUID); no family reverse-map
+            out_trig = {"event": trigger["event"]}
         return {
             **base,
             "trigger": out_trig,
@@ -476,16 +456,12 @@ def _expand_v2_case_to_flat(
             flat_trigger = {"entity_id": eid}
             suffix = f"#c{case_index}"
     elif isinstance(trigger, dict) and trigger.get("event"):
+        # B10B: event bus token is UUID (or legacy key → UUID via to_bus_token).
+        # Family sugar removed after migrator split.
+        from core.event_catalog import to_bus_token
         ev = str(trigger["event"])
-        if ev in SCHEDULE_WINDOW_EDGES and to_state_u in ("ON", "OFF"):
-            on_ev, off_ev = SCHEDULE_WINDOW_EDGES[ev]
-            flat_trigger = {"event": on_ev if to_state_u == "ON" else off_ev}
-            suffix = f"#{to_state_u.lower()}"
-            label = f" [{to_state_u}]"
-        else:
-            # Concrete event (e.g. SCENE_CINEMA_OFF) with condition-discriminated cases
-            flat_trigger = {"event": canonicalize_schedule_event(ev)}
-            suffix = f"#c{case_index}"
+        flat_trigger = {"event": to_bus_token(ev)}
+        suffix = f"#c{case_index}"
     else:
         flat_trigger = copy.deepcopy(trigger)
         suffix = f"#c{case_index}"
@@ -493,6 +469,8 @@ def _expand_v2_case_to_flat(
     out = {
         "id": f"{rule_id}{suffix}" if rule_id else None,
         "name": f"{name}{label}" if name else name,
+        # B10B: engine clones inherit parent enabled flag.
+        "enabled": bool(base.get("enabled", True)),
         "scene": bool(base.get("scene", False)),
         "require_confirmation": bool(base.get("require_confirmation", False)),
         "trigger": flat_trigger,
@@ -524,6 +502,7 @@ def expand_automations_for_engine(raw_automations: Any) -> List[dict]:
             base = {
                 "id": v2.get("id"),
                 "name": v2.get("name"),
+                "enabled": v2.get("enabled", True),
                 "scene": v2.get("scene"),
                 "require_confirmation": v2.get("require_confirmation"),
             }
@@ -540,6 +519,7 @@ def expand_automations_for_engine(raw_automations: Any) -> List[dict]:
             base = {
                 "id": v2.get("id"),
                 "name": v2.get("name"),
+                "enabled": v2.get("enabled", True),
                 "scene": v2.get("scene"),
                 "require_confirmation": v2.get("require_confirmation"),
             }
@@ -549,7 +529,7 @@ def expand_automations_for_engine(raw_automations: Any) -> List[dict]:
                     expanded.append(flat)
             continue
 
-        # Flat pass-through — canonicalize schedule event aliases
+        # Flat pass-through — strip retired SYNC on trigger if present
         flat = copy.deepcopy(rule)
         if "trigger" in flat:
             flat["trigger"] = _canonicalize_trigger(flat["trigger"])
@@ -609,6 +589,7 @@ def merge_cinema_off_pair(rules: List[Dict[str, Any]]) -> Tuple[List[Dict[str, A
 
     v2 = {
         "name": primary.get("name") or "--- CINEMA OFF",
+        "enabled": bool(primary.get("enabled", True) and secondary.get("enabled", True)),
         "scene": bool(primary.get("scene") or secondary.get("scene")),
         "require_confirmation": bool(
             primary.get("require_confirmation") or secondary.get("require_confirmation")

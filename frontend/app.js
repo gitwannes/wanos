@@ -54,7 +54,7 @@ function wanosApp() {
                 onkyo_connected: false, // ⚡ Tracks physical TCP availability of Onkyo Receivers
                 onkyo_integration_enabled: false, // ⚡ Master UI switch to block/allow Onkyo Receivers
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
-                available_scenes: [], // ⚡ Holds dynamically extracted stateless automations
+                dashboard_events: [], // ⚡ B10B: Explorer buttons from events: catalog ({id, name, require_confirmation})
                 hidden_explorer_idxs: [], // ⚡ Devices to hide from the Device Explorer
                 hue_presets: {}, // ⚡ Dynamically injected from config_hue.yaml
                 sonos_stations: {} // ⚡ TuneIn station key → URI from config.yaml (Blocky 6C)
@@ -412,7 +412,7 @@ function wanosApp() {
                 if (meta.origin === 'gpio_input' && !this.state.hardware.gpio_input_enabled) continue;
                 if (meta.origin === 'sht11' && !this.state.hardware.sht11_enabled) continue;
                 if (meta.origin === 'owm' && !this.state.system.owm_integration_enabled) continue;
-                // Scene rows are rendered from available_scenes below; skip synthetic scene metadata here to avoid duplicates.
+                // Dashboard event rows are rendered from dashboard_events below; skip synthetic scene metadata here to avoid duplicates.
                 if (meta.type === 'scene') continue;
 
                 const idx = parseInt(idxStr, 10);
@@ -606,18 +606,18 @@ function wanosApp() {
                 });
             }
 
-            // 2. Map Stateless Scenes
-            // ⚡ Display scenes as long as the Automation Engine is alive to process them
-            // ⚡ Admin Guard: Hide stateless software scenes from the diagnostic "Hidden Nodes" view
-            if (!this.showHiddenNodes && this.state.system.available_scenes && this.state.system.automations_enabled) {
-                for (const scene of this.state.system.available_scenes) {
+            // 2. Map dashboard events (B10B: UUID id on the bus)
+            // ⚡ Display as long as the Automation Engine is alive to process them
+            // ⚡ Admin Guard: Hide from the diagnostic "Hidden Nodes" view
+            if (!this.showHiddenNodes && this.state.system.dashboard_events && this.state.system.automations_enabled) {
+                for (const ev of this.state.system.dashboard_events) {
                     list.push({
-                        id: scene.event,
-                        name: scene.name,
+                        id: ev.id, // event UUID — dispatchEvent / publishEvent uses this as type
+                        name: ev.name,
                         type: 'scene',
                         raw_value: null,
                         is_on: null, // Stateless element
-                        require_confirmation: scene.require_confirmation === true // Mapped from backend config
+                        require_confirmation: ev.require_confirmation === true
                     });
                 }
             }
@@ -4124,7 +4124,7 @@ function wanosApp() {
 
             this.publishEvent("ALERT_INJECTED", { msg_text: "🔄 Reloading all config yaml configurations..." });
 
-            await this.publishEvent("CONFIG_RELOAD_REQUESTED");
+            await this.publishEvent("CONFIG_RELOAD_REQUESTED", { source: "ui_button" });
 
             setTimeout(() => {
                 if (this.configReloading) {

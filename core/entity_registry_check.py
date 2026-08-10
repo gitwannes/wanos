@@ -328,14 +328,22 @@ def run_entity_cutover_checks(
 
     # Live metadata (optional — when WanOS is running)
     if device_metadata is not None:
+        from logic.history_ids import SCENE_IDX_BASE
+
         live_missing = []
         live_ok = 0
+        live_synthetic = 0
         for key, meta in device_metadata.items():
             if not isinstance(meta, dict):
                 continue
             try:
                 idx = int(key)
             except (TypeError, ValueError):
+                continue
+            # B10B: catalog/history UUID idxs (900000+) are seeded for chart names only —
+            # they must not carry entity_id (no scene.* births). Skip from device checks.
+            if idx >= SCENE_IDX_BASE:
+                live_synthetic += 1
                 continue
             eid = meta.get("entity_id")
             if not eid:
@@ -349,6 +357,7 @@ def run_entity_cutover_checks(
                     )
         stats["live_metadata_with_entity_id"] = live_ok
         stats["live_metadata_missing_entity_id"] = len(live_missing)
+        stats["live_metadata_synthetic_history"] = live_synthetic
         if live_missing:
             sample = ", ".join(str(i) for i in live_missing[:12])
             more = f" (+{len(live_missing) - 12})" if len(live_missing) > 12 else ""
@@ -384,6 +393,7 @@ _STAT_HELP: Dict[str, str] = {
     "python_magic_idx_hits": "bare device idxs still in Python (warnings only)",
     "live_metadata_with_entity_id": "live RAM devices that already have entity_id",
     "live_metadata_missing_entity_id": "live RAM devices missing entity_id (error if >0)",
+    "live_metadata_synthetic_history": "catalog/history idxs (≥900000) — no entity_id by design (B10B)",
 }
 
 
@@ -411,6 +421,7 @@ def format_entity_cutover_report(report: Dict[str, Any]) -> str:
     if live:
         lines.append("- This run included live device_metadata (Admin API / running WanOS).")
         lines.append("  CLI without WanOS running skips the live-metadata section.")
+        lines.append("  History/catalog idxs (≥900000) are excluded — no entity_id by design (B10B).")
     else:
         lines.append("- No live device_metadata in this run (typical for CLI offline).")
         lines.append("  Admin Debug check also validates RAM coverage while WanOS is up.")

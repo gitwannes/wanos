@@ -3,6 +3,11 @@
 // Phase 6C: rich action authoring — Hue preset XOR custom color (iro→bri/xy), blinds open %, Sonos/Onkyo volume, Sonos station.
 // Phase B10A: editor trust — Hue picker-only / type-switch rebuild / no restore-modal;
 //   toolbar Delete (no trashcan); Blockly Events disable/enable paired (v13 refcount); dirty from canvas.
+// Phase B10B+D: events: catalog (UUID bus) — no family triggers / SCENE_* strings;
+//   per-rule enabled; unique rule names; dashboard/confirm live on the event row.
+// Phase B10E: Automations Library (UE/UR/SE/SR/D + C on UE), UE form (no Blockly),
+//   SE catalog view-only, SR name = SE catalog name, When/Fire user vs system,
+//   fire allowlist for unused system (Sauna/IR ON/OFF always).
 
 /** Min viewport width for History / Automation and the top-row join (tablets+). */
 const WANOS_WIDE_MIN_PX = 768;
@@ -20,49 +25,20 @@ function wanosRedirectIfNarrow() {
     return !mq.matches;
 }
 
-/** Keep in sync with core/schedule_events.SCHEDULE_WINDOW_EDGES (enter, exit). */
-const BLOCKY_SCHEDULE_WINDOW_EDGES = {
-    blinds: ["BLINDS_OPEN_TRIGGER", "BLINDS_CLOSE_TRIGGER"],
-    twilight_evening: ["SUNSET_TRIGGER", "EVENING_OFF_TRIGGER"],
-    twilight_morning: ["MORNING_ON_TRIGGER", "SUNRISE_TRIGGER"],
-    sauna: ["SAUNA_ON", "SAUNA_OFF"],
-    ir: ["IR_ON", "IR_OFF"],
-    cinema: ["SCENE_CINEMA_ON", "SCENE_CINEMA_OFF"]
-};
-
-/** Display labels for concrete events (dropdowns + schedule hints). Stored values stay canonical. */
-const BLOCKY_EVENT_LABELS = {
-    BLINDS_OPEN_TRIGGER: "Blinds open",
-    BLINDS_CLOSE_TRIGGER: "Blinds close",
-    MORNING_ON_TRIGGER: "Morning on",
-    SUNRISE_TRIGGER: "Sunrise",
-    SUNSET_TRIGGER: "Sunset",
-    EVENING_OFF_TRIGGER: "Evening off",
-    SAUNA_ON: "Sauna on",
-    SAUNA_OFF: "Sauna off",
-    IR_ON: "IR on",
-    IR_OFF: "IR off",
-    SCENE_CINEMA_ON: "Cinema on",
-    SCENE_CINEMA_OFF: "Cinema off",
-    SCENE_ALL_OFF: "All off",
-    SCENE_GOCOSY: "Go cosy",
-    SCENE_GV_OFF: "Ground floor off",
-    SCENE_VERDIEP1_OFF: "Floor 1 off",
-    SCENE_VERDIEP2_OFF: "Floor 2 off",
-    TWILIGHT_MORNING_ON_TRIGGER: "Morning on",
-    TWILIGHT_MORNING_OFF_TRIGGER: "Sunrise",
-    TWILIGHT_EVENING_ON_TRIGGER: "Sunset",
-    TWILIGHT_EVENING_OFF_TRIGGER: "Evening off"
-};
-
 const BLOCKY_EDGE_STATES = [
     ["ON", "ON"], ["OFF", "OFF"]
 ];
 
+/** Blue trigger roots — B10E adds system-event twin of When user event. */
 const BLOCKY_ROOT_TRIGGERS = new Set([
-    "b_trig_device", "b_trig_or", "b_trig_event", "b_trig_family"
+    "b_trig_device", "b_trig_or", "b_trig_event", "b_trig_event_sys"
 ]);
-
+/** Event-trigger roots (user or system) — same wire shape { event: uuid }. */
+const BLOCKY_EVENT_TRIGGERS = new Set(["b_trig_event", "b_trig_event_sys"]);
+/** Event OR-edge block types. */
+const BLOCKY_EVENT_EDGES = new Set(["b_trig_event_edge", "b_trig_event_edge_sys"]);
+/** Fire-event action block types. */
+const BLOCKY_EVENT_ACTIONS = new Set(["b_action_event", "b_action_event_sys"]);
 /** Sensor / temp-class — excluded from pickers (motion is separate: trigger OK, never action). */
 const BLOCKY_SENSOR_LIKE_TYPES = new Set([
     "sensor", "temp_hum", "temp", "hum", "power", "energy", "fluid"
@@ -73,33 +49,58 @@ const BLOCKY_ACTUATOR_TYPES = new Set([
     "switch", "light", "blinds", "shutter", "speaker", "media_player"
 ]);
 
-function blockyEventLabel(ev) {
-    const key = String(ev || "");
-    if (BLOCKY_EVENT_LABELS[key]) return BLOCKY_EVENT_LABELS[key];
-    const pretty = key.replace(/_TRIGGER$/i, "").replace(/_/g, " ").toLowerCase()
-        .replace(/\b\w/g, (c) => c.toUpperCase());
-    return pretty || key;
+/**
+ * Tall FieldDropdown menus (entity/event) open upward near the top of the canvas
+ * and get clipped. Cap menu height (scroll inside) and clamp to the page viewport.
+ */
+function blockyConfigureDropdownChrome(Blockly) {
+    if (!Blockly) return;
+    // Fraction of viewport height — Blockly scrolls the menu when content exceeds this.
+    if (Blockly.FieldDropdown) {
+        Blockly.FieldDropdown.MAX_MENU_HEIGHT_VH = 0.4;
+    }
+    // Position/size against the full page so the popup is not bound to the workspace box.
+    if (Blockly.DropDownDiv && typeof Blockly.DropDownDiv.setBoundsElement === "function") {
+        Blockly.DropDownDiv.setBoundsElement(document.body);
+    }
 }
 
-function blockyEdgeShort(ev) {
-    return blockyEventLabel(ev);
+/**
+ * Catalog UUIDs seeded for bus/dashboard but excluded from Blockly event pickers.
+ * Keep in sync with core.event_catalog.NON_PICKABLE_SYSTEM_UUIDS.
+ */
+const BLOCKY_NON_PICKABLE_EVENT_IDS = new Set([
+    "c3457c08-c26e-4ab7-8c32-76e0a746d6c3" // HUB_STATE_CHANGED — hub telemetry chatter
+]);
+
+/**
+ * B10E: system UUIDs always fireable as actions even with no listening rule
+ * (hardcoded Sauna/IR handlers). Keep in sync with core.event_catalog.FIRE_ALWAYS_SYSTEM_UUIDS.
+ */
+const BLOCKY_FIRE_ALWAYS_SYSTEM_IDS = new Set([
+    "39120e7f-93e2-46ba-af70-9b6d7bf08df3", // SAUNA_ON
+    "08b79199-86aa-4a1e-a29c-20ef2eb74e98", // SAUNA_OFF
+    "056c3ade-659a-49e0-87f2-2c60e84ca792", // IR_ON
+    "a97bba4d-78d3-4ce2-b134-fff36c2cd88c"  // IR_OFF
+]);
+
+/** localStorage key for Library sort mode (kind | name). */
+const BLOCKY_LIBRARY_SORT_KEY = "blockyLibrarySortMode";
+
+/** Resolve catalog event id → picker/UI label (wire still stores UUID). */
+function blockyEventLabel(eventId) {
+    const id = String(eventId || "");
+    if (!id) return "(no event)";
+    const rows = BlockyRT.catalogEvents || [];
+    const hit = rows.find((r) => r && String(r.id) === id);
+    // Catalog name only — library/dropdown badges already mark origin (no "system:" prefix).
+    if (hit && hit.name) return String(hit.name);
+    return id;
 }
 
-function blockyScheduleWindowHint(fam) {
-    const edges = BLOCKY_SCHEDULE_WINDOW_EDGES[fam];
-    if (!edges) return "";
-    const a = blockyEdgeShort(edges[0]);
-    const b = blockyEdgeShort(edges[1]);
-    if (fam === "blinds") {
-        return `Fires twice: ${a} (clamped), then ${b} (clamped). Not raw sunrise/sunset.`;
-    }
-    if (fam === "twilight_morning" || fam === "twilight_evening") {
-        return `Fires twice: at ${a}, then at ${b}. Not blinds open/close.`;
-    }
-    if (fam === "sauna" || fam === "ir" || fam === "cinema") {
-        return `Fires on either edge: ${a} or ${b}. Not a clock schedule.`;
-    }
-    return `Fires twice: ${a}, then ${b}.`;
+/** B10D / event-name spirit: trim + casefold for uniqueness compares. */
+function blockyNormalizeNameKey(name) {
+    return String(name || "").trim().toLowerCase();
 }
 
 function blockyEntityMeta(eid) {
@@ -193,16 +194,7 @@ function blockyCaseMatchOptions(caseBlock) {
     let opts;
     try {
         const root = caseBlock.getRootBlock && caseBlock.getRootBlock();
-        if (root && root.type === "b_trig_family") {
-            const fam = root.getFieldValue("FAMILY");
-            const edges = BLOCKY_SCHEDULE_WINDOW_EDGES[fam];
-            if (edges) {
-                opts = [
-                    [`at start (${blockyEdgeShort(edges[0])})`, "ON"],
-                    [`at end (${blockyEdgeShort(edges[1])})`, "OFF"]
-                ];
-            }
-        } else if (root && root.type === "b_trig_device") {
+        if (root && root.type === "b_trig_device") {
             const type = blockyEntityTypeOf(root.getFieldValue("ENTITY"));
             if (type === "blinds" || type === "shutter") {
                 opts = [
@@ -216,9 +208,11 @@ function blockyCaseMatchOptions(caseBlock) {
                 ];
             }
         } else if (root && root.type === "b_trig_or") {
+            // OR roots discriminate via conditions only (no to_state chrome).
             opts = [["(conditions only)", "NONE"]];
-        } else if (root && root.type === "b_trig_event") {
-            opts = [["(run if conditions)", "NONE"]];
+        } else if (root && BLOCKY_EVENT_TRIGGERS.has(root.type)) {
+            // B10B/E: event cases keep conditions; empty = always. No ON/OFF "if" chrome.
+            opts = [["(conditions only)", "NONE"]];
         }
     } catch (e) { /* ignore */ }
     if (!opts) {
@@ -228,6 +222,51 @@ function blockyCaseMatchOptions(caseBlock) {
         ];
     }
     return opts;
+}
+
+/** True when the case's root trigger is event-based (single event or OR of events). */
+function blockyRootIsEventTrigger(root) {
+    if (!root) return false;
+    if (BLOCKY_EVENT_TRIGGERS.has(root.type)) return true;
+    if (root.type !== "b_trig_or") return false;
+    try {
+        let e = root.getInputTargetBlock("EDGES");
+        let hasEvent = false;
+        let hasDevice = false;
+        while (e) {
+            if (BLOCKY_EVENT_EDGES.has(e.type)) hasEvent = true;
+            if (e.type === "b_trig_device_edge") hasDevice = true;
+            e = e.getNextBlock();
+        }
+        return hasEvent && !hasDevice;
+    } catch (err) {
+        return false;
+    }
+}
+
+/**
+ * B10B: hide useless "if"/MATCH chrome on event-triggered cases.
+ * Keeps CONDS + ACTIONS; empty conditions = always run.
+ */
+function blockyCaseUpdateEventChrome(caseBlock) {
+    if (!caseBlock || caseBlock.type !== "b_case") return;
+    let root = null;
+    try { root = caseBlock.getRootBlock && caseBlock.getRootBlock(); } catch (e) { /* ignore */ }
+    const eventTrig = blockyRootIsEventTrigger(root);
+    const matchField = caseBlock.getField("MATCH");
+    const ifLabel = caseBlock.getField("IF_LABEL");
+    try {
+        if (matchField && typeof matchField.setVisible === "function") {
+            matchField.setVisible(!eventTrig);
+        }
+        if (ifLabel && typeof ifLabel.setVisible === "function") {
+            ifLabel.setVisible(!eventTrig);
+        }
+        if (eventTrig && matchField) {
+            matchField.setValue("NONE");
+        }
+        if (typeof caseBlock.render === "function") caseBlock.render();
+    } catch (e) { /* ignore */ }
 }
 
 function blockyEdgeStateOptions(block) {
@@ -975,6 +1014,7 @@ function blockyRefreshCaseMatchLabels(fromBlock) {
                     if (typeof f.forceRerender === "function") f.forceRerender();
                 } catch (e) { /* ignore */ }
             }
+            blockyCaseUpdateEventChrome(cur);
         }
         cur = cur.getNextBlock ? cur.getNextBlock() : null;
     }
@@ -984,8 +1024,11 @@ function defineBlockyBlocks(Blockly, providers) {
     const entityTriggerDd = providers.entityTrigger || providers.entity;
     const entityConditionDd = providers.entityCondition || providers.entity;
     const entityActionDd = providers.entityAction || providers.entity;
-    const familyDd = providers.family;
-    const eventDd = providers.event;
+    // B10E: separate dropdown providers for user vs system (trigger vs fire filters).
+    const eventUserTrigDd = providers.eventUserTrigger || providers.event;
+    const eventSysTrigDd = providers.eventSystemTrigger || providers.event;
+    const eventUserFireDd = providers.eventUserFire || providers.event;
+    const eventSysFireDd = providers.eventSystemFire || providers.event;
 
     Object.keys(Blockly.Blocks).forEach((t) => {
         if (t.startsWith("b_")) delete Blockly.Blocks[t];
@@ -1028,15 +1071,27 @@ function defineBlockyBlocks(Blockly, providers) {
             }
         }
     };
+    // B10E: OR edges for user vs system events (same wire as root triggers).
     Blockly.Blocks.b_trig_event_edge = {
         init() {
             this.appendDummyInput()
-                .appendField("When event")
-                .appendField(new Blockly.FieldDropdown(eventDd), "EVENT");
+                .appendField("When user event")
+                .appendField(new Blockly.FieldDropdown(eventUserTrigDd), "EVENT");
             this.setPreviousStatement(true, "TrigEdge");
             this.setNextStatement(true, "TrigEdge");
             this.setColour(210);
-            this.setTooltip("OR-list edge only — put inside “When any of”.");
+            this.setTooltip("OR-list edge — user catalog event. Put inside “When any of”.");
+        }
+    };
+    Blockly.Blocks.b_trig_event_edge_sys = {
+        init() {
+            this.appendDummyInput()
+                .appendField("When system event")
+                .appendField(new Blockly.FieldDropdown(eventSysTrigDd), "EVENT");
+            this.setPreviousStatement(true, "TrigEdge");
+            this.setNextStatement(true, "TrigEdge");
+            this.setColour(210);
+            this.setTooltip("OR-list edge — system catalog event. Put inside “When any of”.");
         }
     };
     Blockly.Blocks.b_trig_or = {
@@ -1053,49 +1108,38 @@ function defineBlockyBlocks(Blockly, providers) {
             }
         }
     };
+    // B10E: one block type pair — labels say user vs system; dropdowns filter by origin.
     Blockly.Blocks.b_trig_event = {
         init() {
             this.appendDummyInput()
-                .appendField("When event")
-                .appendField(new Blockly.FieldDropdown(eventDd), "EVENT");
+                .appendField("When user event")
+                .appendField(new Blockly.FieldDropdown(eventUserTrigDd), "EVENT");
             this.setNextStatement(true, "Case");
             this.setColour(210);
+            this.setTooltip("Fires when this user catalog event UUID is emitted on the bus.");
         },
         onchange(ev) {
             if (!this.workspace || this.isInFlyout) return;
-            if (ev && (ev.type === "create" || ev.type === "move")) {
+            if (ev && (ev.type === "create" || ev.type === "move"
+                || (ev.type === "change" && ev.name === "EVENT"))) {
                 blockyRefreshCaseMatchLabels(this.getNextBlock());
             }
         }
     };
-    Blockly.Blocks.b_trig_family = {
+    Blockly.Blocks.b_trig_event_sys = {
         init() {
-            const block = this;
             this.appendDummyInput()
-                .appendField("When start or end")
-                .appendField(new Blockly.FieldDropdown(familyDd, (newVal) => {
-                    block.updateScheduleHint_(newVal);
-                    blockyRefreshCaseMatchLabels(block.getNextBlock());
-                    return newVal;
-                }), "FAMILY");
-            this.appendDummyInput("HINT")
-                .appendField(new Blockly.FieldLabel(""), "HINT");
+                .appendField("When system event")
+                .appendField(new Blockly.FieldDropdown(eventSysTrigDd), "EVENT");
             this.setNextStatement(true, "Case");
             this.setColour(210);
-        },
-        updateScheduleHint_(fam) {
-            const hint = this.getField("HINT");
-            if (!hint) return;
-            hint.setValue(blockyScheduleWindowHint(fam || this.getFieldValue("FAMILY")));
+            this.setTooltip("Fires when this system catalog event UUID is emitted on the bus.");
         },
         onchange(ev) {
             if (!this.workspace || this.isInFlyout) return;
-            // Keep hint + case labels in sync after load / move
-            if (!ev || ev.type === "create" || ev.type === "move" || ev.type === "change") {
-                this.updateScheduleHint_(this.getFieldValue("FAMILY"));
-                if (ev && ev.type === "change" && ev.name === "FAMILY") {
-                    blockyRefreshCaseMatchLabels(this.getNextBlock());
-                }
+            if (ev && (ev.type === "create" || ev.type === "move"
+                || (ev.type === "change" && ev.name === "EVENT"))) {
+                blockyRefreshCaseMatchLabels(this.getNextBlock());
             }
         }
     };
@@ -1103,8 +1147,8 @@ function defineBlockyBlocks(Blockly, providers) {
     Blockly.Blocks.b_case = {
         init() {
             const block = this;
-            this.appendDummyInput()
-                .appendField("if")
+            this.appendDummyInput("MATCH_ROW")
+                .appendField(new Blockly.FieldLabel("if"), "IF_LABEL")
                 .appendField(new Blockly.FieldDropdown(() => blockyCaseMatchOptions(block)), "MATCH");
             this.appendDummyInput().appendField("conditions");
             this.appendStatementInput("CONDS").setCheck("Condition");
@@ -1127,6 +1171,7 @@ function defineBlockyBlocks(Blockly, providers) {
                         if (typeof f.forceRerender === "function") f.forceRerender();
                     } catch (e) { /* ignore */ }
                 }
+                blockyCaseUpdateEventChrome(this);
             }
         }
     };
@@ -1214,11 +1259,25 @@ function defineBlockyBlocks(Blockly, providers) {
     Blockly.Blocks.b_action_event = {
         init() {
             this.appendDummyInput()
-                .appendField("fire event")
-                .appendField(new Blockly.FieldDropdown(eventDd), "EVENT");
+                .appendField("Fire user event")
+                .appendField(new Blockly.FieldDropdown(eventUserFireDd), "EVENT");
             this.setPreviousStatement(true, "Action");
             this.setNextStatement(true, "Action");
             this.setColour(290);
+            this.setTooltip("Emit user catalog event UUID on the bus (no explorer confirm on fire-action).");
+        }
+    };
+    Blockly.Blocks.b_action_event_sys = {
+        init() {
+            this.appendDummyInput()
+                .appendField("Fire system event")
+                .appendField(new Blockly.FieldDropdown(eventSysFireDd), "EVENT");
+            this.setPreviousStatement(true, "Action");
+            this.setNextStatement(true, "Action");
+            this.setColour(290);
+            this.setTooltip(
+                "Emit system catalog event. Unused system events are excluded except Sauna/IR ON/OFF."
+            );
         }
     };
 }
@@ -1235,7 +1294,7 @@ function blockyToolboxDefinition(_presentTypes) {
                 { kind: "block", type: "b_trig_device" },
                 { kind: "block", type: "b_trig_or" },
                 { kind: "block", type: "b_trig_event" },
-                { kind: "block", type: "b_trig_family" }
+                { kind: "block", type: "b_trig_event_sys" }
             ]
         }
     ];
@@ -1255,7 +1314,8 @@ function blockyToolboxDefinition(_presentTypes) {
             colour: "#6B8CAE",
             contents: [
                 { kind: "block", type: "b_trig_device_edge" },
-                { kind: "block", type: "b_trig_event_edge" }
+                { kind: "block", type: "b_trig_event_edge" },
+                { kind: "block", type: "b_trig_event_edge_sys" }
             ]
         });
     }
@@ -1281,7 +1341,8 @@ function blockyToolboxDefinition(_presentTypes) {
             colour: "#A65C81",
             contents: [
                 { kind: "block", type: "b_action_device" },
-                { kind: "block", type: "b_action_event" }
+                { kind: "block", type: "b_action_event" },
+                { kind: "block", type: "b_action_event_sys" }
             ]
         }
     );
@@ -1300,12 +1361,127 @@ const BlockyRT = {
     pendingCreateRootId: null,
     resizeObserver: null,
     windowResize: null,
+    /** rAF id for debounced workspace resize (grey scrollbar guard). */
+    resizeRaf: null,
+    /** Late setTimeout pass after flex/CSS settle. */
+    resizeTimer: null,
+    /** rAF id for post-edit scrollbar show/hide sync. */
+    scrollSyncRaf: null,
     app: null,
     colorPicker: null,
     pendingRichOpts: null,
     richTimer: null,
-    suppressHueWheel: false
+    suppressHueWheel: false,
+    /** Full GET /api/events rows (system + user). Pickers filter from this. */
+    catalogEvents: []
 };
+
+/**
+ * Strip Tailwind-ish max-size on Blockly SVGs (skews metrics → ghost scrollbars).
+ */
+function blockyClearSvgMetricSkews(host) {
+    if (!host) return;
+    host.querySelectorAll("svg").forEach((svg) => {
+        svg.style.maxWidth = "none";
+        svg.style.maxHeight = "none";
+    });
+}
+
+/**
+ * Paired h+v scrollbars never auto-hide in Blockly when content fits — the
+ * background track stays as a grey bar. Hide each axis when not needed.
+ * (Scrollbar.setVisible throws on paired bars; use setVisibleInternal.)
+ */
+function blockySyncScrollbarVisibility(ws) {
+    const pair = ws && ws.scrollbar;
+    if (!pair) return;
+    let m;
+    try {
+        m = ws.getMetrics();
+    } catch (e) {
+        return;
+    }
+    if (!m) return;
+    // Slack for float rounding so a 1px overflow does not keep a dead track.
+    const slack = 2;
+    const needH = (m.scrollWidth || m.contentWidth || 0) > (m.viewWidth || 0) + slack;
+    const needV = (m.scrollHeight || m.contentHeight || 0) > (m.viewHeight || 0) + slack;
+    const h = pair.hScroll;
+    const v = pair.vScroll;
+    try {
+        if (h && typeof h.setVisibleInternal === "function") h.setVisibleInternal(needH);
+        if (v && typeof v.setVisibleInternal === "function") v.setVisibleInternal(needV);
+        // Corner square between bars — hide when either axis is off.
+        if (pair.corner_) {
+            pair.corner_.setAttribute("display", needH && needV ? "block" : "none");
+        }
+    } catch (e) { /* ignore */ }
+}
+
+/** Immediate resize + scrollbar sync (host must be laid out and ≥50px). */
+function blockyApplyWorkspaceResize() {
+    const ws = BlockyRT.ws;
+    if (!ws || !window.Blockly) return;
+    const host = document.getElementById("blocklyWorkspace");
+    if (!host) return;
+    if ((host.offsetWidth || 0) < 50 || (host.offsetHeight || 0) < 50) return;
+    try {
+        const inj = host.querySelector(".injectionDiv");
+        if (inj) {
+            inj.style.position = "absolute";
+            inj.style.left = "0";
+            inj.style.top = "0";
+            inj.style.right = "0";
+            inj.style.bottom = "0";
+            // Do not force width/height % — that parks scrollbars over the canvas.
+            inj.style.removeProperty("width");
+            inj.style.removeProperty("height");
+        }
+        blockyClearSvgMetricSkews(host);
+        Blockly.svgResize(ws);
+        if (ws.scrollbar && typeof ws.scrollbar.resize === "function") ws.scrollbar.resize();
+        blockySyncScrollbarVisibility(ws);
+    } catch (e) { /* ignore */ }
+}
+
+/**
+ * Debounced resize: double-rAF for Alpine/flex settle, then a short late pass.
+ * Single entry point so FS alerts / park / window resize do not thrash metrics.
+ */
+function blockyScheduleWorkspaceResize() {
+    if (BlockyRT.resizeRaf) {
+        cancelAnimationFrame(BlockyRT.resizeRaf);
+        BlockyRT.resizeRaf = null;
+    }
+    if (BlockyRT.resizeTimer) {
+        clearTimeout(BlockyRT.resizeTimer);
+        BlockyRT.resizeTimer = null;
+    }
+    BlockyRT.resizeRaf = requestAnimationFrame(() => {
+        BlockyRT.resizeRaf = requestAnimationFrame(() => {
+            BlockyRT.resizeRaf = null;
+            blockyApplyWorkspaceResize();
+            BlockyRT.resizeTimer = setTimeout(() => {
+                BlockyRT.resizeTimer = null;
+                blockyApplyWorkspaceResize();
+            }, 50);
+        });
+    });
+}
+
+/** Light pass after blocks move/grow — re-show bars we hid when content now overflows. */
+function blockyScheduleScrollbarSync() {
+    if (BlockyRT.scrollSyncRaf) cancelAnimationFrame(BlockyRT.scrollSyncRaf);
+    BlockyRT.scrollSyncRaf = requestAnimationFrame(() => {
+        BlockyRT.scrollSyncRaf = null;
+        const ws = BlockyRT.ws;
+        if (!ws) return;
+        try {
+            if (ws.scrollbar && typeof ws.scrollbar.resize === "function") ws.scrollbar.resize();
+            blockySyncScrollbarVisibility(ws);
+        } catch (e) { /* ignore */ }
+    });
+}
 
 function blockyWs() {
     return BlockyRT.ws;
@@ -1332,7 +1508,7 @@ function blockyFingerprint(block) {
             }
             return `act:device:${eid}:${block.getFieldValue("STATE")}`;
         }
-        if (t === "b_action_event") return `act:event:${block.getFieldValue("EVENT")}`;
+        if (BLOCKY_EVENT_ACTIONS.has(t)) return `act:event:${block.getFieldValue("EVENT")}`;
         // Cases and OR edges are allowed as multiples — no fingerprint
     } catch (e) { /* ignore */ }
     return "";
@@ -1478,11 +1654,17 @@ function blockyOnChange(ev) {
     // Connect or disconnect (not free XY nudges — those are not in saved JSON).
     const isMoveRelink = (t === Events.BLOCK_MOVE || t === "move") && (!!ev.newParentId || !!ev.oldParentId);
     const isDelete = t === Events.BLOCK_DELETE || t === "delete";
-    if (!isCreate && !isChange && !isMoveRelink && !isDelete) return;
+    const isMoveAny = t === Events.BLOCK_MOVE || t === "move";
+    if (!isCreate && !isChange && !isMoveRelink && !isDelete) {
+        // Free XY drag still changes content bounds — keep scrollbar visibility honest.
+        if (isMoveAny) blockyScheduleScrollbarSync();
+        return;
+    }
 
     // Mark dirty immediately. The uniqueness timer below can be cancelled (e.g. by
     // loadV2IntoBlockly → blockyCancelUniqueness) and must not be the only dirty path.
     if (BlockyRT.app) BlockyRT.app.markEditorDirty();
+    blockyScheduleScrollbarSync();
 
     if (isCreate) {
         const ws = blockyWs();
@@ -1531,10 +1713,6 @@ function blockyOnChange(ev) {
         }
         if (BlockyRT.app) {
             BlockyRT.app.blocklyUiTick = (BlockyRT.app.blocklyUiTick || 0) + 1;
-            if (!BlockyRT.app.canShowOnDashboard) {
-                BlockyRT.app.editor.scene = false;
-                BlockyRT.app.editor.require_confirmation = false;
-            }
         }
     }, 0);
 }
@@ -1591,6 +1769,18 @@ function blockyDestroyWorkspace() {
         BlockyRT.richTimer = null;
     }
     BlockyRT.pendingRichOpts = null;
+    if (BlockyRT.resizeRaf) {
+        cancelAnimationFrame(BlockyRT.resizeRaf);
+        BlockyRT.resizeRaf = null;
+    }
+    if (BlockyRT.resizeTimer) {
+        clearTimeout(BlockyRT.resizeTimer);
+        BlockyRT.resizeTimer = null;
+    }
+    if (BlockyRT.scrollSyncRaf) {
+        cancelAnimationFrame(BlockyRT.scrollSyncRaf);
+        BlockyRT.scrollSyncRaf = null;
+    }
     if (BlockyRT.resizeObserver) {
         try { BlockyRT.resizeObserver.disconnect(); } catch (e) { /* ignore */ }
         BlockyRT.resizeObserver = null;
@@ -1616,13 +1806,13 @@ function blockyOrphanLeaves(ws) {
             return !(prev && prev.isConnected());
         }
         // trig edges may be inside OR
-        if (b.type === "b_trig_device_edge" || b.type === "b_trig_event_edge") {
+        if (b.type === "b_trig_device_edge" || BLOCKY_EVENT_EDGES.has(b.type)) {
             const p = b.getParent();
             if (p && p.type === "b_trig_or") return false;
             return true; // must live inside “When any of”
         }
         if (b.type === "b_condition_device" || b.type === "b_condition_time"
-            || b.type === "b_action_device" || b.type === "b_action_event") {
+            || b.type === "b_action_device" || BLOCKY_EVENT_ACTIONS.has(b.type)) {
             // Statement stacks: previousConnection is authoritative (getParent can lag).
             const prev = b.previousConnection;
             return !(prev && prev.isConnected());
@@ -1659,6 +1849,14 @@ function blockyApp() {
         registryCheckMessage: "",
         registryCheckOk: null,
         filterText: "",
+        /** Exclusive: true ⇒ only disabled rows; false ⇒ only enabled (default).
+         * Applies to UE/UR/SR/D only — SE is never disabled and ignores this toggle. */
+        showDisabledOnly: false,
+        /** Kind checkboxes — default all on (UE UR SE SR D). */
+        libraryKindFilter: { ue: true, ur: true, se: true, sr: true, d: true },
+        /** 'kind' = UE→UR→SE→SR→D then name; 'name' = name only. Persisted in localStorage. */
+        librarySortMode: (typeof localStorage !== "undefined"
+            && localStorage.getItem(BLOCKY_LIBRARY_SORT_KEY) === "name") ? "name" : "kind",
         automations: [],
         selectedRule: null,
         entityOptions: [],
@@ -1673,42 +1871,67 @@ function blockyApp() {
         suppressDirtyUntil: 0,
         pendingNav: null,
         blocklyFullscreen: false,
-            blocklySchemaVersion: 44,
+        // Bump when block definitions change (B10E: user/system When+Fire twins).
+        blocklySchemaVersion: 51,
         blocklyUiTick: 0,
-        eventFamilies: ["blinds", "twilight_evening", "twilight_morning", "sauna", "ir", "cinema"],
-        eventFamilyLabels: {
-            blinds: "Blinds open & close",
-            twilight_evening: "Twilight evening: sunset & evening-off",
-            twilight_morning: "Twilight morning: morning-on & sunrise",
-            sauna: "Sauna on & off",
-            ir: "IR on & off",
-            cinema: "Cinema on & off"
-        },
-        curatedEvents: [
-            "BLINDS_OPEN_TRIGGER", "BLINDS_CLOSE_TRIGGER",
-            "MORNING_ON_TRIGGER", "SUNRISE_TRIGGER",
-            "SUNSET_TRIGGER", "EVENING_OFF_TRIGGER",
-            "SAUNA_ON", "SAUNA_OFF", "IR_ON", "IR_OFF",
-            "SCENE_CINEMA_ON", "SCENE_CINEMA_OFF", "SCENE_ALL_OFF", "SCENE_GOCOSY",
-            "SCENE_GV_OFF", "SCENE_VERDIEP1_OFF", "SCENE_VERDIEP2_OFF"
-        ],
         hardDenyEntityIds: ["switch.safety.safety_wisc_5v"],
+        /**
+         * B10E Library rows: UE (user events) + UR/SR/D rules + SE (all pickable
+         * system catalog events, view-only). No in-memory shells — create SR via New rule.
+         */
+        libraryRows: [],
+        /** @deprecated kept as empty alias; rebuildLibraryRows is authoritative. */
+        orphanEventRows: [],
+        /** Delete-blocked modal copy when DELETE /api/events returns 409. */
+        eventDeleteBlockedMessage: "",
+        /**
+         * Show-usages modal: rule names that listen to and/or fire the current
+         * event (UE form = both; UR disable-blocked = fire-refs of its trigger).
+         */
+        fireRefRuleNames: [],
         editor: {
             id: "",
             name: "",
-            scene: false,
-            require_confirmation: false,
-            ruleJson: "{}"
+            // B10B: per-rule enable (engine skips when false). Default true.
+            enabled: true,
+            ruleJson: "{}",
+            // UE-form fields (user event — Appear on explorer / confirm / enabled).
+            eventShowOnDashboard: false,
+            eventRequireConfirmation: false,
+            eventEnabled: true
         },
 
-        get filteredRules() {
+        /**
+         * Left Library = UE + UR + SE + SR + D, filtered by text / kind / Show disabled/unused XOR.
+         * UE/UR/SR/D: OFF = enabled only; ON = disabled only.
+         * SE: OFF = used only (has listening SR); ON = unused only (no listening SR).
+         */
+        get filteredLibrary() {
             const q = this.filterText.trim().toLowerCase();
-            if (!q) return this.automations;
-            return this.automations.filter((r) => {
-                const name = (r.name || "").toLowerCase();
-                const id = String(r.id || "").toLowerCase();
-                return name.includes(q) || id.includes(q);
+            const kinds = this.libraryKindFilter || {};
+            const showDis = !!this.showDisabledOnly;
+            // Companion SR presence — SE used/unused XOR.
+            const seListeners = this._systemEventsWithListeners();
+            const rows = (this.libraryRows || []).filter((r) => {
+                if (!r) return false;
+                const k = this.libraryKind(r);
+                if (k && kinds[k] === false) return false;
+                if (k === "se") {
+                    // Exclusive: used view XOR unused view (SE never "disabled").
+                    const sid = String(r.id || "");
+                    const unused = !seListeners.has(sid);
+                    if (showDis ? !unused : unused) return false;
+                } else {
+                    const isDis = this.libraryRowIsDisabled(r);
+                    // Exclusive: enabled view XOR disabled view (UE/UR/SR/D).
+                    if (showDis ? !isDis : isDis) return false;
+                }
+                if (!q) return true;
+                const label = this.libraryRowLabel(r).toLowerCase();
+                const id = String(r.id || r.systemEventId || "").toLowerCase();
+                return label.includes(q) || id.includes(q);
             });
+            return this._sortLibraryRows(rows);
         },
 
         /** Exclusive like Device Explorer: ON = only soft-hidden; OFF = only non-hidden. */
@@ -1719,69 +1942,290 @@ function blockyApp() {
         },
 
         get showBlocklyWorkspace() {
+            // UE / SE catalog rows have no Blockly canvas.
+            if (this.selectedRule && (this.selectedRule.isEventRow || this.selectedRule.isSystemEventRow)) {
+                return false;
+            }
             return !!(this.selectedRule && this.editorMode === "blockly");
         },
 
-        /** Dashboard scenes need an event trigger (device rules cannot appear as buttons). */
-        triggerAllowsDashboard(trigger) {
-            if (!trigger) return false;
-            if (Array.isArray(trigger)) {
-                if (!trigger.length) return false;
-                return trigger.every((t) => t && t.event && !t.entity_id);
+        /** Event id for disable locks / Show usages (UE form id, or UR rule's user-event trigger). */
+        get usagesEventId() {
+            if (this.selectedRule && this.selectedRule.isEventRow) {
+                return String(this.editor.id || this.selectedRule.id || "");
             }
-            return !!(trigger.event && !trigger.entity_id);
+            if (this.selectedRule && this.selectedRule.isSystemEventRow) {
+                return String(this.selectedRule.id || this.editor.id || "");
+            }
+            let trigger = this.selectedRule && this.selectedRule.trigger;
+            if (!trigger) {
+                try { trigger = JSON.parse(this.editor.ruleJson || "{}").trigger; }
+                catch (e) { trigger = null; }
+            }
+            const evId = this._primaryTriggerEventId(trigger);
+            if (!evId) return "";
+            if (this._eventOrigin(evId) === "user") return evId;
+            return "";
         },
 
-        get canShowOnDashboard() {
-            void this.blocklyUiTick;
-            if (this.editorMode === "blockly" && blockyWs()) {
-                try {
-                    const root = blockyWs().getTopBlocks(false).find((b) => BLOCKY_ROOT_TRIGGERS.has(b.type));
-                    if (root) {
-                        if (root.type === "b_trig_event" || root.type === "b_trig_family") return true;
-                        if (root.type === "b_trig_or") {
-                            let e = root.getInputTargetBlock("EDGES");
-                            let hasEvent = false;
-                            let hasDevice = false;
-                            while (e) {
-                                if (e.type === "b_trig_event_edge") hasEvent = true;
-                                if (e.type === "b_trig_device_edge") hasDevice = true;
-                                e = e.getNextBlock();
-                            }
-                            return hasEvent && !hasDevice;
-                        }
-                        return false;
-                    }
-                } catch (e) { /* ignore */ }
-            }
-            try {
-                const rule = JSON.parse(this.editor.ruleJson || "{}");
-                return this.triggerAllowsDashboard(rule.trigger);
-            } catch (e) {
+        /**
+         * True when current UE cannot be disabled: any rule *listens* (trigger)
+         * OR *fires* it. Both directions block — see `_usageRuleNamesForEvent`.
+         */
+        get eventDisableBlocked() {
+            const id = this.usagesEventId;
+            if (!id || !(this.selectedRule && this.selectedRule.isEventRow)) return false;
+            return this._usageRuleNamesForEvent(id).length > 0;
+        },
+
+        /** True when current UR cannot be disabled (its trigger UE is fire-referenced). */
+        get ruleDisableBlocked() {
+            if (!this.selectedRule || this.selectedRule.isEventRow || this.selectedRule.isSystemEventRow) {
                 return false;
             }
+            if (this.libraryKind(this.selectedRule) !== "ur") return false;
+            const id = this.usagesEventId;
+            if (!id) return false;
+            return this._fireRefNamesForEvent(id).length > 0;
         },
 
-        /** List badges: only dashboard (kiosk scene) and event (incl. family windows). */
-        ruleListKind(rule) {
-            if (!rule || rule.isDraft) return null;
-            if (rule.scene) return "dashboard";
-            let t = rule.trigger;
-            if (Array.isArray(t) && t.length === 1) t = t[0];
-            // OR of events still counts as event-triggered
-            if (Array.isArray(t)) {
-                if (t.length && t.every((x) => x && x.event && !x.entity_id)) return "event";
-                return null;
+        /** Listening SR name for the open SE catalog row (if any). */
+        get selectedSeListenerName() {
+            if (!this.selectedRule || !this.selectedRule.isSystemEventRow) return "";
+            const eid = String(this.selectedRule.id || "");
+            if (!eid) return "";
+            for (const rule of this.automations || []) {
+                if (!rule) continue;
+                if (this._primaryTriggerEventId(rule.trigger) === eid) {
+                    return String(rule.listName || rule.name || rule.id || "");
+                }
             }
-            if (t && t.event && !t.entity_id) return "event";
-            return null;
+            return "";
         },
 
-        ruleListBadgeClass(rule) {
-            const k = this.ruleListKind(rule);
-            if (k === "dashboard") return "badge-secondary";
-            if (k === "event") return "badge-warning";
+        toggleLibrarySortMode() {
+            this.librarySortMode = this.librarySortMode === "name" ? "kind" : "name";
+            try { localStorage.setItem(BLOCKY_LIBRARY_SORT_KEY, this.librarySortMode); }
+            catch (e) { /* ignore */ }
+        },
+
+        libraryRowKey(row) {
+            if (!row) return "nil";
+            if (row.isSystemEventRow) return `se:${row.id}`;
+            if (row.isEventRow) return `ue:${row.id || "draft"}`;
+            return `rule:${row.id || row.name || "x"}`;
+        },
+
+        libraryRowLabel(row) {
+            if (!row) return "(unnamed)";
+            if (row.listName) return row.listName;
+            return row.name || "(unnamed)";
+        },
+
+        /** Disabled for exclusive Show disabled/unused filter (UE/UR/SR/D). SE uses unused XOR separately. */
+        libraryRowIsDisabled(row) {
+            if (!row) return false;
+            if (row.isSystemEventRow || this.libraryKind(row) === "se") return false;
+            if (row.isEventRow) return row.enabled === false;
+            return row.enabled === false;
+        },
+
+        /**
+         * B10E libraryKind: ue | ur | se | sr | d.
+         * UE = user event catalog; UR = user-event rule; SE = system event catalog;
+         * SR = system-event rule; D = device-triggered rule.
+         */
+        libraryKind(rule) {
+            if (!rule) return null;
+            if (rule.isDraft && !rule.isEventRow && !rule.isSystemEventRow) return null;
+            if (rule.libraryKind) return rule.libraryKind;
+            if (rule.isEventRow) return "ue";
+            if (rule.isSystemEventRow) return "se";
+            const evId = this._primaryTriggerEventId(rule.trigger);
+            if (evId) {
+                if (this._eventOrigin(evId) === "system") return "sr";
+                return "ur";
+            }
+            return "d";
+        },
+
+        libraryRowButtonClass(row) {
+            const selected = this._isSelectedLibraryRow(row);
+            const parts = ["w-full", "btn", "btn-sm", "justify-start", "text-left", "normal-case", "gap-1.5", "px-2"];
+            if (selected) parts.push("btn-warning");
+            else if (!(this.selectedRule && this.selectedRule.isDraft && !this.selectedRule.isEventRow
+                && !this.selectedRule.isSystemEventRow)) {
+                parts.push("btn-ghost");
+            }
+            if (this.libraryRowIsDisabled(row)) parts.push("opacity-40");
+            return parts.join(" ");
+        },
+
+        _isSelectedLibraryRow(row) {
+            const sel = this.selectedRule;
+            if (!sel || !row) return false;
+            if (sel.isSystemEventRow && row.isSystemEventRow) {
+                return String(sel.id) === String(row.id);
+            }
+            if (sel.isEventRow && row.isEventRow) {
+                if (sel.isDraft && row.isDraft) return true;
+                return !!sel.id && sel.id === row.id;
+            }
+            if (sel.isDraft && !sel.isEventRow) return false;
+            if (sel.isSystemEventRow || row.isSystemEventRow || sel.isEventRow || row.isEventRow) {
+                return false;
+            }
+            return !!sel.id && sel.id === row.id;
+        },
+
+        _sortLibraryRows(rows) {
+            const kindRank = { ue: 0, ur: 1, se: 2, sr: 3, d: 4 };
+            const mode = this.librarySortMode;
+            const nameKey = (r) => String(this.libraryRowLabel(r) || "").toLowerCase();
+            return rows.slice().sort((a, b) => {
+                if (mode !== "name") {
+                    const ka = kindRank[this.libraryKind(a)] ?? 9;
+                    const kb = kindRank[this.libraryKind(b)] ?? 9;
+                    if (ka !== kb) return ka - kb;
+                }
+                return nameKey(a).localeCompare(nameKey(b), undefined, { sensitivity: "base" });
+            });
+        },
+
+        _primaryTriggerEventId(trigger) {
+            let t = trigger;
+            if (Array.isArray(t) && t.length === 1) t = t[0];
+            if (Array.isArray(t)) {
+                const first = (t || []).find((x) => x && x.event && !x.entity_id);
+                return first ? String(first.event) : "";
+            }
+            if (t && t.event && !t.entity_id) return String(t.event);
             return "";
+        },
+
+        /** Catalog origin for an event UUID (`user` | `system` | ""). */
+        _eventOrigin(eventId) {
+            const id = String(eventId || "");
+            if (!id) return "";
+            const row = (BlockyRT.catalogEvents || []).find((r) => r && String(r.id) === id);
+            return row ? String(row.origin || "user") : "";
+        },
+
+        /** Catalog display name for an event UUID (empty if unknown). */
+        _catalogEventName(eventId) {
+            const id = String(eventId || "");
+            if (!id) return "";
+            const row = (BlockyRT.catalogEvents || []).find((r) => r && String(r.id) === id);
+            return row && row.name ? String(row.name) : "";
+        },
+
+        /**
+         * SR invariant (FE): force payload.name = companion SE catalog name.
+         * Backend also overwrites on POST/PUT so YAML cannot drift.
+         */
+        _bindSrNameToSeCatalog(payload) {
+            if (!payload || typeof payload !== "object") return payload;
+            const evId = this._primaryTriggerEventId(payload.trigger);
+            if (!evId || this._eventOrigin(evId) !== "system") return payload;
+            const catName = this._catalogEventName(evId);
+            if (catName) {
+                payload.name = catName;
+                this.editor.name = catName;
+            }
+            return payload;
+        },
+
+        /** Rule names whose trigger listens to this event id (When user/system event). */
+        _triggerRefNamesForEvent(eventId) {
+            const id = String(eventId || "");
+            if (!id) return [];
+            const names = [];
+            for (const rule of this.automations || []) {
+                if (!rule) continue;
+                if (this._primaryTriggerEventId(rule.trigger) === id) {
+                    names.push(String(rule.name || rule.id || "(unnamed)"));
+                }
+            }
+            return names;
+        },
+
+        /** Rule names that fire this event as an action (Fire user/system event). */
+        _fireRefNamesForEvent(eventId) {
+            const id = String(eventId || "");
+            if (!id) return [];
+            const names = [];
+            for (const rule of this.automations || []) {
+                if (!rule) continue;
+                let hit = false;
+                for (const c of rule.cases || []) {
+                    for (const a of c.actions || []) {
+                        if (a && a.event && !a.entity_id && String(a.event) === id) {
+                            hit = true;
+                            break;
+                        }
+                    }
+                    if (hit) break;
+                }
+                if (hit) names.push(String(rule.name || rule.id || "(unnamed)"));
+            }
+            return names;
+        },
+
+        /**
+         * Unique rule names that listen to OR fire this event.
+         * Disable of an E is blocked when either side is non-empty: a listening U
+         * must not keep a disabled catalog target, and Fire-user-event actions must
+         * not target a disabled E (same product rule as backend `rule_refs_to_event`).
+         */
+        _usageRuleNamesForEvent(eventId) {
+            const id = String(eventId || "");
+            if (!id) return [];
+            const seen = new Set();
+            const out = [];
+            for (const nm of [
+                ...this._triggerRefNamesForEvent(id),
+                ...this._fireRefNamesForEvent(id)
+            ]) {
+                if (seen.has(nm)) continue;
+                seen.add(nm);
+                out.push(nm);
+            }
+            return out;
+        },
+
+        /** Set of system event UUIDs that already have a listening rule. */
+        _systemEventsWithListeners() {
+            const out = new Set();
+            for (const rule of this.automations || []) {
+                if (!rule) continue;
+                const evId = this._primaryTriggerEventId(rule.trigger);
+                if (evId && this._eventOrigin(evId) === "system") out.add(evId);
+            }
+            return out;
+        },
+
+        onExplorerFlagChanged() {
+            // Invariant: explorer OFF while confirm ON → force confirm OFF.
+            if (!this.editor.eventShowOnDashboard && this.editor.eventRequireConfirmation) {
+                this.editor.eventRequireConfirmation = false;
+            }
+            this.markEditorDirty();
+        },
+
+        showEventUsagesModal() {
+            const id = this.usagesEventId;
+            // UE form: listeners + fire-refs. UR disable-blocked: fire-refs of trigger only.
+            if (this.selectedRule && this.selectedRule.isEventRow) {
+                this.fireRefRuleNames = this._usageRuleNamesForEvent(id);
+            } else {
+                this.fireRefRuleNames = this._fireRefNamesForEvent(id);
+            }
+            const dlg = document.getElementById("event_usages_modal");
+            if (dlg) dlg.showModal();
+        },
+
+        closeEventUsagesModal() {
+            document.getElementById("event_usages_modal")?.close();
         },
 
         deviceTypeLabel(type, origin, idx) {
@@ -1799,7 +2243,7 @@ function blockyApp() {
             }
             const map = {
                 blinds: "blinds", switch: "switch", light: "light", hue: "light",
-                scene: "scene", motion: "motion"
+                motion: "motion"
             };
             return map[t] || t || "device";
         },
@@ -1809,8 +2253,9 @@ function blockyApp() {
             return `${opt.name} · ${this.deviceTypeLabel(opt.type, opt.origin, opt.idx)}`;
         },
 
-        eventFamilyLabel(fam) {
-            return this.eventFamilyLabels[fam] || fam;
+        /** Alpine-friendly wrapper for catalog UUID → name. */
+        eventLabel(eventId) {
+            return blockyEventLabel(eventId);
         },
 
         markEditorDirty() {
@@ -1894,6 +2339,7 @@ function blockyApp() {
             if (!action) return;
             if (action.type === "select") this._doSelectRule(action.rule);
             else if (action.type === "new") this._doNewRule();
+            else if (action.type === "newUserEvent") this._doNewUserEvent();
             else if (action.type === "href" && action.url) window.location.href = action.url;
             else if (action.type === "reload") this.loadV2IntoBlockly();
             else if (action.type === "logout") this.logout();
@@ -1947,36 +2393,18 @@ function blockyApp() {
         },
 
         resizeBlockly() {
-            const ws = blockyWs();
-            if (!ws || !window.Blockly) return;
-            const host = this.blocklyHostReady();
-            if (!host) return;
-            try {
-                const inj = host.querySelector(".injectionDiv");
-                if (inj) {
-                    inj.style.position = "absolute";
-                    inj.style.left = "0";
-                    inj.style.top = "0";
-                    inj.style.right = "0";
-                    inj.style.bottom = "0";
-                    // Do not force width/height % — that skews Blockly metrics and
-                    // can park the vertical scrollbar as a gray bar over the canvas.
-                    inj.style.removeProperty("width");
-                    inj.style.removeProperty("height");
-                }
-                Blockly.svgResize(ws);
-                if (ws.scrollbar && typeof ws.scrollbar.resize === "function") ws.scrollbar.resize();
-            } catch (e) { /* ignore */ }
+            // Debounced settle path — see blockyScheduleWorkspaceResize.
+            blockyScheduleWorkspaceResize();
         },
 
         observeBlocklyHost(host) {
             if (BlockyRT.resizeObserver) BlockyRT.resizeObserver.disconnect();
             if (typeof ResizeObserver !== "undefined") {
-                BlockyRT.resizeObserver = new ResizeObserver(() => this.resizeBlockly());
+                BlockyRT.resizeObserver = new ResizeObserver(() => blockyScheduleWorkspaceResize());
                 BlockyRT.resizeObserver.observe(host);
             }
             if (!BlockyRT.windowResize) {
-                BlockyRT.windowResize = () => this.resizeBlockly();
+                BlockyRT.windowResize = () => blockyScheduleWorkspaceResize();
                 window.addEventListener("resize", BlockyRT.windowResize);
             }
         },
@@ -1992,7 +2420,7 @@ function blockyApp() {
 
         toggleBlocklyFullscreen() {
             this.blocklyFullscreen = !this.blocklyFullscreen;
-            requestAnimationFrame(() => requestAnimationFrame(() => this.resizeBlockly()));
+            blockyScheduleWorkspaceResize();
         },
 
         getAuthHeaders() {
@@ -2186,27 +2614,80 @@ function blockyApp() {
             return out;
         },
 
-        blocklyEventDropdownOptions() {
-            const opts = this.curatedEvents.map((e) => [blockyEventLabel(e), e]);
-            const seen = new Set(this.curatedEvents);
+        /**
+         * B10E event pickers — filter by origin (user|system) and role (trigger|fire).
+         * Trigger system: unused SEs only (sticky keeps current when editing SR).
+         * Fire system: listeners OR FIRE_ALWAYS only.
+         * Sticky: events already on the open rule stay listed (round-trip safe).
+         */
+        blocklyEventDropdownOptions(optsIn) {
+            const originWant = (optsIn && optsIn.origin) || "";
+            const role = (optsIn && optsIn.role) || "trigger";
+            const catalog = BlockyRT.catalogEvents || [];
+            const listeners = this._systemEventsWithListeners();
+            let pickable = catalog.filter((r) => {
+                if (!r || !r.id) return false;
+                if (BLOCKY_NON_PICKABLE_EVENT_IDS.has(String(r.id))) return false;
+                const origin = String(r.origin || "user");
+                if (originWant && origin !== originWant) return false;
+                if (origin === "system") {
+                    const id = String(r.id);
+                    if (role === "fire") {
+                        // Unused system not fireable except Sauna/IR ON/OFF always.
+                        return BLOCKY_FIRE_ALWAYS_SYSTEM_IDS.has(id) || listeners.has(id);
+                    }
+                    // New SR: only unused SEs; editing keeps current via sticky below.
+                    return !listeners.has(id);
+                }
+                // User: enabled only (disabled stay sticky if already on rule).
+                return r.enabled !== false;
+            });
+            const nameKey = (r) => String(r.name || r.id || "");
+            pickable.sort((a, b) => nameKey(a).localeCompare(nameKey(b), undefined, { sensitivity: "base" }));
+            const opts = pickable.map((r) => [blockyEventLabel(r.id), String(r.id)]);
+            const seen = new Set(opts.map((o) => o[1]));
+            const addSticky = (evId) => {
+                const id = String(evId || "");
+                if (!id || seen.has(id)) return;
+                // Sticky must still match origin filter when set.
+                if (originWant) {
+                    const o = this._eventOrigin(id);
+                    if (o && o !== originWant) return;
+                }
+                seen.add(id);
+                opts.push([blockyEventLabel(id), id]);
+            };
             try {
                 const rule = JSON.parse(this.editor.ruleJson || "{}");
-                const addEv = (ev) => {
-                    if (!ev || seen.has(ev)) return;
-                    // Skip family keys — those belong on “When start or end”, not concrete events.
-                    if (this.eventFamilies.includes(ev)) return;
-                    seen.add(ev);
-                    opts.push([blockyEventLabel(ev), ev]);
-                };
                 const t = rule.trigger;
-                if (Array.isArray(t)) t.forEach((x) => x && addEv(x.event));
-                else if (t) addEv(t.event);
+                if (role === "trigger") {
+                    if (Array.isArray(t)) t.forEach((x) => x && addSticky(x.event));
+                    else if (t) addSticky(t.event);
+                } else {
+                    (rule.cases || []).forEach((c) => {
+                        (c.actions || []).forEach((a) => {
+                            if (a && a.event && !a.entity_id) addSticky(a.event);
+                        });
+                    });
+                }
             } catch (e) { /* ignore */ }
-            return opts;
-        },
-
-        blocklyEventFamilyDropdownOptions() {
-            return this.eventFamilies.map((f) => [this.eventFamilyLabel(f), f]);
+            // Also sticky live canvas picks during edit.
+            try {
+                const ws = blockyWs();
+                if (ws && !BlockyRT.loading) {
+                    ws.getAllBlocks(false).forEach((b) => {
+                        if (b.isInFlyout) return;
+                        if (role === "trigger") {
+                            if (BLOCKY_EVENT_TRIGGERS.has(b.type) || BLOCKY_EVENT_EDGES.has(b.type)) {
+                                addSticky(b.getFieldValue("EVENT"));
+                            }
+                        } else if (BLOCKY_EVENT_ACTIONS.has(b.type)) {
+                            addSticky(b.getFieldValue("EVENT"));
+                        }
+                    });
+                }
+            } catch (e) { /* ignore */ }
+            return opts.length ? opts : [["(no events)", ""]];
         },
 
         /** Unwrap singleton trigger lists (legacy YAML often uses a 1-item list). */
@@ -2224,11 +2705,13 @@ function blockyApp() {
                 const allDevices = t.every((x) => x && x.entity_id);
                 const allEvents = t.every((x) => x && x.event && !x.entity_id);
                 if (allEvents) {
-                    // Multi-event OR: use event-edge blocks inside OR
+                    // Multi-event OR: use event-edge blocks inside OR (user vs system by catalog).
                     const root = blockyMkBlock("b_trig_or", null, 16, 16);
-                    const edges = t.map((edge) => blockyMkBlock("b_trig_event_edge", {
-                        EVENT: edge.event
-                    }));
+                    const edges = t.map((edge) => {
+                        const origin = this._eventOrigin(edge.event);
+                        const type = origin === "system" ? "b_trig_event_edge_sys" : "b_trig_event_edge";
+                        return blockyMkBlock(type, { EVENT: edge.event });
+                    });
                     blockyConnectChain(root, "EDGES", edges);
                     return root;
                 }
@@ -2264,11 +2747,11 @@ function blockyApp() {
                     ENTITY: t.entity_id
                 }, 16, 16);
             }
-            if (t && t.event && this.eventFamilies.includes(t.event)) {
-                return blockyMkBlock("b_trig_family", { FAMILY: t.event }, 16, 16);
-            }
+            // B10B/E: trigger.event is always a catalog UUID — pick user vs system block by origin.
             if (t && t.event) {
-                return blockyMkBlock("b_trig_event", { EVENT: t.event }, 16, 16);
+                const origin = this._eventOrigin(t.event);
+                const type = origin === "system" ? "b_trig_event_sys" : "b_trig_event";
+                return blockyMkBlock(type, { EVENT: t.event }, 16, 16);
             }
             return blockyMkBlock("b_trig_device", {
                 ENTITY: this.firstEntityId()
@@ -2294,8 +2777,18 @@ function blockyApp() {
                 entityTrigger: () => (BlockyRT.app || this).blocklyEntityDropdownOptions({ role: "trigger" }),
                 entityCondition: () => (BlockyRT.app || this).blocklyEntityDropdownOptions({ role: "condition" }),
                 entityAction: () => (BlockyRT.app || this).blocklyEntityDropdownOptions({ role: "action" }),
-                family: () => (BlockyRT.app || this).blocklyEventFamilyDropdownOptions(),
-                event: () => (BlockyRT.app || this).blocklyEventDropdownOptions()
+                eventUserTrigger: () => (BlockyRT.app || this).blocklyEventDropdownOptions({
+                    origin: "user", role: "trigger"
+                }),
+                eventSystemTrigger: () => (BlockyRT.app || this).blocklyEventDropdownOptions({
+                    origin: "system", role: "trigger"
+                }),
+                eventUserFire: () => (BlockyRT.app || this).blocklyEventDropdownOptions({
+                    origin: "user", role: "fire"
+                }),
+                eventSystemFire: () => (BlockyRT.app || this).blocklyEventDropdownOptions({
+                    origin: "system", role: "fire"
+                })
             });
             BlockyRT.ws = Blockly.inject(host, {
                 toolbox: blockyToolboxDefinition(new Set()),
@@ -2304,11 +2797,13 @@ function blockyApp() {
                 move: { scrollbars: true, drag: true, wheel: true },
                 zoom: { controls: true, wheel: false, startScale: 1.0 }
             });
+            // After inject: dropdown chrome needs DropDownDiv on the page.
+            blockyConfigureDropdownChrome(Blockly);
             BlockyRT.ws.addChangeListener(blockyOnChange);
             BlockyRT.ready = true;
             BlockyRT.schemaInjected = this.blocklySchemaVersion;
             this.observeBlocklyHost(host);
-            Blockly.svgResize(BlockyRT.ws);
+            blockyScheduleWorkspaceResize();
             return true;
         },
 
@@ -2348,7 +2843,9 @@ function blockyApp() {
         _actionBlocks(list) {
             return (list || []).map((a) => {
                 if (a.event && !a.entity_id) {
-                    return blockyMkBlock("b_action_event", { EVENT: a.event });
+                    const origin = this._eventOrigin(a.event);
+                    const type = origin === "system" ? "b_action_event_sys" : "b_action_event";
+                    return blockyMkBlock(type, { EVENT: a.event });
                 }
                 if (a.entity_id) {
                     const type = blockyEntityTypeOf(a.entity_id);
@@ -2410,10 +2907,7 @@ function blockyApp() {
                     }
                 }
 
-                if (root && root.type === "b_trig_family" && typeof root.updateScheduleHint_ === "function") {
-                    root.updateScheduleHint_(root.getFieldValue("FAMILY"));
-                    blockyRefreshCaseMatchLabels(root.getNextBlock());
-                } else if (root) {
+                if (root) {
                     blockyRefreshCaseMatchLabels(root.getNextBlock());
                 }
 
@@ -2426,6 +2920,7 @@ function blockyApp() {
                         blockyCoerceFieldToOptions(b, "STATE", blockyConditionStateOptions);
                     } else if (b.type === "b_case") {
                         blockyCoerceFieldToOptions(b, "MATCH", blockyCaseMatchOptions);
+                        blockyCaseUpdateEventChrome(b);
                     }
                 });
 
@@ -2447,7 +2942,7 @@ function blockyApp() {
                                     blockyApplyActionRich(ab, acts[ai]);
                                 }
                                 ai += 1;
-                            } else if (ab.type === "b_action_event") {
+                            } else if (BLOCKY_EVENT_ACTIONS.has(ab.type)) {
                                 ai += 1;
                             }
                             ab = ab.getNextBlock();
@@ -2498,7 +2993,7 @@ function blockyApp() {
 
         _readActions(start) {
             return blockyReadChain(start, (b) => {
-                if (b.type === "b_action_event") return { event: b.getFieldValue("EVENT") };
+                if (BLOCKY_EVENT_ACTIONS.has(b.type)) return { event: b.getFieldValue("EVENT") };
                 return blockyReadActionRich(b);
             });
         },
@@ -2524,7 +3019,7 @@ function blockyApp() {
                             entity_id: e.getFieldValue("ENTITY"),
                             state: e.getFieldValue("STATE")
                         });
-                    } else if (e.type === "b_trig_event_edge") {
+                    } else if (BLOCKY_EVENT_EDGES.has(e.type)) {
                         edges.push({ event: e.getFieldValue("EVENT") });
                     } else {
                         throw new Error("OR trigger only accepts device or event edges.");
@@ -2535,18 +3030,18 @@ function blockyApp() {
                 trigger = edges.length === 1 ? edges[0] : edges;
             } else if (root.type === "b_trig_device") {
                 trigger = { entity_id: root.getFieldValue("ENTITY") };
-            } else if (root.type === "b_trig_family") {
-                trigger = { event: root.getFieldValue("FAMILY") };
-            } else if (root.type === "b_trig_event") {
+            } else if (BLOCKY_EVENT_TRIGGERS.has(root.type)) {
                 trigger = { event: root.getFieldValue("EVENT") };
             } else {
-                throw new Error("Unsupported trigger block. Use When device / event / start or end / When any of.");
+                throw new Error(
+                    "Unsupported trigger block. Use When device / When user event / When system event / When any of."
+                );
             }
 
             const cases = [];
             let cur = caseStart;
-            // Event / OR: MATCH is conditions-gate only — never persist to_state from a stale ON/OFF.
-            const matchWritesToState = root.type === "b_trig_device" || root.type === "b_trig_family";
+            // Device: MATCH writes to_state. Event / OR: conditions-gate only — never persist to_state.
+            const matchWritesToState = root.type === "b_trig_device";
             while (cur && cur.type === "b_case") {
                 const match = cur.getFieldValue("MATCH");
                 const conds = this._readConditions(cur.getInputTargetBlock("CONDS"));
@@ -2564,19 +3059,16 @@ function blockyApp() {
 
             if (!cases.length) throw new Error("Add at least one case with actions.");
 
-            const sceneOk = this.triggerAllowsDashboard(trigger);
-            if (!sceneOk) {
-                this.editor.scene = false;
-                this.editor.require_confirmation = false;
-            }
+            // B10B: scene/require_confirmation no longer live on the rule — flags are on events:.
             const payload = {
                 id: this.editor.id || undefined,
                 name: (this.editor.name || "").trim(),
-                scene: sceneOk && !!this.editor.scene,
-                require_confirmation: sceneOk && !!this.editor.require_confirmation,
+                enabled: this.editor.enabled !== false,
                 trigger,
                 cases
             };
+            // SR: name always equals companion SE catalog name (before uniqueness check).
+            this._bindSrNameToSeCatalog(payload);
             if (!payload.name) throw new Error("Rule name is required.");
             this.validateNoHardDeniedEntityIds(payload);
             this.editor.ruleJson = JSON.stringify(payload, null, 2);
@@ -2612,13 +3104,12 @@ function blockyApp() {
             }
             rule.id = this.editor.id || rule.id;
             rule.name = (this.editor.name || "").trim();
-            const sceneOk = this.triggerAllowsDashboard(rule.trigger);
-            rule.scene = sceneOk && !!this.editor.scene;
-            rule.require_confirmation = sceneOk && !!this.editor.require_confirmation;
-            if (!sceneOk) {
-                this.editor.scene = false;
-                this.editor.require_confirmation = false;
-            }
+            rule.enabled = this.editor.enabled !== false;
+            // Strip legacy scene flags if present in hand-edited JSON.
+            delete rule.scene;
+            delete rule.require_confirmation;
+            // SR: name always equals companion SE catalog name.
+            this._bindSrNameToSeCatalog(rule);
             if (!rule.name) throw new Error("Rule name is required.");
             if (!Array.isArray(rule.cases) || !rule.cases.length) {
                 throw new Error("v2 rule requires cases[].");
@@ -2627,23 +3118,47 @@ function blockyApp() {
             return rule;
         },
 
+        /** B10D: block Save when another rule has the same trim+casefold name. */
+        assertUniqueRuleName(name, excludeId) {
+            const needle = blockyNormalizeNameKey(name);
+            if (!needle) throw new Error("Rule name is required.");
+            for (const r of this.automations || []) {
+                if (!r || r.isEventRow) continue;
+                const rid = String(r.id || "");
+                if (excludeId && rid === String(excludeId)) continue;
+                if (blockyNormalizeNameKey(r.name) === needle) {
+                    throw new Error(
+                        `Another automation already uses the name "${(r.name || "").trim()}" `
+                        + `(case-insensitive). Choose a unique name.`
+                    );
+                }
+            }
+        },
+
         blankEditor() {
             // Defaults live here (New rule). Prefer light trigger + different light action.
             const { triggerEid, actionEid } = this.defaultLightPair();
             return {
                 id: "",
                 name: "",
-                scene: false,
-                require_confirmation: false,
+                enabled: true,
                 ruleJson: JSON.stringify({
+                    enabled: true,
                     trigger: { entity_id: triggerEid },
                     cases: [{ to_state: "ON", actions: [{ entity_id: actionEid, state: "ON" }] }]
-                }, null, 2)
+                }, null, 2),
+                eventShowOnDashboard: false,
+                eventRequireConfirmation: false,
+                eventEnabled: true
             };
         },
 
         newRule() {
             this.requestLeave({ type: "new" });
+        },
+
+        newUserEvent() {
+            this.requestLeave({ type: "newUserEvent" });
         },
 
         _doNewRule() {
@@ -2656,11 +3171,28 @@ function blockyApp() {
             this.scheduleBlocklyLoad();
         },
 
+        /** B10E: draft UE form — Save → POST /api/events only (no Blockly / no rule). */
+        _doNewUserEvent() {
+            this.markEditorClean();
+            this.selectedRule = { isDraft: true, isEventRow: true, libraryKind: "ue" };
+            this.editor = {
+                id: "",
+                name: "",
+                enabled: true,
+                ruleJson: "{}",
+                eventShowOnDashboard: false,
+                eventRequireConfirmation: false,
+                eventEnabled: true
+            };
+            this.editorMode = "blockly";
+            this.errorMessage = "";
+            this.infoMessage = "";
+            this.fireRefRuleNames = [];
+        },
+
         selectRule(rule) {
             if (!rule) return;
-            if (this.selectedRule && !this.selectedRule.isDraft && rule.id && this.selectedRule.id === rule.id) {
-                return;
-            }
+            if (this._isSelectedLibraryRow(rule) && !(rule.isDraft)) return;
             this.requestLeave({ type: "select", rule });
         },
 
@@ -2669,25 +3201,156 @@ function blockyApp() {
             this.selectedRule = rule;
             this.errorMessage = "";
             this.infoMessage = "";
-            const sceneOk = this.triggerAllowsDashboard(rule.trigger);
+            this.eventDeleteBlockedMessage = "";
+            this.fireRefRuleNames = [];
+
+            // UE row — catalog form only (no Blockly).
+            if (rule && rule.isEventRow) {
+                this.editor = {
+                    id: rule.id || "",
+                    name: rule.name || "",
+                    enabled: true,
+                    ruleJson: "{}",
+                    eventShowOnDashboard: !!rule.show_on_dashboard,
+                    eventRequireConfirmation: !!rule.require_confirmation,
+                    eventEnabled: rule.enabled !== false
+                };
+                this.editorMode = "blockly";
+                // Prefill usages for disable-blocked + Show usages (listeners OR fire-refs).
+                this.fireRefRuleNames = this._usageRuleNamesForEvent(rule.id);
+                this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
+                return;
+            }
+
+            // SE row — system catalog view-only (immutable; create SR via New rule).
+            if (rule && rule.isSystemEventRow) {
+                this.editor = {
+                    id: rule.id || "",
+                    name: rule.name || "",
+                    enabled: true,
+                    ruleJson: "{}",
+                    eventShowOnDashboard: false,
+                    eventRequireConfirmation: false,
+                    eventEnabled: true
+                };
+                this.editorMode = "blockly";
+                this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
+                return;
+            }
+
+            // SR: show SE catalog name in the locked name field (even if YAML drifted).
+            const kind = this.libraryKind(rule);
+            let displayName = rule.name || "";
+            if (kind === "sr") {
+                displayName = rule.listName
+                    || this._catalogEventName(this._primaryTriggerEventId(rule.trigger))
+                    || displayName;
+            }
+
             this.editor = {
                 id: rule.id || "",
-                name: rule.name || "",
-                scene: sceneOk && !!rule.scene,
-                require_confirmation: sceneOk && !!rule.require_confirmation,
+                name: displayName,
+                enabled: rule.enabled !== false,
                 ruleJson: JSON.stringify({
                     id: rule.id,
-                    name: rule.name,
-                    scene: sceneOk && !!rule.scene,
-                    require_confirmation: sceneOk && !!rule.require_confirmation,
+                    name: displayName,
+                    enabled: rule.enabled !== false,
                     trigger: rule.trigger,
                     cases: rule.cases || []
-                }, null, 2)
+                }, null, 2),
+                eventShowOnDashboard: false,
+                eventRequireConfirmation: false,
+                eventEnabled: true
             };
             this.editorMode = "blockly";
             this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
+            // Prefill usages for UR whose trigger event is fire-referenced.
+            if (kind === "ur") {
+                const evId = this._primaryTriggerEventId(rule.trigger);
+                this.fireRefRuleNames = this._fireRefNamesForEvent(evId);
+            }
             blockyCancelUniqueness();
             this.scheduleBlocklyLoad();
+        },
+
+        /**
+         * Rebuild Library rows: all user events (UE) + rules (UR/SR/D) + all pickable
+         * system catalog events (SE, view-only). Unused SE = no listening SR (not disabled).
+         */
+        rebuildLibraryRows() {
+            const catalog = BlockyRT.catalogEvents || [];
+            const rules = this.automations || [];
+            const rows = [];
+
+            // UE: every user catalog event (including those with listening UR rules).
+            for (const r of catalog) {
+                if (!r || String(r.origin || "user") !== "user") continue;
+                rows.push({
+                    id: String(r.id),
+                    name: String(r.name || r.id),
+                    listName: String(r.name || r.id),
+                    origin: "user",
+                    show_on_dashboard: !!r.show_on_dashboard,
+                    require_confirmation: !!r.require_confirmation,
+                    enabled: r.enabled !== false,
+                    isEventRow: true,
+                    libraryKind: "ue"
+                });
+            }
+
+            // UR / SR / D from real automation rules.
+            for (const rule of rules) {
+                if (!rule || typeof rule !== "object") continue;
+                const kind = (() => {
+                    const evId = this._primaryTriggerEventId(rule.trigger);
+                    if (evId) {
+                        return this._eventOrigin(evId) === "system" ? "sr" : "ur";
+                    }
+                    return "d";
+                })();
+                if (kind === "sr") {
+                    const evId = this._primaryTriggerEventId(rule.trigger);
+                    const cat = catalog.find((r) => r && String(r.id) === evId);
+                    // List label = SE catalog name (SR name always equals SE).
+                    const catName = cat ? String(cat.name || evId) : evId;
+                    rows.push(Object.assign({}, rule, {
+                        libraryKind: "sr",
+                        listName: catName,
+                        systemEventId: evId
+                    }));
+                } else {
+                    rows.push(Object.assign({}, rule, {
+                        libraryKind: kind,
+                        listName: String(rule.name || "(unnamed)")
+                    }));
+                }
+            }
+
+            // SE: all pickable system catalog events (view-only; not editable shells).
+            for (const r of catalog) {
+                if (!r || String(r.origin) !== "system") continue;
+                const id = String(r.id);
+                if (BLOCKY_NON_PICKABLE_EVENT_IDS.has(id)) continue;
+                const catName = String(r.name || id);
+                rows.push({
+                    isSystemEventRow: true,
+                    id,
+                    name: catName,
+                    listName: catName,
+                    origin: "system",
+                    enabled: true,
+                    libraryKind: "se"
+                });
+            }
+
+            this.libraryRows = rows;
+            // Keep deprecated alias empty so stale UI never mixes orphan list.
+            this.orphanEventRows = [];
+        },
+
+        /** @deprecated — use rebuildLibraryRows (B10E). */
+        rebuildOrphanEventRows() {
+            this.rebuildLibraryRows();
         },
 
         async refreshAll() {
@@ -2695,24 +3358,48 @@ function blockyApp() {
             this.errorMessage = "";
             this.infoMessage = "";
             try {
-                const [stateRes, rulesRes] = await Promise.all([
+                const [stateRes, rulesRes, eventsRes] = await Promise.all([
                     fetch("/api/state", { headers: this.getAuthHeaders() }),
-                    fetch("/api/automations", { headers: this.getAuthHeaders() })
+                    fetch("/api/automations", { headers: this.getAuthHeaders() }),
+                    fetch("/api/events", { headers: this.getAuthHeaders() })
                 ]);
                 if (!stateRes.ok) throw new Error(`Failed /api/state (${stateRes.status})`);
                 if (!rulesRes.ok) throw new Error(`Failed /api/automations (${rulesRes.status})`);
+                if (!eventsRes.ok) throw new Error(`Failed /api/events (${eventsRes.status})`);
                 const state = await stateRes.json();
                 const rulesPayload = await rulesRes.json();
+                const eventsPayload = await eventsRes.json();
                 this.automations = (rulesPayload.automations || []).filter((r) => r && typeof r === "object");
+                BlockyRT.catalogEvents = Array.isArray(eventsPayload.events) ? eventsPayload.events : [];
+                this.rebuildLibraryRows();
                 this.rebuildEntityOptions(state.device_metadata || {}, this.automations);
                 const sys = (state && state.system) || {};
                 this.huePresets = (sys.hue_presets && typeof sys.hue_presets === "object")
                     ? sys.hue_presets : {};
                 this.sonosStations = (sys.sonos_stations && typeof sys.sonos_stations === "object")
                     ? sys.sonos_stations : {};
-                if (this.selectedRule && this.selectedRule.id && !this.editorDirty) {
-                    const fresh = this.automations.find((r) => r.id === this.selectedRule.id);
-                    if (fresh) this._doSelectRule(fresh);
+                if (this.selectedRule && !this.editorDirty) {
+                    if (this.selectedRule.isEventRow) {
+                        const sid = String(this.selectedRule.id || this.editor.id || "");
+                        const freshEv = (this.libraryRows || []).find(
+                            (e) => e.isEventRow && String(e.id) === sid
+                        );
+                        if (freshEv) {
+                            this._doSelectRule(Object.assign({}, freshEv, { isEventRow: true }));
+                        } else if (!this.selectedRule.isDraft) {
+                            this.selectedRule = null;
+                        }
+                    } else if (this.selectedRule.isSystemEventRow) {
+                        const sid = String(this.selectedRule.id || this.editor.id || "");
+                        const freshSe = (this.libraryRows || []).find(
+                            (e) => e.isSystemEventRow && String(e.id) === sid
+                        );
+                        if (freshSe) this._doSelectRule(freshSe);
+                        else this.selectedRule = null;
+                    } else if (this.selectedRule.id) {
+                        const fresh = this.automations.find((r) => r.id === this.selectedRule.id);
+                        if (fresh) this._doSelectRule(fresh);
+                    }
                 }
                 if (this.showBlocklyWorkspace && !this.editorDirty) this.scheduleBlocklyLoad();
             } catch (e) {
@@ -2751,14 +3438,145 @@ function blockyApp() {
             }
         },
 
+        /**
+         * PUT /api/events for the open UE-form row (name / explorer / confirm / enabled).
+         * Confirm is coerced off when Appear on explorer is off.
+         */
+        async persistUserEventFromEditor(eventId, opts = {}) {
+            const id = String(eventId || "");
+            if (!id) return null;
+            const show = !!this.editor.eventShowOnDashboard;
+            const body = {
+                id,
+                name: String(opts.name || this.editor.name || "").trim(),
+                show_on_dashboard: show,
+                require_confirmation: show && !!this.editor.eventRequireConfirmation,
+                enabled: this.editor.eventEnabled !== false
+            };
+            if (!body.name) throw new Error("Event name is required.");
+            if (body.enabled === false && this._usageRuleNamesForEvent(id).length) {
+                throw new Error(
+                    "Cannot disable this event — rules still listen to or fire it. See Show usages."
+                );
+            }
+            const res = await fetch("/api/events", {
+                method: "PUT",
+                headers: this.getAuthHeaders(),
+                body: JSON.stringify(body)
+            });
+            const resp = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(resp.error || `PUT /api/events failed (${res.status})`);
+            return resp.event || body;
+        },
+
+        /** POST a new user event from E form (editor.name). */
+        async createUserEventFromEditor() {
+            const name = String(this.editor.name || "").trim();
+            if (!name) throw new Error("New user event requires a name.");
+            const show = !!this.editor.eventShowOnDashboard;
+            const body = {
+                name,
+                show_on_dashboard: show,
+                require_confirmation: show && !!this.editor.eventRequireConfirmation,
+                enabled: this.editor.eventEnabled !== false
+            };
+            const res = await fetch("/api/events", {
+                method: "POST",
+                headers: this.getAuthHeaders(),
+                body: JSON.stringify(body)
+            });
+            const resp = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(resp.error || `POST /api/events failed (${res.status})`);
+            return resp.event;
+        },
+
+        /**
+         * B10E: one listening rule max per system event UUID.
+         * Throws if save would create a second listener.
+         */
+        assertOneSystemListener(payload) {
+            const evId = this._primaryTriggerEventId(payload && payload.trigger);
+            if (!evId || this._eventOrigin(evId) !== "system") return;
+            const excludeId = payload && payload.id ? String(payload.id) : "";
+            for (const r of this.automations || []) {
+                if (!r) continue;
+                if (excludeId && String(r.id) === excludeId) continue;
+                if (this._primaryTriggerEventId(r.trigger) === evId) {
+                    const nm = (r.name || r.id || "").trim();
+                    throw new Error(
+                        `Only one rule may listen to this system event`
+                        + (nm ? ` (already: "${nm}")` : "")
+                        + ". Edit the existing SR row instead."
+                    );
+                }
+            }
+        },
+
         async saveRule() {
+            // SE catalog: immutable — no Save that edits the system event.
+            if (this.selectedRule && this.selectedRule.isSystemEventRow) {
+                this.errorMessage = "System events are catalog-only (view-only). "
+                    + "Create a system rule via New rule → When system event.";
+                return;
+            }
+
+            // UE row (user event): POST create or PUT update — no automation rule.
+            if (this.selectedRule && this.selectedRule.isEventRow) {
+                this.busy = true;
+                this.errorMessage = "";
+                this.infoMessage = "";
+                try {
+                    const isDraft = !!this.selectedRule.isDraft || !this.editor.id;
+                    if (isDraft) {
+                        const created = await this.createUserEventFromEditor();
+                        this.infoMessage = "User event created (hot-reload queued).";
+                        this.markEditorClean();
+                        await this.refreshAll();
+                        if (created && created.id) {
+                            const row = (this.libraryRows || []).find(
+                                (e) => e.isEventRow && String(e.id) === String(created.id)
+                            );
+                            if (row) this._doSelectRule(row);
+                        }
+                    } else {
+                        // Coerce confirm when explorer off before PUT
+                        if (!this.editor.eventShowOnDashboard) {
+                            this.editor.eventRequireConfirmation = false;
+                        }
+                        if (this.editor.eventEnabled === false
+                            && this._usageRuleNamesForEvent(this.editor.id).length) {
+                            throw new Error(
+                                "Cannot disable this event — rules still listen to or fire it. See Show usages."
+                            );
+                        }
+                        await this.persistUserEventFromEditor(this.editor.id, { name: this.editor.name });
+                        this.infoMessage = "Event updated (hot-reload queued).";
+                        this.markEditorClean();
+                        await this.refreshAll();
+                    }
+                } catch (e) {
+                    this.errorMessage = String(e);
+                } finally {
+                    this.busy = false;
+                }
+                return;
+            }
+
             this.busy = true;
             this.errorMessage = "";
             this.infoMessage = "";
             this.registryCheckMessage = "";
             this.registryCheckOk = null;
             try {
+                if (this.ruleDisableBlocked && this.editor.enabled === false) {
+                    throw new Error(
+                        "Cannot disable this rule — its user event is fired by other rules. See Show usages."
+                    );
+                }
                 const payload = this.buildPayloadFromEditor();
+                this.assertUniqueRuleName(payload.name, payload.id);
+                this.assertOneSystemListener(payload);
+
                 const isUpdate = !!payload.id && this.automations.some((r) => r.id === payload.id);
                 const method = isUpdate ? "PUT" : "POST";
                 const res = await fetch("/api/automations", {
@@ -2773,12 +3591,17 @@ function blockyApp() {
                     : "Automation created (hot-reload queued).";
                 this.markEditorClean();
                 await this.refreshAll();
-                const rid = (body.automation && body.automation.id) || payload.id;
-                if (rid) {
-                    const fresh = this.automations.find((r) => r.id === rid);
+                const savedId = (body.automation && body.automation.id) || payload.id;
+                if (savedId) {
+                    const fresh = (this.libraryRows || []).find((r) =>
+                        r && !r.isEventRow && !r.isSystemEventRow && r.id === savedId
+                    ) || this.automations.find((r) => r.id === savedId);
                     if (fresh) this._doSelectRule(fresh);
                 }
-                await this.runPostWriteRegistryCheck();
+                await this.runPostWriteRegistryCheck({
+                    okMsg: isUpdate ? "Rule updated" : "Rule created",
+                    failMsg: "Saved, but registry check failed — open Admin → Debug."
+                });
             } catch (e) {
                 this.errorMessage = String(e);
             } finally {
@@ -2787,6 +3610,15 @@ function blockyApp() {
         },
 
         async deleteRule() {
+            // UE delete — DELETE /api/events with confirm; 409 → modal.
+            if (this.selectedRule && this.selectedRule.isEventRow) {
+                await this.deleteSelectedEvent();
+                return;
+            }
+            if (this.selectedRule && this.selectedRule.isSystemEventRow) {
+                this.errorMessage = "System events cannot be deleted (catalog seeds).";
+                return;
+            }
             if (!this.editor.id) {
                 this.errorMessage = "No rule id to delete.";
                 return;
@@ -2821,6 +3653,61 @@ function blockyApp() {
             }
         },
 
+        /** Delete unused user event (orphan row). API guards block in-use / dashboard / system. */
+        async deleteSelectedEvent() {
+            const id = this.editor.id;
+            if (!id) {
+                this.errorMessage = "No event id to delete.";
+                return;
+            }
+            if (!confirm(`Delete user event '${this.editor.name || id}'? This cannot be undone.`)) return;
+            this.busy = true;
+            this.errorMessage = "";
+            this.infoMessage = "";
+            this.eventDeleteBlockedMessage = "";
+            try {
+                const res = await fetch("/api/events", {
+                    method: "DELETE",
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify({ id })
+                });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const msg = body.error || `DELETE /api/events failed (${res.status})`;
+                    if (res.status === 409 || res.status === 400) {
+                        this.eventDeleteBlockedMessage = msg;
+                        const dlg = document.getElementById("event_delete_blocked_modal");
+                        if (dlg) dlg.showModal();
+                        else this.errorMessage = msg;
+                        return;
+                    }
+                    throw new Error(msg);
+                }
+                this.infoMessage = "Event deleted (hot-reload queued).";
+                this.markEditorClean();
+                await this.refreshAll();
+                this.selectedRule = null;
+                this.editor = {
+                    id: "",
+                    name: "",
+                    enabled: true,
+                    ruleJson: "{}",
+                    eventShowOnDashboard: false,
+                    eventRequireConfirmation: false,
+                    eventEnabled: true
+                };
+            } catch (e) {
+                this.errorMessage = String(e);
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        closeEventDeleteBlockedModal() {
+            this.eventDeleteBlockedMessage = "";
+            document.getElementById("event_delete_blocked_modal")?.close();
+        },
+
         async init() {
             BlockyRT.app = this;
             if (wanosRedirectIfNarrow()) return;
@@ -2841,8 +3728,10 @@ function blockyApp() {
             };
             window.addEventListener("beforeunload", this._onBeforeUnload);
             this.$watch("editor.name", () => this.markEditorDirty());
-            this.$watch("editor.scene", () => this.markEditorDirty());
-            this.$watch("editor.require_confirmation", () => this.markEditorDirty());
+            this.$watch("editor.enabled", () => this.markEditorDirty());
+            this.$watch("editor.eventShowOnDashboard", () => this.markEditorDirty());
+            this.$watch("editor.eventRequireConfirmation", () => this.markEditorDirty());
+            this.$watch("editor.eventEnabled", () => this.markEditorDirty());
             this.$watch("editor.ruleJson", () => this.markEditorDirty());
             await this.refreshAll();
             this.connected = true;

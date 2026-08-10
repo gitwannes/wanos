@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from core.config import ActionConfig, ConditionConfig, EVENT_FAMILY_TO_ON_OFF, TriggerConfig
+from core.config import ActionConfig, ConditionConfig, TriggerConfig
 
 
 _NUMERIC_IDX_RE = re.compile(r"^\d+$")
@@ -25,13 +25,13 @@ class BranchedTriggerDevice(BaseModel):
 
 class BranchedTriggerEventFamily(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    # In Y1 branched YAML we store the event *family* here (not the concrete ON/OFF EventType key).
+    # B10B: event bus token (UUID). Pre-migrate family keys still accepted for migrator input.
     event: str
 
     @model_validator(mode="after")
-    def _validate_event_family(self) -> "BranchedTriggerEventFamily":
-        if self.event not in EVENT_FAMILY_TO_ON_OFF:
-            raise ValueError(f"Unsupported event family '{self.event}'")
+    def _validate_event_token(self) -> "BranchedTriggerEventFamily":
+        if not str(self.event or "").strip():
+            raise ValueError("trigger.event must be non-empty")
         return self
 
 
@@ -64,6 +64,7 @@ class BranchedAutomationRuleRequest(BaseModel):
 
     id: Optional[str] = None
     name: str
+    enabled: bool = True
     scene: bool = False
     require_confirmation: bool = False
     trigger: Union[BranchedTriggerDevice, BranchedTriggerEventFamily]
@@ -86,6 +87,7 @@ class FlatAutomationRuleRequest(BaseModel):
 
     id: Optional[str] = None
     name: str
+    enabled: bool = True
     scene: bool = False
     require_confirmation: bool = False
     trigger: Union[TriggerConfig, List[TriggerConfig]]

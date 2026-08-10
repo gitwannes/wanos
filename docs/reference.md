@@ -6,7 +6,7 @@ This document serves as the master blueprint and reference guide for the directo
 
 **Root Directory (`/home/wannes/wanos/`)**
 * `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and manual integration settings. (Manual / human-edited; comments preserved.) Automatic domains (`deviceexplorer_hide`, `auto_off_devices`, `automations`) live in `automations.auto.yaml`.
-* `automations.auto.yaml`: UI/system-owned automatic sections — Explorer soft-hide (`deviceexplorer_hide`), auto-off timers (`auto_off_devices`), and automation rules/scenes.
+* `automations.auto.yaml`: UI/system-owned automatic sections — Explorer soft-hide (`deviceexplorer_hide`), auto-off timers (`auto_off_devices`), automation **rules**, and the `events:` catalog (system + user; bus token = UUID).
 * `config_hue.yaml`: Segregated lighting profile path tracking local network Philips Hue Bridge API endpoints and structural group/scene UUID allocations.
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
 * `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
@@ -33,8 +33,9 @@ Stable automation identifiers. Pattern is `prefix.<slug>` or `prefix.<kind>.<slu
 | `sensor.door.<slug>` | Door contacts | `sensor.door.sauna` |
 | `sensor.generic.<slug>` | Other sensors (motion, system status, etc.) | `sensor.generic.garage_motion` |
 | `media_player.<slug>` | Sonos / Onkyo | `media_player.living` |
-| `scene.<slug>` | Automation-exposed scenes | `scene.movie_night` |
 | `unknown.<slug>` | Tombstones / unclassified | `unknown.idx_71099` |
+
+*(Pre-B10B `scene.<slug>` entity rows for dashboard scenes are **retired**. Explorer buttons come from `dashboard_events` built from `events:` — UUID catalog rows with `show_on_dashboard`, not `scene.*` devices.)*
 
 Birth is automatic; ids freeze after first assignment. Hardware replace keeps `entity_id` and changes `idx`. Orphans keep a registry row with `status: removed`.
 * `main.py`: The ASGI web server entry point hosting the FastAPI application instance, lifespan initialization hooks, delta SSE streaming loops, and app-level connection heartbeats.
@@ -77,10 +78,10 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `alert_manager.py`: Centralized UI Notification Engine handling timestamping, deduplication, and severity classification of frontend banners.
 * `automation_rules.py`: Dynamically evaluates declarative YAML rules.
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
-* `environment_scheduler.py`: Calculates mathematical bounds clamping and dynamically schedules blind/twilight timers based on external weather. Emits canonical edge events (`MORNING_ON` / `SUNRISE` / `SUNSET` / `EVENING_OFF`, plus `BLINDS_OPEN` / `BLINDS_CLOSE`). See `core/schedule_events.py` — **sunrise/sunset ≠ blinds open/close** (blinds are clamped).
+* `environment_scheduler.py`: Daily blinds + morning/evening **lights** windows (clamped blinds vs raw sunset for evening-lights on). Catalog / UI labels (B10E): Blinds open/close, Morning lights on/off, Evening lights on/off. Admin model + math: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md). Code keys remain `BLINDS_*` / `MORNING_ON` / `SUNRISE` / `SUNSET` / `EVENING_OFF` until a later key rename.
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`.
-* `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, scene synthetic `900000+`, host/mains gauge IDXs, `22009` DB size helper) and helpers for scene hashing / numeric state parsing.
-* `history_manager.py`: Actuator / motion / scene event history (`device_history.db`) with retention tiers and insights tallies.
+* `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, **event-UUID** synthetic history `900000+`, host/mains gauge IDXs, `22009` DB size helper) and helpers for event-history hashing / numeric state parsing.
+* `history_manager.py`: Actuator / motion / **event-UUID** history (`device_history.db`) with retention tiers and insights tallies.
 * `power_analytics.py`: Sauna/IR session energy accounting, background leak baseline, and session SQLite persistence.
 * `sauna_controller.py`: Manages element priority wear-leveling algorithms, probe math aggregation, and handles anti-windup loops for high thermal mass zones.
 * `sensor_history_manager.py`: Utility / climate / host time-series history (`sensor_history.db`) with hi-res, hourly, and daily rollups.
@@ -160,7 +161,7 @@ The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer o
 * **`GET/PUT /api/soft-hide`** | Admin. Full-list replace of `deviceexplorer_hide` in `automations.auto.yaml` (`entity_ids: string[]`). PUT dispatches `CONFIG_RELOAD_REQUESTED`. Hard-deny `switch.safety.safety_wisc_5v` rejected. Admin UI: `hiddendevices.html`.
 * **`GET/PUT /api/auto-off-timer`** | Admin. Full-replace of `auto_off_devices` in `automations.auto.yaml` (`managed_auto_off`, `default_auto_off_minutes`, `default_pertype_auto_off_minutes`, `auto_off_delays`). PUT validates eligibility / orphans / minutes 1–720; dispatches `CONFIG_RELOAD_REQUESTED`. Admin UI: `lightingautooff.html`.
 * **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET returns raw v2. Each write dispatches `CONFIG_RELOAD_REQUESTED`. Event triggers/fire-actions store **event UUID** after **B10B** (see `docs/todo/phaseB-blocky.md` § B10B). Pre-B10B schedule families (`SCHEDULE_WINDOW_EDGES`) removed on that cutover.
-* **`GET/POST/PUT/DELETE /api/events`** | Admin. **B10B** — CRUD for `events:` in `automations.auto.yaml` (system + user). Bus token = row `id` (UUID). System: no create/delete; PATCH `show_on_dashboard` only. Surgical write + `CONFIG_RELOAD_REQUESTED`. Detail: `phaseB-blocky.md` § B10B.
+* **`GET/POST/PUT/DELETE /api/events`** | Admin. **B10B+D+E** — CRUD for `events:` in `automations.auto.yaml` (system + user). Bus token = row `id` (UUID). System: no create/delete; **never** `show_on_dashboard` (API reject + force false). User: `require_confirmation` only valid with `show_on_dashboard`; turning dashboard off forces confirm off (coerce on PUT). Surgical write + `CONFIG_RELOAD_REQUESTED`. Automations Library UX (UE/UR/SE/SR/D): `phaseB-blocky.md` § B10E.
 
 ---
 
@@ -225,9 +226,9 @@ To communicate with the system, payloads must align with the exact structural da
   ```json
   { "type": "HUB_STATE_CHANGED", "payload": { "idx": 51005, "state": "ON", "bri": 254, "xy": [0.6915, 0.3083], "force": true } }
   ```
-* **Sun cycle / env schedule refresh** (daily ≥ `sun_refresh_hour`, and on OWM enable/boot — not on climate polls):
+* **Sun cycle / env schedule refresh** (daily ≥ `sun_refresh_hour`, and on OWM enable/boot — not on climate polls). Bus type **`SUNRISE_SUNSET_UPDATE`** (legacy alias `EXTERNAL_WEATHER_UPDATED` still accepted by the handler until emitters soak; same catalog UUID; display **Sunrise/sunset update**). Schedule windows: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md).
   ```json
-  { "type": "EXTERNAL_WEATHER_UPDATED", "payload": { "sunrise": 1782201000, "sunset": 1782256000 } }
+  { "type": "SUNRISE_SUNSET_UPDATE", "payload": { "sunrise": 1782201000, "sunset": 1782256000 } }
   ```
 
 ### ⚙️ System Administration Actions

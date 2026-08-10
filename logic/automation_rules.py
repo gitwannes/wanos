@@ -6,7 +6,7 @@ from typing import List, Optional, Any
 from core.models import Event, EventType, SystemState, device_name
 from core.config import load_config
 from core.logger import automation_logger  # explicitly isolated logger for logic rules
-from core.schedule_events import canonicalize_schedule_event
+from core.event_catalog import to_bus_token, legacy_key_for_bus_token
 from core.auto_off_policy import resolve_auto_off_minutes
 from core.well_known_entities import (
     ENTITY_BATHROOM_HUM,
@@ -32,6 +32,11 @@ class AutomationEngine:
 
     # Rolling array tracking absolute timestamps of hot water pulses for sensory debouncing
     _hot_water_pulses: List[float] = []
+
+    # B10B re-entrancy: outer bus evaluate = depth 1. Fire-action events are stamped
+    # with _wanos_fire_depth=2 because they are queued (not nested call stacks).
+    # At depth >= 2, further event-emitting fire-actions are no-op (siblings OK).
+    _event_fire_depth: int = 0
 
     # Well-known system fixtures: re-exported from core.well_known_entities.
     ENTITY_BATHROOM_VENT = ENTITY_BATHROOM_VENT
@@ -184,6 +189,31 @@ class AutomationEngine:
 
     @staticmethod
     def evaluate(event: Event, state: SystemState) -> List[Event]:
+        """
+        Evaluate matching rules for ``event``.
+
+        Re-entrancy (B10B): depth comes from ``payload._wanos_fire_depth`` when the
+        event was produced by a fire-action (queued, not a nested call). Outer bus
+        events default to depth 1. At depth >= 2, further event fire-actions are
+        skipped (log once per attempt). Sibling fires at depth 2 remain OK.
+        """
+        payload = event.payload or {}
+        stamped = payload.get("_wanos_fire_depth")
+        prev = AutomationEngine._event_fire_depth
+        if stamped is not None:
+            try:
+                AutomationEngine._event_fire_depth = int(stamped)
+            except (TypeError, ValueError):
+                AutomationEngine._event_fire_depth = 1
+        else:
+            AutomationEngine._event_fire_depth = 1
+        try:
+            return AutomationEngine._evaluate_body(event, state)
+        finally:
+            AutomationEngine._event_fire_depth = prev
+
+    @staticmethod
+    def _evaluate_body(event: Event, state: SystemState) -> List[Event]:
         bathroom_vent_idx = AutomationEngine.resolve_entity_id(
             state, AutomationEngine.ENTITY_BATHROOM_VENT)
         bathroom_hum_idx = AutomationEngine.resolve_entity_id(
@@ -195,7 +225,9 @@ class AutomationEngine:
         config = AutomationEngine._get_config()
 
         follow_up_events: List[Event] = []
-        event_name = event.type.value if hasattr(event.type, 'value') else str(event.type)
+        # Bus token (UUID for catalog) vs legacy EventType key for hardcoded string compares.
+        bus_token = to_bus_token(event.type)
+        event_name = legacy_key_for_bus_token(bus_token)
 
         event_idx = payload.get("idx")
         new_state = payload.get("state")
@@ -218,8 +250,13 @@ class AutomationEngine:
         active_rules = [] if payload.get("is_initialization", False) else config.automations
 
         for rule in active_rules:
+            # B10B: skip disabled rules (missing enabled → True).
+            if getattr(rule, "enabled", True) is False:
+                continue
+
             trigger_matched = False
             trigger_reason = ""
+            matched_event_uuid: Optional[str] = None
 
             # ⚡ Normalize trigger to a list so we can loop through it (Enabling OR logic)
             triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
@@ -252,12 +289,14 @@ class AutomationEngine:
                             new_state = mapped_state
                             break
 
-                # Trigger Type B: Semantic System Event (e.g., SAUNA_ON, BLINDS_OPEN_TRIGGER)
+                # Trigger Type B: Semantic / catalog event (UUID-on-bus after B10B)
                 elif t.event:
-                    rule_event_str = t.event.value if hasattr(t.event, 'value') else str(t.event)
-                    if canonicalize_schedule_event(event_name) == canonicalize_schedule_event(rule_event_str):
+                    rule_event_str = t.event.value if hasattr(t.event, "value") else str(t.event)
+                    # Compare bus tokens on both sides (legacy key ↔ UUID both normalize).
+                    if to_bus_token(bus_token) == to_bus_token(rule_event_str):
                         trigger_matched = True
-                        trigger_reason = f"Event [{event_name}]"
+                        matched_event_uuid = to_bus_token(rule_event_str)
+                        trigger_reason = f"Event [{matched_event_uuid}]"
                         break
 
             # --- TIER B: The Thought Process (DEBUG ONLY) ---
@@ -307,20 +346,19 @@ class AutomationEngine:
                     automation_logger.debug(
                         f"[X-RAY] -> Conditions MET for {AutomationEngine.format_rule_ref(rule)}. Parsing actions...")
 
-                    # Scene history: log once when a scene:true rule actually fires
-                    # (manual UI event, automation IDX trigger, or nested event)
-                    if getattr(rule, "scene", False) is True:
+                    # B10B history: synthetic series keyed by event UUID when the trigger
+                    # is a catalog event (no dependency on deprecated rule.scene).
+                    if matched_event_uuid:
                         try:
                             from logic.history_ids import scene_history_idx
-                            scene_evt = None
-                            for st in triggers:
-                                if getattr(st, "event", None):
-                                    scene_evt = st.event.value if hasattr(st.event, "value") else str(st.event)
-                                    break
-                            hist_key = scene_evt or rule.name
-                            hm = getattr(AutomationEngine, "_history_manager", None)
-                            if hm is not None:
-                                hm.log_event(scene_history_idx(hist_key), "ON", level=100.0)
+                            from core.events_store import find_event
+
+                            if find_event(matched_event_uuid) is not None:
+                                hm = getattr(AutomationEngine, "_history_manager", None)
+                                if hm is not None:
+                                    hm.log_event(
+                                        scene_history_idx(matched_event_uuid), "ON", level=100.0
+                                    )
                         except Exception:
                             pass
 
@@ -511,16 +549,21 @@ class AutomationEngine:
                                     f"🔴 [AUTOMATION ERROR] {AutomationEngine.format_rule_ref(rule)} "
                                     f"failed: Missing 'scene' or device ref for hue_scene target.")
 
-                        # --- Action Type C: Nested Event Chaining ---
+                        # --- Action Type C: Nested Event Chaining (UUID bus token) ---
                         elif getattr(action, "event", None):
-                            # ⚡ Dynamically accept known Enums or fallback to raw strings
-                            try:
-                                evt_type = EventType[action.event]
-                            except KeyError:
-                                evt_type = action.event
-                                automation_logger.error(
-                                    f"🔴 [AUTOMATION ERROR] {AutomationEngine.format_rule_ref(rule)} "
-                                    f"failed: '{action.event}' is not a valid EventType Enum.")
+                            # B10B re-entrancy: at depth >= 2, further event fires are no-op.
+                            if AutomationEngine._event_fire_depth >= 2:
+                                automation_logger.warning(
+                                    f"[RE-ENTRANCY] Skipping nested fire-action event "
+                                    f"'{action.event}' at depth "
+                                    f"{AutomationEngine._event_fire_depth} "
+                                    f"({AutomationEngine.format_rule_ref(rule)})."
+                                )
+                                continue
+
+                            # Catalog keys → UUID; already-UUID / internals → pass-through.
+                            # Do not require EventType enum membership (user events are UUIDs).
+                            evt_type: Any = to_bus_token(action.event)
 
                             # ⚡ DYNAMIC PAYLOAD INJECTION
                             # Automatically map all provided YAML keys (idx, volume, station, etc.) into the event payload
@@ -530,6 +573,12 @@ class AutomationEngine:
                                 action_payload.pop("event",
                                                    None)  # Strip the event type itself out of the payload body
 
+                            # Stamp depth+1 so the queued follow-up evaluates at depth 2
+                            # (dispatch is async — call-stack depth alone cannot track this).
+                            action_payload["_wanos_fire_depth"] = (
+                                AutomationEngine._event_fire_depth + 1
+                            )
+
                             follow_up_events.append(Event(
                                 type=evt_type,
                                 payload=action_payload
@@ -538,7 +587,7 @@ class AutomationEngine:
                             payload_str = f" with payload: {action_payload}" if action_payload else ""
                             automation_logger.info(
                                 f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "
-                                f"Dispatched Internal Event [{action.event}]{payload_str}")
+                                f"Dispatched Internal Event [{evt_type}]{payload_str}")
 
         # =========================================================================
         # 2. SYSTEM SWEEPER: Time & Environment Audit (Option B Enforcer)

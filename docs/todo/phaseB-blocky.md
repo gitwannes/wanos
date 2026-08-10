@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; ship-next = **B10B** then **B10D** / **B10E**; queued **B9A** / **B9B** — **spec locked**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6** flicker); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; queued **B10F** / **B9A** / **B9B** / **B11–B17**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** open); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -61,7 +61,7 @@ Blocky and automations must not store raw hardware idxs in rules. Humans see fri
 | Fluid | `sensor.fluid.<slug>` | `sensor.fluid.cold` |
 | Door | `sensor.door.<slug>` | `sensor.door.sauna` |
 | Speaker | `media_player.<slug>` | `media_player.living` |
-| Scene | `scene.<slug>` | |
+| Scene | `scene.<slug>` | **Retired after B10B** — dashboard uses `events:` / `dashboard_events` (UUID), not `scene.*` entity births |
 | Unknown / tombstone | `unknown.<slug>` | |
 
 **Confirm:** RFX = `switch.*`. Vents / SSR / safety use the dedicated `switch.vent|ssr|safety.*` prefixes (not plain `switch.<slug>`). Classification from name keywords / known idxs as implemented.
@@ -94,9 +94,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B** = `events:` catalog (UUID bus) + rule enable + family removal — **spec locked** (next). **Phase B10D** = unique rule names — **spec locked**. **Phase B10E** = Automations list sort — **spec locked**. **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** — **deferred**. Future HA patterns (H1–H3, H6–H11) backlog only.
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F** = Automations UX polish — **queued**. **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** (H4 expands: drop trigger “when any of” → condition and/or) — **deferred**. **B11–B17** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess).
 
-**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog **until Phase B9A**. **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9A** = sensor/threshold/host-gauge authoring + JSON removal. **B9B** = bathroom climate + H4/H5/H12 (OR groups, notify→Gmail, hysteresis).
+**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog **until Phase B9A**. **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9A** = sensor/threshold/host-gauge authoring + JSON removal. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
 
 ### Phase B0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
@@ -325,11 +325,11 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 
 | # | Pattern | B9B note |
 |---|---------|---------|
-| **H4** | Condition AND/OR groups | Schema + Blockly; today conditions are flat AND |
+| **H4** | Condition AND/OR groups + retire trigger “when any of” | Schema + Blockly + engine; today conditions are flat AND; multi-device OR moves out of trigger into condition and/or |
 | **H5** | Notify / alert action | UI alert first; **extend with Gmail** — Blockly/automation emits `EMAIL_REQUESTED` only (never calls Gmail). SoT: `docs/todo/phaseE-gmail.md` (OAuth outbox, producer hysteresis, transport dedup) |
 | **H12** | Generic hysteresis / dual-threshold block | Vehicle for bathroom humidity band; reusable |
 
-**Future possibilities (not B9A/B9B):** H1 sustained-for · H2 delay/wait sequence · H3 cooldown · H6 input_number helper · H7 presence/mode · H8 area trigger · H9 sun elevation · H10 blueprints · H11 general choose/switch beyond ON/OFF cases.
+**Later lettered (not B9A/B9B):** H1–H3, H6–H10 → **B14**; H11 (IF/ELSE / ELSEIF / ELSE beyond ON/OFF cases) → **B13**. See § B11–B17.
 
 #### Facts
 
@@ -376,7 +376,7 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 
 1. **Bathroom climate** — humidity ON/OFF band in Blockly; retire hardcoded climate paths; **vent min-runtime lock stays in hub**.
 2. **H12** — generic hysteresis / dual-threshold block (bathroom is the first consumer).
-3. **H4** — condition AND/OR groups in schema + Blockly.
+3. **H4** — condition AND/OR groups in schema + Blockly + engine; **remove “when any of” from trigger** and express multi-match via condition **and** / **or** instead.
 4. **H5** — notify/alert action; **extend with Gmail** via `EMAIL_REQUESTED` only (see `docs/todo/phaseE-gmail.md`). Rules never call Gmail directly.
 
 #### Assessment — packing H4/H5/H12 into B9B (2026-08-08)
@@ -384,7 +384,7 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 | Item | Fits B9B? | Dependency / risk |
 |------|----------|-------------------|
 | **H12** + bathroom | **Strong** | Natural vehicle for 80/74 band; do H12 before or with bathroom cutover |
-| **H4** OR groups | **Useful** | Schema change; bathroom may not need OR day-one, but notify rules (`CPU>80 OR mem>90`) will; order after basic compares exist (B9A) |
+| **H4** OR groups + drop trigger “when any of” | **Useful** | Schema + trigger model change; bathroom may not need OR day-one, but notify rules (`CPU>80 OR mem>90`) will; migrates multi-device OR out of trigger; order after basic compares exist (B9A) |
 | **H5** UI alert | **Small** | Wire Blockly → existing `ALERT_INJECTED` (or equivalent) |
 | **H5** Gmail | **Larger / cross-doc** | Needs outbox + OAuth from `phaseE-gmail.md`; automation hook = emit `EMAIL_REQUESTED`. Gmail **transport** can ship outside Blocky; **B9B** owns the Blockly/action shape. Producer hysteresis in gmail MD aligns with **H12** (prefer stability before mail) |
 | H1 sustained-for | **Out** (future) | Overlaps H12/for-duration — do not dual-build in B9B |
@@ -456,14 +456,14 @@ Pre-impl write-up (moved out of B9A in-scope; owned by **B9B**).
    * **Soft hide** (picker/Explorer default off; “Show Explorer-hidden” / soft-hide page): **`deviceexplorer_hide`** only. Soft-hidden devices stay out of Blocky pickers unless the checkbox is on. **Exception:** eids already used in the **open rule** (same picker role) remain listed so that rule can still round-trip / edit.  
    * **Internal:** idx `90001` vent lock skipped in Explorer (unchanged).  
    * Everything else in live `device_metadata` (status ≠ removed) is allow (subject to role-aware picker filters).
-2. **YAML branch keys = Y1:** trigger without edge state; top-level `on:` / `off:` each with optional `conditions` + `actions`. One-sided = omit the unused key. Event pairs use the same ON/OFF metaphor (mapped via curated event dictionary).
-3. **Event dropdown = E1:** curated allow-list with friendly labels (not full `EventType`). Starter set = events already used in automations + intentional scene/schedule hooks; exclude toggles, telemetry, heartbeats, config/bus internals.
+2. **YAML branch keys = Y1:** trigger without edge state; top-level `on:` / `off:` each with optional `conditions` + `actions`. One-sided = omit the unused key. Event pairs use the same ON/OFF metaphor (mapped via curated event dictionary **pre-B10B**; after B10B cutover each edge is its own catalog UUID / rule).
+3. **Event dropdown = E1 (historical):** curated allow-list with friendly labels (not full `EventType`). **Superseded by B10B+D+E:** pickers = `events:` UUID catalog (system + enabled user); labels = catalog names. Starter set / exclude toggles-telemetry was the pre-cutover E1 policy.
 4. **Migration = M1 (conservative):** auto-merge only when exactly one ON + one OFF sibling share the same trigger `entity_id` (or mapped event-ON + event-OFF), and neither is `SYNC`. Do **not** auto-merge when multiple ON (or multiple OFF) rules share an eid — leave for operator / later Blocky UX. Known case today: `switch.living_special` (3 rules × OR ON|OFF, condition-discriminated).
 5. **Engine = X1 first, then X2:** YAML stores Y1 `on:`/`off:`; loader **expands at load** to today’s flat ON/OFF rules for `AutomationEngine.evaluate` (preserve pair identity for CRUD round-trip). **Promote to native branch evaluate (X2)** once Blocky CRUD is stable — one in-memory rule, select branch from `new_state` / event; clearer logs; no shadow duplicates.
 6. **CRUD identity = A:** persist stable per-rule `id` in YAML and use it for `PUT/DELETE`; never key mutations by `name` or list index.
 7. **X1 pair round-trip = P1:** keep expansion metadata runtime-only (`<id>#on`, `<id>#off` or equivalent); never persist generated child rules back to YAML.
 8. **Migration timing = MA:** run an explicit one-shot M1 migration step before enabling Blocky editing in production (review diff, then proceed).
-9. **E1 dictionary scope = E1-v1:** start with approved schedule/scene/sauna trigger set used by automations; add new entries only by explicit review.
+9. **E1 dictionary scope = E1-v1 (historical):** start with approved schedule/scene/sauna trigger set used by automations; add new entries only by explicit review. **After B10B:** expand system seeds only by explicit review + code constants; operator scenes are **user** `events:` rows (no curated `SCENE_*` bus tokens).
 10. **Hard-deny extras = H1:** keep hard-deny minimal in v1 (safety/SSR/internal classes only); avoid broader hard-deny expansion until real operator pain appears.
 11. **UI scope = new page, admin-only:** Blocky is a dedicated admin route/page, not mixed into end-user pages.
 12. **UI strategy = Option 2 (Hybrid):** keep the current JSON/form editor as fallback + debugging path, and add Blockly visual mode incrementally. Do not remove the fallback editor until Blockly covers all live rule patterns and proves stable — that exit gate is **Phase B9A**. **Supersession:** when B9A removes JSON, rewrite this bullet to “Blockly-only; JSON removed” (doc chore **O9** — locked as mechanical, not a product reopen).
@@ -477,14 +477,14 @@ Mark each item `LOCKED` before implementation starts.
 - [x] **Scope:** Blocky writes only `automations:` through B6C; soft-hide → **`deviceexplorer_hide`** in **Phase B7**; auto-off → **`auto_off_devices:`** in **Phase B8**.
 - [x] **UI access:** new page, admin-only.
 - [x] **Persistence model:** branched YAML (`on:` / `off:`), one-sided allowed.
-- [x] **Pairing rule:** same trigger `entity_id` (device) or mapped event family.
+- [x] **Pairing rule:** same trigger `entity_id` (device) or mapped event family (**pre-B10B**). **After B10B:** each schedule/sauna edge is its own catalog UUID + rule (families deleted).
 - [x] **SYNC policy:** keep SYNC for pure mirrors; do not force split.
 - [x] **Migration policy:** M1 conservative merge; skip `SYNC` and multi-ON/OFF cases (e.g. `living_special`).
 - [x] **Engine rollout:** X1 expand-at-load first, then X2 native branch evaluate after CRUD is stable.
 - [x] **CRUD identity model:** stable per-rule `id` (A), not `name` or list index.
 - [x] **X1 round-trip:** runtime-only expansion metadata (P1), never persisted.
 - [x] **Deny-list posture:** D1 + H1 (minimal hard-deny in v1).
-- [x] **Events posture:** E1-v1 curated dictionary.
+- [x] **Events posture:** E1-v1 curated dictionary (**pre-B10B**). **Shipped:** `events:` UUID catalog (B10B+D+E).
 
 ### B) Spec precision — locked / open
 
@@ -509,10 +509,10 @@ Mark each item `LOCKED` before implementation starts.
 |---|---|---|---|
 | `BLINDS_OPEN_TRIGGER` | Blinds open | trigger-only | system seed UUID |
 | `BLINDS_CLOSE_TRIGGER` | Blinds close | trigger-only | system seed UUID |
-| `MORNING_ON_TRIGGER` | Morning on (clock) | trigger-only | system seed UUID |
-| `SUNRISE_TRIGGER` | Sunrise (end morning twilight) | trigger-only | system seed UUID |
-| `SUNSET_TRIGGER` | Sunset (start evening twilight) | trigger-only | system seed UUID |
-| `EVENING_OFF_TRIGGER` | Evening off (clock) | trigger-only | system seed UUID |
+| `MORNING_ON_TRIGGER` | Morning lights on (clock) | trigger-only | system seed UUID |
+| `SUNRISE_TRIGGER` | Morning lights off (astro sunrise) | trigger-only | system seed UUID |
+| `SUNSET_TRIGGER` | Evening lights on (astro sunset) | trigger-only | system seed UUID |
+| `EVENING_OFF_TRIGGER` | Evening lights off (clock) | trigger-only | system seed UUID |
 | `SAUNA_ON` | Sauna ON | trigger-only | system seed UUID |
 | `SAUNA_OFF` | Sauna OFF | trigger-only | system seed UUID |
 | `IR_ON` | IR ON | trigger-only | system seed UUID |
@@ -536,7 +536,7 @@ Mark each item `LOCKED` before implementation starts.
 | `ir` | `IR_ON` | `IR_OFF` |
 | `cinema` | `SCENE_CINEMA_ON` | `SCENE_CINEMA_OFF` |
 
-**Sunrise/sunset ≠ blinds:** `SUNRISE_TRIGGER` / `SUNSET_TRIGGER` are twilight-window edges at raw astronomical sunrise/sunset. `BLINDS_OPEN_TRIGGER` / `BLINDS_CLOSE_TRIGGER` use **clamped** times (`max(sunrise|sunset, earliest)` ± optional latest). Do not wire them interchangeably.
+**Sunrise/sunset ≠ blinds:** `SUNRISE_TRIGGER` / `SUNSET_TRIGGER` are twilight-window edges at raw astronomical sunrise/sunset. `BLINDS_OPEN_TRIGGER` / `BLINDS_CLOSE_TRIGGER` use **clamped** times (`max(sunrise|sunset, earliest)` ± optional latest). Do not wire them interchangeably. **Admin model + post-B10E labels:** [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
 
 **Pre-B10B legacy aliases (`TWILIGHT_*`) — removed in B10B (D1).** Canonical names only after cutover.
 
@@ -652,13 +652,14 @@ Phase B5 does **not** require a rollback rehearsal that depends on hand-edit + A
 4. **Phase B7:** ✅ unified soft-hide — **`deviceexplorer_hide`**; `hiddendevices.html` + `/api/soft-hide`; hard-deny = 71040 (A); 71036 soft-hide + commandable + Blocky-selectable; migrator removed after cutover.
 5. **Phase B8:** ✅ auto-off timers UI + engine — `auto_off_devices:`; `lightingautooff.html` + `/api/auto-off-timer`; migrator removed after cutover.
 6. **Phase B9A:** Blockly parity + sensor/threshold/host-gauge authoring + **remove JSON** — **spec locked**.
-7. **Phase B9B:** bathroom climate + **H12** hysteresis + **H4** condition OR groups + **H5** notify (→ Gmail per `phaseE-gmail.md`); vent lock stays in hub — deferred.
+7. **Phase B9B:** bathroom climate + **H12** hysteresis + **H4** condition and/or (+ drop trigger “when any of”) + **H5** notify (→ Gmail per `phaseE-gmail.md`); vent lock stays in hub — deferred.
 8. **Phase B10A:** ✅ Blockly editor fixes (Hue picker-only a/b/c, toolbar Delete, dirty leave; Hue/blinds rich survive save→reload); smoke OK Pi **2026-08-09**.
 9. **Phase B10C:** ✅ soft-hide action device picker (exclusive + sticky load); smoke OK Pi **2026-08-09**.
-10. **Phase B10B:** `events:` catalog (UUID-on-bus) + per-rule enable + family/`SCENE_*` cutover — **spec locked**; schedule vs B9A/B9B is operator choice.
-11. **Phase B10D:** unique rule names (case-insensitive; Blocky + API) — **spec locked**.
-12. **Phase B10E:** Automations sidebar sort (name ↔ type+name; event→dashboard→other) — **spec locked**.
-13. **Later:** HA patterns H1–H3, H6–H11; multi-flow one Blockly page (after B10B).
+10. **Phase B10B+D:** `events:` catalog (UUID-on-bus) + per-rule enable + family/`SCENE_*` cutover + unique rule names — ✅ **DONE 2026-08-10** (Pi migrate 7A + smoke/GREEN + migrator deleted).
+11. **Phase B10D:** unique rule names (case-insensitive; Blocky + API) — **ships inside B10B+D** (enforced in code; Pi smoke ✅ **2026-08-10**).
+12. **Phase B10E:** Automations **Library** (UE/UR/SE/SR/D + C), New user event form, When/Fire user vs system, schedule display names, wipe Sunset listeners — ✅ **DONE 2026-08-10**.
+13. **Phase B10F:** Automations UX polish (save chrome, connecting, library keys, schedule fire-time status) — **queued**.
+14. **Phase B11–B17:** multi-flow; folder/tag; IF/ELSE; remaining HA; demote schedule; bus UUID; Sauna/IR assess — see § B11–B17.
 
 ## ✅ Definition of Done (Option 2)
 
@@ -670,8 +671,8 @@ Use this as strict phase gates. Do not mark a phase complete unless all items ar
   - hard-deny eids never appear/selectable,
   - soft-hidden eids are hidden by default and visible only via “Show Explorer-hidden devices”,
   - eids already used by the **open rule** (same picker role) remain listed so that rule can edit/round-trip.
-- [x] **Event picker policy:** E1-v1 curated events are rendered with friendly labels (no raw key-only UX by default).
-- [x] **Event family behavior:** explicit pair families are respected for branched event trigger UX (no suffix heuristics).
+- [x] **Event picker policy:** E1-v1 curated events are rendered with friendly labels (no raw key-only UX by default). **Superseded by B10B+D+E:** pickers = `events:` UUID catalog; labels = catalog names.
+- [x] **Event family behavior:** explicit pair families are respected for branched event trigger UX (no suffix heuristics). **Superseded by B10B:** families deleted; each edge is its own catalog UUID / rule.
 - [x] **No free-text dependency for normal flow:** standard rule authoring works end-to-end without typing raw `entity_id` or raw event keys (flat fallback mode remains available by design).
 - [x] **Validation UX:** blocked selections show clear user feedback (why blocked + what to do).
 - [x] **Compatibility:** existing rules load/edit/save without semantic drift.
@@ -772,6 +773,7 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [ ] **Events:** pickable from `events:` (B10B); `SAUNA_SETPOINT_REACHED` present.
 - [ ] **JSON removed** in same PR as parity green; decision #12 prose updated to Blockly-only.
 - [ ] **Pi smoke:** operator broad smoke + Admin Debug GREEN.
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ### Phase B9B DoD — Bathroom climate + H4 / H5 / H12
 
@@ -780,11 +782,12 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [ ] **Bathroom:** humidity ON/OFF band via H12; hardcoded climate paths retired; **vent min-runtime lock remains in hub**.
 - [ ] **`bathroom1.vent_*` cutover** decided and applied.
 - [ ] **Sweeper** climate recovery: keep-thin or drop — explicit at impl.
-- [ ] **H4:** condition AND/OR groups in schema + Blockly + engine.
+- [ ] **H4:** condition AND/OR groups in schema + Blockly + engine; remove trigger “when any of”; multi-match via condition and/or.
 - [ ] **H5 alert:** Blockly notify/alert action (UI path).
 - [ ] **H5 Gmail:** action emits `EMAIL_REQUESTED` only; aligns with `docs/todo/phaseE-gmail.md` (outbox/OAuth may land in parallel; email DoD can trail alert if needed).
 - [ ] Hot-water/sauna-grace still out unless reopened.
 - [ ] Pi smoke + Admin Debug GREEN.
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ### Phase B10A — Blockly editor fixes ✅ DONE
 
@@ -806,6 +809,7 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [x] Toolbar Delete works (incl. tablet); trashcan removed; Del/Backspace OK on desktop; help text updated.
 - [x] Canvas edits show **Unsaved changes**; dirty leave prompts on all leave paths; clean after save/discard.
 - [x] Hue named preset / custom color and blinds CLOSED / position % survive save→reload (dropdown option cache + load microtask).
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-10** (re-audit with B10B+D+E close-out pass).
 
 ---
 
@@ -830,21 +834,51 @@ Hard-deny (**71040**) never appears. Not inclusive “show everything when ON”
 
 HIDDEN ON → leave rule → re-open **`all off gv`** showed **`53?`** on non-hidden actions (mid-load sticky used partial workspace → FieldDropdown snapped to `options[0]`). Soft-hidden actions stayed correct.
 
-**Shipped:** sticky during `BlockyRT.loading` uses full `ruleJson` action eids; load pass re-asserts ENTITY. Cache `blocky.js?v=4.39`.
+**Shipped:** sticky during `BlockyRT.loading` uses full `ruleJson` action eids; load pass re-asserts ENTITY. (Cache bust: use current `blocky.js?v=` from deploy; smoke used `?v≥4.56`.)
 
 #### Phase B10C DoD
 
 - [x] HIDDEN OFF/ON match the table above for **action** device pickers (sticky current + exclusive catalog).
 - [x] Repro path: HIDDEN ON → leave rule → re-open **`all off gv`** → labels stay correct (no `53?` / blank / snap).
 - [x] Untouched save does not change action `entity_id`s; Pi smoke both toggle states + leave/reopen.
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-10** (re-audit with B10B+D+E close-out pass).
 
 ---
 
-### Phase B10B — Events catalog + rule enable 🔜 TODO (spec locked)
+### Phase B10B+D — Events catalog + rule enable + unique rule names ✅ DONE (2026-08-10)
 
-**Origin:** intermediary split → Blocky. **Prereqs:** B10A ✅ + B10C ✅ (Pi smoke **2026-08-09**). May run before/parallel/after B9A — not folded into B9A/B9B. **B10D** is separate (not this phase).
+**Origin:** intermediary split → Blocky. **Prereqs:** B10A ✅ + B10C ✅ (Pi smoke **2026-08-09**). May run before/parallel/after B9A — not folded into B9A/B9B.
+
+**Delivery:** one ship (**B10B+D**). Letter DoDs below stay separate for checklist clarity; **B10D uniqueness is enforced from the first live API/Blocky save** in this delivery (not a follow-up PR). Treat as **one phase** in sequence/pipeline.
+
+**Operator smoke:** ✅ OK on Pi (**2026-08-10**) — combined B10B+D+E; Admin Debug **GREEN**; kiosk + B10D name smoke.
+
+**Status (2026-08-10):** Implementation + **Pi cutover 7A** (migrator write) done. **B10E Automations Library UX** shipped in the same code pass (UE/UR/SE/SR/D). Kiosk UUID paste done. Combined operator smoke (B10B+D+E) + Admin Debug **GREEN** + kiosk ✅ **2026-08-10**. Migrator + D1 soak leftovers deleted (**2026-08-10** close-out). **Shipped intentional:** `HUB_STATE_CHANGED` not pickable; entity-registry check skips history idxs ≥900000. **Non-DoD follow-up:** Blockly FS save banners.
+
+**Relationship to B10E (locked 2026-08-10):** B10B’s **core** (UUID `events:` catalog, bus tokens, `/api/events`, family/`SCENE_*` cutover, rule `enabled`, B10D names) stays. B10E **revises the operator-facing Automations UX and some product rules** that B10B first shipped (list chrome, Event flags panel, system `show_on_dashboard`, fire-picker allowlist, schedule **display** names, SE view-only / SR name bind). See § B10E “Supersedes from B10B”.
+
+**One ship ✅ complete 2026-08-10:** **B10B + B10D + B10E** — code, Pi smoke/GREEN/kiosk, migrator delete.
+
+**Known non-DoD follow-up:** soft-hidden doors (`sensor.door.*` on `deviceexplorer_hide`) only appear in “if device” when Hidden ON — optional always-merge for condition/trigger.
 
 **Supersedes (after cutover):** B2 curated `SCENE_*` strings, Blockly event-family triggers, `SCHEDULE_WINDOW_EDGES` / `EVENT_FAMILY_TO_ON_OFF`, `TWILIGHT_*` aliases, `available_scenes` / `rule.scene`, bus tokens `USER_*` / `SCENE_*` for operator scenes.
+
+#### Locked operator decisions (2026-08-10)
+
+| # | Decision |
+|---|---|
+| Cutover | **7A** — stop service → run migrator on YAML → deploy/start new code → smoke → remove migrator script |
+| System seed UUIDs | Generate + lock in code constants (identity authority) |
+| User event UUIDs | Random at migrate; **UI shows name only** (UUID still in YAML / API wire / kiosk source) |
+| User event names | Migrator copies from matching `scene: true` **rule** `name` (not E1 labels) |
+| Family splits | `Blinds open` / `Blinds close`; morning/evening lights edges (see seed names); `Sauna ON` / `Sauna OFF` — new rule ids; old family rules retired |
+| Live families | Confirmed in YAML: only `blinds`, `twilight_morning`, `sauna` (no cinema/ir/twilight_evening family rules) |
+| Cinema | Not a family migrate; `SCENE_CINEMA_*` → user events; manual only |
+| Kiosk (K1) | Hardcoded literal UUIDs in `kiosk.html` — **in B10B DoD** |
+| `/api/events` | **8A** — automations twin (GET list + POST/PUT/DELETE); **B10E:** system PUT rejects dashboard-on (system never on Explorer); user confirm coerced off when dashboard off |
+| Internals | Non-catalog bus stays `EventType` strings this phase; full-bus UUID → **B16** in [`pipeline.md`](pipeline.md) / § B16 |
+| Pre-clean | Duplicate `test` rules removed (repo + Pi); B10D “no current duplicates” holds |
+| System seed **names** | Full table in § B10B+D — **approved 2026-08-10**; schedule display renames **shipped in B10E** (**2026-08-10**) — [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) |
 
 ---
 
@@ -867,7 +901,7 @@ In `automations.auto.yaml` (alongside `automations`, soft-hide, auto-off):
 ```yaml
 events:
   - id: <uuid>                 # bus token; immutable
-    name: "Cinema on"          # UI; unique trim+case-insensitive (M1)
+    name: "Cinema on"          # UI; unique trim+case-insensitive
     origin: user               # system | user
     show_on_dashboard: false
     require_confirmation: false
@@ -878,36 +912,80 @@ events:
 |---|---|---|
 | Create / delete from Blockly | No | Yes (delete rules below) |
 | **name** editable | No (constants) | Yes |
-| **require_confirmation** editable | No (always false) | Yes (dashboard taps) |
+| **require_confirmation** editable | No (always false) | Yes — dashboard taps only; **B10E:** usable only with `show_on_dashboard`; clearing dashboard **must** clear confirm |
 | **enabled** editable | **No** (always on) | Yes — false ⇒ hide from dashboard + pickers |
-| **show_on_dashboard** editable | Yes | Yes |
+| **show_on_dashboard** editable | **No** (always false after B10E) | Yes |
 
-**Y1 — system seeds:** Fixed UUID + name in **code constants** (identity authority). Boot/migrate **merges** into YAML: insert missing ids; on existing rows keep YAML `show_on_dashboard`, force name/origin/confirm/enabled from constants.
+**Y1 — system seeds:** Fixed UUID + name in **code constants** (identity authority). Boot/merge into YAML: insert missing ids; on existing rows force name/origin/confirm/enabled from constants; **B10E:** force `show_on_dashboard: false` (system never on Explorer).
 
-**API:** `/api/events` — surgical write; `CONFIG_RELOAD_REQUESTED`. System: reject create/delete; PATCH only `show_on_dashboard`. User: full CRUD subject to delete guards.
+**API `/api/events` (8A):** Admin. Surgical write + `CONFIG_RELOAD_REQUESTED`.
+
+* `GET` → `{ "events": [ …rows ] }`
+* `POST` → create **user** row (server assigns UUID); body: `name`, `show_on_dashboard`, `require_confirmation`, `enabled` (default true)
+* `PUT` → replace by `id` — **user:** those fields; **system (B10E):** no operator field edits — identity forced from constants; `show_on_dashboard` always false (**reject** attempts to set true); other system fields not writable from API
+* `DELETE` → `{ "id" }` — **user** only; delete guards → 409 with reason
+* Errors: 400 validate / name clash, 403 non-admin, 404 missing, 409 delete blocked / duplicate id
 
 **Names:** unique among all events (trim + case-insensitive), same spirit as B10D for rules.
 
-**Picker sort:** alphabetical by **name**.
+**Picker sort:** **user** events first (alpha by name), then **system** (alpha by name). Labels: catalog name only (no `system:` prefix — badges mark origin).
 
 ---
 
-#### Pickable events (catalog + Blockly trigger/fire)
+#### System seed names — **approved** (2026-08-10; schedule display renames locked for **B10E**)
 
-**System seeds (fixed UUID, in catalog):**
+UUIDs: locked in `core/event_catalog.py`. **Name** = Blockly / catalog display string (Y1 boot merge forces system names from constants). Schedule window model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
 
-* Schedule edges: `BLINDS_OPEN_TRIGGER`, `BLINDS_CLOSE_TRIGGER`, `MORNING_ON_TRIGGER`, `SUNRISE_TRIGGER`, `SUNSET_TRIGGER`, `EVENING_OFF_TRIGGER`
-* Sauna / IR edges: `SAUNA_ON`, `SAUNA_OFF`, `IR_ON`, `IR_OFF`
-* Sauna / IR extras: `SAUNA_SETPOINT_CHANGED`, `SAUNA_MODULATION_UPDATED`, `SAUNA_SETPOINT_REACHED`, `SAUNA_HOLD`, `SAUNA_TIMER_EXPIRED`, `SAUNA_HOLD_TOGGLED`, `SAUNA_TIMER_ADJUSTED`, `SAUNA_DOOR_GRACE_EXPIRED`, `VENT_WAIT_EXPIRED`, `VENT_RUN_EXPIRED`, `IR_MODULATION_UPDATED`, `IR_TIMER_EXPIRED`
-* Sensors / hub: `TEMP_UPDATED`, `HUMIDITY_UPDATED`, `POWER_UPDATED`, `WATER_PULSE`, `KWH_PULSE`, `DOOR_CHANGED`, `HUB_STATE_CHANGED`, `LIGHTING_STATE_CHANGED`, `EXTERNAL_WEATHER_UPDATED`, `SENSOR_ERROR`
+| EventType key | `name` | Notes |
+|---|---|---|
+| `BLINDS_OPEN_TRIGGER` | Blinds open | Unchanged; blinds window START |
+| `BLINDS_CLOSE_TRIGGER` | Blinds close | Unchanged; blinds window STOP |
+| `MORNING_ON_TRIGGER` | **Morning lights on** | Was “Morning on”; **B10E** catalog/UI rename (UUID unchanged) |
+| `SUNRISE_TRIGGER` | **Morning lights off** | Was “Sunrise”; **B10E** rename |
+| `SUNSET_TRIGGER` | **Evening lights on** | Was “Sunset”; **B10E** rename |
+| `EVENING_OFF_TRIGGER` | **Evening lights off** | Was “Evening off”; **B10E** rename |
+| `SAUNA_ON` | Sauna ON | E1 |
+| `SAUNA_OFF` | Sauna OFF | E1 |
+| `IR_ON` | IR ON | E1 |
+| `IR_OFF` | IR OFF | E1 |
+| `SAUNA_SETPOINT_CHANGED` | Sauna setpoint changed | |
+| `SAUNA_MODULATION_UPDATED` | Sauna modulation updated | |
+| `SAUNA_SETPOINT_REACHED` | Sauna setpoint reached | Seeded even if emit lands later / B9A |
+| `SAUNA_HOLD` | Sauna hold | |
+| `SAUNA_TIMER_EXPIRED` | Sauna timer expired | |
+| `SAUNA_HOLD_TOGGLED` | Sauna hold toggled | |
+| `SAUNA_TIMER_ADJUSTED` | Sauna timer adjusted | |
+| `SAUNA_DOOR_GRACE_EXPIRED` | Sauna paused (door open) | Door open too long while sauna active → heaters pause |
+| `VENT_WAIT_EXPIRED` | Sauna ventilator run start | After `SAUNA_OFF` delay: vent → ON, start run timer |
+| `VENT_RUN_EXPIRED` | Sauna ventilator run expired | Vent run finished → vent OFF |
+| `IR_MODULATION_UPDATED` | IR modulation updated | |
+| `TEMP_UPDATED` | Temperature updated | Not SHT-only (SHT + Z-Wave + OWM climate + lab/sim) |
+| `HUMIDITY_UPDATED` | Humidity updated | Same sources as temp |
+| `POWER_UPDATED` | Power updated | |
+| `WATER_PULSE` | Water pulse | |
+| `KWH_PULSE` | kWh pulse | |
+| `DOOR_CHANGED` | Door state changed | |
+| `HUB_STATE_CHANGED` | Hub state changed | Seeded / on bus; **not pickable** in Blockly |
+| `EXTERNAL_WEATHER_UPDATED` → **`SUNRISE_SUNSET_UPDATE`** (**B10E** ✅) | Sunrise/sunset update | **Shipped:** bus key renamed (UUID unchanged). Sun times only → env schedule; not climate. Legacy bus alias still mapped in catalog/handler until soak ends. See [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) |
+| `SENSOR_ERROR` | Sensor error | |
 
-(`SAUNA_SETPOINT_REACHED` seeded now even if emit lands later / B9A.)
+**Not seeded / not pickable:**
 
-**User events (config only — leave code):** migrate from live scenes:
+| EventType key | Status |
+|---|---|
+| `IR_TIMER_EXPIRED` | Internal only — only `dispatch(IR_OFF)`; rules use **IR OFF** |
+| `HUB_STATE_CHANGED` | Catalog + bus yes; Blockly pickers exclude (`NON_PICKABLE_SYSTEM_UUIDS`) — high-chatter telemetry |
+| `LIGHTING_STATE_CHANGED` | **Removed** from codebase (enum + handler + registry); lights use `HUB_STATE_CHANGED` |
+
+(`SAUNA_SETPOINT_REACHED` remains seeded even if emit lands later / B9A.)
+
+**Not in catalog (internal bus only):** timers/infra (incl. `IR_TIMER_EXPIRED`), integration toggles, alerts. **`EMAIL_REQUESTED`:** wait for phase **E**.
+
+**User events (config only — leave code):** migrate from live `scene: true` rules / SCENE_* keys:
 
 `SCENE_CINEMA_ON`, `SCENE_CINEMA_OFF`, `SCENE_ALL_OFF`, `SCENE_GOCOSY`, `SCENE_GV_OFF`, `SCENE_VERDIEP1_OFF`, `SCENE_VERDIEP2_OFF`
 
-**Not in catalog (internal bus only):** timers/infra, integration toggles, alerts. **`EMAIL_REQUESTED`:** wait for phase **E** (not seeded in B10B).
+Migrator: new UUID per key; **name / confirm / dashboard** from the matching `scene: true` rule; dedupe by old event key.
 
 **Core emitters** for system pickables publish the **fixed UUID** (handlers registered on that UUID).
 
@@ -915,14 +993,15 @@ events:
 
 #### Blockly / rules UX
 
-* **Create user event:** name **required** before save; optional Show on dashboard (± confirm). Save upserts `events` user row; rule trigger stores that **id**.
-* **Pickers:** trigger + fire-action = full pickable catalog (system + user). Enabled-only for **user** rows in pickers; system always listed.
-* **Reuse:** same event id as trigger and as fire-action. **No** confirm on fire-action (confirm = dashboard tap only).
+* **Create user event:** **B10E** — **New user event** form (not via rule flags); name required; Appear on explorer (± confirm only usable if explorer on; turning explorer off **forces confirm off**). Save = user `events` row only.  
+* **Pickers:** trigger + fire-action = pickable catalog (system + enabled user). Labels: catalog name only (no `system:` prefix). System always listed except `NON_PICKABLE_SYSTEM_UUIDS` (currently `HUB_STATE_CHANGED`). **B10E:** split When/Fire user vs system; fire allowlist for unused system; When-system trigger lists unused SEs only (+ current when editing SR).  
+* **Reuse:** same event id as trigger and as fire-action. **No** confirm on fire-action (confirm = Explorer GO only).
 * **Fire system UUID from a rule:** allowed.
 * **Event-triggered cases:** drop useless “if” chrome; **keep conditions** (empty = always).
 * **Edit event flags:** when viewing a rule whose trigger is that event (Blockly-only path for user CRUD).
 * **Per-rule `enabled`:** default `true`; missing → true. UI: Automations **list + editor** (L+E). Engine skips disabled rules. Global `automations_enabled` unchanged.
 * **Orphan / unused user event** (not dashboard, no rule trigger/fire refs): left-list rule row **muted amber**; message when viewing. Delete allowed only when unused + not dashboard (confirm). **Block delete** if any rule uses event as trigger or fire-action → modal. Dashboard-shown ⇒ not deletable.
+* **Unique rule names (B10D):** trim + case-insensitive; enforce on Blocky Save + API create/update from day one of this delivery.
 
 ---
 
@@ -949,9 +1028,15 @@ Cinema ON/OFF: **manual only** (no clock today; unchanged).
 #### Families — remove (this phase)
 
 * Delete Blockly `b_trig_family` / family UI.
-* Delete `SCHEDULE_WINDOW_EDGES` / `EVENT_FAMILY_TO_ON_OFF` from code after migration.
-* **D1:** remove `TWILIGHT_*` enum members, `SCHEDULE_EVENT_ALIASES` / canonicalize shim, Blockly labels, docs aliases.
-* **Migrate** live family rules → **two rules** (one per concrete edge), e.g. `Sauna ON/OFF` → `Sauna ON` + `Sauna OFF` (new rule ids; old retired). Live families today: `blinds`, `twilight_morning`, `sauna`.
+* Delete `SCHEDULE_WINDOW_EDGES` / `EVENT_FAMILY_TO_ON_OFF` from code after migration — ✅ **2026-08-10** (with migrator delete).
+* **D1:** remove `TWILIGHT_*` enum members, `SCHEDULE_EVENT_ALIASES` / canonicalize shim, Blockly labels, docs aliases — ✅ **2026-08-10**.
+* **Migrate** live family rules → **two rules** (one per concrete edge); new rule ids; old retired:
+
+| Old rule | Family | New rule names |
+|---|---|---|
+| `Blinds Open/Close` | `blinds` | `Blinds open` + `Blinds close` |
+| `Kerstverlichting voor & achter aan 's morgens` | `twilight_morning` | `Morning lights on` + `Morning lights off` (was Morning on + Sunrise) |
+| `Sauna ON/OFF` | `sauna` | `Sauna ON` + `Sauna OFF` |
 
 Env scheduler still emits concrete schedule edges (then as UUIDs); it does not use family sugar.
 
@@ -959,7 +1044,7 @@ Env scheduler still emits concrete schedule edges (then as UUIDs); it does not u
 
 #### Kiosk (K1)
 
-Hardcoded page OK. Buttons dispatch **literal event UUIDs** (Cinema on/off, Verdiep1 off, …) after migrate — migrator prints ids for paste into `kiosk.html`. No `SCENE_*` strings in code.
+Hardcoded page OK. Buttons dispatch **literal event UUIDs** (Cinema on/off, Verdiep1 off, …) after migrate — migrator prints ids for paste into `kiosk.html`. **Updating `kiosk.html` is in DoD.** No `SCENE_*` strings in code.
 
 ---
 
@@ -971,14 +1056,16 @@ Synthetic series keyed by **event UUID** (not name, not old `crc32(SCENE_*)`). M
 
 #### Migrator (one-shot, then remove — B7/B8 style)
 
+Cutover order **7A:** stop → migrate YAML → start new code → smoke → remove script.
+
 1. Seed/merge system `events` from constants (Y1).  
 2. Create **user** `events` for seven SCENE_* (new UUIDs; copy name / confirm / dashboard from `scene: true` rules; **dedupe by old event key**).  
 3. Rewrite all rule triggers/actions from strings/families → **UUIDs**.  
-4. Split family rules → two rules.  
+4. Split family rules → two rules (names in table above).  
 5. Strip `scene` / `require_confirmation` from rules; add `enabled: true` where missing.  
 6. History idx remap; retire `entity_registry` `scene.*` path / rows as needed.  
 7. Drop family maps, `TWILIGHT_*` aliases, curated SCENE allowlists.  
-8. Print kiosk UUIDs for K1 paste.
+8. Print kiosk UUIDs for K1 paste into `kiosk.html`.
 
 No grandfathering of `SCENE_*` bus strings.
 
@@ -986,54 +1073,256 @@ No grandfathering of `SCENE_*` bus strings.
 
 #### Phase B10B DoD
 
-- [ ] `events:` catalog + `/api/events`; Y1 boot merge; system/user flag rules honored.
-- [ ] ID-on-bus; Blockly trigger/fire pickers (alpha by name); no family trigger; no “if” chrome on event cases (conditions kept).
-- [ ] Dashboard from `dashboard_events` (enabled∧show∧≥1 enabled listener); no `rule.scene` / no `SCENE_*` in code.
-- [ ] Migrator: SCENE_* → user events; families → two rules; history remap; strip scene flags; kiosk UUID note; script removed after Pi write.
-- [ ] Per-rule `enabled` (engine + list + editor); user-event enable/disable + delete guards + orphan tint/message.
-- [ ] Re-entrancy depth 2; Pi smoke (create user event, dashboard fire, fire-from-action, nested ALL OFF, disable rule, system dashboard flag); Admin Debug GREEN; kiosk Cinema/Verdiep1 via UUID.
+- [x] `events:` catalog + `/api/events` (8A); Y1 boot merge; system/user flag rules honored.
+- [x] ID-on-bus; Blockly trigger/fire pickers (user then system, alpha within; catalog-name labels); no family trigger; no “if” chrome on event cases (conditions kept). `HUB_STATE_CHANGED` seeded but **not pickable**.
+- [x] Dashboard from `dashboard_events` (enabled∧show∧≥1 enabled listener); no `rule.scene` / no `SCENE_*` in code.
+- [x] Migrator: SCENE_* → user events; families → two rules; history remap; strip scene flags; kiosk UUID note; **`kiosk.html` hardcoded UUIDs** (Pi map). **Script remove** ✅ **2026-08-10** (after soak; also `helpers/b10b_cutover_map.json` + D1 aliases / `SCHEDULE_WINDOW_EDGES`).
+- [x] Per-rule `enabled` (engine + list + editor); user-event enable/disable + delete guards + orphan tint/message.
+- [x] Re-entrancy depth 2 (code); **Pi smoke** (create user event, dashboard fire, fire-from-action, nested ALL OFF, disable rule, system dashboard flag); Admin Debug GREEN; kiosk Cinema/Verdiep1 via UUID — ✅ **2026-08-10**.
+- [x] System seed **names** match the approved constants table.
 
-#### After B10B (not DoD)
+#### Phase B10D DoD (same delivery; checks from the start)
 
-**Multi-flow in one Blockly page:** N independent trigger→action graphs under one list entry. High cost; tensions with Phase B6B one-trigger canvas. Prefer list folder/tag first.  
-**`EMAIL_REQUESTED`:** seed with phase **E** (not B10B).
+- [x] Create/rename colliding with another rule (trim + case-insensitive) blocked in Blocky + API (code).
+- [x] Update same rule keeping its name OK; **Pi smoke** collide + rename-away — ✅ **2026-08-10**.
+- [x] No pre-existing duplicate rule names on Pi (confirmed after `test` rule removal).
+
+#### Operator smoke checklist (B10B+D close-out)
+
+Run on **Pi** after deploying latest (`entity_registry_check` skip ≥900000, Blocky `?v≥4.56`). **Operator confirmed Pass 2026-08-10** (items 1–12, incl. soak + migrator delete).
+
+1. **Boot / Debug** — clean boot (no `scene.*` birth storm); Admin Debug entity-registry **GREEN** (synthetic history count OK, not ERROR). ✅
+2. **Kiosk** — Cinema on/off + Verdiep1 off fire via UUID (confirm listeners run). ✅
+3. **Create user event** — **B10E:** **New user event** → form → name → Save → **UE** in Library + picker (user section) + optional Appear on explorer. (Historical B10B path “New rule → Create new user event” superseded.) ✅
+4. **Dashboard fire** — **B10E:** `show_on_dashboard` **user** event only (system never on Explorer); tap fires; confirm gate if set (dashboard only). ✅
+5. **Fire-from-action** — rule A fires event UUID → rule B trigger; no confirm on fire-action. ✅
+6. **Nested / re-entrancy** — ALL OFF (or similar) that fires another catalog event; depth-2 OK, no loop blow-up. ✅
+7. **Rule enabled** — disable rule → event does not run it; re-enable → runs. ✅
+8. **System dashboard flag** — **superseded by B10E:** system events must **never** be on dashboard (clear YAML + reject API). Smoke instead: confirm no system row in `dashboard_events`. ✅
+9. **B10D names** — Save with duplicate name (case/trim) rejected; rename-away then collide OK; same-id keep name OK. ✅
+10. **Pickers** — Hub state changed **absent**; catalog-name labels (no `system:` prefix); user events listed above system. (**B10E** further restricts **fire** picker for unused system except Sauna/IR ON/OFF; When-system = unused SEs only.) ✅
+11. **Family gone** — no family trigger block; Blinds open/close, Morning/Evening lights edges, Sauna ON/OFF as separate rules. ✅
+12. **Delete migrator** — remove `helpers/migrate_events_b10b.py` (+ cutover map / D1 soak leftovers) from tree — ✅ **2026-08-10**.
+
+*(Combined Pi smoke for B10B+D+E lives under § B10E DoD after the one-ship delivery.)*
+
+#### After B10B+D (not DoD)
+
+Pointers only — detail under § B10F / § B11–B17:
+
+* **B10F** — Automations UX polish (does not reopen B10E DoD).
+* **B11** — Multi-flow in one Blockly page.
+* **B12** — Rule-list folder/tag.
+* **`EMAIL_REQUESTED`:** seed with phase **E** (not B10B).
+* **B15** — Demote schedule edges → user origin.
+* **B16** — Full-bus UUID for internal `EventType`s.
+* **B17** — Sauna/IR hardcoded → automation (assess only).
 
 ---
 
-### Phase B10D — Unique rule names 🔜 TODO
+### Phase B10D — Unique rule names (ships inside B10B+D)
 
-**Origin:** operator request **2026-08-09**. Not folded into B9\*. After **B10B** (or with it if capacity).
+**Origin:** operator request **2026-08-09**. Spec kept here for the uniqueness contract; **implementation is not a separate ship** — see § B10B+D.
 
 * Automation **rule `name`** must be unique among all rules.
 * Compare: **trim** + **case-insensitive** (e.g. `All off` ≡ `all off`).
 * Enforce on **Blocky Save** and **API** create/update (reject with clear error). Same `id` update may keep its own name.
-* No migrate: operator confirmed **no current duplicates** on Pi.
+* No name-uniqueness migrator: duplicates cleared before cutover (`test` rules removed).
 
-#### Phase B10D DoD
-
-- [ ] Create/rename colliding with another rule (any case) blocked in Blocky + API.
-- [ ] Update same rule keeping its name OK; Pi smoke collide + rename-away.
+*(DoD checkboxes live under § B10B+D.)*
 
 ---
 
-### Phase B10E — Automations list sort 🔜 TODO
+### Phase B10E — Automations list UX + schedule display names ✅ DONE (2026-08-10)
 
-**Origin:** operator request **2026-08-09**. FE-only; Automations **sidebar** (not device dropdowns).
+**Origin:** operator list model (D/S/U/C) + schedule naming approval **2026-08-10**.  
+**Delivery:** **one ship with B10B+D** — code + **Pi smoke** ✅ **2026-08-10**; migrator delete ✅ **2026-08-10**.  
+**Detail (schedule):** [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
 
-* Click **AUTOMATIONS** header → switches sort mode:
-  * **Name** — alphabetical by rule name.
-  * **Type then name** — primary type bucket, then name within bucket.
-* **Type** buckets (top → bottom): **event** → **dashboard** → **other**.
-* Classification:
-  * **event** — event-triggered (trigger event UUID); if that event is also `show_on_dashboard`, still **event**, sorted at the **bottom of the event** bucket (after event-only).
-  * **dashboard** — legacy label for dashboard/scene-only rows; after **B10B** former scenes are event-triggered (use **event** bucket). Keep bucket for forward compat / empty.
-  * **other** — neither (e.g. device-triggered).
-* Persist mode in-session at minimum (localStorage optional).
+**Operator smoke:** ✅ OK on Pi (**2026-08-10**).
 
-#### Phase B10E DoD
+**Supersedes** the earlier thin B10E “sort only” (`event → dashboard → other`).
 
-- [ ] Click AUTOMATIONS toggles name ↔ type+name; list order matches mode.
-- [ ] Type order **event → dashboard → other**; event+dashboard at **bottom of event**; Pi smoke both modes.
+#### Supersedes from B10B (UX / product rules — core catalog stays)
+
+| B10B shipped | B10E target |
+|---|---|
+| Event flags panel on rules | **Remove**; **UE** rows use a form (not Blockly); no dash/confirm on normal rules |
+| Create user event via rule checkbox | Separate **New user event** (next to **New rule**) |
+| System may `show_on_dashboard` | System **never** on dashboard (API reject + clear YAML) |
+| List = “rules” + orphan badges | **Library** of UE / UR / SE / SR / D (+ C) |
+| Single “When event” | Split **When user event** / **When system event** (+ fire actions split) |
+| Fire picker ≈ all pickable system | Unused system **not** fireable except Sauna/IR ON/OFF |
+| Schedule labels Morning on / Sunrise / Sunset / Evening off | Morning/Evening **lights** on/off (UUIDs unchanged) |
+| `EXTERNAL_WEATHER_UPDATED` bus key | Rename → **`SUNRISE_SUNSET_UPDATE`** |
+
+#### Library (left column)
+
+* Page title stays **Automations**. Left list name: **Library**.  
+* Buttons above list, side by side: **New rule** | **New user event**.
+
+#### Icons (letter badges)
+
+| Badge | Meaning | Circle |
+|---|---|---|
+| **UE** | User **event** (catalog) | Teal |
+| **UR** | **Rule** triggered by a **user** event | Sky blue |
+| **SE** | **System** event (catalog, immutable) | Slate |
+| **SR** | **Rule** triggered by a **system** event | Darker slate |
+| **D** | **Device**-triggered rule | Amber |
+| **C** | Confirm (2nd icon on **UE** only) | Rose |
+
+Default sort: **UE → UR → SE → SR → D**, then name; toggle ↔ name-only.  
+Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
+
+#### Locked list model
+
+| Kind | Editor | Explorer / confirm | Enable / names |
+|---|---|---|---|
+| **UE** user event | **Not Blockly** — name; **Appear on explorer** (always shown, default OFF); **Require confirmation** (always shown; **usable only when** appear-on-explorer is ON, otherwise **blocked**; default OFF); Disable. **Invariant:** turning Appear on explorer **OFF** while confirmation is ON **must clear confirmation** (UI + persisted `require_confirmation: false`). | Explorer GO when appear-on-explorer | Disable only if unused (no listening UR + no fire-refs); Show usages |
+| **UR** user-event rule | Blockly (**When user event**); name may differ from UE | Never (only **UE** on Explorer) | Can disable (blocked while trigger UE is fire-referenced) |
+| **SE** system event | **View-only** catalog (name + id); **no** create/edit/delete of the event; **no** Save that edits SE | **Never** | **Cannot** disable (no toggle). Unused SE = no listening SR — **not** called disabled. **Show disabled/unused** XOR for SE: OFF = used only; ON = unused only |
+| **SR** system-event rule | Blockly (**When system event**); **name always equals** companion SE catalog name (list label + locked name field; API overwrites on POST/PUT) | **Never** | Can disable. New SR: When-system picker lists **unused** SEs only (+ current when editing). One SR max per SE |
+| **D** device rule | Blockly (**When device**) | Never | Manual |
+
+**New user event** → form → `POST /api/events` → **UE** in Library (no rule).  
+**New rule** → Blockly roots: When device | When user event | When system event. **No** “New system event”.  
+**Fire:** Fire user event | Fire system event (Sauna/IR ON/OFF always; other unused system excluded).
+
+**UE form — explorer / confirmation (locked)**
+
+* **Appear on explorer** always available (default OFF).  
+* **Require confirmation** always visible; **usable only when** Appear on explorer is ON; otherwise **blocked**.  
+* If confirmation is ON and the operator turns Appear on explorer **OFF** → confirmation is **forced OFF** immediately (checkbox + save/`PUT` must persist `require_confirmation: false`). API: rejecting or coercing `require_confirmation: true` when `show_on_dashboard: false` is required.  
+* Rose **C** icon only when confirmation is ON (implies explorer ON).
+
+**Disable / usages:** referenced **UE** (as fire-action) → cannot disable **UE** or listening **UR** rules; Show usages = rule names. **SR** disable is free of that fire-ref guard. **SE** has no enable toggle.
+
+**General:** one column; exclusive **Show disabled/unused** — UE/UR/SR/D enabled↔disabled, SE used↔unused; Event flags panel gone; one rule max per system event; GO dispatches event UUID (all listeners run); Soft-hide device picker label = **Show hidden devices**.
+
+#### Schedule display + cleanup (same phase)
+
+* Seed/YAML display names Morning/Evening lights…; wipe Sunset listeners; restore GoCosy on user event; clear system dashboard.  
+* `EXTERNAL_WEATHER_UPDATED` → **`SUNRISE_SUNSET_UPDATE`**. Aliases D1 deleted with migrator (**2026-08-10**).
+
+#### Phase B10E DoD (+ B10B+D close-out in same ship)
+
+- [x] Catalog/UI schedule names + `SUNRISE_SUNSET_UPDATE`; UUIDs unchanged where required.
+- [x] Library: **New rule** | **New user event**; UE form; badges UE/UR/SE/SR/D (+ C); sort UE→UR→SE→SR→D; filters; exclusive Show disabled/unused (UE/UR/SR/D disabled XOR; SE used/unused XOR).
+- [x] SE catalog view-only (**no** auto-created SR shells in YAML or UI memory); unused SE = catalog row only until operator **New rule** → When system event → Save; SR name = SE; When/Fire user vs system split; Sunset wipe; GoCosy; system dashboard rejected.
+- [x] Appear on explorer always on UE form; confirm always visible but **blocked** unless explorer ON; **disabling explorer while confirm ON forces confirm OFF** (UI + API coerce); disable + Show usages when referenced.
+- [x] Fire allowlist Sauna/IR ON/OFF.
+- [x] B10B+D close-out on Pi (Admin Debug GREEN, kiosk smoke, B10D name smoke) + combined B10E operator smoke — ✅ **2026-08-10**.
+- [x] Delete migrator `helpers/migrate_events_b10b.py` (+ `helpers/b10b_cutover_map.json`; D1 `TWILIGHT_*` / `SCHEDULE_EVENT_ALIASES` / `SCHEDULE_WINDOW_EDGES`) — ✅ **2026-08-10** after soak.
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-10** (B10B+D+E close-out); re-audit ✅ **2026-08-10** (retired `install_blocky.md` stub + E1/smoke/status drift).
+
+---
+
+### Phase B10F — Automations UX polish 🔜 TODO
+
+**Origin:** operator inbox **2026-08-10**. After B10B+D+E smoke; **does not reopen B10E DoD**.
+
+| # | Item |
+|---|---|
+| 1 | **Save busy indicator** — rolling circle on save barely visible; make it clearly visible |
+| 2 | **Save lock** — while a rule is saving, block editing/changing anything (incl. filter boxes); re-enable only after save completes |
+| 3 | **Connecting** — when WanOS is down, Automations shows the same **connecting** message as Explorer |
+| 4 | **Library keyboard** — with a Library item selected/focused, ↑/↓ scrolls through the list (broken today) |
+| 5 | **Schedule / clock system-event status** — for system rules whose SE is clock/time-based ([`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md)): in the rule editor **WHEN** and **IF**, show today’s fire status, e.g. **Will fire at 21:54** / **Has fired at 07:00** / **Doesn't fire today** |
+| 6 | **Unused SE → create SR** — when viewing an unused **SE**, add button **Create System Rule for this System Event** (creates companion **SR**) |
+| 7 | **Library filters UE & SE default OFF** — filter checkboxes **UE** and **SE** default **OFF** (today all kinds start ON) |
+
+#### Phase B10F DoD
+
+- [ ] Save busy indicator clearly visible during save.
+- [ ] During save: UI locked (editor + filters); unlocked after save settles.
+- [ ] Automations offline/connecting matches Explorer.
+- [ ] Library ↑/↓ navigates the filtered list.
+- [ ] Clock/time SE rules show Will fire at / Has fired at / Doesn't fire today in WHEN and IF.
+- [ ] Unused SE view has **Create System Rule for this System Event**; creates companion SR.
+- [ ] Library filters: **UE** and **SE** default OFF; UR/SR/D unchanged unless specified.
+- [ ] Pi smoke.
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B11 — Multi-flow one Blockly page 🔜 TODO (deferred)
+
+**Not now.** N independent trigger→action graphs under one Library entry. High cost; tensions with Phase B6B one-trigger canvas. Prefer **B12** folder/tag first if list organization is the real pain.
+
+**B11 DoD (stub):** multi-flow authoring + load/save + engine semantics locked before impl; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B12 — Rule-list folder/tag 🔜 TODO (deferred)
+
+**Not now.** Library organization via folder and/or tag without multi-flow.
+
+**B12 DoD (stub):** folder/tag model + list UX + persistence; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B13 — Blockly IF/ELSE / ELSEIF / ELSE 🔜 TODO (deferred)
+
+**Origin:** operator inbox **2026-08-10** (was HA **H11**). Beyond today’s ON/OFF cases: authorable IF / ELSE / addable ELSEIF chains in Blockly.
+
+**B13 DoD (stub):** schema + Blockly + engine for IF/ELSEIF/ELSE; Pi smoke. Spec lock at kickoff (vs ON/OFF cases coexistence). **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B14 — Remaining HA patterns H1–H3, H6–H10 🔜 TODO (deferred)
+
+**Not B9A/B9B.** H1 sustained-for · H2 delay/wait · H3 cooldown · H6 input_number · H7 presence/mode · H8 area trigger · H9 sun elevation · H10 blueprints. (**H11** → **B13**; **H4/H5/H12** stay **B9B**.)
+
+**B14 DoD (stub):** pick subset + lock order at kickoff; do not pull into B9\*. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B15 — Demote schedule edges → user origin 🔜 TODO (deferred)
+
+**Not now.** Blinds open/close, Morning/Evening lights edges, and sibling schedule seeds stay **`origin: system`** with fixed UUIDs and env-scheduler / sweeper emitters. Display names: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
+
+**Goal:** selected schedule edges become normal **user** catalog rows (enable / confirm / delete policy like Cinema) while **keeping the same timed behaviour**.
+
+**Must preserve:**
+
+1. Same bus UUIDs (or explicit remap) so existing rules/kiosk keep working
+2. Env scheduler + sweeper still emit those edges on the same formulas
+3. One-flow-per-system-event invariant either drops or is replaced by an explicit product rule
+
+**Do not** fold into B10E / B10F.
+
+**B15 DoD (stub):** cutover plan + Pi smoke; schedule behaviour unchanged. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B16 — Full-bus UUID for internal `EventType`s 🔜 TODO (deferred)
+
+**Not in B10B.** Catalog / pickable events are UUID-on-bus; internals stay readable `EventType` strings until this phase.
+
+**Internal** (examples): timers / infra (`TIMER_*`, health), integration arming (`*_TOGGLED`), alerts, config reload — never in `events:` / Blockly pickers.
+
+| Option | Idea |
+|---|---|
+| **Keep strings** | Internals remain `EventType` names indefinitely |
+| **UUID all bus traffic** | Every `EventType` gets a fixed UUID; emitters/handlers migrate |
+| **Hybrid map** | Enum names in code; wire carries UUID via central table (internals never in `events:` YAML) |
+
+**Decision inputs at kickoff:** dual-mode pain after B10 soak; goal (wire uniformity vs ergonomics vs catalog); internals in `events:` or code-only; compat window; log/SSE display policy.
+
+**B16 DoD (stub):** option locked + impl (or explicit keep-strings close); Pi smoke if impl. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B17 — Sauna/IR hardcoded → automation (assess only) 🔜 TODO (deferred)
+
+**Origin:** operator inbox **2026-08-10**. **Assess only** — no cutover in this phase.
+
+**Question:** which lights/devices do Sauna ON/OFF and IR ON/OFF switch in code today, and can/should those device actions move from hardcoded handlers to automation rules?
+
+**Constraints to respect in the write-up:** live safety / start gates / max-runtime in [`sauna-ir.md`](../sauna-ir.md) stay authoritative; catalog events + fire allowlist already in B10E.
+
+**B17 DoD:** written assessment (devices switched; keep-in-code vs rule candidates; recommended disposition). **No code cutover** unless a later phase is opened. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
