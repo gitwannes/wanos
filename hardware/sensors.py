@@ -1,7 +1,7 @@
 # --- file: hardware/sensors.py ---
 import asyncio
 from typing import Dict, Any
-from core.models import Event, EventType
+from core.models import Event, EventType, format_device_ref
 from core.state_manager import StateManager
 
 try:
@@ -78,7 +78,10 @@ class HardwareSensors:
 
                         # ⚡ STATE-CHANGE LOGGING: Only log on initial boot or recovery transition
                         if sensor_status.get(node.idx) is not True:
-                            await self.logger.info(f"🟢 SHT11 sensor active: {node.name} (idx {node.idx}).")
+                            await self.logger.info(
+                                f"🟢 SHT11 sensor active: "
+                                f"{format_device_ref(self.state_manager._state, node.idx)}."
+                            )
                             sensor_status[node.idx] = True
 
                         error_counters[node.idx] = 0
@@ -100,7 +103,10 @@ class HardwareSensors:
                     except Exception as e:
                         # ⚡ STATE-CHANGE LOGGING: Only log on initial boot or failure transition
                         if sensor_status.get(node.idx) is not False:
-                            await self.logger.info(f"🛑 SHT11 sensor DEAD: {node.name} (idx {node.idx}).")
+                            await self.logger.info(
+                                f"🛑 SHT11 sensor DEAD: "
+                                f"{format_device_ref(self.state_manager._state, node.idx)}."
+                            )
                             sensor_status[node.idx] = False
 
                         error_counters[node.idx] += 1

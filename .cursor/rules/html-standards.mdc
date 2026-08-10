@@ -1,0 +1,28 @@
+---
+description: HTML coding standards — semantic markup, comments, file header
+globs: "**/*.{html,htm}"
+alwaysApply: false
+---
+
+# HTML standards
+
+## Markup
+
+- Prefer semantic HTML5 elements over generic wrappers when meaning is clear.
+- Keep markup accessible (landmarks, labels, alt text where appropriate).
+- Follow current HTML best practices; avoid deprecated attributes and elements.
+
+## File header
+
+At the top of each file, add a file reference:
+
+```html
+<!-- --- file: templates/index.html --- -->
+```
+
+## Comments
+
+- Update existing comments when markup changes.
+- Keep existing comments; remove them only when they are no longer valid.
+- Never leave orphaned comments.
+- Add comments generously for clarity and programmer context.

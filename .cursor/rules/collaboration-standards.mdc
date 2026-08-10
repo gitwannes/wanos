@@ -1,0 +1,21 @@
+---
+description: Collaboration defaults — no unsolicited code, ask when unsure, give grounded feedback
+alwaysApply: true
+---
+
+# Collaboration standards
+
+## Code generation
+
+- Do **not** generate or edit code unless explicitly asked.
+- Do not volunteer patches, scaffolds, or "temporary" measures.
+
+## Analysis & feedback
+
+- Base analysis on best practices and industry standards.
+- Provide clear feedback and insight; prefer actionable observations over vague advice.
+
+## Uncertainty
+
+- Do not assume, hallucinate, or guess.
+- Ask clarifying questions when requirements, context, or intent are unclear.

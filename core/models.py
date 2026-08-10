@@ -16,6 +16,8 @@ class EventType(str, Enum):
     SENSOR_ERROR = "SENSOR_ERROR"
     BATH1_VENT_LOCK_EXPIRED = "BATH1_VENT_LOCK_EXPIRED"  # Fired when the bathroom vent minimum runtime ends
     ALERT_DISMISSED = "ALERT_DISMISSED"  # General error message on top of the UI
+    # C8: UI banner/bell dismiss → wanos.log info only (does not remove alert from state)
+    ALERT_UI_DISMISSED = "ALERT_UI_DISMISSED"
     ALERT_CLEAR_NON_CRITICAL = "ALERT_CLEAR_NON_CRITICAL"  # Clear all info/success alerts
     ALERT_INJECTED = "ALERT_INJECTED"  # to test the teneral error message on top of the UI
 
@@ -347,3 +349,32 @@ def device_name(state: "SystemState", idx: Optional[int], default: str = "Unknow
         if name:
             return str(name)
     return default
+
+
+def device_entity_id(state: "SystemState", idx: Optional[int]) -> Optional[str]:
+    """idx → entity_id from device_metadata (None if missing)."""
+    if idx is None:
+        return None
+    meta = (state.device_metadata or {}).get(idx)
+    if isinstance(meta, dict):
+        eid = meta.get("entity_id")
+        return str(eid) if eid else None
+    return None
+
+
+def format_device_ref(state: "SystemState", idx: Optional[int]) -> str:
+    """
+    Operator-facing device ref for logs: entity_id (name, idx N).
+    Thin-meta fallbacks when entity_id and/or name are missing.
+    """
+    if idx is None:
+        return "unknown (idx —)"
+    eid = device_entity_id(state, idx)
+    name = device_name(state, idx, "")
+    if eid and name:
+        return f"{eid} ({name}, idx {idx})"
+    if eid:
+        return f"{eid} (idx {idx})"
+    if name:
+        return f"idx {idx} ({name})"
+    return f"idx {idx}"

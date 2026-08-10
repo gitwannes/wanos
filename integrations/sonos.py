@@ -4,7 +4,7 @@ import re
 import soco
 from typing import Dict, Any, Optional
 from loguru import logger
-from core.models import Event, EventType
+from core.models import Event, EventType, format_device_ref
 
 
 class SonosBridge:
@@ -196,4 +196,5 @@ class SonosBridge:
                     type=EventType.HUB_STATE_CHANGED,
                     payload=confirm))
         except Exception as e:
-            logger.error(f"Sonos command failed on {idx}: {e}")
+            logger.error(
+                f"Sonos command failed on {format_device_ref(self.manager._state, idx)}: {e}")

@@ -3,7 +3,7 @@ import time
 import json
 from typing import List, Optional, Any
 
-from core.models import Event, EventType, SystemState, device_name
+from core.models import Event, EventType, SystemState, device_name, device_entity_id, format_device_ref as core_format_device_ref
 from core.config import load_config
 from core.logger import automation_logger  # explicitly isolated logger for logic rules
 from core.event_catalog import to_bus_token, legacy_key_for_bus_token
@@ -67,13 +67,7 @@ class AutomationEngine:
     @staticmethod
     def entity_id_for(state: SystemState, idx: Optional[int]) -> Optional[str]:
         """Reverse lookup: idx → entity_id from device_metadata."""
-        if idx is None:
-            return None
-        meta = state.device_metadata.get(idx)
-        if isinstance(meta, dict):
-            eid = meta.get("entity_id")
-            return str(eid) if eid else None
-        return None
+        return device_entity_id(state, idx)
 
     @staticmethod
     def resolve_device_ref(obj: Any, state: SystemState) -> Optional[int]:
@@ -91,18 +85,8 @@ class AutomationEngine:
 
     @staticmethod
     def format_device_ref(state: SystemState, idx: Optional[int]) -> str:
-        """Operator-facing device ref: entity_id (name, idx N) with thin-meta fallbacks."""
-        if idx is None:
-            return "unknown (idx —)"
-        eid = AutomationEngine.entity_id_for(state, idx)
-        name = device_name(state, idx, "")
-        if eid and name:
-            return f"{eid} ({name}, idx {idx})"
-        if eid:
-            return f"{eid} (idx {idx})"
-        if name:
-            return f"idx {idx} ({name})"
-        return f"idx {idx}"
+        """Operator-facing device ref: entity_id (name, idx N) — core helper."""
+        return core_format_device_ref(state, idx)
 
     @staticmethod
     def format_rule_name(rule: Any) -> str:
@@ -666,7 +650,6 @@ class AutomationEngine:
                 if current_hum is not None and bathroom_vent_idx is not None:
                     current_vent_state = state.devices.get(bathroom_vent_idx, "OFF")
                     is_locked: bool = state.devices.get(90001, False)
-                    semantic_name: str = device_name(state, bathroom_vent_idx, "Unknown")
 
                     if current_hum >= on_threshold and current_vent_state != "ON":
                         follow_up_events.append(
@@ -674,7 +657,8 @@ class AutomationEngine:
                                   payload={"idx": bathroom_vent_idx, "state": "ON", "origin": "SYSTEM"})
                         )
                         automation_logger.info(
-                            f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) >= Threshold ({on_threshold}%). Forced {semantic_name} ON.")
+                            f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) >= Threshold ({on_threshold}%). "
+                            f"Forced {AutomationEngine.format_device_ref(state, bathroom_vent_idx)} ON.")
                         recovered_vents += 1
                     elif current_hum <= off_threshold and current_vent_state == "ON" and not is_locked:
                         follow_up_events.append(
@@ -682,7 +666,8 @@ class AutomationEngine:
                                   payload={"idx": bathroom_vent_idx, "state": "OFF", "origin": "SYSTEM"})
                         )
                         automation_logger.info(
-                            f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) <= Threshold ({off_threshold}%). Forced {semantic_name} OFF.")
+                            f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) <= Threshold ({off_threshold}%). "
+                            f"Forced {AutomationEngine.format_device_ref(state, bathroom_vent_idx)} OFF.")
                         recovered_vents += 1
 
             # Feedback Alert for the Web UI
@@ -847,7 +832,9 @@ class AutomationEngine:
                                 payload = {"idx": bathroom_vent_idx, "state": "ON", "origin": "AUTOMATION"}
                             ))
                             automation_logger.info(
-                                f"[Shower Automation] Hot water sustained flow verified ({len(AutomationEngine._hot_water_pulses)} pulses/10s). Auto-engaging {semantic_name}."
+                                f"[Shower Automation] Hot water sustained flow verified "
+                                f"({len(AutomationEngine._hot_water_pulses)} pulses/10s). "
+                                f"Auto-engaging {AutomationEngine.format_device_ref(state, bathroom_vent_idx)}."
                             )
 
                         # Phase B: Manual Override Hijack & Rolling Overrun Extension

@@ -2,7 +2,7 @@
 import json
 import asyncio
 from typing import Any, List
-from core.models import Event, EventType, SystemState, device_name
+from core.models import Event, EventType, SystemState, device_name, format_device_ref
 from core.event_catalog import legacy_key_for_bus_token
 from core.state_manager import StateManager
 from core.logger import WanosComponent
@@ -445,7 +445,10 @@ class ZWaveJSUIBridge(WanosComponent):
                             payload={"idx": old_idx, "state": None, "device_type": "unknown", "origin": "zwave",
                                      "is_initialization": False}
                         ))
-                        await self.logger.warning(f"[Z-Wave] Orphaned node (IDX {old_idx}) purged from RAM.")
+                        await self.logger.warning(
+                            f"[Z-Wave] Orphaned node "
+                            f"({format_device_ref(self.state_manager._state, old_idx)}) purged from RAM."
+                        )
 
                 # Soft-hide baseline from deviceexplorer_hide (+ motion auto-hide below)
                 hidden_list: list[int] = list(self.state_manager._state.system.hidden_explorer_idxs)
@@ -555,7 +558,7 @@ class ZWaveJSUIBridge(WanosComponent):
             if idx == 71040:
                 await self.logger.warning(
                     f"🛡️ Z-Wave Bridge intercepted and dropped an unauthorized outbound command to "
-                    f"Pi safety relay (IDX {idx})."
+                    f"Pi safety relay ({format_device_ref(self.state_manager._state, idx)})."
                 )
                 continue
 
@@ -584,6 +587,12 @@ class ZWaveJSUIBridge(WanosComponent):
             await self.mqtt_client.publish(target_topic, zwave_payload)
 
             if is_force:
-                await self.logger.warning(f"⚡ [FORCED] Z-Wave Command Sent: {prop_path} -> {new_state}")
+                await self.logger.warning(
+                    f"⚡ [FORCED] Z-Wave Command Sent: "
+                    f"{format_device_ref(self.state_manager._state, idx)} -> {new_state}"
+                )
             else:
-                await self.logger.info(f"[Z-Wave] Command Sent: {prop_path} -> {new_state}")
+                await self.logger.info(
+                    f"[Z-Wave] Command Sent: "
+                    f"{format_device_ref(self.state_manager._state, idx)} -> {new_state}"
+                )

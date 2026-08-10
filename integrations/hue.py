@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 from loguru import logger
 
-from core.models import Event, EventType, SystemState, device_name
+from core.models import Event, EventType, SystemState, device_name, format_device_ref
 from core.event_catalog import legacy_key_for_bus_token
 from core.state_manager import StateManager
 from core.config import AppConfig
@@ -361,7 +361,9 @@ class HueLocalBridge:
             async with self._session.put(url, headers=headers, json=hue_payload) as resp:
                 if resp.status not in (200, 207):
                     err_text = await resp.text()
-                    logger.error(f"🔴 [HUE] API Error {resp.status} for light IDX {idx}: {err_text}")
+                    logger.error(
+                        f"🔴 [HUE] API Error {resp.status} for light "
+                        f"{format_device_ref(self.state_manager._state, idx)}: {err_text}")
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on light command: {e}")
             self.is_connected = False
@@ -401,7 +403,9 @@ class HueLocalBridge:
             async with self._session.put(url, headers=headers, json=hue_payload) as resp:
                 if resp.status not in (200, 207):
                     err_text = await resp.text()
-                    logger.error(f"🔴 [HUE] API Error {resp.status} for group IDX {idx}: {err_text}")
+                    logger.error(
+                        f"🔴 [HUE] API Error {resp.status} for group "
+                        f"{format_device_ref(self.state_manager._state, idx)}: {err_text}")
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on group command: {e}")
             self.is_connected = False
@@ -413,7 +417,10 @@ class HueLocalBridge:
         uuid = self.room_scenes.get(idx, {}).get(clean_name)
 
         if not uuid or not self._session:
-            logger.warning(f"🟠 [HUE] Scene '{scene_name}' (idx {idx}) triggered but not found in mapped room scenes!")
+            logger.warning(
+                f"🟠 [HUE] Scene '{scene_name}' "
+                f"({format_device_ref(self.state_manager._state, idx)}) triggered but not found in mapped room scenes!"
+            )
             return
 
         # V2 API requires sending the 'active' recall action to the scene resource UUID
@@ -426,7 +433,10 @@ class HueLocalBridge:
                 if resp.status not in (200, 207):
                     logger.error(f"🔴 [HUE] API Error {resp.status} for scene '{scene_name}'")
                 else:
-                    logger.info(f"🎬 [HUE] Multicast Scene triggered natively: {scene_name} (Group IDX: {idx})")
+                    logger.info(
+                        f"🎬 [HUE] Multicast Scene triggered natively: {scene_name} "
+                        f"({format_device_ref(self.state_manager._state, idx)})"
+                    )
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on scene command: {e}")
             self.is_connected = False

@@ -78,7 +78,9 @@ Name = what the house does. Astronomy belongs in the “when” column, not the 
 
 ---
 
-## 5. Timing rules (unchanged math)
+## 5. Timing rules
+
+*(Blinds + morning skip = live math. Evening skip when sunset ≥ evening-off = **locked for B10F** — mirror morning; code still arms inverted evening timers until that ship.)*
 
 ```text
 blinds_open = max(sunrise, morning_open_earliest)
@@ -96,9 +98,12 @@ if sunrise > morning_on_time:
 else:
     schedule neither
 
-# Evening lights — require sunset < evening_off_time for a sane day
-Evening lights on  @ sunset
-Evening lights off @ evening_off_time
+# Evening lights — only if sunset is still before the off-clock (B10F)
+if sunset < evening_off_time:
+    Evening lights on  @ sunset
+    Evening lights off @ evening_off_time
+else:
+    schedule neither
 ```
 
 **Blinds ≠ evening lights:** blinds use **clamped** sun; evening lights on uses **raw** sunset.
@@ -109,7 +114,7 @@ Evening lights off @ evening_off_time
 |---|---|
 | Sunrise ≤ morning-on clock | Whole **morning lights** window skipped |
 | Sunset &lt; evening-off (normal) | On at sunset → off at clock |
-| Sunset ≥ evening-off | Timers can invert; “inside evening” recovery empty — **fix the clock**, don’t add a third event |
+| Sunset ≥ evening-off | Whole **evening lights** window skipped (same pattern as morning; no inverted timers) — **ships in B10F** with status API |
 | Blinds open/close inverted by bad clamps | Scheduler does not skip; fix config |
 
 **Sweeper** (active sweeps only): re-dispatch current side of each window (not replay missed edges). Passive/boot sweeps skip time-series alignment.
@@ -178,5 +183,6 @@ Restore any user scene incorrectly retargeted onto Sunset (e.g. **GoCosy** must 
 - [x] List unused user events (**UE** with no listening **UR**)
 - [x] SE / SR list titles = system catalog name (no `system:` prefix; badges mark origin)
 - [x] Display **Sunrise/sunset update**; EventType **`SUNRISE_SUNSET_UPDATE`** (was `EXTERNAL_WEATHER_UPDATED`; UUID unchanged)
+- [ ] Evening skip: sunset ≥ evening-off → schedule **neither** evening edge (mirror morning) — **B10F** with fire-status API
 
-Shipped in **B10E** with B10B+D. Detail DoD: [`phaseB-blocky.md`](todo/phaseB-blocky.md) § B10E.
+Shipped in **B10E** with B10B+D. Detail DoD: [`phaseB-blocky.md`](todo/phaseB-blocky.md) § B10E. Evening skip + Automations fire-status → § B10F.

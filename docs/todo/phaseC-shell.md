@@ -2,9 +2,9 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). Remaining: **C6** (flicker) → **C7** (Explorer follow-ups) → **C8** (alert dismiss logs) → **C9** (Z-Wave send-log type/name) → **C3 → C4**.
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). Remaining: **C3 → C4**. Next sequence: **B10F**.
 
-**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** ✅; **B10F** queued). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
+**Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** ✅; **B10F** next). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
 **DoD convention:** every open subphase ends with **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (see [`pipeline.md`](pipeline.md) § DoD / close-out).
 
@@ -19,14 +19,14 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C1 — Explorer chrome** | Hidden + Favorites in presets pane; edit favorites | Frontend-only, fast |
 | **C2 — Admin + system pages** | Planned Automations; bell; reboot; gear-only nav; leave-guards | Admin UI + one API |
 | **C5 — History graphs** | Landscape filters; dew point; Y-axis snap; climate smooth (d/m/y) | Explorer History charts |
-| **C6 — History flicker** | Auto-refresh redraw flash (all charts) | C5 soft-refresh follow-up |
-| **C7 — Explorer follow-ups** | Favorites portrait layout; filter restore after SSE; landscape chart chrome; legend dots | FE; C1/C5 leftovers |
-| **C8 — Alert dismiss logs** | Banner + bell dismiss → app log `info` | C2 dismiss follow-up |
-| **C9 — Z-Wave send-log type/name** | Command Sent / FORCED lines include type + friendly name | Ops log parity with automation log |
+| **C6 — History flicker** | Soft auto-refresh without wipe/flicker (all chart families) | C5 soft-refresh follow-up · low |
+| **C7 — Explorer follow-ups** | Favorites portrait; SSE filter restore; landscape chart chrome; legend dots | FE; C1/C5 leftovers · low |
+| **C8 — Alert dismiss logs** | Banner + bell dismiss → `wanos.log` info (UX unchanged) | C2 dismiss follow-up · low |
+| **C9 — Device-ref app logs** | All device-ref lines in `wanos.log` → `entity_id (name, idx N)` | Every integration · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6** then **C7** then **C8** then **C9**. **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ one ship + Pi smoke **2026-08-10**. **C3/C4** later unless needed sooner.
 
 ---
 
@@ -229,63 +229,110 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 
 ---
 
-## 📋 C6 — History auto-refresh flicker 🔜 TODO
+## 📋 C6 — History auto-refresh flicker ✅ DONE
 
-**Origin:** operator report **2026-08-09**. C5 soft-refresh follow-up — **not** reopening C5 DoD.
+**Operator smoke:** ✅ OK on Pi (**2026-08-10**).
 
-* Explorer → History: on auto-refresh, chart **flickers** (line appears to reset then redraw).
+**Origin:** operator report **2026-08-09**. C5 soft-refresh follow-up — **not** reopening C5 DoD. **Inspect done 2026-08-10**; approach locked below. **Code + Pi smoke 2026-08-10.**
+
+* Explorer → History: on **60s auto-refresh**, chart **flickers** (line appears to reset then redraw).
 * Scope: **all** History graphs (climate / actuators / host / utility; day/month/year as applicable).
+* **Success bar:** series update in place; axes / zoom / selection preserved; no blank or wipe flash.
+* **Out of scope:** first paint, chart family / row switch, manual range change (hard path unchanged).
 
-**C6 DoD:** Auto-refresh updates series without visible reset/flicker; Pi smoke all chart families. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+### Inspect findings (locked)
+
+* Soft path already exists: `refreshExplorerHistory` → `reloadSelectedSensorDetail({ soft: true })` — keeps ECharts instances and restores dataZoom %.
+* Happy path does **not** dispose / `x-if`-remount; flash is elsewhere.
+* **Primary cause:** soft updates still call `chart.setOption(opt, true)` (**notMerge**) in `_setHistoryChartOption` (and water / actuator period paths) → full wipe then redraw; default animation amplifies it.
+* **Amplifiers:** triple `resize()` on soft path; `_bindHistoryYSnap` re-bind + immediate Y `setOption` (second tick).
+
+### Locked approach (soft === true only) — shipped
+
+1. Merge-style `setOption` via `_setHistoryChartOption(..., { soft: true })` — `{ notMerge: false, replaceMerge: ['series'] }`; hard path keeps `notMerge: true`.
+2. Soft opts set `animation: false` / `animationDurationUpdate: 0`.
+3. Soft path skips per-chart resize in ensure/setOption; **one** resize pass after draw in `reloadSelectedSensorDetail`.
+4. Water + actuator period charts use the same soft helper.
+5. Hard open/switch unchanged.
+
+**C6 DoD:** Soft auto-refresh updates series without visible reset/flicker; axes/zoom/selection kept; Pi smoke all chart families. **Bundle Last DoD** with C7–C9: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior. — ✅ **2026-08-10** (Pi smoke + docs).
 
 ---
 
-## 📋 C7 — Explorer follow-ups 🔜 TODO
+## 📋 C7 — Explorer follow-ups ✅ DONE
 
-**Origin:** operator reports **2026-08-10** (screenshots). C1/C5 leftovers — **not** reopening those DoDs. FE-only.
+**Operator smoke:** ✅ OK on Pi (**2026-08-10**).
+
+**Origin:** operator reports **2026-08-10** (screenshots). C1/C5 leftovers — **not** reopening those DoDs. FE-only. **All four bullets in this ship.** **Code + Pi smoke 2026-08-10.**
 
 ### Favorites row — smartphone portrait
 
-* **Portrait:** Favorites chrome must **never** share one horizontal line with the favorite **number chips** (1–5) — Edit on **or** off. Chips wrap / sit on a row below (no overlap with “FAVORITES” label).
-* **Landscape / desktop:** single-line layout OK (C1).
+* **Smartphone portrait only** (`max-width: 640px` + `orientation: portrait`): two rows — (1) clear + chips **1–5** + pencil; (2) **Show Favorites** + Edit/Done + **Hidden devices** — row 2 **must not wrap**; **smaller** label/control chrome so the full labels fit.
+* Labels: filter = **Show Favorites**; admin toggle = **Hidden devices**.
+* **PC / landscape:** single row (chips left; Show Favorites + Edit + Hidden devices + pencil right) — unchanged from pre-portrait layout.
 
 ### Filters after SSE reconnect
 
 * Bug: Device Explorer open; after **SSE drop/reconnect**, active filters (e.g. status **ON**) look inactive (not blue) and list not filtered; toggling away and back fixes it.
 * Code today: `searchQuery` / `typeFilter` / `statusFilter` / `sortMode` saved in `sessionStorage` (`wanos_active_filters`); SSE `connectSSE` does **not** clear them — fix re-apply / select↔model sync after snapshot so **all four** restore with correct **blue active** styling.
-* Scope: Control (and History list chrome if same bindings).
+* **Scope (locked):** Control **and** History — they share one Alpine app and the same four filter fields; one fix covers both. Smoke both after SSE drop/reconnect. No History-only filter feature.
 
 ### Landscape chart — full bleed (C5 follow-on)
 
 * Smartphone **landscape + chart open** (same gate as C5 filter collapse): also hide **Control | History** picker and the **“Filter collapsed · …”** hint row so the graph owns the screen.
-* Portrait / no chart: unchanged.
+* Smartphone **landscape** (same gate): filter bar is **not sticky** — scrolls away with the list (vertical room too tight).
+* Portrait / no chart / PC: sticky filters unchanged. Portrait / no chart: Control|History visible as before.
 
 ### History legend — no marker dots
 
 * All Explorer History chart legends: show **line style/color only** — **remove** legend marker dots (graph series stay lines without point markers).
 
-**C7 DoD:** Portrait favorites no overlap; SSE reconnect restores filters + blue active; landscape+chart hides Control/History + collapsed hint; legends without dots; Pi smoke phone portrait/landscape. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C7 DoD:** Portrait favorites no overlap; SSE reconnect restores filters + blue active (Control + History); landscape+chart hides Control/History + collapsed hint; legends without dots; Pi smoke phone portrait/landscape. **Bundle Last DoD** with C6/C8/C9. — ✅ **2026-08-10** (Pi smoke + docs).
 
 ---
 
-## 📋 C8 — Alert dismiss → app log 🔜 TODO
+## 📋 C8 — Alert dismiss → app log ✅ DONE
 
-**Origin:** operator request **2026-08-10**. C2 dual-dismiss follow-up — **not** reopening C2 DoD.
+**Operator smoke:** ✅ OK on Pi (**2026-08-10**).
+
+**Origin:** operator request **2026-08-10**. C2 dual-dismiss follow-up — **not** reopening C2 DoD. **Code + Pi smoke 2026-08-10.**
 
 * When an operator dismisses a **UI banner alert** or a **bell alert**, write an **`info`** line to the WanOS app log (`/var/log/wanos/wanos.log`).
 * Both dismiss paths (independent per C2).
+* **Pure log only:** banner/bell dismiss **UX and FE-local dual-dismiss state unchanged**. Do **not** call server `ALERT_DISMISSED` / `AlertManager.dismiss_alert` for this (that removes the alert from shared state and fights dual dismiss). Fire-and-forget log write; log failure must not undo UI dismiss.
+* **No alert id** in the log line (UI uuid only — not useful for ops).
+* **`level=`** = UI alert severity already on the alert: `info` | `warning` | `critical` | `success` (not logger ERROR/WARNING). The log record itself is still **`info`**.
 
-**C8 DoD:** Banner dismiss and bell dismiss each produce an `info` line in `wanos.log`; Pi smoke both paths. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**Locked line shape:**
+
+```text
+Alert dismissed (banner): level=<level> "…message text…"
+Alert dismissed (bell): level=<level> "…message text…"
+```
+
+**Shipped mechanism:** FE `dismissBannerAlert` / `dismissBellAlert` → `publishEvent("ALERT_UI_DISMISSED", { surface, level, message })` → `handle_alert_ui_dismissed` logs `info` and returns no state change. Existing non-critical bell `ALERT_DISMISSED` clear path unchanged.
+
+**C8 DoD:** Banner dismiss and bell dismiss each produce an `info` line as above in `wanos.log`; dismiss UX unchanged; Pi smoke both paths. **Bundle Last DoD** with C6/C7/C9. — ✅ **2026-08-10** (Pi smoke + docs).
 
 ---
 
-## 📋 C9 — Z-Wave Command Sent logs + type/name 🔜 TODO
+## 📋 C9 — Device-ref lines in app log ✅ DONE
 
-**Origin:** operator inbox **2026-08-10**. Shell/ops visibility — **not** Blocky.
+**Operator smoke:** ✅ OK on Pi (**2026-08-10**).
 
-* Lines like `⚡ [FORCED] Z-Wave Command Sent: 66/37/2 -> OFF` or `[Z-Wave] Command Sent: 31/37/1 -> ON` must also include **type and name**, same shape as automation log, e.g. `switch.buro_wannes_schemer (buro Wannes schemer, idx 40002)`.
+**Origin:** operator inbox **2026-08-10** (started as Z-Wave Command Sent; **widened 2026-08-10**). Shell/ops visibility — **not** Blocky. Size **mid**. **Code + Pi smoke 2026-08-10.**
 
-**C9 DoD:** Forced and normal Z-Wave Command Sent lines include type + friendly name (+ idx as in automation log); Pi smoke both paths. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+* **Target log:** `/var/log/wanos/wanos.log` (app / integrations).
+* **Scope:** **every** app-log line that **references a device**, across **every integration** (Z-Wave, RFX, Hue, media/Onkyo, …) — not only Z-Wave Command Sent / FORCED.
+* **Canonical shape** (same as automation `format_device_ref`): `entity_id (name, idx N)`  
+  Example: `Set media_player.buro (buro, idx 60006) to OFF`  
+  Z-Wave examples today that must gain the ref:  
+  `⚡ [FORCED] Z-Wave Command Sent: 66/37/2 -> OFF` / `[Z-Wave] Command Sent: 31/37/1 -> ON`.
+* **Automation log:** already uses `format_device_ref` — audit only for stragglers; main work is app/`wanos.log` integration lines.
+* Fallbacks when name/entity_id missing: follow existing `format_device_ref` thin-meta rules (`entity_id (idx N)`, `idx N (name)`, `idx N`).
+* **Shipped:** `format_device_ref` / `device_entity_id` live in `core/models.py`; integrations (Z-Wave, RFX, Hue, Onkyo, Sonos), hardware SHT11, sensor-failure handler, and automation sweeper/shower lines use it. `AutomationEngine.format_device_ref` delegates to the core helper.
+
+**C9 DoD:** All device-ref lines in `wanos.log` use `entity_id (name, idx N)` (or thin fallbacks); every integration covered; Pi smoke representative paths (incl. Z-Wave forced + normal). **Bundle Last DoD** with C6–C8. — ✅ **2026-08-10** (Pi smoke + docs).
 
 ---
 
@@ -294,13 +341,15 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 * **C1:** Hidden + Favorites stay in presets pane (one line each on landscape/desktop); Edit/Done favorites; idle = no indicators; filter iff favorites exist. **Portrait favorites layout → C7.**
 * **C2:** Timeline name+type, strip “will”; dual banner/bell dismiss; service reboot via sudoers `NOPASSWD: systemctl restart wanos.service` + UI error on fail; gear-only on hide / auto-off / zwave; leave-guard on those three (Blocky-style). Types = today’s metadata until **D**.
 * **C5:** Explorer History (not `sensorhistory`); compact filters only when chart open; dew via **Sonntag Magnus** (1 decimal) when temp+hum; Y from dataZoom; snaps per table (power **10 W**); climate day/month/year lines **`smooth: true`** (no `step`).
-* **C6:** History auto-refresh must not flicker/reset the line (all chart families).
-* **C7:** Portrait favorites wrap; SSE filter restore (all four + blue); landscape+chart hide Control/History + hint row; legend dots removed.
-* **C8:** Banner + bell dismiss → `info` in `/var/log/wanos/wanos.log`.
-* **C9:** Z-Wave Command Sent / FORCED logs include type + name (automation-log parity).
+* **C6–C9 ship:** one code run / one deploy; combined Pi smoke ✅ **2026-08-10**; one Last Docs audit ✅.
+* **C6:** Soft refresh — merge `setOption` (no notMerge wipe), no soft animation, ≤1 resize, water/actuator period via soft helper; hard path unchanged. Bar: in-place series update; axes/zoom/selection kept.
+* **C7:** All four: smartphone-portrait two-row presets only (chips+pencil / Show Favorites+Edit+Hidden devices, compact text, no wrap; PC/landscape single row); SSE filter restore (shared Control+History bindings, all four + blue); landscape phone filters **not sticky** + chart-open hide Control/History + hint; legend dots removed.
+* **C8:** Log-only dismiss lines — `Alert dismissed (banner|bell): level=<ui-severity> "…text…"`; no alert id; no `ALERT_DISMISSED` state removal; UX unchanged.
+* **C9:** All device-ref lines in `wanos.log`, every integration → `entity_id (name, idx N)` (automation-log parity / `format_device_ref`).
 * **C3:** Force ALL-OFF parallel-per-integration + 300ms pace + exclusion tags + confirm UX.
 * **C4:** Rename entrypoints; update all consumers.
 
 ## ❓ Residual Open Qs
 
-* *(none for C1 / C2 / C5 — closed by Pi smoke **2026-08-09**. C6 / C7 / C8 / C9 / C3 / C4 open as above.)*
+* *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9** — closed by Pi smoke.)*
+* **C3 / C4** remain open as specified above (later in sequence).

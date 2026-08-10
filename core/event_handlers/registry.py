@@ -27,7 +27,8 @@ from .sauna_handlers import (
     handle_ir_on, handle_ir_off, handle_ir_timer_expired, handle_ir_modulation_updated
 )
 from .system_handlers import (
-    handle_system_ready, handle_alert_dismissed, handle_alert_clear_non_critical,
+    handle_system_ready, handle_alert_dismissed, handle_alert_ui_dismissed,
+    handle_alert_clear_non_critical,
     handle_alert_injected, handle_config_reload_requested, handle_system_sweep_requested,
     handle_zwave_discovery
 )
@@ -87,6 +88,7 @@ EVENT_ROUTERS = {
 
     "SYSTEM_READY": handle_system_ready,
     "ALERT_DISMISSED": handle_alert_dismissed,
+    "ALERT_UI_DISMISSED": handle_alert_ui_dismissed,
     "ALERT_CLEAR_NON_CRITICAL": handle_alert_clear_non_critical,
     "ALERT_INJECTED": handle_alert_injected,
     "CONFIG_RELOAD_REQUESTED": handle_config_reload_requested,

@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; queued **B10F** / **B9A** / **B9B** / **B11–B17**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** open); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; queued **B10F** / **B9A** / **B9B** / **B11–B17**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -94,7 +94,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F** = Automations UX polish — **queued**. **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** (H4 expands: drop trigger “when any of” → condition and/or) — **deferred**. **B11–B17** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess).
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F** = Automations UX polish — **spec locked** (queued **next**). **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** (H4 expands: drop trigger “when any of” → condition and/or) — **deferred**. **B11–B17** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess).
 
 **Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog **until Phase B9A**. **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9A** = sensor/threshold/host-gauge authoring + JSON removal. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
 
@@ -658,7 +658,7 @@ Phase B5 does **not** require a rollback rehearsal that depends on hand-edit + A
 10. **Phase B10B+D:** `events:` catalog (UUID-on-bus) + per-rule enable + family/`SCENE_*` cutover + unique rule names — ✅ **DONE 2026-08-10** (Pi migrate 7A + smoke/GREEN + migrator deleted).
 11. **Phase B10D:** unique rule names (case-insensitive; Blocky + API) — **ships inside B10B+D** (enforced in code; Pi smoke ✅ **2026-08-10**).
 12. **Phase B10E:** Automations **Library** (UE/UR/SE/SR/D + C), New user event form, When/Fire user vs system, schedule display names, wipe Sunset listeners — ✅ **DONE 2026-08-10**.
-13. **Phase B10F:** Automations UX polish (save chrome, connecting, library keys, schedule fire-time status) — **queued**.
+13. **Phase B10F:** Automations UX polish (save chrome, connecting, library keys, schedule fire-time status) — **queued (next after C6–C9 Done)**.
 14. **Phase B11–B17:** multi-flow; folder/tag; IF/ELSE; remaining HA; demote schedule; bus UUID; Sauna/IR assess — see § B11–B17.
 
 ## ✅ Definition of Done (Option 2)
@@ -1110,7 +1110,7 @@ Run on **Pi** after deploying latest (`entity_registry_check` skip ≥900000, Bl
 
 Pointers only — detail under § B10F / § B11–B17:
 
-* **B10F** — Automations UX polish (does not reopen B10E DoD).
+* **B10F** — Automations UX polish (does not reopen B10E DoD); **next** (C6–C9 Done).
 * **B11** — Multi-flow in one Blockly page.
 * **B12** — Rule-list folder/tag.
 * **`EMAIL_REQUESTED`:** seed with phase **E** (not B10B).
@@ -1220,28 +1220,96 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 
 ### Phase B10F — Automations UX polish 🔜 TODO
 
-**Origin:** operator inbox **2026-08-10**. After B10B+D+E smoke; **does not reopen B10E DoD**.
+**Origin:** operator inbox **2026-08-10**. After B10B+D+E smoke; **does not reopen B10E DoD**. **Sequence:** next after **C6–C9** ✅ (**2026-08-10**).
 
 | # | Item |
 |---|---|
 | 1 | **Save busy indicator** — rolling circle on save barely visible; make it clearly visible |
-| 2 | **Save lock** — while a rule is saving, block editing/changing anything (incl. filter boxes); re-enable only after save completes |
-| 3 | **Connecting** — when WanOS is down, Automations shows the same **connecting** message as Explorer |
-| 4 | **Library keyboard** — with a Library item selected/focused, ↑/↓ scrolls through the list (broken today) |
-| 5 | **Schedule / clock system-event status** — for system rules whose SE is clock/time-based ([`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md)): in the rule editor **WHEN** and **IF**, show today’s fire status, e.g. **Will fire at 21:54** / **Has fired at 07:00** / **Doesn't fire today** |
-| 6 | **Unused SE → create SR** — when viewing an unused **SE**, add button **Create System Rule for this System Event** (creates companion **SR**) |
-| 7 | **Library filters UE & SE default OFF** — filter checkboxes **UE** and **SE** default **OFF** (today all kinds start ON) |
+| 2 | **Save lock** — while a **rule** is saving, block **all** Automations UI; stay locked until **retry** / **dismiss** (those two stay enabled); unlock after success |
+| 3 | **Connecting** — when WanOS is down, Automations matches **`deviceexplorer.html`** connecting UX |
+| 4 | **Library keyboard** — with a Library item selected/focused, ↑/↓ changes selection in the **currently filtered** list; **no wrap** at ends |
+| 5 | **Schedule / timer SE status** — for **SR** whose trigger SE is in scope (below): status line **right above “Full screen”**; copy **Will fire at HH:MM** / **Has fired at HH:MM** / **Doesn't fire today** (local Pi clock) |
+| 6 | **Unused SE → create SR** — unused **SE** view: button **Create System Rule for this System Event** → opens **New rule** with that SE preselected (**draft only**; nothing POSTed until Save). **Disabled** when SE already has an SR / is used |
+| 7 | **Library filters UE & SE default OFF** — kind checkboxes **UE** and **SE** default **OFF** on every `blocky.html` load; **UR / SR / D** stay default ON; **no** persistence for kind filters |
+
+#### Locked decisions (2026-08-10)
+
+**Save (1–2)**
+
+* Applies to **rule (Blocky) save** only — not UE form save.
+* While saving: lock **all** UI (editor, Library selection, filters, New rule / New user event, etc.).
+* On failure: remain locked except **retry** and **dismiss** (enabled). **Retry** = re-attempt the same save. **Dismiss** = unlock and **keep editor edits**. Success → unlock.
+
+**Connecting (3)**
+
+* Gold copy = Device Explorer (`deviceexplorer.html`) offline/connecting behaviour and message.
+
+**Library ↑/↓ (4)**
+
+* Navigate selection within the **filtered** list only; stop at first/last (no wrap).
+
+**Fire status (5)**
+
+* **In-scope SEs:** the **six** env-schedule edges ([`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md)) **plus** **Sauna OFF** / **IR OFF** when a session timer is armed. **Sauna ON** / **IR ON** are never timed — no status line.
+* **Where:** only when editing an **SR** whose **When** trigger is one of those SEs. Placement: message **right above “Full screen”**.
+* **Sauna/IR OFF deadline (this phase):** use **`session_end_time`** when the session timer is armed (unix end). Do **not** clamp to `absolute_cutoff_unix` in B10F. Engine clamp → **B18**.
+* **Data — new read API (locked):**
+
+  * **`GET /api/automations/fire-status`** (same auth as other Automations admin APIs).
+  * **Response** (local Pi clock; no client-side schedule math):
+
+    ```json
+    {
+      "server_now_unix": 1710000000,
+      "entries": [
+        {
+          "event_uuid": "<catalog uuid>",
+          "state": "will_fire",
+          "at_hhmm": "21:54",
+          "at_unix": 1710003294
+        }
+      ]
+    }
+    ```
+
+  * **`state`:** `will_fire` | `has_fired` | `doesnt_fire_today` | `not_armed`.
+  * Always include the **six** env-schedule event UUIDs. Include **Sauna OFF** / **IR OFF** UUIDs always: `will_fire` / `has_fired` when session timer armed with a unix end; else `not_armed` (`at_hhmm` / `at_unix` null). UI omits the status line when `not_armed` or SE out of scope.
+  * **`will_fire` / `has_fired`:** compare `server_now_unix` to `at_unix` (wall-clock). Past → `has_fired`; else `will_fire`. `at_hhmm` = local Pi `HH:MM`.
+  * **`doesnt_fire_today`:** morning skip (sunrise ≤ morning-on → both morning edges) / evening skip (sunset ≥ evening-off → both evening edges); `at_*` null. Blinds never use this from skip logic (always clamped schedule).
+  * Fetch on editor open + full page reload; no extra poll in B10F.
+* **Scheduler (locked with status API):** evening skip must **mirror morning** — if sunset ≥ evening-off, set both evening unix times to `None` and **do not arm** `env_twi_eve_on` / `env_twi_eve_off`. Status and live timers stay aligned. (Today’s code still arms inverted evening timers; fix in this ship.) See [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
+
+**Save busy chrome (1) — locked**
+
+* Today Save uses DaisyUI `loading-xs` (barely visible).
+* While rule-save `busy`: **content-wide dim overlay** with centered **`loading-lg`** spinner + **“Saving…”** text; Save control uses **`loading-md`** (not `xs`). Failure banner: **Retry** | **Dismiss** only.
+
+**Unused SE → SR (6)**
+
+* **Draft only (A):** button opens **New rule** with When-system = that SE preselected; **no** immediate POST. Cancel/navigate away → no SR; SE stays unused.
+* Button **disabled** if companion SR already exists / SE is used.
+* DoD wording: opens New rule with SE preselected; **Save** creates the companion SR.
+
+**Filters (7)**
+
+* UE + SE default **OFF** on cold load; UR/SR/D unchanged (default ON). Kind filters are **not** session-/localStorage-persisted today — keep it that way in B10F.
+
+**Out of scope**
+
+* Do not reopen B10E DoD. Do not fold **B15** (demote schedule edges). Other env-scheduler math (blinds clamps, morning skip, clock sources) unchanged except the **evening skip** above. Sauna `session_end_time` vs absolute cutoff clamp → **B18** (not B10F).
 
 #### Phase B10F DoD
 
-- [ ] Save busy indicator clearly visible during save.
-- [ ] During save: UI locked (editor + filters); unlocked after save settles.
-- [ ] Automations offline/connecting matches Explorer.
-- [ ] Library ↑/↓ navigates the filtered list.
-- [ ] Clock/time SE rules show Will fire at / Has fired at / Doesn't fire today in WHEN and IF.
-- [ ] Unused SE view has **Create System Rule for this System Event**; creates companion SR.
-- [ ] Library filters: **UE** and **SE** default OFF; UR/SR/D unchanged unless specified.
-- [ ] Pi smoke.
+- [ ] Save busy chrome: content-wide dim overlay + `loading-lg` + “Saving…”; Save button `loading-md` (not `xs`).
+- [ ] During rule save: **all** Automations UI locked; **retry** / **dismiss** remain enabled on failure (**dismiss** = unlock, keep edits); unlock after success or dismiss.
+- [ ] Automations offline/connecting matches **`deviceexplorer.html`**.
+- [ ] Library ↑/↓ changes selection in the filtered list; no wrap.
+- [ ] Env scheduler: sunset ≥ evening-off → schedule **neither** evening edge (no inverted timers); status API agrees.
+- [ ] New read API **`GET /api/automations/fire-status`** supplies today’s fire status for the six env-schedule SEs + Sauna/IR OFF (`not_armed` when idle); deadline = **`session_end_time`** when armed.
+- [ ] In-scope **SR** editor shows Will fire at / Has fired at / Doesn't fire today **right above “Full screen”** (local Pi `HH:MM`).
+- [ ] Unused SE view: **Create System Rule for this System Event** opens New rule with SE preselected (draft); disabled when SE used; Save creates SR.
+- [ ] Library filters: **UE** and **SE** default OFF on load; UR/SR/D default ON; no kind-filter persistence.
+- [ ] Pi smoke (items 1–7 + evening skip day if exercisable).
 - [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
@@ -1323,6 +1391,18 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 **Constraints to respect in the write-up:** live safety / start gates / max-runtime in [`sauna-ir.md`](../sauna-ir.md) stay authoritative; catalog events + fire allowlist already in B10E.
 
 **B17 DoD:** written assessment (devices switched; keep-in-code vs rule candidates; recommended disposition). **No code cutover** unless a later phase is opened. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B18 — Sauna session_end ≤ absolute cutoff 🔜 TODO (deferred)
+
+**Origin:** B10F lock Q&A **2026-08-10**. **Not B10F** (fire-status uses raw `session_end_time`). **Not B17** (B17 = assess hardcoded→automation only).
+
+**Gap today:** `absolute_cutoff_unix` = session start + 6h (EN 60335-2-53); `HealthMonitor` hard-kills independently. Timer arm / `SAUNA_TIMER_ADJUSTED` do **not** clamp `session_end_time`, so the soft session timer can be set **past** the absolute wall.
+
+**Goal:** enforce **`session_end_time` ≤ `absolute_cutoff_unix`** whenever both are set (i.e. session end cannot run past the start+6h absolute cutoff). Clamp on arm and on timer adjust; reschedule `sauna_main` if needed. Document in [`sauna-ir.md`](../sauna-ir.md).
+
+**B18 DoD (stub):** clamp on set/adjust; Pi smoke (extend timer toward/past 6h wall → ends at cutoff); docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

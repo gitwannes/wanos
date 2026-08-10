@@ -3,7 +3,7 @@ import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
-from core.models import Event, EventType, SystemState
+from core.models import Event, EventType, SystemState, format_device_ref
 from core.event_catalog import legacy_key_for_bus_token
 from core.state_manager import StateManager
 from core.logger import WanosComponent
@@ -211,7 +211,8 @@ class NativeRFXCOMBridge(WanosComponent):
         ))
 
         asyncio.ensure_future(self.logger.success(
-            f"[Native RFX] Physical Remote Intercepted: Hex [{raw_hex}] mapped to Virtual IDX {virtual_idx} ({virtual_name}) -> {target_state}"
+            f"[Native RFX] Physical Remote Intercepted: Hex [{raw_hex}] mapped to "
+            f"{format_device_ref(self.state_manager._state, virtual_idx)} -> {target_state}"
         ))
 
     async def _on_state_changed(self, state: SystemState, events: List[Event] = None) -> None:
@@ -267,7 +268,9 @@ class NativeRFXCOMBridge(WanosComponent):
 
         if not self.transport:
             self.is_connected = False
-            await self.logger.error(f"[Native RFX] Cannot transmit for IDX {idx}: transport is dead.")
+            await self.logger.error(
+                f"[Native RFX] Cannot transmit for "
+                f"{format_device_ref(self.state_manager._state, idx)}: transport is dead.")
             return
 
         try:
@@ -295,7 +298,9 @@ class NativeRFXCOMBridge(WanosComponent):
                 # ⚡ FALLBACK FOR OTHER PROTOCOLS ⚡
                 pkt_class = getattr(lowlevel, protocol, None)
                 if not pkt_class:
-                    await self.logger.error(f"[Native RFX] Unknown protocol '{protocol}' for IDX {idx}.")
+                    await self.logger.error(
+                        f"[Native RFX] Unknown protocol '{protocol}' for "
+                        f"{format_device_ref(self.state_manager._state, idx)}.")
                     return
 
                 pkt = pkt_class()
@@ -328,7 +333,10 @@ class NativeRFXCOMBridge(WanosComponent):
             if payload_bytes:
                 self.transport.write(payload_bytes)
                 await self.logger.info(
-                    f"[Native RFX] Transmitted: IDX {idx} -> {state} | Protocol: {protocol} | Hex: {target_hex}")
+                    f"[Native RFX] Transmitted: {format_device_ref(self.state_manager._state, idx)} "
+                    f"-> {state} | Protocol: {protocol} | Hex: {target_hex}")
 
         except Exception as e:
-            await self.logger.error(f"[Native RFX] Transmission failed for IDX {idx}: {e}")
+            await self.logger.error(
+                f"[Native RFX] Transmission failed for "
+                f"{format_device_ref(self.state_manager._state, idx)}: {e}")

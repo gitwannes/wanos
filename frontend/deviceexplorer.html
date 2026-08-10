@@ -38,8 +38,19 @@
             .hist-chart { height: 320px; }
         }
         /* C5: landscape phone + chart open → collapse sticky filter detail so chart owns the screen */
+        /* C7: also hide Control|History picker and the collapsed-filters hint */
+        /* C7: landscape phone — filters must scroll away (not sticky); not enough vertical room */
         @media (orientation: landscape) and (max-height: 500px) {
+            [data-explorer-sticky-filters] {
+                position: static !important;
+                top: auto !important;
+                z-index: auto !important;
+            }
             [data-explorer-sticky-filters].explorer-chart-open .explorer-filter-detail {
+                display: none !important;
+            }
+            [data-explorer-sticky-filters].explorer-chart-open .explorer-mode-join,
+            [data-explorer-sticky-filters].explorer-chart-open .explorer-filter-compact-hint {
                 display: none !important;
             }
             [data-explorer-sticky-filters].explorer-chart-open {
@@ -47,8 +58,50 @@
                 padding-bottom: 0.35rem;
                 gap: 0.25rem;
             }
-            [data-explorer-sticky-filters].explorer-chart-open .explorer-filter-compact-hint {
-                display: inline !important;
+        }
+        /* C7: presets pane — two rows + compact labels only on smartphone portrait.
+           PC / landscape keep a single row (chips left, controls + pencil right). */
+        .explorer-presets-pencil-portrait { display: none; }
+        .explorer-presets-pencil-wide { display: inline-flex; }
+        @media (max-width: 640px) and (orientation: portrait) {
+            .explorer-presets-pane {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 0.35rem !important;
+            }
+            .explorer-presets-pane > .explorer-presets-chips-block {
+                width: 100%;
+            }
+            .explorer-presets-chip-row {
+                width: 100%;
+            }
+            .explorer-presets-pencil-portrait { display: inline-flex !important; }
+            .explorer-presets-pencil-wide { display: none !important; }
+            .explorer-presets-controls {
+                flex-wrap: nowrap !important;
+                gap: 0.25rem !important;
+                width: 100%;
+            }
+            .explorer-presets-controls .label-text,
+            .explorer-presets-controls .btn {
+                font-size: 8px !important;
+                letter-spacing: 0.02em !important;
+                line-height: 1.1 !important;
+            }
+            .explorer-presets-controls .label {
+                gap: 0.2rem !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+            .explorer-presets-controls .toggle {
+                transform: scale(0.85);
+                transform-origin: center left;
+            }
+            .explorer-presets-controls .btn {
+                min-height: 1.5rem !important;
+                height: 1.5rem !important;
+                padding-left: 0.2rem !important;
+                padding-right: 0.2rem !important;
             }
         }
         .explorer-filter-compact-hint { display: none; }
@@ -65,24 +118,32 @@
             <span x-text="disabledIntegrationsText"></span>
         </div>
 
-        <div class="flex items-start justify-between bg-base-100 shadow-md border border-base-200 rounded-box py-1.5 px-3">
-            <div class="flex items-start gap-3 min-w-0">
-                <button class="btn btn-xs btn-circle btn-ghost text-error/70 hover:text-error hover:bg-error/20 mr-3 md:mr-5 border border-error/10 mt-0.5"
+        <!-- C7: PC/landscape = one row. Smartphone portrait = two rows (chips+pencil / controls), compact labels -->
+        <div class="explorer-presets-pane flex flex-row items-start justify-between gap-2 bg-base-100 shadow-md border border-base-200 rounded-box py-1.5 px-3">
+            <div class="explorer-presets-chips-block flex items-center gap-2 sm:gap-3 min-w-0">
+                <button class="btn btn-xs btn-circle btn-ghost text-error/70 hover:text-error hover:bg-error/20 border border-error/10 shrink-0"
                         title="Clear all filters"
                         @click="clearAllFilters()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
-                <div class="flex flex-col gap-0.5 min-w-0">
-                    <div class="flex gap-2">
+                <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+                    <div class="explorer-presets-chip-row flex items-center gap-1.5 sm:gap-2">
                         <template x-for="(preset, index) in presets" :key="index">
-                            <button class="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold font-mono text-[11px] md:text-sm transition-colors duration-200 border border-base-content/20"
+                            <button class="w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold font-mono text-[11px] md:text-sm transition-colors duration-200 border border-base-content/20 shrink-0"
                                     :class="preset !== null ? 'bg-primary text-primary-content border-primary shadow-md' : 'bg-transparent text-base-content/40 hover:border-primary/50'"
                                     :title="preset !== null ? getPresetSummary(index, true) : ''"
                                     @click="handlePresetClick(index)">
                                 <span x-text="index + 1"></span>
                             </button>
                         </template>
+                        <!-- Portrait only: pencil on same line as chips -->
+                        <button type="button"
+                                class="explorer-presets-pencil-portrait btn btn-sm btn-ghost text-lg hover:bg-base-200 shrink-0 px-1 ml-auto"
+                                title="Manage Presets"
+                                @click="document.getElementById('preset_edit_modal').showModal()">
+                            ✏️
+                        </button>
                     </div>
                     <div class="text-[9px] md:text-[10px] font-mono text-base-content/55 truncate leading-tight pl-0.5"
                          x-show="appliedPresetIndex !== null && presets[appliedPresetIndex]"
@@ -91,28 +152,27 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-2 md:gap-3 shrink-0 pt-0.5">
-                <!-- C1: Favorites filter only when at least one favorite exists; label+toggle one line -->
-                <label class="label cursor-pointer gap-1.5 py-0 flex-row items-center"
+            <div class="explorer-presets-controls flex items-center gap-2 md:gap-3 shrink-0 pt-0.5">
+                <label class="label cursor-pointer gap-1.5 py-0 flex-row items-center shrink-0"
                        x-show="actuatorFavorites.length > 0" x-cloak>
-                    <span class="label-text font-mono text-[10px] uppercase tracking-widest whitespace-nowrap">Favorites</span>
-                    <input type="checkbox" class="toggle toggle-sm toggle-accent"
+                    <span class="label-text font-mono text-[10px] tracking-wide whitespace-nowrap">Show Favorites</span>
+                    <input type="checkbox" class="toggle toggle-sm toggle-accent shrink-0"
                            :checked="actuatorFavoritesOnly"
                            @change="actuatorFavoritesOnly = $event.target.checked" />
                 </label>
-                <!-- C1: Edit / Done favorites (idle = no row checkboxes) -->
-                <button type="button" class="btn btn-xs btn-ghost font-mono text-[10px] tracking-widest px-1.5"
+                <button type="button" class="btn btn-xs btn-ghost font-mono text-[10px] tracking-wide px-1.5 shrink-0"
                         :class="favoritesEditMode ? 'text-accent' : 'text-base-content/50'"
                         :title="favoritesEditMode ? 'Done editing favorites' : 'Edit favorites'"
                         @click="toggleFavoritesEditMode()">
                     <span x-text="favoritesEditMode ? 'Done' : 'Edit'"></span>
                 </button>
-                <!-- C1: Hidden label+toggle one line (admin); stays in presets pane -->
-                <label class="label cursor-pointer gap-1.5 py-0 flex-row items-center" x-show="isAdmin" x-cloak>
-                    <span class="label-text font-mono text-[10px] uppercase tracking-widest whitespace-nowrap">Hidden</span>
-                    <input type="checkbox" class="toggle toggle-sm toggle-error shadow" x-model="showHiddenNodes" />
+                <label class="label cursor-pointer gap-1.5 py-0 flex-row items-center shrink-0" x-show="isAdmin" x-cloak>
+                    <span class="label-text font-mono text-[10px] tracking-wide whitespace-nowrap">Hidden devices</span>
+                    <input type="checkbox" class="toggle toggle-sm toggle-error shadow shrink-0" x-model="showHiddenNodes" />
                 </label>
-                <button class="btn btn-sm btn-ghost text-lg hover:bg-base-200"
+                <!-- PC / landscape: pencil with controls (original single-row placement) -->
+                <button type="button"
+                        class="explorer-presets-pencil-wide btn btn-sm btn-ghost text-lg hover:bg-base-200 shrink-0"
                         title="Manage Presets"
                         @click="document.getElementById('preset_edit_modal').showModal()">
                     ✏️
@@ -123,7 +183,7 @@
         <div class="bg-base-100 shadow-xl border border-base-200 rounded-box sticky top-2 z-50 p-2 md:p-3 flex flex-col gap-2 md:gap-3"
              data-explorer-sticky-filters
              :class="historyChartOpen ? 'explorer-chart-open' : ''">
-            <div class="join self-start border border-base-300">
+            <div class="join self-start border border-base-300 explorer-mode-join">
                 <button type="button" class="btn btn-sm join-item font-mono tracking-widest"
                         :class="explorerMode === 'control' ? 'btn-primary' : 'btn-ghost'"
                         @click="setExplorerMode('control')">Control</button>

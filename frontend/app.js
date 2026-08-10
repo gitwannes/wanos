@@ -1112,6 +1112,44 @@ function wanosApp() {
             }));
         },
 
+        /**
+         * C7: re-apply filters from sessionStorage and force select↔model sync
+         * (SSE reconnect / snapshot can leave selects looking inactive).
+         */
+        _reapplyActiveFiltersFromSession() {
+            const savedFilters = sessionStorage.getItem('wanos_active_filters');
+            if (!savedFilters) return;
+            let parsed;
+            try {
+                parsed = JSON.parse(savedFilters);
+            } catch (e) {
+                return;
+            }
+            const nextSearch = parsed.searchQuery !== undefined ? parsed.searchQuery : "";
+            const nextType = parsed.typeFilter || "ALL";
+            const nextStatus = parsed.statusFilter || "ALL";
+            const nextSort = parsed.sortMode || "NAME";
+            // Persist desired filters first so watchers during the bump cannot clobber session
+            sessionStorage.setItem('wanos_active_filters', JSON.stringify({
+                searchQuery: nextSearch,
+                typeFilter: nextType,
+                statusFilter: nextStatus,
+                sortMode: nextSort
+            }));
+            // Force Alpine + native <select> refresh even when values are unchanged
+            this.searchQuery = nextSearch === "" ? "\u200b" : "";
+            this.typeFilter = nextType === "ALL" ? "SWITCH" : "ALL";
+            this.statusFilter = nextStatus === "ALL" ? "ON" : "ALL";
+            this.sortMode = nextSort === "NAME" ? "TYPE" : "NAME";
+            this.$nextTick(() => {
+                this.searchQuery = nextSearch;
+                this.typeFilter = nextType;
+                this.statusFilter = nextStatus;
+                this.sortMode = nextSort;
+                this.saveFilters();
+            });
+        },
+
         async fetchFullSnapshot() {
             try {
                 // Attach the authorization headers to the request
@@ -1123,6 +1161,8 @@ function wanosApp() {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const fullState = await res.json();
                 this._applyFullSnapshot(fullState);
+                // C7: restore Control/History filter chrome after every snapshot (incl. SSE reconnect)
+                this._reapplyActiveFiltersFromSession();
                 console.log("✅ Full state snapshot loaded.");
             } catch (err) {
                 console.error("⚠️ Failed to load full state snapshot:", err);
@@ -2037,6 +2077,7 @@ function wanosApp() {
                 && this.selectedSensorIdx != null) {
                 this.selectedHistoryIdx = this.selectedSensorIdx;
                 await this.reloadHistoryCharts({ soft });
+                // C6: one resize pass after soft/hard draw (soft helper skips per-chart resize)
                 Object.values(wanosHistoryCharts).forEach(c => c && c.resize());
             } else if (this.selectedSensorKind === "actuator" && this.selectedSensorIdx != null) {
                 this.selectedActuatorIdx = this.selectedSensorIdx;
@@ -2149,14 +2190,17 @@ function wanosApp() {
             });
         },
 
-        _ensureActuatorChart(key, elId) {
+        _ensureActuatorChart(key, elId, { soft = false } = {}) {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById(elId);
             if (!el) return null;
             if (wanosActuatorCharts[key]) {
-                try {
-                    wanosActuatorCharts[key].resize();
-                } catch (e) { /* ignore */ }
+                // C6: soft path defers resize to a single pass after draw
+                if (!soft) {
+                    try {
+                        wanosActuatorCharts[key].resize();
+                    } catch (e) { /* ignore */ }
+                }
                 return wanosActuatorCharts[key];
             }
             wanosActuatorCharts[key] = echarts.init(el, "dark");
@@ -2191,13 +2235,20 @@ function wanosApp() {
         },
 
         /**
-         * setOption + resize; on soft refresh restore dataZoom window to avoid jump/flicker.
+         * setOption + optional resize. Soft refresh: merge (no wipe), no animation, no resize here.
+         * Hard open/switch: notMerge wipe + resize (unchanged).
          */
-        _setHistoryChartOption(chart, opt, savedZoom) {
+        _setHistoryChartOption(chart, opt, savedZoom, { soft = false } = {}) {
             if (!chart || !opt) return;
             if (savedZoom) this._applySavedDataZoomToOpt(opt, savedZoom);
-            chart.setOption(opt, true);
-            chart.resize();
+            if (soft) {
+                opt.animation = false;
+                opt.animationDurationUpdate = 0;
+                chart.setOption(opt, { notMerge: false, replaceMerge: ["series"] });
+            } else {
+                chart.setOption(opt, true);
+                chart.resize();
+            }
         },
 
         renderActuatorCharts(dayData, monthData, yearData, { soft = false } = {}) {
@@ -2246,9 +2297,9 @@ function wanosApp() {
                     }
                 }
 
-                const dayChart = dayOk ? this._ensureActuatorChart("day", "chart-act-day") : null;
-                const monthChart = monthOk ? this._ensureActuatorChart("month", "chart-act-month") : null;
-                const yearChart = yearOk ? this._ensureActuatorChart("year", "chart-act-year") : null;
+                const dayChart = dayOk ? this._ensureActuatorChart("day", "chart-act-day", { soft }) : null;
+                const monthChart = monthOk ? this._ensureActuatorChart("month", "chart-act-month", { soft }) : null;
+                const yearChart = yearOk ? this._ensureActuatorChart("year", "chart-act-year", { soft }) : null;
 
                 this.actuatorChartHasData.day = !!(dayOk && dayChart);
                 this.actuatorChartHasData.month = !!(monthOk && monthChart);
@@ -2269,16 +2320,16 @@ function wanosApp() {
                         connectNulls: false
                     }];
                     this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
-                    this._setHistoryChartOption(dayChart, opt, zoomByKey.day);
+                    this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
                     this._bindHistoryYSnap(dayChart, [{ axisIndex: 0, step: 10 }]);
                 }
 
                 if (monthChart && this.actuatorChartHasData.month) {
-                    this._renderActuatorPeriodChart(monthChart, monthData, "month", monthLevelMax);
+                    this._renderActuatorPeriodChart(monthChart, monthData, "month", monthLevelMax, { soft, savedZoom: zoomByKey.month });
                 }
 
                 if (yearChart && this.actuatorChartHasData.year) {
-                    this._renderActuatorPeriodChart(yearChart, yearData, "year", yearLevelMax);
+                    this._renderActuatorPeriodChart(yearChart, yearData, "year", yearLevelMax, { soft, savedZoom: zoomByKey.year });
                 }
             };
 
@@ -2376,12 +2427,15 @@ function wanosApp() {
             return m + "m " + s + "s";
         },
 
-        _ensureHistoryChart(key, elId) {
+        _ensureHistoryChart(key, elId, { soft = false } = {}) {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById(elId);
             if (!el) return null;
             if (wanosHistoryCharts[key]) {
-                try { wanosHistoryCharts[key].resize(); } catch (e) { /* ignore */ }
+                // C6: soft path defers resize to a single pass after draw
+                if (!soft) {
+                    try { wanosHistoryCharts[key].resize(); } catch (e) { /* ignore */ }
+                }
                 return wanosHistoryCharts[key];
             }
             wanosHistoryCharts[key] = echarts.init(el, "dark");
@@ -2461,7 +2515,14 @@ function wanosApp() {
             return {
                 backgroundColor: "transparent",
                 tooltip: { trigger: "axis" },
-                legend: { bottom: 0, textStyle: { color: "#9ca3af" } },
+                // C7: line color swatch only (no legend marker dots)
+                legend: {
+                    bottom: 0,
+                    icon: "rect",
+                    itemWidth: 12,
+                    itemHeight: 3,
+                    textStyle: { color: "#9ca3af" }
+                },
                 grid: { left: 48, right: 24, top: 24, bottom: 56 },
                 xAxis: {
                     type: "time",
@@ -2714,9 +2775,9 @@ function wanosApp() {
                     }
                 }
 
-                const dayChart = dayOk ? this._ensureHistoryChart("day", "chart-day") : null;
-                const monthChart = monthOk ? this._ensureHistoryChart("month", "chart-month") : null;
-                const yearChart = yearOk ? this._ensureHistoryChart("year", "chart-year") : null;
+                const dayChart = dayOk ? this._ensureHistoryChart("day", "chart-day", { soft }) : null;
+                const monthChart = monthOk ? this._ensureHistoryChart("month", "chart-month", { soft }) : null;
+                const yearChart = yearOk ? this._ensureHistoryChart("year", "chart-year", { soft }) : null;
 
                 // Only keep sections whose containers actually mounted + have drawable series.
                 this.historyChartHasData.day = !!(dayOk && dayChart);
@@ -2733,7 +2794,7 @@ function wanosApp() {
                         this.historyChartHasData.day ? dayChart : null,
                         this.historyChartHasData.month ? monthChart : null,
                         this.historyChartHasData.year ? yearChart : null,
-                        dayData, monthData, yearData, showHum, zoomByKey
+                        dayData, monthData, yearData, showHum, zoomByKey, { soft }
                     );
                     // Drop any range that rendered with no drawable points
                     if (this.historyChartHasData.month && !this._climateRangeHasData(monthData, "month")) {
@@ -2752,7 +2813,7 @@ function wanosApp() {
 
                 if (dayChart && this.historyChartHasData.day) {
                     if (isWater) {
-                        this._renderWaterChart(dayChart, dayData, "day");
+                        this._renderWaterChart(dayChart, dayData, "day", { soft });
                     } else {
                         const opt = this._baseChartOption(yLabel);
                         opt.series = [{
@@ -2765,7 +2826,7 @@ function wanosApp() {
                             connectNulls: false
                         }];
                         this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
-                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day);
+                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
                         const step = this._ySnapStepForUnit(snapUnit, "day");
                         if (step) this._bindHistoryYSnap(dayChart, [{ axisIndex: 0, step }]);
                     }
@@ -2773,7 +2834,7 @@ function wanosApp() {
 
                 if (monthChart && this.historyChartHasData.month) {
                     if (isWater) {
-                        this._renderWaterChart(monthChart, monthData, "month");
+                        this._renderWaterChart(monthChart, monthData, "month", { soft });
                     } else {
                         const opt = this._baseChartOption(yLabel);
                         opt.series = [
@@ -2795,7 +2856,7 @@ function wanosApp() {
                             }
                         ];
                         this._applyTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
-                        this._setHistoryChartOption(monthChart, opt, zoomByKey.month);
+                        this._setHistoryChartOption(monthChart, opt, zoomByKey.month, { soft });
                         const step = this._ySnapStepForUnit(snapUnit, "month");
                         if (step) this._bindHistoryYSnap(monthChart, [{ axisIndex: 0, step }]);
                     }
@@ -2803,7 +2864,7 @@ function wanosApp() {
 
                 if (yearChart && this.historyChartHasData.year) {
                     if (isWater) {
-                        this._renderWaterChart(yearChart, yearData, "year");
+                        this._renderWaterChart(yearChart, yearData, "year", { soft });
                     } else {
                         const opt = this._baseChartOption(yLabel);
                         opt.series = [
@@ -2825,7 +2886,7 @@ function wanosApp() {
                             }
                         ];
                         this._applyTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
-                        this._setHistoryChartOption(yearChart, opt, zoomByKey.year);
+                        this._setHistoryChartOption(yearChart, opt, zoomByKey.year, { soft });
                         const step = this._ySnapStepForUnit(snapUnit, "year");
                         if (step) this._bindHistoryYSnap(yearChart, [{ axisIndex: 0, step }]);
                     }
@@ -2897,7 +2958,7 @@ function wanosApp() {
         /**
          * Actuator month/year: category axis so event bars don't stretch across the window.
          */
-        _renderActuatorPeriodChart(chart, data, range, levelMax) {
+        _renderActuatorPeriodChart(chart, data, range, levelMax, { soft = false, savedZoom = null } = {}) {
             if (!chart) return;
             const rows = this._buildActuatorPeriodPayload(data);
             if (!rows.length) return;
@@ -2909,6 +2970,10 @@ function wanosApp() {
                     top: 4,
                     left: "center",
                     itemGap: 10,
+                    // C7: line swatch, no marker dots
+                    icon: "rect",
+                    itemWidth: 12,
+                    itemHeight: 3,
                     textStyle: { color: "#9ca3af", fontSize: 10 }
                 },
                 grid: { left: 48, right: 48, top: 36, bottom: labels.length > 8 ? 72 : 56 },
@@ -2975,8 +3040,7 @@ function wanosApp() {
                     }
                 ]
             };
-            chart.setOption(opt, true);
-            chart.resize();
+            this._setHistoryChartOption(chart, opt, savedZoom, { soft });
         },
 
         _buildWaterChartPayload(data, range) {
@@ -3002,7 +3066,7 @@ function wanosApp() {
          * Water consumption: category axis (one slot per hour/day/month bucket).
          * Time axis + bar charts mis-render sparse buckets as solid slabs.
          */
-        _renderWaterChart(chart, data, range) {
+        _renderWaterChart(chart, data, range, { soft = false } = {}) {
             if (!chart) return;
             const { labels, coldVals, hotVals } = this._buildWaterChartPayload(data, range);
             if (!labels.length) return;
@@ -3010,7 +3074,14 @@ function wanosApp() {
             const opt = {
                 backgroundColor: "transparent",
                 tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-                legend: { bottom: 0, textStyle: { color: "#9ca3af" } },
+                // C7: line/bar swatch without marker dots
+                legend: {
+                    bottom: 0,
+                    icon: "rect",
+                    itemWidth: 12,
+                    itemHeight: 3,
+                    textStyle: { color: "#9ca3af" }
+                },
                 grid: { left: 48, right: 24, top: 24, bottom: labels.length > 10 ? 72 : 56 },
                 xAxis: {
                     type: "category",
@@ -3059,16 +3130,23 @@ function wanosApp() {
                 opt.yAxis.max = bounds.max;
                 opt.yAxis.interval = step;
             }
-            chart.setOption(opt, true);
-            chart.resize();
+            this._setHistoryChartOption(chart, opt, null, { soft });
         },
 
         _climateDualAxisOption(seriesCount) {
             const many = (seriesCount || 0) > 2;
             const opt = this._baseChartOption("°C");
             opt.legend = many
-                ? { top: 4, left: "center", itemGap: 10, textStyle: { color: "#9ca3af", fontSize: 10 } }
-                : { bottom: 4, left: "center", textStyle: { color: "#9ca3af", fontSize: 10 } };
+                ? {
+                    top: 4, left: "center", itemGap: 10,
+                    icon: "rect", itemWidth: 12, itemHeight: 3,
+                    textStyle: { color: "#9ca3af", fontSize: 10 }
+                }
+                : {
+                    bottom: 4, left: "center",
+                    icon: "rect", itemWidth: 12, itemHeight: 3,
+                    textStyle: { color: "#9ca3af", fontSize: 10 }
+                };
             opt.grid = many
                 ? { left: 48, right: 48, top: 40, bottom: 52 }
                 : { left: 48, right: 48, top: 24, bottom: 64 };
@@ -3106,7 +3184,7 @@ function wanosApp() {
             ];
         },
 
-        _renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum, zoomByKey = {}) {
+        _renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum, zoomByKey = {}, { soft = false } = {}) {
             const climateSnap = (hasHum) => {
                 const axes = [{ axisIndex: 0, step: 5 }];
                 if (hasHum) axes.push({ axisIndex: 1, step: 10 });
@@ -3157,7 +3235,7 @@ function wanosApp() {
                 const opt = this._climateDualAxisOption(series.length);
                 opt.series = series;
                 this._applyClimateTimeWindow(opt, 24 * 60 * 60 * 1000);
-                this._setHistoryChartOption(dayChart, opt, zoomByKey.day);
+                this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
                 this._bindHistoryYSnap(dayChart, climateSnap(showHum));
             }
 
@@ -3241,7 +3319,7 @@ function wanosApp() {
                 const opt = this._climateDualAxisOption(series.length);
                 opt.series = series;
                 this._applyClimateTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
-                this._setHistoryChartOption(monthChart, opt, zoomByKey.month);
+                this._setHistoryChartOption(monthChart, opt, zoomByKey.month, { soft });
                 this._bindHistoryYSnap(monthChart, climateSnap(showHum));
             }
 
@@ -3325,7 +3403,7 @@ function wanosApp() {
                 const opt = this._climateDualAxisOption(series.length);
                 opt.series = series;
                 this._applyClimateTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
-                this._setHistoryChartOption(yearChart, opt, zoomByKey.year);
+                this._setHistoryChartOption(yearChart, opt, zoomByKey.year, { soft });
                 this._bindHistoryYSnap(yearChart, climateSnap(showHum));
             }
         },
@@ -3405,16 +3483,30 @@ function wanosApp() {
         },
 
         // 🔔 Alert UI Action Dispatchers (C2: banner vs bell dismiss are independent)
+        // C8: fire-and-forget ALERT_UI_DISMISSED log only (does not remove alert from server state)
+        _logAlertUiDismiss(surface, id) {
+            const msg = (this.state.system.system_alert_msgs || []).find(m => m.id === id);
+            const level = (msg && msg.level) ? msg.level : "info";
+            const text = (msg && msg.message) ? String(msg.message) : "";
+            this.publishEvent("ALERT_UI_DISMISSED", {
+                surface: surface,
+                level: level,
+                message: text,
+            }).catch(() => { /* log failure must not undo UI dismiss */ });
+        },
+
         dismissBannerAlert(id) {
             if (!this.bannerDismissedAlertIds.includes(id)) {
                 this.bannerDismissedAlertIds = [...this.bannerDismissedAlertIds, id];
             }
+            this._logAlertUiDismiss("banner", id);
         },
 
         dismissBellAlert(id) {
             if (!this.bellDismissedAlertIds.includes(id)) {
                 this.bellDismissedAlertIds = [...this.bellDismissedAlertIds, id];
             }
+            this._logAlertUiDismiss("bell", id);
             // Non-criticals: also clear on server so other Admin views stay consistent
             const msg = (this.state.system.system_alert_msgs || []).find(m => m.id === id);
             if (msg && msg.level !== "critical") {

@@ -2,7 +2,7 @@
 import asyncio
 from typing import Dict, Any
 from loguru import logger
-from core.models import Event, EventType
+from core.models import Event, EventType, format_device_ref
 
 
 def pack_standard(command: str) -> bytes:
@@ -280,4 +280,6 @@ class OnkyoBridge:
                     await writer.drain()
 
         except Exception as e:
-            logger.error(f"Onkyo command transmission failed on {idx}: {e}")
+            logger.error(
+                f"Onkyo command transmission failed on "
+                f"{format_device_ref(self.manager._state, idx)}: {e}")

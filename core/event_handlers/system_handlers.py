@@ -24,6 +24,21 @@ async def handle_alert_dismissed(event: Event, manager: Any) -> Tuple[bool, Set[
     return False, set()
 
 
+async def handle_alert_ui_dismissed(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """
+    C8: log-only UI dismiss (banner or bell). Does not remove the alert from shared state
+    (C2 dual-dismiss stays FE-local).
+    """
+    payload = event.payload or {}
+    surface = str(payload.get("surface") or "unknown").strip().lower()
+    if surface not in ("banner", "bell"):
+        surface = "unknown"
+    level = str(payload.get("level") or "info").strip() or "info"
+    text = str(payload.get("message") or "").strip()
+    logger.info(f'Alert dismissed ({surface}): level={level} "{text}"')
+    return False, set()
+
+
 async def handle_alert_clear_non_critical(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     if AlertManager.clear_non_critical(manager._state):
         return True, {"system"}

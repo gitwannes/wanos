@@ -1,0 +1,27 @@
+---
+description: Python coding standards — 3.9+, type hints, comments, file header
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python standards
+
+## Compatibility & typing
+
+- Target **Python 3.9+** and stay forward-compatible.
+- Always add type hints (parameters, returns, and non-obvious locals/attributes).
+
+## File header
+
+At the top of each file, add a file reference:
+
+```python
+# --- file: core/state_manager.py ---
+```
+
+## Comments
+
+- Update existing comments when code changes.
+- Keep existing comments; remove them only when they are no longer valid.
+- Never leave orphaned comments.
+- Add comments generously for clarity and programmer context.

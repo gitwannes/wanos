@@ -2,7 +2,7 @@
 import asyncio
 from typing import Any, Set, Tuple
 from loguru import logger
-from core.models import Event, EventType
+from core.models import Event, EventType, format_device_ref
 from core.well_known_entities import ENTITY_SAUNA_HIGH, ENTITY_SAUNA_LOW
 from logic.alert_manager import AlertManager
 
@@ -133,7 +133,10 @@ async def handle_sensor_error(event: Event, manager: Any) -> Tuple[bool, Set[str
     }
     sauna_probe_idxs.discard(None)
     if idx in sauna_probe_idxs and manager._state.sauna.active:
-        await manager.logger.critical(f"Critical sensor failure on IDX {idx}. Emergency stopping heater elements.")
+        await manager.logger.critical(
+            f"Critical sensor failure on {format_device_ref(manager._state, idx)}. "
+            f"Emergency stopping heater elements."
+        )
         manager.dispatch(Event(type=EventType.SAUNA_OFF))
 
     return state_changed, changed_domains
