@@ -9,6 +9,12 @@
 !.gitignore
 !.gitattributes
 
+# Project Cursor rules (ship with repo; keep other .cursor/* local)
+!.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+
 # 1. Secrets & Environment Variables
 # (CRITICAL: Never commit the actual .env file containing the MQTT password or PIN)
 .env

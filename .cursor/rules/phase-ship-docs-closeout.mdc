@@ -1,0 +1,22 @@
+---
+description: Phase/ship close-out DoD — audit and update all markdown docs to match shipped code
+alwaysApply: true
+---
+
+# Phase / ship docs close-out
+
+Every phase or ship close-out is incomplete until docs match **shipped** code.
+
+## Mandatory last DoD step
+
+Before calling a phase/ship done:
+
+1. **Audit** all project markdown: `docs/**/*.md` and root `readme.md` / `README.md` (if present).
+2. **Update** anything that drifted — behavior, APIs, UI, config, status, links.
+3. Do **not** stop at `docs/todo/*`. Todo/pipeline updates alone are not enough.
+4. Treat this as the **last** Definition-of-Done action for every phase.
+
+## Pointers
+
+- Pipeline / phase sequence: `docs/todo/pipeline.md` (move Done vs Sequence; link detail files).
+- Detail DoD and locked decisions live in the phase files under `docs/todo/` — keep those accurate, then sync the rest of `docs/` and the root readme.
