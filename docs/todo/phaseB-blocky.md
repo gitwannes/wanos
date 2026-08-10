@@ -343,6 +343,7 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 |-----|-----------|
 | Rich B6C | verify no coerce/loss |
 | Sensors + host gauges | When + if; UX = dropdown / FieldNumber |
+| Sauna session condition | `state.sauna.active` in if; smoke rule sauna hue physical (71035→51002/72004) |
 | Compare ops | `== != > >= < <=` (no hysteresis) |
 | FORCE | all engine-honored origins |
 | Events | After B10B: `events:` catalog; + `SAUNA_SETPOINT_REACHED` (seeded in B10B) |
@@ -355,10 +356,11 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 2. Post-audit: note any remaining gaps; **do not** adopt H\* into B9A (disposition locked).
 3. Verify B6C rich / per-action / blinds mid.
 4. Sensor + host-gauge pickers; motion trigger-only.
-5. Compare conditions (no hysteresis — **H12 is B9B**).
-6. FORCE completeness.
-7. E1 + `SAUNA_SETPOINT_REACHED`.
-8. JSON removal + B+C + update decision #12 prose.
+5. **Sauna session condition** (`sauna.active`) + author **sauna hue physical** smoke rule (entities: `switch.sauna_hue_physical`, `hue.group.sauna_hue`, `switch.sauna_zoutlamp`).
+6. Compare conditions (no hysteresis — **H12 is B9B**).
+7. FORCE completeness.
+8. E1 + `SAUNA_SETPOINT_REACHED` (catalog via B10B).
+9. JSON removal + B+C + update decision #12 prose.
 
 **Out of scope for B9A:** bathroom climate; H4/H5/H12; vent-lock Blockly; H1–H3/H6–H11; schema v2 redesign; Phase B7/8 UIs; Gmail stack / Phase E (see `phaseE-gmail.md` — hooks land in **B9B H5**). Bathroom feasibility write-up lives under **Phase B9B** (not a B9A deliverable).
 
@@ -763,6 +765,8 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [ ] **Per-action rich:** verify B6C round-trip independence.
 - [ ] **Silent-loss B+C:** unknown-legal keys preserved; Save blocked when a non-preservable drop would occur.
 - [ ] **Sensor + host-gauge pickers:** When + if; motion trigger-only; hard-deny blocked; discrete dropdown / numeric `FieldNumber`.
+- [ ] **Sauna session condition:** Blockly + engine can test **sauna active** (`state.sauna.active`) as a condition (not only `device_state`). Needed for rules such as **sauna hue physical** (below).
+- [ ] **Example / smoke rule — sauna hue physical:** trigger `switch.sauna_hue_physical` (**71035**) on **any** change (ON or OFF edge); if sauna **on** → if `hue.group.sauna_hue` (**51002**) already on → no-op, else **OFF** sauna hue + `switch.sauna_zoutlamp` (**72004**); if sauna **off** → if hue already on → **OFF** hue + zoutlamp, else **ON** hue + zoutlamp. (Not authorable today: no sauna-session condition.)
 - [ ] **Thresholds:** ops `== != > >= < <=` in engine **and** Blockly; no hysteresis; `temp_hum` → separate temperature / humidity; numeric When = edge-cross, discrete = any change.
 - [ ] **FORCE:** all engine-honored origins.
 - [ ] **Events:** pickable from `events:` (B10B); `SAUNA_SETPOINT_REACHED` present.

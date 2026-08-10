@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). Remaining: **C6** (flicker) → **C3 → C4**.
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). Remaining: **C6** (flicker) → **C7** (Explorer follow-ups) → **C3 → C4**.
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** ✅; next Blocky = **B10B** — `events:` UUID catalog). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -18,10 +18,11 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C2 — Admin + system pages** | Planned Automations; bell; reboot; gear-only nav; leave-guards | Admin UI + one API |
 | **C5 — History graphs** | Landscape filters; dew point; Y-axis snap; climate smooth (d/m/y) | Explorer History charts |
 | **C6 — History flicker** | Auto-refresh redraw flash (all charts) | C5 soft-refresh follow-up |
+| **C7 — Explorer follow-ups** | Favorites portrait layout; filter restore after SSE; landscape chart chrome; legend dots | FE; C1/C5 leftovers |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6** next shell slice. **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6** then **C7**. **C3/C4** later unless needed sooner.
 
 ---
 
@@ -235,15 +236,44 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 
 ---
 
+## 📋 C7 — Explorer follow-ups 🔜 TODO
+
+**Origin:** operator reports **2026-08-10** (screenshots). C1/C5 leftovers — **not** reopening those DoDs. FE-only.
+
+### Favorites row — smartphone portrait
+
+* **Portrait:** Favorites chrome must **never** share one horizontal line with the favorite **number chips** (1–5) — Edit on **or** off. Chips wrap / sit on a row below (no overlap with “FAVORITES” label).
+* **Landscape / desktop:** single-line layout OK (C1).
+
+### Filters after SSE reconnect
+
+* Bug: Device Explorer open; after **SSE drop/reconnect**, active filters (e.g. status **ON**) look inactive (not blue) and list not filtered; toggling away and back fixes it.
+* Code today: `searchQuery` / `typeFilter` / `statusFilter` / `sortMode` saved in `sessionStorage` (`wanos_active_filters`); SSE `connectSSE` does **not** clear them — fix re-apply / select↔model sync after snapshot so **all four** restore with correct **blue active** styling.
+* Scope: Control (and History list chrome if same bindings).
+
+### Landscape chart — full bleed (C5 follow-on)
+
+* Smartphone **landscape + chart open** (same gate as C5 filter collapse): also hide **Control | History** picker and the **“Filter collapsed · …”** hint row so the graph owns the screen.
+* Portrait / no chart: unchanged.
+
+### History legend — no marker dots
+
+* All Explorer History chart legends: show **line style/color only** — **remove** legend marker dots (graph series stay lines without point markers).
+
+**C7 DoD:** Portrait favorites no overlap; SSE reconnect restores filters + blue active; landscape+chart hides Control/History + collapsed hint; legends without dots; Pi smoke phone portrait/landscape.
+
+---
+
 ## 🚦 Decisions locked (summary)
 
-* **C1:** Hidden + Favorites stay in presets pane (one line each); Edit/Done favorites; idle = no indicators; filter iff favorites exist.
+* **C1:** Hidden + Favorites stay in presets pane (one line each on landscape/desktop); Edit/Done favorites; idle = no indicators; filter iff favorites exist. **Portrait favorites layout → C7.**
 * **C2:** Timeline name+type, strip “will”; dual banner/bell dismiss; service reboot via sudoers `NOPASSWD: systemctl restart wanos.service` + UI error on fail; gear-only on hide / auto-off / zwave; leave-guard on those three (Blocky-style). Types = today’s metadata until **D**.
 * **C5:** Explorer History (not `sensorhistory`); compact filters only when chart open; dew via **Sonntag Magnus** (1 decimal) when temp+hum; Y from dataZoom; snaps per table (power **10 W**); climate day/month/year lines **`smooth: true`** (no `step`).
 * **C6:** History auto-refresh must not flicker/reset the line (all chart families).
+* **C7:** Portrait favorites wrap; SSE filter restore (all four + blue); landscape+chart hide Control/History + hint row; legend dots removed.
 * **C3:** Force ALL-OFF parallel-per-integration + 300ms pace + exclusion tags + confirm UX.
 * **C4:** Rename entrypoints; update all consumers.
 
 ## ❓ Residual Open Qs
 
-* *(none for C1 / C2 / C5 — closed by Pi smoke **2026-08-09**. C6 / C3 / C4 open as above.)*
+* *(none for C1 / C2 / C5 — closed by Pi smoke **2026-08-09**. C6 / C7 / C3 / C4 open as above.)*

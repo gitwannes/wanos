@@ -2,7 +2,7 @@
 
 High-level **what’s next** and where the detailed specs live. This file does **not** hold phase DoD / locked-decision novels — those live in `phaseX-yyy.md`.
 
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-10
 
 ---
 
@@ -53,18 +53,19 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 2. low    B10D     unique rule names (case-insensitive)
 3. low    B10E     Automations list sort (name / type+name)
 4. low    C6       History auto-refresh flicker
-5. mid    D        switch vs light typing
-6. high   B9A      sensors / thresholds / remove JSON
-7. high   E        Gmail transport / outbox
-8. high   B9B      bathroom + H4/H5/H12  (H5 email needs E)
-9. mid    C3       Force ALL-OFF
-10. mid   C4       Rename HTML entrypoints
-11. mid   G2       Hue color/bri truth (assess → fix)
-12. mid   G1       Epson get_power_state (analysis → impl)
-13. low   G3       OWM outside poll 10′ (config)
-14. high  F        Security bridge (F1→F7 as deployed)
-15. high  Later B  multi-flow; HA H1–H3/H6–H11
-16. —     Ops      Inbox below when convenient
+5. low    C7       Explorer follow-ups (favorites / filters / chart chrome)
+6. mid    D        switch vs light typing
+7. high   B9A      sensors / thresholds / sauna-session cond / remove JSON
+8. high   E        Gmail transport / outbox
+9. high   B9B      bathroom + H4/H5/H12  (H5 email needs E)
+10. mid   C3       Force ALL-OFF
+11. mid   C4       Rename HTML entrypoints
+12. mid   G2       Hue color/bri truth (assess → fix)
+13. mid   G1       Epson get_power_state (analysis → impl)
+14. low   G3       OWM outside poll 10′ (config)
+15. high  F        Security bridge (F1→F7 as deployed)
+16. high  Later B  multi-flow; HA H1–H3/H6–H11
+17. —     Ops      Inbox below when convenient
 ```
 
 ### Why this order
@@ -72,6 +73,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 * **B10D after B10B** — small name-uniqueness (FE + API); not folded into B9\*. May ship with/before B10B if capacity.
 * **B10E after B10D** — Automations sidebar sort (name ↔ type+name via AUTOMATIONS header); FE-only.
 * **C6 after B10B** — History soft-refresh flicker (all charts); shell follow-up, not Blocky. May swap ahead of B10B if flicker pain wins.
+* **C7 after C6** — Explorer portrait favorites, SSE filter restore, landscape chart chrome, legend dots; may swap ahead of C6 if Control pain wins.
 * **B10B before B9A** — events catalog / scenes / rule enable are the live pain; sensors/JSON removal is larger and can wait.
 * **D after B10B / with C2 consumers** — typing benefits Planned Automations and Blocky light/switch wording; not a Blocky editor rewrite.
 * **B9A then E then B9B** — compares/sensors first; Gmail transport (**E**) can start early but **B9B H5 email** waits on E; bathroom/H12/H4 sit on B9A primitives.
@@ -81,7 +83,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 * **F when deploying remote access** — independent perimeter track; interleave only when exposing the bridge.
 * **Do not fold B10\* into B9\*** — different jobs (trust/events vs sensors/climate). **G2 ≠ B10A** — runtime bridge truth vs Blockly editor chrome (B10A done).
 
-Near-term = **B10B → B10D → B10E → C6**. Then **D** / **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking. **G3** whenever convenient.
+Near-term = **B10B → B10D → B10E → C6 → C7**. Then **D** / **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking. **G3** whenever convenient.
 
 ---
 
@@ -93,6 +95,7 @@ Near-term = **B10B → B10D → B10E → C6**. Then **D** / **B9A** flexible. **
 | **B10D** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10D — unique rule names (case-insensitive; FE + API) |
 | **B10E** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10E — Automations list sort (name ↔ type+name; event→dashboard→other) |
 | **C6** | [`phaseC-shell.md`](phaseC-shell.md) § C6 — History auto-refresh flicker |
+| **C7** | [`phaseC-shell.md`](phaseC-shell.md) § C7 — Favorites portrait · SSE filters · landscape chart chrome · legend dots |
 | **D** | [`phaseD-typing.md`](phaseD-typing.md) — infer + override · freeze `entity_id` · 71/72 |
 
 ---
@@ -103,7 +106,7 @@ Near-term = **B10B → B10D → B10E → C6**. Then **D** / **B9A** flexible. **
 |---|---|
 | **B9A** / **B9B** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
-| **C3** / **C4** / **C6** | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C3** / **C4** / **C6** / **C7** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G1** / **G3** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 
@@ -164,5 +167,6 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-09 | Inbox: **B10E** Automations sidebar sort (name ↔ type+name via AUTOMATIONS header). |
 | 2026-08-09 | Sequence: added **Size** column (low / mid / high). |
 | 2026-08-09 | **B10B** spec fully locked: `events:` UUID bus, family/`SCENE_*` cutover, rule enable; `EMAIL_REQUESTED` waits for **E**. |
+| 2026-08-10 | Inbox triage: **C7** Explorer follow-ups; **B9A** sauna-session condition + sauna hue physical smoke rule. |
 
 Detail chronology / DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md).
