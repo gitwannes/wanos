@@ -84,7 +84,8 @@
                 ':class="explorerMode === \'history\' ? \'text-accent\' : \'text-primary\'" ' +
                 'x-text="explorerMode === \'history\' ? \'⚡ WanOS // Explorer · History\' : \'⚡ WanOS // Device Explorer\'"></span>' +
                 '<span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" ' +
-                'x-text="explorerDisplayList.length + (explorerMode === \'history\' ? \' History\' : \' Nodes\')"></span>' +
+                // C10: singular Node vs plural Nodes (History badge wording unchanged)
+                'x-text="explorerMode === \'history\' ? (explorerDisplayList.length + \' History\') : (explorerDisplayList.length === 1 ? \'1 Node\' : (explorerDisplayList.length + \' Nodes\'))"></span>' +
                 "</div>"
             );
         }
@@ -273,10 +274,8 @@
             '<input type="range" min="1" max="100" class="range range-warning shadow-inner" ' +
             'x-model="activeLightBri" @input.debounce.100ms="updateActiveLightState()" />' +
             "</div>" +
+            // C10: remove COLOR OUTPUT hex text row; keep wheel + presets only
             "<div>" +
-            '<div class="flex justify-between text-xs font-mono font-bold text-base-400 mb-2 uppercase tracking-wider">' +
-            "<span>Color Output</span>" +
-            '<span class="text-info" x-text="activeLightHex || \'#FFD180\'"></span></div>' +
             '<div class="flex flex-col items-center justify-center bg-base-200 p-4 rounded-box border border-base-300">' +
             '<div id="color-picker-container"></div></div></div>' +
             '<div class="grid grid-cols-2 md:grid-cols-4 gap-2">' +

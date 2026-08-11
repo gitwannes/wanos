@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; **B10F** ✅ **Done 2026-08-11**; queued **B9A** / **B9B** / **B11–B18**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** next); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; **B10F** ✅ **Done 2026-08-11**; queued **B9A** / **B9B** / **B11–B18**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -1112,7 +1112,7 @@ Run on **Pi** after deploying latest (`entity_registry_check` skip ≥900000, Bl
 Pointers only — detail under § B10F / § B11–B18:
 
 * **B10F** — Automations UX polish — ✅ **Done 2026-08-11** (does not reopen B10E DoD).
-* **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); **next** in sequence.
+* **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
 * **G6** — Scoped `CONFIG_RELOAD` after CRUD (no bridge thrash) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
 * **B11** — Multi-flow in one Blockly page.
@@ -1315,7 +1315,7 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 
 **Out of scope**
 
-* Do not reopen B10E DoD. Do not fold **B15** (demote schedule edges). Other env-scheduler math (blinds clamps, morning skip, clock sources) unchanged except the **evening skip** above. Sauna `session_end_time` vs absolute cutoff clamp → **B18** (not B10F). Scoped `CONFIG_RELOAD` / no Hue·Onkyo·Z-Wave recycle on save → **G6** (not B10F). Explorer/History screenshot polish → **C10**. Integration log `[Onkyo]` tag → **G7**.
+* Do not reopen B10E DoD. Do not fold **B15** (demote schedule edges). Other env-scheduler math (blinds clamps, morning skip, clock sources) unchanged except the **evening skip** above. Sauna `session_end_time` vs absolute cutoff clamp → **B18** (not B10F). Scoped `CONFIG_RELOAD` / no Hue·Onkyo·Z-Wave recycle on save → **G6** (not B10F). Explorer/History screenshot polish → **C10** ✅. Integration log `[Onkyo]` tag → **G7**.
 
 #### Phase B10F DoD
 

@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). Queued: **C10** (Explorer/History polish inbox **2026-08-11**); later **C3 → C4**. Next sequence: **C10**.
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11**. Next sequence: **D** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -23,11 +23,12 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C7 — Explorer follow-ups** | Favorites portrait; SSE filter restore; landscape chart chrome; legend dots | FE; C1/C5 leftovers · low |
 | **C8 — Alert dismiss logs** | Banner + bell dismiss → `wanos.log` info (UX unchanged) | C2 dismiss follow-up · low |
 | **C9 — Device-ref app logs** | All device-ref lines in `wanos.log` → `entity_id (name, idx N)` | Every integration · mid |
-| **C10 — Explorer / History polish** | Plural Nodes; Planned imminent; Hue hex text; chart colors; binary charts; hide scenes; filter+blinds | FE · mid |
+| **C10 — Explorer / History polish** | Plural Nodes; Planned past gone; Hue hex text; chart colors; binary/hits charts; omit scenes; filter+blinds | FE · mid |
+| **C11 — Control vs History lists** | Re-assess Explorer Control vs History list membership (post–C10 scene omit) | Assess → decide · low |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ one ship + Pi smoke **2026-08-10**. **C10** next (**B10F** ✅ **2026-08-11**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4** (or when list-membership pain wins). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -337,23 +338,53 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 ---
 
-## 📋 C10 — Explorer / History polish 🔜 TODO
+## 📋 C10 — Explorer / History polish ✅ DONE
 
-**Origin:** operator screenshots + inbox **2026-08-11**. Shell only — **not** Blocky (**B10F**), **not** G2 bri/bridge truth. **One ship.** Size **mid**.
+**Operator smoke:** ✅ OK on Pi (**2026-08-11**).
+
+**Origin:** operator screenshots + inbox **2026-08-11**; decisions locked **2026-08-11**. Shell only — **not** Blocky (**B10F**), **not** G2 bri/bridge truth. **One ship.** Size **mid**. **Spec LOCKED**. **Code + Pi smoke ✅ 2026-08-11**.
 
 | # | Item |
 |---|---|
 | 1 | **Plural** — Explorer count badge: `1 Node` / `N Nodes` (not `1 Nodes`) |
-| 2 | **Planned Automations** — past deadlines must not stay **imminent**; show fired / drop / overdue (UI currently maps `diff <= 0` → `imminent`) |
+| 2 | **Planned Automations** — when a timer is **done** (will not run again / deadline past), **remove it from the list**. Must not stay visible as **`imminent`** (pre-fix: UI mapped `diff <= 0` → `imminent` while stale `active_timers` could linger). **Not** Automations SR/UR fire-status copy (`Will fire` / `Has fired` / …). Future relative labels (`in N sec` / `in N min` / …) **unchanged**. |
 | 3 | **Hue detail** — remove **COLOR OUTPUT** hex **text** row only; **keep** color wheel + presets (match Hue app) |
 | 4 | **Climate chart** — series line colors must match legend/tooltip (temp ↔ dew-point swap observed) |
-| 5 | **Binary actuators** — History charts show **ON/OFF** (not numeric Level) for binary switches/lights |
-| 6 | **History list** — omit **scenes** only (catalog/dashboard events, e.g. cinema OFF); keep real devices |
+| 5 | **History charts — Level / ON·OFF / hits** — see locked rules below |
+| 6 | **History list** — omit **all** rows with `type === "scene"` (UE **and** SE synthetic catalog-event history, e.g. cinema). Keep real devices (incl. motion). Control vs History membership divergence → **C11** (not this ship). |
 | 7 | **Search edge** — filter matching state text (e.g. `60` → 60% closed blinds): dragging the slider must not drop the row from the list mid-edit / lose the change |
 
-**Out of scope:** G2 Hue bri/xy bridge truth; G5 rolluik; B10F Automations chrome; integration log prefixes → **G7**.
+### Item 5 — locked chart rules (shipped)
 
-**C10 DoD:** Items 1–7 fixed on Pi (phone + desktop where relevant); scenes gone from History list; binary charts read as on/off; Planned past slots not stuck imminent; Hue hex text gone, wheel remains; filter+blinds drag keeps row + applies command. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**A — Binary (ON/OFF on Y, not numeric Level)** — all History actuator charts **except** the non-binary set and motion: switches, non-Hue lights, door, Epson/projector, and any other actuator not listed in B/C.
+
+**B — Non-binary (keep numeric / existing continuous charts)** — Hue; Sonos; Onkyo; blinds; temp; hum; host CPU temp; memory; disk; voltage; cpu; kWh/energy; load; DB size; Power (W); Water (L); log2ram.
+
+**C — Motion = hits (not ON/OFF, not “Level”)**  
+* **Day:** keep impulse/hit spikes; Y labels: **blank** at bottom (idle), **`hit`** at top; **no** series/axis name **Level**; **no** numeric **0** / **100** labels.  
+* **Month / year:** **# hits** per bucket only (not binary); drop Level min/max for motion; axis/series = hits language.
+
+### Out of scope
+
+* G2 Hue bri/xy bridge truth; G5 rolluik; B10F Automations chrome; integration log prefixes → **G7**.
+* Control vs History list membership product model → **C11**.
+* Automations SR/UR fire-status timing strings (different surface).
+
+**C10 DoD:** Items 1–7 fixed on Pi (phone + desktop where relevant); all `type === "scene"` gone from History list; binary charts read ON/OFF; motion day = hit Y-labels, month/year = hit counts; Planned past/done entries absent from list (not stuck `imminent`); Hue hex text gone, wheel remains; filter+blinds drag keeps row + applies command. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-11** (Pi smoke + docs).
+
+---
+
+## 📋 C11 — Control vs History list membership 🔜 TODO
+
+**Origin:** C10 item 6 lock (**2026-08-11**). **Not** part of C10 ship.
+
+**Problem:** Explorer **Control** membership (`dashboard_events` / devices) and Explorer **History** list membership (history DB idxs + metadata, incl. former `type === "scene"` catalog rows) are **not the same model**. C10 only omits all History `scene` rows; it does not unify the two lists.
+
+**Scope (assess → decide → impl if needed):** document current divergence; decide whether Control and History should share one membership rule (and what happens to SE/UE event history, hidden devices, utilities, etc.); then implement or explicitly defer with rationale.
+
+**Out of scope:** C10 polish items; Blocky Library UE/SE/SR; G2/G5.
+
+**C11 DoD:** Written decision in this file + pipeline; if impl: Pi smoke for Control + History list parity rules; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -367,12 +398,13 @@ Alert dismissed (bell): level=<level> "…message text…"
 * **C7:** All four: smartphone-portrait two-row presets only (chips+pencil / Show Favorites+Edit+Hidden devices, compact text, no wrap; PC/landscape single row); SSE filter restore (shared Control+History bindings, all four + blue); landscape phone filters **not sticky** + chart-open hide Control/History + hint; legend dots removed.
 * **C8:** Log-only dismiss lines — `Alert dismissed (banner|bell): level=<ui-severity> "…text…"`; no alert id; no `ALERT_DISMISSED` state removal; UX unchanged.
 * **C9:** All device-ref lines in `wanos.log`, every integration → `entity_id (name, idx N)` (automation-log parity / `format_device_ref`).
-* **C10:** Plural Nodes; Planned not stuck imminent; Hue COLOR OUTPUT text-only remove; climate legend/line parity; binary History on/off; History omit scenes only; filter+blinds drag stable.
+* **C10:** Plural Nodes; Planned past/done **removed** from list (not relabeled); Hue COLOR OUTPUT text-only remove; climate legend/line parity; binary ON/OFF vs non-binary set vs motion hits (day Y + month/year counts); History omit **all** `type === "scene"`; filter+blinds drag stable. ✅ **Done 2026-08-11**.
+* **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
 * **C3:** Force ALL-OFF parallel-per-integration + 300ms pace + exclusion tags + confirm UX.
 * **C4:** Rename entrypoints; update all consumers.
 
 ## ❓ Residual Open Qs
 
-* *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9** — closed by Pi smoke.)*
-* **C10** locked intent above (inbox **2026-08-11**); Planned past-slot label wording (fired vs drop vs overdue) pick at kickoff if not obvious in code.
+* *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10** — C10 closed by Pi smoke **2026-08-11**.)*
+* **C11** assess open until kickoff (queued).
 * **C3 / C4** remain open as specified above (later in sequence).

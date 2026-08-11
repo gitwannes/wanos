@@ -197,6 +197,10 @@ function wanosApp() {
         actuatorHasDay: false,
         actuatorHasMonth: false,
         actuatorHasYear: false,
+        // C10: actuator History chart section titles (binary / hits / level)
+        actuatorDayTitle: "Level last 24 hours",
+        actuatorMonthTitle: "Last month (counts + level)",
+        actuatorYearTitle: "Last year (counts + level)",
         actuatorChartHasData: { day: false, month: false, year: false },
         actuatorList: [],
         actuatorFavorites: [],
@@ -244,6 +248,12 @@ function wanosApp() {
                 list.push(t);
             }
 
+            // C10: drop past/done timers (deadline reached) — do not show stale "imminent"
+            list = list.filter(t => {
+                const dl = Number(t && t.deadline);
+                return Number.isFinite(dl) && dl > now;
+            });
+
             // Sort ascending by absolute deadline
             list.sort((a, b) => a.deadline - b.deadline);
 
@@ -253,8 +263,7 @@ function wanosApp() {
 
                 const diff = t.deadline - now;
                 let relTime = "";
-                if (diff <= 0) relTime = "imminent";
-                else if (diff < 60) relTime = `in ${diff} sec`;
+                if (diff < 60) relTime = `in ${diff} sec`;
                 else {
                     const mins = Math.floor(diff / 60);
                     const hrs = Math.floor(mins / 60);
@@ -637,10 +646,16 @@ function wanosApp() {
 
             // 3. Apply Text Search (multi-term AND + `-exclude`, case-insensitive)
             // History applies an enriched query in explorerDisplayList (includes "(no history)").
+            // C10: keep blinds row visible while dragging when search matched state text (e.g. "60").
             if (this.explorerMode !== "history" && this.searchQuery.trim() !== "") {
                 const parsed = this._parseTextQuery(this.searchQuery);
                 if (parsed) {
-                    list = list.filter(item => this._matchesTextQuery(this._explorerSearchHaystack(item), parsed));
+                    list = list.filter(item => {
+                        if (this.shutterDragIdx != null && Number(this.shutterDragIdx) === Number(item.id)) {
+                            return true;
+                        }
+                        return this._matchesTextQuery(this._explorerSearchHaystack(item), parsed);
+                    });
                 }
             }
 
@@ -732,6 +747,8 @@ function wanosApp() {
                 map[Number(s.idx)] = entry;
             }
             for (const a of (this.actuatorList || [])) {
+                // C10: scene synthetic idxs are not History list rows
+                if ((a.type || "") === "scene") continue;
                 map[Number(a.idx)] = {
                     category: "actuator",
                     name: a.name || `IDX ${a.idx}`,
@@ -765,7 +782,8 @@ function wanosApp() {
                 }
             }
             let list = base
-                .filter(item => !hotSecondary.has(Number(item.id)))
+                // C10: omit all catalog-event / scene rows from History (UE + SE); Control unchanged
+                .filter(item => item.type !== "scene" && !hotSecondary.has(Number(item.id)))
                 .map(item => {
                     const cap = this.historyCapabilityByIdx[Number(item.id)];
                     if (!cap || cap.kind !== "water") return item;
@@ -1787,6 +1805,83 @@ function wanosApp() {
             return "text-base-content/80";
         },
 
+        /**
+         * C10: pin ECharts legend/tooltip color to lineStyle (avoids palette swap vs drawn line).
+         */
+        _pinSeriesLegendColors(seriesList) {
+            for (const s of seriesList || []) {
+                if (!s) continue;
+                const c = (s.lineStyle && s.lineStyle.color)
+                    || (s.itemStyle && s.itemStyle.color)
+                    || s.color;
+                if (!c) continue;
+                s.color = c;
+                s.itemStyle = Object.assign({}, s.itemStyle || {}, { color: c });
+            }
+            return seriesList;
+        },
+
+        /**
+         * C10: History actuator chart family for one idx.
+         * @returns {"hits"|"binary"|"level"}
+         */
+        _actuatorChartKind(idx) {
+            const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
+            const type = String(meta.type || "").toLowerCase();
+            const origin = String(meta.origin || "").toLowerCase();
+
+            // Motion = impulse hits (not ON/OFF, not continuous Level)
+            if (type === "motion") return "hits";
+
+            // Non-binary continuous / rich level (locked C10 set for actuator charts)
+            if (origin === "hue") return "level";
+            if (type === "blinds") return "level";
+            if (type === "speaker" || origin === "sonos" || origin === "onkyo") return "level";
+
+            // Binary ON/OFF: door, switch, non-Hue light, Epson, etc.
+            return "binary";
+        },
+
+        /** Y-axis label formatter: blank at 0, "hit" at ceiling (motion day). */
+        _hitAxisLabelFormatter(ceiling) {
+            const top = Number(ceiling) > 0 ? Number(ceiling) : 100;
+            return (v) => {
+                const n = Number(v);
+                if (!Number.isFinite(n)) return "";
+                if (n <= 0) return "";
+                if (n >= top) return "hit";
+                return "";
+            };
+        },
+
+        /** Y-axis label formatter: OFF at 0, ON at ceiling (binary day/period). */
+        _binaryAxisLabelFormatter(ceiling) {
+            const top = Number(ceiling) > 0 ? Number(ceiling) : 100;
+            return (v) => {
+                const n = Number(v);
+                if (!Number.isFinite(n)) return "";
+                if (n <= 0) return "OFF";
+                if (n >= top) return "ON";
+                return "";
+            };
+        },
+
+        _syncActuatorChartTitles(kind) {
+            if (kind === "hits") {
+                this.actuatorDayTitle = "Hits last 24 hours";
+                this.actuatorMonthTitle = "Hits last month";
+                this.actuatorYearTitle = "Hits last year";
+            } else if (kind === "binary") {
+                this.actuatorDayTitle = "ON / OFF last 24 hours";
+                this.actuatorMonthTitle = "Last month (counts + ON/OFF)";
+                this.actuatorYearTitle = "Last year (counts + ON/OFF)";
+            } else {
+                this.actuatorDayTitle = "Level last 24 hours";
+                this.actuatorMonthTitle = "Last month (counts + level)";
+                this.actuatorYearTitle = "Last year (counts + level)";
+            }
+        },
+
         /** Hardware / configured level ceiling (Sonos + Onkyo: meta.max_volume). */
         _actuatorLevelDeviceMax(idx) {
             const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
@@ -1910,6 +2005,8 @@ function wanosApp() {
             }
 
             for (const a of (this.actuatorList || [])) {
+                // C10: History omits all type===scene (catalog event synthetic idxs)
+                if ((a.type || "") === "scene") continue;
                 rows.push({
                     idx: a.idx,
                     name: a.name,
@@ -2273,6 +2370,8 @@ function wanosApp() {
             }
 
             const idx = dayData?.idx ?? monthData?.idx ?? yearData?.idx ?? this.selectedActuatorIdx;
+            const chartKind = this._actuatorChartKind(idx);
+            this._syncActuatorChartTitles(chartKind);
             const dayLevelMax = this._actuatorLevelAxisMax(idx, dayData?.series?.level);
             const monthLevelMax = this._actuatorLevelAxisMax(
                 idx, monthData?.series?.level_min, monthData?.series?.level_max
@@ -2307,29 +2406,89 @@ function wanosApp() {
                 this._syncActuatorHasFlags();
 
                 if (dayChart && this.actuatorChartHasData.day) {
-                    const opt = this._baseChartOption("Level");
-                    opt.yAxis.min = 0;
-                    opt.series = [{
-                        name: "Level",
-                        type: "line",
-                        step: "end",
-                        showSymbol: true,
-                        symbolSize: 6,
-                        data: this._pointsToSeries(dayData?.series?.level),
-                        lineStyle: { color: "#2dd4bf", width: 2 },
-                        connectNulls: false
-                    }];
-                    this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
-                    this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
-                    this._bindHistoryYSnap(dayChart, [{ axisIndex: 0, step: 10 }]);
+                    if (chartKind === "hits") {
+                        // C10 motion day: impulse spikes; Y blank / "hit" (no Level, no 0/100)
+                        const opt = this._baseChartOption("");
+                        opt.yAxis.min = 0;
+                        opt.yAxis.max = dayLevelMax;
+                        opt.yAxis.interval = dayLevelMax;
+                        opt.yAxis.name = "";
+                        opt.yAxis.axisLabel = {
+                            color: "#9ca3af",
+                            formatter: this._hitAxisLabelFormatter(dayLevelMax)
+                        };
+                        opt.legend = { show: false };
+                        opt.series = [{
+                            name: "hit",
+                            type: "line",
+                            step: "end",
+                            showSymbol: true,
+                            symbolSize: 6,
+                            data: this._pointsToSeries(dayData?.series?.level),
+                            color: "#2dd4bf",
+                            itemStyle: { color: "#2dd4bf" },
+                            lineStyle: { color: "#2dd4bf", width: 2 },
+                            connectNulls: false
+                        }];
+                        this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
+                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
+                    } else if (chartKind === "binary") {
+                        // C10 binary day: ON/OFF Y labels (not numeric Level)
+                        const opt = this._baseChartOption("");
+                        opt.yAxis.min = 0;
+                        opt.yAxis.max = dayLevelMax;
+                        opt.yAxis.interval = dayLevelMax;
+                        opt.yAxis.name = "";
+                        opt.yAxis.axisLabel = {
+                            color: "#9ca3af",
+                            formatter: this._binaryAxisLabelFormatter(dayLevelMax)
+                        };
+                        opt.legend = { show: false };
+                        opt.series = [{
+                            name: "State",
+                            type: "line",
+                            step: "end",
+                            showSymbol: true,
+                            symbolSize: 6,
+                            data: this._pointsToSeries(dayData?.series?.level),
+                            color: "#2dd4bf",
+                            itemStyle: { color: "#2dd4bf" },
+                            lineStyle: { color: "#2dd4bf", width: 2 },
+                            connectNulls: false
+                        }];
+                        this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
+                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
+                    } else {
+                        const opt = this._baseChartOption("Level");
+                        opt.yAxis.min = 0;
+                        opt.series = [{
+                            name: "Level",
+                            type: "line",
+                            step: "end",
+                            showSymbol: true,
+                            symbolSize: 6,
+                            data: this._pointsToSeries(dayData?.series?.level),
+                            color: "#2dd4bf",
+                            itemStyle: { color: "#2dd4bf" },
+                            lineStyle: { color: "#2dd4bf", width: 2 },
+                            connectNulls: false
+                        }];
+                        this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
+                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
+                        this._bindHistoryYSnap(dayChart, [{ axisIndex: 0, step: 10 }]);
+                    }
                 }
 
                 if (monthChart && this.actuatorChartHasData.month) {
-                    this._renderActuatorPeriodChart(monthChart, monthData, "month", monthLevelMax, { soft, savedZoom: zoomByKey.month });
+                    this._renderActuatorPeriodChart(monthChart, monthData, "month", monthLevelMax, {
+                        soft, savedZoom: zoomByKey.month, chartKind
+                    });
                 }
 
                 if (yearChart && this.actuatorChartHasData.year) {
-                    this._renderActuatorPeriodChart(yearChart, yearData, "year", yearLevelMax, { soft, savedZoom: zoomByKey.year });
+                    this._renderActuatorPeriodChart(yearChart, yearData, "year", yearLevelMax, {
+                        soft, savedZoom: zoomByKey.year, chartKind
+                    });
                 }
             };
 
@@ -2957,12 +3116,64 @@ function wanosApp() {
 
         /**
          * Actuator month/year: category axis so event bars don't stretch across the window.
+         * C10: hits = # hits only; binary = counts + ON/OFF Y; level = prior Level min/max + Events.
          */
-        _renderActuatorPeriodChart(chart, data, range, levelMax, { soft = false, savedZoom = null } = {}) {
+        _renderActuatorPeriodChart(chart, data, range, levelMax, { soft = false, savedZoom = null, chartKind = "level" } = {}) {
             if (!chart) return;
             const rows = this._buildActuatorPeriodPayload(data);
             if (!rows.length) return;
             const labels = rows.map(r => this._historyBucketLabel(r.t, range));
+            const hitVals = rows.map(r => r.events);
+
+            if (chartKind === "hits") {
+                // C10 motion month/year: # hits per bucket only (not binary, no Level min/max)
+                const peak = Math.max(0, ...hitVals.map(Number));
+                const opt = {
+                    backgroundColor: "transparent",
+                    tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
+                    legend: { show: false },
+                    grid: { left: 48, right: 24, top: 24, bottom: labels.length > 8 ? 72 : 56 },
+                    xAxis: {
+                        type: "category",
+                        data: labels,
+                        axisLabel: {
+                            color: "#9ca3af",
+                            hideOverlap: true,
+                            rotate: labels.length > 6 ? 35 : 0,
+                            fontSize: 10
+                        },
+                        axisTick: { alignWithLabel: true },
+                        splitLine: { show: false }
+                    },
+                    yAxis: {
+                        type: "value",
+                        name: "Hits",
+                        min: 0,
+                        minInterval: 1,
+                        nameTextStyle: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af" },
+                        splitLine: { lineStyle: { color: "#374151" } }
+                    },
+                    series: [{
+                        name: "Hits",
+                        type: "bar",
+                        barMaxWidth: 40,
+                        data: hitVals,
+                        itemStyle: { color: "#64748b" }
+                    }]
+                };
+                if (peak > 0) opt.yAxis.max = Math.ceil(peak);
+                this._setHistoryChartOption(chart, opt, savedZoom, { soft });
+                return;
+            }
+
+            const stateYName = chartKind === "binary" ? "" : "Level";
+            const stateMinName = chartKind === "binary" ? "State min" : "Level min";
+            const stateMaxName = chartKind === "binary" ? "State max" : "Level max";
+            const stateAxisLabel = chartKind === "binary"
+                ? { color: "#9ca3af", formatter: this._binaryAxisLabelFormatter(levelMax) }
+                : { color: "#9ca3af" };
+
             const opt = {
                 backgroundColor: "transparent",
                 tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
@@ -2992,11 +3203,12 @@ function wanosApp() {
                 yAxis: [
                     {
                         type: "value",
-                        name: "Level",
+                        name: stateYName,
                         min: 0,
                         max: levelMax,
+                        interval: chartKind === "binary" ? levelMax : undefined,
                         nameTextStyle: { color: "#9ca3af" },
-                        axisLabel: { color: "#9ca3af" },
+                        axisLabel: stateAxisLabel,
                         splitLine: { lineStyle: { color: "#374151" } }
                     },
                     {
@@ -3013,28 +3225,32 @@ function wanosApp() {
                         type: "bar",
                         yAxisIndex: 1,
                         barMaxWidth: 40,
-                        data: rows.map(r => r.events),
+                        data: hitVals,
                         itemStyle: { color: "#64748b" }
                     },
                     {
-                        name: "Level min",
+                        name: stateMinName,
                         type: "line",
                         yAxisIndex: 0,
                         step: "end",
                         showSymbol: true,
                         symbolSize: 5,
                         data: rows.map(r => r.lmin),
+                        color: "#2dd4bf",
+                        itemStyle: { color: "#2dd4bf" },
                         lineStyle: { color: "#2dd4bf" },
                         connectNulls: false
                     },
                     {
-                        name: "Level max",
+                        name: stateMaxName,
                         type: "line",
                         yAxisIndex: 0,
                         step: "end",
                         showSymbol: true,
                         symbolSize: 5,
                         data: rows.map(r => r.lmax),
+                        color: "#a3e635",
+                        itemStyle: { color: "#a3e635" },
                         lineStyle: { color: "#a3e635" },
                         connectNulls: false
                     }
@@ -3233,7 +3449,8 @@ function wanosApp() {
                     }
                 }
                 const opt = this._climateDualAxisOption(series.length);
-                opt.series = series;
+                // C10: legend/tooltip color must match drawn line (not ECharts default palette)
+                opt.series = this._pinSeriesLegendColors(series);
                 this._applyClimateTimeWindow(opt, 24 * 60 * 60 * 1000);
                 this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
                 this._bindHistoryYSnap(dayChart, climateSnap(showHum));
@@ -3317,7 +3534,7 @@ function wanosApp() {
                     }
                 }
                 const opt = this._climateDualAxisOption(series.length);
-                opt.series = series;
+                opt.series = this._pinSeriesLegendColors(series);
                 this._applyClimateTimeWindow(opt, 31 * 24 * 60 * 60 * 1000);
                 this._setHistoryChartOption(monthChart, opt, zoomByKey.month, { soft });
                 this._bindHistoryYSnap(monthChart, climateSnap(showHum));
@@ -3401,7 +3618,7 @@ function wanosApp() {
                     }
                 }
                 const opt = this._climateDualAxisOption(series.length);
-                opt.series = series;
+                opt.series = this._pinSeriesLegendColors(series);
                 this._applyClimateTimeWindow(opt, 366 * 24 * 60 * 60 * 1000);
                 this._setHistoryChartOption(yearChart, opt, zoomByKey.year, { soft });
                 this._bindHistoryYSnap(yearChart, climateSnap(showHum));

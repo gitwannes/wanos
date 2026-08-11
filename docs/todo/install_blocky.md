@@ -14,4 +14,4 @@
 
 **Why retired:** This doc still described pre-B10 surface (E1 families, `SCHEDULE_WINDOW_EDGES`, `TWILIGHT_*`, old schedule labels, next = Phase 9A/9B). Those were removed with **B10B+D+E** close-out (**2026-08-10**). Keep this stub so old links resolve.
 
-**Shipped reminder:** Sequence starts at **C10**. **B10F** Done. D1 aliases deleted. Bus pickers = `events:` UUIDs. Schedule display = Morning/Evening **lights** on/off; sun refresh = `SUNRISE_SUNSET_UPDATE`.
+**Shipped reminder:** Sequence starts at **D**. **C10** / **B10F** Done. D1 aliases deleted. Bus pickers = `events:` UUIDs. Schedule display = Morning/Evening **lights** on/off; sun refresh = `SUNRISE_SUNSET_UPDATE`.

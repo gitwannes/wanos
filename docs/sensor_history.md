@@ -282,9 +282,13 @@ Every state/level change counts toward today / month averages.
 | `device_hourly` | 31 days |
 | `device_daily` | 1 year |
 
-### UI
-- Overview list: devices **with history only**; favorites checkbox + “Favorites only” toggle (`localStorage: wanos_history_favorites`)
-- Detail charts for **selected** row: day level step; month/year event counts + level min/max
+### UI (Explorer → History on `deviceexplorer.html`)
+- List: Control inventory shared with History mode; **C10:** omit all `type === "scene"` catalog-event rows (logging still writes synthetic idxs; Control dashboard buttons unchanged).
+- Detail charts for **selected** actuator:
+  - **Binary** (switch / non-Hue light / door / …): day ON/OFF Y; month/year event counts + state min/max with ON/OFF labels
+  - **Level** (Hue / Sonos / Onkyo / blinds): day Level step; month/year event counts + Level min/max
+  - **Motion hits:** day impulse spikes with blank/`hit` Y labels; month/year **# hits** only
+- Climate legend/tooltip colors pinned to series line colors (**C10**)
 
 ### API
 - `GET /api/history/actuators`
@@ -323,10 +327,10 @@ IDX **20101** registered as `sauna temp` (`type: temp_hum`, origin `system`).
 
 | Source | Behaviour |
 |--------|-----------|
-| Motion `75xxx` | Rising edge only (`ON`); day chart = impulse spike; insights = today / avg/day |
-| Dashboard / user events (`events:` catalog) | Log on every fire (manual + automation). Synthetic series keyed by **event UUID** (`900000 + (crc32(uuid) & 0xFFFF)`). Pre-B10B used `scene: true` / `SCENE_*` name strings; migrator remapped idxs at cutover (script since removed). |
+| Motion `75xxx` | Rising edge only (`ON`); day chart = impulse spike with **hit** Y labels (**C10**); month/year = **# hits**; insights = today / avg/day |
+| Dashboard / user events (`events:` catalog) | Log on every fire (manual + automation). Synthetic series keyed by **event UUID** (`900000 + (crc32(uuid) & 0xFFFF)`). Pre-B10B used `scene: true` / `SCENE_*` name strings; migrator remapped idxs at cutover (script since removed). **C10:** Explorer History **list** omits all `type === "scene"` rows (UE + SE); Control `dashboard_events` unchanged. List membership model → **C11**. |
 
-Same retention and Sensors-list master–detail as actuators. Motion stays default-hidden (`75xxx`); use Hidden toggle / favorites.
+Same retention as actuators. Motion stays default-hidden (`75xxx`); use Hidden toggle / favorites.
 
 ---
 

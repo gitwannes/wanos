@@ -126,7 +126,7 @@ automations:
           - entity_id: blinds.cinema
             state: '100'
     id: 2460e48d-6dfc-42fc-92ac-7595f71be7c1
-  - name: Evening lights on
+  - name: Tuinlichten & kerststuff aan 's avonds
     enabled: true
     trigger:
       event: bd0413be-926a-45ef-bdb8-1adfe3b7e8ab
@@ -144,7 +144,7 @@ automations:
     id: ea2ab903-fe8c-4375-a771-3bb47a7c9417
     scene: false
     require_confirmation: false
-  - name: Evening lights off
+  - name: "Tuinlichten & kerststuff uit 's avonds"
     trigger:
       - event: 443765ef-992a-4c90-9bda-5fce40cb70d2
     cases:
@@ -159,7 +159,7 @@ automations:
             state: "OFF"
     id: da035d08-aa2b-4cf2-8e98-8a79402819fb
     enabled: true
-  - name: Morning lights on
+  - name: Morning on
     enabled: true
     trigger:
       event: 9a6f9e9a-a571-472e-89ef-4b866b5c2525
@@ -170,7 +170,7 @@ automations:
           - entity_id: switch.kerst_lichten_voor
             state: "ON"
     id: 8ed9faf0-5462-44b9-9102-5018434ca016
-  - name: Morning lights off
+  - name: Sunrise
     enabled: true
     trigger:
       event: 7dd2bc22-f1fa-491f-a97d-085fd9b9d0c8
@@ -782,11 +782,27 @@ automations:
       - conditions:
           - type: device_state
             entity_id: blinds.cinema
-            is: '0'
+            is: '100'
         actions:
           - entity_id: blinds.cinema
             state: '50'
     id: 0efe3829-625e-4979-a234-1b70dfdc8af6
+    scene: false
+    require_confirmation: false
+  - name: test
+    enabled: false
+    trigger:
+      entity_id: media_player.badk_1e
+    cases:
+      - to_state: "ON"
+        conditions:
+          - type: time_of_day
+            is: dark
+        actions:
+          - entity_id: media_player.badk_1e
+            state: "ON"
+            volume: 0
+    id: 69dd2578-5645-4713-863c-38f29f00b1fb
     scene: false
     require_confirmation: false
 events:

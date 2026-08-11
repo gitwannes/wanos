@@ -4,7 +4,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 
 **Status:** Spec **LOCKED** (intent). G2 assess-on-Pi first; G1 analysis-gated; **G3** config anytime; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G5** still TODO — partial `Cinema rolluik half` (Open→50) live, **DoD gaps** in § G5; **G6** scoped `CONFIG_RELOAD` (assessed **2026-08-11**); **G7** log prefixes (**2026-08-11**).
 
-**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. Blocky CRUD still dispatches `CONFIG_RELOAD_REQUESTED` (B1/B5) — **G6** narrows what that recycle does. Explorer Hue **COLOR OUTPUT** text remove → **C10** (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags).
+**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. Blocky CRUD still dispatches `CONFIG_RELOAD_REQUESTED` (B1/B5) — **G6** narrows what that recycle does. Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags).
 
 **DoD convention:** every G subphase ends with **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 

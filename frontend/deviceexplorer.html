@@ -595,19 +595,19 @@
                                         <div class="flex flex-col gap-4">
                                             <template x-if="actuatorHasDay">
                                                 <section>
-                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Level / hits last 24 hours</h2>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="actuatorDayTitle">Level / hits last 24 hours</h2>
                                                     <div id="chart-act-day" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                 </section>
                                             </template>
                                             <template x-if="actuatorHasMonth">
                                                 <section>
-                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Last month (counts + level)</h2>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="actuatorMonthTitle">Last month (counts + level)</h2>
                                                     <div id="chart-act-month" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                 </section>
                                             </template>
                                             <template x-if="actuatorHasYear">
                                                 <section>
-                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2">Last year (counts + level)</h2>
+                                                    <h2 class="font-mono text-xs uppercase tracking-widest text-base-content/50 mb-2" x-text="actuatorYearTitle">Last year (counts + level)</h2>
                                                     <div id="chart-act-year" class="hist-chart bg-base-100 rounded-box border border-base-300"></div>
                                                 </section>
                                             </template>

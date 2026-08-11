@@ -67,7 +67,8 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 
 **frontend/** (Dumb Asset Interfaces)
 * `app.js`: Master Alpine.js reactive interface store managing SSE channel bindings, connection watchdogs, dynamic client-side uptimes, local UI layout persistence, and JWT role routing.
-* `dashboard.html`: The Device Explorer panel. Implements search query matrices, type exclusions, and cascading alphanumeric sorting algorithms.
+* `dashboard.html`: The Device Explorer panel. Implements search query matrices, type exclusions, and cascading alphanumeric sorting algorithms. (**Shipped UI:** `deviceexplorer.html` — Control + History modes.)
+* Explorer History (**C10**): omits `type === "scene"` catalog-event rows from the History list; actuator charts use binary ON/OFF, Level (Hue/Sonos/Onkyo/blinds), or motion hits; Planned Automations drops past/done timers (no stale `imminent`).
 * `index.html`: Primary operational web interface layout structured around side-by-side grids, 4-column responsive admin panels, and physical action safety interceptors.
 
 **hardware/** (Local Peripherals)

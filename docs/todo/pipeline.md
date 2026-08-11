@@ -20,7 +20,7 @@ High-level **what’s next** and where the detailed specs live. This file does *
 | Letter | Affinity | Detail file |
 |---|---|---|
 | **B** | Blocky / Blockly / automations | [`phaseB-blocky.md`](phaseB-blocky.md) |
-| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10 polish) | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10/C11) | [`phaseC-shell.md`](phaseC-shell.md) |
 | **D** | Device typing (switch vs light) | [`phaseD-typing.md`](phaseD-typing.md) |
 | **E** | Gmail transport (OAuth, outbox, spooler) | [`phaseE-gmail.md`](phaseE-gmail.md) |
 | **F** | Public bridge / perimeter security | [`phaseF-security.md`](phaseF-security.md) |
@@ -47,6 +47,7 @@ Applies to every phase (and every future phase). Not only `docs/todo/*` — fix 
 | **C1 / C2 / C5** | Explorer chrome · Admin/system pages · History graphs — Pi smoke **2026-08-09** |
 | **C6–C9** | History flicker · Explorer follow-ups · alert dismiss logs · device-ref `wanos.log` — Pi smoke **2026-08-10** |
 | **B10F** | Automations UX polish (save chrome, fire-status, evening skip, SE→SR/UE→UR, CRUD INFO) — Pi smoke **2026-08-11** |
+| **C10** | Explorer/History polish (plural, Planned past-remove, Hue hex text, chart colors, binary/hits, omit scenes, filter+blinds) — Pi smoke **2026-08-11** |
 
 Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md).
 
@@ -58,13 +59,13 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 ```text
 #  Size   Phase    What
-1. mid    C10      Explorer/History polish (plural, imminent, Hue hex text, chart colors, binary, scenes, filter+blinds)
-2. mid    D        switch vs light typing
-3. high   B9A      sensors / thresholds / sauna-session cond / remove JSON
-4. high   E        Gmail transport / outbox
-5. high   B9B      bathroom + H4/H5/H12  (H4 expands trigger any-of→cond and/or; H5 email needs E)
-6. mid    C3       Force ALL-OFF
-7. mid    C4       Rename HTML entrypoints
+1. mid    D        switch vs light typing
+2. high   B9A      sensors / thresholds / sauna-session cond / remove JSON
+3. high   E        Gmail transport / outbox
+4. high   B9B      bathroom + H4/H5/H12  (H4 expands trigger any-of→cond and/or; H5 email needs E)
+5. mid    C3       Force ALL-OFF
+6. mid    C4       Rename HTML entrypoints
+7. low    C11      Control vs History list membership (assess → decide) — post–C10 scene omit
 8. mid    G2       Hue color/bri truth (assess → fix)
 9. mid    G6       Scoped CONFIG_RELOAD (automations/hide/auto-off ≠ Hue·Onkyo·Z-Wave recycle)
 10. low   G7       Integration log tags (`[Onkyo]` parity with `[HUE]`)
@@ -86,22 +87,23 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 ### Why this order
 
-* **C10 next** — Explorer/History screenshot polish (plural, Planned imminent, Hue hex text, chart colors, binary on/off, hide scenes, filter+blinds). Spec: `phaseC-shell.md` § C10. May jump ahead of D if daily Explorer pain wins. (**B10F** ✅ **Done 2026-08-11**.)
+* **D next** — switch vs light typing; benefits Planned Automations and Blocky light/switch wording (**C10** ✅ **Done 2026-08-11**).
 * **B10B before B9A** — events catalog shipped first (**done**); sensors/JSON removal is larger and can wait.
 * **D after B10B / with C2 consumers** — typing benefits Planned Automations and Blocky light/switch wording; not a Blocky editor rewrite.
 * **B9A then E then B9B** — compares/sensors first; Gmail transport (**E**) can start early but **B9B H5 email** waits on E; bathroom/H12/H4 sit on B9A primitives.
 * **C3 / C4 later** — Admin force-sweep is powerful but not daily-path; HTML renames are mechanical and safer after shell churn settles.
-* **G2 before G1** — Hue color lie affects daily Explorer; Epson boot query is analysis-gated and rarer. Swap if Epson pain wins. **G2 ≠ C10 Hue hex text** (chrome vs bridge truth).
+* **C11 after C4** (default) — re-assess Explorer Control vs History list membership after C10 omits all History `scene` rows; assess → decide → impl if needed. May jump if list confusion hurts. Spec: `phaseC-shell.md` § C11.
+* **G2 before G1** — Hue color lie affects daily Explorer; Epson boot query is analysis-gated and rarer. Swap if Epson pain wins. **G2 ≠ C10 Hue hex text** (chrome vs bridge truth; **C10** ✅).
 * **G6 after G2** (default) — same integrations surface; scoped reload stops Hue/Onkyo/Z-Wave thrash on Blocky save. **May jump ahead of G2/G1** (or even before D) if save-side bridge flaps / auto-off re-arm hurt more than color lies. Spec: `phaseG-integrations.md` § G6. Kickoff picks scope payload vs YAML fingerprint skip.
 * **G7 anytime** — low log-tag parity (`[Onkyo]`); may ship with G6 or alone.
 * **G3 anytime** — OWM `poll_interval_mins` 30→10; config-only; only outside source is OWM 30001.
 * **G4 after G3** — One Call 4.0 daily assess + hot/full-sun cinema opens to **60% open** (account subscribed ✅); same OWM thread, mid work.
 * **G5 after G4** (or alone) — dashboard **“rolluik zon half”** → **60% closed** if cinema not fully closed; retires misnamed half rule. **Still TODO**; partial `Cinema rolluik half` (Open→50) live — gaps in `phaseG-integrations.md` § G5. Uses B10B+D+E `events:` / `dashboard_events`.
 * **F when deploying remote access** — independent perimeter track; interleave only when exposing the bridge.
-* **Do not fold B10\* into B9\*** — different jobs (trust/events vs sensors/climate). **G2 ≠ B10A** — runtime bridge truth vs Blockly editor chrome (B10A done). **G6 ≠ B10F** — reload *scope* vs Automations UX chrome. **C10 ≠ B10F**.
+* **Do not fold B10\* into B9\*** — different jobs (trust/events vs sensors/climate). **G2 ≠ B10A** — runtime bridge truth vs Blockly editor chrome (B10A done). **G6 ≠ B10F** — reload *scope* vs Automations UX chrome. **C10 ≠ B10F** (**C10** ✅).
 * **B11–B18 stay after F / day-to-day** — lettered ex–Later B; schedule when pain or architecture cutover wins. **B18** (sauna session_end clamp) may jump forward if safety pain wins. Spec: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B18.
 
-Near-term = **C10**. Then **D** / **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking. **G6** can jump if Blocky-save recycle pain wins. **G7** whenever. **G3** whenever convenient. **G4/G5** when summer heat / cinema sun is the pain.
+Near-term = **D**. Then **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking. **G6** can jump if Blocky-save recycle pain wins. **G7** whenever. **G3** whenever convenient. **G4/G5** when summer heat / cinema sun is the pain.
 
 ---
 
@@ -109,7 +111,6 @@ Near-term = **C10**. Then **D** / **B9A** flexible. **E** may run parallel to B9
 
 | Step | Detail |
 |---|---|
-| **C10** | [`phaseC-shell.md`](phaseC-shell.md) § C10 — Explorer/History polish |
 | **D** | [`phaseD-typing.md`](phaseD-typing.md) — infer + override · freeze `entity_id` · 71/72 |
 | **B9A** | [`phaseB-blocky.md`](phaseB-blocky.md) § B9A — sensors / thresholds / remove JSON |
 
@@ -121,7 +122,7 @@ Near-term = **C10**. Then **D** / **B9A** flexible. **E** may run parallel to B9
 |---|---|
 | **B9A** / **B9B** / **B11–B18** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
-| **C10** / **C3** / **C4** | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C3** / **C4** / **C11** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G6** / **G7** / **G1** / **G3** / **G4** / **G5** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 
@@ -220,5 +221,8 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-11 | **B10F code ship:** evening skip; `GET /api/automations/fire-status`; Automations save chrome/lock; Library ↑/↓; UE/SE filters default OFF; empty New rule; SE→SR / UE→UR drafts; inline usages; CRUD INFO logs. **Open:** Pi smoke + Last Docs. |
 | 2026-08-11 | **B10F → Done** — Pi smoke ✅. SR name = SE catalog (bind + boot rewrite + usages); CRUD INFO names quoted. Sequence starts at **C10**. |
 | 2026-08-11 | **G5** partial live: UE/UR `Cinema rolluik half` (Open→50, dashboard on) — **gaps vs DoD** documented in `phaseG-integrations.md` § G5; phase stays TODO. |
+| 2026-08-11 | **C10 spec locked** (operator Q&A): Planned past/done **removed** from list; binary vs non-binary set; motion hits (day Y + month/year counts); History omit all `type === "scene"`. **C11** queued — Control vs History list membership assess (after C4 default). |
+| 2026-08-11 | **C10 code** — FE: plural Nodes; Planned past filter; Hue hex text removed; climate legend color pin; binary/hits actuator charts; History omit scenes; blinds search-drag keep. **Open:** Pi smoke + Last Docs → Done. |
+| 2026-08-11 | **C10 → Done** — Pi smoke ✅. Last Docs audit ✅. Sequence starts at **D**. |
 
 Detail chronology / DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseG-integrations.md`](phaseG-integrations.md).
