@@ -32,11 +32,14 @@ def is_hard_deny_entity_id(eid: Optional[str]) -> bool:
 
 
 # Bathroom / water / outside
-ENTITY_BATHROOM_VENT = "switch.vent.badk_1e_ventilatie"
+ENTITY_BATHROOM_VENT = "zwave.vent.badk_1e"
 ENTITY_BATHROOM_HUM = "sensor.temp_hum.badk_1e"
 ENTITY_WATER_HOT = "sensor.fluid.warm_water"
 ENTITY_COLD_WATER = "sensor.fluid.koud_water"
 ENTITY_OUTSIDE = "sensor.temp_hum.outside_temp_hum"
+
+# Epson projector (D2 rename from switch.cinema_projector)
+ENTITY_EPSON = "switch.epson"
 
 # Host gauges / mains
 ENTITY_HOST_CPU_TEMP = "sensor.temp_hum.host_cpu_temperature"

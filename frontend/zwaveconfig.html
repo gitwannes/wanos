@@ -103,28 +103,35 @@
                         </thead>
                         <tbody class="font-mono text-xs">
                             <template x-for="item in visibleDeviceList" :key="item.path">
-                                <tr class="hover:bg-base-200/50 transition-colors" :class="item.selected ? (item.is_mapped ? 'bg-base-200/30' : 'bg-primary/10') : 'opacity-50'">
+                                <tr class="hover:bg-base-200/50 transition-colors"
+                                    :class="isRowDirty(item)
+                                        ? 'bg-warning/10'
+                                        : (item.selected ? (item.is_mapped ? 'bg-base-200/30' : 'bg-primary/10') : 'opacity-50')"
+                                    :title="isRowDirty(item) ? 'Unsaved change' : ''">
                                     <td>
-                                        <input type="checkbox" class="checkbox checkbox-primary checkbox-sm" x-model="item.selected" @change="recalculateIDXs()">
+                                        <input type="checkbox" class="checkbox checkbox-sm"
+                                               :class="isAddDirty(item) ? 'checkbox-warning' : 'checkbox-primary'"
+                                               x-model="item.selected" @change="recalculateIDXs()">
                                     </td>
                                     <td class="font-bold text-base-content/70" x-text="item.node"></td>
 
                                     <td>
                                         <template x-if="item.is_mapped">
-                                            <span class="uppercase text-[10px] font-bold tracking-wider opacity-70"
-                                                  :class="item.type === 'power' ? 'text-warning' : (item.type === 'shutter' ? 'text-info' : (item.type === 'motion' ? 'text-error' : (item.type === 'temp&hum' ? 'text-success' : 'text-accent')))"
-                                                  x-text="item.type"></span>
+                                            <span class="uppercase text-[10px] font-bold tracking-wider"
+                                                  :class="isBinaryIdx(item.idx) ? 'text-accent' : (item.type === 'power' ? 'text-warning' : (item.type === 'shutter' ? 'text-info' : (item.type === 'motion' ? 'text-error' : (item.type === 'temp&hum' ? 'text-success' : 'text-accent opacity-70'))))"
+                                                  x-text="mappedTypeLabel(item)"></span>
                                         </template>
                                         <template x-if="!item.is_mapped">
-                                            <select class="select select-bordered select-xs font-mono uppercase text-[9px] bg-base-200"
+                                            <select class="select select-bordered select-xs font-mono uppercase text-[9px]"
+                                                    :class="isTypeDirty(item)
+                                                        ? 'bg-warning/20 border-warning text-warning font-bold'
+                                                        : 'bg-base-200'"
                                                     x-model="item.type" @change="recalculateIDXs()" :disabled="!item.selected">
-                                                <option value="light">Light (71x)</option>
-                                                <option value="switch">Switch (72x)</option>
+                                                <option value="switch">Binary (71–72x)</option>
                                                 <option value="shutter">Shutter (73x)</option>
                                                 <option value="power">Power (74x)</option>
                                                 <option value="motion">Motion (75x)</option>
                                                 <option value="temp&hum">Temp&Hum (76x)</option>
-                                                <option value="sensor">Sensor (76x)</option>
                                             </select>
                                         </template>
                                     </td>
@@ -139,11 +146,21 @@
                                     </td>
 
                                     <td>
-                                        <input type="text" class="input input-bordered input-xs w-48 bg-base-200 font-mono" placeholder="Required..." x-model="item.name" :disabled="!item.selected" :class="(item.selected && item.name.trim() === '') ? 'border-error' : ''">
+                                        <input type="text" class="input input-bordered input-xs w-48 font-mono"
+                                               placeholder="Required..." x-model="item.name" :disabled="!item.selected"
+                                               :class="(item.selected && item.name.trim() === '')
+                                                   ? 'border-error'
+                                                   : (isNameDirty(item)
+                                                       ? 'bg-warning/20 border-warning text-warning'
+                                                       : 'bg-base-200')">
                                     </td>
 
                                     <td>
-                                        <input type="text" class="input input-bordered input-xs w-20 bg-base-200 font-mono" placeholder="..." x-model="item.comment_str" :disabled="!item.selected">
+                                        <input type="text" class="input input-bordered input-xs w-20 font-mono"
+                                               placeholder="..." x-model="item.comment_str" :disabled="!item.selected"
+                                               :class="isCommentDirty(item)
+                                                   ? 'bg-warning/20 border-warning'
+                                                   : 'bg-base-200'">
                                     </td>
                                 </tr>
                             </template>
@@ -180,7 +197,7 @@
     </dialog>
 
     <script src="/wanos-shell.js?v=5"></script>
-    <script src="/zwave.js?v=5"></script>
+    <script src="/zwave.js?v=8"></script>
 
 </body>
 </html>

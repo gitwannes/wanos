@@ -122,7 +122,7 @@
         if (page === "lightingautooff") {
             return (
                 '<div class="flex flex-col min-w-0 justify-center">' +
-                '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin - Auto-off Timers</span>' +
+                '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin - Timers & types</span>' +
                 "</div>"
             );
         }

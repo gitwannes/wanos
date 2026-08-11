@@ -26,7 +26,8 @@ AUTO_OFF_ALLOWED_TYPES: frozenset[str] = frozenset({"switch", "light", "speaker"
 AUTO_OFF_DEVICE_DENY_EIDS: frozenset[str] = frozenset({
     ENTITY_SAFETY_WISC,
     ENTITY_SAFETY_SSR,  # 71036 SSR
-    "switch.cinema_projector",
+    "switch.epson",
+    "switch.cinema_projector",  # pre-D2; keep until migrator soak
 })
 
 # Hard-coded WanOS/WISC specials (also type-denylisted; listed for migrator clarity)
@@ -68,7 +69,7 @@ def metadata_type_for_eid(eid: str, device_type: Optional[str] = None) -> str:
         return "speaker"
     if e.startswith("blinds."):
         return "blinds"
-    if e.startswith("switch."):
+    if e.startswith("zwave.") or e.startswith("rfx.") or e.startswith("switch."):
         return "switch"
     if e.startswith("sensor.temp_hum.") or e.startswith("sensor.temp.") or e.startswith("sensor.hum."):
         return "temp_hum"
@@ -100,12 +101,25 @@ def is_auto_off_device_denied(eid: str) -> bool:
     return False
 
 
-def is_auto_off_eligible(eid: str, device_type: Optional[str] = None) -> bool:
+def is_auto_off_eligible(
+    eid: str,
+    device_type: Optional[str] = None,
+    *,
+    origin: Optional[str] = None,
+    product_type_overrides: Optional[Mapping[str, str]] = None,
+) -> bool:
     """True if eid may appear in managed_auto_off / inventory."""
     e = str(eid or "").strip()
     if not e or is_auto_off_device_denied(e):
         return False
-    t = metadata_type_for_eid(e, device_type)
+    from core.product_type_policy import auto_off_type_tier
+
+    t = auto_off_type_tier(
+        e,
+        device_type,
+        origin=origin,
+        overrides=product_type_overrides,
+    )
     return t in AUTO_OFF_ALLOWED_TYPES
 
 
@@ -116,12 +130,21 @@ def resolve_auto_off_minutes(
     auto_off_delays: Mapping[str, int],
     default_pertype: Mapping[str, int],
     default_minutes: int,
+    origin: Optional[str] = None,
+    product_type_overrides: Optional[Mapping[str, str]] = None,
 ) -> int:
-    """Precedence: per-device → type → general."""
-    e = str(eid).strip()
+    """Precedence: per-device → type → general (type tier uses resolved product type)."""
+    from core.product_type_policy import auto_off_type_tier
+
+    e = eid.strip()
     if e in auto_off_delays:
         return int(auto_off_delays[e])
-    t = metadata_type_for_eid(e, device_type)
+    t = auto_off_type_tier(
+        e,
+        device_type,
+        origin=origin,
+        overrides=product_type_overrides,
+    )
     if t in default_pertype:
         return int(default_pertype[t])
     return int(default_minutes)

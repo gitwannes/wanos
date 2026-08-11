@@ -23,21 +23,44 @@ deviceexplorer_hide:
   - sensor.temp_hum.host_cpu_temperature
   - sensor.temp_hum.sauna_high
   - sensor.temp_hum.sauna_low
-  - switch.53
-  - switch.badk_1e_hue_physical
-  - switch.badk_2e_binnen_unused
-  - switch.badk_2e_hue_physical
-  - switch.cinema_projector
-  - switch.kerst_lichten_tuin
-  - switch.kerst_lichten_voor
-  - switch.kerstboom
-  - switch.living_special
-  - switch.pc
-  - switch.sauna_hue_physical
-  - switch.slpk_wannes_hue_physical
+  - zwave.53
+  - zwave.badk_1e_hue_physical
+  - zwave.badk_2e_binnen_unused
+  - zwave.badk_2e_hue_physical
+  - switch.epson
+  - zwave.kerst_lichten_tuin
+  - rfx.kerst_lichten_voor
+  - rfx.kerstboom
+  - zwave.living_special
+  - zwave.pc
+  - zwave.sauna_hue_physical
+  - zwave.slpk_wannes_hue_physical
   - switch.ssr.safety_ssr_12v
-  - switch.vent.sauna_ventilator
-  - switch.vent.toilet_ventilatie_motor
+  - zwave.vent.sauna
+  - zwave.vent.toilet_motor
+device_product_types:
+  rfx.buro_wannes_schemer: light
+  rfx.cinema_schemer: light
+  rfx.living_schemer: light
+  zwave.badk_1e_wastafel: light
+  zwave.badk_2e_wastafel: light
+  zwave.berging_2e: light
+  zwave.buro_licht: light
+  zwave.cinema_licht: light
+  zwave.eetkamer: light
+  zwave.gang_beneden: light
+  zwave.gang_boven: light
+  zwave.licht_garage: light
+  zwave.licht_keuken: light
+  zwave.licht_living: light
+  zwave.sauna_zoutlamp: light
+  zwave.slpk_dries: light
+  zwave.slpk_liene: light
+  zwave.slpk_wannes: light
+  zwave.toilet: light
+  zwave.tuin: light
+  zwave.voorraad_gv: light
+  zwave.waskot: light
 auto_off_devices:
   managed_auto_off:
     - hue.group.badk_1e_hue
@@ -47,26 +70,26 @@ auto_off_devices:
     - hue.group.living_hue
     - hue.group.slpk_dries_hue
     - hue.group.slpk_wannes_hue
-    - switch.berging_2e
-    - switch.buro_licht
-    - switch.buro_wannes_schemer
-    - switch.cinema_licht
-    - switch.cinema_schemer
-    - switch.eetkamer
-    - switch.gang_beneden
-    - switch.gang_boven
-    - switch.licht_garage
-    - switch.licht_keuken
-    - switch.licht_living
-    - switch.living_schemer
-    - switch.slpk_dries
-    - switch.slpk_liene
-    - switch.slpk_wannes
-    - switch.toilet
-    - switch.vent.badk_2e_ventilatie
+    - rfx.buro_wannes_schemer
+    - rfx.cinema_schemer
+    - rfx.living_schemer
     - switch.vent.toilet_ventilatie
-    - switch.voorraad_gv
-    - switch.waskot
+    - zwave.berging_2e
+    - zwave.buro_licht
+    - zwave.cinema_licht
+    - zwave.eetkamer
+    - zwave.gang_beneden
+    - zwave.gang_boven
+    - zwave.licht_garage
+    - zwave.licht_keuken
+    - zwave.licht_living
+    - zwave.slpk_dries
+    - zwave.slpk_liene
+    - zwave.slpk_wannes
+    - zwave.toilet
+    - zwave.vent.badk_2e
+    - zwave.voorraad_gv
+    - zwave.waskot
   default_auto_off_minutes: 300
   default_pertype_auto_off_minutes:
     speaker: 240
@@ -76,21 +99,21 @@ auto_off_devices:
     hue.group.badk_2e_hue: 60
     hue.group.slpk_dries_hue: 30
     hue.group.slpk_wannes_hue: 90
-    switch.berging_2e: 1
-    switch.buro_licht: 120
-    switch.cinema_licht: 120
-    switch.eetkamer: 30
-    switch.gang_beneden: 15
-    switch.gang_boven: 10
-    switch.licht_garage: 15
-    switch.slpk_dries: 30
-    switch.slpk_liene: 60
-    switch.slpk_wannes: 30
-    switch.toilet: 10
-    switch.vent.badk_2e_ventilatie: 30
     switch.vent.toilet_ventilatie: 5
-    switch.voorraad_gv: 1
-    switch.waskot: 5
+    zwave.berging_2e: 1
+    zwave.buro_licht: 120
+    zwave.cinema_licht: 120
+    zwave.eetkamer: 30
+    zwave.gang_beneden: 15
+    zwave.gang_boven: 10
+    zwave.licht_garage: 15
+    zwave.slpk_dries: 30
+    zwave.slpk_liene: 60
+    zwave.slpk_wannes: 30
+    zwave.toilet: 10
+    zwave.vent.badk_2e: 30
+    zwave.voorraad_gv: 1
+    zwave.waskot: 5
 automations:
 
   # --------------------------------------------------------------------------
@@ -126,59 +149,59 @@ automations:
           - entity_id: blinds.cinema
             state: '100'
     id: 2460e48d-6dfc-42fc-92ac-7595f71be7c1
-  - name: Tuinlichten & kerststuff aan 's avonds
+  - name: Evening lights on
     enabled: true
     trigger:
       event: bd0413be-926a-45ef-bdb8-1adfe3b7e8ab
     cases:
       - actions:
-          - entity_id: switch.tuin
+          - entity_id: zwave.tuin
             state: "ON"
-          - entity_id: switch.kerst_lichten_tuin
+          - entity_id: zwave.kerst_lichten_tuin
             state: "ON"
-          - entity_id: switch.kerst_lichten_voor
+          - entity_id: rfx.kerst_lichten_voor
             state: "ON"
-          - entity_id: switch.kerstboom
+          - entity_id: rfx.kerstboom
             state: "ON"
           - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
     id: ea2ab903-fe8c-4375-a771-3bb47a7c9417
     scene: false
     require_confirmation: false
-  - name: "Tuinlichten & kerststuff uit 's avonds"
+  - name: "Evening lights off"
     trigger:
       - event: 443765ef-992a-4c90-9bda-5fce40cb70d2
     cases:
       - actions:
-          - entity_id: switch.tuin
+          - entity_id: zwave.tuin
             state: "OFF"
-          - entity_id: switch.kerstboom
+          - entity_id: rfx.kerstboom
             state: "OFF"
-          - entity_id: switch.kerst_lichten_tuin
+          - entity_id: zwave.kerst_lichten_tuin
             state: "OFF"
-          - entity_id: switch.kerst_lichten_voor
+          - entity_id: rfx.kerst_lichten_voor
             state: "OFF"
     id: da035d08-aa2b-4cf2-8e98-8a79402819fb
     enabled: true
-  - name: Morning on
+  - name: Morning lights on
     enabled: true
     trigger:
       event: 9a6f9e9a-a571-472e-89ef-4b866b5c2525
     cases:
       - actions:
-          - entity_id: switch.kerst_lichten_tuin
+          - entity_id: zwave.kerst_lichten_tuin
             state: "ON"
-          - entity_id: switch.kerst_lichten_voor
+          - entity_id: rfx.kerst_lichten_voor
             state: "ON"
     id: 8ed9faf0-5462-44b9-9102-5018434ca016
-  - name: Sunrise
+  - name: Morning lights off
     enabled: true
     trigger:
       event: 7dd2bc22-f1fa-491f-a97d-085fd9b9d0c8
     cases:
       - actions:
-          - entity_id: switch.kerst_lichten_tuin
+          - entity_id: zwave.kerst_lichten_tuin
             state: "OFF"
-          - entity_id: switch.kerst_lichten_voor
+          - entity_id: rfx.kerst_lichten_voor
             state: "OFF"
     id: 1617947b-42be-4e2b-8c4b-6dc9e8ef4078
   - name: ALL OFF gv
@@ -186,33 +209,33 @@ automations:
       event: f5542238-ccf1-4116-88f9-963c03d7c7c3
     cases:
       - actions:
-          - entity_id: switch.voorraad_gv
+          - entity_id: zwave.voorraad_gv
             state: "OFF"
-          - entity_id: switch.eetkamer
+          - entity_id: zwave.eetkamer
             state: "OFF"
           - entity_id: hue.group.eetkamer_hue
             state: "OFF"
-          - entity_id: switch.licht_keuken
+          - entity_id: zwave.licht_keuken
             state: "OFF"
-          - entity_id: switch.licht_living
+          - entity_id: zwave.licht_living
             state: "OFF"
           - entity_id: hue.group.living_hue
             state: "OFF"
-          - entity_id: switch.living_schemer
+          - entity_id: rfx.living_schemer
             state: "OFF"
           - entity_id: media_player.living
             state: "OFF"
           - entity_id: media_player.living_2
             state: "OFF"
-          - entity_id: switch.kerstboom
+          - entity_id: rfx.kerstboom
             state: "OFF"
-          - entity_id: switch.gang_beneden
+          - entity_id: zwave.gang_beneden
             state: "OFF"
-          - entity_id: switch.toilet
+          - entity_id: zwave.toilet
             state: "OFF"
-          - entity_id: switch.licht_garage
+          - entity_id: zwave.licht_garage
             state: "OFF"
-          - entity_id: switch.tuin
+          - entity_id: zwave.tuin
             state: "OFF"
     id: be05646d-d637-41f4-93b6-980366e6af44
     enabled: true
@@ -221,19 +244,19 @@ automations:
       event: afa69b69-ae2d-4549-99fa-7455cc8bf95c
     cases:
       - actions:
-          - entity_id: switch.cinema_licht
+          - entity_id: zwave.cinema_licht
             state: "OFF"
-          - entity_id: switch.cinema_schemer
+          - entity_id: rfx.cinema_schemer
             state: "OFF"
-          - entity_id: switch.buro_licht
+          - entity_id: zwave.buro_licht
             state: "OFF"
-          - entity_id: switch.buro_wannes_schemer
+          - entity_id: rfx.buro_wannes_schemer
             state: "OFF"
-          - entity_id: switch.pc_monitors
+          - entity_id: zwave.pc_monitors
             state: "OFF"
-          - entity_id: switch.badk_1e_hue_physical
+          - entity_id: zwave.badk_1e_hue_physical
             state: "OFF"
-          - entity_id: switch.gang_boven
+          - entity_id: zwave.gang_boven
             state: "OFF"
           - entity_id: hue.group.verd_1_hue
             state: "OFF"
@@ -248,17 +271,17 @@ automations:
       event: daefdc0b-51b1-4afe-bcd0-7d334dff0d47
     cases:
       - actions:
-          - entity_id: switch.gang_boven
+          - entity_id: zwave.gang_boven
             state: "OFF"
-          - entity_id: switch.badk_2e_hue_physical
+          - entity_id: zwave.badk_2e_hue_physical
             state: "OFF"
-          - entity_id: switch.slpk_dries
+          - entity_id: zwave.slpk_dries
             state: "OFF"
-          - entity_id: switch.slpk_liene
+          - entity_id: zwave.slpk_liene
             state: "OFF"
-          - entity_id: switch.berging_2e
+          - entity_id: zwave.berging_2e
             state: "OFF"
-          - entity_id: switch.slpk_wannes
+          - entity_id: zwave.slpk_wannes
             state: "OFF"
           - entity_id: hue.group.verd_2_hue
             state: "OFF"
@@ -282,7 +305,7 @@ automations:
     enabled: true
   - name: Slpk_Dries
     trigger:
-      entity_id: switch.slpk_dries
+      entity_id: zwave.slpk_dries
     cases:
       - to_state: "ON"
         actions:
@@ -300,11 +323,11 @@ automations:
     enabled: true
   - name: KeukenLivingEetk_EetkHue
     trigger:
-      - entity_id: switch.licht_living
+      - entity_id: zwave.licht_living
         state: "ON"
-      - entity_id: switch.licht_keuken
+      - entity_id: zwave.licht_keuken
         state: "ON"
-      - entity_id: switch.eetkamer
+      - entity_id: zwave.eetkamer
         state: "ON"
     cases:
       - actions:
@@ -314,13 +337,13 @@ automations:
     enabled: true
   - name: "BuroCinemaPC_cosy"
     trigger:
-      - entity_id: switch.buro_licht
+      - entity_id: zwave.buro_licht
         state: "ON"
     cases:
       - actions:
-          - entity_id: switch.cinema_schemer
+          - entity_id: rfx.cinema_schemer
             state: "ON"
-          - entity_id: switch.buro_wannes_schemer
+          - entity_id: rfx.buro_wannes_schemer
             state: "ON"
     id: a9491c48-f233-413e-86d4-2cdcf713ac63
     enabled: true
@@ -333,7 +356,7 @@ automations:
           - type: "time_of_day"
             is: "dark"
         actions:
-          - entity_id: switch.licht_garage
+          - entity_id: zwave.licht_garage
             state: "ON"
     id: 30541a25-0d37-448b-b874-df8c0bf64aeb
     enabled: true
@@ -343,35 +366,35 @@ automations:
     cases:
       - to_state: ON
         actions:
-          - entity_id: switch.toilet
+          - entity_id: zwave.toilet
             state: "ON"
     id: 284fe67e-827e-4d38-a4b9-58a8b2ae67a5
     enabled: true
   - name: Garage waskot OFF
     trigger:
-      entity_id: switch.licht_garage
+      entity_id: zwave.licht_garage
     cases:
       - to_state: "OFF"
         actions:
-          - entity_id: switch.waskot
+          - entity_id: zwave.waskot
             state: "OFF"
     id: ce50613a-8f88-496d-a078-10facd819776
     enabled: true
   - name: Gang boven berging OFF
     trigger:
-      entity_id: switch.gang_boven
+      entity_id: zwave.gang_boven
     cases:
       - to_state: "OFF"
         actions:
-          - entity_id: switch.berging_2e
+          - entity_id: zwave.berging_2e
             state: "OFF"
     id: 513ef949-cd33-4a7d-8417-4959c4c829d2
     enabled: true
   - name: "Spare Button: Hue is ON -> Trigger ALL OFF"
     trigger:
-      - entity_id: switch.living_special
+      - entity_id: zwave.living_special
         state: "ON"
-      - entity_id: switch.living_special
+      - entity_id: zwave.living_special
         state: "OFF"
     cases:
       - conditions:
@@ -385,9 +408,9 @@ automations:
   - name: 'Spare Button: Hue OFF + Night -> Go Cosy'
     enabled: true
     trigger:
-      - entity_id: switch.living_special
+      - entity_id: zwave.living_special
         state: "ON"
-      - entity_id: switch.living_special
+      - entity_id: zwave.living_special
         state: "OFF"
     cases:
       - conditions:
@@ -409,9 +432,9 @@ automations:
     require_confirmation: false
   - name: 'Spare Button: Hue OFF + Day -> Red Accent'
     trigger:
-      - entity_id: switch.living_special
+      - entity_id: zwave.living_special
         state: "ON"
-      - entity_id: switch.living_special
+      - entity_id: zwave.living_special
         state: "OFF"
     cases:
       - conditions:
@@ -424,41 +447,41 @@ automations:
           - entity_id: hue.group.living_hue
             state: "ON"
             preset: relax_red
-          - entity_id: switch.licht_living
+          - entity_id: zwave.licht_living
             state: "OFF"
     id: 48e294b0-8784-40b6-a9eb-cf6e5a991407
     enabled: true
   - name: PC ON/OFF -> PC Aux ON/OFF
     trigger:
-      entity_id: switch.pc
+      entity_id: zwave.pc
     cases:
       - to_state: ON
         actions:
-          - entity_id: switch.pc_monitors
+          - entity_id: zwave.pc_monitors
             state: "ON"
       - to_state: OFF
         actions:
-          - entity_id: switch.pc_monitors
+          - entity_id: zwave.pc_monitors
             state: "OFF"
     id: 06b759d4-5636-4063-8657-ed72b5b5deb7
     enabled: true
   - name: PC OFF -> Buro Schemer FORCE OFF
     trigger:
-      entity_id: switch.pc_monitors
+      entity_id: zwave.pc_monitors
     cases:
       - to_state: OFF
         actions:
-          - entity_id: switch.buro_wannes_schemer
+          - entity_id: rfx.buro_wannes_schemer
             state: "OFF"
     id: 1a1bdfaa-1b8e-40aa-b20a-3002411ec7ac
     enabled: true
   - name: "PC Aux ON -> Buro Schemer + Sonos ON"
     trigger:
-      entity_id: switch.pc_monitors
+      entity_id: zwave.pc_monitors
     cases:
       - to_state: ON
         actions:
-          - entity_id: switch.buro_wannes_schemer
+          - entity_id: rfx.buro_wannes_schemer
             state: "ON"
           - entity_id: media_player.buro
             state: "ON"
@@ -466,7 +489,7 @@ automations:
             station: "qmaxhits"
       - to_state: OFF
         actions:
-          - entity_id: switch.buro_wannes_schemer
+          - entity_id: rfx.buro_wannes_schemer
             state: "OFF"
           - entity_id: media_player.buro
             state: "OFF"
@@ -478,18 +501,18 @@ automations:
     cases:
       - to_state: "ON"
         actions:
-          - entity_id: switch.vent.toilet_ventilatie_motor
+          - entity_id: zwave.vent.toilet_motor
             state: "ON"
       - to_state: "OFF"
         actions:
-          - entity_id: switch.vent.toilet_ventilatie_motor
+          - entity_id: zwave.vent.toilet_motor
             state: "OFF"
     id: 7ffde6cb-61e2-4754-a392-47d136a0b0b4
     enabled: true
   - name: 'Badk 1e: Main Switch ON -> Hue Red'
     enabled: true
     trigger:
-      entity_id: switch.badk_1e_hue_physical
+      entity_id: zwave.badk_1e_hue_physical
     cases:
       - to_state: "ON"
         conditions:
@@ -511,7 +534,7 @@ automations:
         actions:
           - entity_id: hue.group.badk_1e_hue
             state: "OFF"
-          - entity_id: switch.badk_1e_wastafel
+          - entity_id: zwave.badk_1e_wastafel
             state: "OFF"
           - entity_id: media_player.badk_1e
             state: "OFF"
@@ -520,7 +543,7 @@ automations:
     require_confirmation: false
   - name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
     trigger:
-      entity_id: switch.badk_1e_wastafel
+      entity_id: zwave.badk_1e_wastafel
     cases:
       - to_state: ON
         conditions:
@@ -548,7 +571,7 @@ automations:
     cases:
       - to_state: ON
         actions:
-          - entity_id: switch.badk_1e_hue_physical
+          - entity_id: zwave.badk_1e_hue_physical
             state: "ON"
           - entity_id: media_player.badk_1e
             state: "ON"
@@ -556,7 +579,7 @@ automations:
             station: "qmaxhits"
       - to_state: OFF
         actions:
-          - entity_id: switch.badk_1e_hue_physical
+          - entity_id: zwave.badk_1e_hue_physical
             state: "OFF"
           - entity_id: media_player.badk_1e
             state: "OFF"
@@ -564,7 +587,7 @@ automations:
     enabled: true
   - name: "Badk 2e: Main Switch ON -> Hue Red"
     trigger:
-      entity_id: switch.badk_2e_hue_physical
+      entity_id: zwave.badk_2e_hue_physical
     cases:
       - to_state: ON
         conditions:
@@ -583,7 +606,7 @@ automations:
         actions:
           - entity_id: hue.group.badk_2e_hue
             state: "OFF"
-          - entity_id: switch.badk_2e_wastafel
+          - entity_id: zwave.badk_2e_wastafel
             state: "OFF"
           - entity_id: media_player.badk_boven
             state: "OFF"
@@ -591,7 +614,7 @@ automations:
     enabled: true
   - name: "Badk 2e: Wastafel ON -> Hue White (If already in room)"
     trigger:
-      entity_id: switch.badk_2e_wastafel
+      entity_id: zwave.badk_2e_wastafel
     cases:
       - to_state: ON
         conditions:
@@ -619,7 +642,7 @@ automations:
     cases:
       - to_state: ON
         actions:
-          - entity_id: switch.badk_2e_hue_physical
+          - entity_id: zwave.badk_2e_hue_physical
             state: "ON"
           - entity_id: media_player.badk_boven
             state: "ON"
@@ -627,7 +650,7 @@ automations:
             station: "qmaxhits"
       - to_state: OFF
         actions:
-          - entity_id: switch.badk_2e_hue_physical
+          - entity_id: zwave.badk_2e_hue_physical
             state: "OFF"
           - entity_id: media_player.badk_boven
             state: "OFF"
@@ -635,7 +658,7 @@ automations:
     enabled: true
   - name: "Slpk Wannes: Switch ON -> Hue Red (If Room was Dark)"
     trigger:
-      entity_id: switch.slpk_wannes_hue_physical
+      entity_id: zwave.slpk_wannes_hue_physical
     cases:
       - to_state: ON
         conditions:
@@ -658,11 +681,11 @@ automations:
     cases:
       - to_state: ON
         actions:
-          - entity_id: switch.slpk_wannes_hue_physical
+          - entity_id: zwave.slpk_wannes_hue_physical
             state: "ON"
       - to_state: OFF
         actions:
-          - entity_id: switch.slpk_wannes_hue_physical
+          - entity_id: zwave.slpk_wannes_hue_physical
             state: "OFF"
     id: dc3edc7c-f4c5-4d7f-be9e-41f532c57486
     enabled: true
@@ -674,7 +697,7 @@ automations:
       - actions:
           - entity_id: hue.group.sauna_hue
             state: "ON"
-          - entity_id: switch.sauna_zoutlamp
+          - entity_id: zwave.sauna_zoutlamp
             state: "ON"
           - entity_id: hue.group.verd_1_hue
             state: "ON"
@@ -695,7 +718,7 @@ automations:
           - entity_id: hue.group.living_hue
             state: "ON"
             preset: my_white
-          - entity_id: switch.sauna_zoutlamp
+          - entity_id: zwave.sauna_zoutlamp
             state: "OFF"
     id: 9bb07614-9395-4c8c-8622-6dba8c6152bc
   - name: '--- CINEMA ON'
@@ -703,21 +726,21 @@ automations:
       event: 5954cf0b-8648-4f78-8104-e0fcfcab4530
     cases:
       - actions:
-          - entity_id: switch.cinema_projector
+          - entity_id: switch.epson
             state: "ON"
           - entity_id: blinds.cinema
             state: '100'
-          - entity_id: switch.buro_licht
+          - entity_id: zwave.buro_licht
             state: "OFF"
-          - entity_id: switch.cinema_licht
+          - entity_id: zwave.cinema_licht
             state: "OFF"
-          - entity_id: switch.gang_beneden
+          - entity_id: zwave.gang_beneden
             state: "OFF"
-          - entity_id: switch.gang_boven
+          - entity_id: zwave.gang_boven
             state: "OFF"
-          - entity_id: switch.buro_wannes_schemer
+          - entity_id: rfx.buro_wannes_schemer
             state: "OFF"
-          - entity_id: switch.pc_monitors
+          - entity_id: zwave.pc_monitors
             state: "OFF"
           - entity_id: media_player.buro
             state: "OFF"
@@ -732,7 +755,7 @@ automations:
       event: 44667b31-c281-4487-9d05-9093ba111a86
     cases:
       - actions:
-          - entity_id: switch.cinema_projector
+          - entity_id: switch.epson
             state: "OFF"
           - entity_id: hue.group.cinema_hue
             state: "OFF"
@@ -740,7 +763,7 @@ automations:
           - type: time_of_day
             is: dark
         actions:
-          - entity_id: switch.cinema_licht
+          - entity_id: zwave.cinema_licht
             state: "ON"
       - conditions:
           - type: time_of_day
@@ -760,16 +783,16 @@ automations:
           - entity_id: hue.group.living_hue
             state: "ON"
             preset: relax_red
-          - entity_id: switch.living_schemer
+          - entity_id: rfx.living_schemer
             state: "ON"
-          - entity_id: switch.licht_keuken
+          - entity_id: zwave.licht_keuken
             state: "OFF"
       - conditions:
           - type: device_state
-            entity_id: switch.licht_living
+            entity_id: zwave.licht_living
             is: "ON"
         actions:
-          - entity_id: switch.licht_living
+          - entity_id: zwave.licht_living
             state: "OFF"
     id: 08bc4a13-4375-4bf9-b3af-b0b48687d0d3
     scene: false

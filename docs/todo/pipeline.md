@@ -48,8 +48,9 @@ Applies to every phase (and every future phase). Not only `docs/todo/*` — fix 
 | **C6–C9** | History flicker · Explorer follow-ups · alert dismiss logs · device-ref `wanos.log` — Pi smoke **2026-08-10** |
 | **B10F** | Automations UX polish (save chrome, fire-status, evening skip, SE→SR/UE→UR, CRUD INFO) — Pi smoke **2026-08-11** |
 | **C10** | Explorer/History polish (plural, Planned past-remove, Hue hex text, chart colors, binary/hits, omit scenes, filter+blinds) — Pi smoke **2026-08-11** |
+| **D1 + D2** | Timers & types + `device_product_types`; `zwave.*` / `rfx.*` / vent rehome — Pi smoke + Debug GREEN + migrator delete **2026-08-11** |
 
-Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md).
+Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md).
 
 ---
 
@@ -59,13 +60,13 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 ```text
 #  Size   Phase    What
-1. mid    D        switch vs light typing
-2. high   B9A      sensors / thresholds / sauna-session cond / remove JSON
-3. high   E        Gmail transport / outbox
-4. high   B9B      bathroom + H4/H5/H12  (H4 expands trigger any-of→cond and/or; H5 email needs E)
-5. mid    C3       Force ALL-OFF
-6. mid    C4       Rename HTML entrypoints
-7. low    C11      Control vs History list membership (assess → decide) — post–C10 scene omit
+1. high   B9A      sensors / thresholds / sauna-session cond / remove JSON
+2. high   E        Gmail transport / outbox
+3. high   B9B      bathroom + H4/H5/H12  (H4 expands trigger any-of→cond and/or; H5 email needs E)
+4. mid    C3       Force ALL-OFF
+5. mid    C4       Rename HTML entrypoints
+6. low    C11      Control vs History list membership (assess → decide) — post–C10 scene omit
+7. mid    C12      Post-C10 polish (Hue bri int, binary duration, alert produced_at, Z-Wave -term)
 8. mid    G2       Hue color/bri truth (assess → fix)
 9. mid    G6       Scoped CONFIG_RELOAD (automations/hide/auto-off ≠ Hue·Onkyo·Z-Wave recycle)
 10. low   G7       Integration log tags (`[Onkyo]` parity with `[HUE]`)
@@ -74,27 +75,29 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 13. mid   G4       OWM One Call daily + hot-sun cinema 60% open
 14. low   G5       Dashboard “rolluik zon half” (60% closed if not shut) — TODO; partial Cinema rolluik half (Open→50) gap-documented
 15. high  F        Security bridge (F1→F7 as deployed)
-16. high  B11      Multi-flow one Blockly page
-17. mid   B12      Rule-list folder/tag
-18. high  B13      Blockly IF/ELSE / ELSEIF / ELSE
-19. high  B14      Remaining HA patterns H1–H3, H6–H10
-20. mid   B15      Demote schedule edges → user origin
-21. high  B16      Full-bus UUID for internal EventTypes (decision → impl)
-22. mid   B17      Sauna/IR hardcoded handlers → automation (assess only)
-23. mid   B18      Sauna session_end ≤ absolute_cutoff (clamp on arm/adjust)
-24. —     Ops      Inbox below when convenient
+16. low   B10G     Automations load progress % (assess at kickoff)
+17. high  B11      Multi-flow one Blockly page
+18. mid   B12      Rule-list folder/tag
+19. high  B13      Blockly IF/ELSE / ELSEIF / ELSE
+20. high  B14      Remaining HA patterns H1–H3, H6–H10
+21. mid   B15      Demote schedule edges → user origin
+22. high  B16      Full-bus UUID for internal EventTypes (decision → impl)
+23. mid   B17      Sauna/IR hardcoded handlers → automation (assess only)
+24. mid   B18      Sauna session_end ≤ absolute_cutoff (clamp on arm/adjust)
+25. —     Ops      Inbox below when convenient
 ```
 
 ### Why this order
 
-* **D next** — switch vs light typing; benefits Planned Automations and Blocky light/switch wording (**C10** ✅ **Done 2026-08-11**).
+* **B9A next** — sensors / thresholds / remove JSON. **D** ✅ **Done 2026-08-11** (Timers & types + `zwave.*`/`rfx.*` rehome).
 * **B10B before B9A** — events catalog shipped first (**done**); sensors/JSON removal is larger and can wait.
-* **D after B10B / with C2 consumers** — typing benefits Planned Automations and Blocky light/switch wording; not a Blocky editor rewrite.
+* **D after B10B / with C2 consumers** — typing shipped; Planned Automations and Blocky light/switch wording use resolved type.
 * **B9A then E then B9B** — compares/sensors first; Gmail transport (**E**) can start early but **B9B H5 email** waits on E; bathroom/H12/H4 sit on B9A primitives.
 * **C3 / C4 later** — Admin force-sweep is powerful but not daily-path; HTML renames are mechanical and safer after shell churn settles.
 * **C11 after C4** (default) — re-assess Explorer Control vs History list membership after C10 omits all History `scene` rows; assess → decide → impl if needed. May jump if list confusion hurts. Spec: `phaseC-shell.md` § C11.
-* **G2 before G1** — Hue color lie affects daily Explorer; Epson boot query is analysis-gated and rarer. Swap if Epson pain wins. **G2 ≠ C10 Hue hex text** (chrome vs bridge truth; **C10** ✅).
-* **G6 after G2** (default) — same integrations surface; scoped reload stops Hue/Onkyo/Z-Wave thrash on Blocky save. **May jump ahead of G2/G1** (or even before D) if save-side bridge flaps / auto-off re-arm hurt more than color lies. Spec: `phaseG-integrations.md` § G6. Kickoff picks scope payload vs YAML fingerprint skip.
+* **C12 after C11** (default) — post-C10 polish bundle (Hue bri integer, binary duration month/year, alert `produced_at`, Z-Wave `-term`; motion visibility keep-as-is). **C12 item 1 ≠ G2** (display format vs bridge truth). May jump if operator pain wins.
+* **G2 before G1** — Hue color lie affects daily Explorer; Epson boot query is analysis-gated and rarer. Swap if Epson pain wins. **G2 ≠ C10 Hue hex text** (chrome vs bridge truth; **C10** ✅). **G2 ≠ C12 item 1** (bridge sync vs integer display).
+* **G6 after G2** (default) — same integrations surface; scoped reload stops Hue/Onkyo/Z-Wave thrash on Blocky save. **May jump ahead of G2/G1** if save-side bridge flaps / auto-off re-arm hurt more than color lies. Spec: `phaseG-integrations.md` § G6. Kickoff picks scope payload vs YAML fingerprint skip. (**Note:** Timers & types already uses a narrow scoped reload for `auto_off`+metadata — G6 widens that pattern.)
 * **G7 anytime** — low log-tag parity (`[Onkyo]`); may ship with G6 or alone.
 * **G3 anytime** — OWM `poll_interval_mins` 30→10; config-only; only outside source is OWM 30001.
 * **G4 after G3** — One Call 4.0 daily assess + hot/full-sun cinema opens to **60% open** (account subscribed ✅); same OWM thread, mid work.
@@ -103,7 +106,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 * **Do not fold B10\* into B9\*** — different jobs (trust/events vs sensors/climate). **G2 ≠ B10A** — runtime bridge truth vs Blockly editor chrome (B10A done). **G6 ≠ B10F** — reload *scope* vs Automations UX chrome. **C10 ≠ B10F** (**C10** ✅).
 * **B11–B18 stay after F / day-to-day** — lettered ex–Later B; schedule when pain or architecture cutover wins. **B18** (sauna session_end clamp) may jump forward if safety pain wins. Spec: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B18.
 
-Near-term = **D**. Then **B9A** flexible. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking. **G6** can jump if Blocky-save recycle pain wins. **G7** whenever. **G3** whenever convenient. **G4/G5** when summer heat / cinema sun is the pain.
+Near-term = **B9A**. **E** may run parallel to B9A; B9B email DoD needs E. **G2** can jump forward if color truth is blocking. **G6** can jump if Blocky-save recycle pain wins. **G7** whenever. **G3** whenever convenient. **G4/G5** when summer heat / cinema sun is the pain.
 
 ---
 
@@ -111,8 +114,8 @@ Near-term = **D**. Then **B9A** flexible. **E** may run parallel to B9A; B9B ema
 
 | Step | Detail |
 |---|---|
-| **D** | [`phaseD-typing.md`](phaseD-typing.md) — infer + override · freeze `entity_id` · 71/72 |
 | **B9A** | [`phaseB-blocky.md`](phaseB-blocky.md) § B9A — sensors / thresholds / remove JSON |
+| **E** | [`phaseE-gmail.md`](phaseE-gmail.md) — may parallel B9A |
 
 ---
 
@@ -120,9 +123,9 @@ Near-term = **D**. Then **B9A** flexible. **E** may run parallel to B9A; B9B ema
 
 | Phase | Detail file |
 |---|---|
-| **B9A** / **B9B** / **B11–B18** | [`phaseB-blocky.md`](phaseB-blocky.md) |
+| **B9A** / **B9B** / **B10G** / **B11–B18** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
-| **C3** / **C4** / **C11** | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C3** / **C4** / **C11** / **C12** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G6** / **G7** / **G1** / **G3** / **G4** / **G5** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 
@@ -224,5 +227,9 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-11 | **C10 spec locked** (operator Q&A): Planned past/done **removed** from list; binary vs non-binary set; motion hits (day Y + month/year counts); History omit all `type === "scene"`. **C11** queued — Control vs History list membership assess (after C4 default). |
 | 2026-08-11 | **C10 code** — FE: plural Nodes; Planned past filter; Hue hex text removed; climate legend color pin; binary/hits actuator charts; History omit scenes; blinds search-drag keep. **Open:** Pi smoke + Last Docs → Done. |
 | 2026-08-11 | **C10 → Done** — Pi smoke ✅. Last Docs audit ✅. Sequence starts at **D**. |
+| 2026-08-11 | **Phase D spec locked** — D1 Timers & types + `device_product_types`; D2 `zwave.*`/`rfx.*`/vent migrator; Explorer HUE+LIGHT filters; no name-token infer. Detail → [`phaseD-typing.md`](phaseD-typing.md). |
+| 2026-08-11 | **D1 → Pi smoke OK**. **D2 code + workspace YAML migrated** (`helpers/migrate_d2_entity_ids.py`). Open: Pi sync/restart + Debug GREEN + soak → delete migrator. |
+| 2026-08-11 | Inbox triage: **C12** post-C10 polish (…); **B10G** assess at kickoff (no pre-decision). |
+| 2026-08-11 | **D → Done** — D1+D2 Pi smoke + Debug GREEN ✅. Docs audit ✅. Migrators + D2 backup deleted ✅. Sequence starts at **B9A**. |
 
-Detail chronology / DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseG-integrations.md`](phaseG-integrations.md).
+Detail chronology / DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md), [`phaseG-integrations.md`](phaseG-integrations.md).

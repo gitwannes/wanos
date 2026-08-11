@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="WanOS" />
     <link rel="manifest" href="/favicon/site.webmanifest" />
-    <title>WanOS // Admin - Auto-off Timers</title>
+    <title>WanOS // Admin - Timers & types</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="/wanos.css?v=1" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -27,9 +27,9 @@
     <section class="card bg-base-100 border border-base-200 shadow-xl">
         <div class="card-body p-4 gap-4">
             <p class="text-xs text-base-content/60">
-                Auto-off applies only to checked devices. Effective: blank inherits type/general (muted italic);
+                Product type (light / switch) drives Explorer filters and auto-off type tier.
+                Auto-off applies only to checked eligible devices. Effective: blank inherits type/general (muted italic);
                 typed value pins per-device. Precedence: per-device → type → general. Minutes 1–720.
-                Unchecking clears any per-device delay.
             </p>
 
             <div x-show="errorMessage" class="alert alert-error text-sm" x-cloak>
@@ -44,6 +44,8 @@
                 <label class="form-control w-40">
                     <span class="label-text text-[10px] font-mono uppercase tracking-wider text-base-content/50">General default (min)</span>
                     <input type="number" min="1" max="720" class="input input-bordered input-sm font-mono"
+                           :class="generalDefaultUnsaved ? 'border-warning bg-amber-500/30 text-warning font-bold' : ''"
+                           :title="generalDefaultUnsaved ? 'Unsaved general default' : ''"
                            x-model.number="draft.default_auto_off_minutes">
                 </label>
                 <button type="button" class="btn btn-primary btn-sm ml-auto" @click="save()" :disabled="busy || !dirty">
@@ -58,8 +60,12 @@
                 <div class="flex flex-wrap gap-3">
                     <template x-for="t in typeKeys" :key="t">
                         <label class="form-control w-28">
-                            <span class="label-text text-[10px] font-mono uppercase" x-text="t"></span>
+                            <span class="label-text text-[10px] font-mono uppercase"
+                                  :class="isTypeDefaultUnsaved(t) ? 'text-warning font-bold' : ''"
+                                  x-text="t"></span>
                             <input type="number" min="1" max="720" class="input input-bordered input-sm font-mono"
+                                   :class="isTypeDefaultUnsaved(t) ? 'border-warning bg-amber-500/30 text-warning font-bold' : ''"
+                                   :title="isTypeDefaultUnsaved(t) ? 'Unsaved type default' : ''"
                                    :placeholder="String(draft.default_auto_off_minutes)"
                                    :value="draft.default_pertype_auto_off_minutes[t] ?? ''"
                                    @input="setTypeDefault(t, $event.target.value)">
@@ -93,6 +99,17 @@
                             :class="managedFilter === 'off' ? 'btn-secondary' : 'btn-ghost'"
                             @click="managedFilter = 'off'">Auto-off OFF</button>
                 </div>
+                <div class="join" title="Filter by whether product Type can be changed">
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="typeEditFilter === 'all' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="typeEditFilter = 'all'">All</button>
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="typeEditFilter === 'editable' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="typeEditFilter = 'editable'">Type editable only</button>
+                    <button type="button" class="btn btn-xs join-item"
+                            :class="typeEditFilter === 'fixed' ? 'btn-secondary' : 'btn-ghost'"
+                            @click="typeEditFilter = 'fixed'">Type fixed only</button>
+                </div>
                 <input type="text" class="input input-bordered input-sm flex-1 min-w-[12rem] font-mono"
                        placeholder="Search name or type"
                        x-model="searchQuery">
@@ -105,10 +122,16 @@
                 <table class="table table-sm">
                     <thead class="sticky top-0 z-20">
                         <tr class="text-base-400 font-mono text-[10px] uppercase tracking-wider">
-                            <th class="w-12 bg-base-200">On</th>
+                            <th class="w-28 bg-base-200" title="Device is on the auto-off managed list">Auto-OFF active</th>
+                            <th class="w-20 bg-base-200 cursor-pointer select-none hover:text-base-content"
+                                @click="toggleSort('provType')"
+                                title="Device kind: Switch, Sonos, Shutter, Door, …">
+                                <span x-text="'Kind' + sortIndicator('provType')"></span>
+                            </th>
                             <th class="w-24 bg-base-200 cursor-pointer select-none hover:text-base-content"
-                                @click="toggleSort('type')">
-                                <span x-text="'Type' + sortIndicator('type')"></span>
+                                @click="toggleSort('productType')"
+                                title="Product type you set: light | switch (Explorer / auto-off)">
+                                <span x-text="'Type' + sortIndicator('productType')"></span>
                             </th>
                             <th class="bg-base-200 cursor-pointer select-none hover:text-base-content"
                                 @click="toggleSort('name')">
@@ -122,24 +145,54 @@
                     </thead>
                     <tbody class="text-sm">
                         <template x-for="row in visibleRows" :key="row.eid">
-                            <tr class="hover:bg-base-200/40">
+                            <tr class="hover:bg-base-200/40"
+                                :class="(row.managedUnsaved || row.typeUnsaved || row.effectiveUnsaved)
+                                    ? 'bg-amber-500/25 ring-1 ring-inset ring-amber-400' : ''"
+                                :title="(row.managedUnsaved || row.typeUnsaved || row.effectiveUnsaved)
+                                    ? 'Unsaved change' : ''">
                                 <td>
-                                    <input type="checkbox" class="checkbox checkbox-sm checkbox-secondary"
+                                    <input type="checkbox" class="checkbox checkbox-sm"
+                                           :class="row.managedUnsaved ? 'checkbox-warning' : 'checkbox-secondary'"
                                            :checked="row.managed"
+                                           :disabled="!isAutoOffEligible(row)"
                                            @change="toggleManaged(row, $event.target.checked)">
                                 </td>
                                 <td class="font-mono text-xs text-base-content/60 uppercase tracking-wide"
-                                    x-text="row.typeLabel"></td>
-                                <td class="font-medium" x-text="row.name"></td>
+                                    x-text="row.provTypeLabel"></td>
+                                <td>
+                                    <template x-if="row.productEditable">
+                                        <select class="select select-bordered select-xs font-mono uppercase text-[10px]"
+                                                :class="row.typeUnsaved
+                                                    ? 'bg-amber-500/30 border-warning text-warning font-bold'
+                                                    : 'bg-base-200'"
+                                                :title="row.typeUnsaved ? 'Unsaved type change' : ''"
+                                                :value="row.productType"
+                                                @change="setProductType(row, $event.target.value)">
+                                            <template x-for="pt in productTypes" :key="pt">
+                                                <option :value="pt" x-text="pt"></option>
+                                            </template>
+                                        </select>
+                                    </template>
+                                    <template x-if="!row.productEditable">
+                                        <span class="font-mono text-xs text-base-content/60 uppercase" x-text="row.productType"></span>
+                                    </template>
+                                </td>
+                                <td class="font-medium"
+                                    :class="(row.managedUnsaved || row.typeUnsaved || row.effectiveUnsaved) ? 'text-warning' : ''"
+                                    x-text="row.name"></td>
                                 <td>
                                     <div class="relative w-20">
                                         <span x-show="row.managed && !isExplicit(row)"
                                               class="pointer-events-none absolute inset-0 flex items-center px-2 font-mono text-xs italic text-base-content/40"
                                               x-text="effectiveFor(row)"></span>
                                         <input type="number" min="1" max="720"
-                                               class="input input-bordered input-xs w-20 font-mono relative bg-transparent"
-                                               :class="row.managed && !isExplicit(row) ? 'text-transparent caret-base-content' : ''"
-                                               :disabled="!row.managed"
+                                               class="input input-bordered input-xs w-20 font-mono relative"
+                                               :class="[
+                                                   row.managed && !isExplicit(row) ? 'text-transparent caret-base-content bg-transparent' : '',
+                                                   row.effectiveUnsaved ? 'border-warning bg-amber-500/30 text-warning font-bold' : 'bg-transparent'
+                                               ]"
+                                               :title="row.effectiveUnsaved ? 'Unsaved timer change' : ''"
+                                               :disabled="!row.managed || !isAutoOffEligible(row)"
                                                :value="isExplicit(row) ? row.override : ''"
                                                @input="setEffective(row, $event.target.value)">
                                     </div>
@@ -149,7 +202,7 @@
                     </tbody>
                 </table>
                 <div x-show="visibleRows.length === 0" class="p-6 text-center text-xs text-base-content/50 italic">
-                    No eligible devices match this filter.
+                    No devices match this filter.
                 </div>
             </div>
         </div>
@@ -160,7 +213,7 @@
     <div class="modal-box border border-warning/40 bg-base-300 shadow-2xl">
         <h3 class="font-bold text-lg text-warning tracking-wide">Unsaved changes</h3>
         <p class="py-3 text-sm text-base-content/80">
-            Auto-off edits are not saved. Leave and discard them, or save first?
+            Timers & types edits are not saved. Leave and discard them, or save first?
         </p>
         <div class="modal-action flex-wrap gap-2">
             <button type="button" class="btn btn-ghost btn-sm" @click="cancelUnsavedLeave()">Cancel</button>
@@ -175,6 +228,6 @@
 </dialog>
 
 <script src="/wanos-shell.js?v=5"></script>
-<script src="/lightingautooff.js?v=6"></script>
+<script src="/lightingautooff.js?v=14"></script>
 </body>
 </html>

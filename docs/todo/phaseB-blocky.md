@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; **B10F** ✅ **Done 2026-08-11**; queued **B9A** / **B9B** / **B11–B18**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; **B10F** ✅ **Done 2026-08-11**; queued **B9A** / **B9B** / **B11–B18**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -16,7 +16,7 @@ Blocky and automations must not store raw hardware idxs in rules. Humans see fri
 | Layer | Example | Who sees / uses it |
 |---|---|---|
 | Display `name` | `buro licht` | UI dropdowns only — may be renamed |
-| `entity_id` | `switch.buro_licht` / `hue.light.buro_spot` | Stored in automation rules — frozen after birth |
+| `entity_id` | `zwave.buro_licht` / `hue.light.buro_spot` | Stored in automation rules — frozen after birth |
 | Physical `idx` | `71001` | Z-Wave / RFX / GPIO / `devices[]` / event bus |
 
 ### Single map (DRY)
@@ -44,17 +44,20 @@ Blocky and automations must not store raw hardware idxs in rules. Humans see fri
 * Orphans: **keep** row with **`status: removed`**.
 * Documented in `docs/reference.md` and `docs/architecture.md`.
 
-### `entity_id` patterns (locked)
+### `entity_id` patterns (locked at B0; **D2** updates Z-Wave/RFX — see [`phaseD-typing.md`](phaseD-typing.md))
 
 | Kind | `entity_id` pattern | Example |
 |---|---|---|
 | Hue light | `hue.light.<slug>` | `hue.light.buro_spot` |
 | Hue group | `hue.group.<slug>` | `hue.group.living` |
-| Z-Wave / RFX actuators (incl. “licht”) | `switch.<slug>` | `switch.buro_licht` |
-| Vent / fan class | `switch.vent.<slug>` | `switch.vent.badk_1e` |
+| Z-Wave binary | `zwave.<slug>` | `zwave.buro_licht` |
+| RFX | `rfx.<slug>` | `rfx.kerstboom` |
+| Z-Wave vent motor | `zwave.vent.<slug>` | `zwave.vent.sauna` |
+| Vent wall switch | `switch.vent.<slug>` | `switch.vent.toilet_ventilatie` |
 | SSR class | `switch.ssr.<slug>` | `switch.ssr.sauna` |
 | Safety class | `switch.safety.<slug>` | `switch.safety.wisc` |
-| Blinds | `blinds.<slug>` | `blinds.cinema` |
+| Epson | `switch.epson` | `switch.epson` |
+| Shutters / rolluik | `blinds.<slug>` | `blinds.cinema` |
 | Power | `sensor.power.<slug>` | `sensor.power.pc` |
 | Temp/hum | `sensor.temp_hum.<slug>` | `sensor.temp_hum.sauna_high` |
 | Energy | `sensor.energy.<slug>` | `sensor.energy.kwh_meter` |
@@ -64,7 +67,9 @@ Blocky and automations must not store raw hardware idxs in rules. Humans see fri
 | Scene | `scene.<slug>` | **Retired after B10B** — dashboard uses `events:` / `dashboard_events` (UUID), not `scene.*` entity births |
 | Unknown / tombstone | `unknown.<slug>` | |
 
-**Confirm:** RFX = `switch.*`. Vents / SSR / safety use the dedicated `switch.vent|ssr|safety.*` prefixes (not plain `switch.<slug>`). Classification from name keywords / known idxs as implemented.
+**Historical (pre–Phase D):** plain Z-Wave/RFX actuators used `switch.<slug>`. **Product type** `light`|`switch` is **not** in the id — **`device_product_types`** via Timers & types ([`phaseD-typing.md`](phaseD-typing.md) ✅).
+
+**Confirm:** Vent **motors** → `zwave.vent.*`; wall switch → `switch.vent.*`. SSR / safety keep `switch.ssr|safety.*`. RFX → `rfx.*`.
 
 Z-Wave slug source: **`| name |` segment only**.
 
@@ -266,13 +271,13 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 **Operator smoke:** ✅ OK on Pi (**2026-08-08**).
 
-**Shipped:** SoT = **`auto_off_devices:`** in `automations.auto.yaml` (`managed_auto_off` + general + per-type + per-device delays); Admin → **Auto-off timers** (`lightingautooff.html` + `/api/auto-off-timer`); engine honors membership + precedence device→type→general; legacy `lighting:` / `managed_lights` removed.
+**Shipped:** SoT = **`auto_off_devices:`** in `automations.auto.yaml` (`managed_auto_off` + general + per-type + per-device delays); Admin → **Timers & types** (`lightingautooff.html` + `/api/auto-off-timer`; renamed from Auto-off timers in **D1**); engine honors membership + precedence device→type→general; legacy `lighting:` / `managed_lights` removed. Product-type overrides (**D1**) live beside auto-off in the same API — see [`phaseD-typing.md`](phaseD-typing.md).
 
 **Historical (pre-cutover):** auto-off lived under `lighting:` + `managed_lights`. One-shot `helpers/migrate_auto_off_devices.py` ran on Pi then was **removed** (same habit as Phase B7 / B6A).
 
 #### Locked (as implemented)
 
-1. **Placement** — `lightingautooff.html`; Admin System Commands **“Auto-off timers”** under Explorer hidden devices; Admin-link only.
+1. **Placement** — `lightingautooff.html`; Admin System Commands **“Timers & types”** (was “Auto-off timers”) under Explorer hidden devices; Admin-link only.
 2. **API** — admin **`GET` + full-replace `PUT /api/auto-off-timer`**; hot-reload on save.
 3. **YAML** — `auto_off_devices:` with `managed_auto_off`, `default_auto_off_minutes`, `default_pertype_auto_off_minutes`, `auto_off_delays`. No dual-read of `lighting:`.
 4. **Precedence** — per-device → type → general. Minutes **1–720**.
@@ -751,7 +756,7 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 
 - [x] **Cutover:** `lighting:` → `auto_off_devices:`; `managed_lights` → `managed_auto_off`; migrator `--dry-run` / `--write` on Pi then **removed**; runtime does not read old keys.
 - [x] **Engine:** auto-off only for eids in `managed_auto_off`; delay = per-device → `default_pertype_auto_off_minutes[type]` → `default_auto_off_minutes`.
-- [x] **Admin entry:** System Commands → **“Auto-off timers”** (under Hidden Devices) → `lightingautooff.html` (admin-only; no shell nav).
+- [x] **Admin entry:** System Commands → **“Timers & types”** (under Hidden Devices; was Auto-off timers) → `lightingautooff.html` (admin-only; no shell nav).
 - [x] **API:** `GET` + full-replace `PUT /api/auto-off-timer`; surgical write of **`auto_off_devices:`** only; hot-reload on save; reject unresolved / orphan / ineligible / bad type keys; enforce `auto_off_delays` ⊆ `managed_auto_off`; sorted unique lists/maps; minutes 1–720.
 - [x] **UI:** general + type rows (`switch` / `light` / `speaker`) + eligible device list (checkbox + **Effective** minutes); blank = inherit (muted italic resolved); typed = per-device pin; uncheck clears delay; soft-hide All / Hidden / Non-hidden; **Auto-off ON / OFF / All** membership filter; sort Name / Type / Effective (resolved; unmanaged last); 71040 omitted; vents + speakers eligible.
 - [x] **Eligibility:** denylist + device extras enforced in inventory and on PUT; migrator stripped ineligible leftovers (kept vents).
@@ -1112,6 +1117,7 @@ Run on **Pi** after deploying latest (`entity_registry_check` skip ≥900000, Bl
 Pointers only — detail under § B10F / § B11–B18:
 
 * **B10F** — Automations UX polish — ✅ **Done 2026-08-11** (does not reopen B10E DoD).
+* **B10G** — Automations load progress % — **assess at kickoff** (no pre-decision).
 * **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
 * **G6** — Scoped `CONFIG_RELOAD` after CRUD (no bridge thrash) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
@@ -1335,6 +1341,35 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 - [x] SR display/YAML name always equals companion SE catalog (usages + bind + boot rewrite).
 - [x] Pi smoke (items 1–11 + evening skip day if exercisable).
 - [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-11**.
+
+---
+
+### Phase B10G — Automations load progress % 🔜 TODO (assess at kickoff)
+
+**Origin:** operator inbox **2026-08-11**. **After B10F** ✅. Size **low**. **Triage locked:** **assess when B10G is reached** — no implement/skip decision until kickoff; baseline notes below for that assess.
+
+**Problem:** Yellow **“Loading automation editor…”** overlay (`blocky.html`, `!connected`) can stay up **~10s** on slow Pi/network while `refreshAll()` runs.
+
+**What runs inside the overlay today** (`frontend/blocky.js` → `init()` → `refreshAll()`):
+
+| Step | Work |
+|---|---|
+| 1–3 | **Parallel** `GET /api/state`, `/api/automations`, `/api/events` |
+| 4 | Parse JSON; `rebuildLibraryRows()`; `rebuildEntityOptions()` |
+| 5 | `GET /api/automations/fire-status` (sequential) |
+| 6 | `connected = true` → overlay hides |
+
+**Not in overlay:** Blockly workspace init / `loadV2IntoBlockly()` (`scheduleBlocklyLoad`) runs **after** `connected === true` when a rule is open.
+
+**Assess — can we show %?**
+
+* **Yes, coarse only:** track completion of the **three parallel fetches** (~33% each) + **fire-status** (~25% if four equal steps) + optional “ready” after FE rebuild.
+* **Limitations:** one slow endpoint stalls progress; FE rebuild is fast/opaque; Blockly load is **post-overlay** unless policy changes (extend overlay = B10G scope fork — decide at kickoff).
+* **Recommendation at kickoff:** implement coarse % only if load pain still warrants it; otherwise close as assess-only (keep B10F copy).
+
+**Out of scope:** G6 scoped reload duration; save busy overlay (B10F item 1).
+
+**B10G DoD (if impl after kickoff assess):** Yellow overlay shows defensible **% loaded** during `refreshAll`; unreachable path unchanged (red copy); Pi smoke cold open on slow path. **If assess-only:** decision + rationale recorded here; no code required. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

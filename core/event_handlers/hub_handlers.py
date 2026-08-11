@@ -309,9 +309,11 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                         changed_domains.add("metrics")
 
         # Bathroom 1e ventilator timer lock
+        from core.well_known_entities import ENTITY_BATHROOM_VENT, ENTITY_EPSON
+
         vent_idx = None
         for k, meta in (manager._state.device_metadata or {}).items():
-            if isinstance(meta, dict) and meta.get("entity_id") == "switch.vent.badk_1e_ventilatie":
+            if isinstance(meta, dict) and meta.get("entity_id") == ENTITY_BATHROOM_VENT:
                 try:
                     vent_idx = int(k)
                 except (TypeError, ValueError):
@@ -325,7 +327,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         # EPSON INTERCEPTOR
         epson_idx = None
         for k, meta in (manager._state.device_metadata or {}).items():
-            if isinstance(meta, dict) and meta.get("entity_id") == "switch.cinema_projector":
+            if isinstance(meta, dict) and meta.get("entity_id") == ENTITY_EPSON:
                 try:
                     epson_idx = int(k)
                 except (TypeError, ValueError):

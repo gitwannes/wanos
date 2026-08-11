@@ -113,6 +113,10 @@ function blockyEntityMeta(eid) {
 
 function blockyEntityTypeOf(eid) {
     const opt = blockyEntityMeta(eid);
+    if (opt && opt.resolvedProductType) {
+        const rpt = String(opt.resolvedProductType).toLowerCase();
+        if (rpt === "light" || rpt === "switch") return rpt;
+    }
     if (opt && opt.type) return String(opt.type).toLowerCase();
     const e = String(eid || "");
     if (e.startsWith("blinds.")) return "blinds";
@@ -121,7 +125,7 @@ function blockyEntityTypeOf(eid) {
     if (e.startsWith("sensor.door.") || e.startsWith("door.")) return "door";
     if (e.includes("motion")) return "motion";
     if (e.startsWith("sensor.")) return "sensor";
-    if (e.startsWith("switch.")) return "switch";
+    if (e.startsWith("switch.") || e.startsWith("zwave.") || e.startsWith("rfx.")) return "switch";
     return "";
 }
 
@@ -172,6 +176,8 @@ function blockyIsActuatorEntity(optOrEid) {
     );
     return (
         eid.startsWith("switch.")
+        || eid.startsWith("zwave.")
+        || eid.startsWith("rfx.")
         || eid.startsWith("hue.")
         || eid.startsWith("blinds.")
         || eid.startsWith("media_player.")
@@ -2516,6 +2522,8 @@ function blockyApp() {
                     label: labelName,
                     type,
                     origin,
+                    resolvedProductType: meta.resolved_product_type
+                        || (origin === "hue" ? "light" : "switch"),
                     typeLabel,
                     max_volume: meta.max_volume != null ? Number(meta.max_volume) : null,
                     // Honor Explorer soft-hide; exclusive Hidden toggle filters via visibleEntityOptions.

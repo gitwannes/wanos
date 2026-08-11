@@ -13,7 +13,7 @@ When toggled to **ON**, the `start()` method is invoked inside `NativeRFXCOMBrid
 Because 433MHz is an unencrypted, simplex (one-way) protocol, devices cannot confirm they received a command. WanOS architecture explicitly handles this limitation.
 
 *   **The Global Force Guard:** Inside `hub_handlers.py`, any outbound command targeted at a device with `origin: "rfxcom"` is forcibly injected with `force: True`[cite: 4]. This universally bypasses WanOS's internal duplicate-state filters[cite: 4].
-*   **Always Transmit:** Even if the UI thinks a light is already "ON", clicking "ON" again will *always* transmit the radio wave to ensure the physical hardware syncs[cite: 9].
+*   **Always Transmit:** Even if the UI thinks a light is already "ON", clicking "ON" again will *always* transmit the radio wave to ensure the physical hardware syncs[cite: 9]. RFX actuator `entity_id`s use the **`rfx.<slug>`** birth pattern (Phase **D** ✅).
 *   **Lighting4 Direct Byte Generation:** To prevent "Poison Pill" crashes caused by the underlying `pyRFXtrx` library failing to parse PT2262 hexadecimal payloads, the bridge intercepts `Lighting4` protocol commands and manually generates the exact 10-byte binary packet structure[cite: 9].
 
 ## 3. The Continuous Listening Loop (The Antenna Firehose)

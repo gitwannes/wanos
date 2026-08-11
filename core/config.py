@@ -419,6 +419,7 @@ class AppConfig(BaseModel):
     ir: IRRuntimeConfig
     bathroom1: BathroomConfig
     auto_off_devices: AutoOffDevicesConfig
+    device_product_types: Dict[str, str] = Field(default_factory=dict)
     blinds: Optional[BlindsConfig] = None
     environmental_schedule: Optional[EnvironmentalScheduleConfig] = None
     weather: WeatherConfig
@@ -510,6 +511,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     auto_off_data = auto_data.get(
         "auto_off_devices", runtime_data.get("auto_off_devices", {})
     )
+    device_product_types = auto_data.get("device_product_types") or {}
     automations_data = auto_data.get("automations", runtime_data.get("automations", []))
 
     # X1 expansion (Y1 branched -> flat engine rules)
@@ -551,6 +553,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "ir": runtime_data["ir"],
         "bathroom1": runtime_data["bathroom1"],
         "auto_off_devices": auto_off_data or {},
+        "device_product_types": device_product_types if isinstance(device_product_types, dict) else {},
         "blinds": runtime_data.get("blinds"),
         "environmental_schedule": runtime_data.get("environmental_schedule"),
         "weather": runtime_data["weather"],

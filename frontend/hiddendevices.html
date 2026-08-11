@@ -84,15 +84,21 @@
                     </thead>
                     <tbody class="text-sm">
                         <template x-for="row in visibleRows" :key="row.eid">
-                            <tr class="hover:bg-base-200/40">
+                            <tr class="hover:bg-base-200/40"
+                                :class="row.unsaved ? 'bg-amber-500/25 ring-1 ring-inset ring-amber-400' : ''"
+                                :title="row.unsaved ? 'Unsaved hide change' : ''">
                                 <td>
-                                    <input type="checkbox" class="checkbox checkbox-sm checkbox-secondary"
+                                    <input type="checkbox" class="checkbox checkbox-sm"
+                                           :class="row.unsaved ? 'checkbox-warning' : 'checkbox-secondary'"
                                            :checked="row.hidden"
                                            @change="toggle(row, $event.target.checked)">
                                 </td>
-                                <td class="font-mono text-xs text-base-content/60 uppercase tracking-wide"
+                                <td class="font-mono text-xs uppercase tracking-wide"
+                                    :class="row.unsaved ? 'text-warning font-bold' : 'text-base-content/60'"
                                     x-text="row.typeLabel"></td>
-                                <td class="font-medium" x-text="row.name"></td>
+                                <td class="font-medium"
+                                    :class="row.unsaved ? 'text-warning' : ''"
+                                    x-text="row.name"></td>
                             </tr>
                         </template>
                     </tbody>
@@ -124,6 +130,6 @@
 </dialog>
 
 <script src="/wanos-shell.js?v=5"></script>
-<script src="/hiddendevices.js?v=7"></script>
+<script src="/hiddendevices.js?v=9"></script>
 </body>
 </html>

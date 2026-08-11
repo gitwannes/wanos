@@ -45,7 +45,7 @@ def classify_entity_prefix(
     hue_kind: Optional[str] = None,
 ) -> str:
     """
-    Return the entity_id prefix (without trailing slug), e.g. 'switch.vent' or 'hue.light'.
+    Return the entity_id prefix (without trailing slug), e.g. 'zwave.vent' or 'hue.light'.
     """
     dtype = (device_type or "unknown").lower().strip()
     origin_l = (origin or "").lower().strip()
@@ -84,11 +84,23 @@ def classify_entity_prefix(
         return "sensor.generic"
 
     if dtype in ("switch", "light"):
-        # Non-Hue actuators (Z-Wave/RFX/Epson). Names may say "licht" but id stays switch.*.
+        # Class prefixes (SSR / safety / vent wall-switch pattern) stay switch.*.
         if any(tok in name_l for tok in _SSR_TOKENS):
             return "switch.ssr"
         if any(tok in name_l for tok in _SAFETY_TOKENS):
             return "switch.safety"
+        # Epson projector — fixed id switch.epson (slug applied in ensure()).
+        if origin_l == "epson":
+            return "switch"
+        # RFX binaries → rfx.<slug>
+        if origin_l in ("rfxcom", "rfx"):
+            return "rfx"
+        # Z-Wave binaries → zwave.<slug>; vent motors → zwave.vent.<slug>
+        if origin_l == "zwave":
+            if any(tok in name_l for tok in _VENT_TOKENS):
+                return "zwave.vent"
+            return "zwave"
+        # Non-zwave vent wall switch (legacy / rare)
         if any(tok in name_l for tok in _VENT_TOKENS):
             return "switch.vent"
         return "switch"
@@ -274,6 +286,25 @@ class EntityRegistry:
             self._entity_to_idx[str(stamped)] = idx
             self._dirty = True
             return str(stamped)
+
+        # Epson projector: fixed entity_id (not slugify("cinema projector")).
+        origin_l = str(meta.get("origin") or "").lower().strip()
+        if origin_l == "epson":
+            from core.well_known_entities import ENTITY_EPSON
+
+            eid = ENTITY_EPSON
+            if eid in self._entity_to_idx and self._entity_to_idx[eid] != idx:
+                eid = self._allocate_unique("switch", "epson")
+            self._by_idx[idx] = {
+                "entity_id": eid,
+                "status": "active",
+                "name_at_birth": meta.get("name"),
+            }
+            self._entity_to_idx[eid] = idx
+            meta["entity_id"] = eid
+            self._dirty = True
+            logger.info(f"Entity birth: idx {idx} → {eid}")
+            return eid
 
         prefix = classify_entity_prefix(
             device_type=meta.get("type"),

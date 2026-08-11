@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11**. Next sequence: **D** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12**. Next sequence: **D** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -25,10 +25,11 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C9 — Device-ref app logs** | All device-ref lines in `wanos.log` → `entity_id (name, idx N)` | Every integration · mid |
 | **C10 — Explorer / History polish** | Plural Nodes; Planned past gone; Hue hex text; chart colors; binary/hits charts; omit scenes; filter+blinds | FE · mid |
 | **C11 — Control vs History lists** | Re-assess Explorer Control vs History list membership (post–C10 scene omit) | Assess → decide · low |
+| **C12 — Post-C10 polish** | Hue bri integer; binary duration charts; motion visibility; alert `produced_at`; Z-Wave `-term` filter | FE + log · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4** (or when list-membership pain wins). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4** (or when list-membership pain wins). **C12** queued (inbox triage **2026-08-11**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -78,7 +79,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 
 ### System-command header nav
 
-* Pages: **`hiddendevices`**, **`lightingautooff`**, **`zwave`**.
+* Pages: **`hiddendevices`**, **`lightingautooff`** (Admin label **Timers & types** — **D** ✅ [`phaseD-typing.md`](phaseD-typing.md)), **`zwave`**.
 * Gear → Admin only; **no** Explorer / WISC / History / Automation joins. Clear page title.
 
 ### Discard + leave-guard
@@ -388,6 +389,45 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 ---
 
+## 📋 C12 — Post-C10 polish 🔜 TODO
+
+**Origin:** operator inbox **2026-08-11**. Shell / History / Admin — **not** G2 bridge truth, **not** Blocky editor (**B10G** = Automations load %). **One ship** (default). Size **mid**. **Spec locked** (operator Q&A **2026-08-11**).
+
+| # | Item |
+|---|---|
+| 1 | **Hue Explorer brightness** — display + slider: **integer only** (no decimals). Round **nearest**; **ON never `0`** (`0` = OFF). Slider floor **`1`** when ON. Range **`1–100`**. *(Display/formatting only — not G2 bridge sync.)* |
+| 2 | **History binary (non-motion) month/year** — **total ON duration** aggregated from history intervals (ON→OFF). **Month:** `minutes_on` per bucket; **Year:** `hours_on` per bucket. **UI:** series/axis label **“duration ON”**; Y-axis **minutes** (month) / **hours** (year). **Day:** keep C10 binary ON/OFF chart (unchanged). |
+| 3 | **Motion** — keep C10 **hits** model (not duration). **Visibility locked:** keep as-is — **75xxx stays soft-hidden**; not in Explorer/History list unless operator toggles **Hidden devices**; backend history unchanged. Document in ops/docs only (no list UX change). |
+| 4 | **Alert dismiss log — `produced_at`** — extend **C8** line shape: add **when the alert was produced** (`produced_at` only — dismiss time stays implicit log timestamp). UX unchanged. |
+| 5 | **Z-Wave config search — negative filter** — mirror Explorer: **`-term`** excludes (same `_parseTextQuery` semantics). Fields: **name, path, idx** (today’s Z-Wave positive match set). |
+
+### Item 2 — chart families (extends C10 item 5)
+
+**A — Binary day** — unchanged (ON/OFF on Y).
+
+**A′ — Binary month/year** — duration totals (not ON/OFF, not hit counts): sum ON segment lengths per bucket → **minutes** (month) / **hours** (year).
+
+**C — Motion** — unchanged: day = hit spikes; month/year = **# hits** (not duration, not ON/OFF).
+
+### Item 4 — locked log line shape (extends C8)
+
+```text
+Alert dismissed (banner): level=<level> produced_at=<iso-or-unix> "…message text…"
+Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text…"
+```
+
+*`produced_at` format — pick at impl (ISO local vs unix s).*
+
+### Out of scope
+
+* G2 Hue bri/xy **bridge** truth.
+* B10G Automations load **%** overlay.
+* C11 Control vs History membership model (item 3 does not reopen it).
+
+**C12 DoD:** Items 1–5 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works like Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
 ## 🚦 Decisions locked (summary)
 
 * **C1:** Hidden + Favorites stay in presets pane (one line each on landscape/desktop); Edit/Done favorites; idle = no indicators; filter iff favorites exist. **Portrait favorites layout → C7.**
@@ -400,6 +440,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 * **C9:** All device-ref lines in `wanos.log`, every integration → `entity_id (name, idx N)` (automation-log parity / `format_device_ref`).
 * **C10:** Plural Nodes; Planned past/done **removed** from list (not relabeled); Hue COLOR OUTPUT text-only remove; climate legend/line parity; binary ON/OFF vs non-binary set vs motion hits (day Y + month/year counts); History omit **all** `type === "scene"`; filter+blinds drag stable. ✅ **Done 2026-08-11**.
 * **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
+* **C12:** Hue bri integer (nearest; ON 1–100; slider floor 1); binary month/year = duration ON (minutes/hours); motion hits unchanged + **visibility keep-as-is** (75xxx soft-hidden); C8 + `produced_at`; Z-Wave `-term` filter.
 * **C3:** Force ALL-OFF parallel-per-integration + 300ms pace + exclusion tags + confirm UX.
 * **C4:** Rename entrypoints; update all consumers.
 
@@ -407,4 +448,5 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 * *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10** — C10 closed by Pi smoke **2026-08-11**.)*
 * **C11** assess open until kickoff (queued).
+* **C12:** spec locked for triage **2026-08-11** (`produced_at` wire format = impl detail at kickoff).
 * **C3 / C4** remain open as specified above (later in sequence).

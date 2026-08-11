@@ -372,6 +372,31 @@ class StateManager:
 
         # Birth / freeze entity_ids for every live metadata row; persist entity_registry.auto.yaml
         self.entity_registry.reconcile(self._state.device_metadata)
+        self._stamp_resolved_product_types()
+
+    def _stamp_resolved_product_types(self) -> None:
+        """Attach resolved_product_type to binary actuators / Hue (D1 Explorer / auto-off tier)."""
+        from core.product_type_policy import resolve_product_type
+
+        overrides = getattr(self._config, "device_product_types", None) or {}
+        for _idx, meta in self._state.device_metadata.items():
+            if not isinstance(meta, dict):
+                continue
+            eid = meta.get("entity_id")
+            if not eid:
+                meta.pop("resolved_product_type", None)
+                continue
+            origin = str(meta.get("origin") or "")
+            dtype = str(meta.get("type") or "").lower()
+            # Product light|switch only applies to Hue mesh and binary actuators.
+            if origin == "hue" or dtype in ("switch", "light"):
+                meta["resolved_product_type"] = resolve_product_type(
+                    str(eid),
+                    origin=origin,
+                    overrides=overrides,
+                )
+            else:
+                meta.pop("resolved_product_type", None)
 
     def ensure_entity_id(self, idx: int) -> Optional[str]:
         """Stamp a frozen entity_id onto device_metadata[idx] (does not flush disk)."""

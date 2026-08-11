@@ -209,6 +209,7 @@ def run_entity_cutover_checks(
     merged_auto = {
         "deviceexplorer_hide": raw_auto.get("deviceexplorer_hide"),
         "auto_off_devices": raw_auto.get("auto_off_devices", raw_cfg.get("auto_off_devices")),
+        "device_product_types": raw_auto.get("device_product_types"),
         "automations": raw_auto.get("automations", raw_cfg.get("automations")),
     }
     stats["automations_source"] = auto_source
@@ -271,6 +272,32 @@ def run_entity_cutover_checks(
             is_auto_off_eligible,
             metadata_type_for_eid,
         )
+        from core.product_type_policy import (
+            PRODUCT_TYPES,
+            is_product_type_editable,
+        )
+
+        product_types = merged_auto.get("device_product_types")
+        if product_types is None:
+            product_types = {}
+        elif not isinstance(product_types, dict):
+            errors.append("device_product_types must be a mapping")
+            product_types = {}
+        else:
+            _require_eids("device_product_types", list(product_types.keys()))
+            stats["device_product_types"] = len(product_types)
+            for eid, val in product_types.items():
+                key = str(eid).strip()
+                v = str(val).strip().lower()
+                if v not in PRODUCT_TYPES:
+                    errors.append(f"device_product_types['{key}'] invalid value '{val}'")
+                    continue
+                if v != "light":
+                    errors.append(f"device_product_types['{key}'] must be 'light' (switch is default)")
+                    continue
+                dtype = metadata_type_for_eid(key)
+                if not is_product_type_editable(key, device_type=dtype):
+                    errors.append(f"device_product_types has non-editable eid '{key}'")
 
         managed = auto_off.get("managed_auto_off") or []
         delays = auto_off.get("auto_off_delays") or {}
@@ -385,6 +412,7 @@ _STAT_HELP: Dict[str, str] = {
     "automation_leftover_idxs": "numeric idx: still under automations: (must be 0)",
     "automation_entity_ids": "entity_id refs found in automations: rules",
     "deviceexplorer_hide": "entity_ids soft-hidden from Device Explorer",
+    "device_product_types": "optional light overrides (D1 Timers & types)",
     "power_meter_links": "switch->meter links in hardware_links.power_meters",
     "blinds_travel_times": "per-blind travel overrides in blinds.travel_times",
     "managed_auto_off": "devices in auto_off_devices.managed_auto_off",

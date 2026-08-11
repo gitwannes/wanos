@@ -607,12 +607,15 @@ class AutomationEngine:
                         if not timer_exists:
                             meta = state.device_metadata.get(light_idx) or {}
                             dtype = meta.get("type") if isinstance(meta, dict) else None
+                            origin = meta.get("origin") if isinstance(meta, dict) else None
                             delay_mins: int = resolve_auto_off_minutes(
                                 eid=light_eid,
                                 device_type=dtype,
                                 auto_off_delays=config.auto_off_devices.auto_off_delays,
                                 default_pertype=config.auto_off_devices.default_pertype_auto_off_minutes,
                                 default_minutes=config.auto_off_devices.default_auto_off_minutes,
+                                origin=str(origin) if origin else None,
+                                product_type_overrides=getattr(config, "device_product_types", None) or {},
                             )
                             deadline: int = int(time.time()) + delay_mins * 60
                             semantic_name: str = device_name(state, light_idx, "Unknown")
@@ -627,7 +630,7 @@ class AutomationEngine:
                                     "event_payload": {
                                         "idx": light_idx,
                                         "name": semantic_name,
-                                        "type": "switch",
+                                        "type": str(meta.get("resolved_product_type") or "switch"),
                                         "target_state": "OFF",
                                         "origin": "TIMER"
                                     }
@@ -760,12 +763,15 @@ class AutomationEngine:
                 if safe_state == "ON":
                     meta = state.device_metadata.get(idx) or {}
                     dtype = meta.get("type") if isinstance(meta, dict) else None
+                    origin = meta.get("origin") if isinstance(meta, dict) else None
                     delay_mins: int = resolve_auto_off_minutes(
                         eid=light_eid,
                         device_type=dtype,
                         auto_off_delays=config.auto_off_devices.auto_off_delays,
                         default_pertype=config.auto_off_devices.default_pertype_auto_off_minutes,
                         default_minutes=config.auto_off_devices.default_auto_off_minutes,
+                        origin=str(origin) if origin else None,
+                        product_type_overrides=getattr(config, "device_product_types", None) or {},
                     )
                     deadline: int = int(time.time()) + delay_mins * 60
 
@@ -778,7 +784,7 @@ class AutomationEngine:
                             "event_payload": {
                                 "idx": idx,
                                 "name": device_name(state, idx, "Unknown"),
-                                "type": "switch",
+                                "type": str(meta.get("resolved_product_type") or "switch"),
                                 "target_state": "OFF",
                                 "origin": "TIMER"
                             }

@@ -15,9 +15,13 @@ function zwaveApp() {
         sortMode: "NODE", // "NODE", "IDX", "NAME", "TYPE", "PATH"
         sortDir: "asc",
         savedFingerprint: "",
+        /** @type {Record<string, {selected: boolean, name: string, type: string, comment_str: string}>} */
+        savedSnapshot: {},
         _baselinePending: false,
         // C2 leave-guard (Blocky-style Cancel / Discard / Save)
         pendingNav: null,
+        /** Set true after user confirms Discard/Save leave so beforeunload does not double-prompt. */
+        _allowNavigation: false,
 
         logout() {
             localStorage.removeItem("wanos_jwt");
@@ -48,7 +52,8 @@ function zwaveApp() {
             const action = this.pendingNav;
             this.pendingNav = null;
             document.getElementById("unsaved_changes_modal")?.close();
-            // Reload map from live state (discards local edits)
+            // Force map rebuild: processBackendState otherwise skips zwave_mapped while
+            // _initialMapDone (intent-preservation), leaving dirty=true → browser Leave site? dialog.
             try {
                 const token = localStorage.getItem("wanos_jwt") || "";
                 const res = await fetch("/api/state", {
@@ -56,11 +61,14 @@ function zwaveApp() {
                 });
                 if (res.ok) {
                     const data = await res.json();
+                    this._initialMapDone = false;
                     this.processBackendState(data);
                 }
             } catch (e) {
                 console.error("discard reload failed", e);
             }
+            // User already confirmed discard — never show a second native prompt.
+            this._allowNavigation = true;
             this.runLeaveAction(action);
         },
 
@@ -70,9 +78,9 @@ function zwaveApp() {
             const action = this.pendingNav;
             this.pendingNav = null;
             document.getElementById("unsaved_changes_modal")?.close();
+            this._allowNavigation = true;
             this.runLeaveAction(action);
         },
-
         navAway(ev, url) {
             if (!this.dirty) return;
             ev.preventDefault();
@@ -98,6 +106,67 @@ function zwaveApp() {
             return this._mapFingerprint() !== this.savedFingerprint;
         },
 
+        _captureSavedSnapshot() {
+            const snap = {};
+            for (const i of this.deviceList) {
+                snap[i.path] = {
+                    selected: !!i.selected,
+                    name: String(i.name || "").trim(),
+                    type: String(i.type || ""),
+                    comment_str: String(i.comment_str || "").trim(),
+                };
+            }
+            this.savedSnapshot = snap;
+        },
+
+        /** True when this row differs from last saved map (add/remove/name/type/comment). */
+        isRowDirty(item) {
+            if (!item || !item.path) return false;
+            if (!this.savedFingerprint) return false;
+            const base = this.savedSnapshot[item.path];
+            const selected = !!item.selected;
+            const name = String(item.name || "").trim();
+            const type = String(item.type || "");
+            const comment = String(item.comment_str || "").trim();
+            if (!base) {
+                // New inbox row since baseline — dirty only once selected (add).
+                return selected;
+            }
+            if (selected !== base.selected) return true;
+            if (!selected) return false;
+            return name !== base.name || type !== base.type || comment !== base.comment_str;
+        },
+
+        isNameDirty(item) {
+            if (!this.isRowDirty(item) || !item) return false;
+            const base = this.savedSnapshot[item.path];
+            if (!base) return !!item.selected;
+            return String(item.name || "").trim() !== base.name;
+        },
+
+        isAddDirty(item) {
+            if (!item) return false;
+            const base = this.savedSnapshot[item.path];
+            const selected = !!item.selected;
+            if (!base) return selected;
+            return selected !== base.selected;
+        },
+
+        isTypeDirty(item) {
+            if (!item || item.is_mapped) return false;
+            const base = this.savedSnapshot[item.path];
+            if (!base) return !!item.selected;
+            if (!item.selected && !base.selected) return false;
+            return String(item.type || "") !== base.type;
+        },
+
+        isCommentDirty(item) {
+            if (!item || !item.selected) return false;
+            const base = this.savedSnapshot[item.path];
+            if (!base) return !!String(item.comment_str || "").trim();
+            return String(item.comment_str || "").trim() !== base.comment_str;
+        },
+
         sortIndicator(mode) {
             if (this.sortMode !== mode) return "";
             return this.sortDir === "asc" ? " ▲" : " ▼";
@@ -110,6 +179,26 @@ function zwaveApp() {
                 this.sortMode = mode;
                 this.sortDir = "asc";
             }
+        },
+
+        resolvedProductType(item) {
+            // Mapped binary (71–72x): always show product type; never blank.
+            if (!item || item.idx == null) return "switch";
+            const meta = (this._lastMeta || {})[item.idx] || (this._lastMeta || {})[String(item.idx)];
+            if (meta && meta.resolved_product_type) return String(meta.resolved_product_type);
+            if (item.product_type) return String(item.product_type);
+            return "switch";
+        },
+
+        mappedTypeLabel(item) {
+            if (!item) return "";
+            if (this.isBinaryIdx(item.idx)) return this.resolvedProductType(item);
+            return item.type || "";
+        },
+
+        isBinaryIdx(idx) {
+            const i = Number(idx);
+            return Number.isFinite(i) && i >= 71000 && i < 73000;
         },
 
         // ⚡ Reactive filtering pipeline
@@ -193,6 +282,7 @@ function zwaveApp() {
             }).catch(err => console.error("Failed to fetch state:", err));
 
             this._onBeforeUnload = (e) => {
+                if (this._allowNavigation) return;
                 if (!this.dirty) return;
                 e.preventDefault();
                 e.returnValue = "";
@@ -296,14 +386,18 @@ function zwaveApp() {
                         if (safeNode === "1") continue;
 
                         const existing = this.deviceList.find(i => i.path === path);
+                        const metaRow = (fullState.device_metadata && fullState.device_metadata[idx])
+                            || (fullState.device_metadata && fullState.device_metadata[String(idx)]);
+                        const productType = (metaRow && metaRow.resolved_product_type)
+                            || ((idx >= 71000 && idx < 73000) ? "switch" : null);
                         if (existing) {
                             existing.is_mapped = true;
                             existing.idx = idx;
                             existing.name = name;
                             existing.comment_str = commentStr;
                             existing.original_idx = idx;
-                            existing.entity_id = (fullState.device_metadata && fullState.device_metadata[idx]
-                                ? fullState.device_metadata[idx].entity_id : null);
+                            existing.entity_id = metaRow ? metaRow.entity_id : null;
+                            if (productType) existing.product_type = productType;
                             // We can safely restore the auto-select because this block ONLY runs on fresh boots or manual reloads.
                             existing.selected = true;
                         } else {
@@ -321,12 +415,12 @@ function zwaveApp() {
                                 selected: true,
                                 is_mapped: true,
                                 type: type,
+                                product_type: productType || undefined,
                                 idx: idx,
                                 name: name,
                                 comment_str: commentStr,
                                 original_idx: idx,
-                                entity_id: (fullState.device_metadata && fullState.device_metadata[idx]
-                                    ? fullState.device_metadata[idx].entity_id : null),
+                                entity_id: metaRow ? metaRow.entity_id : null,
                             });
                             listModified = true;
                         }
@@ -338,17 +432,6 @@ function zwaveApp() {
 
             // 2. Unpack Transient Discovery Data Elements
             if (fullState.system.zwave_inbox) {
-                // ⚡ SMART DEFAULT HELPER: Scan inbox first to identify which physical nodes have Power telemetry
-                const nodesWithPower = new Set();
-                for (const [path, data] of Object.entries(fullState.system.zwave_inbox)) {
-                    const sn = data.node || data.node_name || path.split('/')[0];
-                    const cc = data.command_class;
-                    const lp = path.toLowerCase();
-                    if (cc === "50" || (cc === "49" && lp.includes("power"))) {
-                        nodesWithPower.add(sn);
-                    }
-                }
-
                 for (const [path, data] of Object.entries(fullState.system.zwave_inbox)) {
                     const safeNode = data.node || data.node_name || path.split('/')[0];
 
@@ -364,9 +447,9 @@ function zwaveApp() {
                         const cc = data.command_class;
                         const lowerPath = path.toLowerCase();
 
-                        if (cc === "37" || cc === "25") {
-                            // ⚡ SMART DEFAULT: If a relay node also has power telemetry, guess Switch (72xxx), else Light (71xxx)
-                            staticType = nodesWithPower.has(safeNode) ? "switch" : "light";
+                        if (cc === "37") {
+                            // D1: binary inbox default → switch (unified 71–72x pool)
+                            staticType = "switch";
                         }
                         else if (cc === "38") staticType = "shutter";
                         else if (cc === "48") staticType = "motion";
@@ -402,6 +485,7 @@ function zwaveApp() {
             }
             if (this._baselinePending) {
                 this.savedFingerprint = this._mapFingerprint();
+                this._captureSavedSnapshot();
                 this._baselinePending = false;
             }
 
@@ -431,10 +515,11 @@ function zwaveApp() {
 
                 if (!item.is_mapped) {
                     let basePrefix = 71;
-                    if (item.type === 'shutter') basePrefix = 73;
-                    else if (item.type === 'power') basePrefix = 74;
-                    else if (item.type === 'motion') basePrefix = 75;
-                    else if (item.type === 'temp&hum' || item.type === 'sensor') basePrefix = 76;
+                    const provType = item.type === "light" ? "switch" : item.type;
+                    if (provType === 'shutter') basePrefix = 73;
+                    else if (provType === 'power') basePrefix = 74;
+                    else if (provType === 'motion') basePrefix = 75;
+                    else if (provType === 'temp&hum' || provType === 'sensor') basePrefix = 76;
 
                     const blockIdxs = Array.from(reservedIdxs).filter(id => Math.floor(id / 1000) === basePrefix);
 
@@ -542,6 +627,7 @@ function zwaveApp() {
 
                 this.infoMessage = "Config reload requested";
                 this.savedFingerprint = this._mapFingerprint();
+                this._captureSavedSnapshot();
                 setTimeout(() => {
                     if (this.configReloading) this.configReloading = false;
                 }, 10000);

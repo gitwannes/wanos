@@ -68,7 +68,11 @@ from core.auto_off_policy import (
     sanitize_managed_list,
     sanitize_pertype_map,
 )
-from core.well_known_entities import is_hard_deny_entity_id
+from core.product_type_policy import (
+    PRODUCT_TYPES,
+    is_product_type_editable,
+    sanitize_product_type_overrides,
+)
 from core.automations_schema_v2 import (
     is_v2_rule,
     legacy_to_v2,
@@ -929,21 +933,34 @@ class AutoOffPutRequest(BaseModel):
     default_auto_off_minutes: int = 300
     default_pertype_auto_off_minutes: dict[str, int] = {}
     auto_off_delays: dict[str, int] = {}
+    device_product_types: dict[str, str] = {}
+
+
+def _live_meta_for_eid(eid: str) -> dict[str, Any]:
+    idx = state_manager.resolve_entity_id(eid)
+    if idx is None:
+        return {}
+    meta = state_manager.get_state_snapshot().device_metadata.get(idx) or {}
+    return meta if isinstance(meta, dict) else {}
 
 
 def _live_type_for_eid(eid: str) -> Optional[str]:
-    idx = state_manager.resolve_entity_id(eid)
-    if idx is None:
-        return None
-    meta = state_manager.get_state_snapshot().device_metadata.get(idx) or {}
-    if isinstance(meta, dict) and meta.get("type"):
+    meta = _live_meta_for_eid(eid)
+    if meta.get("type"):
         return str(meta.get("type"))
+    return None
+
+
+def _live_origin_for_eid(eid: str) -> Optional[str]:
+    meta = _live_meta_for_eid(eid)
+    if meta.get("origin"):
+        return str(meta.get("origin"))
     return None
 
 
 @app.get("/api/auto-off-timer")
 async def get_auto_off_timer(req: Request) -> dict[str, Any]:
-    """Admin: read auto_off_devices block."""
+    """Admin: read auto_off_devices + device_product_types (Timers & types)."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
     return read_auto_off_config()
@@ -951,7 +968,7 @@ async def get_auto_off_timer(req: Request) -> dict[str, Any]:
 
 @app.put("/api/auto-off-timer")
 async def put_auto_off_timer(body: AutoOffPutRequest, req: Request) -> dict[str, Any]:
-    """Admin: full-replace auto_off_devices; surgical write + hot-reload."""
+    """Admin: full-replace auto_off_devices + device_product_types; scoped reload."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
@@ -960,18 +977,23 @@ async def put_auto_off_timer(body: AutoOffPutRequest, req: Request) -> dict[str,
         general = normalize_minutes(body.default_auto_off_minutes)
         pertype = sanitize_pertype_map(body.default_pertype_auto_off_minutes)
         delays = sanitize_delay_map(body.auto_off_delays)
+        product_types = sanitize_product_type_overrides(body.device_product_types)
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
     managed_set = set(managed)
     unknown: list[str] = []
     ineligible: list[str] = []
+    overrides_cfg = getattr(state_manager._config, "device_product_types", None) or {}
     for eid in managed:
         if state_manager.resolve_entity_id(eid) is None:
             unknown.append(eid)
             continue
         dtype = _live_type_for_eid(eid)
-        if not is_auto_off_eligible(eid, dtype):
+        origin = _live_origin_for_eid(eid)
+        if not is_auto_off_eligible(
+            eid, dtype, origin=origin, product_type_overrides=product_types or overrides_cfg
+        ):
             ineligible.append(eid)
     for eid in delays:
         if eid not in managed_set:
@@ -986,6 +1008,23 @@ async def put_auto_off_timer(body: AutoOffPutRequest, req: Request) -> dict[str,
         return JSONResponse(
             status_code=400,
             content={"error": f"Invalid type keys: {', '.join(bad_types)}"},
+        )
+    bad_product: list[str] = []
+    for eid, val in product_types.items():
+        if state_manager.resolve_entity_id(eid) is None:
+            bad_product.append(f"{eid} (unknown)")
+            continue
+        if val not in PRODUCT_TYPES:
+            bad_product.append(f"{eid} (invalid value '{val}')")
+            continue
+        dtype = _live_type_for_eid(eid)
+        origin = _live_origin_for_eid(eid)
+        if not is_product_type_editable(eid, origin=origin, device_type=dtype):
+            bad_product.append(f"{eid} (not editable)")
+    if bad_product:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Invalid device_product_types: {', '.join(bad_product)}"},
         )
     if unknown:
         return JSONResponse(
@@ -1004,6 +1043,7 @@ async def put_auto_off_timer(body: AutoOffPutRequest, req: Request) -> dict[str,
             default_auto_off_minutes=general,
             default_pertype_auto_off_minutes=pertype,
             auto_off_delays=delays,
+            device_product_types=product_types,
         )
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
@@ -1011,7 +1051,12 @@ async def put_auto_off_timer(body: AutoOffPutRequest, req: Request) -> dict[str,
         logger.error(f"auto-off-timer write failed: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to write auto-off config."})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    state_manager.dispatch(
+        Event(
+            type=EventType.CONFIG_RELOAD_REQUESTED,
+            payload={"source": "api", "scope": "timers_types"},
+        )
+    )
     return {"status": "Success", **written}
 
 

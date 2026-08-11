@@ -56,10 +56,13 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
     # Distinguish Admin "Reload" button from surgical API writes (Blocky save, soft-hide, …).
     payload = event.payload or {}
     source = str(payload.get("source") or "").strip().lower()
+    scope = str(payload.get("scope") or "").strip().lower()
     if not source and str(payload.get("origin") or "").upper() == "MANUAL":
         source = "ui_button"
     if source in ("ui_button", "ui", "manual", "button"):
         await manager.logger.info("🔄 Configuration hot-reload requested via UI button.")
+    elif scope in ("auto_off_metadata", "timers_types", "product_types"):
+        await manager.logger.info("🔄 Scoped reload (auto-off + product types + metadata).")
     else:
         await manager.logger.info("🔄 Configuration hot-reload (auto — after config write).")
     state_changed = False
@@ -74,48 +77,51 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         # Delegate metadata assembly to the atomic rebuilder
         manager.rebuild_core_metadata()
 
-        # RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
-        if manager.hue_bridge:
-            await manager.hue_bridge.stop()
-            manager.hue_bridge._config = new_config
-            manager.hue_bridge._initialize_mappings()
-            await manager.hue_bridge.start()
+        # D1: scoped reload — skip bridge recycle for Timers & types saves.
+        full_recycle = scope not in ("auto_off_metadata", "timers_types", "product_types")
+        if full_recycle:
+            # RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
+            if manager.hue_bridge:
+                await manager.hue_bridge.stop()
+                manager.hue_bridge._config = new_config
+                manager.hue_bridge._initialize_mappings()
+                await manager.hue_bridge.start()
 
-        # Rebuild RFX hex translation maps from the new native_rfx list
-        if getattr(manager, "rfxcom_bridge", None):
-            manager.rfxcom_bridge._outbound_map.clear()
-            manager.rfxcom_bridge._inbound_map.clear()
-            manager.rfxcom_bridge._last_known_states.clear()
-            manager.rfxcom_bridge._build_translation_maps()
+            # Rebuild RFX hex translation maps from the new native_rfx list
+            if getattr(manager, "rfxcom_bridge", None):
+                manager.rfxcom_bridge._outbound_map.clear()
+                manager.rfxcom_bridge._inbound_map.clear()
+                manager.rfxcom_bridge._last_known_states.clear()
+                manager.rfxcom_bridge._build_translation_maps()
 
-        # Refresh Sonos device/station maps and speaker sockets
-        if getattr(manager, "sonos_bridge", None):
-            import soco
-            bridge = manager.sonos_bridge
-            sonos_cfg = new_config.sonos
-            bridge.device_map = sonos_cfg.device_map if sonos_cfg else {}
-            bridge.stations = sonos_cfg.stations if sonos_cfg else {}
-            bridge.max_vol = sonos_cfg.max_volume if sonos_cfg else 70
-            new_speakers = {}
-            for idx, node in bridge.device_map.items():
-                existing = bridge.speakers.get(idx)
-                new_speakers[idx] = existing if existing is not None else soco.SoCo(node.ip)
-            bridge.speakers = new_speakers
+            # Refresh Sonos device/station maps and speaker sockets
+            if getattr(manager, "sonos_bridge", None):
+                import soco
+                bridge = manager.sonos_bridge
+                sonos_cfg = new_config.sonos
+                bridge.device_map = sonos_cfg.device_map if sonos_cfg else {}
+                bridge.stations = sonos_cfg.stations if sonos_cfg else {}
+                bridge.max_vol = sonos_cfg.max_volume if sonos_cfg else 70
+                new_speakers = {}
+                for idx, node in bridge.device_map.items():
+                    existing = bridge.speakers.get(idx)
+                    new_speakers[idx] = existing if existing is not None else soco.SoCo(node.ip)
+                bridge.speakers = new_speakers
 
-        # Recycle Onkyo TCP listeners against the new device map
-        if getattr(manager, "onkyo_bridge", None):
-            was_running = getattr(manager.onkyo_bridge, "_running", False)
-            if was_running:
-                await manager.onkyo_bridge.stop()
-            manager.onkyo_bridge.config = new_config.onkyo
-            manager.onkyo_bridge.device_map = (
-                new_config.onkyo.device_map if new_config.onkyo else {}
-            )
-            manager.onkyo_bridge.max_vol = (
-                new_config.onkyo.max_volume if new_config.onkyo else 60
-            )
-            if was_running and manager._state.system.onkyo_integration_enabled:
-                await manager.onkyo_bridge.start()
+            # Recycle Onkyo TCP listeners against the new device map
+            if getattr(manager, "onkyo_bridge", None):
+                was_running = getattr(manager.onkyo_bridge, "_running", False)
+                if was_running:
+                    await manager.onkyo_bridge.stop()
+                manager.onkyo_bridge.config = new_config.onkyo
+                manager.onkyo_bridge.device_map = (
+                    new_config.onkyo.device_map if new_config.onkyo else {}
+                )
+                manager.onkyo_bridge.max_vol = (
+                    new_config.onkyo.max_volume if new_config.onkyo else 60
+                )
+                if was_running and manager._state.system.onkyo_integration_enabled:
+                    await manager.onkyo_bridge.start()
 
         state_changed = True
         changed_domains.update({"system", "devices", "device_metadata"})
@@ -125,9 +131,10 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         state_changed |= ch
         changed_domains |= dom
 
-        # Automatically trigger a system sweep 2 seconds after a config reload
-        manager._timer_manager.schedule("post_reload_sweep", int(time.time()) + 2, "SYSTEM_SWEEP_REQUESTED",
-                                        {"reason": "config_reload"})
+        # Automatically trigger a system sweep 2 seconds after a full config reload
+        if full_recycle:
+            manager._timer_manager.schedule("post_reload_sweep", int(time.time()) + 2, "SYSTEM_SWEEP_REQUESTED",
+                                            {"reason": "config_reload"})
     except Exception as e:
         ch, dom = AlertManager.process_alert(manager._state, f"🔴 Config reload failed: {e}")
         state_changed |= ch

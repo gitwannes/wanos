@@ -277,7 +277,7 @@ function wanosApp() {
                         if (t.target_state === "100") actionText = "CLOSE";
                         else if (t.target_state === "0") actionText = "OPEN";
                         else actionText = `change to ${t.target_state}%`;
-                    } else if (t.type === "switch") {
+                    } else if (t.type === "switch" || t.type === "light") {
                         actionText = `turn ${t.target_state}`;
                     } else if (t.type === "scene") {
                         // Scene intention without leading "will" (C2)
@@ -597,6 +597,14 @@ function wanosApp() {
                     name: meta.name,
                     type: meta.type,
                     origin: meta.origin, // dynamically label Sonos vs Onkyo
+                    // Product type only for binary actuators / Hue; do not default sensors→switch.
+                    resolved_product_type: (() => {
+                        if (meta.resolved_product_type) return meta.resolved_product_type;
+                        if (meta.origin === "hue") return "light";
+                        const t = String(meta.type || "").toLowerCase();
+                        if (t === "switch" || t === "light") return "switch";
+                        return null;
+                    })(),
                     // Same as Onkyo: config max_volume on meta; fallback by origin if meta missing.
                     max_volume: (() => {
                         if (meta.max_volume !== undefined && meta.max_volume !== null) return meta.max_volume;
@@ -662,14 +670,26 @@ function wanosApp() {
             // 4. Apply Type Filter
             if (this.typeFilter !== "ALL") {
                 list = list.filter(item => {
-                    // Isolates traditional non-Hue hardware relays, binary switches, and sockets
-                    if (this.typeFilter === "SWITCH") return item.type === 'switch' && !item.is_hue;
-                    // Isolates advanced local API Hue mesh channels, rooms, and zones (IDX >= 50000)
+                    const t = String(item.type || "").toLowerCase();
+                    const isBinaryActuator = t === "switch" || t === "light";
+                    const rpt = item.resolved_product_type
+                        || (item.is_hue ? "light" : (isBinaryActuator ? "switch" : null));
+                    // Product SWITCH/LIGHT: binary actuators only (not sensors/scenes/doors/…).
+                    if (this.typeFilter === "SWITCH") {
+                        return isBinaryActuator && !item.is_hue && rpt === "switch";
+                    }
+                    if (this.typeFilter === "LIGHT") {
+                        return isBinaryActuator && !item.is_hue && rpt === "light";
+                    }
                     if (this.typeFilter === "HUE") return item.is_hue;
-                    if (this.typeFilter === "SPEAKER") return item.type === 'speaker';
-                    if (this.typeFilter === "SCENE") return item.type === 'scene';
-                    if (this.typeFilter === "BLINDS") return item.type === 'blinds';
-                    if (this.typeFilter === "SENSOR") return item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum' || item.type === 'power' || item.type === 'energy' || item.type === 'sensor';
+                    if (this.typeFilter === "SPEAKER") return t === "speaker";
+                    if (this.typeFilter === "SCENE") return t === "scene";
+                    if (this.typeFilter === "SHUTTER" || this.typeFilter === "BLINDS") return t === "blinds";
+                    if (this.typeFilter === "SENSOR") {
+                        return t === "temp" || t === "hum" || t === "temp_hum"
+                            || t === "power" || t === "energy" || t === "sensor"
+                            || t === "door" || t === "fluid" || t === "motion";
+                    }
                     return true;
                 });
             }
@@ -1653,10 +1673,13 @@ function wanosApp() {
             return `background-color: ${hex}; box-shadow: 0 0 10px ${hex};`;
         },
 
-        /** Display label for History type chips (Device Explorer keeps raw `type`). */
-        historyTypeLabel(type) {
-            if (type === "light") return "Hue light";
-            return type || "";
+        /** Display label for History type chips. */
+        historyTypeLabel(type, origin) {
+            const t = String(type || "");
+            const o = String(origin || "").toLowerCase();
+            if (t === "light") return o === "hue" ? "Hue light" : "light";
+            if (t === "blinds") return "shutter";
+            return t || "";
         },
 
         /**
@@ -2036,15 +2059,26 @@ function wanosApp() {
             if (this.typeFilter !== "ALL") {
                 list = list.filter(r => {
                     const meta = (this.state.device_metadata && this.state.device_metadata[r.idx]) || {};
-                    const isHue = meta.origin === "hue" || r.type === "light";
-                    if (this.typeFilter === "SWITCH") return r.type === "switch" && !isHue;
+                    const isHue = meta.origin === "hue";
+                    const t = String(r.type || meta.type || "").toLowerCase();
+                    const isBinaryActuator = t === "switch" || t === "light";
+                    const rpt = meta.resolved_product_type
+                        || (isHue ? "light" : (isBinaryActuator ? "switch" : null));
+                    if (this.typeFilter === "SWITCH") {
+                        return isBinaryActuator && !isHue && rpt === "switch";
+                    }
+                    if (this.typeFilter === "LIGHT") {
+                        return isBinaryActuator && !isHue && rpt === "light";
+                    }
                     if (this.typeFilter === "HUE") return isHue;
-                    if (this.typeFilter === "SPEAKER") return r.type === "speaker";
-                    if (this.typeFilter === "SCENE") return r.type === "scene";
-                    if (this.typeFilter === "BLINDS") return r.type === "blinds";
+                    if (this.typeFilter === "SPEAKER") return t === "speaker" || r.type === "speaker";
+                    if (this.typeFilter === "SCENE") return t === "scene" || r.type === "scene";
+                    if (this.typeFilter === "SHUTTER" || this.typeFilter === "BLINDS") {
+                        return t === "blinds" || r.type === "blinds";
+                    }
                     if (this.typeFilter === "SENSOR") {
-                        return ["temp", "hum", "temp_hum", "power", "energy", "sensor", "host", "climate", "water"]
-                            .includes(r.type) || r.category === "utility" || r.category === "climate" || r.category === "host";
+                        return ["temp", "hum", "temp_hum", "power", "energy", "sensor", "host", "climate", "water", "door", "fluid", "motion"]
+                            .includes(t) || r.category === "utility" || r.category === "climate" || r.category === "host";
                     }
                     return true;
                 });
@@ -2072,7 +2106,8 @@ function wanosApp() {
             const parsed = this._parseTextQuery(this.actuatorSearchQuery || this.searchQuery || "");
             if (parsed) {
                 list = list.filter(r => {
-                    const typeLabel = this.historyTypeLabel(r.type) || "";
+                    const meta = (this.state.device_metadata && this.state.device_metadata[r.idx]) || {};
+                    const typeLabel = this.historyTypeLabel(r.type, meta.origin) || "";
                     const hay = `${r.idx} ${r.name || ""} ${r.type || ""} ${typeLabel} ${r.status || ""} ${r.category}`;
                     return this._matchesTextQuery(hay, parsed);
                 });

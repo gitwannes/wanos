@@ -11,7 +11,7 @@ When the Epson integration is toggled to **ON** in the WanOS Admin UI, it dispat
 ## 2. Triggering Outbound Commands
 When a user clicks the projector toggle (IDX `80001`) in the UI, the `StateManager` receives a `HUB_STATE_CHANGED` event[cite: 4].
 
-*   **The Interceptor:** Inside `hub_handlers.py`, the core engine intercepts IDX `80001`[cite: 4]. If the integration is enabled, it spawns an ephemeral asynchronous task: `manager.epson_bridge.power(state_val)`[cite: 4].
+*   **The Interceptor:** Inside `hub_handlers.py`, the core engine intercepts IDX `80001` / `entity_id` **`switch.epson`**[cite: 4]. If the integration is enabled, it spawns an ephemeral asynchronous task: `manager.epson_bridge.power(state_val)`[cite: 4].
 *   **The TCP Handshake:** The bridge opens a temporary TCP socket to port `3629`[cite: 10]. It strictly sends the proprietary `EPSON_INIT` byte array (ESC/VP.net handshake), waits 0.5 seconds, and then transmits the ASCII command (`PWR ON` or `PWR OFF`) terminated by a carriage return (`\x0D`)[cite: 10].
 *   **Socket Teardown:** Once the projector replies with the expected confirmation handshake, the script immediately closes the TCP socket and waits for the next command[cite: 10].
 

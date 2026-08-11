@@ -7,7 +7,7 @@ Based on the WanOS backend architecture, the Z-Wave integration acts as a **lazy
 When the WanOS backend boots, the `ZWaveJSUIBridge` is instantiated, but it does not immediately subscribe to device telemetry. 
 
 *   **Silent Standby:** The bridge subscribes exclusively to the Z-Wave JS UI driver status (`driver/status`) and an out-of-band data plane heartbeat (`_EVENTS/+/controller/statistics_updated`). 
-*   **Lazy Boot:** The integration waits for two distinct hardware flags to become `True`: the physical USB stick connection (`zwave_hardware_connected`) and the MQTT engine status (`is_mqtt_engine_alive`). Only when both are verified does the bridge parse `config_zwave.auto.yaml` to map the network. Mapped nodes receive (or reuse) a stable `entity_id` via system-owned `entity_registry.auto.yaml` — see `docs/todo/phaseB-blocky.md`.
+*   **Lazy Boot:** The integration waits for two distinct hardware flags to become `True`: the physical USB stick connection (`zwave_hardware_connected`) and the MQTT engine status (`is_mqtt_engine_alive`). Only when both are verified does the bridge parse `config_zwave.auto.yaml` to map the network. Mapped binary actuators receive (or reuse) a stable `entity_id` via system-owned `entity_registry.auto.yaml` — birth pattern **`zwave.<slug>`** (vent motors **`zwave.vent.<slug>`**). Product **light** vs **switch** is not the id prefix — see Timers & types / `device_product_types` in [`phaseD-typing.md`](todo/phaseD-typing.md).
 *   **Armed Subscription:** Once the UI master toggle enables the integration, the bridge opens the telemetry stream (`zwave/#`) to actively listen for node updates.
 
 ## 2. Protocol Variations: Command Classes

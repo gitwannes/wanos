@@ -53,6 +53,7 @@ function hiddenDevicesApp() {
             this.draftHidden = new Set(this.savedHidden);
             for (const row of this.rows) {
                 row.hidden = this.draftHidden.has(row.eid);
+                row.unsaved = false;
             }
             document.getElementById("unsaved_changes_modal")?.close();
             this.runLeaveAction(action);
@@ -214,6 +215,7 @@ function hiddenDevicesApp() {
                         type,
                         typeLabel: this.typeLabel(type, origin, idx),
                         hidden: this.draftHidden.has(eid),
+                        unsaved: false,
                     });
                 }
                 this.rows = rows;
@@ -225,16 +227,18 @@ function hiddenDevicesApp() {
         },
 
         toggle(row, checked) {
-            row.hidden = checked;
+            row.hidden = !!checked;
             if (checked) this.draftHidden.add(row.eid);
             else this.draftHidden.delete(row.eid);
             this.draftHidden = new Set(this.draftHidden);
+            row.unsaved = !!row.hidden !== this.savedHidden.has(row.eid);
         },
 
         selectAllVisible() {
             for (const row of this.visibleRows) {
                 row.hidden = true;
                 this.draftHidden.add(row.eid);
+                row.unsaved = true !== this.savedHidden.has(row.eid);
             }
             this.draftHidden = new Set(this.draftHidden);
         },
@@ -243,6 +247,7 @@ function hiddenDevicesApp() {
             for (const row of this.visibleRows) {
                 row.hidden = false;
                 this.draftHidden.delete(row.eid);
+                row.unsaved = false !== this.savedHidden.has(row.eid);
             }
             this.draftHidden = new Set(this.draftHidden);
         },
@@ -313,6 +318,7 @@ function hiddenDevicesApp() {
                 this.draftHidden = new Set(this.savedHidden);
                 for (const row of this.rows) {
                     row.hidden = this.draftHidden.has(row.eid);
+                    row.unsaved = false;
                 }
                 this.infoMessage = "Saved. Config reloading…";
                 const reloadStatus = await this.waitForConfigReloadOk(baselineFp);

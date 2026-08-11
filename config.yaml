@@ -23,8 +23,7 @@ auth:
 # 500xx : Hue (config_hue.taml)
 # 600xx : Sonos
 # 610xx : Onkyo
-# 700xx : Z-Wave (config_zwave.auto.yaml)
-# 71046 : Mains voltage (Z-Wave Node 50)
+# 7xxxx : Z-Wave - detail in config_zwave.auto.yaml
 # 900xxx : scene history synthetic keys (crc32 of event name)
 
 # ==============================================================================
@@ -123,11 +122,11 @@ weather:
   sun_refresh_hour: 3  # once-daily sunrise/sunset + env schedule (≥ this local hour)
 
 hardware_links:
-  # Maps switch entity_ids to linked power meter entity_ids.
-  # When the switch turns OFF, the backend will auto-flush the power meter to 0.0W.
+  # Maps actuator entity_ids to linked power meter entity_ids.
+  # When the actuator turns OFF, the backend will auto-flush the power meter to 0.0W.
   power_meters:
-    switch.pc: sensor.power.pc_power
-    switch.pc_monitors: sensor.power.pc_monitors_power
+    zwave.pc: sensor.power.pc_power
+    zwave.pc_monitors: sensor.power.pc_monitors_power
 
 # Sensor / utility history (power, water, charts) — see docs/sensor_history.md
 history:

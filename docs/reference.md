@@ -6,7 +6,7 @@ This document serves as the master blueprint and reference guide for the directo
 
 **Root Directory (`/home/wannes/wanos/`)**
 * `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and manual integration settings. (Manual / human-edited; comments preserved.) Automatic domains (`deviceexplorer_hide`, `auto_off_devices`, `automations`) live in `automations.auto.yaml`.
-* `automations.auto.yaml`: UI/system-owned automatic sections — Explorer soft-hide (`deviceexplorer_hide`), auto-off timers (`auto_off_devices`), automation **rules**, and the `events:` catalog (system + user; bus token = UUID).
+* `automations.auto.yaml`: UI/system-owned automatic sections — Explorer soft-hide (`deviceexplorer_hide`), auto-off + product-type overrides (`auto_off_devices`, `device_product_types`), automation **rules**, and the `events:` catalog (system + user; bus token = UUID).
 * `config_hue.yaml`: Segregated lighting profile path tracking local network Philips Hue Bridge API endpoints and structural group/scene UUID allocations.
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
 * `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
@@ -15,17 +15,20 @@ This document serves as the master blueprint and reference guide for the directo
 
 ### Entity ID types (prefixes)
 
-Stable automation identifiers. Pattern is `prefix.<slug>` or `prefix.<kind>.<slug>`. Display names may say “licht”; non-Hue actuators still use `switch.*`.
+Stable automation identifiers. Pattern is `prefix.<slug>` or `prefix.<kind>.<slug>`. **Phase D** ✅ ([`phaseD-typing.md`](todo/phaseD-typing.md)): Z-Wave / RFX actuators use **`zwave.*`** / **`rfx.*`** (vent motors **`zwave.vent.*`**); product **`light`** \| **`switch`** comes from **`device_product_types`** (Timers & types), not the id prefix.
 
 | Prefix / pattern | Used for | Example |
 |---|---|---|
 | `hue.light.<slug>` | Philips Hue lights | `hue.light.buro_spot` |
 | `hue.group.<slug>` | Philips Hue groups | `hue.group.living` |
-| `switch.<slug>` | Z-Wave / RFX / Epson actuators (incl. names with “licht”) | `switch.buro_licht` |
-| `switch.vent.<slug>` | Ventilation / fan class | `switch.vent.badk_1e` |
+| `zwave.<slug>` | Z-Wave binary actuators | `zwave.buro_licht` |
+| `zwave.vent.<slug>` | Z-Wave vent **motors** | `zwave.vent.badk_1e` |
+| `rfx.<slug>` | RFX actuators | `rfx.cinema_schemer` |
+| `switch.vent.<slug>` | Wall switch controlling a vent motor | `switch.vent.toilet_ventilatie` |
+| `switch.epson` | Epson projector (was `switch.cinema_projector`) | `switch.epson` |
 | `switch.ssr.<slug>` | SSR class | `switch.ssr.sauna` |
 | `switch.safety.<slug>` | Safety / critical power class | `switch.safety.wisc` |
-| `blinds.<slug>` | Roller shutters / blinds | `blinds.cinema` |
+| `blinds.<slug>` | Roller shutters / rolluik (display: **shutter**) | `blinds.cinema` |
 | `sensor.power.<slug>` | Power meters | `sensor.power.pc` |
 | `sensor.temp_hum.<slug>` | Temperature / humidity | `sensor.temp_hum.sauna_high` |
 | `sensor.energy.<slug>` | Energy pulse (kWh) | `sensor.energy.kwh_meter` |
@@ -52,6 +55,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `mqtt_publisher.py`: The domain-scoped MQTT correspondent. Monitors the coordination worker and transforms state updates into target broker topics.
 * `nvm_manager.py`: Dedicated I/O engine managing atomic file swaps (`.tmp` to `.json`) for zero-corruption data persistence on the physical SD card.
 * `entity_registry.py`: System-owned `entity_id` ↔ idx persistence (`entity_registry.auto.yaml`), birth/freeze, and always-resolve helpers used by `StateManager`.
+* `product_type_policy.py`: Resolved product type (`light`|`switch`) — Hue forced light; overrides from `device_product_types`; birth default switch.
 * `entity_registry_check.py`: Shared cutover / health checks (registry collisions, automation + structured config entity_id refs, Python magic-idx warnings). Used by Admin Debug and the one-off CLI gate.
 * `state_manager.py`: The ultra-fast core engine driving the unidirectional event execution loop. It acts as a pure memory router, delegating payload processing to the Strategy Pattern registry.
 
@@ -160,7 +164,7 @@ The backend engine exposes a lightweight HTTP REST and SSE data pipeline layer o
 * **`POST /api/event`** | Universal application entry point. Accepts standard `type` and `payload` properties to inject commands onto the async bus. Protects admin-only payloads via RBAC token inspection.
 * **`GET /api/debug/entity-registry-check`** | Admin-only. Runs `run_entity_cutover_checks` (plus live `device_metadata`) and returns JSON including annotated `report_text` for the Admin Debug modal. Blocky also calls this after automation Save/Delete and shows GREEN/RED in-page.
 * **`GET/PUT /api/soft-hide`** | Admin. Full-list replace of `deviceexplorer_hide` in `automations.auto.yaml` (`entity_ids: string[]`). PUT dispatches `CONFIG_RELOAD_REQUESTED`. Hard-deny `switch.safety.safety_wisc_5v` rejected. Admin UI: `hiddendevices.html`.
-* **`GET/PUT /api/auto-off-timer`** | Admin. Full-replace of `auto_off_devices` in `automations.auto.yaml` (`managed_auto_off`, `default_auto_off_minutes`, `default_pertype_auto_off_minutes`, `auto_off_delays`). PUT validates eligibility / orphans / minutes 1–720; dispatches `CONFIG_RELOAD_REQUESTED`. Admin UI: `lightingautooff.html`.
+* **`GET/PUT /api/auto-off-timer`** | Admin. Full-replace of `auto_off_devices` + **`device_product_types`** in `automations.auto.yaml`. PUT validates eligibility / orphans / minutes 1–720; dispatches scoped reload (`auto_off` + metadata). Admin UI: `lightingautooff.html` (nav label **Timers & types**).
 * **`GET/POST/PUT/DELETE /api/automations`** | Admin CRUD. **Persists schema v2** (`trigger` + `cases`, `name`…`id` last). GET returns raw v2 (**SR `name` normalized to companion SE catalog**). Each write dispatches `CONFIG_RELOAD_REQUESTED`. Event triggers/fire-actions store **event UUID** after **B10B** (see `docs/todo/phaseB-blocky.md` § B10B). Pre-B10B schedule families (`SCHEDULE_WINDOW_EDGES`) removed on that cutover. **B10F:** successful CRUD also writes `INFO` lines to `wanos.log` with **quoted** names (`user rule "…" changed`, etc.). System-rule titles always bind to the SE catalog on POST/PUT; boot merge rewrites drifted YAML free-text.
 * **`GET /api/automations/fire-status`** | Admin. Today's fire status for the six env-schedule system events + Sauna OFF / IR OFF (`will_fire` / `has_fired` / `doesnt_fire_today` / `not_armed`). Local Pi clock; used by Automations SR editor (**B10F** ✅). Deadline for Sauna/IR OFF = `session_end_time` when armed (no absolute-cutoff clamp — **B18**).
 * **`GET/POST/PUT/DELETE /api/events`** | Admin. **B10B+D+E** — CRUD for `events:` in `automations.auto.yaml` (system + user). Bus token = row `id` (UUID). System: no create/delete; **never** `show_on_dashboard` (API reject + force false). User: `require_confirmation` only valid with `show_on_dashboard`; turning dashboard off forces confirm off (coerce on PUT). Surgical write + `CONFIG_RELOAD_REQUESTED`. Automations Library UX (UE/UR/SE/SR/D): `phaseB-blocky.md` § B10E; UX polish § **B10F** ✅.
