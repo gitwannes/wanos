@@ -54,19 +54,25 @@ class EnvironmentScheduler:
         twi_morn_on = _get_unix_for_today(cfg.twilight.morning_on_time)
         twi_morn_off = sns.sunrise_unix
 
-        # Store to unified State Memory
+        # Store blinds clamps (always scheduled when sun is known).
         sns.env_schedule_blinds_open_unix = blinds_open
         sns.env_schedule_blinds_close_unix = blinds_close
-        sns.env_schedule_twilight_evening_on_unix = twi_eve_on
-        sns.env_schedule_twilight_evening_off_unix = twi_eve_off
 
-        # Edge Case Protection: Skip morning twilight entirely if sunrise occurs BEFORE the configured on-time
+        # Morning lights: skip whole window if sunrise ≤ morning-on clock.
         if twi_morn_off > twi_morn_on:
             sns.env_schedule_twilight_morning_on_unix = twi_morn_on
             sns.env_schedule_twilight_morning_off_unix = twi_morn_off
         else:
             sns.env_schedule_twilight_morning_on_unix = None
             sns.env_schedule_twilight_morning_off_unix = None
+
+        # Evening lights (B10F): mirror morning — skip whole window if sunset ≥ evening-off.
+        if twi_eve_on < twi_eve_off:
+            sns.env_schedule_twilight_evening_on_unix = twi_eve_on
+            sns.env_schedule_twilight_evening_off_unix = twi_eve_off
+        else:
+            sns.env_schedule_twilight_evening_on_unix = None
+            sns.env_schedule_twilight_evening_off_unix = None
 
         # --- Phase 3: SCHEDULER DEPLOYMENT ---
         now_unix = int(time.time())
@@ -118,14 +124,17 @@ class EnvironmentScheduler:
                 "timer_id": "env_blinds_close", "deadline": blinds_close, "event_type": "BLINDS_CLOSE_TRIGGER",
                 "event_payload": {}
             }))
-        if _should_schedule("env_twi_eve_on", twi_eve_on):
+        if _should_schedule("env_twi_eve_on", sns.env_schedule_twilight_evening_on_unix):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
-                "timer_id": "env_twi_eve_on", "deadline": twi_eve_on, "event_type": "SUNSET_TRIGGER",
+                "timer_id": "env_twi_eve_on",
+                "deadline": sns.env_schedule_twilight_evening_on_unix,
+                "event_type": "SUNSET_TRIGGER",
                 "event_payload": {}
             }))
-        if _should_schedule("env_twi_eve_off", twi_eve_off):
+        if _should_schedule("env_twi_eve_off", sns.env_schedule_twilight_evening_off_unix):
             dispatch_fn(Event(type=EventType.TIMER_SCHEDULED, payload={
-                "timer_id": "env_twi_eve_off", "deadline": twi_eve_off,
+                "timer_id": "env_twi_eve_off",
+                "deadline": sns.env_schedule_twilight_evening_off_unix,
                 "event_type": "EVENING_OFF_TRIGGER",
                 "event_payload": {}
             }))

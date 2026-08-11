@@ -1842,7 +1842,12 @@ function blockyReadChain(start, fn) {
 function blockyApp() {
     return {
         connected: false,
+        /** B10F: true ⇒ red Explorer unreachable copy; false ⇒ yellow loading. */
+        backendUnreachable: false,
         busy: false,
+        /** B10F: rule-save lock — busy overlay or failed (retry/dismiss). */
+        ruleSaveBusy: false,
+        ruleSaveFailed: false,
         isAdmin: false,
         errorMessage: "",
         infoMessage: "",
@@ -1852,8 +1857,8 @@ function blockyApp() {
         /** Exclusive: true ⇒ only disabled rows; false ⇒ only enabled (default).
          * Applies to UE/UR/SR/D only — SE is never disabled and ignores this toggle. */
         showDisabledOnly: false,
-        /** Kind checkboxes — default all on (UE UR SE SR D). */
-        libraryKindFilter: { ue: true, ur: true, se: true, sr: true, d: true },
+        /** Kind checkboxes — B10F: UE & SE default OFF; UR/SR/D default ON. */
+        libraryKindFilter: { ue: false, ur: true, se: false, sr: true, d: true },
         /** 'kind' = UE→UR→SE→SR→D then name; 'name' = name only. Persisted in localStorage. */
         librarySortMode: (typeof localStorage !== "undefined"
             && localStorage.getItem(BLOCKY_LIBRARY_SORT_KEY) === "name") ? "name" : "kind",
@@ -1872,7 +1877,7 @@ function blockyApp() {
         pendingNav: null,
         blocklyFullscreen: false,
         // Bump when block definitions change (B10E: user/system When+Fire twins).
-        blocklySchemaVersion: 51,
+        blocklySchemaVersion: 52,
         blocklyUiTick: 0,
         hardDenyEntityIds: ["switch.safety.safety_wisc_5v"],
         /**
@@ -1885,10 +1890,13 @@ function blockyApp() {
         /** Delete-blocked modal copy when DELETE /api/events returns 409. */
         eventDeleteBlockedMessage: "",
         /**
-         * Show-usages modal: rule names that listen to and/or fire the current
-         * event (UE form = both; UR disable-blocked = fire-refs of its trigger).
+         * Disable-blocked inline usages: rule names that listen and/or fire the event.
          */
         fireRefRuleNames: [],
+        /** B10F: GET /api/automations/fire-status entries keyed by event_uuid. */
+        fireStatusByUuid: {},
+        /** Display line above Full screen (Will fire / Has fired / Doesn't fire). */
+        fireStatusLine: "",
         editor: {
             id: "",
             name: "",
@@ -1947,6 +1955,19 @@ function blockyApp() {
                 return false;
             }
             return !!(this.selectedRule && this.editorMode === "blockly");
+        },
+
+        /** B10F: all Automations UI locked during rule save or until retry/dismiss. */
+        get uiLocked() {
+            return !!(this.ruleSaveBusy || this.ruleSaveFailed);
+        },
+
+        /** True when open UE already has a listening UR. */
+        get selectedUeHasListeningUr() {
+            if (!this.selectedRule || !this.selectedRule.isEventRow) return false;
+            const eid = String(this.selectedRule.id || this.editor.id || "");
+            if (!eid) return false;
+            return this._triggerRefNamesForEvent(eid).length > 0;
         },
 
         /** Event id for disable locks / Show usages (UE form id, or UR rule's user-event trigger). */
@@ -2135,6 +2156,26 @@ function blockyApp() {
             return payload;
         },
 
+        /**
+         * Display name for a rule in usages / blocked-delete messages.
+         * SR: companion SE catalog name (never drifted YAML free-text).
+         * UR: rule.name / listName.
+         */
+        _ruleDisplayName(rule) {
+            if (!rule) return "(unnamed)";
+            const evId = this._primaryTriggerEventId(rule.trigger);
+            if (evId && this._eventOrigin(evId) === "system") {
+                return (
+                    this._catalogEventName(evId)
+                    || rule.listName
+                    || rule.name
+                    || rule.id
+                    || "(unnamed)"
+                );
+            }
+            return String(rule.listName || rule.name || rule.id || "(unnamed)");
+        },
+
         /** Rule names whose trigger listens to this event id (When user/system event). */
         _triggerRefNamesForEvent(eventId) {
             const id = String(eventId || "");
@@ -2143,7 +2184,7 @@ function blockyApp() {
             for (const rule of this.automations || []) {
                 if (!rule) continue;
                 if (this._primaryTriggerEventId(rule.trigger) === id) {
-                    names.push(String(rule.name || rule.id || "(unnamed)"));
+                    names.push(this._ruleDisplayName(rule));
                 }
             }
             return names;
@@ -2166,7 +2207,7 @@ function blockyApp() {
                     }
                     if (hit) break;
                 }
-                if (hit) names.push(String(rule.name || rule.id || "(unnamed)"));
+                if (hit) names.push(this._ruleDisplayName(rule));
             }
             return names;
         },
@@ -2340,6 +2381,8 @@ function blockyApp() {
             if (action.type === "select") this._doSelectRule(action.rule);
             else if (action.type === "new") this._doNewRule();
             else if (action.type === "newUserEvent") this._doNewUserEvent();
+            else if (action.type === "newFromSe") this._doNewRuleFromEvent(action.eventId, "system");
+            else if (action.type === "newFromUe") this._doNewRuleFromEvent(action.eventId, "user");
             else if (action.type === "href" && action.url) window.location.href = action.url;
             else if (action.type === "reload") this.loadV2IntoBlockly();
             else if (action.type === "logout") this.logout();
@@ -2753,9 +2796,8 @@ function blockyApp() {
                 const type = origin === "system" ? "b_trig_event_sys" : "b_trig_event";
                 return blockyMkBlock(type, { EVENT: t.event }, 16, 16);
             }
-            return blockyMkBlock("b_trig_device", {
-                ENTITY: this.firstEntityId()
-            }, 16, 16);
+            // B10F: empty New rule — no default When device (blank canvas).
+            return null;
         },
 
         ensureBlocklyReady() {
@@ -2897,7 +2939,10 @@ function blockyApp() {
                 const cases = rule.cases || [];
                 const root = this._mkTriggerRoot(rule.trigger, cases);
 
-                const caseBlocks = this._caseBlocks(cases.length ? cases : [{ actions: [] }]);
+                // Empty draft: no root and no cases → blank workspace (B10F).
+                const caseBlocks = root
+                    ? this._caseBlocks(cases.length ? cases : [{ actions: [] }])
+                    : (cases.length ? this._caseBlocks(cases) : []);
                 if (root && caseBlocks.length) {
                     if (root.nextConnection && caseBlocks[0].previousConnection) {
                         try {
@@ -2970,7 +3015,15 @@ function blockyApp() {
                 });
             } finally {
                 Events.enable();
-                this.markEditorClean();
+                // Create SR/UE→UR drafts stay dirty; normal loads clear dirty after inject.
+                if (this._markDirtyAfterBlocklyLoad) {
+                    this._markDirtyAfterBlocklyLoad = false;
+                    this.editorDirty = true;
+                    this.suppressDirtyUntil = 0;
+                    this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
+                } else {
+                    this.markEditorClean();
+                }
                 // ENTITY validators from mkBlock setField are queued as microtasks.
                 // Keep loading=true until after they run so they do not clear Hue rich.
                 queueMicrotask(() => {
@@ -3136,16 +3189,46 @@ function blockyApp() {
         },
 
         blankEditor() {
-            // Defaults live here (New rule). Prefer light trigger + different light action.
-            const { triggerEid, actionEid } = this.defaultLightPair();
+            // B10F: New rule starts empty — no default When device / actions.
             return {
                 id: "",
                 name: "",
                 enabled: true,
                 ruleJson: JSON.stringify({
                     enabled: true,
-                    trigger: { entity_id: triggerEid },
-                    cases: [{ to_state: "ON", actions: [{ entity_id: actionEid, state: "ON" }] }]
+                    trigger: {},
+                    cases: []
+                }, null, 2),
+                eventShowOnDashboard: false,
+                eventRequireConfirmation: false,
+                eventEnabled: true
+            };
+        },
+
+        /**
+         * B10F: draft New rule with When-system/user event preselected (no POST until Save).
+         */
+        blankEditorForEvent(eventId, origin) {
+            const eid = String(eventId || "");
+            let name = "";
+            if (origin === "system") {
+                // SR name locked to SE catalog name.
+                name = this._catalogEventName(eid)
+                    || (() => {
+                        const se = (this.libraryRows || []).find(
+                            (r) => r && r.isSystemEventRow && String(r.id) === eid
+                        );
+                        return se ? String(se.name || se.listName || "") : "";
+                    })();
+            }
+            return {
+                id: "",
+                name,
+                enabled: true,
+                ruleJson: JSON.stringify({
+                    enabled: true,
+                    trigger: { event: eid },
+                    cases: [{ to_state: "ON", actions: [] }]
                 }, null, 2),
                 eventShowOnDashboard: false,
                 eventRequireConfirmation: false,
@@ -3168,7 +3251,43 @@ function blockyApp() {
             this.editorMode = "blockly";
             this.errorMessage = "";
             this.infoMessage = "";
+            this.fireStatusLine = "";
             this.scheduleBlocklyLoad();
+        },
+
+        /** B10F: draft New rule with When event preselected (SE→SR or UE→UR). */
+        _doNewRuleFromEvent(eventId, origin) {
+            this.markEditorClean();
+            this.selectedRule = { isDraft: true };
+            this.editor = this.blankEditorForEvent(eventId, origin);
+            this.editorMode = "blockly";
+            this.errorMessage = "";
+            this.infoMessage = "";
+            this.fireStatusLine = "";
+            // Prefill is already a change — keep dirty through Blockly load (B10F items 6/9).
+            this.editorDirty = true;
+            this._markDirtyAfterBlocklyLoad = true;
+            this.scheduleBlocklyLoad();
+        },
+
+        /** B10F: unused SE → open New rule with When system event preselected (draft). */
+        createSystemRuleForSelectedSe() {
+            if (this.uiLocked) return;
+            if (!this.selectedRule || !this.selectedRule.isSystemEventRow) return;
+            if (this.selectedSeListenerName) return;
+            const eid = String(this.selectedRule.id || "");
+            if (!eid) return;
+            this.requestLeave({ type: "newFromSe", eventId: eid });
+        },
+
+        /** B10F: unused UE → open New rule with When user event preselected (draft). */
+        createUserRuleForSelectedUe() {
+            if (this.uiLocked) return;
+            if (!this.selectedRule || !this.selectedRule.isEventRow) return;
+            if (this.selectedUeHasListeningUr) return;
+            const eid = String(this.selectedRule.id || this.editor.id || "");
+            if (!eid) return;
+            this.requestLeave({ type: "newFromUe", eventId: eid });
         },
 
         /** B10E: draft UE form — Save → POST /api/events only (no Blockly / no rule). */
@@ -3222,7 +3341,7 @@ function blockyApp() {
                 return;
             }
 
-            // SE row — system catalog view-only (immutable; create SR via New rule).
+            // SE row — system catalog view-only (immutable; create SR via New rule / Create button).
             if (rule && rule.isSystemEventRow) {
                 this.editor = {
                     id: rule.id || "",
@@ -3234,6 +3353,7 @@ function blockyApp() {
                     eventEnabled: true
                 };
                 this.editorMode = "blockly";
+                this.fireStatusLine = "";
                 this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
                 return;
             }
@@ -3269,6 +3389,7 @@ function blockyApp() {
                 const evId = this._primaryTriggerEventId(rule.trigger);
                 this.fireRefRuleNames = this._fireRefNamesForEvent(evId);
             }
+            this.refreshFireStatusLine();
             blockyCancelUniqueness();
             this.scheduleBlocklyLoad();
         },
@@ -3355,8 +3476,11 @@ function blockyApp() {
 
         async refreshAll() {
             this.busy = true;
-            this.errorMessage = "";
-            this.infoMessage = "";
+            // Keep save-failure message visible while ruleSaveFailed (B10F).
+            if (!this.ruleSaveFailed) {
+                this.errorMessage = "";
+                this.infoMessage = "";
+            }
             try {
                 const [stateRes, rulesRes, eventsRes] = await Promise.all([
                     fetch("/api/state", { headers: this.getAuthHeaders() }),
@@ -3402,8 +3526,14 @@ function blockyApp() {
                     }
                 }
                 if (this.showBlocklyWorkspace && !this.editorDirty) this.scheduleBlocklyLoad();
+                await this.fetchFireStatus();
+                this.backendUnreachable = false;
+                return true;
             } catch (e) {
-                this.errorMessage = String(e);
+                if (!this.ruleSaveFailed) this.errorMessage = String(e);
+                // Network / HTTP failure while never connected ⇒ unreachable overlay.
+                if (!this.connected) this.backendUnreachable = true;
+                return false;
             } finally {
                 this.busy = false;
             }
@@ -3546,7 +3676,7 @@ function blockyApp() {
                         if (this.editor.eventEnabled === false
                             && this._usageRuleNamesForEvent(this.editor.id).length) {
                             throw new Error(
-                                "Cannot disable this event — rules still listen to or fire it. See Show usages."
+                                "Cannot disable this event — rules still listen to or fire it. See usages listed below."
                             );
                         }
                         await this.persistUserEventFromEditor(this.editor.id, { name: this.editor.name });
@@ -3563,6 +3693,8 @@ function blockyApp() {
             }
 
             this.busy = true;
+            this.ruleSaveBusy = true;
+            this.ruleSaveFailed = false;
             this.errorMessage = "";
             this.infoMessage = "";
             this.registryCheckMessage = "";
@@ -3570,7 +3702,7 @@ function blockyApp() {
             try {
                 if (this.ruleDisableBlocked && this.editor.enabled === false) {
                     throw new Error(
-                        "Cannot disable this rule — its user event is fired by other rules. See Show usages."
+                        "Cannot disable this rule — its user event is fired by other rules. See usages listed below."
                     );
                 }
                 const payload = this.buildPayloadFromEditor();
@@ -3590,6 +3722,8 @@ function blockyApp() {
                     ? "Automation updated (hot-reload queued)."
                     : "Automation created (hot-reload queued).";
                 this.markEditorClean();
+                this.ruleSaveBusy = false;
+                this.ruleSaveFailed = false;
                 await this.refreshAll();
                 const savedId = (body.automation && body.automation.id) || payload.id;
                 if (savedId) {
@@ -3604,8 +3738,117 @@ function blockyApp() {
                 });
             } catch (e) {
                 this.errorMessage = String(e);
+                this.ruleSaveBusy = false;
+                this.ruleSaveFailed = true;
             } finally {
                 this.busy = false;
+            }
+        },
+
+        /** B10F: re-attempt the failed rule save. */
+        async retryRuleSave() {
+            if (!this.ruleSaveFailed) return;
+            this.ruleSaveFailed = false;
+            await this.saveRule();
+        },
+
+        /** B10F: unlock UI after failed rule save; keep editor edits. */
+        dismissRuleSaveFailure() {
+            this.ruleSaveFailed = false;
+            this.ruleSaveBusy = false;
+            this.busy = false;
+        },
+
+        /**
+         * B10F: ↑/↓ changes selection in the currently filtered Library list (no wrap).
+         * Bound only on the Library list (not also on main — that double-fired via bubble).
+         */
+        onLibraryKeydown(ev) {
+            if (this.uiLocked) return;
+            if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
+            const rows = this.filteredLibrary || [];
+            if (!rows.length) return;
+            // Ignore when typing in inputs (except the library list container itself).
+            const tag = (ev.target && ev.target.tagName) || "";
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            let idx = -1;
+            if (this.selectedRule) {
+                const key = this.libraryRowKey(this.selectedRule);
+                idx = rows.findIndex((r) => this.libraryRowKey(r) === key);
+            }
+            if (ev.key === "ArrowDown") {
+                if (idx < 0) idx = 0;
+                else if (idx < rows.length - 1) idx += 1;
+                // else stop at end (no wrap)
+            } else {
+                if (idx < 0) idx = 0;
+                else if (idx > 0) idx -= 1;
+                // else stop at start (no wrap)
+            }
+            const next = rows[idx];
+            if (!next) return;
+            this.selectRule(next);
+            // Keep the selected row visible inside the overflow list.
+            const scrollKey = this.libraryRowKey(next);
+            this.$nextTick(() => {
+                const el = document.querySelector(
+                    `[data-library-row-key="${CSS.escape(scrollKey)}"]`
+                );
+                if (el && typeof el.scrollIntoView === "function") {
+                    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+                }
+            });
+        },
+
+        /** Fetch fire-status map; refresh line for the open SR. */
+        async fetchFireStatus() {
+            try {
+                const res = await fetch("/api/automations/fire-status", {
+                    headers: this.getAuthHeaders()
+                });
+                if (!res.ok) return;
+                const body = await res.json().catch(() => ({}));
+                const map = {};
+                for (const e of (body.entries || [])) {
+                    if (e && e.event_uuid) map[String(e.event_uuid)] = e;
+                }
+                this.fireStatusByUuid = map;
+                this.refreshFireStatusLine();
+            } catch (e) {
+                /* ignore — status line optional */
+            }
+        },
+
+        /** B10F: status copy right above Full screen for in-scope SR When triggers. */
+        refreshFireStatusLine() {
+            this.fireStatusLine = "";
+            if (!this.selectedRule || this.selectedRule.isEventRow || this.selectedRule.isSystemEventRow) {
+                return;
+            }
+            let trigger = this.selectedRule.trigger;
+            if (!trigger) {
+                try { trigger = JSON.parse(this.editor.ruleJson || "{}").trigger; }
+                catch (e) { trigger = null; }
+            }
+            const evId = this._primaryTriggerEventId(trigger);
+            if (!evId || this._eventOrigin(evId) !== "system") return;
+            const entry = this.fireStatusByUuid[String(evId)];
+            if (!entry) return;
+            const st = entry.state;
+            if (st === "not_armed") return;
+            if (st === "doesnt_fire_today") {
+                this.fireStatusLine = "Doesn't fire today";
+                return;
+            }
+            const hhmm = entry.at_hhmm || "";
+            if (st === "will_fire" && hhmm) {
+                this.fireStatusLine = `Will fire at ${hhmm}`;
+                return;
+            }
+            if (st === "has_fired" && hhmm) {
+                this.fireStatusLine = `Has fired at ${hhmm}`;
             }
         },
 
@@ -3733,8 +3976,16 @@ function blockyApp() {
             this.$watch("editor.eventRequireConfirmation", () => this.markEditorDirty());
             this.$watch("editor.eventEnabled", () => this.markEditorDirty());
             this.$watch("editor.ruleJson", () => this.markEditorDirty());
-            await this.refreshAll();
-            this.connected = true;
+            // Yellow "Loading automation editor..." while connected===false && !backendUnreachable.
+            const ok = await this.refreshAll();
+            if (ok) {
+                this.backendUnreachable = false;
+                this.connected = true;
+            } else {
+                // Red Explorer-style unreachable copy; stay on overlay.
+                this.backendUnreachable = true;
+                this.connected = false;
+            }
         }
     };
 }

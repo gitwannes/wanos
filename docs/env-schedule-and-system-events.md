@@ -80,7 +80,7 @@ Name = what the house does. Astronomy belongs in the “when” column, not the 
 
 ## 5. Timing rules
 
-*(Blinds + morning skip = live math. Evening skip when sunset ≥ evening-off = **locked for B10F** — mirror morning; code still arms inverted evening timers until that ship.)*
+*(Blinds + morning skip + evening skip = live math as of **B10F**.)*
 
 ```text
 blinds_open = max(sunrise, morning_open_earliest)
@@ -114,7 +114,7 @@ else:
 |---|---|
 | Sunrise ≤ morning-on clock | Whole **morning lights** window skipped |
 | Sunset &lt; evening-off (normal) | On at sunset → off at clock |
-| Sunset ≥ evening-off | Whole **evening lights** window skipped (same pattern as morning; no inverted timers) — **ships in B10F** with status API |
+| Sunset ≥ evening-off | Whole **evening lights** window skipped (same pattern as morning; no inverted timers) — **B10F** |
 | Blinds open/close inverted by bad clamps | Scheduler does not skip; fix config |
 
 **Sweeper** (active sweeps only): re-dispatch current side of each window (not replay missed edges). Passive/boot sweeps skip time-series alignment.
@@ -179,10 +179,10 @@ Restore any user scene incorrectly retargeted onto Sunset (e.g. **GoCosy** must 
 - [x] Drop all Sunset-listening rules in migration; recreate by hand  
 - [x] Aliases out of product story; code delete with migrator (D1)  
 - [x] Demote schedule edges → user origin remains **B15** (deferred)
-- [x] Empty SE: **no** auto-create unused/disabled rule shell (SE view-only in Library from catalog; create SR only when operator adds a rule — B10F may add a Create SR button)
+- [x] Empty SE: **no** auto-create unused/disabled rule shell (SE view-only in Library from catalog; create SR via **Create System Rule** draft — **B10F** ✅)
 - [x] List unused user events (**UE** with no listening **UR**)
-- [x] SE / SR list titles = system catalog name (no `system:` prefix; badges mark origin)
+- [x] SE / SR list titles = system catalog name (no `system:` prefix; badges mark origin); **SR YAML `name` forced to SE catalog** (bind + boot rewrite — **B10F** ✅)
 - [x] Display **Sunrise/sunset update**; EventType **`SUNRISE_SUNSET_UPDATE`** (was `EXTERNAL_WEATHER_UPDATED`; UUID unchanged)
-- [ ] Evening skip: sunset ≥ evening-off → schedule **neither** evening edge (mirror morning) — **B10F** with fire-status API
+- [x] Evening skip: sunset ≥ evening-off → schedule **neither** evening edge (mirror morning) — **B10F** ✅ with fire-status API
 
-Shipped in **B10E** with B10B+D. Detail DoD: [`phaseB-blocky.md`](todo/phaseB-blocky.md) § B10E. Evening skip + Automations fire-status → § B10F.
+Shipped in **B10E** with B10B+D. Detail DoD: [`phaseB-blocky.md`](todo/phaseB-blocky.md) § B10E. Evening skip + Automations fire-status + SR name bind → § **B10F** ✅.

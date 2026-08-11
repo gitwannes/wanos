@@ -11,6 +11,7 @@ from core.automations_store import _dump_root, _to_commented, load_automations_r
 from core.event_catalog import (
     SYSTEM_KEY_TO_UUID,
     SYSTEM_UUID_TO_KEY,
+    SYSTEM_UUID_TO_NAME,
     is_blocky_pickable_event_id,
     normalize_event_name_key,
     system_seeds_for_yaml,
@@ -43,6 +44,32 @@ def events_by_id() -> Dict[str, Dict[str, Any]]:
 
 def find_event(event_id: str) -> Optional[Dict[str, Any]]:
     return events_by_id().get(str(event_id))
+
+
+def rule_display_name(rule: Dict[str, Any]) -> str:
+    """
+    Display name for a rule in usages / delete-blocked messages.
+
+    System rules (SR): always the companion SE catalog name (never drifted YAML
+    free-text). User rules: YAML ``name`` (or id fallback).
+    """
+    trig = rule.get("trigger")
+    eid = ""
+    if isinstance(trig, dict) and trig.get("event"):
+        eid = str(trig["event"])
+    elif isinstance(trig, list):
+        for t in trig:
+            if isinstance(t, dict) and t.get("event") and not t.get("entity_id"):
+                eid = str(t["event"])
+                break
+    if eid and eid in SYSTEM_UUID_TO_KEY:
+        cat = find_event(eid)
+        if isinstance(cat, dict) and cat.get("name"):
+            return str(cat["name"]).strip()
+        seed = str(SYSTEM_UUID_TO_NAME.get(eid) or "").strip()
+        if seed:
+            return seed
+    return str(rule.get("name") or rule.get("id") or "?")
 
 
 def _ordered_event_row(row: Dict[str, Any]) -> CommentedMap:
@@ -147,7 +174,56 @@ def merge_system_seeds_into_yaml() -> List[Dict[str, Any]]:
                 by_id[eid] = row
         ordered.append(by_id[eid])
 
-    return _write_events_list(ordered)
+    written = _write_events_list(ordered)
+    # After SE catalog names are authoritative, rewrite any drifted SR titles.
+    sync_system_rule_names_to_catalog()
+    return written
+
+
+def sync_system_rule_names_to_catalog() -> int:
+    """
+    B10F: SR ``name`` must equal companion SE catalog name.
+
+    Walks ``automations:`` in place (preserves sibling comments) and overwrites
+    drifted free-text titles. Returns how many rules were renamed.
+    """
+    root, path = load_automations_roundtrip()
+    if not isinstance(root, dict):
+        return 0
+    seq = root.get("automations")
+    if not isinstance(seq, list):
+        return 0
+
+    renamed = 0
+    for rule in seq:
+        if not isinstance(rule, dict):
+            continue
+        trig = rule.get("trigger")
+        eid = ""
+        if isinstance(trig, dict) and trig.get("event") and not trig.get("entity_id"):
+            eid = str(trig["event"])
+        elif isinstance(trig, list):
+            for t in trig:
+                if isinstance(t, dict) and t.get("event") and not t.get("entity_id"):
+                    eid = str(t["event"])
+                    break
+        if not eid or eid not in SYSTEM_UUID_TO_KEY:
+            continue
+        cat = find_event(eid)
+        cat_name = ""
+        if isinstance(cat, dict) and cat.get("name"):
+            cat_name = str(cat["name"]).strip()
+        if not cat_name:
+            cat_name = str(SYSTEM_UUID_TO_NAME.get(eid) or "").strip()
+        if not cat_name:
+            continue
+        if str(rule.get("name") or "").strip() != cat_name:
+            rule["name"] = cat_name
+            renamed += 1
+
+    if renamed:
+        _dump_root(root, path)
+    return renamed
 
 
 def create_user_event(
@@ -297,9 +373,8 @@ def rule_refs_to_event(event_id: str) -> List[str]:
     for rule in read_automations():
         if not isinstance(rule, dict):
             continue
-        name = str(rule.get("name") or rule.get("id") or "?")
         if _rule_references_event(rule, eid):
-            hits.append(name)
+            hits.append(rule_display_name(rule))
     return hits
 
 
@@ -310,9 +385,8 @@ def rule_fire_refs_to_event(event_id: str) -> List[str]:
     for rule in read_automations():
         if not isinstance(rule, dict):
             continue
-        name = str(rule.get("name") or rule.get("id") or "?")
         if _rule_fires_event(rule, eid):
-            hits.append(name)
+            hits.append(rule_display_name(rule))
     return hits
 
 
@@ -324,7 +398,7 @@ def rule_trigger_refs_to_event(event_id: str) -> List[str]:
         if not isinstance(rule, dict):
             continue
         if _trigger_has_event(rule.get("trigger"), eid):
-            hits.append(str(rule.get("name") or rule.get("id") or "?"))
+            hits.append(rule_display_name(rule))
     return hits
 
 

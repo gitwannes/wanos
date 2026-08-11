@@ -51,6 +51,7 @@ from core.events_store import (
     rule_fire_refs_to_event,
     rule_trigger_refs_to_event,
 )
+from core.automations_fire_status import build_automations_fire_status
 from core.event_catalog import (
     to_bus_token,
     normalize_event_name_key,
@@ -491,8 +492,44 @@ async def list_automations(req: Request) -> dict[str, Any]:
     for r in raw:
         if not isinstance(r, dict):
             continue
-        out.append(ordered_v2_dict(legacy_to_v2(dict(r))))
+        v2 = ordered_v2_dict(legacy_to_v2(dict(r)))
+        # B10F: SR display name always = SE catalog (response + drift hide).
+        _bind_sr_name_to_se_catalog(v2)
+        out.append(v2)
     return {"automations": out}
+
+
+@app.get("/api/automations/fire-status")
+async def automations_fire_status(req: Request) -> dict[str, Any]:
+    """
+    B10F: today's fire status for schedule SEs + Sauna/IR OFF (admin).
+
+    FE renders Will fire at / Has fired at / Doesn't fire today; no client schedule math.
+    """
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    tm = getattr(state_manager, "_timer_manager", None)
+    sauna_armed = bool(tm and tm.is_scheduled("sauna_main"))
+    ir_armed = bool(tm and tm.is_scheduled("ir_main"))
+    return build_automations_fire_status(
+        state_manager._state,
+        sauna_timer_armed=sauna_armed,
+        ir_timer_armed=ir_armed,
+    )
+
+
+def _log_library_crud(kind: str, name: str, verb: str) -> None:
+    """B10F: INFO line in wanos.log for Automations Library CRUD."""
+    label = (name or "").strip() or "(unnamed)"
+    logger.info(f'{kind} "{label}" {verb}')
+
+
+def _rule_log_kind(rule: dict[str, Any]) -> str:
+    """user rule vs system rule from primary trigger event origin."""
+    eid = _primary_trigger_event_id(rule)
+    if eid and eid in SYSTEM_UUID_TO_KEY:
+        return "system rule"
+    return "user rule"
 
 
 def _primary_trigger_event_id(rule: dict[str, Any]) -> Optional[str]:
@@ -651,6 +688,7 @@ async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
 
     append_automation(new_rule)
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    _log_library_crud(_rule_log_kind(new_rule), str(new_rule.get("name") or ""), "added")
     return {"status": "Success", "automation": new_rule}
 
 
@@ -689,6 +727,7 @@ async def update_automation_api(rule: dict[str, Any], req: Request) -> dict[str,
         return JSONResponse(status_code=404, content={"error": f"Automation id '{dumped['id']}' not found."})
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    _log_library_crud(_rule_log_kind(dumped), str(dumped.get("name") or ""), "changed")
     return {"status": "Success", "automation": dumped}
 
 
@@ -698,10 +737,23 @@ async def delete_automation_api(req_body: AutomationsRuleIdRequest, req: Request
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
+    # Snapshot name/kind for B10F CRUD INFO before remove.
+    prior: Optional[dict[str, Any]] = None
+    for row in read_automations():
+        if isinstance(row, dict) and str(row.get("id") or "") == str(req_body.id):
+            prior = row
+            break
+
     if not delete_automation(req_body.id):
         return JSONResponse(status_code=404, content={"error": f"Automation id '{req_body.id}' not found."})
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    if prior:
+        try:
+            v2 = ordered_v2_dict(legacy_to_v2(dict(prior)))
+            _log_library_crud(_rule_log_kind(v2), str(v2.get("name") or prior.get("name") or ""), "deleted")
+        except Exception:
+            _log_library_crud("user rule", str(prior.get("name") or req_body.id), "deleted")
     return {"status": "Success"}
 
 
@@ -744,6 +796,7 @@ async def create_event_api(body: dict[str, Any], req: Request) -> dict[str, Any]
         return JSONResponse(status_code=400, content={"error": f"Invalid event payload: {e}"})
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    _log_library_crud("user event", str(row.get("name") or ""), "added")
     return {"status": "Success", "event": row}
 
 
@@ -764,6 +817,9 @@ async def update_event_api(body: dict[str, Any], req: Request) -> dict[str, Any]
         return JSONResponse(status_code=400, content={"error": f"Invalid event payload: {e}"})
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    # System events are largely immutable; still log when a write succeeds.
+    kind = "system event" if str(row.get("id") or "") in SYSTEM_UUID_TO_KEY else "user event"
+    _log_library_crud(kind, str(row.get("name") or ""), "changed")
     return {"status": "Success", "event": row}
 
 
@@ -797,6 +853,10 @@ async def delete_event_api(req_body: EventsIdRequest, req: Request) -> dict[str,
     """Admin: delete a user event by id (guards → 409)."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    prior = find_event(req_body.id)
+    prior_name = ""
+    if isinstance(prior, dict):
+        prior_name = str(prior.get("name") or "")
     try:
         delete_event(req_body.id)
     except KeyError as e:
@@ -807,6 +867,7 @@ async def delete_event_api(req_body: EventsIdRequest, req: Request) -> dict[str,
         return JSONResponse(status_code=400, content={"error": str(e)})
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    _log_library_crud("user event", prior_name or str(req_body.id), "deleted")
     return {"status": "Success"}
 
 

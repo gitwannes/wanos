@@ -127,11 +127,41 @@
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="blockyApp()" x-init="init()">
 
-<div data-wanos-offline data-tone="warning" data-message="Loading automation editor..."></div>
+<!-- B10F: yellow loading while fetching; red Explorer copy only when backend unreachable. -->
+<div x-show="!connected" x-cloak
+     class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
+    <span class="loading loading-infinity w-16 mb-4"
+          :class="backendUnreachable ? 'text-error' : 'text-warning'"></span>
+    <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
+    <p class="mt-2 font-mono text-sm"
+       :class="backendUnreachable ? 'text-error' : 'text-warning'"
+       x-text="backendUnreachable
+         ? 'Establishing connection stream to WanOS backend...'
+         : 'Loading automation editor...'"></p>
+</div>
 <div data-wanos-nav="blocky"></div>
 
-<main class="max-w-7xl mx-auto px-3 md:px-6 grid grid-cols-1 xl:grid-cols-3 gap-6 pb-10">
-    <section class="xl:col-span-1 card bg-base-100 border border-base-200 shadow-xl">
+<main class="max-w-7xl mx-auto px-3 md:px-6 grid grid-cols-1 xl:grid-cols-3 gap-6 pb-10 relative">
+    <!-- B10F: rule-save busy overlay (all UI locked except retry/dismiss on failure). -->
+    <div x-show="ruleSaveBusy"
+         class="fixed inset-0 z-[300] flex items-center justify-center bg-base-300/70"
+         x-cloak>
+        <div class="flex flex-col items-center gap-3 p-6 rounded-box bg-base-100 border border-base-300 shadow-xl">
+            <span class="loading loading-spinner loading-lg text-warning"></span>
+            <span class="text-sm font-semibold tracking-wide">Saving…</span>
+        </div>
+    </div>
+    <div x-show="ruleSaveFailed"
+         class="fixed inset-x-0 top-16 z-[310] flex justify-center px-4 pointer-events-none"
+         x-cloak>
+        <div class="alert alert-error shadow-lg max-w-xl pointer-events-auto flex flex-wrap items-center gap-2">
+            <span class="flex-1 text-sm" x-text="errorMessage || 'Save failed.'"></span>
+            <button type="button" class="btn btn-sm btn-outline" @click="retryRuleSave()">Retry</button>
+            <button type="button" class="btn btn-sm" @click="dismissRuleSaveFailure()">Dismiss</button>
+        </div>
+    </div>
+    <section class="xl:col-span-1 card bg-base-100 border border-base-200 shadow-xl"
+             :class="uiLocked ? 'pointer-events-none opacity-60' : ''">
         <div class="card-body p-4">
             <!-- Page is Automations; left column is Library. Click title toggles sort mode. -->
             <div class="flex justify-between items-center gap-2 mb-2">
@@ -142,30 +172,30 @@
                         x-text="librarySortMode === 'name' ? 'Library · name' : 'Library'"></button>
             </div>
             <div class="flex gap-2 mb-3">
-                <button type="button" class="btn btn-xs btn-warning flex-1" @click="newRule()">New rule</button>
-                <button type="button" class="btn btn-xs btn-outline flex-1" @click="newUserEvent()">New user event</button>
+                <button type="button" class="btn btn-xs btn-warning flex-1" @click="newRule()" :disabled="uiLocked">New rule</button>
+                <button type="button" class="btn btn-xs btn-outline flex-1" @click="newUserEvent()" :disabled="uiLocked">New user event</button>
             </div>
             <input type="text" class="input input-bordered input-sm mb-2 font-mono" placeholder="Filter by name"
-                   x-model="filterText">
+                   x-model="filterText" :disabled="uiLocked">
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 text-xs">
                 <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="User event">
-                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.ue">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.ue" :disabled="uiLocked">
                     <span class="text-xs">UE</span>
                 </label>
                 <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="User-event rule">
-                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.ur">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.ur" :disabled="uiLocked">
                     <span class="text-xs">UR</span>
                 </label>
                 <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="System event">
-                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.se">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.se" :disabled="uiLocked">
                     <span class="text-xs">SE</span>
                 </label>
                 <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="System rule">
-                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.sr">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.sr" :disabled="uiLocked">
                     <span class="text-xs">SR</span>
                 </label>
                 <label class="inline-flex items-center gap-1 cursor-pointer py-0" title="Device rule">
-                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.d">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="libraryKindFilter.d" :disabled="uiLocked">
                     <span class="text-xs">D</span>
                 </label>
             </div>
@@ -175,14 +205,18 @@
                  inline-flex (not DaisyUI .label) so toggle + text stay adjacent. -->
             <label class="inline-flex items-center gap-2 cursor-pointer py-0 mb-3"
                    title="UE/UR/SR/D: disabled only when on. SE: unused only when on (no listening SR).">
-                <input type="checkbox" class="toggle toggle-xs toggle-warning" x-model="showDisabledOnly">
+                <input type="checkbox" class="toggle toggle-xs toggle-warning" x-model="showDisabledOnly" :disabled="uiLocked">
                 <span class="text-xs">Show disabled/unused</span>
             </label>
-            <div class="max-h-[70vh] overflow-y-auto pr-1 flex flex-col gap-1 items-stretch w-full">
+            <div class="max-h-[70vh] overflow-y-auto pr-1 flex flex-col gap-1 items-stretch w-full"
+                 tabindex="0"
+                 @keydown="onLibraryKeydown($event)">
                 <template x-for="row in filteredLibrary" :key="libraryRowKey(row)">
                     <button type="button"
+                            :data-library-row-key="libraryRowKey(row)"
                             :class="libraryRowButtonClass(row)"
-                            @click="selectRule(row)">
+                            @click="selectRule(row)"
+                            :disabled="uiLocked">
                         <span class="lib-ico" :class="'lib-ico-' + libraryKind(row)"
                               :title="({ue:'User event',ur:'User-event rule',se:'System event',sr:'System rule',d:'Device rule'})[libraryKind(row)] || ''"
                               x-text="(libraryKind(row) || '').toUpperCase()"></span>
@@ -196,7 +230,8 @@
         </div>
     </section>
 
-    <section class="xl:col-span-2 card bg-base-100 border border-base-200 shadow-xl">
+    <section class="xl:col-span-2 card bg-base-100 border border-base-200 shadow-xl"
+             :class="uiLocked && !ruleSaveFailed ? 'pointer-events-none opacity-60' : ''">
         <div class="card-body p-4">
             <div x-show="errorMessage" class="alert alert-error text-sm mb-3">
                 <span x-text="errorMessage"></span>
@@ -219,7 +254,7 @@
                          class="text-xs text-warning font-semibold">New rule — pick trigger + cases in Blockly, name it, then Save.</div>
                     <div x-show="selectedRule.isDraft && selectedRule.isEventRow" class="text-xs text-warning font-semibold">New user event — set name and explorer flags, then Save (no Blockly).</div>
                     <div x-show="selectedRule.isSystemEventRow" class="text-xs text-slate-300/90 font-semibold">
-                        System event (catalog) — view only. Create a listening rule via <b>New rule</b> → When system event (unused SEs only).
+                        System event (catalog) — view only. Use <b>Create System Rule</b> when unused, or New rule → When system event.
                     </div>
                     <div x-show="editorDirty" class="text-xs text-warning font-mono">Unsaved changes</div>
 
@@ -268,9 +303,20 @@
                             <p class="text-[11px] text-warning/80 max-w-xl" x-show="eventDisableBlocked">
                                 Disable blocked — rules still listen to or fire this event.
                             </p>
-                            <div x-show="fireRefRuleNames.length" class="flex items-center gap-2">
-                                <button type="button" class="btn btn-outline btn-xs"
-                                        @click="showEventUsagesModal()">Show usages</button>
+                            <ul class="text-[11px] text-base-content/70 list-disc pl-5 max-w-xl"
+                                x-show="eventDisableBlocked && fireRefRuleNames.length">
+                                <template x-for="nm in fireRefRuleNames" :key="nm">
+                                    <li x-text="nm"></li>
+                                </template>
+                            </ul>
+                            <!-- B10F: unused UE → Create UR (draft). -->
+                            <div class="pt-1" x-show="!selectedRule.isDraft">
+                                <button type="button"
+                                        class="btn btn-sm btn-warning"
+                                        :disabled="uiLocked || selectedUeHasListeningUr"
+                                        @click="createUserRuleForSelectedUe()">
+                                    Create User Rule for this User Event
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -302,6 +348,21 @@
                         <p class="text-[11px] text-base-content/60 max-w-xl" x-show="!selectedSeListenerName">
                             Unused — no system rule (SR) listens yet. Unused is not the same as disabled.
                         </p>
+                        <button type="button"
+                                class="btn btn-sm btn-warning"
+                                :disabled="uiLocked || !!selectedSeListenerName"
+                                @click="createSystemRuleForSelectedSe()"
+                                x-show="!selectedSeListenerName"
+                                title="Open New rule with this system event as When">
+                            Create System Rule for this System Event
+                        </button>
+                        <button type="button"
+                                class="btn btn-sm btn-warning btn-disabled"
+                                x-show="!!selectedSeListenerName"
+                                disabled
+                                title="A system rule already listens to this event">
+                            Create System Rule for this System Event
+                        </button>
                     </div>
 
                     <!-- ========== UR / SR / D rule editor ========== -->
@@ -339,23 +400,37 @@
                                :class="ruleDisableBlocked ? 'opacity-50' : ''">
                             <span class="label-text text-xs">Rule enabled</span>
                             <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.enabled"
-                                   :disabled="ruleDisableBlocked">
+                                   :disabled="ruleDisableBlocked || uiLocked">
                         </label>
                         <label class="label cursor-pointer gap-2">
                             <span class="label-text text-xs font-bold uppercase tracking-widest">Show hidden devices</span>
-                            <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenEntities">
+                            <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenEntities"
+                                   :disabled="uiLocked">
                         </label>
-                        <button type="button" class="btn btn-ghost btn-xs underline"
-                                x-show="ruleDisableBlocked"
-                                @click="showEventUsagesModal()">Show usages</button>
                     </div>
+                    <p class="text-[11px] text-warning/80 max-w-xl" x-show="ruleDisableBlocked">
+                        Disable blocked — rules still fire this event's trigger.
+                    </p>
+                    <ul class="text-[11px] text-base-content/70 list-disc pl-5 max-w-xl -mt-2"
+                        x-show="ruleDisableBlocked && fireRefRuleNames.length">
+                        <template x-for="nm in fireRefRuleNames" :key="'ur-'+nm">
+                            <li x-text="nm"></li>
+                        </template>
+                    </ul>
 
                     <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200"
                          x-show="editorMode === 'blockly' && !selectedRule.isEventRow && !selectedRule.isSystemEventRow">
+                        <!-- B10F: fire status sits right above Full screen. -->
+                        <p class="w-full text-xs font-mono text-warning/90"
+                           x-show="fireStatusLine"
+                           x-text="fireStatusLine"></p>
                         <template x-if="editorDirty">
-                            <button type="button" class="btn btn-xs btn-outline" @click="requestLeave({ type: 'reload' })">Reset blocks</button>
+                            <button type="button" class="btn btn-xs btn-outline" @click="requestLeave({ type: 'reload' })"
+                                    :disabled="uiLocked">Reset blocks</button>
                         </template>
-                        <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()" x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                        <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()"
+                                :disabled="uiLocked"
+                                x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
                         <button type="button" class="btn btn-xs btn-outline btn-error"
                                 @mousedown="onDeletePointerDown($event)"
                                 @click="deleteSelectedBlock()"
@@ -383,6 +458,9 @@
                             <div>
                                 <div class="font-bold text-warning uppercase tracking-wider text-sm">Blocky · full screen</div>
                                 <div class="text-sm font-semibold mt-1" x-text="editor.name || '(unnamed rule)'"></div>
+                                <p class="text-xs font-mono text-warning/90 mt-1"
+                                   x-show="fireStatusLine"
+                                   x-text="fireStatusLine"></p>
                             </div>
                             <div class="flex gap-2">
                                 <button type="button"
@@ -394,13 +472,17 @@
                                         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
                                     </svg>
                                 </button>
-                                <button class="btn btn-sm btn-outline" @click="toggleBlocklyFullscreen()">Exit full screen</button>
+                                <button class="btn btn-sm btn-outline" @click="toggleBlocklyFullscreen()" :disabled="uiLocked">Exit full screen</button>
                                 <button type="button" class="btn btn-sm btn-outline btn-error"
                                         @mousedown="onDeletePointerDown($event)"
                                         @click="deleteSelectedBlock()"
-                                        :disabled="!hasBlocklySelection"
+                                        :disabled="!hasBlocklySelection || uiLocked"
                                         title="Delete selected block">Delete</button>
-                                <button class="btn btn-sm btn-warning" @click="saveRule()" :disabled="busy || !editorDirty">Save</button>
+                                <button class="btn btn-sm btn-warning" @click="saveRule()"
+                                        :disabled="busy || !editorDirty || uiLocked">
+                                    <span x-show="!busy">Save</span>
+                                    <span x-show="busy" class="loading loading-spinner loading-md"></span>
+                                </button>
                             </div>
                         </div>
                         <!-- Save/error banners must live inside the FS overlay (card-top alerts sit under z-200). -->
@@ -431,7 +513,7 @@
                     <div class="flex gap-2 pt-2" x-show="!selectedRule.isSystemEventRow">
                         <button class="btn btn-warning btn-sm" @click="saveRule()" :disabled="busy || !editorDirty">
                             <span x-show="!busy">Save</span>
-                            <span x-show="busy" class="loading loading-spinner loading-xs"></span>
+                            <span x-show="busy" class="loading loading-spinner loading-md"></span>
                         </button>
                         <button class="btn btn-outline btn-error btn-sm" @click="deleteRule()"
                                 :disabled="busy || !editor.id"
@@ -506,7 +588,7 @@
             <button type="button" class="btn btn-outline btn-error btn-sm" @click="discardUnsavedLeave()">Discard</button>
             <button type="button" class="btn btn-warning btn-sm" @click="saveUnsavedLeave()" :disabled="busy">
                 <span x-show="!busy">Save</span>
-                <span x-show="busy" class="loading loading-spinner loading-xs"></span>
+                <span x-show="busy" class="loading loading-spinner loading-md"></span>
             </button>
         </div>
     </div>
@@ -548,6 +630,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=3"></script>
-<script src="blocky.js?v=4.63"></script>
+<script src="blocky.js?v=4.68"></script>
 </body>
 </html>
