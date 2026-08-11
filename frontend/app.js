@@ -301,6 +301,8 @@ function wanosApp() {
         bellDismissedAlertIds: [],
 
         // 🔔 Intelligent Alert Routing Getters
+        // Banner = critical only. Bell = critical + error/warning/success/info (connection
+        // transitions use error/success so they never hit the red banner).
         get criticalAlerts() {
             if (!this.state.system.system_alert_msgs) return [];
             const dismissed = new Set(this.bannerDismissedAlertIds || []);
@@ -327,7 +329,7 @@ function wanosApp() {
                 .reverse();
         },
 
-        /** Bell feed = criticals (not banner-dismissed) + non-criticals. */
+        /** Bell feed = criticals + non-criticals (error/warning/success/info). */
         get bellAlerts() {
             const crit = this.bellCriticalAlerts.slice().reverse();
             return crit.concat(this.nonCriticalAlerts);

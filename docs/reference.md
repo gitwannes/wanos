@@ -7,7 +7,7 @@ This document serves as the master blueprint and reference guide for the directo
 **Root Directory (`/home/wannes/wanos/`)**
 * `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and manual integration settings. (Manual / human-edited; comments preserved.) Automatic domains (`deviceexplorer_hide`, `auto_off_devices`, `automations`) live in `automations.auto.yaml`.
 * `automations.auto.yaml`: UI/system-owned automatic sections — Explorer soft-hide (`deviceexplorer_hide`), auto-off + product-type overrides (`auto_off_devices`, `device_product_types`), automation **rules**, and the `events:` catalog (system + user; bus token = UUID).
-* `config_hue.yaml`: Segregated lighting profile path tracking local network Philips Hue Bridge API endpoints and structural group/scene UUID allocations.
+* `config_hue.yaml`: Segregated lighting profile — Hue Bridge endpoints, group/scene maps, and **`hue.presets`** (text keys → `{ name, bri, xy|rgb }`; Explorer/Blocky consume `system.hue_presets`). **B9A** adds Explorer CRUD (add/rename name/delete); until then hand-edit YAML.
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
 * `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
 * `config_zwave.auto.yaml`: Z-Wave device map (UI/system-owned via `zwaveconfig.html`; not hand-edited as primary workflow).
@@ -80,11 +80,11 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `simulator.py`: Lab Mode thermodynamics loop executing 2-second physics iterations, water accretion ticks, and cyclic day/night weather trends.
 
 **logic/** (Pure Business Rules & Background Services)
-* `alert_manager.py`: Centralized UI Notification Engine handling timestamping, deduplication, and severity classification of frontend banners.
+* `alert_manager.py`: Centralized UI notification engine (timestamping, dedup, severity). Levels: `critical` (red banner + bell), `error` / `warning` / `success` / `info` (bell only). Integration **connection transitions** (health telemetry up/down) use `error`/`success` + `wanos.log` ERROR/INFO — not the banner.
 * `automation_rules.py`: Dynamically evaluates declarative YAML rules.
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
 * `environment_scheduler.py`: Daily blinds + morning/evening **lights** windows (clamped blinds vs raw sunset for evening-lights on). Catalog / UI labels (B10E): Blinds open/close, Morning lights on/off, Evening lights on/off. Admin model + math: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md). Code keys remain `BLINDS_*` / `MORNING_ON` / `SUNRISE` / `SUNSET` / `EVENING_OFF` until a later key rename.
-* `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`.
+* `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`. Connection up/down flags ride `SYSTEM_METRICS_UPDATED` (event log silenced); transition UI/log side-effects live in `telemetry_handlers`.
 * `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, **event-UUID** synthetic history `900000+`, host/mains gauge IDXs, `22009` DB size helper) and helpers for event-history hashing / numeric state parsing.
 * `history_manager.py`: Actuator / motion / **event-UUID** history (`device_history.db`) with retention tiers and insights tallies.
 * `power_analytics.py`: Sauna/IR session energy accounting, background leak baseline, and session SQLite persistence.

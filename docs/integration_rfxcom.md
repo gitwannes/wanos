@@ -27,6 +27,7 @@ Because USB serial hardware is notoriously fragile, this integration features an
 
 *   **Internal USB Watchdog:** The bridge itself runs a continuous background task (`_usb_watchdog`) that checks `os.path.exists()` every 3.0 seconds[cite: 9]. If the USB stick is physically yanked out of the server while the integration is running, it instantly detects the hardware loss, closes the dead transport, and voluntarily self-disables the integration[cite: 9].
 *   **Global Auto-Kill:** Simultaneously, the global `HealthMonitor` audits `sm.rfxcom_bridge.is_connected`[cite: 3]. Unlike network integrations that get 3 strikes, a USB serial drop is deemed immediately fatal. A single strike instantly kills the integration across the system[cite: 3].
+*   **Connection transitions (not Auto-Kill):** Connected→lost / recovered also emit **bell-only** alerts (`error` / `success`) and ERROR / INFO in `wanos.log` — not the red Admin banner.
 
 ## 5. Turning the Integration OFF
 *   The `stop()` method flips `is_connected` to `False`[cite: 9].

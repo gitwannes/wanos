@@ -122,7 +122,7 @@ class SystemAdminState(BaseModel):
     app_boot_unix: Optional[int] = None
     automations_enabled: bool = False  # Master switch for the logic engine
     owm_integration_enabled: bool = False  # Default OFF, controls OpenWeatherMap polling
-    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # Upgraded to structured dicts {id, level, message, timestamp, count}
+    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # {id, level, message, timestamp, count}; level: critical|error|warning|success|info
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
     native_rfx_devices: list[dict] = Field(default_factory=list)  # Pushed dynamically to UI panel
     # B10B: Explorer dashboard buttons from events: catalog

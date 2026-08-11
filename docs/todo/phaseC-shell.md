@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12**. Next sequence: **D** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C13**. Pipeline next: **B9A** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -26,10 +26,11 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C10 — Explorer / History polish** | Plural Nodes; Planned past gone; Hue hex text; chart colors; binary/hits charts; omit scenes; filter+blinds | FE · mid |
 | **C11 — Control vs History lists** | Re-assess Explorer Control vs History list membership (post–C10 scene omit) | Assess → decide · low |
 | **C12 — Post-C10 polish** | Hue bri integer; binary duration charts; motion visibility; alert `produced_at`; Z-Wave `-term` filter | FE + log · mid |
+| **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4** (or when list-membership pain wins). **C12** queued (inbox triage **2026-08-11**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4** (or when list-membership pain wins). **C12** then **C13** (inbox triage **2026-08-11**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -304,7 +305,8 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 * Both dismiss paths (independent per C2).
 * **Pure log only:** banner/bell dismiss **UX and FE-local dual-dismiss state unchanged**. Do **not** call server `ALERT_DISMISSED` / `AlertManager.dismiss_alert` for this (that removes the alert from shared state and fights dual dismiss). Fire-and-forget log write; log failure must not undo UI dismiss.
 * **No alert id** in the log line (UI uuid only — not useful for ops).
-* **`level=`** = UI alert severity already on the alert: `info` | `warning` | `critical` | `success` (not logger ERROR/WARNING). The log record itself is still **`info`**.
+* **`level=`** = UI alert severity already on the alert: `info` | `warning` | `error` | `critical` | `success` (not logger ERROR/WARNING). The log record itself is still **`info`**.
+* Banner shows **`critical` only**. Integration connection transitions use UI `error` / `success` (bell only) and separately log ERROR / INFO to `wanos.log`.
 
 **Locked line shape:**
 
@@ -391,7 +393,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 ## 📋 C12 — Post-C10 polish 🔜 TODO
 
-**Origin:** operator inbox **2026-08-11**. Shell / History / Admin — **not** G2 bridge truth, **not** Blocky editor (**B10G** = Automations load %). **One ship** (default). Size **mid**. **Spec locked** (operator Q&A **2026-08-11**).
+**Origin:** operator inbox **2026-08-11**. Shell / History / Admin — **not** G2 bridge truth, **not** Blocky editor (**B10G** = Automations load checklist + timings + log; **B10H** = shorten wait). **One ship** (default). Size **mid**. **Spec locked** (operator Q&A **2026-08-11**).
 
 | # | Item |
 |---|---|
@@ -421,10 +423,39 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 ### Out of scope
 
 * G2 Hue bri/xy **bridge** truth.
-* B10G Automations load **%** overlay.
+* B10G Automations load checklist / timings / log overlay; **B10H** cold-load shorten.
 * C11 Control vs History membership model (item 3 does not reopen it).
 
 **C12 DoD:** Items 1–5 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works like Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C13 — Merge Hidden devices into Timers & types 🔜 TODO (assess)
+
+**Origin:** operator inbox **2026-08-11**. Admin system pages — **not** Blocky, **not** reopening **B7**/**B8**/**D** product model. Size **mid**. Sequence: **after C12**.
+
+### Locked triage intent
+
+* Keep **Timers & types** as the **single** Admin page for soft-hide + auto-off + product type.
+* Add soft-hide as an **extra column** (Hidden) on that device list.
+* **Retire** separate **Explorer hidden devices** page (`hiddendevices.html` + Admin nav entry). Soft-hide SoT stays **`deviceexplorer_hide`** (B7).
+* **Page rename** required (Admin label / title; HTML filename may follow **C4** or C13 — **name TBD at assess/impl**, not this triage). Track as open todo under this phase.
+* **Save model** (one Save vs two APIs under one UI) — **leave for assess**.
+
+### Assess at kickoff
+
+* Column UX (checkbox vs toggle; which rows editable; interaction with existing All/Hidden/Non-hidden filters).
+* Dirty / leave-guard once hide + timers/types share a page.
+* Whether rename lands in C13 or rides **C4** HTML rename wave.
+* Docs consumers of “Explorer hidden devices” / `hiddendevices` links.
+
+### Out of scope
+
+* Changing soft-hide or auto-off YAML keys / engine semantics.
+* Reopening **D1** product-type rules (still edited on Timers & types).
+* Explorer Control **Hidden devices** toggle (C1/C7) — separate surface.
+
+**C13 DoD:** Assess decision recorded; if impl: one Admin page with Hidden column; `hiddendevices` retired; page renamed (name chosen); save/dirty model as decided; Pi smoke hide + timers/types; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -441,6 +472,7 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * **C10:** Plural Nodes; Planned past/done **removed** from list (not relabeled); Hue COLOR OUTPUT text-only remove; climate legend/line parity; binary ON/OFF vs non-binary set vs motion hits (day Y + month/year counts); History omit **all** `type === "scene"`; filter+blinds drag stable. ✅ **Done 2026-08-11**.
 * **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
 * **C12:** Hue bri integer (nearest; ON 1–100; slider floor 1); binary month/year = duration ON (minutes/hours); motion hits unchanged + **visibility keep-as-is** (75xxx soft-hidden); C8 + `produced_at`; Z-Wave `-term` filter.
+* **C13:** Merge hide into Timers & types as Hidden column; retire `hiddendevices`; **rename TBD**; save model **assess**; after **C12**.
 * **C3:** Force ALL-OFF parallel-per-integration + 300ms pace + exclusion tags + confirm UX.
 * **C4:** Rename entrypoints; update all consumers.
 
@@ -449,4 +481,5 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10** — C10 closed by Pi smoke **2026-08-11**.)*
 * **C11** assess open until kickoff (queued).
 * **C12:** spec locked for triage **2026-08-11** (`produced_at` wire format = impl detail at kickoff).
+* **C13:** assess at kickoff — column UX; save model; **new page name** (todo); leave-guard; rename vs **C4**.
 * **C3 / C4** remain open as specified above (later in sequence).

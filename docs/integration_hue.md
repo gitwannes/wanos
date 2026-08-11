@@ -30,6 +30,7 @@ Because Hue is an active stream with complex translation tables, it handles conf
 ## 5. The Health Monitor (The Auto-Kill Procedure)
 *   **SSE Validation:** The `HealthMonitor` checks the integration's health by evaluating `sm.hue_bridge.is_connected`[cite: 3]. This boolean is directly tied to the integrity of the SSE loop[cite: 11]. If the HTTP stream collapses, the boolean flips to `False`[cite: 11].
 *   **The Auto-Kill:** After 3 strikes (6 seconds) of stream failure, the Health Monitor forces the integration OFF[cite: 3].
+*   **Connection transitions (not Auto-Kill):** Link up/down also emit **bell-only** alerts (`error` / `success`) and ERROR / INFO in `wanos.log` — not the red Admin banner.
 
 ## 6. Turning the Integration OFF
 *   The `stop()` method flips an `asyncio.Event` (`_stop_event`)[cite: 11].

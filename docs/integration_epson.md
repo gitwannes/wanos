@@ -21,6 +21,7 @@ Because the Epson bridge does not hold a persistent socket, the global `HealthMo
 *   **The TCP Ping:** Every 2 seconds, the Health Monitor executes `_ping_epson()`[cite: 3]. This opens a non-blocking TCP connection to port `3629` on the projector's IP[cite: 3]. It immediately closes the socket as soon as the connection succeeds[cite: 3].
 *   **The Strike System:** If the projector is unplugged from the wall or drops off the Wi-Fi, the TCP ping times out[cite: 3]. 
 *   **The Auto-Kill:** If the monitor accumulates **3 strikes (6 seconds total)** of TCP timeouts, it fires an emergency payload to disable the integration completely and logs: *"Epson Projector connection lost after 3 retries. Integration disabled."*[cite: 3]
+*   **Connection transitions (not Auto-Kill):** Connected→lost / recovered also emit **bell-only** alerts (`error` / `success`) and ERROR / INFO lines in `wanos.log` — not the red Admin banner.
 
 ## 4. Turning the Integration OFF
 If the integration is manually turned **OFF** in the UI (or if the Health Monitor kills it):

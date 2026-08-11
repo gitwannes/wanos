@@ -52,11 +52,13 @@ Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot 
 * Implement Epson **get_power_state** at boot.
 * Review when it is correct to call for **reliable** results (warm-up, network, projector ready).
 
+**Also in G1 (moved from B9A 2026-08-11):** review Epson force policy with boot truth. **Today:** RFX always-force; Epson/Sonos/Onkyo force **OFF only** (hub + AutomationEngine). Keep as-is unless G1 analysis says otherwise. Blockly already omits FORCE_* for RFX/Epson.
+
 **No code until analysis** — see Epson integration docs / code when implementing.
 
 **to be checked:** call timing constraints.
 
-**G1 DoD:** Boot path queries power when safe; documented when *not* to call; Pi smoke shows consistent Epson state after restart. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G1 DoD:** Boot path queries power when safe; documented when *not* to call; Pi smoke shows consistent Epson state after restart; force-policy note resolved (keep OFF-only or change). **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -118,7 +120,7 @@ Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot 
 
 * Existing rule **“Rolluik cinema half (zon)”** is misnamed: trigger `blinds.cinema` → `OPEN` turns on **badkamer Hue** — does **not** set a half position. **Retire or rename** when G5 lands so operators are not confused.
 
-**to be checked:** whether “not fully closed” needs a new Blocky/device-state condition (**B9A**), a small hub guard, or an always-set-to-60 with explicit skip-if-100 in rule engine. (Open-only condition in the partial rule is **not** accepted as DoD.)
+**to be checked (G5 owns — not B9A):** whether “not fully closed” needs a new Blocky/device-state compare (after B9A thresholds exist), a small hub guard, or an always-set-to-60 with explicit skip-if-100 in rule engine. (Open-only condition in the partial rule is **not** accepted as DoD.)
 
 **G5 DoD:** Dashboard button visible (label **rolluik zon half** or rename partial to match); with cinema **open or mid**, tap → **60% closed**; with cinema fully closed, tap leaves it closed; misnamed Hue-on-OPEN rule gone or clearly renamed; Pi smoke. Partial `Cinema rolluik half` / Open→50 must be updated or replaced. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 

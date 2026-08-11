@@ -273,29 +273,30 @@
                                    :class="!(editor.name || '').trim() ? 'border-warning' : ''"
                                    autocomplete="off">
                         </div>
-                        <!-- Appear on explorer always shown (default off). Confirm always shown but blocked unless explorer ON. -->
+                        <!-- Appear on explorer always shown (default off). Confirm always shown but blocked unless explorer ON.
+                             inline-flex (not DaisyUI .label) so checkbox + text stay adjacent. -->
                         <div class="flex flex-col gap-2 p-3 rounded border border-base-300 bg-base-200/60">
-                            <label class="label cursor-pointer justify-start gap-2 py-0">
+                            <label class="inline-flex items-center gap-2 cursor-pointer py-0">
                                 <input type="checkbox" class="checkbox checkbox-sm"
                                        x-model="editor.eventShowOnDashboard"
                                        @change="onExplorerFlagChanged()">
-                                <span class="label-text text-xs">Appear on explorer</span>
+                                <span class="text-xs">Appear on explorer</span>
                             </label>
-                            <label class="label cursor-pointer justify-start gap-2 py-0"
+                            <label class="inline-flex items-center gap-2 cursor-pointer py-0"
                                    :class="!editor.eventShowOnDashboard ? 'opacity-50' : ''">
                                 <input type="checkbox" class="checkbox checkbox-sm"
                                        x-model="editor.eventRequireConfirmation"
                                        :disabled="!editor.eventShowOnDashboard"
                                        @change="markEditorDirty()">
-                                <span class="label-text text-xs">Require confirmation</span>
+                                <span class="text-xs">Require confirmation</span>
                             </label>
-                            <label class="label cursor-pointer justify-start gap-2 py-0"
+                            <label class="inline-flex items-center gap-2 cursor-pointer py-0"
                                    :class="eventDisableBlocked ? 'opacity-50' : ''">
                                 <input type="checkbox" class="checkbox checkbox-sm"
                                        x-model="editor.eventEnabled"
                                        :disabled="eventDisableBlocked"
                                        @change="markEditorDirty()">
-                                <span class="label-text text-xs">Event enabled</span>
+                                <span class="text-xs">Event enabled</span>
                             </label>
                             <p class="text-[11px] text-base-content/50 max-w-xl" x-show="!editor.eventShowOnDashboard">
                                 Confirmation is only available when Appear on explorer is on.

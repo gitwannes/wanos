@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; **B10F** ✅ **Done 2026-08-11**; queued **B9A** / **B9B** / **B11–B18**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10** — smoke/GREEN/kiosk + migrator deleted; **B10F** ✅ **Done 2026-08-11**; next **B9A** **spec locked** — impl not started; queued **B10G** / **B10H** / **B9B** / **B11–B18**). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -99,9 +99,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + remove JSON — **spec locked**. **Phase B9B** = bathroom climate + **H4/H5/H12** (H4 expands: drop trigger “when any of” → condition and/or) — **deferred**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A** = Blockly parity + sensors/thresholds/host gauges + sauna/IR status conditions + Hue preset CRUD + remove JSON — **spec locked** (operator pass **2026-08-11**; **impl not started**). **B10G** = Automations load checklist + per-step duration **+ log** — **goal locked** (after B9A). **B10H** = Automations cold-load shorten wait — queued (pipeline). **Phase B9B** = bathroom climate + **H4/H5/H12** (H4 expands: drop trigger “when any of” → condition and/or) — **deferred**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
 
-**Follow-up (pickers):** sensors / temp / power / energy / fluid are **excluded** from the browsing catalog **until Phase B9A**. **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9A** = sensor/threshold/host-gauge authoring + JSON removal. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
+**Follow-up (pickers):** sensors / temp / power / energy / fluid / host gauges / status sensors are **excluded** from the browsing catalog **until Phase B9A** (**G2** picker policy — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9A** = sensor/threshold/host-gauge authoring + sauna/IR status conditions + Hue preset CRUD (Explorer) + **remove JSON**. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
 
 ### Phase B0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
@@ -293,37 +293,62 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 
 ### Phase B9A — Full Blockly parity + sensors/thresholds + remove JSON 🔜 TODO (spec locked — impl not started)
 
-**Depends on:** Phase **B6C** ✅ (rich actions). Phases **7** / **8** ✅ (orthogonal; not prerequisites).
+**Depends on:** Phase **B6C** ✅ (rich actions). **B10B+D+E** ✅ (`events:` catalog). **D** ✅ (typing / `zwave.*`·`rfx.*` ids). Phases **7** / **8** ✅ (orthogonal).
 
-**Goal:** every authorable schema-v2 automation is create/edit-able entirely on Blockly. **JSON mode is removed** (same PR as parity green). Sensors / thresholds / host gauges become first-class where engine-legal.
+**Goal:** every authorable schema-v2 automation is create/edit-able entirely on Blockly. **JSON mode is removed** (same PR as parity green). Sensors / thresholds / host gauges / sauna·IR status conditions / Explorer Hue preset CRUD become first-class where engine-legal.
 
-**Split:** **B9A** = parity audit + sensor/host pickers + compare + FORCE + E1 expand + **remove JSON**. **B9B** = bathroom climate + **H4** (condition AND/OR groups) + **H5** (notify/alert → extend with Gmail per `docs/todo/phaseE-gmail.md`) + **H12** (hysteresis block). Vent **min-runtime lock stays in hub code**.
+**Split:** **B9A** = parity audit + sensor/host pickers (**G2**) + compare + sauna/IR status conditions + Hue preset CRUD + **remove JSON**. **B9B** = bathroom climate + **H4** (condition AND/OR groups) + **H5** (notify/alert → extend with Gmail per `docs/todo/phaseE-gmail.md`) + **H12** (hysteresis block). Vent **min-runtime lock stays in hub code**.
 
-#### Locked (2026-08-08 — do not re-litigate without explicit change)
+**FORCE / Epson:** out of B9A → **[`phaseG-integrations.md`](phaseG-integrations.md) § G1** (keep Epson OFF-only force as today; RFX already always-force).
+
+**Events / `SAUNA_SETPOINT_REACHED`:** **moot for B9A** — seeded + pickable since B10B. Further system seeds = explicit review + constants (standing process, not a B9A deliverable).
+
+#### Locked (2026-08-08 base + 2026-08-11 operator lock pass — do not re-litigate without explicit change)
 
 1. **Delivery order** — **audit-first**, then build; **post-audit** propose HA-inspired patterns (adoption separate).
 2. **Thresholds / compare** — **in B9A:** engine + Blockly. Operators = `==`, `!=`, `>`, `>=`, `<`, `<=`. **Hysteresis / for-duration = B9B only**.
-3. **Sensor-class types IN** — `sensor`, `temp_hum`, `temp`, `hum`, `power`, `energy`, `fluid`, `door`, **plus host gauges** (`sensor.*.host_*`, DB size, etc.). Motion = **trigger OK, never action**.
-4. **Roles** — **both** When + if (engine-legal per type).
+3. **Picker policy (G2)** — When+if for typed classes: `temp_hum`, `temp`, `hum`, `power`, `energy`, `fluid`, `door`, **plus every metadata `type: sensor`** (host gauges, mains, sauna/IR status, …). **Motion** = When-device trigger only; never as action; never as condition.
+4. **Roles** — typed classes + numeric/`type: sensor` gauges: **both** When + if (engine-legal). **Exception:** `sensor.generic.sauna_status` + `sensor.generic.ir_status` = **condition (if) only** — **not** When.
 5. **`temp_hum` attributes** — separate fields: `temperature` and `humidity`.
 6. **Sensor When semantics** — **discrete** (door / motion): any change; **numeric**: compare **becomes** true (edge / threshold-cross).
 7. **Value UX (O1)** — **discrete = dropdown**; **numeric = Blockly `FieldNumber`** (same pattern as volume / blinds open %).
-8. **FORCE_*** — every origin engine already honors; RFX/Epson omit redundant FORCE.
+8. **FORCE_*** — **out of B9A** → **G1**. Current code: RFX always-force; Epson/Sonos/Onkyo force **OFF only**. Blockly already omits FORCE_* for RFX/Epson.
 9. **Silent-loss = B+C** — opaque preserve unknown-but-legal keys; **block Save** when a drop would be non-preservable or structure cannot load safely.
-10. **JSON** — **remove in same PR** as parity green.
-11. **Events (O2 = A)** — **pre-B10B:** curated E1 expand only. **After B10B:** pickable set = `events:` catalog (UUID); expand system seeds only by explicit review + constants. **`SAUNA_SETPOINT_REACHED`** seeded in B10B; further keys only by explicit review + code/docs.
+10. **JSON** — **remove in same PR** as parity green (Automations page Editor → “JSON (power-user)” only; internal `ruleJson` transport may remain).
+11. **Events** — pickable set = `events:` catalog (B10B). **`SAUNA_SETPOINT_REACHED` already seeded/pickable** — no B9A expand work. Further system keys by explicit review + constants only.
 12. **O9 (doc chore)** — when JSON is removed, update Phase B0 **decision #12** (Hybrid / JSON fallback) so it no longer says “keep JSON until Phase B9”. Not a product fork — mechanical supersession at B9A ship.
 13. **B9B features** — bathroom climate (humidity band → Blockly); **H4** condition AND/OR groups; **H5** notify/alert action (**extend with Gmail** / `EMAIL_REQUESTED` per `docs/todo/phaseE-gmail.md`); **H12** generic hysteresis block. Feasibility for bathroom below. **Vent min-runtime lock (`90001` + timer) stays in hub code**.
 14. **B9B scope** — bathroom climate + H4 + H5 + H12. Hot-water→vent / sauna grace / other sweeper = **out** unless reopened. Other HA patterns (**H1–H3, H6–H11**) = **future possibilities** only (not B9A/B9B).
 15. **O7 disposition (2026-08-08)** — H4/H5/H12 → **B9B**; remaining H\* → future backlog. **No** new HA primitives in **B9A**. Post-audit step may still *note* gaps; it does not re-open this bucket without explicit change.
 16. **Pi smoke** — operator broad smoke; DoD not exhaustive.
 17. **Permanent exceptions** — hard-deny **71040** only; soft-hide / auto-off UIs stay 7/8.
+18. **Sauna / IR session condition** — use **`sensor.generic.sauna_status`** / **`sensor.generic.ir_status`** as `device_state` **if** ON/OFF (mirrors session active). **No** new `state.sauna.active` condition type.
+19. **Host gauges — Blockly visibility** — closed **visible** set (soft-hidden devices still use Hidden toggle / sticky). Load **1m** and **5m** remain published but **hidden from Blockly pickers only** (not unpublished).
+
+| entity_id | Blockly label |
+|---|---|
+| `sensor.temp_hum.host_cpu_temperature` | Host CPU Temperature |
+| `sensor.generic.host_cpu_usage` | Host CPU Usage |
+| `sensor.generic.host_memory_free` | Host Memory Free |
+| `sensor.generic.host_disk_free_root` | Host Disk Free (Root) |
+| `sensor.generic.host_log2ram_free` | Host Log2Ram Free |
+| `sensor.generic.host_load_average_15m` | **Host average load %** |
+| `sensor.generic.wanos_db_size` | WanOS DB size |
+| `sensor.generic.mains_voltage` | Mains voltage |
+
+20. **Hue presets CRUD (in B9A)** — SoT `config_hue.yaml` → `hue.presets` (text **keys**; display `name`). Automations/Blocky store the **key**.
+    - **Add:** Explorer Hue detail — save **current** wheel color as a **new** preset (unique text slug from name; never overwrite an existing key’s color).
+    - **Rename:** Explorer Edit mode next to preset chips — change **display `name` only** (YAML key unchanged).
+    - **Delete:** same Edit mode — remove preset. **If any automation still references `preset: <key>` → Delete control disabled** (API reject if forced); show usages (rule names) so operator can clear refs first.
+    - **No** “replace existing key with another color.”
+21. **Smoke rule — sauna hue physical (in B9A DoD)** — author on Pi: trigger `zwave.sauna_hue_physical` (**71035**) on **any** change (duplicate when ON + when OFF cases); conditions via `sensor.generic.sauna_status` + `hue.group.sauna_hue` (**51002**); actions on sauna hue + `zwave.sauna_zoutlamp`. Logic: sauna ON → if hue already ON → no-op, else OFF hue + zoutlamp; sauna OFF → if hue ON → OFF hue + zoutlamp, else ON hue + zoutlamp.
+22. **G5 blinds “not fully closed”** — **out of B9A** → [`phaseG-integrations.md`](phaseG-integrations.md) § G5.
 
 #### Open
 
 | ID | Topic | Status |
 |----|--------|--------|
-| *(none for B9A product locks)* | — | B9A ready to audit/impl; B9B ordering/details at BB9B kickoff |
+| *(none for B9A product locks)* | — | B9A ready to audit/impl; B9B ordering/details at B9B kickoff |
 
 #### O7 — HA-inspired patterns — **disposition locked**
 
@@ -341,18 +366,19 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 
 - Engine `device_state` today = string equality only → B9A extends compares.
 - Live YAML has no numeric-threshold rules yet.
-- Host gauges may be soft-hidden → Hidden toggle / open-rule sticky unchanged.
+- Host gauges / many sensors may be soft-hidden → Hidden toggle / open-rule sticky unchanged.
+- `sauna_status` / `ir_status` already mirror session ON/OFF in `devices[]`; Blockly currently excludes `type: sensor` from condition pickers — B9A opens that (if-only for status).
+- Hue presets today: `relax_red` / `my_white` in `config_hue.yaml` (hand-edit only until B9A CRUD).
 
 #### Gap inventory (B9A targets)
 
 | Gap | B9A target |
 |-----|-----------|
 | Rich B6C | verify no coerce/loss |
-| Sensors + host gauges | When + if; UX = dropdown / FieldNumber |
-| Sauna session condition | `state.sauna.active` in if; smoke rule sauna hue physical (71035→51002/72004) |
+| Sensors + host gauges (**G2**) | typed classes + all `type: sensor`; UX = dropdown / FieldNumber; host 1m/5m FE-hidden |
+| Sauna/IR session condition | `sauna_status` / `ir_status` if ON/OFF; smoke rule sauna hue physical |
 | Compare ops | `== != > >= < <=` (no hysteresis) |
-| FORCE | all engine-honored origins |
-| Events | After B10B: `events:` catalog; + `SAUNA_SETPOINT_REACHED` (seeded in B10B) |
+| Hue presets | Explorer add / rename name / delete (disabled if used); text keys |
 | Silent loss | B+C |
 | JSON | remove same PR; supersede decision #12 |
 
@@ -361,14 +387,13 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 1. Live-rule parity audit + gap list.
 2. Post-audit: note any remaining gaps; **do not** adopt H\* into B9A (disposition locked).
 3. Verify B6C rich / per-action / blinds mid.
-4. Sensor + host-gauge pickers; motion trigger-only.
-5. **Sauna session condition** (`sauna.active`) + author **sauna hue physical** smoke rule (entities: `switch.sauna_hue_physical`, `hue.group.sauna_hue`, `switch.sauna_zoutlamp`).
+4. Sensor pickers per **G2**; motion trigger-only; host visibility table above; status if-only.
+5. Sauna/IR status conditions + author **sauna hue physical** smoke rule.
 6. Compare conditions (no hysteresis — **H12 is B9B**).
-7. FORCE completeness.
-8. E1 + `SAUNA_SETPOINT_REACHED` (catalog via B10B).
-9. JSON removal + B+C + update decision #12 prose.
+7. Hue preset CRUD (Explorer; text keys; name-only rename).
+8. JSON removal + B+C + update decision #12 prose.
 
-**Out of scope for B9A:** bathroom climate; H4/H5/H12; vent-lock Blockly; H1–H3/H6–H11; schema v2 redesign; Phase B7/8 UIs; Gmail stack / Phase E (see `phaseE-gmail.md` — hooks land in **B9B H5**). Bathroom feasibility write-up lives under **Phase B9B** (not a B9A deliverable).
+**Out of scope for B9A:** bathroom climate; H4/H5/H12; vent-lock Blockly; H1–H3/H6–H11; schema v2 redesign; Phase B7/8 UIs; Gmail stack / Phase E (see `phaseE-gmail.md` — hooks land in **B9B H5**); **FORCE completeness / Epson force policy** (→ **G1**); events catalog expand / `SAUNA_SETPOINT_REACHED` (already done); G5 blinds condition. Bathroom feasibility write-up lives under **Phase B9B** (not a B9A deliverable).
 
 **Constraints:** Admin Debug GREEN; B+C no silent strip; hard-deny unchanged.
 
@@ -376,7 +401,7 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 
 ### Phase B9B — Bathroom climate + H4 / H5 / H12 🔜 DEFERRED (feasibility done for bathroom)
 
-**Not B9A.** B9A supplies compare / sensor / `humidity` primitives only.
+**Not B9A.** B9A supplies compare / sensor / `humidity` / status-sensor condition primitives only.
 
 **Goal:**
 
@@ -657,7 +682,7 @@ Phase B5 does **not** require a rollback rehearsal that depends on hand-edit + A
 3. **Phase B6C:** ✅ rich action UX — Hue preset XOR custom color (iro → bri/xy), blinds open % (incl. mid), Sonos/Onkyo volume, Sonos station, per-action rich; smoke OK Pi **2026-08-06**.
 4. **Phase B7:** ✅ unified soft-hide — **`deviceexplorer_hide`**; `hiddendevices.html` + `/api/soft-hide`; hard-deny = 71040 (A); 71036 soft-hide + commandable + Blocky-selectable; migrator removed after cutover.
 5. **Phase B8:** ✅ auto-off timers UI + engine — `auto_off_devices:`; `lightingautooff.html` + `/api/auto-off-timer`; migrator removed after cutover.
-6. **Phase B9A:** Blockly parity + sensor/threshold/host-gauge authoring + **remove JSON** — **spec locked**.
+6. **Phase B9A:** Blockly parity + sensor/threshold/host-gauge authoring + sauna/IR status conditions + Hue preset CRUD + **remove JSON** — **spec locked** (2026-08-11 operator pass).
 7. **Phase B9B:** bathroom climate + **H12** hysteresis + **H4** condition and/or (+ drop trigger “when any of”) + **H5** notify (→ Gmail per `phaseE-gmail.md`); vent lock stays in hub — deferred.
 8. **Phase B10A:** ✅ Blockly editor fixes (Hue picker-only a/b/c, toolbar Delete, dirty leave; Hue/blinds rich survive save→reload); smoke OK Pi **2026-08-09**.
 9. **Phase B10C:** ✅ soft-hide action device picker (exclusive + sticky load); smoke OK Pi **2026-08-09**.
@@ -771,15 +796,16 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [ ] **Post-audit note:** confirm no pressure to pull H\* into B9A (H4/H5/H12 wait for B9B).
 - [ ] **Per-action rich:** verify B6C round-trip independence.
 - [ ] **Silent-loss B+C:** unknown-legal keys preserved; Save blocked when a non-preservable drop would occur.
-- [ ] **Sensor + host-gauge pickers:** When + if; motion trigger-only; hard-deny blocked; discrete dropdown / numeric `FieldNumber`.
-- [ ] **Sauna session condition:** Blockly + engine can test **sauna active** (`state.sauna.active`) as a condition (not only `device_state`). Needed for rules such as **sauna hue physical** (below).
-- [ ] **Example / smoke rule — sauna hue physical:** trigger `switch.sauna_hue_physical` (**71035**) on **any** change (ON or OFF edge); if sauna **on** → if `hue.group.sauna_hue` (**51002**) already on → no-op, else **OFF** sauna hue + `switch.sauna_zoutlamp` (**72004**); if sauna **off** → if hue already on → **OFF** hue + zoutlamp, else **ON** hue + zoutlamp. (Not authorable today: no sauna-session condition.)
+- [ ] **Sensor pickers (G2):** typed classes When+if; all metadata `type: sensor` When+if **except** sauna/IR status (**if only**); motion trigger-only; hard-deny blocked; host 1m/5m Blockly-hidden; discrete dropdown / numeric `FieldNumber`; host 15m label **Host average load %**.
+- [ ] **Sauna / IR session condition:** Blockly can pick `sensor.generic.sauna_status` / `sensor.generic.ir_status` as **if** ON/OFF (`device_state`). No `state.sauna.active` condition type.
+- [ ] **Example / smoke rule — sauna hue physical:** trigger `zwave.sauna_hue_physical` (**71035**) on **any** change (ON and OFF cases); if `sauna_status` ON → if `hue.group.sauna_hue` (**51002**) already ON → no-op, else **OFF** sauna hue + `zwave.sauna_zoutlamp`; if `sauna_status` OFF → if hue ON → **OFF** hue + zoutlamp, else **ON** hue + zoutlamp.
 - [ ] **Thresholds:** ops `== != > >= < <=` in engine **and** Blockly; no hysteresis; `temp_hum` → separate temperature / humidity; numeric When = edge-cross, discrete = any change.
-- [ ] **FORCE:** all engine-honored origins.
-- [ ] **Events:** pickable from `events:` (B10B); `SAUNA_SETPOINT_REACHED` present.
+- [ ] **Hue presets CRUD:** Explorer add (new key from current color); Edit-mode rename (**name** only); Edit-mode delete **disabled when any rule references that key** (show usages; API reject); text keys; no overwrite color on existing key; Blocky dropdown refreshes.
 - [ ] **JSON removed** in same PR as parity green; decision #12 prose updated to Blockly-only.
 - [ ] **Pi smoke:** operator broad smoke + Admin Debug GREEN.
 - [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+*(FORCE / Epson force policy → **G1**. Events / `SAUNA_SETPOINT_REACHED` → already shipped; not a B9A checkbox.)*
 
 ### Phase B9B DoD — Bathroom climate + H4 / H5 / H12
 
@@ -956,7 +982,7 @@ UUIDs: locked in `core/event_catalog.py`. **Name** = Blockly / catalog display s
 | `IR_OFF` | IR OFF | E1 |
 | `SAUNA_SETPOINT_CHANGED` | Sauna setpoint changed | |
 | `SAUNA_MODULATION_UPDATED` | Sauna modulation updated | |
-| `SAUNA_SETPOINT_REACHED` | Sauna setpoint reached | Seeded even if emit lands later / B9A |
+| `SAUNA_SETPOINT_REACHED` | Sauna setpoint reached | Seeded + Blocky-pickable (B10B); emit may land later |
 | `SAUNA_HOLD` | Sauna hold | |
 | `SAUNA_TIMER_EXPIRED` | Sauna timer expired | |
 | `SAUNA_HOLD_TOGGLED` | Sauna hold toggled | |
@@ -983,7 +1009,7 @@ UUIDs: locked in `core/event_catalog.py`. **Name** = Blockly / catalog display s
 | `HUB_STATE_CHANGED` | Catalog + bus yes; Blockly pickers exclude (`NON_PICKABLE_SYSTEM_UUIDS`) — high-chatter telemetry |
 | `LIGHTING_STATE_CHANGED` | **Removed** from codebase (enum + handler + registry); lights use `HUB_STATE_CHANGED` |
 
-(`SAUNA_SETPOINT_REACHED` remains seeded even if emit lands later / B9A.)
+(`SAUNA_SETPOINT_REACHED` remains seeded + pickable; emit may land later — not a B9A gate.)
 
 **Not in catalog (internal bus only):** timers/infra (incl. `IR_TIMER_EXPIRED`), integration toggles, alerts. **`EMAIL_REQUESTED`:** wait for phase **E**.
 
@@ -1117,7 +1143,8 @@ Run on **Pi** after deploying latest (`entity_registry_check` skip ≥900000, Bl
 Pointers only — detail under § B10F / § B11–B18:
 
 * **B10F** — Automations UX polish — ✅ **Done 2026-08-11** (does not reopen B10E DoD).
-* **B10G** — Automations load progress % — **assess at kickoff** (no pre-decision).
+* **B10G** — Automations load checklist + timings + log — **goal locked** (after B9A).
+* **B10H** — Automations cold-load shorten wait — queued (separate from B10G).
 * **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
 * **G6** — Scoped `CONFIG_RELOAD` after CRUD (no bridge thrash) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
@@ -1344,11 +1371,11 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 
 ---
 
-### Phase B10G — Automations load progress % 🔜 TODO (assess at kickoff)
+### Phase B10G — Automations load checklist + timings + log 🔜 TODO (goal locked)
 
-**Origin:** operator inbox **2026-08-11**. **After B10F** ✅. Size **low**. **Triage locked:** **assess when B10G is reached** — no implement/skip decision until kickoff; baseline notes below for that assess.
+**Origin:** operator inbox **2026-08-11**. **After B10F** ✅. Size **low**. **Sequence:** **after B9A** (B9A in progress). **Goal locked** (operator Q&A **2026-08-11** evening).
 
-**Problem:** Yellow **“Loading automation editor…”** overlay (`blocky.html`, `!connected`) can stay up **~10s** on slow Pi/network while `refreshAll()` runs.
+**Problem:** Yellow **“Loading automation editor…”** overlay (`blocky.html`, `!connected`) can stay up **~15s** on slow Pi/network while `refreshAll()` runs (baseline notes had ~10s).
 
 **What runs inside the overlay today** (`frontend/blocky.js` → `init()` → `refreshAll()`):
 
@@ -1361,15 +1388,30 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 
 **Not in overlay:** Blockly workspace init / `loadV2IntoBlockly()` (`scheduleBlocklyLoad`) runs **after** `connected === true` when a rule is open.
 
-**Assess — can we show %?**
+**Locked UX (not %):**
 
-* **Yes, coarse only:** track completion of the **three parallel fetches** (~33% each) + **fire-status** (~25% if four equal steps) + optional “ready” after FE rebuild.
-* **Limitations:** one slow endpoint stalls progress; FE rebuild is fast/opaque; Blockly load is **post-overlay** unless policy changes (extend overlay = B10G scope fork — decide at kickoff).
-* **Recommendation at kickoff:** implement coarse % only if load pain still warrants it; otherwise close as assess-only (keep B10F copy).
+* Yellow overlay shows a **to-do list** of load steps; each item **checks off** when that step finishes.
+* Instrument each step **start / stop**; keep **duration**.
+* **Log** each step’s duration (channel — browser console vs `wanos.log` — pick at impl).
+* Parallel steps (1–3) may complete in any order; list updates as each resolves.
 
-**Out of scope:** G6 scoped reload duration; save busy overlay (B10F item 1).
+**Out of scope:** shortening cold-load wait → **B10H**; G6 scoped reload duration; save busy overlay (B10F item 1); Blockly post-overlay load.
 
-**B10G DoD (if impl after kickoff assess):** Yellow overlay shows defensible **% loaded** during `refreshAll`; unreachable path unchanged (red copy); Pi smoke cold open on slow path. **If assess-only:** decision + rationale recorded here; no code required. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**B10G DoD:** Yellow overlay checklist + per-step checkmarks during `refreshAll`; durations recorded **and logged**; unreachable path unchanged (red copy); Pi smoke cold open on slow path. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B10H — Automations cold-load shorten wait 🔜 TODO (queued)
+
+**Origin:** B10G kickoff assess **2026-08-11**. Size **mid** (rough). **Separate from B10G** — feedback/instrumentation first; latency cut later.
+
+**Problem:** Cold Automations open can take **~15s** wall time; B10G only makes the wait honest (checklist + timings + log), it does **not** shorten it.
+
+**High-level levers (assess at kickoff — no pre-decision):** hide overlay before non-critical work (e.g. fire-status after ready); overlap sequential work; smaller/faster payloads — detail when B10H is reached. Prefer using **B10G timings** to see which step dominates.
+
+**Out of scope:** B10G checklist/log UX; G6 reload scope; save busy overlay.
+
+**B10H DoD (stub):** written kickoff decision + impl if proceed; measurable shorter cold open on Pi vs pre-B10H baseline; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

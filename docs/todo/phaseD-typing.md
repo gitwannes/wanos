@@ -4,7 +4,7 @@ Product **light** vs **switch** for binary actuators, plus origin-neutral **`ent
 
 **Status:** ✅ **DONE** — D1 + D2 Pi smoke OK **2026-08-11** (Admin Debug GREEN; automations / auto-off / hide / Epson / vent). Migrators + D2 backup folder deleted **2026-08-11**.
 
-**Related:** Shell → [`phaseC-shell.md`](phaseC-shell.md) (**C2** Planned Automations). Blocky → [`phaseB-blocky.md`](phaseB-blocky.md). Sequence → [`pipeline.md`](pipeline.md).
+**Related:** Shell → [`phaseC-shell.md`](phaseC-shell.md) (**C2** Planned Automations; **C13** merge soft-hide into Timers & types — assess). Blocky → [`phaseB-blocky.md`](phaseB-blocky.md). Sequence → [`pipeline.md`](pipeline.md).
 
 **Sequence (historical):** **D1** then **D2** (hard cutover migrator on Pi; no dual-read). Next in pipeline = **B9A**.
 

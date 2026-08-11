@@ -56,6 +56,26 @@ async def handle_external_weather_updated(event: Event, manager: Any) -> Tuple[b
     return True, {"sensors"}
 
 
+async def _emit_connection_transition(
+    manager: Any,
+    *,
+    down: bool,
+    message: str,
+) -> Tuple[bool, Set[str]]:
+    """
+    Integration link up/down: bell-only UI (error / success) + durable app log.
+    Disconnect → UI level error + logger ERROR; reconnect → UI success + logger INFO.
+    Does not use critical (banner stays reserved for true emergencies).
+    """
+    if down:
+        ch, dom = AlertManager.process_alert(manager._state, f"ERROR: {message}")
+        await manager.logger.error(message)
+    else:
+        ch, dom = AlertManager.process_alert(manager._state, f"🟢 SUCCESS: {message}")
+        await manager.logger.info(message)
+    return ch, dom
+
+
 async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
 
@@ -86,88 +106,100 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     prev_zwave_web = manager._state.system.zwave_web_alive
     prev_zwave_data = manager._state.system.zwave_data_alive
 
-    # --- UI CONNECTION TRANSITION ALERTS & RECOVERY ---
-
-    # --- UI CONNECTION TRANSITION ALERTS & RECOVERY ---
+    # --- CONNECTION TRANSITION ALERTS (bell + logs; not banner) ---
     if prev_wanos and not wanos_conn:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Local MQTT Broker offline")
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Local MQTT Broker offline")
         state_changed |= ch
         changed_domains |= dom
     elif not prev_wanos and wanos_conn and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Local MQTT Broker back online")
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Local MQTT Broker back online")
         state_changed |= ch
         changed_domains |= dom
 
     if prev_rfx and not rfx_conn:
-        ch, dom = AlertManager.process_alert(manager._state,
-                                             "🔴 CRITICAL: Native RFXCOM USB Transceiver offline or disconnected")
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Native RFXCOM USB Transceiver offline or disconnected")
         state_changed |= ch
         changed_domains |= dom
     elif not prev_rfx and rfx_conn and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Native RFXCOM USB Transceiver mounted")
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Native RFXCOM USB Transceiver mounted")
         state_changed |= ch
         changed_domains |= dom
         if not manager._state.system.rfxcom_integration_enabled:
             manager.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_hue and not hue_conn:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Local Hue Bridge connection lost")
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Local Hue Bridge connection lost")
         state_changed |= ch
         changed_domains |= dom
     elif not prev_hue and hue_conn and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Local Hue Bridge connected via API v2")
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Local Hue Bridge connected via API v2")
         state_changed |= ch
         changed_domains |= dom
         if not manager._state.system.hue_integration_enabled:
             manager.dispatch(Event(type=EventType.HUE_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_epson and not epson_conn:
-        ch, dom = AlertManager.process_alert(manager._state,
-                                             "🔴 CRITICAL: Epson Projector TCP connection lost (Unplugged?)")
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Epson Projector TCP connection lost (Unplugged?)")
         state_changed |= ch
         changed_domains |= dom
     elif not prev_epson and epson_conn and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Epson Projector TCP socket responding")
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Epson Projector TCP socket responding")
         state_changed |= ch
         changed_domains |= dom
         if not manager._state.system.epson_integration_enabled:
             manager.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_onkyo and not onkyo_conn:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Onkyo Receivers unreachable")
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Onkyo Receivers unreachable")
         state_changed |= ch
         changed_domains |= dom
     elif not prev_onkyo and onkyo_conn and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Onkyo Receivers online")
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Onkyo Receivers online")
         state_changed |= ch
         changed_domains |= dom
         if not manager._state.system.onkyo_integration_enabled:
             manager.dispatch(Event(type=EventType.ONKYO_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_zwave_hw and not zwave_hardware_conn:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Z-Wave USB Stick unplugged from the Pi!")
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Z-Wave USB Stick unplugged from the Pi!")
         state_changed |= ch
         changed_domains |= dom
     elif not prev_zwave_hw and zwave_hardware_conn and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Z-Wave USB Stick mounted")
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Z-Wave USB Stick mounted")
         state_changed |= ch
         changed_domains |= dom
 
     if prev_zwave_web and not zwave_web_alive:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Z-Wave JS Web Panel (8091) unreachable")
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Z-Wave JS Web Panel (8091) unreachable")
         state_changed |= ch
         changed_domains |= dom
     elif not prev_zwave_web and zwave_web_alive and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Z-Wave JS Web Panel (8091) online")
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Z-Wave JS Web Panel (8091) online")
         state_changed |= ch
         changed_domains |= dom
 
     if prev_zwave_data and not zwave_data_alive:
-        ch, dom = AlertManager.process_alert(manager._state, "🔴 CRITICAL: Z-Wave MQTT Data stream frozen")
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Z-Wave MQTT Data stream frozen")
         state_changed |= ch
         changed_domains |= dom
     elif not prev_zwave_data and zwave_data_alive and manager._state.system.app_boot_unix is not None:
-        ch, dom = AlertManager.process_alert(manager._state, "🟢 SUCCESS: Z-Wave MQTT Data stream active")
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Z-Wave MQTT Data stream active")
         state_changed |= ch
         changed_domains |= dom
 

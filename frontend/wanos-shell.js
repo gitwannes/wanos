@@ -163,13 +163,13 @@
             // C2: criticals also in bell; dismissBellAlert is independent of banner dismiss
             '<template x-for="msg in bellAlerts" :key="msg.id">' +
             '<div class="bg-base-300 rounded p-3 text-sm border-l-4 shadow-sm" ' +
-            ':class="msg.level === \'critical\' ? \'border-error\' : (msg.level === \'success\' ? \'border-success\' : (msg.level === \'warning\' ? \'border-warning\' : \'border-info\'))">' +
+            ':class="msg.level === \'critical\' || msg.level === \'error\' ? \'border-error\' : (msg.level === \'success\' ? \'border-success\' : (msg.level === \'warning\' ? \'border-warning\' : \'border-info\'))">' +
             '<div class="flex justify-between items-start gap-2 mb-1">' +
             '<div class="flex-1 min-w-0 break-words leading-tight">' +
             '<span class="font-mono text-[10px] text-base-400 mr-2 whitespace-nowrap" ' +
             'x-show="msg.timestamp" x-text="msg.timestamp"></span>' +
             '<span class="font-bold" ' +
-            ':class="msg.level === \'critical\' ? \'text-error\' : (msg.level === \'success\' ? \'text-success\' : (msg.level === \'warning\' ? \'text-warning\' : \'text-info\'))" x-text="msg.message"></span>' +
+            ':class="msg.level === \'critical\' || msg.level === \'error\' ? \'text-error\' : (msg.level === \'success\' ? \'text-success\' : (msg.level === \'warning\' ? \'text-warning\' : \'text-info\'))" x-text="msg.message"></span>' +
             '</div>' +
             '<button @click="dismissBellAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle text-base-400 hover:text-white shrink-0 -mt-1 -mr-1">✕</button>' +
             "</div>" +

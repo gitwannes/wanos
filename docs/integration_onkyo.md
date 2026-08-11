@@ -50,6 +50,7 @@ Completely outside of the `onkyo.py` script, WanOS runs a global `HealthMonitor`
 *   **The 8-Second Grace Period:** When the Onkyo bridge first starts, the Health Monitor gives it an 8-second grace period to establish its sockets without throwing false alarms.
 *   **The Strike System:** If the Health Monitor detects that the Onkyo bridge has no active receivers connected, it issues a "strike". 
 *   **The Auto-Kill:** If the bridge accumulates **3 strikes (6 seconds total)** of complete disconnection, the Health Monitor actively intervenes. It fires an emergency payload to disable the integration completely and logs: *"Onkyo connection lost after 3 retries. Integration disabled."*
+*   **Connection transitions (not Auto-Kill):** Link up/down also emit **bell-only** alerts (`error` / `success`) and ERROR / INFO in `wanos.log` — not the red Admin banner.
 
 ## 8. Turning the Integration OFF
 If the integration is manually turned **OFF** in the UI (or if the Health Monitor kills it):

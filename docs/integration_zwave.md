@@ -51,6 +51,7 @@ Completely outside of the `zwave.py` script, the global `HealthMonitor` audits Z
 *   **Tier 2 (Control Plane):** Attempts a TCP ping against the Z-Wave JS UI Web Server on port `8091`.
 *   **Tier 3 (Data Plane):** Checks if the MQTT engine is alive and verifies that a controller heartbeat was received within the last 90 seconds.
 *   **The Auto-Kill Execution:** USB disconnections are treated as instantly fatal (1 strike). Web UI or Data Stream freezes are granted a minor grace period (3 strikes / 6 seconds). If the threshold is breached, the monitor disables the integration and alerts the UI with the precise failure reason (e.g., *"Z-Wave Data Stream Frozen"*).
+*   **Connection transitions (not Auto-Kill):** Each tier up/down also emits a **bell-only** alert (`error` disconnect / `success` reconnect) and writes ERROR / INFO to `wanos.log`. These do **not** use the red Admin banner (reserved for `critical`).
 
 ## 8. Turning the Integration OFF
 If the integration is manually turned **OFF** in the UI (or if the Health Monitor kills it):

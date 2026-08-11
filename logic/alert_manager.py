@@ -8,15 +8,18 @@ from core.models import SystemState
 class AlertManager:
     """
     Centralized UI Notification Engine.
-    Handles timestamping, deduplication, and severity classification of UI alert banners.
+    Handles timestamping, deduplication, and severity classification for banner + bell.
+    Banner = critical only; error/warning/success/info are bell-only.
     """
 
     @staticmethod
     def process_alert(state: SystemState, *msgs: Optional[str], domain: str = "system") -> Tuple[bool, Set[str]]:
         """
         Safely timestamps, deduplicates, and structures UI alerts into routing dictionaries.
-        Auto-classifies severity based on emojis to maintain backwards compatibility
-        with all existing log strings across the architecture!
+        Auto-classifies severity based on emojis / keywords to maintain backwards compatibility
+        with all existing alert strings across the architecture.
+
+        UI levels: critical (banner + bell), error / warning / success / info (bell only).
         Returns (state_changed: bool, changed_domains: Set[str])
         """
         changed = False
@@ -26,17 +29,30 @@ class AlertManager:
             if not raw_msg:
                 continue
 
-            # Auto-classify severity and strip visual indicators for clean JSON delivery
+            # Auto-classify severity and strip visual indicators for clean JSON delivery.
+            # Order matters: CRITICAL / 🚨 before ERROR so banner emergencies stay critical;
+            # ERROR before bare 🔴 so connection-transition alerts can be bell-only.
             level = "info"
             clean_msg = raw_msg
+            upper_msg = raw_msg.upper()
 
-            if "🔴" in raw_msg or "CRITICAL" in raw_msg.upper():
+            if "🚨" in raw_msg or "CRITICAL" in upper_msg:
                 level = "critical"
-                clean_msg = clean_msg.replace("🔴", "").replace("CRITICAL:", "").replace("CRITICAL", "")
+                clean_msg = clean_msg.replace("🔴", "").replace("🚨", "")
+                clean_msg = clean_msg.replace("CRITICAL:", "").replace("CRITICAL", "")
+            elif "ERROR:" in upper_msg:
+                # Explicit ERROR: prefix → bell-only (banner is critical-only).
+                level = "error"
+                for token in ("ERROR:", "Error:", "error:"):
+                    clean_msg = clean_msg.replace(token, "")
+                clean_msg = clean_msg.replace("🔴", "")
+            elif "🔴" in raw_msg:
+                level = "critical"
+                clean_msg = clean_msg.replace("🔴", "")
             elif "🟡" in raw_msg or "⚠️" in raw_msg:
                 level = "warning"
                 clean_msg = clean_msg.replace("🟡", "").replace("⚠️", "")
-            elif "🟢" in raw_msg or "SUCCESS" in raw_msg.upper():
+            elif "🟢" in raw_msg or "SUCCESS" in upper_msg:
                 level = "success"
                 clean_msg = clean_msg.replace("🟢", "").replace("SUCCESS:", "").replace("SUCCESS", "")
 
@@ -85,7 +101,7 @@ class AlertManager:
 
     @staticmethod
     def clear_non_critical(state: SystemState) -> bool:
-        """Wipes all success/info/warning alerts, leaving only critical errors."""
+        """Wipes success/info/warning/error alerts, leaving only banner-critical entries."""
         original_len = len(state.system.system_alert_msgs)
         state.system.system_alert_msgs = [
             msg for msg in state.system.system_alert_msgs
