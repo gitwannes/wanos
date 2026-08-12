@@ -22,15 +22,69 @@
         '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">' +
         '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>';
 
+    /** B10G: per-page deploy version (admin-only badge in titleBlock). */
+    const PAGE_VERSIONS = {
+        admin: 1,
+        explorer: 1,
+        commander: 1,
+        history: 1,
+        blocky: 1,
+        hiddendevices: 1,
+        lightingautooff: 1,
+        zwave: 1
+    };
+
+    /** B10G: exact AlertManager-stored strings for reload suppress (T4 C). */
+    const RELOAD_ALERT_IN_PROGRESS = [
+        "Reloading all config…",
+        "Reloading hue presets…",
+        "Reloading timers & types…"
+    ];
+    const RELOAD_ALERT_COMPLETE = [
+        "All config reloaded.",
+        "Hue presets reloaded.",
+        "Timers & types reloaded."
+    ];
+    const RELOAD_ALERT_FAILED_PREFIXES = [
+        "All config reload failed:",
+        "Hue presets reload failed:",
+        "Timers & types reload failed:"
+    ];
+
+    function reloadAlertIsFailed(text) {
+        return RELOAD_ALERT_FAILED_PREFIXES.some((p) => String(text || "").startsWith(p));
+    }
+
+    function computeReloadSuppressOverlay(msgs) {
+        if (!Array.isArray(msgs)) return false;
+        let suppress = false;
+        for (const msg of msgs) {
+            const text = msg && msg.message ? String(msg.message) : "";
+            if (RELOAD_ALERT_IN_PROGRESS.includes(text)) suppress = true;
+            if (RELOAD_ALERT_COMPLETE.includes(text) || reloadAlertIsFailed(text)) suppress = false;
+        }
+        return suppress;
+    }
+
+    function pageVersionBadge(page) {
+        const v = PAGE_VERSIONS[page];
+        if (!v) return "";
+        return (
+            '<span class="badge badge-outline badge-xs font-mono text-base-content/50 shrink-0 ml-1" ' +
+            'x-show="isAdmin" x-cloak>v' + v + "</span>"
+        );
+    }
+
     function escAttr(s) {
         return String(s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     }
 
-    function offlineOverlay({ tone = "error", message = "Establishing connection stream to WanOS backend..." } = {}) {
+    function offlineOverlay({ tone = "error", message = "Establishing connection stream to WanOS backend...", extraHideExpr = "" } = {}) {
         const t = escAttr(tone);
         const msg = escAttr(message);
+        const hideExtra = extraHideExpr ? " && !(" + extraHideExpr + ")" : "";
         return (
-            '<div x-show="!connected" x-cloak ' +
+            '<div x-show="!connected && !reloadSuppressOverlay' + hideExtra + '" x-cloak ' +
             'class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">' +
             '<span class="loading loading-infinity w-16 text-' + t + ' mb-4"></span>' +
             '<h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>' +
@@ -71,18 +125,23 @@
     function titleBlock(page) {
         if (page === "admin") {
             return (
+                '<div class="flex items-center gap-1 min-w-0">' +
                 '<div class="flex flex-col min-w-0 justify-center">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin</span>' +
                 '<span class="text-[9px] font-mono text-base-content/40 leading-none mt-0.5 tracking-wider select-none" x-text="state.system.version_major"></span>' +
+                "</div>" + pageVersionBadge("admin") +
                 "</div>"
             );
         }
         if (page === "explorer") {
             return (
                 '<div class="flex flex-col min-w-0 justify-center">' +
+                '<div class="flex items-center gap-1 min-w-0">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider truncate" ' +
                 ':class="explorerMode === \'history\' ? \'text-accent\' : \'text-primary\'" ' +
                 'x-text="explorerMode === \'history\' ? \'⚡ WanOS // Explorer · History\' : \'⚡ WanOS // Device Explorer\'"></span>' +
+                pageVersionBadge("explorer") +
+                "</div>" +
                 '<span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" ' +
                 // C10: singular Node vs plural Nodes (History badge wording unchanged)
                 'x-text="explorerMode === \'history\' ? (explorerDisplayList.length + \' History\') : (explorerDisplayList.length === 1 ? \'1 Node\' : (explorerDisplayList.length + \' Nodes\'))"></span>' +
@@ -91,15 +150,19 @@
         }
         if (page === "commander") {
             return (
-                '<div class="flex flex-col min-w-0 justify-center">' +
+                '<div class="flex items-center gap-1 min-w-0">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // WISC</span>' +
+                pageVersionBadge("commander") +
                 "</div>"
             );
         }
         if (page === "history") {
             return (
                 '<div class="flex flex-col min-w-0 justify-center">' +
+                '<div class="flex items-center gap-1 min-w-0">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-accent truncate">⚡ WanOS // Session History</span>' +
+                pageVersionBadge("history") +
+                "</div>" +
                 '<span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" ' +
                 'x-text="(sessionHistoryTotal || 0) + \' Sessions\'"></span>' +
                 "</div>"
@@ -107,29 +170,33 @@
         }
         if (page === "blocky") {
             return (
-                '<div class="flex flex-col min-w-0 justify-center">' +
+                '<div class="flex items-center gap-1 min-w-0">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-warning truncate">⚡ WanOS // Automation</span>' +
+                pageVersionBadge("blocky") +
                 "</div>"
             );
         }
         if (page === "hiddendevices") {
             return (
-                '<div class="flex flex-col min-w-0 justify-center">' +
+                '<div class="flex items-center gap-1 min-w-0">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin - Explorer Hidden Devices</span>' +
+                pageVersionBadge("hiddendevices") +
                 "</div>"
             );
         }
         if (page === "lightingautooff") {
             return (
-                '<div class="flex flex-col min-w-0 justify-center">' +
+                '<div class="flex items-center gap-1 min-w-0">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin - Timers & types</span>' +
+                pageVersionBadge("lightingautooff") +
                 "</div>"
             );
         }
         if (page === "zwave") {
             return (
-                '<div class="flex flex-col min-w-0 justify-center">' +
+                '<div class="flex items-center gap-1 min-w-0">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-secondary truncate">⚡ WanOS // Admin - Z-Wave</span>' +
+                pageVersionBadge("zwave") +
                 "</div>"
             );
         }
@@ -217,9 +284,9 @@
         }
         if (page === "blocky") {
             leadingExtras =
-                '<button class="btn btn-ghost btn-xs text-base-content/50 hover:text-warning" @click="refreshAll()" :disabled="busy" title="Refresh">' +
-                '<span x-show="!busy" class="font-mono text-[10px] tracking-wider">Refresh</span>' +
-                '<span x-show="busy" class="loading loading-spinner loading-xs"></span></button>';
+                '<button class="btn btn-ghost btn-xs text-base-content/50 hover:text-warning" @click="refreshAll()" :disabled="uiLocked" title="Refresh">' +
+                '<span x-show="!refreshBusy && !busy" class="font-mono text-[10px] tracking-wider">Refresh</span>' +
+                '<span x-show="refreshBusy || busy" class="loading loading-spinner loading-xs"></span></button>';
         }
 
         let gear = "";
@@ -353,7 +420,8 @@
         document.querySelectorAll("[data-wanos-offline]").forEach((el) => {
             const html = offlineOverlay({
                 tone: el.getAttribute("data-tone") || "error",
-                message: el.getAttribute("data-message") || "Establishing connection stream to WanOS backend..."
+                message: el.getAttribute("data-message") || "Establishing connection stream to WanOS backend...",
+                extraHideExpr: el.getAttribute("data-offline-suppress") || ""
             });
             el.outerHTML = html;
         });
@@ -368,5 +436,12 @@
     // Script is loaded at end of <body> (after placeholders), before Alpine (defer) binds.
     mount();
 
-    window.WanOSShell = { offlineOverlay, appNav, lightControlModal, mount };
+    window.WanOSShell = { offlineOverlay, appNav, lightControlModal, mount, PAGE_VERSIONS };
+    window.WanOSReloadAlerts = {
+        IN_PROGRESS: RELOAD_ALERT_IN_PROGRESS,
+        COMPLETE: RELOAD_ALERT_COMPLETE,
+        FAILED_PREFIXES: RELOAD_ALERT_FAILED_PREFIXES,
+        isFailed: reloadAlertIsFailed,
+        computeSuppressOverlay: computeReloadSuppressOverlay
+    };
 })();

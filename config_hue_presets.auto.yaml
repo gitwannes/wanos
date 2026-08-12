@@ -5,40 +5,4 @@ hue:
     # bathroom_red: { name: "badkamer_red", xy: [ 0.6750, 0.3220 ], bri: 254 }
     relax_red: {name: "relax", rgb: "#FF8C00", bri: 100}
     my_white: {name: "helder", xy: [0.2901, 0.2479], bri: 100}
-    badk_test:
-      name: badk test
-      bri: 100
-      xy:
-        - 0.6317
-        - 0.3577
-
-    ## OLD Wisc
-    # // gv
-    # var hueeetkamerstrip =	{"on": true, "bri": 200, "xy": [0.2901, 0.2479]};
-    # var huelivingstrip =	{"on": true, "bri": 100, "xy": [0.6058, 0.3727]};
-    #
-    # // 1eV
-    # var huecinemastrip=		{"on": true, "bri": 110, "xy": [0.6744, 0.3212]};
-    # var huecinemasfeer=		{"on": true, "bri": 60,  "xy": [0.4118, 0.1849]};
-    #
-    # // 2eV
-    # var huebadkwhite =      {"on": true, "bri": 100, "xy": [0.3144, 0.3302]};
-    # var huebadkred =		{"on": true, "bri": 254, "xy": [0.6750, 0.3220]};
-    # var hueslpksW =			{"on": true, "bri": 78,  "xy": [0.96186, 0.3481]};
-    # var hueslpkDries =		{"on": true, "bri": 5,   "xy": [0.6118, 0.3807]};
-    t3:
-      name: t3-
-      bri: 56
-      rgb: '#FF0800'
-    t5:
-      name: t5
-      bri: 56
-      rgb: '#00FF2F'
-    t11:
-      name: t11
-      bri: 56
-      rgb: '#EF14FF'
-    t12:
-      name: t12
-      bri: 71
-      rgb: '#EF14FF'
+    badk_red: {name: "badk", xy: [0.6750, 0.3220], bri: 100}

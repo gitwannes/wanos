@@ -45,7 +45,8 @@
                             <span x-text="state.devices[10001] === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
                         </span>
                     </div>
-                    <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-start mb-3 h-16 shadow-inner">                        <div class="font-mono text-green-500 text-sm md:text-md tracking-widest uppercase truncate" x-text="state.sauna.lcd_text || 'WanOS core standby'"></div>
+                    <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-start mb-3 h-16 shadow-inner">
+                        <div class="font-mono text-green-500 text-sm md:text-md tracking-widest uppercase truncate" x-text="state.sauna.lcd_text || 'WanOS WISC standby'"></div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-2 mb-2 w-full">
@@ -412,7 +413,7 @@
 
         <div data-wanos-light-modal></div>
     </main>
-    <script src="wanos-shell.js?v=3"></script>
-    <script src="app.js?v=3.23"></script>
+    <script src="wanos-shell.js?v=6"></script>
+    <script src="app.js?v=3.33"></script>
 </body>
 </html>

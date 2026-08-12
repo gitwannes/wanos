@@ -20,7 +20,7 @@ High-level **what’s next** and where the detailed specs live. This file does *
 | Letter | Affinity | Detail file |
 |---|---|---|
 | **B** | Blocky / Blockly / automations | [`phaseB-blocky.md`](phaseB-blocky.md) |
-| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10–C13) | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10–C16) | [`phaseC-shell.md`](phaseC-shell.md) |
 | **D** | Device typing (switch vs light) | [`phaseD-typing.md`](phaseD-typing.md) |
 | **E** | Gmail transport (OAuth, outbox, spooler) | [`phaseE-gmail.md`](phaseE-gmail.md) |
 | **F** | Public bridge / perimeter security | [`phaseF-security.md`](phaseF-security.md) |
@@ -56,6 +56,7 @@ Match [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** (If/
 | **B1 / B9A** | Blockly parity closeout — Pi smoke + Admin Debug GREEN + docs close-out **2026-08-12** |
 | **C10** | Explorer/History polish (plural, Planned past-remove, Hue hex text, chart colors, binary/hits, omit scenes, filter+blinds) — Pi smoke **2026-08-11** |
 | **D1 + D2** | Timers & types + `device_product_types`; `zwave.*` / `rfx.*` / vent rehome — Pi smoke + Debug GREEN + migrator delete **2026-08-11** |
+| **B10G** | Shell connection + load UX + admin `vNN` + hue preset scoped reload — Pi smoke (A/B/C/D) + docs close-out **2026-08-12** |
 
 Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md).
 
@@ -65,7 +66,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal.
 
-**B10G** ships **after B1 (B9A closeout)** — before **B2–B8**. **B10H** after **B10G**. **B10I** anytime after **B10F**.
+**B10G** ✅ **Done 2026-08-12**. **B10H** next (cold-load shorten). **B10I** / **B10J** anytime after **B10F** / **B10B**.
 
 | Ship | Phase(s) | Size | One go? |
 |---|---|---|---|
@@ -82,6 +83,32 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 
 **Not Blockly UX:** **B15** · **B16** · **B17** (assess) · **B18** — general pipeline after cluster / **F** as today.
 
+### Parallel tracks (within / beside cluster)
+
+**Hard gates (no parallel — same PR surface or migrator risk):**
+
+| Gate | Rule |
+|---|---|
+| **B3** (B19) | **Alone** — do not combine with **B4** or bridge work |
+| **B10H → B2** | Cold-load perf before legacy-canvas bridge (both touch Automations load path) |
+| **B2 → B3** | B19 depends on B9C bridge + G5 authorability |
+| **B3 → B4** | Logic (Else-if + AND/OR) builds on Domoticz canvas |
+| **B4 → B7** | Timed Set / delay patterns prefer Logic stable (**B14** stub) |
+| **B7 → B8** | Library org (multi-flow + folder) after canvas + control blocks stable |
+
+**Safe to parallel (separate surfaces or explicit operator lock):**
+
+| Track | When | Notes |
+|---|---|---|
+| **B10I** | Anytime after **B10F** | Library navigation only — parallel to **B10H** and **B2–B8** |
+| **B10J** | Anytime after **B10B** | Backend log polish — **`Event Received`** catalog name; parallel to **B10H** and **B2–B8** |
+| **G5** | After **B2** (B9C) | Parallel to **B3–B8**; re-author rule on B19 canvas when **B3** lands |
+| **E** (Gmail transport) | After **B3** or default after cluster | Parallel to **B5–B8**; **B6** alert ships without **E**; H5 email half waits **E** |
+| **Ship B5 ∥ Ship B6** | After **B4** | Bathroom/H12 vs Messages alert — independent; OR-heavy notify rules still want **B4** first |
+| **G3** | Anytime | Config-only — see [`phaseG-integrations.md`](phaseG-integrations.md) |
+
+**Default pipeline order** below is the conservative merge sequence when not running parallel tracks.
+
 ---
 
 ## Sequence
@@ -90,92 +117,93 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 
 ```text
 #  Size   Phase / Ship   What
-─── Post-B9A: load/shell UX, then Blockly cluster ───
-1.  mid    B10G         load checklist + timings + log; NOT CONNECTED assess; admin vNN; hue preset-only reload (Part D)
-2.  low    B10H         cold-load shorten wait (after B10G)
+─── Post-B10G: cold-load, then Blockly cluster ───
+1.  mid    B10H         cold-load shorten wait (event-loop + duplicate FE clients)
 ─── Blockly cluster (operator: B9C → B19…B8 before shell/integrations/F) ───
-3.  mid    B2 / B9C     legacy-canvas bridge — picker + blinds/audio if %
-4.  high   B3 / B19     Domoticz If/Do + Compare + Device trigger + toolbox + Set
-5.  high   B4           B13 Else-if/Else + B9B H4 AND/OR in Compare
-6.  mid    B5           B9B H12 hysteresis + bathroom climate cutover
-7.  mid    B6           B9B H5 Messages (alert; + email when E)
-8.  high   B7 / B14     timed Set, delay, cooldown, remaining HA patterns (no Time trigger)
-9.  mid    B8           B11 multi-flow + B12 folder/tag
-─── G5 may land after B2; prefer re-author on B19 canvas when B3 done ───
-11. low    G5           dashboard “rolluik zon half” — after B2; full Domoticz UX after B3
-11b. low   B10I         used SE → Go to SR (anytime after B10F)
-─── After Blockly cluster ───
-12. high   E            Gmail transport / outbox
-13. mid    C3           Force ALL-OFF
-14. mid    C4           Rename HTML entrypoints (`blocky`→`blockly`; not `automations`)
-15. low    C11          Control vs History list membership (assess → decide)
-16. mid    C12          Post-C10 polish (+ scene favorites, shutter debounce assess)
-17. mid    C13          Merge Hidden → Timers & types
-18. mid    G2           Hue color/bri truth
-19. mid    G6           Scoped CONFIG_RELOAD + Admin scoped-reload modal (hue_presets handler → **B10G Part D** first)
-20. low    G7           Integration log tags
-20b. mid   G8           Boot autostart timing — shorten real enable + honest Admin UX (A+B)
-21. mid    G1           Epson get_power_state
-22. low    G3           OWM outside poll 10′
-23. mid    G4           OWM One Call + hot-sun cinema 60% open
-24. high   F            Security bridge (F1→F7)
+2.  mid    B2 / B9C     legacy-canvas bridge — picker + blinds/audio if %
+3.  high   B3 / B19     Domoticz If/Do + Compare + Device trigger + toolbox + Set
+4.  high   B4           B13 Else-if/Else + B9B H4 AND/OR in Compare
+5.  mid    B5           B9B H12 hysteresis + bathroom climate cutover
+6.  mid    B6           B9B H5 Messages (alert; + email when E)
+7.  high   B7 / B14     timed Set, delay, cooldown, remaining HA patterns (no Time trigger)
+8.  mid    B8           B11 multi-flow + B12 folder/tag
+─── Parallel beside cluster (after gates above) ───
+9.  low    G5           dashboard “rolluik zon half” — **∥ B3–B8** after B2; re-author on B19 when B3 done
+9b. low    B10I         used SE → Go to SR — **∥ B10H / cluster** (anytime after B10F)
+9c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ B10H / cluster** (anytime after B10B)
+─── After Blockly cluster (E may start ∥ B5–B8 instead — see Parallel tracks) ───
+10. high   E            Gmail transport / outbox — default slot; **∥ B5–B8** OK
+11. mid    C3           Force ALL-OFF
+12. mid    C4           Rename HTML entrypoints (`blocky`→`blockly`; not `automations`)
+13. low    C11          Control vs History list membership (assess → decide)
+14. mid    C12          Post-C10 polish (+ frost line item 8; scene favorites; shutter debounce)
+14b. mid   C16          Day chart sliding 24 h window over hires_days hi-res
+14c. low   C15          Admin lab switch → Debug Commands row; lab pane iff ON
+15. mid    C13          Merge Hidden → Timers & types
+16. mid    G2           Hue color/bri truth
+17. mid    G6           Scoped CONFIG_RELOAD + Admin scoped-reload modal (`hue_presets` path ✅ B10G Part D)
+18. low    G7           Integration log tags
+18b. mid   G8           Boot autostart timing — shorten real enable + honest Admin UX (A+B)
+19. mid    G1           Epson get_power_state
+20. low    G3           OWM outside poll 10′
+21. mid    G4           OWM One Call + hot-sun cinema 60% open
+22. high   F            Security bridge (F1→F7)
 ─── After F ───
-25. mid    B20          Domoticz Time trigger + time-compare blocks
-26. mid    B15          Demote schedule edges → user origin
-27. high   B16          Full-bus UUID for internal EventTypes
-28. mid    B17          Sauna/IR hardcoded → automation (assess only)
-29. mid    B18          Sauna session_end ≤ absolute_cutoff
-30. —      Ops          Inbox below when convenient
+23. mid    B20          Domoticz Time trigger + time-compare blocks
+24. mid    B15          Demote schedule edges → user origin
+25. high   B16          Full-bus UUID for internal EventTypes
+26. mid    B17          Sauna/IR hardcoded → automation (assess only)
+27. mid    B18          Sauna session_end ≤ absolute_cutoff
+28. —      Ops          Inbox below when convenient
 ```
 
 ### Why this order
 
-* **B1 B9A** — ✅ **Done 2026-08-12** (Pi smoke + Debug GREEN + docs close-out). Hue preset **reload/perf** issues (15–20s, integration recycle, NOT CONNECTED) → **B10G Part D**, not B9A scope.
-* **B10G** — **one ship** (after **B1**): Part A load checklist; Part B SSE **A+B+C** (Pi repro **confirmed 2026-08-12**); Part C **`vNN` Automation only**; **Part D** `hue_presets`-only reload (first **G6** slice — Admin modal remains **G6**).
-* **G8** — boot autostart timing (~30s “integrations disabled”) — **A+B** ship; separate from **B10G** / **B10H** — detail § **G8** below.
+* **B1 B9A** — ✅ **Done 2026-08-12** (Pi smoke + Debug GREEN + docs close-out). Hue preset **reload/perf** polish → **B10G Part D** (✅).
+* **B10G** — ✅ **Done 2026-08-12** (Parts A–D Pi smoke + docs). Cold-load still ~39s → **B10H**.
+* **B10H** — shorten Automations cold open (~**2 s** goal: `refreshAll` + time-to-interactive editor); root cause locked **2026-08-12** (asyncio SSE/`get_state` contention + duplicate FE); kickoff design note + repro A/B before code — detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B10H.
+* **G8** — boot autostart timing (~30s “integrations disabled”) — **A+B** ship; separate from **B10H** — detail § **G8** below.
 * **Blockly cluster B2–B8** — operator lock **2026-08-12**: [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** before Explorer/integrations/F churn. **B3 (B19) is mandatory**, not optional UX polish.
 * **B2 B9C** — patch **legacy** canvas only; unblocks **G5** “not fully closed”; superseded visually by **B19**.
 * **B3 B19 alone** — canvas + engine projection + rule migrator; do **not** combine with B4.
 * **B4** — Domoticz **Logic** (Else-if + AND/OR) on new canvas.
-* **B5–B6** — bathroom / notify on Domoticz blocks; **H5 email** still waits on **E** (can ship alert first).
+* **B5–B6** — bathroom / notify on Domoticz blocks; **Ship B5 ∥ Ship B6** after **B4** if capacity allows; **H5 email** still waits on **E** (alert ships first).
 * **B7 B14** — timed **Set**, delays, cooldowns — **excludes** Time trigger (**B20**).
-* **B8** — library organization after canvas stable.
-* **G5 after B2** — dashboard button + rule; re-touch rule on B19 canvas when **B3** lands.
-* **C\*, G\*, E, F** — **after Blockly cluster** (default). **G2/G6** may jump on operator pain (**G6** — Admin full vs scoped reload; see [`phaseG-integrations.md`](phaseG-integrations.md) § G6).
+* **B8** — library organization after canvas + **B7** stable.
+* **G5 after B2** — dashboard button + rule; **parallel to B3–B8**; re-touch rule on B19 canvas when **B3** lands.
+* **B10I** — Library **Go to SR**; **parallel to B10H and cluster** (no B19 dependency).
+* **B10J** — **`Event Received`** log lines: resolve catalog **display name** for UUID bus tokens (e.g. manual pickables); **parallel to B10H and cluster** (after **B10B**).
+* **C\*, G\*, E, F** — **after Blockly cluster** (default). **E** may start **parallel to B5–B8**. **G2/G6** may jump on operator pain (**G6** — Admin full vs scoped reload; see [`phaseG-integrations.md`](phaseG-integrations.md) § G6).
 * **B20 after F** — Domoticz **Time** trigger; catalog schedule events unchanged until then.
 * **B15–B18** — not Domoticz L&F; **B18** may jump on sauna safety pain.
 
-Near-term = **B10G** → **B2** (B9C) → **B3** (B19) → **B4…B8**. **E** after cluster or parallel to B5–B8. **No** user-variable or debug Blockly blocks.
+Near-term = **B10H** → **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
 
 ---
 
-## B10G — connection + load UX (spec + assess)
+## B10G — connection + load UX ✅ Done 2026-08-12
 
-**Ship:** **B10G** after **B1** (B9A closeout). **One PR** — Parts A + B + C + **D**. Detail DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md) § B10G.
+**Shipped:** Parts A + B + C + D — Pi smoke OK (operator **2026-08-12**). Detail / archive → [`phaseB-blocky.md`](phaseB-blocky.md) § B10G. Cold-load shorten → **B10H**.
 
-| Part | What |
+| Part | What shipped |
 |---|---|
-| **A** | Automations **load checklist** + per-step duration; **browser** timings + small admin debug modal (B10G); `wanos_debug.log` **deferred** |
-| **B** | **NOT CONNECTED** assess (**done 2026-08-12**); fix **A+B+C** — Pi repro **confirmed 2026-08-12** |
-| **C** | Admin-only **`vNN`** on **Automation** page only (`blocky.html`) |
-| **D** | Hue preset CRUD: **`hue_presets`-only** reload — no full `CONFIG_RELOAD` / NVRAM / bridge recycle; Explorer chip + save/wheel UX (operator inbox **2026-08-12**) |
+| **A** | Two overlays; yellow load checklist + Resource Timing admin modal + console; REST heartbeat 10s; `wanos_debug.log` **out of DoD** |
+| **B** | SSE **A+B+C** (`wanosApp` + `zwaveconfig`); scope-specific reload alerts; suppress during reload |
+| **C** | Admin-only **`v1`** on eight shell pages (`kiosk` / `login` excluded) |
+| **D** | `hue_presets` scoped reload + Explorer chip/save-disable; Pi smoke &lt;2s / no recycle |
 
-**Part D Pi smoke:** add/rename/delete presets with Explorer open — each op **&lt;2s**; logs show **no** `NVRAM successfully loaded`, **no** `[Z-Wave] Core config reload detected`, **no** Onkyo recycle; **no** spurious NOT CONNECTED.
+### Automations — two overlays (shipped)
 
-### Automations — two overlays (locked)
-
-**Automation (`blocky.html`) must have two separate overlays** — not one combined screen:
+**Automation (`blocky.html`) has two separate overlays:**
 
 | # | Overlay | Source | When | Copy / UX |
 |---|---|---|---|---|
 | **1** | **Shared offline** | `data-wanos-offline` → `wanos-shell.js` `offlineOverlay()` — **same chrome as Explorer / Admin** | Backend unreachable while page is open | Red **NOT CONNECTED** — `Establishing connection stream to WanOS backend...` |
 | **2** | **Loading config** (Automations only) | Page-local checklist (Part A) | Cold `init()` → `refreshAll()` only — **not** post-save refresh | Yellow — friendly-label **checklist + checkboxes** + duration per step at completion |
 
-**Today (gap):** `blocky.html` has **no** `data-wanos-offline`; a **single** inline `!connected` overlay covers **both** loading and unreachable and reuses the **NOT CONNECTED** heading during normal yellow load. **B10G** splits these and wires overlay **1** through shared shell code.
-
 **Blockly workspace** (`loadV2IntoBlockly` / `scheduleBlocklyLoad`) stays **after** overlay **2** clears.
 
-**Alpine flags (locked T2):** **`shellConnected`** drives overlay **1** (`data-wanos-offline`); **`editorLoading`** drives overlay **2** (checklist).
+**Alpine flags:** **`connected`** drives overlay **1** (`data-wanos-offline`); **`editorLoading`** drives overlay **2** (checklist).
 
 ### System — check backend connection (locked)
 
@@ -186,7 +214,7 @@ Two **phases** on Automation; one **continuous** model on SSE pages.
 | Phase | When | How backend is checked | Overlay |
 |---|---|---|---|
 | **Load** | `editorLoading === true` — cold `init()` → `refreshAll()` | **Each load step is a live check** — parallel `GET /api/state`, `/api/automations`, `/api/events`, then fire-status, etc. | **2** (yellow checklist) while steps run |
-| **Running** | After `refreshAll()` succeeds — `editorLoading === false` | **REST heartbeat** — `GET /api/state` (auth) **every 15000ms** when tab visible + on `visibilitychange` (no polling while hidden) | **1** (red shared offline) if heartbeat fails |
+| **Running** | After `refreshAll()` succeeds — `editorLoading === false` | **REST heartbeat** — `GET /api/state` (auth) **every 10000ms** when tab visible + on `visibilitychange` (no polling while hidden) | **1** (red shared offline) if heartbeat fails |
 
 **Periodic heartbeat does not run during `editorLoading`** — avoids a second poller racing the load fetches and flipping overlay **1** while overlay **2** is active. **Load fetches are the connection check during config load.**
 
@@ -214,7 +242,7 @@ Two **phases** on Automation; one **continuous** model on SSE pages.
 | **Connect** | `GET /api/state` snapshot, then `EventSource /api/state/sse` | **1** until snapshot or first SSE frame |
 | **Running** | SSE stream + **10s watchdog** (reset on any message incl. **5s ping**) | **1** on sustained loss / `onerror` (see Part B fix) |
 
-**Part B fix (locked T4 — A+B+C):** debounce SSE `onerror` (3000ms grace); clear on first reconnect `ping` (cancel pending debounce offline display); **suppress shared offline overlay on all pages using the shared offline overlay (including `zwaveconfig.html`) during config reload** (see T4 C below). Pi repro script → § **Part B — operator repro**; ship fix if flash confirmed.
+**Part B fix (shipped T4 — A+B+C):** debounce SSE `onerror` (3000ms grace); clear on first reconnect `ping` (cancel pending debounce offline display); **suppress shared offline overlay** during config reload (exact per-scope alert strings).
 
 ### Part A — load checklist (locked)
 
@@ -228,7 +256,7 @@ Two **phases** on Automation; one **continuous** model on SSE pages.
 
 Steps 1–3 parallel; check off in completion order.
 
-**Timings (locked T3 — B10G ship):** record in **browser console** + small **admin-only debug modal** during load (step name, API, ms) — easy to remove later. **`wanos_debug.log` server logging deferred** (stay in spec as follow-up; not B10G DoD).
+**Timings (shipped):** browser console + admin-only floating modal (auto-open after cold load; Resource Timing: wire TTFB / fetch→byte / nav→byte / queue / dl / before fetch). **`wanos_debug.log` — out of B10G DoD**.
 
 HTTP/network failure on cold load → **red shared offline** (overlay **1**) immediately — no lingering yellow checklist. **Cold `init()` only** for overlay **2**.
 
@@ -292,15 +320,33 @@ Run on **Pi** with browser devtools console open. Record **Y/N** flash, page, an
 
 Apply **A+B+C** on `wanosApp` (Explorer, Admin, WISC, History) **and** on `zwaveconfig.html` (`zwaveApp`).
 
-**T4 C detail (locked):** suppress overlay while reload is in progress on **any** page (incl. `zwaveconfig.html`) — signal via **`system_alert_msgs` on SSE** (`system` domain), **not** Admin-local `configReloading` / GO-button flag. Window: from alert text containing **`Reloading all config`** (or equivalent reload-in-progress message) until **`Config reloaded`** or **`Config reload failed`**.
+**REST-only admin pages (`hiddendevices.html`, `lightingautooff.html`) — out of Part B (locked 2026-08-12):** no SSE stream; `connected` set once on initial REST load (not on stream `onerror`); yellow Loading overlay only. Operator: **no NOT CONNECTED repro** on those pages. Part B targets the SSE reconnect flash — not applicable here unless a future repro says otherwise.
 
-**Code check (2026-08-12):** only Admin `requestConfigReload()` injects the “Reloading…” alert today; API `CONFIG_RELOAD` paths (Automations save, events, soft-hide, …) dispatch reload **without** that in-progress alert. Part B impl must use a **shared** reload-in-progress signal for **all** reload sources (UI button, API writes, and scoped reloads) by extending backend/alert behavior so the same `system_alert_msgs` in-progress message is emitted for every `CONFIG_RELOAD_REQUESTED` source — do **not** wire suppress only to Admin’s button state.
+**T4 C detail (locked):** suppress overlay while reload is in progress on **any** page (incl. `zwaveconfig.html`) — signal via **`system_alert_msgs` on SSE** (`system` domain), **not** Admin-local `configReloading` / GO-button flag.
+
+**Reload alert copy (locked 2026-08-12 — scope-specific text, three alert levels):** each reload emits a **scope-specific** in-progress → complete/failed pair. **Three UI levels** (bell colours): in-progress = **`info`** (🔄), complete = **`success`** (🟢), failed = **`error`** (`ERROR:` prefix — bell only, not banner).
+
+| Scope key | In-progress (`info`, 🔄) | Complete (`success`, 🟢) | Failed (`error`, `ERROR:`) |
+|---|---|---|---|
+| **`full`** (Admin button; API `source: api` **without** `scope`; unscoped writers until G6) | `🔄 Reloading all config…` | `🟢 All config reloaded.` | `ERROR: All config reload failed: …` |
+| **`hue_presets`** | `🔄 Reloading hue presets…` | `🟢 Hue presets reloaded.` | `ERROR: Hue presets reload failed: …` |
+| **`timers_types`** | `🔄 Reloading timers & types…` | `🟢 Timers & types reloaded.` | `ERROR: Timers & types reload failed: …` |
+
+**Unscoped API writers (locked 2026-08-12 — Option A):** automations CRUD, events CRUD, soft-hide save, Z-Wave config save dispatch **without** `scope` and run **full** recycle → use **`full`** alert row until **G6** migrates each writer (**scope payload + scoped handler + scope alert row together** — see [`phaseG-integrations.md`](phaseG-integrations.md) § G6 reload alerts follow-up). **Do not** emit intent-specific alerts while handler still full-recycles.
+
+Suppress window (T4 C): match **exact per-scope strings** from the table (after `AlertManager` emoji strip) for in-progress → complete/failed — **not** a generic `Reloading` prefix. **`hue_presets` fast path must emit its scope row** (re-run Pi smoke — B9A code shipped; verify on Pi).
+
+Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with locked **`full`** in-progress row (`🔄 Reloading all config…`).
+
+**Code check (2026-08-12):** only Admin `requestConfigReload()` injects a reload-in-progress alert today; API `CONFIG_RELOAD` paths dispatch reload **without** it. Part B + Part D must emit the **scope-specific** in-progress + complete/failed alerts for **every** `CONFIG_RELOAD_REQUESTED` source — do **not** wire suppress only to Admin’s button state.
 
 **Recap:** SSE problem = **client reconnect policy**, not backend down. Automation = **two overlays** + load-as-check + post-load heartbeat (§ **System — check backend connection**).
 
-### Part C — admin `vNN` (Automation only)
+### Part C — admin `vNN` (eight shell pages)
 
-**Locked:** **`vNN` on Automation page only** (`blocky.html` / title block) — **not** login, kiosk, or other operator pages in B10G. Admin-only visibility; integer; bump when that page’s HTML/JS changes; start **`v1`** unless operator says otherwise; agent reports bump on ship. (`html-standards.mdc` applies to future page-version work elsewhere — B10G scope is Automation only.)
+**Locked 2026-08-12:** **Every operator HTML page** — integer **`vNN`** right of title; **admin-only**; **each page starts at `v1` with its own counter**; bump that page when **its** HTML or **its** linked JS changes (shared `wanos-shell.js` / `app.js` → bump **every HTML page that includes them** at ship). **No separate JS file version badge** — not visible in UI; page `vNN` is the operator cache-bust indicator (see Q6 note in phase file). Placement: right of page title per [`html-standards.mdc`](../.cursor/rules/html-standards.mdc). Agent reports bumped `vNN` per touched page on ship.
+
+**Pages (each `v1` at B10G ship):** `blocky.html`, `deviceexplorer.html`, `admin.html`, `sensorhistory.html`, `commander.html`, `zwaveconfig.html`, `lightingautooff.html`, `hiddendevices.html`. **`login.html` excluded** (auth gate). **`kiosk.html` excluded** (no admin shell; operator lock **2026-08-12**).
 
 ---
 
@@ -340,7 +386,7 @@ Apply **A+B+C** on `wanosApp` (Explorer, Admin, WISC, History) **and** on `zwave
 
 | Step | Detail |
 |---|---|
-| **B10G** | Below § **B10G** + [`phaseB-blocky.md`](phaseB-blocky.md) § B10G DoD |
+| **B10H** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10H — cold-load shorten |
 | **B2 / B9C** | [`phaseB-blocky.md`](phaseB-blocky.md) § B9C — legacy bridge |
 | **B3 / B19** | [`phaseB-blocky.md`](phaseB-blocky.md) § B19 — Domoticz canvas |
 | **Domoticz goal** | [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal + ship groups |
@@ -351,9 +397,9 @@ Apply **A+B+C** on `wanosApp` (Explorer, Admin, WISC, History) **and** on `zwave
 
 | Phase | Detail file |
 |---|---|
-| **B9A** / **B9C** / **B19** / **B9B** / **B10G** / **B10H** / **B10I** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
+| **B9C** / **B19** / **B9B** / **B10H** / **B10I** / **B10J** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
-| **C3** / **C4** / **C11** / **C12** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C3** / **C4** / **C11** / **C12** / **C16** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G6** / **G7** / **G8** / **G1** / **G3** / **G4** / **G5** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 
@@ -364,6 +410,7 @@ Detail + DoD stubs: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B20. Schedul
 | Phase | What | Ship |
 |---|---|---|
 | **B10I** | Used SE → Go to SR | anytime after B10F |
+| **B10J** | Event Received log — catalog name | anytime after B10B |
 | **B11** | Multi-flow one Blockly page | **B8** |
 | **B12** | Rule-list folder/tag | **B8** |
 | **B13** | Domoticz Else-if / Else | **B4** |
@@ -380,6 +427,13 @@ Detail + DoD stubs: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B20. Schedul
 ## Inbox — Ops / Manual (2026-08-09)
 
 Not lettered product phases. Unclear parts marked **to be checked**.
+
+### Ops — sync Local → Pi
+
+**Operator request (verbatim):**
+> - .cursor/rules should not be pushed to pi: change sync-script
+
+**Triage:** add **`.cursor`** (or **`.cursor/rules`**) to **`[MirrorExcludeDirs]`** in [`helpers/wanos-sync.config.txt`](../helpers/wanos-sync.config.txt); document in [`docs/wanos-sync.md`](../docs/wanos-sync.md). **Ops** — do on next sync touch; not a lettered phase.
 
 ### Ops — pull from Pi
 
@@ -423,8 +477,14 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-10 | **B10B+D+E** done. **G4/G5** triage. |
 | 2026-08-11 | **B10F**, **C10**, **D** done. **B9A** code ship. **B10G/H** split. |
 | 2026-08-12 | **Domoticz Blockly goal locked** — … Detail → `phaseB-blocky.md`. |
+| 2026-08-12 | Inbox triage: **C16** sliding 24 h day viewport over `hires_days` hi-res (extends C5/C6); operator lock-in zoom-in only + pan to 1 week. |
+| 2026-08-12 | Inbox triage (batch 4): **C12 #8** frost/dew; **C15** lab switch; **B10J** Event Received catalog name; Ops **`.cursor`** sync exclude. |
 | 2026-08-12 | Inbox triage: **B10I**; **C12** extras; **B10G** += NOT CONNECTED + admin `vNN` (ex–C14, one ship); **C4** locked `blockly` not `automations`; Ops cinema; cursor rules. |
 | 2026-08-12 | **B10G triage:** overlay 2 copy locked; `vNN` Automation only; T4 C = SSE reload suppress all pages (not Admin button flag); Part B repro script + skip-if-no-repro. |
 | 2026-08-12 | **G8** boot autostart timing (A+B): shorten real enable + honest Admin UX; separate from B10G/B10H. Part B repro **confirmed** — B10G ships A+B+C. |
+| 2026-08-12 | **B10G operator Q&A (2):** exclude kiosk from `vNN`; Admin → `Reloading all config…`; suppress = exact per-scope strings; Part D re-run Pi smoke (B9A shipped); all 8 shell HTML @ `v1`; unscoped API alerts **Option A** → **G6** follow-up. |
+| 2026-08-12 | **B10G ✅ Done** — Pi smoke A/B/C/D OK; docs close-out. **B10H** next — cold-load root cause locked (asyncio SSE/`get_state` contention + duplicate FE; nginx ruled out). |
+| 2026-08-12 | **B10H approved** — kickoff profiling complete (case A Network: double cold `/api/state`; case C Y); code unblocked. |
+| 2026-08-12 | **Blockly cluster audit:** parallel tracks table (B10I, G5, E, B5∥B6); fixed Depends-on ✅ misuse in phase file; B9B ship order locked vs stale proposal. |
 
 Detail chronology / DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md), [`phaseG-integrations.md`](phaseG-integrations.md).

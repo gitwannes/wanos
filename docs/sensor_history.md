@@ -78,7 +78,7 @@ Industry-aligned rollup: high-resolution samples → hourly → daily → derive
 
 | Tier | Table (proposed) | Contents | Retention | Primary UI use |
 |------|------------------|----------|------------|----------------|
-| **Hi-res** | `sensor_samples` | `(idx, ts, value, unit)` — W for power; L step markers optional for water | **7 days**, then cull | Day chart: “Usage last 24 hours” (Watts) |
+| **Hi-res** | `sensor_samples` | `(idx, ts, value, unit)` — W for power; L step markers optional for water | **7 days**, then cull | Day chart buffer: full **`hires_days`** hi-res; **24 h viewport** pannable (**C16** 🔜). Today: API returns last 24 h only. |
 | **Hourly** | `sensor_hourly` | Per IDX/hour: `w_min`, `w_max`, `w_avg`, `wh` or `liters`, `incomplete` flag | **31 days**, then cull | Drill-down; backup if hi-res thin |
 | **Daily** | `sensor_daily` | Per IDX/local-date: min/max/avg W (power); `wh` or `liters` consumed; counter snapshots; `incomplete` | **1 year**, then cull | Month chart (min/max W); consumption bars |
 | **Month / year / total** | *(derived)* | Month/year = aggregate of daily; total = NVRAM counter (cross-check vs sum of daily when complete) | N/A | Year chart; summary tiles |
@@ -154,8 +154,9 @@ When WanOS was offline (or samples missing) but counters advanced:
 ### 8.2 Layout (power sensors)
 Device selector, then three stacked panels:
 
-1. **Day — “Usage last 24 hours”**  
-   Series: Usage (Watt) from hi-res samples (last 24h).
+1. **Day — 24 hour window (pannable over hi-res retention)**  
+   **Shipped today:** series from last 24 h only; axis fixed to that window.  
+   **C16 (planned):** API returns all hi-res samples within **`history.retention.hires_days`** (default 7). Chart shows a **fixed max 24 h viewport** (zoom-in allowed, not wider); user **pans** the window back to oldest retained hi-res. Default viewport = most recent 24 h. Applies to climate / power / host hi-res and actuator `device_events` day charts. Water day (hourly bars) — assess at **C16** kickoff.
 
 2. **Month — “Usage last month”**  
    Series: **Usage min** and **Usage max** (Watt) per day from `sensor_daily`.
@@ -185,7 +186,7 @@ All routes require admin authentication.
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/history/sensors` | List trackable IDXs, labels, series kinds |
-| `GET` | `/api/history/{idx}?range=day\|month\|year` | Chart series for selected range |
+| `GET` | `/api/history/{idx}?range=day\|month\|year` | Chart series for selected range. **`range=day` today:** last 24 h hi-res. **C16:** `range=day` returns full **`hires_days`** buffer (FE applies 24 h viewport). |
 | `GET` | `/api/history/{idx}/summary` | today / month / year / total |
 | `GET` | `/api/history/sessions?type=sauna\|ir&limit=&offset=` | Paginated session history |
 
@@ -285,6 +286,7 @@ Every state/level change counts toward today / month averages.
 ### UI (Explorer → History on `deviceexplorer.html`)
 - List: Control inventory shared with History mode; **C10:** omit all `type === "scene"` catalog-event rows (logging still writes synthetic idxs; Control dashboard buttons unchanged).
 - Detail charts for **selected** actuator:
+  - **Day (C16 🔜):** same families as today; hi-res buffer = **`hires_days`**; **24 h max viewport**, pannable, zoom-in only
   - **Binary** (switch / non-Hue light / door / …): day ON/OFF Y; month/year event counts + state min/max with ON/OFF labels
   - **Level** (Hue / Sonos / Onkyo / blinds): day Level step; month/year event counts + Level min/max
   - **Motion hits:** day impulse spikes with blank/`hit` Y labels; month/year **# hits** only
@@ -312,9 +314,9 @@ Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate
 ### Charts (ECharts, Sensors list)
 | Range | Series |
 |-------|--------|
-| Day | Stepped temp (°C) + humidity (%) dual Y-axis |
-| Month | Daily **min/max** temp (+ hum when present) |
-| Year | **Weekly** min/max (ISO week) |
+| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16:** load **`hires_days`** hi-res; **24 h viewport**, pan/zoom-in. |
+| Month | Daily **min/max** temp (+ hum when present); **no dew** (**C12**). |
+| Year | **Weekly** min/max (ISO week); **no dew** (**C12**). |
 
 Temp-only devices: humidity series hidden.
 

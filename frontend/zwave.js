@@ -4,6 +4,8 @@ function zwaveApp() {
     return {
         connected: false,
         isAdmin: true,
+        reloadSuppressOverlay: false,
+        _sseOfflineDebounce: null,
         eventSource: null,
         usbPath: "",
         errorMessage: "",
@@ -292,16 +294,37 @@ function zwaveApp() {
 
         connectSSE(token) {
             this.eventSource = new EventSource(`/api/state/sse?jwt=${token}`);
+
+            const scheduleOffline = () => {
+                if (this._sseOfflineDebounce) clearTimeout(this._sseOfflineDebounce);
+                this._sseOfflineDebounce = setTimeout(() => {
+                    this._sseOfflineDebounce = null;
+                    this.connected = false;
+                }, 3000);
+            };
+            const markAlive = () => {
+                if (this._sseOfflineDebounce) {
+                    clearTimeout(this._sseOfflineDebounce);
+                    this._sseOfflineDebounce = null;
+                }
+                this.connected = true;
+            };
+
             this.eventSource.onmessage = (e) => {
                 const msg = JSON.parse(e.data);
 
                 if (msg.domain === "ping") {
-                    this.connected = true;
+                    markAlive();
                     return;
                 }
 
                 if (msg.domain === "system") {
                     this.processBackendState({ system: msg.data });
+                    if (msg.data && msg.data.system_alert_msgs && window.WanOSReloadAlerts) {
+                        this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(
+                            msg.data.system_alert_msgs
+                        );
+                    }
                 } else if (msg.domain === "devices") {
                     // Update values for configured nodes running live
                     for (const [idxStr, val] of Object.entries(msg.data)) {
@@ -312,10 +335,12 @@ function zwaveApp() {
                         }
                     }
                 }
-                this.connected = true;
+                markAlive();
             };
             this.eventSource.onerror = () => {
-                this.connected = false;
+                if (this.eventSource) this.eventSource.close();
+                scheduleOffline();
+                setTimeout(() => this.connectSSE(token), 3000);
             };
         },
 
@@ -491,9 +516,22 @@ function zwaveApp() {
 
             // 3. Clear reloading spinner if a fresh snapshot indicates reload is complete
             if (this.configReloading && fullState.system.system_alert_msgs) {
-                if (fullState.system.system_alert_msgs.some(msg => msg.message && msg.message.includes("Config reloaded"))) {
+                const done = (msg) => {
+                    const text = msg && msg.message ? String(msg.message) : "";
+                    if (window.WanOSReloadAlerts) {
+                        return window.WanOSReloadAlerts.COMPLETE.includes(text)
+                            || window.WanOSReloadAlerts.isFailed(text);
+                    }
+                    return text.includes("Config reloaded");
+                };
+                if (fullState.system.system_alert_msgs.some(done)) {
                     this.configReloading = false;
                 }
+            }
+            if (fullState.system.system_alert_msgs && window.WanOSReloadAlerts) {
+                this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(
+                    fullState.system.system_alert_msgs
+                );
             }
         },
 

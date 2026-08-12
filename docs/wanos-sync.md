@@ -139,6 +139,7 @@ helpers\wanos-sync.bat run
 `helpers/wanos-sync.config.txt`:
 
 - `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`)
+- **Planned (Ops inbox 2026-08-12):** exclude **`.cursor`** (IDE rules under `.cursor/rules/`) from Local→Pi mirror — Pi does not need Cursor project rules. Track in [`docs/todo/pipeline.md`](todo/pipeline.md) § Ops — sync Local → Pi until shipped in `wanos-sync.config.txt`.
 - `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite; missing remote file skipped with warning)
 - `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob
 

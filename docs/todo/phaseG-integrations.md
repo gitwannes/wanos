@@ -106,7 +106,7 @@ Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot 
 
 ### Blockly prerequisite — **Phase B9C** (Ship **B2**; before **B19**)
 
-G5 needs blinds **position ≠ 100** on **if**. **B9C** patches the **legacy** canvas; **B19** replaces it with Domoticz Compare blocks. **G5** may ship after **B9C**; re-author rule on B19 when **B3** lands. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B9C, B19.
+G5 needs blinds **position ≠ 100** on **if**. **B9C** patches the **legacy** canvas; **B19** replaces it with Domoticz Compare blocks. **G5** may ship after **B9C** (Ship **B2**); **parallel to Ships B3–B8** if capacity allows; re-author rule on B19 when **B3** lands. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B9C, B19; parallel → [`pipeline.md`](pipeline.md) § Parallel tracks.
 
 ### Live partial (not DoD)
 
@@ -254,11 +254,30 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 | Events CRUD | full | `events` (+ `automations` if listener rules reference changed rules) |
 | `PUT /api/soft-hide` | full | `soft_hide` |
 | `PUT /api/auto-off-timer` | `timers_types` | `timers_types` *(keep)* |
-| Hue preset CRUD | full | `hue_presets` only |
-
-**First implementation:** **`hue_presets` API path** ships in **B10G Part D** (handler fast-path + Z-Wave ignore scoped reload). **G6** Admin 12-checkbox modal ships later in **G6**.
+| Hue preset CRUD | ✅ B10G Part D | `hue_presets` only |
 | Z-Wave config save | full | `zwave_map` |
 | Admin **Full reload** | full | `mode: "full"` |
+
+**First implementation:** **`hue_presets` API path** ✅ **B10G Part D** (handler fast-path + Z-Wave ignore + scope alerts). **G6:** Admin 12-checkbox modal + remaining scoped writers (see § Reload alerts follow-up).
+
+---
+
+### Reload alerts — G6 follow-up (after B10G Option A)
+
+**B10G ✅:** writers that still **full-recycle** without `scope` use the **`full`** alert row ([`pipeline.md`](pipeline.md) § B10G). **G6 must migrate each writer atomically:** add `scope` (or `mode`/`scopes`) to dispatch **+** scoped handler branch **+** matching alert row — never intent-specific alerts while handler still full-recycles.
+
+**Additional alert rows (ship with G6 when handler scoped)** — same 3 levels as B10G (`info` / `success` / `error`); exact strings for T4-C suppress:
+
+| Scope key | In-progress (`info`, 🔄) | Complete (`success`, 🟢) | Failed (`error`, `ERROR:`) |
+|---|---|---|---|
+| **`automations`** | `🔄 Reloading automations…` | `🟢 Automations reloaded.` | `ERROR: Automations reload failed: …` |
+| **`events`** | `🔄 Reloading events catalog…` | `🟢 Events catalog reloaded.` | `ERROR: Events catalog reload failed: …` |
+| **`soft_hide`** | `🔄 Reloading hidden devices…` | `🟢 Hidden devices reloaded.` | `ERROR: Hidden devices reload failed: …` |
+| **`zwave_map`** | `🔄 Reloading Z-Wave map…` | `🟢 Z-Wave map reloaded.` | `ERROR: Z-Wave map reload failed: …` |
+
+*(B10G table already locks **`full`**, **`hue_presets`**, **`timers_types`** — [`pipeline.md`](pipeline.md) § B10G.)*
+
+**G6 API migration (reminder):** when each row above lands, update the writer dispatch from bare `{ source: "api" }` to `{ source: "api", scope: "<id>" }` (or scoped modal `scopes[]`) **in the same PR** as the handler branch and alert row.
 
 ---
 
@@ -279,7 +298,7 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 * Changing *whether* CRUD dispatches reload (B1/B5 policy stays).
 * Replacing `wanos-sync` — sync remains file transport; reload applies RAM.
 
-**G6 DoD:** Admin shows **Full reload** (today’s behaviour, labelled) + **Scoped reload** modal with **12** checkboxes (summaries + when per row; no bundles). Blocky automation/events save: rules/catalog live immediately; **no** Hue torn-down / Onkyo stopped / Z-Wave remap in logs when only scopes 1–5 / 8 selected. Hue preset CRUD: scope 5 only. Soft-hide / timers saves: scopes 3 / 4 only. Full reload still remaps all integrations + remaining YAML. API callers migrated to minimal scopes. Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G6 DoD:** Admin shows **Full reload** (today’s behaviour, labelled) + **Scoped reload** modal with **12** checkboxes (summaries + when per row; no bundles). Blocky automation/events save: rules/catalog live immediately; **no** Hue torn-down / Onkyo stopped / Z-Wave remap in logs when only scopes 1–5 / 8 selected. Hue preset CRUD: scope 5 only (handler + alerts — ✅ **B10G Part D**). Soft-hide / timers saves: scopes 3 / 4 only. Full reload still remaps all integrations + remaining YAML. API callers migrated to minimal scopes **with matching scope-specific reload alerts** (see § Reload alerts — G6 follow-up). Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

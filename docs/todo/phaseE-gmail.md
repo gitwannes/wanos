@@ -1,7 +1,7 @@
 # ⚡ WanOS Phase E — Gmail
 
 Outbound email **transport** (OAuth, outbox, spooler). Sequence → [`pipeline.md`](pipeline.md).  
-**Blocky hook:** Phase **B9B H5** emits `EMAIL_REQUESTED` only; rules never call Gmail. Transport (**E**) can ship before or parallel to B9B; H5 email DoD waits on E. **B10B** does **not** seed `EMAIL_REQUESTED` into the `events:` catalog — that seed lands with **E** (or with H5 when E is ready).
+**Blocky hook:** Phase **B9B H5** (Ship **B6**) emits `EMAIL_REQUESTED` only; rules never call Gmail. Transport (**E**) can ship before or **parallel to Ships B5–B8** (cluster); H5 email DoD waits on **E**. **B10B** does **not** seed `EMAIL_REQUESTED` into the `events:` catalog — that seed lands with **E** (or with H5 when E is ready). Parallel detail → [`pipeline.md`](pipeline.md) § Parallel tracks.
 
 Architectural blueprint for outbound email from WanOS via **Google Workspace OAuth2** and the **Gmail API**. Includes an offline-capable outbox so critical alerts still leave the Pi when WAN returns, without blocking the core asyncio event loop.
 

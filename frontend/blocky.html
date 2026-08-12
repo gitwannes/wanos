@@ -127,28 +127,39 @@
 </head>
 <body class="bg-base-300 min-h-screen text-base-content" x-data="blockyApp()" x-init="init()">
 
-<!-- B10F: yellow loading while fetching; red Explorer copy only when backend unreachable. -->
-<div x-show="!connected" x-cloak
-     class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
-    <span class="loading loading-infinity w-16 mb-4"
-          :class="backendUnreachable ? 'text-error' : 'text-warning'"></span>
-    <h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>
-    <p class="mt-2 font-mono text-sm"
-       :class="backendUnreachable ? 'text-error' : 'text-warning'"
-       x-text="backendUnreachable
-         ? 'Establishing connection stream to WanOS backend...'
-         : 'Loading automation editor...'"></p>
+<!-- B10G: shared red offline (shell) + yellow cold-load checklist (page-local). -->
+<div data-wanos-offline data-offline-suppress="editorLoading"></div>
+<div x-show="editorLoading" x-cloak
+     class="fixed inset-0 z-[9998] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">
+    <span class="loading loading-spinner w-12 text-warning mb-4"></span>
+    <h2 class="text-xl font-bold tracking-wide text-warning">Loading automation editor...</h2>
+    <ul class="mt-6 w-full max-w-md text-left space-y-2 font-mono text-sm">
+        <template x-for="row in loadChecklist" :key="row.key">
+            <li class="flex flex-col gap-0.5 text-base-content/80">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" class="checkbox checkbox-xs checkbox-warning" :checked="row.done" disabled>
+                    <span class="flex-1" x-text="loadChecklistLabel(row)"></span>
+                    <span class="text-xs text-base-content/50 tabular-nums shrink-0"
+                          x-show="row.done && row.ms != null" x-text="loadChecklistTimingMs(row)"></span>
+                </div>
+                <p class="text-[10px] text-base-content/45 tabular-nums pl-8"
+                   x-show="row.done && loadChecklistTimingDetail(row)"
+                   x-text="loadChecklistTimingDetail(row)"></p>
+            </li>
+        </template>
+    </ul>
 </div>
 <div data-wanos-nav="blocky"></div>
 
 <main class="max-w-7xl mx-auto px-3 md:px-6 grid grid-cols-1 xl:grid-cols-3 gap-6 pb-10 relative">
-    <!-- B10F: rule-save busy overlay (all UI locked except retry/dismiss on failure). -->
-    <div x-show="ruleSaveBusy"
+    <!-- B10F: rule-save / refresh busy overlay (all UI locked except retry/dismiss on failure). -->
+    <div x-show="ruleSaveBusy || refreshBusy"
          class="fixed inset-0 z-[300] flex items-center justify-center bg-base-300/70"
          x-cloak>
         <div class="flex flex-col items-center gap-3 p-6 rounded-box bg-base-100 border border-base-300 shadow-xl">
             <span class="loading loading-spinner loading-lg text-warning"></span>
-            <span class="text-sm font-semibold tracking-wide">Saving…</span>
+            <span class="text-sm font-semibold tracking-wide"
+                  x-text="ruleSaveBusy ? 'Saving…' : 'Refreshing…'"></span>
         </div>
     </div>
     <div x-show="ruleSaveFailed"
@@ -424,6 +435,14 @@
                         <button class="btn btn-xs btn-outline" @click="toggleBlocklyFullscreen()"
                                 :disabled="uiLocked"
                                 x-text="blocklyFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                        <button type="button"
+                                class="btn btn-xs btn-outline"
+                                x-show="showExecuteRuleButton"
+                                @click="executeSelectedRule()"
+                                :disabled="!canExecuteSelectedRule"
+                                :title="executeRuleTitle">
+                            Execute
+                        </button>
                         <button type="button" class="btn btn-xs btn-outline btn-error"
                                 @mousedown="onDeletePointerDown($event)"
                                 @click="deleteSelectedBlock()"
@@ -466,6 +485,14 @@
                                     </svg>
                                 </button>
                                 <button class="btn btn-sm btn-outline" @click="toggleBlocklyFullscreen()" :disabled="uiLocked">Exit full screen</button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline"
+                                        x-show="showExecuteRuleButton"
+                                        @click="executeSelectedRule()"
+                                        :disabled="!canExecuteSelectedRule || uiLocked"
+                                        :title="executeRuleTitle">
+                                    Execute
+                                </button>
                                 <button type="button" class="btn btn-sm btn-outline btn-error"
                                         @mousedown="onDeletePointerDown($event)"
                                         @click="deleteSelectedBlock()"
@@ -500,6 +527,14 @@
                         <button class="btn btn-warning btn-sm" @click="saveRule()" :disabled="busy || !editorDirty">
                             <span x-show="!busy">Save</span>
                             <span x-show="busy" class="loading loading-spinner loading-md"></span>
+                        </button>
+                        <button type="button"
+                                class="btn btn-outline btn-sm"
+                                x-show="showExecuteRuleButton"
+                                @click="executeSelectedRule()"
+                                :disabled="!canExecuteSelectedRule"
+                                :title="executeRuleTitle">
+                            Execute
                         </button>
                         <button class="btn btn-outline btn-error btn-sm" @click="deleteRule()"
                                 :disabled="busy || !editor.id"
@@ -615,7 +650,40 @@
     <form method="dialog" class="modal-backdrop" @submit="closeBlockyHueColor()"><button>close</button></form>
 </dialog>
 
-<script src="wanos-shell.js?v=3"></script>
-<script src="blocky.js?v=4.73"></script>
+<!-- B10G: admin-only cold-load timings (auto-open after successful init). -->
+<dialog id="blocky_load_timings_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[10001]"
+        @close="loadTimingsModalOpen = false">
+    <div class="modal-box border border-warning/30 bg-base-300 shadow-2xl max-w-lg">
+        <h3 class="font-bold text-lg text-warning tracking-wide">Automation load timings</h3>
+        <p class="text-xs text-base-content/60 mt-1 mb-4">wire TTFB = server wait (when exposed). nav→byte = ms since navigation. before fetch = ms after refreshAll start.</p>
+        <ul class="space-y-3 font-mono text-sm">
+            <template x-for="row in (coldLoadTimingsSnapshot || loadChecklist)" :key="'tm-' + row.key">
+                <li class="border-b border-base-200/50 pb-2">
+                    <div class="flex justify-between gap-4">
+                        <span class="shrink-0" x-text="loadChecklistLabel(row)"></span>
+                        <span class="text-base-content/50 text-xs shrink min-w-0 truncate text-right" x-text="row.api"></span>
+                        <span class="text-warning tabular-nums shrink-0"
+                              x-text="row.done && row.ms != null ? loadChecklistTimingMs(row) : '—'"></span>
+                    </div>
+                    <p class="text-[11px] text-base-content/55 tabular-nums mt-1"
+                       x-show="row.done && loadChecklistTimingDetail(row)"
+                       x-text="loadChecklistTimingDetail(row)"></p>
+                </li>
+            </template>
+        </ul>
+        <p class="text-sm font-semibold text-warning mt-4 pt-3 border-t border-warning/20 tabular-nums"
+           x-show="coldLoadTimingSummary()"
+           x-text="coldLoadTimingSummary()"></p>
+        <div class="modal-action">
+            <form method="dialog">
+                <button type="submit" class="btn btn-sm btn-warning">Dismiss</button>
+            </form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button type="button" @click="loadTimingsModalOpen = false">close</button></form>
+</dialog>
+
+<script src="wanos-shell.js?v=6"></script>
+<script src="blocky.js?v=10"></script>
 </body>
 </html>

@@ -563,8 +563,13 @@ function autoOffTimersApp() {
             if (!Array.isArray(msgs)) return null;
             for (const msg of msgs) {
                 const text = msg && msg.message ? String(msg.message) : "";
-                if (text.includes("Config reload failed")) return "fail";
-                if (text.includes("Config reloaded")) return "ok";
+                if (window.WanOSReloadAlerts) {
+                    if (window.WanOSReloadAlerts.isFailed(text)) return "fail";
+                    if (window.WanOSReloadAlerts.COMPLETE.includes(text)) return "ok";
+                } else {
+                    if (text.includes("Config reload failed")) return "fail";
+                    if (text.includes("Config reloaded") || text.includes("reloaded.")) return "ok";
+                }
             }
             return null;
         },
@@ -574,7 +579,13 @@ function autoOffTimersApp() {
             const parts = [];
             for (const msg of msgs) {
                 const text = msg && msg.message ? String(msg.message) : "";
-                if (!text.includes("Config reloaded") && !text.includes("Config reload failed")) continue;
+                const isReload = window.WanOSReloadAlerts
+                    ? (window.WanOSReloadAlerts.COMPLETE.includes(text)
+                        || window.WanOSReloadAlerts.isFailed(text)
+                        || window.WanOSReloadAlerts.IN_PROGRESS.includes(text))
+                    : (text.includes("Config reloaded") || text.includes("Config reload failed")
+                        || text.includes("Reloading"));
+                if (!isReload) continue;
                 parts.push(`${text}|${msg.count || 1}|${msg.timestamp || ""}`);
             }
             return parts.join(";");

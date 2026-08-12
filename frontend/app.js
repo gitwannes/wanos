@@ -27,6 +27,10 @@ function wanosApp() {
     return {
         connected: false,
         isAdmin: false,
+        /** B10G: hide shared NOT CONNECTED overlay during backend config reload alerts. */
+        reloadSuppressOverlay: false,
+        /** B10G: debounce SSE onerror → offline (ms). */
+        _sseOfflineDebounce: null,
         showHiddenNodes: false,
 
         state: {
@@ -1271,6 +1275,36 @@ function wanosApp() {
 
             // ⚡ Instantly drop the loading screen so the user sees the populated data
             this.connected = true;
+            if (fullState.system && fullState.system.system_alert_msgs && window.WanOSReloadAlerts) {
+                this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(
+                    fullState.system.system_alert_msgs
+                );
+            }
+        },
+
+        _syncReloadSuppressFromAlerts(msgs) {
+            if (!window.WanOSReloadAlerts || !Array.isArray(msgs)) return;
+            this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(msgs);
+        },
+
+        _scheduleSseOfflineDebounce() {
+            if (this._sseOfflineDebounce) clearTimeout(this._sseOfflineDebounce);
+            this._sseOfflineDebounce = setTimeout(() => {
+                this._sseOfflineDebounce = null;
+                this.connected = false;
+            }, 3000);
+        },
+
+        _cancelSseOfflineDebounce() {
+            if (this._sseOfflineDebounce) {
+                clearTimeout(this._sseOfflineDebounce);
+                this._sseOfflineDebounce = null;
+            }
+        },
+
+        _markSseAlive() {
+            this._cancelSseOfflineDebounce();
+            this.connected = true;
         },
 
         _applyDomainDelta(domain, data) {
@@ -1323,10 +1357,19 @@ function wanosApp() {
 
             // ⚡ INTELLIGENT UI UNLOCKER: Watch for backend sweep or config completion dictionaries
             if (domain === "system" && payload.system_alert_msgs) {
+                this._syncReloadSuppressFromAlerts(payload.system_alert_msgs);
                 if (payload.system_alert_msgs.some(msg => msg.message && msg.message.includes("Sweeper complete"))) {
                     this.sweepRunning = false;
                 }
-                if (payload.system_alert_msgs.some(msg => msg.message && (msg.message.includes("Config reloaded") || msg.message.includes("Config reload failed")))) {
+                const reloadDone = (msg) => {
+                    const text = msg && msg.message ? String(msg.message) : "";
+                    if (window.WanOSReloadAlerts) {
+                        return window.WanOSReloadAlerts.COMPLETE.includes(text)
+                            || window.WanOSReloadAlerts.isFailed(text);
+                    }
+                    return text.includes("Config reloaded") || text.includes("Config reload failed");
+                };
+                if (payload.system_alert_msgs.some(reloadDone)) {
                     this.configReloading = false;
                 }
             }
@@ -1358,7 +1401,7 @@ function wanosApp() {
                     if (this.sseWatchdog) clearTimeout(this.sseWatchdog);
                     this.sseWatchdog = setTimeout(() => {
                         console.warn("⚠️ Watchdog Timeout! No server signal detected for 10s. Forcing reconnect...");
-                        this.connected = false;
+                        this._scheduleSseOfflineDebounce();
                         if (this.eventSource) this.eventSource.close();
                         setTimeout(() => this.connectSSE(), 3000);
                     }, 10000); // 2x the 5-second backend ping interval
@@ -1374,12 +1417,12 @@ function wanosApp() {
                         const msg = JSON.parse(event.data);
 
                         if (msg.domain === "ping") {
-                            this.connected = true;
+                            this._markSseAlive();
                             return;
                         }
 
                         this._applyDomainDelta(msg.domain, msg.data);
-                        this.connected = true;
+                        this._markSseAlive();
                     } catch (err) {
                         console.error("⚠️ Failed parsing SSE delta update:", err);
                     }
@@ -1387,9 +1430,9 @@ function wanosApp() {
 
                 this.eventSource.onerror = (err) => {
                     if (this.sseWatchdog) clearTimeout(this.sseWatchdog);
-                    this.connected = false;
                     console.error("❌ SSE stream broke. Re-linking context in 3s...");
                     if (this.eventSource) this.eventSource.close();
+                    this._scheduleSseOfflineDebounce();
                     // On reconnect, fetch a fresh full snapshot before resuming deltas
                     setTimeout(() => this.connectSSE(), 3000);
                 };
@@ -4726,8 +4769,6 @@ function wanosApp() {
         async requestConfigReload() {
             if (this.configReloading) return;
             this.configReloading = true;
-
-            this.publishEvent("ALERT_INJECTED", { msg_text: "🔄 Reloading all config yaml configurations..." });
 
             await this.publishEvent("CONFIG_RELOAD_REQUESTED", { source: "ui_button" });
 

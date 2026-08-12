@@ -245,7 +245,7 @@ ss -tulpn | grep 8091
 Register `wanos.service` to allow systemd to manage the core WanOS Python process, ensure automatic restarts on failure, and direct logs to journald. To prepare for NGINX reverse proxying, Uvicorn is explicitly bound ONLY to internal `127.0.0.1:8080`.
 
 ### 5.1 Review Service Definition (`wanos.service`)
-Ensure `/home/wannes/wanos/wanos.service` contains the production parameters bound to `127.0.0.1:8080`:
+Review the repo template `helpers/bootstrap/backend/wanos.service` (on the Pi: `/home/wannes/wanos/helpers/bootstrap/backend/wanos.service`). Ensure it contains the production parameters bound to `127.0.0.1:8080` before copying to the installed unit at `/etc/systemd/system/wanos.service`:
 ```ini
 [Unit]
 Description=WanOS Home Automation Core
@@ -272,8 +272,8 @@ WantedBy=multi-user.target
 
 ### 5.2 Install and Enable Systemd Unit
 ```bash
-# Copy unit file to the systemd system directory
-sudo cp /home/wannes/wanos/wanos.service /etc/systemd/system/wanos.service
+# Copy unit file from the repo template to the systemd system directory
+sudo cp /home/wannes/wanos/helpers/bootstrap/backend/wanos.service /etc/systemd/system/wanos.service
 
 # Reload systemd manager configuration
 sudo systemctl daemon-reload

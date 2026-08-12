@@ -1,9 +1,17 @@
 ---
-description: Collaboration defaults — no unsolicited code, ask when unsure, give grounded feedback
+description: Collaboration defaults — no unsolicited code, no assumptions (hard rule), ask when unsure
 alwaysApply: true
 ---
 
 # Collaboration standards
+
+## No assumptions (hard rule)
+
+- Do **not** assume, hallucinate, or guess requirements, behaviour, operator intent, or repo state.
+- If anything is unclear, missing, or unverified — **stop and ask** clarifying questions before proceeding.
+- Separate **verified facts** (code, docs, logs, operator statements) from **unknowns**; say explicitly when something is not confirmed.
+- Do not invent APIs, file paths, phase scope, or “probably fine” defaults to fill gaps.
+- Do not treat triage suggestions as locked decisions until the operator confirms.
 
 ## Code generation
 
@@ -14,8 +22,4 @@ alwaysApply: true
 
 - Base analysis on best practices and industry standards.
 - Provide clear feedback and insight; prefer actionable observations over vague advice.
-
-## Uncertainty
-
-- Do not assume, hallucinate, or guess.
-- Ask clarifying questions when requirements, context, or intent are unclear.
+- When reviewing phases, specs, or prereqs: flag ambiguities and open questions — do not paper over them.

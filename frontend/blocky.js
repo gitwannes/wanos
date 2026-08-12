@@ -2195,12 +2195,32 @@ function blockyReadChain(start, fn) {
 function blockyApp() {
     return {
         connected: false,
-        /** B10F: true ⇒ red Explorer unreachable copy; false ⇒ yellow loading. */
-        backendUnreachable: false,
+        /** B10G: yellow checklist overlay during cold init only. */
+        editorLoading: true,
+        reloadSuppressOverlay: false,
+        loadTimingsModalOpen: false,
+        /** Frozen copy for the admin modal — taken once at end of cold load. */
+        coldLoadTimingsSnapshot: null,
+        /** JS wall clock for full cold refreshAll() (first fetch → snapshot). */
+        coldLoadTotalMs: null,
+        /** init() entry → refreshAll() start (Alpine setup before first fetch). */
+        coldLoadInitDelayMs: null,
+        /** navigation start → init() entry (script load / parse before Alpine runs). */
+        coldLoadNavToInitMs: null,
+        loadChecklist: [
+            { key: "state", label: "Device state", api: "GET /api/state", parallel: true, done: false, ms: null },
+            { key: "automations", label: "Automations", api: "GET /api/automations", parallel: true, done: false, ms: null },
+            { key: "events", label: "Events", api: "GET /api/events", parallel: true, done: false, ms: null },
+            { key: "library", label: "Building library", api: "Building library", done: false, ms: null },
+            { key: "fire", label: "Schedule status", api: "GET /api/automations/fire-status", done: false, ms: null }
+        ],
+        _heartbeatTimer: null,
         busy: false,
         /** B10F: rule-save lock — busy overlay or failed (retry/dismiss). */
         ruleSaveBusy: false,
         ruleSaveFailed: false,
+        /** Page lock during manual Refresh (same overlay chrome as rule save). */
+        refreshBusy: false,
         isAdmin: false,
         errorMessage: "",
         /** B9A silent-loss B: non-preservable drops detected on last canvas load. */
@@ -2312,9 +2332,59 @@ function blockyApp() {
             return !!this.selectedRule;
         },
 
-        /** B10F: all Automations UI locked during rule save or until retry/dismiss. */
+        /** B10F: all Automations UI locked during rule save, refresh, or until retry/dismiss. */
         get uiLocked() {
-            return !!(this.ruleSaveBusy || this.ruleSaveFailed);
+            return !!(this.ruleSaveBusy || this.ruleSaveFailed || this.refreshBusy);
+        },
+
+        /** True when the editor row is a saved UR or SR (event-triggered rule). */
+        get showExecuteRuleButton() {
+            if (!this.selectedRule || this.selectedRule.isEventRow || this.selectedRule.isSystemEventRow) {
+                return false;
+            }
+            const kind = this.libraryKind(this.selectedRule);
+            return kind === "ur" || kind === "sr";
+        },
+
+        /** Saved trigger event UUID for manual Execute (UR/SR only). */
+        _executeTriggerEventId() {
+            if (!this.selectedRule || this.selectedRule.isEventRow || this.selectedRule.isSystemEventRow) {
+                return "";
+            }
+            const rid = this.editor.id || this.selectedRule.id;
+            const saved = rid
+                ? (this.automations || []).find((r) => r && String(r.id) === String(rid))
+                : null;
+            let trigger = saved && saved.trigger;
+            if (!trigger) {
+                try {
+                    trigger = JSON.parse(this.editor.ruleJson || "{}").trigger;
+                } catch (e) {
+                    trigger = null;
+                }
+            }
+            return this._primaryTriggerEventId(trigger);
+        },
+
+        /** Manual test fire — saved UR/SR only (same bus path as Explorer scene buttons). */
+        get canExecuteSelectedRule() {
+            if (this.uiLocked || this.busy) return false;
+            if (!this.showExecuteRuleButton) return false;
+            if (this.selectedRule.isDraft || !this.editor.id) return false;
+            if (this.editor.enabled === false) return false;
+            if (this.editorDirty) return false;
+            return !!this._executeTriggerEventId();
+        },
+
+        /** Tooltip when Execute is visible but disabled. */
+        get executeRuleTitle() {
+            if (!this.showExecuteRuleButton) return "";
+            if (this.selectedRule && this.selectedRule.isDraft) return "Save the rule first";
+            if (!this.editor.id) return "Save the rule first";
+            if (this.editor.enabled === false) return "Enable the rule first";
+            if (this.editorDirty) return "Save changes first";
+            if (!this._executeTriggerEventId()) return "Rule has no event trigger";
+            return "Fire this rule's trigger event (manual test)";
         },
 
         /** True when open UE already has a listening UR. */
@@ -3918,25 +3988,114 @@ function blockyApp() {
             this.rebuildLibraryRows();
         },
 
+        /** Fire the saved UR/SR trigger event on the bus (Explorer-equivalent manual test). */
+        async executeSelectedRule() {
+            if (!this.canExecuteSelectedRule) return;
+            const evId = this._executeTriggerEventId();
+            if (!evId) return;
+            const evName = this._catalogEventName(evId) || evId;
+            const row = (BlockyRT.catalogEvents || []).find((r) => r && String(r.id) === String(evId));
+            if (row && row.require_confirmation) {
+                if (!confirm(`Fire "${evName}"?`)) return;
+            }
+            this.busy = true;
+            if (!this.ruleSaveFailed) {
+                this.errorMessage = "";
+            }
+            try {
+                const res = await fetch("/api/event", {
+                    method: "POST",
+                    headers: this.getAuthHeaders(),
+                    body: JSON.stringify({ type: evId, payload: { origin: "MANUAL" } })
+                });
+                if (res.status === 401 || res.status === 403) {
+                    window.location.href = "/login.html";
+                    return;
+                }
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(body.error || `Execute failed (${res.status})`);
+                this.infoMessage = `Fired "${evName}" (manual test).`;
+            } catch (e) {
+                this.errorMessage = String(e);
+            } finally {
+                this.busy = false;
+            }
+        },
+
         async refreshAll() {
+            // Nested inside rule save — ruleSaveBusy already owns the overlay + lock.
+            const nestedInRuleSave = !!this.ruleSaveBusy;
+            const coldLoad = !!this.editorLoading;
+            if (!nestedInRuleSave && !coldLoad) {
+                this.refreshBusy = true;
+            }
             this.busy = true;
             // Keep save-failure message visible while ruleSaveFailed (B10F).
             if (!this.ruleSaveFailed) {
                 this.errorMessage = "";
                 this.infoMessage = "";
             }
+            if (coldLoad) {
+                this.coldLoadTimingsSnapshot = null;
+                this.coldLoadTotalMs = null;
+                this.coldLoadInitDelayMs = null;
+                this.coldLoadNavToInitMs = null;
+                this._coldLoadFetchOffsets = {};
+                for (const row of this.loadChecklist) {
+                    row.done = false;
+                    row.ms = null;
+                    row.wallMs = null;
+                    row.timing = null;
+                    row.timingCaptured = false;
+                }
+            }
+            const coldLoadWallStart = coldLoad ? performance.now() : null;
+            if (coldLoad && this._coldLoadInitWallStart != null) {
+                this.coldLoadInitDelayMs = Math.max(
+                    0,
+                    Math.round(coldLoadWallStart - this._coldLoadInitWallStart)
+                );
+            }
+            const wrapFetch = (key, fetchPromise) => {
+                const markName = `wanos-load-${key}`;
+                if (coldLoad && coldLoadWallStart != null) {
+                    this._coldLoadFetchOffsets[key] = Math.max(
+                        0,
+                        Math.round(performance.now() - coldLoadWallStart)
+                    );
+                }
+                performance.mark(markName);
+                const start = performance.now();
+                return fetchPromise.then((res) => {
+                    if (coldLoad) this._markLoadChecklistDone(key, start);
+                    return res;
+                });
+            };
             try {
                 const [stateRes, rulesRes, eventsRes] = await Promise.all([
-                    fetch("/api/state", { headers: this.getAuthHeaders() }),
-                    fetch("/api/automations", { headers: this.getAuthHeaders() }),
-                    fetch("/api/events", { headers: this.getAuthHeaders() })
+                    wrapFetch("state", fetch("/api/state", { headers: this.getAuthHeaders() })),
+                    wrapFetch("automations", fetch("/api/automations", { headers: this.getAuthHeaders() })),
+                    wrapFetch("events", fetch("/api/events", { headers: this.getAuthHeaders() }))
                 ]);
                 if (!stateRes.ok) throw new Error(`Failed /api/state (${stateRes.status})`);
                 if (!rulesRes.ok) throw new Error(`Failed /api/automations (${rulesRes.status})`);
                 if (!eventsRes.ok) throw new Error(`Failed /api/events (${eventsRes.status})`);
-                const state = await stateRes.json();
-                const rulesPayload = await rulesRes.json();
-                const eventsPayload = await eventsRes.json();
+                const [state, rulesPayload, eventsPayload] = await Promise.all([
+                    stateRes.json(),
+                    rulesRes.json(),
+                    eventsRes.json()
+                ]);
+                if (coldLoad) {
+                    this._captureLoadRowTiming("state", "/api/state", "wanos-load-state");
+                    this._captureLoadRowTiming("automations", "/api/automations", "wanos-load-automations");
+                    this._captureLoadRowTiming("events", "/api/events", "wanos-load-events");
+                }
+                if (coldLoad && window.WanOSReloadAlerts && state.system) {
+                    this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(
+                        state.system.system_alert_msgs || []
+                    );
+                }
+                const libStart = performance.now();
                 this.automations = (rulesPayload.automations || []).filter((r) => r && typeof r === "object");
                 BlockyRT.catalogEvents = Array.isArray(eventsPayload.events) ? eventsPayload.events : [];
                 this.rebuildLibraryRows();
@@ -3946,6 +4105,7 @@ function blockyApp() {
                     ? sys.hue_presets : {};
                 this.sonosStations = (sys.sonos_stations && typeof sys.sonos_stations === "object")
                     ? sys.sonos_stations : {};
+                if (coldLoad) this._markLoadChecklistDone("library", libStart);
                 if (this.selectedRule && !this.editorDirty) {
                     if (this.selectedRule.isEventRow) {
                         const sid = String(this.selectedRule.id || this.editor.id || "");
@@ -3969,18 +4129,261 @@ function blockyApp() {
                         if (fresh) this._doSelectRule(fresh);
                     }
                 }
-                if (this.showBlocklyWorkspace && !this.editorDirty) this.scheduleBlocklyLoad();
+                if (!coldLoad && this.showBlocklyWorkspace && !this.editorDirty) {
+                    this.scheduleBlocklyLoad();
+                }
+                const fireStart = performance.now();
+                if (coldLoad) {
+                    if (coldLoadWallStart != null) {
+                        this._coldLoadFetchOffsets.fire = Math.max(
+                            0,
+                            Math.round(performance.now() - coldLoadWallStart)
+                        );
+                    }
+                    performance.mark("wanos-load-fire");
+                }
                 await this.fetchFireStatus();
-                this.backendUnreachable = false;
+                if (coldLoad) {
+                    this._markLoadChecklistDone("fire", fireStart);
+                    this._captureLoadRowTiming("fire", "/api/automations/fire-status", "wanos-load-fire");
+                    if (coldLoadWallStart != null) {
+                        this.coldLoadTotalMs = Math.max(0, Math.round(performance.now() - coldLoadWallStart));
+                    }
+                    this._snapshotColdLoadTimings();
+                    this._logColdLoadTimings();
+                }
+                this.connected = true;
                 return true;
             } catch (e) {
                 if (!this.ruleSaveFailed) this.errorMessage = String(e);
-                // Network / HTTP failure while never connected ⇒ unreachable overlay.
-                if (!this.connected) this.backendUnreachable = true;
+                this.connected = false;
                 return false;
             } finally {
                 this.busy = false;
+                if (!nestedInRuleSave && !coldLoad) {
+                    this.refreshBusy = false;
+                }
             }
+        },
+
+        _markLoadChecklistDone(key, startMs) {
+            const row = this.loadChecklist.find((r) => r.key === key);
+            if (row && !row.done) {
+                row.done = true;
+                const wallMs = Math.max(0, Math.round(performance.now() - startMs));
+                row.wallMs = wallMs;
+                row.ms = wallMs;
+            }
+        },
+
+        /** Match the PerformanceResourceTiming row for one cold-load fetch (mark → resource). */
+        _readFetchResourceTiming(pathname, markName, jsBeforeFetchMs) {
+            const markEntries = markName ? performance.getEntriesByName(markName, "mark") : [];
+            const markStart = markEntries.length ? markEntries[markEntries.length - 1].startTime : null;
+            const candidates = performance.getEntriesByType("resource").filter((entry) => {
+                try {
+                    return new URL(entry.name).pathname === pathname;
+                } catch (e) {
+                    return false;
+                }
+            });
+            let entry = null;
+            if (markStart != null) {
+                const afterMark = candidates
+                    .filter((e) => e.startTime >= markStart - 1)
+                    .sort((a, b) => a.startTime - b.startTime);
+                entry = afterMark.length ? afterMark[0] : null;
+            }
+            if (!entry && candidates.length) entry = candidates[candidates.length - 1];
+            if (!entry || entry.responseEnd <= 0) return null;
+
+            const download = Math.max(0, entry.responseEnd - entry.responseStart);
+            const resourceTotal = Math.max(0, entry.duration || (entry.responseEnd - entry.startTime));
+            const wireTtfb = entry.requestStart > 0
+                ? Math.max(0, entry.responseStart - entry.requestStart)
+                : null;
+            const fetchToFirstByte = entry.fetchStart > 0 && entry.responseStart > 0
+                ? Math.max(0, entry.responseStart - entry.fetchStart)
+                : null;
+            const navToFirstByte = entry.responseStart > 0
+                ? Math.max(0, entry.responseStart)
+                : null;
+            const queueBeforeSend = entry.requestStart > 0 && entry.fetchStart > 0
+                ? Math.max(0, entry.requestStart - entry.fetchStart)
+                : null;
+
+            return {
+                resourceTotal: Math.round(resourceTotal),
+                download: Math.round(download),
+                wireTtfb: wireTtfb != null ? Math.round(wireTtfb) : null,
+                fetchToFirstByte: fetchToFirstByte != null ? Math.round(fetchToFirstByte) : null,
+                navToFirstByte: navToFirstByte != null ? Math.round(navToFirstByte) : null,
+                queueBeforeSend: queueBeforeSend != null ? Math.round(queueBeforeSend) : null,
+                jsBeforeFetch: jsBeforeFetchMs != null ? Math.round(jsBeforeFetchMs) : null,
+                requestStartMissing: entry.requestStart <= 0
+            };
+        },
+
+        /** Immutable capture — never re-read (Resource Timing entries can grow after the fact). */
+        _captureLoadRowTiming(key, pathname, markName) {
+            const row = this.loadChecklist.find((r) => r.key === key);
+            if (!row || row.timingCaptured) return;
+            const jsBeforeFetch = (this._coldLoadFetchOffsets || {})[key];
+            const timing = this._readFetchResourceTiming(pathname, markName, jsBeforeFetch);
+            if (!timing) return;
+            row.timing = {
+                resourceTotal: timing.resourceTotal,
+                download: timing.download,
+                wireTtfb: timing.wireTtfb,
+                fetchToFirstByte: timing.fetchToFirstByte,
+                navToFirstByte: timing.navToFirstByte,
+                queueBeforeSend: timing.queueBeforeSend,
+                jsBeforeFetch: timing.jsBeforeFetch,
+                requestStartMissing: !!timing.requestStartMissing
+            };
+            row.timingCaptured = true;
+            row.ms = timing.resourceTotal;
+        },
+
+        _cloneLoadTiming(timing) {
+            if (!timing) return null;
+            return {
+                resourceTotal: timing.resourceTotal,
+                download: timing.download,
+                wireTtfb: timing.wireTtfb,
+                fetchToFirstByte: timing.fetchToFirstByte,
+                navToFirstByte: timing.navToFirstByte,
+                queueBeforeSend: timing.queueBeforeSend,
+                jsBeforeFetch: timing.jsBeforeFetch,
+                requestStartMissing: !!timing.requestStartMissing
+            };
+        },
+
+        /** Deep-freeze checklist rows for the admin modal (before heartbeat adds /api/state). */
+        _snapshotColdLoadTimings() {
+            this.coldLoadTimingsSnapshot = this.loadChecklist.map((row) => ({
+                key: row.key,
+                label: row.label,
+                api: row.api,
+                parallel: !!row.parallel,
+                done: !!row.done,
+                ms: row.ms,
+                wallMs: row.wallMs,
+                timing: this._cloneLoadTiming(row.timing)
+            }));
+        },
+
+        _logColdLoadTimings() {
+            const rows = this.coldLoadTimingsSnapshot || this.loadChecklist;
+            const lines = rows.map((r) => {
+                const base = `${this.loadChecklistLabel(r)} (${r.api}): ${this.loadChecklistTimingMs(r)}`;
+                const detail = this.loadChecklistTimingDetail(r);
+                return detail ? `${base} — ${detail}` : base;
+            });
+            const footer = [];
+            if (this.coldLoadInitDelayMs != null) {
+                footer.push(`Init→refreshAll: ${this.coldLoadInitDelayMs} ms`);
+            }
+            if (this.coldLoadNavToInitMs != null) {
+                footer.push(`nav→init: ${this.coldLoadNavToInitMs} ms`);
+            }
+            if (this.coldLoadTotalMs != null) {
+                footer.push(`refreshAll total: ${this.coldLoadTotalMs} ms`);
+            }
+            if (this.coldLoadNavToInitMs != null && this.coldLoadTotalMs != null) {
+                const initDelay = this.coldLoadInitDelayMs || 0;
+                footer.push(`Cold open (nav→done): ${this.coldLoadNavToInitMs + initDelay + this.coldLoadTotalMs} ms`);
+            }
+            console.info("[B10G load timings]\n" + lines.join("\n")
+                + (footer.length ? `\n${footer.join(" · ")}` : ""));
+        },
+
+        /** B10G: checklist/modal row label (steps 1–3 run in parallel). */
+        loadChecklistLabel(row) {
+            const base = row && row.label ? row.label : "";
+            return row && row.parallel ? `${base} (parallel)` : base;
+        },
+
+        /** Primary ms column — Resource Timing resource duration when available. */
+        loadChecklistTimingMs(row) {
+            if (!row || row.ms == null) return "—";
+            return `${row.ms} ms`;
+        },
+
+        /** wire TTFB / fetch→byte / nav→byte / queue / dl / before fetch (+ JS wall when divergent). */
+        loadChecklistTimingDetail(row) {
+            if (!row || !row.timing) return "";
+            const t = row.timing;
+            const parts = [];
+            parts.push(t.wireTtfb != null ? `wire TTFB ${t.wireTtfb}` : "wire TTFB —");
+            if (t.fetchToFirstByte != null) parts.push(`fetch→byte ${t.fetchToFirstByte}`);
+            if (t.navToFirstByte != null) parts.push(`nav→byte ${t.navToFirstByte}`);
+            if (t.queueBeforeSend != null) parts.push(`queue ${t.queueBeforeSend}`);
+            parts.push(`dl ${t.download}`);
+            if (t.jsBeforeFetch != null) parts.push(`before fetch ${t.jsBeforeFetch}`);
+            if (t.requestStartMissing) parts.push("requestStart hidden");
+            let detail = parts.join(" · ");
+            if (row.wallMs != null && t.resourceTotal != null && row.wallMs > t.resourceTotal + 50) {
+                detail += ` · JS wall ${row.wallMs} ms`;
+            }
+            return detail;
+        },
+
+        /** Footer summary for the admin timings modal. */
+        coldLoadTimingSummary() {
+            const parts = [];
+            if (this.coldLoadNavToInitMs != null) {
+                parts.push(`nav→init: ${this.coldLoadNavToInitMs} ms`);
+            }
+            if (this.coldLoadInitDelayMs != null) {
+                parts.push(`Init→refreshAll: ${this.coldLoadInitDelayMs} ms`);
+            }
+            if (this.coldLoadTotalMs != null) {
+                parts.push(`refreshAll total: ${this.coldLoadTotalMs} ms`);
+            }
+            if (this.coldLoadNavToInitMs != null && this.coldLoadTotalMs != null) {
+                const initDelay = this.coldLoadInitDelayMs || 0;
+                parts.push(`Cold open (nav→done): ${this.coldLoadNavToInitMs + initDelay + this.coldLoadTotalMs} ms`);
+            }
+            return parts.join(" · ");
+        },
+
+        _startRestHeartbeat() {
+            if (this._heartbeatTimer) clearInterval(this._heartbeatTimer);
+            const tick = async () => {
+                if (document.hidden || this.editorLoading) return;
+                try {
+                    const res = await fetch("/api/state", { headers: this.getAuthHeaders() });
+                    if (!res.ok) {
+                        this.connected = false;
+                        return;
+                    }
+                    const st = await res.json();
+                    if (window.WanOSReloadAlerts && st.system) {
+                        this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(
+                            st.system.system_alert_msgs || []
+                        );
+                    }
+                    this.connected = true;
+                } catch (e) {
+                    this.connected = false;
+                }
+            };
+            tick();
+            this._heartbeatTimer = setInterval(tick, 10000);
+        },
+
+        _stopRestHeartbeat() {
+            if (this._heartbeatTimer) {
+                clearInterval(this._heartbeatTimer);
+                this._heartbeatTimer = null;
+            }
+        },
+
+        _openLoadTimingsModal() {
+            const dlg = document.getElementById("blocky_load_timings_modal");
+            if (dlg && typeof dlg.showModal === "function") dlg.showModal();
+            this.loadTimingsModalOpen = true;
         },
 
         async runPostWriteRegistryCheck(opts = {}) {
@@ -4166,8 +4569,6 @@ function blockyApp() {
                     ? "Automation updated (hot-reload queued)."
                     : "Automation created (hot-reload queued).";
                 this.markEditorClean();
-                this.ruleSaveBusy = false;
-                this.ruleSaveFailed = false;
                 await this.refreshAll();
                 const savedId = (body.automation && body.automation.id) || payload.id;
                 if (savedId) {
@@ -4180,6 +4581,8 @@ function blockyApp() {
                     okMsg: isUpdate ? "Rule updated" : "Rule created",
                     failMsg: "Saved, but registry check failed — open Admin → Debug."
                 });
+                this.ruleSaveBusy = false;
+                this.ruleSaveFailed = false;
             } catch (e) {
                 this.errorMessage = String(e);
                 this.ruleSaveBusy = false;
@@ -4396,6 +4799,7 @@ function blockyApp() {
         },
 
         async init() {
+            this.coldLoadNavToInitMs = Math.round(performance.now());
             BlockyRT.app = this;
             if (wanosRedirectIfNarrow()) return;
             const token = localStorage.getItem("wanos_jwt") || "";
@@ -4420,14 +4824,20 @@ function blockyApp() {
             this.$watch("editor.eventRequireConfirmation", () => this.markEditorDirty());
             this.$watch("editor.eventEnabled", () => this.markEditorDirty());
             this.$watch("editor.ruleJson", () => this.markEditorDirty());
-            // Yellow "Loading automation editor..." while connected===false && !backendUnreachable.
+            this._coldLoadInitWallStart = performance.now();
+            this.editorLoading = true;
             const ok = await this.refreshAll();
+            this.editorLoading = false;
             if (ok) {
-                this.backendUnreachable = false;
                 this.connected = true;
+                this._startRestHeartbeat();
+                if (this.showBlocklyWorkspace && !this.editorDirty) {
+                    this.scheduleBlocklyLoad();
+                }
+                if (this.isAdmin) {
+                    this._openLoadTimingsModal();
+                }
             } else {
-                // Red Explorer-style unreachable copy; stay on overlay.
-                this.backendUnreachable = true;
                 this.connected = false;
             }
         }

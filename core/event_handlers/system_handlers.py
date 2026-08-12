@@ -4,6 +4,12 @@ from typing import Any, Set, Tuple
 from loguru import logger
 from core.models import Event, EventType
 from core.config import load_config
+from core.reload_alerts import (
+    reload_alert_complete,
+    reload_alert_failed,
+    reload_alert_in_progress,
+    resolve_reload_alert_scope,
+)
 from logic.alert_manager import AlertManager
 from logic.environment_scheduler import EnvironmentScheduler
 
@@ -57,6 +63,7 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
     payload = event.payload or {}
     source = str(payload.get("source") or "").strip().lower()
     scope = str(payload.get("scope") or "").strip().lower()
+    alert_scope = resolve_reload_alert_scope(payload)
     if not source and str(payload.get("origin") or "").upper() == "MANUAL":
         source = "ui_button"
     if source in ("ui_button", "ui", "manual", "button"):
@@ -65,11 +72,18 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         await manager.logger.info("🔄 Scoped reload (auto-off + product types + metadata).")
     else:
         await manager.logger.info("🔄 Configuration hot-reload (auto — after config write).")
+
     state_changed = False
-    changed_domains = set()
+    changed_domains: Set[str] = set()
+
+    ch_start, dom_start = AlertManager.process_alert(
+        manager._state, reload_alert_in_progress(alert_scope)
+    )
+    state_changed |= ch_start
+    changed_domains |= dom_start
 
     try:
-        # B9A: Hue preset CRUD must be lightning fast.
+        # B9A / B10G: Hue preset CRUD must be lightning fast.
         # Avoid full load_config() + rebuild_core_metadata() (which triggers NVRAM + all integration reloads).
         if scope == "hue_presets":
             try:
@@ -102,11 +116,16 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
                 # Reset any cached config reference in rules engine
                 AutomationEngine._config = None
 
-                state_changed = True
-                changed_domains.update({"system"})
+                ch_done, dom_done = AlertManager.process_alert(
+                    manager._state, reload_alert_complete(alert_scope)
+                )
+                state_changed |= ch_done
+                changed_domains |= dom_done
+                changed_domains.add("system")
                 return state_changed, changed_domains
             except Exception as e:
                 await manager.logger.error(f"Fast hue_presets reload failed; falling back to full reload: {e}")
+                alert_scope = "full"
 
         from logic.automation_rules import AutomationEngine
         new_config = load_config()
@@ -165,19 +184,22 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         state_changed = True
         changed_domains.update({"system", "devices", "device_metadata"})
 
-        msg: str = f"🟢 Config reloaded."
-        ch, dom = AlertManager.process_alert(manager._state, msg)
-        state_changed |= ch
-        changed_domains |= dom
+        ch_done, dom_done = AlertManager.process_alert(
+            manager._state, reload_alert_complete(alert_scope)
+        )
+        state_changed |= ch_done
+        changed_domains |= dom_done
 
         # Automatically trigger a system sweep 2 seconds after a full config reload
         if full_recycle:
             manager._timer_manager.schedule("post_reload_sweep", int(time.time()) + 2, "SYSTEM_SWEEP_REQUESTED",
                                             {"reason": "config_reload"})
     except Exception as e:
-        ch, dom = AlertManager.process_alert(manager._state, f"🔴 Config reload failed: {e}")
-        state_changed |= ch
-        changed_domains |= dom
+        ch_fail, dom_fail = AlertManager.process_alert(
+            manager._state, reload_alert_failed(alert_scope, str(e))
+        )
+        state_changed |= ch_fail
+        changed_domains |= dom_fail
 
     return state_changed, changed_domains
 
@@ -242,3 +264,4 @@ async def handle_zwave_discovery(event: Event, manager: Any) -> Tuple[bool, Set[
         "last_seen": int(time.time())
     }
     return True, {"system"}
+

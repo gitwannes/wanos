@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C13**. Pipeline next: **B9A** smoke (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C16 → C15 → C13**. Pipeline next: **B10H** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -25,12 +25,14 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C9 — Device-ref app logs** | All device-ref lines in `wanos.log` → `entity_id (name, idx N)` | Every integration · mid |
 | **C10 — Explorer / History polish** | Plural Nodes; Planned past gone; Hue hex text; chart colors; binary/hits charts; omit scenes; filter+blinds | FE · mid |
 | **C11 — Control vs History lists** | Re-assess Explorer Control vs History list membership (post–C10 scene omit) | Assess → decide · low |
-| **C12 — Post-C10 polish** | Hue bri int; binary duration; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter debounce assess | FE + log · mid |
+| **C12 — Post-C10 polish** | Hue bri int; binary duration; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter debounce; temp/hum frost line | FE + log · mid |
+| **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only | History charts · mid |
+| **C15 — Admin lab switch** | Move Enable lab controls → Debug Commands row; lab pane iff switch ON | Admin · low |
 | **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4**. **C12** then **C13**. NOT CONNECTED + admin **`vNN`** → **B10G** (same ship block). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4**. **C12** → **C16** → **C15** → **C13**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -393,7 +395,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 ## 📋 C12 — Post-C10 polish 🔜 TODO
 
-**Origin:** operator inbox **2026-08-11**. Shell / History / Admin — **not** G2 bridge truth, **not** Blocky editor (**B10G** = Automations load checklist + timings + log; **B10H** = shorten wait). **One ship** (default). Size **mid**. **Spec locked** (operator Q&A **2026-08-11**).
+**Origin:** operator inbox **2026-08-11**. Shell / History / Admin — **not** G2 bridge truth, **not** Blocky editor (**B10G** ✅ load checklist / timings / NOT CONNECTED / `vNN`; **B10H** = shorten wait). **One ship** (default). Size **mid**. **Spec locked** (operator Q&A **2026-08-11**).
 
 | # | Item |
 |---|---|
@@ -404,6 +406,18 @@ Alert dismissed (bell): level=<level> "…message text…"
 | 5 | **Z-Wave config search — negative filter** — mirror Explorer: **`-term`** excludes (same `_parseTextQuery` semantics). Fields: **name, path, idx** (today’s Z-Wave positive match set). |
 | 6 | **Scene favorites bug** — favoriting **one** dashboard scene must not favorite **all** scenes (likely UUID `id` vs numeric idx in `actuatorFavorites`). |
 | 7 | **Shutters debounce — assess** — FE `getUiLockTime('blinds')` uses fixed **7s**; backend `hub_handlers` uses proportional delay from `blinds.travel_times` / `default_travel_time_secs`. Confirm gap; align FE lock (and/or rubberband) with travel math if needed. |
+| 8 | **Temp/hum frost line** — see § item 8 below. |
+
+### Item 8 — temp/hum frost styling (extends C5 dew)
+
+* **Day chart:** where **temp < dew**, render that segment **red** and **thicker** (temp series only). Dew series stays on **day** temp/hum charts only.
+* **Month / year — locked:** **no dew series** (remove consolidated dew min/max lines shipped in C5). **No** frost styling on aggregated charts.
+* **Day point density (for kickoff):** rolling **`hires_days`** buffer once **C16** ships; until then API returns **24 h** only. Throttle: **≥0.5 °C** / **≥2 %RH** / **300 s** max interval. **~288 points/series/24 h** ceiling when flat; dew FE-paired on matching timestamps.
+
+**Operator request (verbatim):**
+> - in temp/hum graphs: when temp goes below dew point: change that part of the line in red and make it thicker -- Q: is it usefull to have this in month/year graphs as well? I think not, but verify&confirm -- general: is it usefull to have the consolidated dew point graph in month/year charts? again, I think not, but verify&confirm
+
+**Operator lock-in (2026-08-12):** remove dew from **month & year**; keep dew (and frost styling) on **day** only.
 
 ### Item 2 — chart families (extends C10 item 5)
 
@@ -425,18 +439,64 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 ### Out of scope
 
 * G2 Hue bri/xy **bridge** truth.
-* B10G Automations load checklist / timings / log overlay; **B10H** cold-load shorten.
+* B10G Automations load checklist / timings / NOT CONNECTED / `vNN` — ✅ **2026-08-12**; **B10H** cold-load shorten.
 * C11 Control vs History membership model (item 3 does not reopen it).
 
-**C12 DoD:** Items 1–7 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C12 DoD:** Items 1–8 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed; temp/hum day frost line; **dew removed from month/year**. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
-*(Former **C14** — NOT CONNECTED investigate + admin page **`vNN`** — folded into **B10G** same ship block; see [`phaseB-blocky.md`](phaseB-blocky.md) § B10G.)*
+*(Former **C14** — NOT CONNECTED investigate + admin page **`vNN`** — folded into **B10G** ✅ **2026-08-12**; see [`phaseB-blocky.md`](phaseB-blocky.md) § B10G.)*
+
+---
+
+## 📋 C15 — Admin lab switch relocation 🔜 TODO
+
+**Origin:** operator inbox **2026-08-12**. Admin UI — **not** Blocky. Size **low**. Sequence: **after C12** (or with **C13** admin churn).
+
+**Operator request (verbatim):**
+> - move "enable lab controls" to system admin pane (the only one left on the admin page) under "debug commands" (no button, but a switch, sits in same row as buttons for other functions) - lab mode pane only opens / is visible when this switch is on
+
+**Operator lock-in (2026-08-12):** Today the lab card **header is always visible** with the enable switch on the right. **Target:** move switch to **Debug Commands** row; **entire lab pane hidden by default** (no header, no simulator) until switch **ON**.
+
+**Locked triage intent:**
+
+* Move **Enable lab controls** from Lab card header → **System Commands** card, **Debug Commands** section — **toggle switch** on the right (same row pattern as Entity Registry Check / Test UI Alert; not a GO button).
+* **Lab Mode Manual Simulator** (header + body) **`x-show` only when switch ON** — nothing lab-related visible when OFF.
+* Disabled-when-hardware-live rules unchanged (SHT11/GPIO guard).
+
+**C15 DoD:** Switch in Debug Commands row; **no lab UI when OFF**; full lab pane when ON; Pi smoke enable/disable + simulations guard. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C16 — Day chart sliding 24 h window 🔜 TODO
+
+**Origin:** operator inbox **2026-08-12**. Explorer → History day panels — extends **C5** / **C6** (not Blocky). Size **mid**. Sequence: **after C12** (same chart surface; pairs with item 8 frost line).
+
+**Operator request (verbatim):**
+> - can we change the rolling hi-res window to 1 week? what would that mean for code, for DB size?
+> - on the daily chart: I want a windows of 24hrs (can be shortened to see more detail but not made bigger) - but I Want to slide this window up to the available hi-res data, so 1 week ago
+
+**Locked triage intent:**
+
+* **Viewport:** fixed **maximum 24 h** wide; **zoom-in** allowed (keep today’s ~**1 h** floor via `minValueSpan`); **cannot zoom out** past 24 h (`maxValueSpan`).
+* **Data buffer:** load full hi-res retention — **`history.retention.hires_days`** (default **7**) — not a wider chart axis. **Do not** extend DB retention for this item.
+* **Default view:** viewport **right-aligned to now** (most recent 24 h).
+* **Pan:** user slides the 24 h window back across stored hi-res (up to **`hires_days` ago**) via inside-drag + bottom slider.
+* **Backend (`range=day`):** return hi-res samples for **`now − hires_days × 86400`** (climate / power / host `sensor_samples`; actuator `device_events`) — replace hardcoded **`86400`** query window only. Optional response metadata: `retention_days`, `default_window_hours: 24`.
+* **Frontend:** `xAxis` spans full buffer `[now − hires_days, now]`; ECharts `dataZoom` with **`maxValueSpan = 24 h`**, initial **`startValue` / `endValue`** = last 24 h (not `start:0 end:100` on a 24 h axis). Reuse/adapt `_applyTimeWindow` / `_applyClimateTimeWindow`.
+* **Soft refresh (C6):** preserve pan position on merge; if viewport was **live** (end ≈ now), keep pinned to now.
+* **Y-axis snap (C5):** unchanged — snap from values inside current dataZoom window.
+* **Copy:** panel title stays **24 hour window** (not “last 24 hours” when panned); optional subtitle with visible from/to when not live.
+* **DB size:** **unchanged** — hi-res already retained 7 days; cost is ~**7×** day-chart API payload + FE points (~2k/series ceiling at 300 s climate throttle).
+* **Water day chart — assess at kickoff:** today uses **`sensor_hourly`** (24 h bars), not hi-res — decide whether to expose **7×24 h** hourly bars with same pan UX or leave water on live 24 h only.
+* **Out of scope:** windowed API (`?end=`) per pan (unless Pi perf forces it); changing `hires_days` retention; month/year charts; `sensorhistory.html` utility page (unless explicitly included at kickoff).
+
+**C16 DoD:** Day hi-res charts (climate, power, host, actuators) load `hires_days` buffer; 24 h max viewport; pan to oldest hi-res; zoom-in only; soft refresh preserves pan/live pin; water decision recorded; Pi smoke pan + live refresh. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
 ## 📋 C13 — Merge Hidden devices into Timers & types 🔜 TODO (assess)
 
-**Origin:** operator inbox **2026-08-11**. Admin system pages — **not** Blocky, **not** reopening **B7**/**B8**/**D** product model. Size **mid**. Sequence: **after C12**.
+**Origin:** operator inbox **2026-08-11**. Admin system pages — **not** Blocky, **not** reopening **B7**/**B8**/**D** product model. Size **mid**. Sequence: **after C15** (or with C15 admin churn).
 
 ### Locked triage intent
 
@@ -475,15 +535,19 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * **C9:** All device-ref lines in `wanos.log`, every integration → `entity_id (name, idx N)` (automation-log parity / `format_device_ref`).
 * **C10:** Plural Nodes; Planned past/done **removed** from list (not relabeled); Hue COLOR OUTPUT text-only remove; climate legend/line parity; binary ON/OFF vs non-binary set vs motion hits (day Y + month/year counts); History omit **all** `type === "scene"`; filter+blinds drag stable. ✅ **Done 2026-08-11**.
 * **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
-* **C12:** Hue bri integer; binary duration ON; motion keep-as-is; alert `produced_at`; Z-Wave `-term`; scene favorites bug; shutter debounce assess.
-* **C13:** Merge hide into Timers & types (Hidden column; retire `hiddendevices`; rename TBD; after **C12**).
+* **C12:** item **8** — day frost line; dew removed from month/year.
+* **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit.
+* **C15:** lab switch in Debug Commands; entire lab pane hidden when OFF.
+* **C13:** Merge hide into Timers & types …
 * **C4:** **`blocky`→`blockly`** — **`blockly.html` / `blockly.js`**; shell label **Blockly**; **not** `automations.*`.
 
 ## ❓ Residual Open Qs
 
 * *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10** — C10 closed by Pi smoke **2026-08-11**.)*
 * **C11** assess open until kickoff (queued).
-* **C12:** spec locked for triage **2026-08-11** (`produced_at` wire format = impl detail at kickoff).
+* **C12:** item **8** locked — day frost line; **dew removed from month/year** (day only).
+* **C16:** locked — 24 h max viewport; pan over **`hires_days`**; water day chart **assess at kickoff**.
+* **C15:** locked — switch in Debug Commands; **entire lab pane hidden when OFF**.
 * **C3 / C4** remain open as specified above (later in sequence).
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
-* NOT CONNECTED + admin **`vNN`** → **B10G** (not a C subphase).
+* NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**).

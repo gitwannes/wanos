@@ -522,14 +522,9 @@ automations:
         actions:
           - entity_id: hue.group.badk_1e_hue
             state: "ON"
-            bri: 100
-            xy:
-              - 0.561195813292487
-              - 0.3821335920711624
+            preset: badk_red
           - entity_id: media_player.badk_1e
             state: "ON"
-            volume: 8
-            station: qmaxhits
       - to_state: "OFF"
         actions:
           - entity_id: hue.group.badk_1e_hue
@@ -541,30 +536,32 @@ automations:
     id: 9133d4f5-453d-464e-86df-e5f2bc61be8b
     scene: false
     require_confirmation: false
-  - name: "Badk 1e: Wastafel ON -> Hue White (If already in room)"
+  - name: 'Badk 1e: Wastafel ON -> Hue White (If already in room)'
+    enabled: true
     trigger:
       entity_id: zwave.badk_1e_wastafel
     cases:
-      - to_state: ON
+      - to_state: "ON"
         conditions:
-          - type: "device_state"
+          - type: device_state
             entity_id: hue.group.badk_1e_hue
             is: "ON"
         actions:
           - entity_id: hue.group.badk_1e_hue
             state: "ON"
-            preset: "my_white"
-      - to_state: OFF
+            preset: my_white
+      - to_state: "OFF"
         conditions:
-          - type: "device_state"
+          - type: device_state
             entity_id: hue.group.badk_1e_hue
             is: "ON"
         actions:
           - entity_id: hue.group.badk_1e_hue
             state: "ON"
-            preset: "relax_red"
+            preset: badk_red
     id: 751cdc57-c079-488b-91ca-708246f15e3a
-    enabled: true
+    scene: false
+    require_confirmation: false
   - name: "Badk 1e: Hue App Syncs to Main Switch-ON"
     trigger:
       entity_id: hue.group.badk_1e_hue
@@ -844,17 +841,17 @@ automations:
     scene: false
     require_confirmation: false
   - name: Cinema rolluik half
-    enabled: true
+    enabled: false
     trigger:
       event: 856d0f0d-1f6b-4a1a-ace8-a5856a5ee491
     cases:
       - conditions:
           - type: device_state
             entity_id: blinds.cinema
-            is: '100'
+            is: "ON"
         actions:
           - entity_id: blinds.cinema
-            state: '50'
+            state: "ON"
     id: 0efe3829-625e-4979-a234-1b70dfdc8af6
     scene: false
     require_confirmation: false
