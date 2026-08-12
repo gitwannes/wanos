@@ -317,7 +317,7 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 
 ## 📋 G8 — Boot autostart timing (integrations “disabled” ~30s) 🔜 TODO
 
-**Origin:** operator inbox **2026-08-12** + bootlog analysis. Size **mid**. **Separate from B10G** (Automations overlays / NOT CONNECTED) and **B10H** (Automations cold-load shorten). Pipeline detail → [`pipeline.md`](pipeline.md) § **G8**.
+**Origin:** operator inbox **2026-08-12** + bootlog analysis. Size **mid**. **Separate from B10G** (Automations overlays / NOT CONNECTED) and **B10H** ✅ (Automations cold-load shorten). Pipeline detail → [`pipeline.md`](pipeline.md) § **G8**.
 
 **Problem:** With `WANOS_AUTOSTART=true`, Admin shows integration master switches **DISABLED** for **~26–30s** after HTTP/SSE is online. Bootlog: +5s autostart delay; sync `load_config()` in simulator blocks event loop ~10s; ten separate toggle events → staggered SSE updates (~11s between first and rest). `*_integration_enabled` defaults **false** in `SystemState`; bridges may already be running from `lifespan`.
 

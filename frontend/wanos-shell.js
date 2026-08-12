@@ -24,11 +24,11 @@
 
     /** B10G: per-page deploy version (admin-only badge in titleBlock). */
     const PAGE_VERSIONS = {
-        admin: 1,
-        explorer: 1,
-        commander: 1,
-        history: 1,
-        blocky: 1,
+        admin: 2,
+        explorer: 2,
+        commander: 2,
+        history: 2,
+        blocky: 4,
         hiddendevices: 1,
         lightingautooff: 1,
         zwave: 1

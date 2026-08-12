@@ -31,6 +31,16 @@ function wanosApp() {
         reloadSuppressOverlay: false,
         /** B10G: debounce SSE onerror → offline (ms). */
         _sseOfflineDebounce: null,
+        /** B10H: dedupe concurrent connectSSE / reconnect attempts. */
+        _sseConnectInFlight: null,
+        /** B10H: SSE reconnect in flight — keep overlay hidden when REST snapshot is still fresh. */
+        _sseReconnecting: false,
+        /** B10H: ms since epoch when fetchFullSnapshot last succeeded. */
+        _lastSnapshotAt: 0,
+        /** B10H: skip REST on SSE reconnect when snapshot is newer than this (ms). */
+        _SNAPSHOT_REUSE_MS: 30000,
+        /** B10H: only show NOT CONNECTED on SSE loss when snapshot is older than this (ms). */
+        _SNAPSHOT_STALE_MS: 60000,
         showHiddenNodes: false,
 
         state: {
@@ -1216,7 +1226,7 @@ function wanosApp() {
                 const res = await fetch("/api/state", { headers: this.getAuthHeaders() });
                 if (res.status === 401 || res.status === 403) {
                     window.location.href = '/login.html';
-                    return;
+                    return false;
                 }
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const fullState = await res.json();
@@ -1224,8 +1234,12 @@ function wanosApp() {
                 // C7: restore Control/History filter chrome after every snapshot (incl. SSE reconnect)
                 this._reapplyActiveFiltersFromSession();
                 console.log("✅ Full state snapshot loaded.");
+                return true;
             } catch (err) {
                 console.error("⚠️ Failed to load full state snapshot:", err);
+                this._lastSnapshotAt = 0;
+                this.connected = false;
+                return false;
             }
         },
 
@@ -1274,6 +1288,7 @@ function wanosApp() {
             }
 
             // ⚡ Instantly drop the loading screen so the user sees the populated data
+            this._lastSnapshotAt = Date.now();
             this.connected = true;
             if (fullState.system && fullState.system.system_alert_msgs && window.WanOSReloadAlerts) {
                 this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(
@@ -1288,9 +1303,17 @@ function wanosApp() {
         },
 
         _scheduleSseOfflineDebounce() {
+            const snapshotAge = this._lastSnapshotAt ? Date.now() - this._lastSnapshotAt : Infinity;
+            // Fresh REST snapshot: reconnect quietly — do not flash NOT CONNECTED (B10H).
+            if (snapshotAge < this._SNAPSHOT_STALE_MS) {
+                this._cancelSseOfflineDebounce();
+                this._sseReconnecting = true;
+                return;
+            }
             if (this._sseOfflineDebounce) clearTimeout(this._sseOfflineDebounce);
             this._sseOfflineDebounce = setTimeout(() => {
                 this._sseOfflineDebounce = null;
+                this._sseReconnecting = false;
                 this.connected = false;
             }, 3000);
         },
@@ -1304,6 +1327,7 @@ function wanosApp() {
 
         _markSseAlive() {
             this._cancelSseOfflineDebounce();
+            this._sseReconnecting = false;
             this.connected = true;
         },
 
@@ -1385,9 +1409,24 @@ function wanosApp() {
         },
 
         connectSSE() {
-            // Fetch a full snapshot first, then open the delta stream.
-            // This guarantees the store is coherent before any partial updates arrive.
-            this.fetchFullSnapshot().then(() => {
+            if (this._sseConnectInFlight) {
+                return this._sseConnectInFlight;
+            }
+            if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
+                return Promise.resolve();
+            }
+            const run = this._connectSSEOnce();
+            this._sseConnectInFlight = run;
+            return run.finally(() => {
+                this._sseConnectInFlight = null;
+            });
+        },
+
+        _connectSSEOnce() {
+            const snapshotAge = this._lastSnapshotAt ? Date.now() - this._lastSnapshotAt : Infinity;
+            const reuseSnapshot = this._lastSnapshotAt > 0 && snapshotAge < this._SNAPSHOT_REUSE_MS;
+
+            const openEventStream = () => {
                 if (this.eventSource) {
                     this.eventSource.close();
                 }
@@ -1408,6 +1447,11 @@ function wanosApp() {
                 };
 
                 resetWatchdog();
+
+                this.eventSource.onopen = () => {
+                    this._sseReconnecting = false;
+                    this._markSseAlive();
+                };
 
                 this.eventSource.onmessage = (event) => {
                     // This is where the data is received from the backend, main.py
@@ -1433,9 +1477,26 @@ function wanosApp() {
                     console.error("❌ SSE stream broke. Re-linking context in 3s...");
                     if (this.eventSource) this.eventSource.close();
                     this._scheduleSseOfflineDebounce();
-                    // On reconnect, fetch a fresh full snapshot before resuming deltas
+                    // On reconnect, reuse recent REST snapshot when possible (B10H).
                     setTimeout(() => this.connectSSE(), 3000);
                 };
+            };
+
+            if (reuseSnapshot) {
+                this._sseReconnecting = true;
+                return Promise.resolve().then(openEventStream);
+            }
+
+            if (this._lastSnapshotAt > 0) {
+                this._sseReconnecting = true;
+            }
+
+            return this.fetchFullSnapshot().then((ok) => {
+                if (!ok) {
+                    this._sseReconnecting = false;
+                    throw new Error("Full state snapshot failed");
+                }
+                openEventStream();
             });
         },
 

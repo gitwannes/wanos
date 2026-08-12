@@ -57,6 +57,7 @@ Match [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** (If/
 | **C10** | Explorer/History polish (plural, Planned past-remove, Hue hex text, chart colors, binary/hits, omit scenes, filter+blinds) — Pi smoke **2026-08-11** |
 | **D1 + D2** | Timers & types + `device_product_types`; `zwave.*` / `rfx.*` / vent rehome — Pi smoke + Debug GREEN + migrator delete **2026-08-11** |
 | **B10G** | Shell connection + load UX + admin `vNN` + hue preset scoped reload — Pi smoke (A/B/C/D) + docs close-out **2026-08-12** |
+| **B10H** | Automations cold-load shorten (~39 s → ~2.1 s TTI) + SSE reconnect flicker fix — Pi smoke + docs close-out **2026-08-12** |
 
 Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md).
 
@@ -66,7 +67,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal.
 
-**B10G** ✅ **Done 2026-08-12**. **B10H** next (cold-load shorten). **B10I** / **B10J** anytime after **B10F** / **B10B**.
+**B10G** / **B10H** ✅ **Done 2026-08-12**. Next: **B2** (B9C). **B10I** / **B10J** anytime after **B10F** / **B10B**.
 
 | Ship | Phase(s) | Size | One go? |
 |---|---|---|---|
@@ -90,7 +91,7 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 | Gate | Rule |
 |---|---|
 | **B3** (B19) | **Alone** — do not combine with **B4** or bridge work |
-| **B10H → B2** | Cold-load perf before legacy-canvas bridge (both touch Automations load path) |
+| **B10H → B2** | ✅ **B10H Done** — cold-load before legacy-canvas bridge |
 | **B2 → B3** | B19 depends on B9C bridge + G5 authorability |
 | **B3 → B4** | Logic (Else-if + AND/OR) builds on Domoticz canvas |
 | **B4 → B7** | Timed Set / delay patterns prefer Logic stable (**B14** stub) |
@@ -100,8 +101,8 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 
 | Track | When | Notes |
 |---|---|---|
-| **B10I** | Anytime after **B10F** | Library navigation only — parallel to **B10H** and **B2–B8** |
-| **B10J** | Anytime after **B10B** | Backend log polish — **`Event Received`** catalog name; parallel to **B10H** and **B2–B8** |
+| **B10I** | Anytime after **B10F** | Library navigation only — parallel to **B2–B8** |
+| **B10J** | Anytime after **B10B** | Backend log polish — **`Event Received`** catalog name; parallel to **B2–B8** |
 | **G5** | After **B2** (B9C) | Parallel to **B3–B8**; re-author rule on B19 canvas when **B3** lands |
 | **E** (Gmail transport) | After **B3** or default after cluster | Parallel to **B5–B8**; **B6** alert ships without **E**; H5 email half waits **E** |
 | **Ship B5 ∥ Ship B6** | After **B4** | Bathroom/H12 vs Messages alert — independent; OR-heavy notify rules still want **B4** first |
@@ -117,26 +118,24 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 
 ```text
 #  Size   Phase / Ship   What
-─── Post-B10G: cold-load, then Blockly cluster ───
-1.  mid    B10H         cold-load shorten wait (event-loop + duplicate FE clients)
 ─── Blockly cluster (operator: B9C → B19…B8 before shell/integrations/F) ───
-2.  mid    B2 / B9C     legacy-canvas bridge — picker + blinds/audio if %
-3.  high   B3 / B19     Domoticz If/Do + Compare + Device trigger + toolbox + Set
-4.  high   B4           B13 Else-if/Else + B9B H4 AND/OR in Compare
-5.  mid    B5           B9B H12 hysteresis + bathroom climate cutover
-6.  mid    B6           B9B H5 Messages (alert; + email when E)
-7.  high   B7 / B14     timed Set, delay, cooldown, remaining HA patterns (no Time trigger)
-8.  mid    B8           B11 multi-flow + B12 folder/tag
+1.  mid    B2 / B9C     legacy-canvas bridge — picker + blinds/audio if %
+2.  high   B3 / B19     Domoticz If/Do + Compare + Device trigger + toolbox + Set
+3.  high   B4           B13 Else-if/Else + B9B H4 AND/OR in Compare
+4.  mid    B5           B9B H12 hysteresis + bathroom climate cutover
+5.  mid    B6           B9B H5 Messages (alert; + email when E)
+6.  high   B7 / B14     timed Set, delay, cooldown, remaining HA patterns (no Time trigger)
+7.  mid    B8           B11 multi-flow + B12 folder/tag
 ─── Parallel beside cluster (after gates above) ───
-9.  low    G5           dashboard “rolluik zon half” — **∥ B3–B8** after B2; re-author on B19 when B3 done
-9b. low    B10I         used SE → Go to SR — **∥ B10H / cluster** (anytime after B10F)
-9c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ B10H / cluster** (anytime after B10B)
+8.  low    G5           dashboard “rolluik zon half” — **∥ B3–B8** after B2; re-author on B19 when B3 done
+8b. low    B10I         used SE → Go to SR — **∥ cluster** (anytime after B10F)
+8c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ cluster** (anytime after B10B)
 ─── After Blockly cluster (E may start ∥ B5–B8 instead — see Parallel tracks) ───
-10. high   E            Gmail transport / outbox — default slot; **∥ B5–B8** OK
-11. mid    C3           Force ALL-OFF
-12. mid    C4           Rename HTML entrypoints (`blocky`→`blockly`; not `automations`)
-13. low    C11          Control vs History list membership (assess → decide)
-14. mid    C12          Post-C10 polish (+ frost line item 8; scene favorites; shutter debounce)
+9.  high   E            Gmail transport / outbox — default slot; **∥ B5–B8** OK
+10. mid    C3           Force ALL-OFF
+11. mid    C4           Rename HTML entrypoints (`blocky`→`blockly`; not `automations`)
+12. low    C11          Control vs History list membership (assess → decide)
+13. mid    C12          Post-C10 polish (+ frost line item 8; scene favorites; shutter debounce)
 14b. mid   C16          Day chart sliding 24 h window over hires_days hi-res
 14c. low   C15          Admin lab switch → Debug Commands row; lab pane iff ON
 15. mid    C13          Merge Hidden → Timers & types
@@ -160,8 +159,9 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 ### Why this order
 
 * **B1 B9A** — ✅ **Done 2026-08-12** (Pi smoke + Debug GREEN + docs close-out). Hue preset **reload/perf** polish → **B10G Part D** (✅).
-* **B10G** — ✅ **Done 2026-08-12** (Parts A–D Pi smoke + docs). Cold-load still ~39s → **B10H**.
-* **B10H** — shorten Automations cold open (~**2 s** goal: `refreshAll` + time-to-interactive editor); root cause locked **2026-08-12** (asyncio SSE/`get_state` contention + duplicate FE); kickoff design note + repro A/B before code — detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B10H.
+* **B10G** — ✅ **Done 2026-08-12** (Parts A–D Pi smoke + docs).
+* **B10H** — ✅ **Done 2026-08-12** — cold open ~**2.1 s** TTI; SSE reconnect flicker fixed; detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B10H.
+* **B10H follow-up (deferred)** — list / v2 cache for sub-**500 ms** cold open — **triage 2026-08-12: defer**; detail § **B10H — deferred list cache** below.
 * **G8** — boot autostart timing (~30s “integrations disabled”) — **A+B** ship; separate from **B10H** — detail § **G8** below.
 * **Blockly cluster B2–B8** — operator lock **2026-08-12**: [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** before Explorer/integrations/F churn. **B3 (B19) is mandatory**, not optional UX polish.
 * **B2 B9C** — patch **legacy** canvas only; unblocks **G5** “not fully closed”; superseded visually by **B19**.
@@ -171,19 +171,19 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **B7 B14** — timed **Set**, delays, cooldowns — **excludes** Time trigger (**B20**).
 * **B8** — library organization after canvas + **B7** stable.
 * **G5 after B2** — dashboard button + rule; **parallel to B3–B8**; re-touch rule on B19 canvas when **B3** lands.
-* **B10I** — Library **Go to SR**; **parallel to B10H and cluster** (no B19 dependency).
-* **B10J** — **`Event Received`** log lines: resolve catalog **display name** for UUID bus tokens (e.g. manual pickables); **parallel to B10H and cluster** (after **B10B**).
+* **B10I** — Library **Go to SR**; **parallel to cluster** (no B19 dependency).
+* **B10J** — **`Event Received`** log lines: resolve catalog **display name** for UUID bus tokens (e.g. manual pickables); **parallel to cluster** (after **B10B**).
 * **C\*, G\*, E, F** — **after Blockly cluster** (default). **E** may start **parallel to B5–B8**. **G2/G6** may jump on operator pain (**G6** — Admin full vs scoped reload; see [`phaseG-integrations.md`](phaseG-integrations.md) § G6).
 * **B20 after F** — Domoticz **Time** trigger; catalog schedule events unchanged until then.
 * **B15–B18** — not Domoticz L&F; **B18** may jump on sauna safety pain.
 
-Near-term = **B10H** → **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
+Near-term = **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
 
 ---
 
 ## B10G — connection + load UX ✅ Done 2026-08-12
 
-**Shipped:** Parts A + B + C + D — Pi smoke OK (operator **2026-08-12**). Detail / archive → [`phaseB-blocky.md`](phaseB-blocky.md) § B10G. Cold-load shorten → **B10H**.
+**Shipped:** Parts A + B + C + D — Pi smoke OK (operator **2026-08-12**). Detail / archive → [`phaseB-blocky.md`](phaseB-blocky.md) § B10G. Cold-load shorten → **B10H** ✅.
 
 | Part | What shipped |
 |---|---|
@@ -350,6 +350,24 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 ---
 
+## B10H — deferred list cache (step 7c) — triage 2026-08-12
+
+**Origin:** B10H Pi smoke after step 7 (N+1 YAML fix) — cold open ~**2.1 s**; remaining wall ≈ parallel `GET /api/automations` + `GET /api/events` (~**2 s** wire TTFB each). Operator asked to triage in-memory list cache at boot.
+
+| Factor | Assessment |
+|---|---|
+| **Current TTI** | ~**2.1 s** — meets ~**2 s** aspirational goal |
+| **Remaining cost** | One YAML parse + `legacy_to_v2` × ~79 rules (Pi CPU) — not N+1 |
+| **Cache benefit** | Warm **repeat** opens → ~100 ms class; **first** cold open unchanged unless pre-warmed before any UI hit |
+| **Cache cost** | Invalidate on every automations/events CRUD; stale-list risk if a writer is missed; more B10H surface |
+| **Verdict** | **Defer** — do **not** ship in B10H close-out. Revisit only if operator wants **&lt; 500 ms** cold open or faster rule-save → library refresh |
+
+**Cheaper future lever (if reopened):** pre-convert v2 once at boot (same invalidation story; no double cache layer). Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B10H.
+
+**Not this item:** reconnect policy / Admin flicker → **B10H** ✅ (SSE R1–R3); post-restart ~10 s offline → **G8**.
+
+---
+
 ## G8 — Boot autostart timing (integrations “disabled” ~30s)
 
 **Origin:** operator inbox **2026-08-12** (bootlog `bootlog.log`). **Separate from B10G** (Automations overlays / NOT CONNECTED) and **B10H** (Automations cold-load shorten). Detail stub → [`phaseG-integrations.md`](phaseG-integrations.md) § G8.
@@ -386,7 +404,6 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 | Step | Detail |
 |---|---|
-| **B10H** | [`phaseB-blocky.md`](phaseB-blocky.md) § B10H — cold-load shorten |
 | **B2 / B9C** | [`phaseB-blocky.md`](phaseB-blocky.md) § B9C — legacy bridge |
 | **B3 / B19** | [`phaseB-blocky.md`](phaseB-blocky.md) § B19 — Domoticz canvas |
 | **Domoticz goal** | [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal + ship groups |
@@ -397,7 +414,7 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 | Phase | Detail file |
 |---|---|
-| **B9C** / **B19** / **B9B** / **B10H** / **B10I** / **B10J** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
+| **B9C** / **B19** / **B9B** / **B10I** / **B10J** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
 | **C3** / **C4** / **C11** / **C12** / **C16** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G6** / **G7** / **G8** / **G1** / **G3** / **G4** / **G5** | [`phaseG-integrations.md`](phaseG-integrations.md) |
@@ -485,6 +502,9 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-12 | **B10G operator Q&A (2):** exclude kiosk from `vNN`; Admin → `Reloading all config…`; suppress = exact per-scope strings; Part D re-run Pi smoke (B9A shipped); all 8 shell HTML @ `v1`; unscoped API alerts **Option A** → **G6** follow-up. |
 | 2026-08-12 | **B10G ✅ Done** — Pi smoke A/B/C/D OK; docs close-out. **B10H** next — cold-load root cause locked (asyncio SSE/`get_state` contention + duplicate FE; nginx ruled out). |
 | 2026-08-12 | **B10H approved** — kickoff profiling complete (case A Network: double cold `/api/state`; case C Y); code unblocked. |
+| 2026-08-12 | **B10H list-cache triage (step 7c):** defer — TTI ~**2.1 s** meets goal; revisit only for **&lt; 500 ms** cold open. § **B10H — deferred list cache**. |
+| 2026-08-12 | **B10H ✅ Done** — cold open ~**2.1 s**; YAML N+1 + SSE reconnect flicker fixed; docs close-out. Next **B2** (B9C). |
+| 2026-08-12 | Deleted retired stub `docs/todo/install_blocky.md` — historical note folded into [`phaseB-blocky.md`](phaseB-blocky.md) intro. |
 | 2026-08-12 | **Blockly cluster audit:** parallel tracks table (B10I, G5, E, B5∥B6); fixed Depends-on ✅ misuse in phase file; B9B ship order locked vs stale proposal. |
 
 Detail chronology / DoD checkboxes → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md), [`phaseG-integrations.md`](phaseG-integrations.md).

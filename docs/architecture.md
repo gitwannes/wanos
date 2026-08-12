@@ -43,7 +43,7 @@ WanOS is built from a 100% clean-slate modular architecture adhering strictly to
 
 * **The Core Backend Sandbox:** Built on Python 3.9+ (running production-validated Python 3.11+ patterns) utilizing **FastAPI**. It enforces strict data validation contracts through **Pydantic** structures and coordinates non-blocking background routines using the `asyncio` event loop engine. 
 * **The Presentation Interface:** Powered by **Alpine.js**. Paired with **TailwindCSS** and **DaisyUI**, it allows for instant reactive UI updates and theme matching without relying on intensive, long-compile node build bundles. The interface utilizes `localStorage` to persist dynamic UX layouts (like the Lab Control panels) and JWT Session roles independently of the backend.
-* **The Communication Layer:** Employs **Server-Sent Events (SSE)** for unidirectional backend-to-browser telemetry streams, and utilizes a **Dual MQTT Broker Architecture** to maintain clean network boundaries:
+* **The Communication Layer:** Employs **Server-Sent Events (SSE)** for unidirectional backend-to-browser telemetry streams (**event-driven** domain deltas on state-queue drain + **5 s** quiet ping — **B10H**; no poll loop), and utilizes a **Dual MQTT Broker Architecture** to maintain clean network boundaries:
   1. A Local `localhost` Mosquitto broker handles high-frequency administrative diagnostic metrics and terminal log monitors.
   2. A Remote client bridge targets your secondary home hub node to handle long-distance external data exchanges.
 

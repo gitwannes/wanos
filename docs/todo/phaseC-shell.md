@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C16 → C15 → C13**. Pipeline next: **B10H** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C16 → C15 → C13**. Pipeline next: **B2** / **B9C** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -395,7 +395,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 ## 📋 C12 — Post-C10 polish 🔜 TODO
 
-**Origin:** operator inbox **2026-08-11**. Shell / History / Admin — **not** G2 bridge truth, **not** Blocky editor (**B10G** ✅ load checklist / timings / NOT CONNECTED / `vNN`; **B10H** = shorten wait). **One ship** (default). Size **mid**. **Spec locked** (operator Q&A **2026-08-11**).
+**Origin:** operator inbox **2026-08-11**. Shell / History / Admin — **not** G2 bridge truth, **not** Blocky editor (**B10G** ✅ load checklist / timings / NOT CONNECTED / `vNN`; **B10H** ✅ cold-load shorten). **One ship** (default). Size **mid**. **Spec locked** (operator Q&A **2026-08-11**).
 
 | # | Item |
 |---|---|
@@ -439,7 +439,7 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 ### Out of scope
 
 * G2 Hue bri/xy **bridge** truth.
-* B10G Automations load checklist / timings / NOT CONNECTED / `vNN` — ✅ **2026-08-12**; **B10H** cold-load shorten.
+* B10G Automations load checklist / timings / NOT CONNECTED / `vNN` — ✅ **2026-08-12**; **B10H** cold-load shorten — ✅ **2026-08-12**.
 * C11 Control vs History membership model (item 3 does not reopen it).
 
 **C12 DoD:** Items 1–8 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed; temp/hum day frost line; **dew removed from month/year**. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

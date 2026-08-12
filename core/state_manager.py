@@ -2,8 +2,9 @@
 import asyncio
 import time
 import json
+import threading
 from datetime import datetime
-from typing import Optional, Any, Set
+from typing import Optional, Any, Set, Dict
 from loguru import logger
 
 from .models import SystemState, Event, EventType, device_name
@@ -64,6 +65,13 @@ class StateManager:
 
         # Optional reference to the MqttPublisher, injected after construction.
         self.mqtt_publisher: Optional[Any] = None
+
+        # B10H: event-driven SSE broadcast (set from main.py).
+        self._sse_hub: Optional[Any] = None
+
+        # B10H: REST /api/state cache — refreshed on queue drain (avoid per-request deep copy).
+        self._api_state_cache: Optional[Dict[str, Any]] = None
+        self._api_state_cache_lock = threading.Lock()
 
         self._start_time = time.time()
 
@@ -528,6 +536,7 @@ class StateManager:
             await self.onkyo_bridge.start()
 
         await self.logger.success("State Manager worker started.")
+        await asyncio.to_thread(self.warm_api_state_cache)
 
     async def stop(self) -> None:
         self._set_hardware_safety_gate(False)
@@ -582,6 +591,29 @@ class StateManager:
     def get_state_snapshot(self) -> SystemState:
         return self._state.model_copy(deep=True)
 
+    def warm_api_state_cache(self) -> None:
+        """Populate REST cache from live state (sync — call via to_thread at boot)."""
+        self._update_api_state_cache_from_snapshot(self.get_state_snapshot())
+
+    def _update_api_state_cache_from_snapshot(self, snapshot: SystemState) -> None:
+        payload: Dict[str, Any] = snapshot.model_dump()
+        with self._api_state_cache_lock:
+            self._api_state_cache = payload
+
+    def _snapshot_and_cache_for_broadcast(self) -> SystemState:
+        """Deep snapshot for MQTT/SSE listeners + refresh REST cache (sync — worker thread)."""
+        snapshot: SystemState = self.get_state_snapshot()
+        self._update_api_state_cache_from_snapshot(snapshot)
+        return snapshot
+
+    def get_api_state_payload(self) -> Dict[str, Any]:
+        """Cached model_dump for GET /api/state; fallback if cache not yet warm."""
+        with self._api_state_cache_lock:
+            cached = self._api_state_cache
+        if cached is not None:
+            return cached
+        return self.get_state_snapshot().model_dump()
+
     def _set_hardware_safety_gate(self, state: bool) -> None:
         self._state.hardware.safety_pin_active = state
 
@@ -609,7 +641,10 @@ class StateManager:
                 self.flush_entity_registry()
 
                 if pending_broadcast:
-                    snapshot_obj: SystemState = self.get_state_snapshot()
+                    snapshot_obj: SystemState = await asyncio.to_thread(
+                        self._snapshot_and_cache_for_broadcast
+                    )
+                    domains_for_push: Set[str] = set(changed_domains)
 
                     if self.mqtt_publisher:
                         try:
@@ -622,6 +657,12 @@ class StateManager:
                             await listener(snapshot_obj, batch_events)
                         except Exception as e:
                             await self.logger.error(f"Error in state listener: {e}")
+
+                    if self._sse_hub is not None:
+                        try:
+                            await self._sse_hub.broadcast(snapshot_obj, domains_for_push)
+                        except Exception as e:
+                            await self.logger.error(f"Error in SSE hub broadcast: {e}")
 
                     pending_broadcast = False
                     changed_domains.clear()

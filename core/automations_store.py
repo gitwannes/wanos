@@ -106,8 +106,8 @@ def _to_commented(node: Any) -> Any:
     return node
 
 
-def read_automations() -> List[Dict[str, Any]]:
-    root, _ = load_automations_roundtrip()
+def automations_from_root(root: Any) -> List[Dict[str, Any]]:
+    """Extract automations: rows from an already-loaded YAML root (no disk I/O)."""
     automations = root.get("automations", []) if isinstance(root, dict) else []
     if automations is None:
         return []
@@ -117,6 +117,11 @@ def read_automations() -> List[Dict[str, Any]]:
         return list(automations)
     except TypeError:
         return []
+
+
+def read_automations() -> List[Dict[str, Any]]:
+    root, _ = load_automations_roundtrip()
+    return automations_from_root(root)
 
 
 def write_automations(rules: List[Dict[str, Any]]) -> None:

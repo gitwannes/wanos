@@ -33,13 +33,19 @@ def _as_event_list(raw: Any) -> List[Dict[str, Any]]:
 def read_events() -> List[Dict[str, Any]]:
     """Return events: rows from disk (may be empty before migrate/merge)."""
     root, _ = load_automations_roundtrip()
+    return _as_event_list(root.get(EVENTS_KEY)) if isinstance(root, dict) else []
+
+
+def events_by_id_from_root(root: Any) -> Dict[str, Dict[str, Any]]:
+    """Build id→event row map from an already-loaded automations.auto.yaml root."""
     if not isinstance(root, dict):
-        return []
-    return _as_event_list(root.get(EVENTS_KEY))
+        return {}
+    return {str(e["id"]): e for e in _as_event_list(root.get(EVENTS_KEY)) if e.get("id")}
 
 
 def events_by_id() -> Dict[str, Dict[str, Any]]:
-    return {str(e["id"]): e for e in read_events() if e.get("id")}
+    root, _ = load_automations_roundtrip()
+    return events_by_id_from_root(root)
 
 
 def find_event(event_id: str) -> Optional[Dict[str, Any]]:

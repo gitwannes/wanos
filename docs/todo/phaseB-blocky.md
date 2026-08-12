@@ -1,6 +1,8 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **Blockly cluster** = **B9C → B19 → …** before shell/integrations/F — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **Blockly cluster** = **B9C → B19 → …** before shell/integrations/F — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport (H5) → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
+
+**Historical:** `docs/todo/install_blocky.md` was an early Blocky install / phase pointer. It still described pre-**B10B** surface (E1 families, `SCHEDULE_WINDOW_EDGES`, `TWILIGHT_*`, old schedule labels, next = Phase 9A/9B). Retired to a stub at **B10B+D+E** close-out (**2026-08-10**); **deleted 2026-08-12** — this file is the only SoT. Bus pickers = `events:` UUIDs; schedule display = Morning/Evening **lights** on/off; sun refresh = `SUNRISE_SUNSET_UPDATE`; actuator ids `zwave.*` / `rfx.*` / `zwave.vent.*`; product light|switch via Timers & types.
 
 **Entity_id cutover:** **done and verified** — registry birth/freeze, automations + structured config on `entity_id`, engine schema entity_id-only, Admin Debug registry check. **Pi Admin Debug: GREEN** (live metadata included; 0 errors, 0 warnings). Blocky may start.  
 **`dashboard_map` removal:** **done** — display names live only in `device_metadata` / `device_name()`.
@@ -99,7 +101,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A ✅ DONE** (**2026-08-12** — Pi smoke OK + Admin Debug GREEN + docs close-out). **Phase B10G ✅ DONE** (**2026-08-12** — two overlays + load timings modal; SSE A+B+C; admin `v1` ×8; hue_presets scoped reload; Pi smoke A/B/C/D OK). **B10H** = Automations cold-load shorten wait — **next** (root cause locked **2026-08-12**). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A ✅ DONE** (**2026-08-12** — Pi smoke OK + Admin Debug GREEN + docs close-out). **Phase B10G ✅ DONE** (**2026-08-12** — two overlays + load timings modal; SSE A+B+C; admin `v1` ×8; hue_presets scoped reload; Pi smoke A/B/C/D OK). **Phase B10H ✅ DONE** (**2026-08-12** — Automations cold open ~**2.1 s**; SSE reconnect flicker fixed; docs close-out). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
 
 **Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
 
@@ -1287,9 +1289,9 @@ Pointers only — detail under § B10F / § B11–B18:
 
 * **B10F** — Automations UX polish — ✅ **Done 2026-08-11** (does not reopen B10E DoD).
 * **B10G** — ✅ **Done 2026-08-12** — load checklist + timings + NOT CONNECTED (SSE A+B+C) + admin **`vNN`** + hue preset scoped reload.
-* **B10H** — Automations cold-load shorten wait — **next** (after B10G).
-* **B10I** — Used SE → **Go to SR** — **∥ B10H / cluster** (anytime after B10F).
-* **B10J** — **`Event Received`** catalog display name — **∥ B10H / cluster** (anytime after B10B).
+* **B10H** — Automations cold-load shorten wait — ✅ **Done 2026-08-12**.
+* **B10I** — Used SE → **Go to SR** — **∥ cluster** (anytime after B10F).
+* **B10J** — **`Event Received`** catalog display name — **∥ cluster** (anytime after B10B).
 * **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
 * **G6** — Scoped `CONFIG_RELOAD` after CRUD (no bridge thrash) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
@@ -1397,7 +1399,7 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 - [x] Fire allowlist Sauna/IR ON/OFF.
 - [x] B10B+D close-out on Pi (Admin Debug GREEN, kiosk smoke, B10D name smoke) + combined B10E operator smoke — ✅ **2026-08-10**.
 - [x] Delete migrator `helpers/migrate_events_b10b.py` (+ `helpers/b10b_cutover_map.json`; D1 `TWILIGHT_*` / `SCHEDULE_EVENT_ALIASES` / `SCHEDULE_WINDOW_EDGES`) — ✅ **2026-08-10** after soak.
-- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-10** (B10B+D+E close-out); re-audit ✅ **2026-08-10** (retired `install_blocky.md` stub + E1/smoke/status drift).
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-10** (B10B+D+E close-out); re-audit ✅ **2026-08-10** (`install_blocky.md` retired to stub + E1/smoke/status drift); stub **deleted** ✅ **2026-08-12** (content folded into this file intro).
 
 ---
 
@@ -1518,7 +1520,7 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 
 ### Phase B10G — Shell connection + load UX + admin page version + hue preset reload ✅ DONE (2026-08-12)
 
-**Shipped summary:** One PR — Parts A–D. Pi smoke OK (operator **2026-08-12**). Full locked-decision archive kept below for G6 / shell reference. Cold-load latency **not** fixed here → **B10H**.
+**Shipped summary:** One PR — Parts A–D. Pi smoke OK (operator **2026-08-12**). Full locked-decision archive kept below for G6 / shell reference. Cold-load latency fixed in **B10H** ✅ (**2026-08-12**).
 
 | Part | Shipped |
 |---|---|
@@ -1553,7 +1555,7 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 | 4 | Building library | Parse JSON; `rebuildLibraryRows()`; `rebuildEntityOptions()`; presets; rule reselect | *(no single API — log as step name)* |
 | 5 | Schedule status | `GET /api/automations/fire-status` | `GET /api/automations/fire-status` |
 
-Steps **1–3** run in parallel (`(parallel)` label in UI). Overlay **2** hides when `refreshAll()` succeeds; REST heartbeat **10s**. Timings: console + admin modal with Resource Timing breakdown (wire TTFB / nav→byte / before fetch / totals). **`wanos_debug.log` — out of DoD**.
+Steps **1–3** run in parallel (`Promise.all`). Overlay **2** clears after library build (**B10H** — fire-status deferred). REST heartbeat **10s**. Timings: console + admin modal with Resource Timing breakdown (wire TTFB / nav→byte / before fetch / totals) + **`coldTimeToInteractiveMs`**. **`(parallel)` label removed** (**B10H**). **`wanos_debug.log` — out of DoD**.
 
 #### B — “NOT CONNECTED” — assess + fix (shipped)
 
@@ -1567,172 +1569,62 @@ Eight shell pages @ **`v1`**; `login` / `kiosk` excluded. Bump per page when HTM
 
 `hue_presets` scope only — no full bridge recycle. Explorer chips + save-disable. Pi smoke &lt;2s / no NOT CONNECTED / no NVRAM/Z-Wave/Onkyo recycle logs.
 
-**Out of scope (unchanged):** shortening cold-load wait → **B10H**; boot autostart → **G8**; **G6** Admin 12-checkbox modal.
+**Out of scope (unchanged):** boot autostart → **G8**; **G6** Admin 12-checkbox modal. Cold-load shorten → **B10H** ✅.
 
 ---
 
-### Phase B10H — Automations cold-load shorten wait 🔜 TODO (next)
+### Phase B10H — Automations cold-load shorten wait ✅ DONE (2026-08-12)
 
-**Origin:** B10G kickoff **2026-08-11**; root cause locked **2026-08-12** (B10G soak + curl/nginx/devtools). Operator Q&A + design lock **2026-08-12**. Size **mid**. **Separate from B10G product UX** — B10G instrumentation is the baseline; latency cut + measurement updates here.
+**Shipped summary:** Cut Automations cold open from ~**39 s** → ~**2.1 s** TTI. Operator ship bar accepted (**2026-08-12**); Admin/Explorer SSE flicker fixed. List/v2 cache for sub-**500 ms** **deferred** (pipeline § deferred list cache). Post-restart ~10 s offline → **G8**.
 
-**Depends on:** **B10G** ✅ (load checklist, timings modal, overlays).
-
-**Status:** Design locked — **operator approved 2026-08-12**; **code may start**.
-
-**Problem:** Cold Automations open still ~**39 s** wall (`refreshAll` ≈ two ~19 s waves). B10G made the wait honest; does **not** shorten it.
-
-**Goals (operator lock 2026-08-12 — aspirational; operator sets minimum at ship):**
-
-| Metric | Target |
+| Lever / fix | Shipped |
 |---|---|
-| Cold **`refreshAll total`** (modal / console) | **~2 s** |
-| **Cold time-to-interactive editor (TTI)** — library visible + editor shell usable; **empty canvas** OK (no rule selected) | **~2 s** |
-| vs pre-B10H baseline | Measurable improvement from ~**39 s** |
+| **1a** | `asyncio.to_thread` on `GET /api/state`; REST snapshot **cache** refreshed on queue drain + boot warm |
+| **1b** | Event-driven SSE hub (`core/sse_hub.py`) — push on drain; **5 s ping**; no 0.5 s poll |
+| **2** | `refreshAll` in-flight guard (`blocky.js`) |
+| **3** | SSE connect guard (`app.js` / `wanosApp` only) |
+| **4** | Clear yellow overlay after library; defer fire-status; **`coldTimeToInteractiveMs`** |
+| **5+** | YAML N+1 fix (`GET /api/automations` one load + catalog map); `GET /api/events` read-only (seeds at boot) |
+| **Reconnect** | Fresh snapshot (&lt;60 s) → no NOT CONNECTED flash; skip REST on reconnect if &lt;30 s; `EventSource.onopen` marks alive |
+| **UX** | Removed `(parallel)` checklist labels |
 
-Not a hard fail if kickoff shows fire-status or Blockly dominates after levers 1–3 — record actuals and decide.
+**Pi smoke actuals (operator 2026-08-12):**
 
-#### Operator locks (2026-08-12)
-
-| # | Decision |
-|---|----------|
-| 1 | Operator **approves** § B10H design before any code |
-| 2 | Ship bar = **minimum improvement** — operator states acceptable outcome after Pi smoke |
-| 3 | **`editorLoading`** until **library displayable**; defer non-critical steps (lever #4 table) |
-| 4 | TTI = **empty canvas** (library + shell; no rule selected) |
-| 5 | Lever **#3** = **`wanosApp` only** (Explorer, Admin, WISC, History) — not Z-Wave |
-| 6 | Acceptance repro = case **B** (Admin open); Explorer / Z-Wave “fast enough” |
-| 7 | Page-scoped reload writers → **G6** (`zwave_map` etc.) — not B10H |
-
-#### Baseline (Pi, operator 2026-08-12 — B10G soak)
-
-| Measurement | Result |
-|---|---|
-| Modal / Resource Timing | ~19.4 s parallel batch + ~19.4 s fire-status ≈ **39 s** |
-| `https://app.wanos.be/api/state` under load | **~18 s** |
-| `http://10.32.251.30:8080/...` (uvicorn direct, nginx bypass) | **same ~39 s** — nginx **not** primary cause of 39 s |
-| `http://127.0.0.1:8080/api/state` under load | **~14 s**; idle ~**26 ms** |
-| Console `performance` `/api/state` | **Two** cold fetches at start **97 ms** (durations ~19 s + ~39 s) — duplicate `refreshAll` **or** cross-tab `/api/state` |
-| nginx log | Duplicate `/api/state/sse` (admin); burst of `/api/state` ~19 s later |
-| Heartbeat after settle | ~**22 ms** — handlers fast when loop free |
-
-**Root cause (locked — proceed unless kickoff profiling disproves):**
-
-1. **Primary — single-worker event-loop blocking:** sync `get_state_snapshot()` (`model_copy(deep=True)`) + serialize on REST and SSE poll loop (**0.5 s**, 8 domains). `main.py` `/api/state`, `/api/state/sse`; `core/state_manager.py`.
-2. **Amplifier — duplicate FE load:** double Blocky `refreshAll` **and/or** Admin `fetchFullSnapshot` + Blocky cold load; duplicate Admin SSE connects.
-3. **Misleading baseline:** `localhost:8000` is nginx **301** (~25 ms), not the API — benchmark `https://app.wanos.be` or `:8080` with JWT.
-
-**Global stall (case C — operator 2026-08-12):** While Automations cold-loads, new tab `https://app.wanos.be/` stalls until load completes. **Assessment:** uvicorn serves API + static (`StaticFiles` at `/`) on one worker; sync snapshot work starves **all** HTTP — confirms **#1** (process-wide), not Automations-only. Case C should **improve** after lever #1.
-
-#### Kickoff profiling (before code)
-
-**Already done in B10G soak (2026-08-12):** baseline table above — modal timings, wire TTFB on Device state row, ~39 s total, nginx ruled out, curl under load, duplicate `/api/state` / SSE with **Admin context**. **Sufficient to proceed** unless you want to **close one gap** (case A disambiguation) or **confirm case C** (quick Y/N).
-
-**What to re-run vs skip:**
-
-| Item | B10G already? | Re-run for B10H kickoff? |
+| Metric | Baseline | Shipped |
 |---|---|---|
-| `refreshAll total`, per-step ms, wire TTFB (state row) | ✅ modal + console | **No** — use baseline unless disputing |
-| Full F12 Network manual timing | ✅ (used for baseline) | **No** — modal uses Resource Timing API same data |
-| **Case A** — cold Blocky, **no other tabs** | ❓ not isolated in baseline | **Optional** — only to prove double `refreshAll` vs cross-tab |
-| **Case B** — Admin open + cold Blocky | ✅ (implicit in soak) | **No** — acceptance case covered |
-| **Case C** — new tab stalls during Blocky load | Reported | **Done** — **Y** (operator **2026-08-12**) |
-
-**Kickoff profiling results (operator 2026-08-12):**
-
-| Case | Result |
-|------|--------|
-| **C** | **Y** — new tab `https://app.wanos.be/` stalls until Automations cold load completes (confirms process-wide event-loop blocking) |
-| **A** *(solo tab — modal + Network)* | `refreshAll total` **39039 ms**; parallel batch wire TTFB **~38786 ms** (single ~39 s wave, not two ~19 s waves); fire-status **234 ms** (`before fetch 38821` — fast once loop free); `Init→refreshAll: 0 ms`. **Same ~39 s without Admin** → primary fix = lever **#1**. |
-| **A — `/api/state` during yellow overlay** | Network filter `state`: **two pending** `fetch` from `blocky.js:4076` (+ one **25 ms** completed — origin unclear). After load: **two** cold `/api/state` from **4076** at **30.79 s** + **38.79 s** → **double cold `refreshAll`** confirmed (lever **#2**). Post-load **4356** heartbeats **~139 ms** (loop free). |
-
-**Verdict:** Kickoff profiling **complete** — proceed with levers 1–4. Root cause **#1** + amplifier **#2** (double cold fetch) confirmed on case A Network capture.
-
-**Case A — if re-run needed:**
-
-1. Close **all** WanOS tabs (or private window; log in as admin).
-2. Open **only** `https://app.wanos.be/blocky.html` — hard refresh (Ctrl+Shift+R).
-3. When yellow overlay clears, use the **auto-open timings modal** (admin) and/or console `[B10G load timings]`.
-
-| Metric | Where to read (shipped B10G — **modal/console enough**) |
-|---|---|
-| **`refreshAll total`** | Modal footer or console: `refreshAll total: NNN ms` |
-| **TTI (today)** | Until lever #4 ships: **same as overlay clear** ≈ `refreshAll total` + `nav→init` + `Init→refreshAll` — console footer `Cold open (nav→done): NNN ms` |
-| **wire TTFB** (`/api/state`) | Modal **Device state** row detail: `wire TTFB NNN` (Resource Timing — no F12 Network redo) |
-| **`/api/state` count** | Modal shows **one checklist row** — does **not** count duplicate fetches. **Only if case A matters:** F12 → Network → filter `state` → count `GET /api/state` during yellow overlay, **or** console after load: `performance.getEntriesByType('resource').filter(e => e.name.includes('/api/state')).length` |
-
-**Case C — recommended once before code (~30 s):**
-
-1. Start cold Blocky (case A or B).
-2. While yellow overlay visible, new tab → `https://app.wanos.be/`.
-3. Note **Y/N** stall until Blocky finishes + rough seconds.
-
-**Proceed / stop:** ~~Proceed if baseline + (optional A) + C~~ **Proceed** — baseline + case A (~39 s solo) + case C (**Y**) consistent with event-loop blocking.
-
-#### Cold load — what is needed when (lever #4)
-
-| Step | Work | Before library visible? | Before TTI (empty canvas)? | Defer after `editorLoading=false`? |
-|------|------|-------------------------|----------------------------|-------------------------------------|
-| 1 | Parallel `GET /api/state`, `/api/automations`, `/api/events` | **Yes** | **Yes** | No |
-| 2 | `rebuildLibraryRows()` | **Yes** | **Yes** | No |
-| 3 | `rebuildEntityOptions()` + hue/sonos from state | **Yes** | **Yes** | No |
-| 4 | `fetchFireStatus()` | No | No | **Yes — background** |
-| 5 | `scheduleBlocklyLoad()` | Only if `selectedRule` | No on cold open | After overlay when rule selected |
-
-**Lever #4:** Clear **`editorLoading`** after step **3**; fire-status in background; add **`coldTimeToInteractiveMs`** in instrumentation (nav → overlay clear); keep **`refreshAll total`** for full path including deferred fire-status.
-
-#### Implementation — one PR, levers 1–4 (measure on Pi after each lever during dev)
-
-| # | Lever | Design |
-|---|---|---|
-| **1a** | Backend: `asyncio.to_thread` on snapshot + dump — `GET /api/state`, SSE path, `_process_events` broadcast | Unblock event loop |
-| **1b** | **Event-driven SSE** — push on queue drain + changed_domains; **5 s ping** when quiet; remove 0.5 s full-snapshot poll | Cut SSE snapshot churn |
-| **1b fallback** | `to_thread` on poll loop + longer sleep — **only if event-driven overshoots** and operator OK | Interim |
-| **2** | FE: `refreshAll` in-flight guard (`blocky.js`) | No double cold load |
-| **3** | FE: single SSE connect guard (`app.js` / `wanosApp` only) | Halve duplicate SSE |
-| **4** | UX + instrumentation per table above | ~2 s TTI goal |
-
-**Lever 1 targets:** `GET /api/state` (`main.py`); SSE generator (`main.py`); `_process_events` broadcast (`core/state_manager.py`).
-
-#### Page reload controls (today vs G6)
-
-| Page | Control | Today | G6 target |
-|------|---------|-------|-----------|
-| **Admin** | Reload Config | Full | Full |
-| **Admin** | Reload Frontend | Cache bust | N/A |
-| **Automation** | Nav Refresh | `refreshAll()` | N/A |
-| **Z-Wave config** | Save & reload | Full `CONFIG_RELOAD` | `zwave_map` |
-| **Hidden devices / Timers & types** | Save & reload | Full *(typical)* | `soft_hide` / `timers_types` |
-| **Explorer / History / Commander** | — | None | — |
-
-*B10H does not migrate writers — **G6** ([`phaseG-integrations.md`](phaseG-integrations.md) § G6).*
-
-**Instrumentation (in scope):** Update B10G load timings if load semantics change — **not** a full B10G UX redo. Add **`coldTimeToInteractiveMs`**.
-
-**Acceptance (Pi smoke):**
-
-* Case **B** (Admin open): one `/api/state` wave (not two ~19 s); wire TTFB sane vs ~2 s goals.
-* `https://app.wanos.be/api/state` during load — nginx path does not regress.
-* No duplicate SSE connect at same second on admin open.
-* Case **C** must improve (other tabs not blocked for full 39 s).
-* Warm paths stay fast (operator judgment); no formal regression checklist.
-* Side benefit: offload helps reload `/api/state`; **G6** owns scoped reload product.
-
-**Out of scope:** **G8** boot autostart; save-busy overlay; **G6** scoped-reload modal + writers (beyond B10G `hue_presets`); nginx/TLS as **primary** fix.
+| Cold open / TTI | ~**39 s** | ~**2.1 s** |
+| `GET /api/state` | ~19 s under load | ~**20–30 ms** |
+| `GET /api/automations` / `events` | ~19–21 s | ~**2 s** (one YAML parse) |
+| Admin SSE flicker during Blocky load | Yes (~3 s) | **Fixed** (operator) |
 
 **B10H DoD:**
 
 - [x] **Operator approved** § B10H design — Wannes — **2026-08-12**
-- [x] Kickoff profiling: baseline + case **A** (Network: double `4076` `/api/state`; ~39039 ms solo) + case **C** (**Y** stall) — **2026-08-12**
-- [ ] Levers **1–4** shipped in **one PR**
-- [ ] Pi smoke: record actuals vs ~**2 s** goals (`refreshAll total` + TTI)
-- [ ] Instrumentation updated if load semantics changed
-- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] Kickoff profiling: baseline + case **A** + case **C** (**Y**) — **2026-08-12**
+- [x] Levers **1–4** (+ snapshot cache, YAML N+1, reconnect R1–R3, label cleanup) shipped
+- [x] Pi smoke: actuals vs ~**2 s** goals — TTI ~**2.1 s**; ship bar OK; flicker fixed — **2026-08-12**
+- [x] Instrumentation updated (TTI, deferred fire-status, no parallel labels)
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-12**
 
-**Approval**
+#### Deferred (not DoD)
 
-- [x] **Operator approved** — Wannes — **2026-08-12**
+List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** cold open wanted. → [`pipeline.md`](pipeline.md) § **B10H — deferred list cache**.
 
-After approval → implement one PR per above.
+#### Locked decisions archive (kickoff)
+
+| # | Decision |
+|---|----------|
+| 1 | Operator approved design before code |
+| 2 | Ship bar = minimum improvement — operator states at ship (**accepted 2026-08-12**) |
+| 3 | `editorLoading` until library displayable; fire-status deferred |
+| 4 | TTI = empty canvas OK |
+| 5 | Lever #3 = `wanosApp` only (not Z-Wave) |
+| 6 | Acceptance = case B (Admin open) |
+| 7 | Page-scoped reload writers → **G6** |
+
+**Root cause (locked):** (1) sync `get_state_snapshot` + SSE poll blocked single worker; (2) double cold `refreshAll`; (3) later: N+1 YAML on automations list + merge-on-every-events-GET.
+
+**Out of scope (unchanged):** **G8** boot autostart; **G6** scoped reload; nginx as primary fix; list cache (deferred).
 
 ---
 

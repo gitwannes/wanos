@@ -2203,18 +2203,22 @@ function blockyApp() {
         coldLoadTimingsSnapshot: null,
         /** JS wall clock for full cold refreshAll() (first fetch → snapshot). */
         coldLoadTotalMs: null,
+        /** B10H: nav → library visible (overlay clear); empty canvas OK. */
+        coldTimeToInteractiveMs: null,
         /** init() entry → refreshAll() start (Alpine setup before first fetch). */
         coldLoadInitDelayMs: null,
         /** navigation start → init() entry (script load / parse before Alpine runs). */
         coldLoadNavToInitMs: null,
         loadChecklist: [
-            { key: "state", label: "Device state", api: "GET /api/state", parallel: true, done: false, ms: null },
-            { key: "automations", label: "Automations", api: "GET /api/automations", parallel: true, done: false, ms: null },
-            { key: "events", label: "Events", api: "GET /api/events", parallel: true, done: false, ms: null },
+            { key: "state", label: "Device state", api: "GET /api/state", done: false, ms: null },
+            { key: "automations", label: "Automations", api: "GET /api/automations", done: false, ms: null },
+            { key: "events", label: "Events", api: "GET /api/events", done: false, ms: null },
             { key: "library", label: "Building library", api: "Building library", done: false, ms: null },
             { key: "fire", label: "Schedule status", api: "GET /api/automations/fire-status", done: false, ms: null }
         ],
         _heartbeatTimer: null,
+        /** B10H: in-flight guard — concurrent cold/warm refresh shares one promise. */
+        _refreshAllInFlight: null,
         busy: false,
         /** B10F: rule-save lock — busy overlay or failed (retry/dismiss). */
         ruleSaveBusy: false,
@@ -4023,6 +4027,18 @@ function blockyApp() {
         },
 
         async refreshAll() {
+            if (this._refreshAllInFlight) {
+                return this._refreshAllInFlight;
+            }
+            this._refreshAllInFlight = this._refreshAllOnce();
+            try {
+                return await this._refreshAllInFlight;
+            } finally {
+                this._refreshAllInFlight = null;
+            }
+        },
+
+        async _refreshAllOnce() {
             // Nested inside rule save — ruleSaveBusy already owns the overlay + lock.
             const nestedInRuleSave = !!this.ruleSaveBusy;
             const coldLoad = !!this.editorLoading;
@@ -4038,6 +4054,7 @@ function blockyApp() {
             if (coldLoad) {
                 this.coldLoadTimingsSnapshot = null;
                 this.coldLoadTotalMs = null;
+                this.coldTimeToInteractiveMs = null;
                 this.coldLoadInitDelayMs = null;
                 this.coldLoadNavToInitMs = null;
                 this._coldLoadFetchOffsets = {};
@@ -4132,26 +4149,20 @@ function blockyApp() {
                 if (!coldLoad && this.showBlocklyWorkspace && !this.editorDirty) {
                     this.scheduleBlocklyLoad();
                 }
-                const fireStart = performance.now();
                 if (coldLoad) {
-                    if (coldLoadWallStart != null) {
-                        this._coldLoadFetchOffsets.fire = Math.max(
-                            0,
-                            Math.round(performance.now() - coldLoadWallStart)
-                        );
-                    }
-                    performance.mark("wanos-load-fire");
-                }
-                await this.fetchFireStatus();
-                if (coldLoad) {
-                    this._markLoadChecklistDone("fire", fireStart);
-                    this._captureLoadRowTiming("fire", "/api/automations/fire-status", "wanos-load-fire");
-                    if (coldLoadWallStart != null) {
-                        this.coldLoadTotalMs = Math.max(0, Math.round(performance.now() - coldLoadWallStart));
-                    }
+                    this.coldTimeToInteractiveMs = Math.round(performance.now());
+                    this.editorLoading = false;
                     this._snapshotColdLoadTimings();
+                    if (this.isAdmin) {
+                        this._openLoadTimingsModal();
+                    }
                     this._logColdLoadTimings();
+                    this._deferColdFireStatus(coldLoadWallStart);
+                    this.connected = true;
+                    return true;
                 }
+                const fireStart = performance.now();
+                await this.fetchFireStatus();
                 this.connected = true;
                 return true;
             } catch (e) {
@@ -4164,6 +4175,35 @@ function blockyApp() {
                     this.refreshBusy = false;
                 }
             }
+        },
+
+        /** B10H: fire-status after cold overlay clears — updates checklist + refreshAll total. */
+        _deferColdFireStatus(coldLoadWallStart) {
+            if (coldLoadWallStart != null) {
+                this._coldLoadFetchOffsets.fire = Math.max(
+                    0,
+                    Math.round(performance.now() - coldLoadWallStart)
+                );
+            }
+            performance.mark("wanos-load-fire");
+            const fireStart = performance.now();
+            void (async () => {
+                try {
+                    await this.fetchFireStatus();
+                    this._markLoadChecklistDone("fire", fireStart);
+                    this._captureLoadRowTiming("fire", "/api/automations/fire-status", "wanos-load-fire");
+                    if (coldLoadWallStart != null) {
+                        this.coldLoadTotalMs = Math.max(
+                            0,
+                            Math.round(performance.now() - coldLoadWallStart)
+                        );
+                    }
+                    this._snapshotColdLoadTimings();
+                    this._logColdLoadTimings();
+                } catch (e) {
+                    /* optional — status line only */
+                }
+            })();
         },
 
         _markLoadChecklistDone(key, startMs) {
@@ -4265,7 +4305,6 @@ function blockyApp() {
                 key: row.key,
                 label: row.label,
                 api: row.api,
-                parallel: !!row.parallel,
                 done: !!row.done,
                 ms: row.ms,
                 wallMs: row.wallMs,
@@ -4290,6 +4329,9 @@ function blockyApp() {
             if (this.coldLoadTotalMs != null) {
                 footer.push(`refreshAll total: ${this.coldLoadTotalMs} ms`);
             }
+            if (this.coldTimeToInteractiveMs != null) {
+                footer.push(`time-to-interactive: ${this.coldTimeToInteractiveMs} ms`);
+            }
             if (this.coldLoadNavToInitMs != null && this.coldLoadTotalMs != null) {
                 const initDelay = this.coldLoadInitDelayMs || 0;
                 footer.push(`Cold open (nav→done): ${this.coldLoadNavToInitMs + initDelay + this.coldLoadTotalMs} ms`);
@@ -4298,10 +4340,9 @@ function blockyApp() {
                 + (footer.length ? `\n${footer.join(" · ")}` : ""));
         },
 
-        /** B10G: checklist/modal row label (steps 1–3 run in parallel). */
+        /** B10G: checklist/modal row label. */
         loadChecklistLabel(row) {
-            const base = row && row.label ? row.label : "";
-            return row && row.parallel ? `${base} (parallel)` : base;
+            return row && row.label ? row.label : "";
         },
 
         /** Primary ms column — Resource Timing resource duration when available. */
@@ -4338,10 +4379,15 @@ function blockyApp() {
             if (this.coldLoadInitDelayMs != null) {
                 parts.push(`Init→refreshAll: ${this.coldLoadInitDelayMs} ms`);
             }
+            if (this.coldTimeToInteractiveMs != null) {
+                parts.push(`time-to-interactive: ${this.coldTimeToInteractiveMs} ms`);
+            }
             if (this.coldLoadTotalMs != null) {
                 parts.push(`refreshAll total: ${this.coldLoadTotalMs} ms`);
             }
-            if (this.coldLoadNavToInitMs != null && this.coldLoadTotalMs != null) {
+            if (this.coldTimeToInteractiveMs != null) {
+                parts.push(`Cold open (nav→interactive): ${this.coldTimeToInteractiveMs} ms`);
+            } else if (this.coldLoadNavToInitMs != null && this.coldLoadTotalMs != null) {
                 const initDelay = this.coldLoadInitDelayMs || 0;
                 parts.push(`Cold open (nav→done): ${this.coldLoadNavToInitMs + initDelay + this.coldLoadTotalMs} ms`);
             }
@@ -4827,15 +4873,14 @@ function blockyApp() {
             this._coldLoadInitWallStart = performance.now();
             this.editorLoading = true;
             const ok = await this.refreshAll();
-            this.editorLoading = false;
+            if (this.editorLoading) {
+                this.editorLoading = false;
+            }
             if (ok) {
                 this.connected = true;
                 this._startRestHeartbeat();
                 if (this.showBlocklyWorkspace && !this.editorDirty) {
                     this.scheduleBlocklyLoad();
-                }
-                if (this.isAdmin) {
-                    this._openLoadTimingsModal();
                 }
             } else {
                 this.connected = false;
