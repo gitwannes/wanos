@@ -133,6 +133,12 @@ class NativeRFXConfig(BaseModel):
     off_id: str
 
 
+# B9A: compare operators for device_state conditions / numeric When (no hysteresis).
+COMPARE_OPS = frozenset({"==", "!=", ">", ">=", "<", "<="})
+# Schema attribute names for temp_hum (RAM keys are temp / hum).
+TEMP_HUM_ATTRIBUTES = frozenset({"temperature", "humidity"})
+
+
 class TriggerConfig(BaseModel):
     """Automation trigger — device refs use entity_id only (no numeric idx)."""
     model_config = ConfigDict(extra="forbid")
@@ -140,6 +146,9 @@ class TriggerConfig(BaseModel):
     entity_id: Optional[str] = None
     state: Optional[str] = None
     event: Optional[str] = None
+    # B9A numeric When: op + optional temp_hum attribute; state holds threshold.
+    op: Optional[str] = None
+    attribute: Optional[str] = None
 
     @field_validator("state", mode="before")
     @classmethod
@@ -147,7 +156,25 @@ class TriggerConfig(BaseModel):
         # YAML 1.1: unquoted ON/OFF/Yes/No become bool — restore device states.
         if isinstance(v, bool):
             return "ON" if v else "OFF"
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return str(v)
         return v
+
+    @field_validator("op", mode="before")
+    @classmethod
+    def _coerce_op(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        s = str(v).strip()
+        return s if s in COMPARE_OPS else s
+
+    @field_validator("attribute", mode="before")
+    @classmethod
+    def _coerce_attribute(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        s = str(v).strip().lower()
+        return s if s else None
 
 
 class ConditionConfig(BaseModel):
@@ -157,13 +184,33 @@ class ConditionConfig(BaseModel):
     type: str
     entity_id: Optional[str] = None
     condition_is: str = Field(alias="is")
+    # B9A: compare op (default equality) + optional temp_hum attribute.
+    op: Optional[str] = None
+    attribute: Optional[str] = None
 
     @field_validator("condition_is", mode="before")
     @classmethod
     def _coerce_is(cls, v: Any) -> Any:
         if isinstance(v, bool):
             return "ON" if v else "OFF"
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return str(v)
         return v
+
+    @field_validator("op", mode="before")
+    @classmethod
+    def _coerce_op(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        return str(v).strip()
+
+    @field_validator("attribute", mode="before")
+    @classmethod
+    def _coerce_attribute(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        s = str(v).strip().lower()
+        return s if s else None
 
 
 class ActionConfig(BaseModel):
@@ -186,6 +233,9 @@ class ActionConfig(BaseModel):
     def _coerce_state(cls, v: Any) -> Any:
         if isinstance(v, bool):
             return "ON" if v else "OFF"
+        # Blinds position % and other numeric states arrive as YAML ints.
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return str(v)
         return v
 
 class AutomationRuleConfig(BaseModel):
@@ -279,6 +329,18 @@ class HuePresetConfig(BaseModel):
     bri: int
     xy: Optional[List[float]] = None
     rgb: Optional[Union[str, List[Any]]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _strip_duplicate_colour_keys(cls, data: Any) -> Any:
+        """YAML must author one of xy/rgb; tolerate legacy rows that persisted both (rgb wins)."""
+        if not isinstance(data, dict):
+            return data
+        if data.get("rgb") is not None and data.get("xy") is not None:
+            cleaned = dict(data)
+            cleaned.pop("xy", None)
+            return cleaned
+        return data
 
     @model_validator(mode="after")
     def _normalize_colour(self) -> "HuePresetConfig":
@@ -434,7 +496,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     runtime_yaml_path = Path(config_path) if Path(config_path).is_absolute() else BASE_DIR / config_path
     hardware_yaml_path = BASE_DIR / "config_hardware.yaml"
     lab_yaml_path = BASE_DIR / "config_lab.yaml"
-    hue_yaml_path = BASE_DIR / "config_hue.yaml"  # ⚡ Segregated lighting profile path entry
+    hue_yaml_path = BASE_DIR / "config_hue.yaml"  # PC-owned maps / bridge
     zwave_yaml_path = BASE_DIR / "config_zwave.auto.yaml"  # ⚡ UI/system-owned Z-Wave profile
     automations_yaml_path = BASE_DIR / "automations.auto.yaml"  # ⚡ UI/system-owned hide / auto-off / rules
 
@@ -456,7 +518,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     with open(hardware_yaml_path, "r", encoding="utf-8") as file:
         hardware_data = yaml.safe_load(file)
 
-    # 3. Read Segregated Lighting Config Profile if available
+    # 3. Read segregated Hue profile (maps on PC; presets merged from .auto below)
     hue_data: Optional[Dict[str, Any]] = None
     if hue_yaml_path.exists():
         with open(hue_yaml_path, "r", encoding="utf-8") as file:
@@ -464,9 +526,27 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
             if isinstance(hue_file_raw, dict):
                 hue_data = hue_file_raw.get("hue", hue_file_raw)
                 if hue_data:
-                    for map_key in ["device_map", "group_map", "scene_map", "presets"]:
+                    for map_key in ["device_map", "group_map", "scene_map"]:
                         if hue_data.get(map_key) is None:
                             hue_data[map_key] = {}
+
+    # 3a. Pi-owned hue.presets — raw YAML for Pydantic (one of xy/rgb per preset)
+    presets_data: Dict[str, Any] = {}
+    hue_presets_auto_path = BASE_DIR / "config_hue_presets.auto.yaml"
+    if hue_presets_auto_path.exists():
+        with open(hue_presets_auto_path, "r", encoding="utf-8") as file:
+            presets_file_raw = yaml.safe_load(file)
+            if isinstance(presets_file_raw, dict):
+                presets_hue = presets_file_raw.get("hue", presets_file_raw)
+                if isinstance(presets_hue, dict) and isinstance(presets_hue.get("presets"), dict):
+                    presets_data = presets_hue["presets"]
+    elif isinstance(hue_data, dict) and isinstance(hue_data.get("presets"), dict):
+        presets_data = hue_data["presets"]
+
+    if hue_data is not None:
+        hue_data["presets"] = presets_data
+    elif presets_data:
+        hue_data = {"presets": presets_data}
 
     # 3b. Read Segregated Z-Wave Config Profile if available
     zwave_data: Optional[Dict[str, Any]] = None

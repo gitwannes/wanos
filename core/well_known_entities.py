@@ -51,3 +51,22 @@ ENTITY_HOST_LOAD_1M = "sensor.generic.host_load_average_1m"
 ENTITY_HOST_LOAD_5M = "sensor.generic.host_load_average_5m"
 ENTITY_HOST_LOAD_15M = "sensor.generic.host_load_average_15m"
 ENTITY_MAINS_VOLTAGE = "sensor.generic.mains_voltage"
+ENTITY_WANOS_DB_SIZE = "sensor.generic.wanos_db_size"
+
+# B9A: status sensors — Blockly condition (if) only; never When / never action.
+STATUS_CONDITION_ONLY_EIDS = frozenset({ENTITY_SAUNA_STATUS, ENTITY_IR_STATUS})
+
+# B9A: published host gauges hidden from Blockly pickers only (still in state / Explorer).
+BLOCKY_HOST_GAUGE_HIDDEN_EIDS = frozenset({ENTITY_HOST_LOAD_1M, ENTITY_HOST_LOAD_5M})
+
+# B9A: Blockly display-name overrides for host gauges.
+BLOCKY_HOST_GAUGE_LABELS = {
+    ENTITY_HOST_CPU_TEMP: "Host CPU Temperature",
+    ENTITY_HOST_CPU_USAGE: "Host CPU Usage",
+    ENTITY_HOST_MEMORY_FREE: "Host Memory Free",
+    ENTITY_HOST_DISK_FREE: "Host Disk Free (Root)",
+    ENTITY_HOST_LOG2RAM_FREE: "Host Log2Ram Free",
+    ENTITY_HOST_LOAD_15M: "Host average load %",
+    ENTITY_WANOS_DB_SIZE: "WanOS DB size",
+    ENTITY_MAINS_VOLTAGE: "Mains voltage",
+}

@@ -172,6 +172,121 @@ class AutomationEngine:
             actual, meta)
 
     @staticmethod
+    def _attr_ram_key(attribute: Optional[str]) -> Optional[str]:
+        """Map schema attribute → devices[] dict key (temp/hum/bri/volume/position)."""
+        if not attribute:
+            return None
+        a = str(attribute).strip().lower()
+        if a in ("temperature", "temp"):
+            return "temp"
+        if a in ("humidity", "hum"):
+            return "hum"
+        if a in ("brightness", "bri"):
+            return "bri"
+        if a in ("volume", "vol"):
+            return "volume"
+        # position / closed % lives in dict.state (or scalar state string)
+        if a in ("position", "closed", "closed_pct", "open_pct"):
+            return None
+        return a
+
+    @staticmethod
+    def _extract_device_value(raw: Any, attribute: Optional[str] = None) -> Any:
+        """
+        Read comparable value from devices[] entry.
+        temp_hum dict → attribute temp/hum; actuators → bri/volume/state; scalars as-is.
+        """
+        ram_key = AutomationEngine._attr_ram_key(attribute)
+        if isinstance(raw, dict):
+            if ram_key is not None:
+                return raw.get(ram_key)
+            if "state" in raw:
+                return raw.get("state")
+            if "temp" in raw and attribute is None:
+                return raw.get("temp")
+            return raw.get("state", raw)
+        return raw
+
+    @staticmethod
+    def _parse_compare_number(value: Any) -> Optional[float]:
+        from logic.history_ids import parse_numeric_state
+        return parse_numeric_state(value)
+
+    @staticmethod
+    def _compare_values(op: str, actual: Any, expected: Any) -> bool:
+        """
+        Apply compare op. Equality ops fall back to string match when not both numeric.
+        Inequality ops require parseable numbers on both sides.
+        """
+        op_s = (op or "==").strip()
+        if op_s not in ("==", "!=", ">", ">=", "<", "<="):
+            op_s = "=="
+        a_num = AutomationEngine._parse_compare_number(actual)
+        e_num = AutomationEngine._parse_compare_number(expected)
+        if op_s in (">", ">=", "<", "<="):
+            if a_num is None or e_num is None:
+                return False
+            if op_s == ">":
+                return a_num > e_num
+            if op_s == ">=":
+                return a_num >= e_num
+            if op_s == "<":
+                return a_num < e_num
+            return a_num <= e_num
+        # == / != : prefer numeric when both parse, else string (case-insensitive)
+        if a_num is not None and e_num is not None:
+            eq = a_num == e_num
+        else:
+            eq = str(actual).strip().upper() == str(expected).strip().upper()
+        return eq if op_s == "==" else (not eq)
+
+    @staticmethod
+    def _condition_holds(condition: Any, state: SystemState) -> bool:
+        """Evaluate one condition; True = pass."""
+        if condition.type == "time_of_day":
+            is_dark = AutomationEngine._is_dark(state)
+            if condition.condition_is == "dark":
+                return is_dark
+            if condition.condition_is == "light":
+                return not is_dark
+            return False
+        if condition.type != "device_state":
+            return True
+        cond_idx = AutomationEngine.resolve_device_ref(condition, state)
+        if cond_idx is None:
+            return False
+        raw_state = state.devices.get(cond_idx)
+        actual = AutomationEngine._extract_device_value(
+            raw_state, getattr(condition, "attribute", None)
+        )
+        op = getattr(condition, "op", None) or "=="
+        return AutomationEngine._compare_values(op, actual, condition.condition_is)
+
+    @staticmethod
+    def _numeric_trigger_edge(
+        *,
+        op: Optional[str],
+        attribute: Optional[str],
+        threshold: Any,
+        new_raw: Any,
+        old_raw: Any,
+    ) -> bool:
+        """True when compare becomes true on this edge (was false, now true)."""
+        if not op or op == "==" and AutomationEngine._parse_compare_number(threshold) is None:
+            # Non-numeric equality When still uses string edge elsewhere.
+            return False
+        new_v = AutomationEngine._extract_device_value(new_raw, attribute)
+        old_v = AutomationEngine._extract_device_value(old_raw, attribute)
+        now_ok = AutomationEngine._compare_values(op, new_v, threshold)
+        if not now_ok:
+            return False
+        if old_raw is None and old_v is None:
+            # First sample — treat becoming true as edge.
+            return True
+        was_ok = AutomationEngine._compare_values(op, old_v, threshold)
+        return now_ok and not was_ok
+
+    @staticmethod
     def evaluate(event: Event, state: SystemState) -> List[Event]:
         """
         Evaluate matching rules for ``event``.
@@ -247,9 +362,51 @@ class AutomationEngine:
 
             for t in triggers:
                 trigger_idx = AutomationEngine.resolve_device_ref(t, state)
+                t_op = getattr(t, "op", None)
+                t_attr = getattr(t, "attribute", None)
                 # Trigger Type A: Device State Change (entity_id → idx)
                 if trigger_idx is not None and t.state:
-                    if event_name == "HUB_STATE_CHANGED" and is_transition:
+                    # B9A numeric When — threshold-cross on sensor/host telemetry events.
+                    if t_op and t_op in (">", ">=", "<", "<=", "!=", "=="):
+                        event_idx = payload.get("idx")
+                        if trigger_idx == event_idx and event_name in (
+                            "HUB_STATE_CHANGED",
+                            "TEMP_UPDATED",
+                            "HUMIDITY_UPDATED",
+                            "POWER_UPDATED",
+                        ):
+                            if event_name == "HUB_STATE_CHANGED":
+                                old_raw = payload.get("old_state", payload.get("old_val"))
+                                new_raw = payload.get("state", new_state)
+                                if new_raw is None:
+                                    new_raw = state.devices.get(trigger_idx)
+                            elif event_name == "TEMP_UPDATED":
+                                old_raw = {"temp": payload.get("old_value")}
+                                new_raw = state.devices.get(trigger_idx)
+                                if t_attr is None:
+                                    t_attr = "temperature"
+                            elif event_name == "HUMIDITY_UPDATED":
+                                old_raw = {"hum": payload.get("old_value")}
+                                new_raw = state.devices.get(trigger_idx)
+                                if t_attr is None:
+                                    t_attr = "humidity"
+                            else:  # POWER_UPDATED
+                                old_raw = payload.get("old_value")
+                                new_raw = state.devices.get(trigger_idx)
+                            if AutomationEngine._numeric_trigger_edge(
+                                op=t_op,
+                                attribute=t_attr,
+                                threshold=t.state,
+                                new_raw=new_raw,
+                                old_raw=old_raw,
+                            ):
+                                trigger_matched = True
+                                trigger_reason = (
+                                    f"{AutomationEngine.format_device_ref(state, event_idx)} "
+                                    f"{t_op} {t.state} (edge)"
+                                )
+                                break
+                    elif event_name == "HUB_STATE_CHANGED" and is_transition:
                         if trigger_idx == event_idx and AutomationEngine._states_match(
                                 t.state, new_state, state.device_metadata.get(trigger_idx, {})):
                             trigger_matched = True
@@ -273,6 +430,20 @@ class AutomationEngine:
                             new_state = mapped_state
                             break
 
+                # Any transition — trigger has entity_id but no target state/op (v2 case "when transitioned").
+                elif trigger_idx is not None and not t.state and not t_op:
+                    event_idx = payload.get("idx")
+                    if (
+                        event_name == "HUB_STATE_CHANGED"
+                        and is_transition
+                        and trigger_idx == event_idx
+                    ):
+                        trigger_matched = True
+                        trigger_reason = (
+                            f"{AutomationEngine.format_device_ref(state, event_idx)} (transitioned)"
+                        )
+                        break
+
                 # Trigger Type B: Semantic / catalog event (UUID-on-bus after B10B)
                 elif t.event:
                     rule_event_str = t.event.value if hasattr(t.event, "value") else str(t.event)
@@ -292,38 +463,25 @@ class AutomationEngine:
                 conditions_met = True
                 if rule.conditions:
                     for condition in rule.conditions:
-                        # --- Condition Type 1: Sun / Time of Day ---
-                        if condition.type == "time_of_day":
-                            is_dark = AutomationEngine._is_dark(state)
-                            if condition.condition_is == "dark" and not is_dark:
-                                conditions_met = False
+                        if not AutomationEngine._condition_holds(condition, state):
+                            conditions_met = False
+                            if condition.type == "time_of_day":
                                 automation_logger.debug(
-                                    f"[X-RAY] -> ABORTED. Condition failed: It is daylight, but rule requires dark.")
-                            elif condition.condition_is == "light" and is_dark:
-                                conditions_met = False
-                                automation_logger.debug(
-                                    f"[X-RAY] -> ABORTED. Condition failed: It is dark, but rule requires daylight.")
-
-                        # --- Condition Type 2: Hardware Device State ---
-                        elif condition.type == "device_state":
-                            cond_idx = AutomationEngine.resolve_device_ref(condition, state)
-                            if cond_idx is None:
-                                conditions_met = False
-                                automation_logger.debug(
-                                    f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} -> "
-                                    f"ABORTED. Condition failed: unresolved device ref.")
-                                continue
-                            # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
-                            raw_state = state.devices.get(cond_idx)
-                            current_state = raw_state.get("state") if isinstance(raw_state, dict) else raw_state
-
-                            if str(current_state).upper() != str(condition.condition_is).upper():
-                                conditions_met = False
+                                    f"[X-RAY] -> ABORTED. Condition failed: time_of_day "
+                                    f"requires '{condition.condition_is}'.")
+                            elif condition.type == "device_state":
+                                cond_idx = AutomationEngine.resolve_device_ref(condition, state)
                                 automation_logger.debug(
                                     f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} -> "
                                     f"ABORTED. Condition failed: "
-                                    f"{AutomationEngine.format_device_ref(state, cond_idx)} "
-                                    f"is '{current_state}', but rule requires '{condition.condition_is}'.")
+                                    f"{AutomationEngine.format_device_ref(state, cond_idx) if cond_idx is not None else condition.entity_id} "
+                                    f"op={getattr(condition, 'op', None) or '=='} "
+                                    f"attr={getattr(condition, 'attribute', None)} "
+                                    f"requires '{condition.condition_is}'.")
+                            else:
+                                automation_logger.debug(
+                                    f"[X-RAY] -> ABORTED. Unknown condition type '{condition.type}'.")
+                            break
 
                 # If all conditions pass, we calculate and dispatch the final actions
                 if conditions_met:

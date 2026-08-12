@@ -367,9 +367,10 @@
                     </div>
 
                     <!-- ========== UR / SR / D rule editor ========== -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3"
+                    <!-- B9A: Blockly is the only rule editor — JSON (power-user) mode removed. -->
+                    <div class="grid grid-cols-1 gap-3"
                          x-show="!selectedRule.isEventRow && !selectedRule.isSystemEventRow">
-                        <div class="form-control w-full">
+                        <div class="form-control w-full max-w-sm">
                             <div class="label py-1">
                                 <span class="label-text text-xs font-semibold">Rule name</span>
                                 <span class="label-text-alt text-error text-xs"
@@ -383,15 +384,6 @@
                                    :readonly="libraryKind(selectedRule) === 'sr'"
                                    :title="libraryKind(selectedRule) === 'sr' ? 'System rules use the companion SE catalog name (locked)' : ''"
                                    autocomplete="off">
-                        </div>
-                        <div class="form-control w-full">
-                            <div class="label py-1">
-                                <span class="label-text text-xs font-semibold">Editor</span>
-                            </div>
-                            <select class="select select-bordered select-sm w-full" x-model="editorMode" @change="onEditorModeChanged()">
-                                <option value="blockly">Blockly (primary)</option>
-                                <option value="json">JSON (power-user)</option>
-                            </select>
                         </div>
                     </div>
 
@@ -420,7 +412,7 @@
                     </ul>
 
                     <div class="flex flex-wrap items-center gap-3 p-2 rounded border border-base-300 bg-base-200"
-                         x-show="editorMode === 'blockly' && !selectedRule.isEventRow && !selectedRule.isSystemEventRow">
+                         x-show="!selectedRule.isEventRow && !selectedRule.isSystemEventRow">
                         <!-- B10F: fire status sits right above Full screen. -->
                         <p class="w-full text-xs font-mono text-warning/90"
                            x-show="fireStatusLine"
@@ -502,13 +494,6 @@
                         <div id="blocklyWorkspace"
                              class="w-full rounded border border-base-300 bg-base-100"
                              :class="blocklyFullscreen && showBlocklyWorkspace ? 'blockly-fs' : ''"></div>
-                    </div>
-
-                    <div x-show="editorMode === 'json' && !selectedRule.isEventRow && !selectedRule.isSystemEventRow">
-                        <label class="form-control">
-                            <span class="label-text text-xs">Rule JSON (schema v2)</span>
-                            <textarea class="textarea textarea-bordered textarea-sm font-mono h-80" x-model="editor.ruleJson"></textarea>
-                        </label>
                     </div>
 
                     <div class="flex gap-2 pt-2" x-show="!selectedRule.isSystemEventRow">
@@ -631,6 +616,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=3"></script>
-<script src="blocky.js?v=4.69"></script>
+<script src="blocky.js?v=4.73"></script>
 </body>
 </html>

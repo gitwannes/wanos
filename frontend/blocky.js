@@ -8,6 +8,10 @@
 // Phase B10E: Automations Library (UE/UR/SE/SR/D + C on UE), UE form (no Blockly),
 //   SE catalog view-only, SR name = SE catalog name, When/Fire user vs system,
 //   fire allowlist for unused system (Sauna/IR ON/OFF always).
+// Phase B9A: sensor/host-gauge pickers (G2 — trigger+condition, never action);
+//   sauna/IR status = condition-only; numeric compare on device conditions +
+//   thresholds on numeric device triggers (op/attribute/value); JSON editor removed
+//   (Blockly is now the only rule editor — ruleJson stays as internal transport).
 
 /** Min viewport width for History / Automation and the top-row join (tablets+). */
 const WANOS_WIDE_MIN_PX = 768;
@@ -39,7 +43,10 @@ const BLOCKY_EVENT_TRIGGERS = new Set(["b_trig_event", "b_trig_event_sys"]);
 const BLOCKY_EVENT_EDGES = new Set(["b_trig_event_edge", "b_trig_event_edge_sys"]);
 /** Fire-event action block types. */
 const BLOCKY_EVENT_ACTIONS = new Set(["b_action_event", "b_action_event_sys"]);
-/** Sensor / temp-class — excluded from pickers (motion is separate: trigger OK, never action). */
+/**
+ * Sensor / temp-class — B9A (G2): allowed for trigger (When) + condition (if), never
+ * action. Motion is handled separately (trigger only, never condition/action).
+ */
 const BLOCKY_SENSOR_LIKE_TYPES = new Set([
     "sensor", "temp_hum", "temp", "hum", "power", "energy", "fluid"
 ]);
@@ -48,6 +55,102 @@ const BLOCKY_SENSOR_LIKE_TYPES = new Set([
 const BLOCKY_ACTUATOR_TYPES = new Set([
     "switch", "light", "blinds", "shutter", "speaker", "media_player"
 ]);
+
+/**
+ * B9A (G2): session-status sensors mirror sauna/IR ON/OFF but are condition (if)
+ * only — never a When trigger, never an action. Discrete ON/OFF compare (not numeric).
+ */
+const BLOCKY_STATUS_CONDITION_ONLY = new Set([
+    "sensor.generic.sauna_status", "sensor.generic.ir_status"
+]);
+
+/** B9A: host gauges published for dashboard/telemetry but hidden from every Blockly picker. */
+const BLOCKY_HOST_GAUGE_HIDDEN = new Set([
+    "sensor.generic.host_load_average_1m", "sensor.generic.host_load_average_5m"
+]);
+
+/** B9A: friendly Blockly labels for host/system gauges (overrides device_metadata name). */
+const BLOCKY_HOST_GAUGE_LABELS = {
+    "sensor.temp_hum.host_cpu_temperature": "Host CPU Temperature",
+    "sensor.generic.host_cpu_usage": "Host CPU Usage",
+    "sensor.generic.host_memory_free": "Host Memory Free",
+    "sensor.generic.host_disk_free_root": "Host Disk Free (Root)",
+    "sensor.generic.host_log2ram_free": "Host Log2Ram Free",
+    "sensor.generic.host_load_average_15m": "Host average load %",
+    "sensor.generic.wanos_db_size": "WanOS DB size",
+    "sensor.generic.mains_voltage": "Mains voltage"
+};
+
+/**
+ * B9A Silent-loss B+C — legal schema keys (must match core/config.py models).
+ * UI-owned keys are re-emitted from Blockly; remaining legal keys ride as opaque
+ * bags on the block (`_wanosOpaque`) and merge back on Save (C). Non-preservable
+ * structure sets reasons that block Save (B).
+ */
+const BLOCKY_ACTION_LEGAL_KEYS = new Set([
+    "entity_id", "state", "event", "target", "scene", "preset", "bri", "xy", "volume", "station"
+]);
+/** Keys Blockly authoring currently re-emits for actions (rest → opaque). */
+const BLOCKY_ACTION_UI_KEYS = new Set([
+    "entity_id", "state", "event", "preset", "bri", "xy", "volume", "station"
+]);
+const BLOCKY_CONDITION_LEGAL_KEYS = new Set([
+    "type", "entity_id", "is", "op", "attribute"
+]);
+const BLOCKY_CONDITION_UI_KEYS = new Set([
+    "type", "entity_id", "is", "op", "attribute"
+]);
+const BLOCKY_TRIGGER_LEGAL_KEYS = new Set([
+    "entity_id", "state", "event", "op", "attribute"
+]);
+const BLOCKY_TRIGGER_UI_KEYS = new Set([
+    "entity_id", "state", "event", "op", "attribute"
+]);
+const BLOCKY_SUPPORTED_CONDITION_TYPES = new Set(["device_state", "time_of_day"]);
+
+/** Deep-enough copy for opaque bag values (scalars / small arrays / plain objects). */
+function blockyOpaqueClone(value) {
+    if (Array.isArray(value)) return value.map(blockyOpaqueClone);
+    if (value && typeof value === "object") {
+        const out = {};
+        Object.keys(value).forEach((k) => {
+            out[k] = blockyOpaqueClone(value[k]);
+        });
+        return out;
+    }
+    return value;
+}
+
+/**
+ * Collect legal keys present on source that Blockly UI does not own.
+ * Illegal / unknown-to-schema keys are ignored (API `extra=forbid` would reject them).
+ */
+function blockyOpaqueFromSource(source, legalKeys, uiKeys) {
+    const bag = {};
+    if (!source || typeof source !== "object") return bag;
+    Object.keys(source).forEach((k) => {
+        if (!legalKeys.has(k) || uiKeys.has(k)) return;
+        const v = source[k];
+        if (v === undefined || v === null || v === "") return;
+        bag[k] = blockyOpaqueClone(v);
+    });
+    return bag;
+}
+
+function blockyAttachOpaque(block, bag) {
+    if (!block) return;
+    if (bag && Object.keys(bag).length) block._wanosOpaque = bag;
+    else delete block._wanosOpaque;
+}
+
+/** Merge opaque bag into an emitted object; UI-emitted keys win. */
+function blockyMergeOpaque(out, block) {
+    if (!out || !block || !block._wanosOpaque) return out;
+    Object.keys(block._wanosOpaque).forEach((k) => {
+        if (!(k in out)) out[k] = blockyOpaqueClone(block._wanosOpaque[k]);
+    });
+    return out;
+}
 
 /**
  * Tall FieldDropdown menus (entity/event) open upward near the top of the canvas
@@ -119,6 +222,7 @@ function blockyEntityTypeOf(eid) {
     }
     if (opt && opt.type) return String(opt.type).toLowerCase();
     const e = String(eid || "");
+    if (e.startsWith("sensor.temp_hum.")) return "temp_hum";
     if (e.startsWith("blinds.")) return "blinds";
     if (e.startsWith("hue.")) return "light";
     if (e.startsWith("media_player.")) return "speaker";
@@ -189,11 +293,18 @@ function blockyEntityAllowedForRole(opt, role) {
         // Motion / sensors / doors cannot be actioned.
         return blockyIsActuatorEntity(opt) && !blockyIsMotionEntity(opt);
     }
+    const eid = String((opt && typeof opt === "object" ? opt.eid : opt) || "");
+    if (BLOCKY_STATUS_CONDITION_ONLY.has(eid)) {
+        // Sauna/IR session status — condition (if) only; never a When trigger.
+        return role === "condition";
+    }
     if (blockyIsMotionEntity(opt)) {
-        // Motion OK as When-device trigger (garage/toilet); not as condition for now.
+        // Motion OK as When-device trigger (garage/toilet); never a condition.
         return role === "trigger";
     }
-    return !blockyIsSensorLikeEntity(opt);
+    // G2: sensor-like classes (temp/hum/power/energy/fluid/type:sensor) are now
+    // legal for both trigger (When) and condition (if) — see blockyConditionIsNumeric.
+    return role === "trigger" || role === "condition";
 }
 
 function blockyCaseMatchOptions(caseBlock) {
@@ -201,14 +312,20 @@ function blockyCaseMatchOptions(caseBlock) {
     try {
         const root = caseBlock.getRootBlock && caseBlock.getRootBlock();
         if (root && root.type === "b_trig_device") {
-            const type = blockyEntityTypeOf(root.getFieldValue("ENTITY"));
-            if (type === "blinds" || type === "shutter") {
+            const eid = root.getFieldValue("ENTITY");
+            const type = blockyEntityTypeOf(eid);
+            if (blockyTriggerIsNumeric(eid)) {
+                // B9A: threshold lives on the trigger block itself (OP + VALUE).
+                opts = [["(threshold set on trigger)", "NONE"]];
+            } else if (type === "blinds" || type === "shutter") {
                 opts = [
+                    ["when transitioned", "ANY"],
                     ["when OPEN", "OPEN"],
                     ["when CLOSED", "CLOSED"]
                 ];
             } else {
                 opts = [
+                    ["when transitioned", "ANY"],
                     ["when ON", "ON"],
                     ["when OFF", "OFF"]
                 ];
@@ -223,6 +340,7 @@ function blockyCaseMatchOptions(caseBlock) {
     } catch (e) { /* ignore */ }
     if (!opts) {
         opts = [
+            ["when transitioned", "ANY"],
             ["when ON", "ON"],
             ["when OFF", "OFF"]
         ];
@@ -252,23 +370,26 @@ function blockyRootIsEventTrigger(root) {
 
 /**
  * B10B: hide useless "if"/MATCH chrome on event-triggered cases.
+ * B9A: same for numeric device triggers — threshold lives on the trigger, not MATCH.
  * Keeps CONDS + ACTIONS; empty conditions = always run.
  */
 function blockyCaseUpdateEventChrome(caseBlock) {
     if (!caseBlock || caseBlock.type !== "b_case") return;
     let root = null;
     try { root = caseBlock.getRootBlock && caseBlock.getRootBlock(); } catch (e) { /* ignore */ }
-    const eventTrig = blockyRootIsEventTrigger(root);
+    const numericDeviceTrig = !!(root && root.type === "b_trig_device"
+        && blockyTriggerIsNumeric(root.getFieldValue("ENTITY")));
+    const hideChrome = blockyRootIsEventTrigger(root) || numericDeviceTrig;
     const matchField = caseBlock.getField("MATCH");
     const ifLabel = caseBlock.getField("IF_LABEL");
     try {
         if (matchField && typeof matchField.setVisible === "function") {
-            matchField.setVisible(!eventTrig);
+            matchField.setVisible(!hideChrome);
         }
         if (ifLabel && typeof ifLabel.setVisible === "function") {
-            ifLabel.setVisible(!eventTrig);
+            ifLabel.setVisible(!hideChrome);
         }
-        if (eventTrig && matchField) {
+        if (hideChrome && matchField) {
             matchField.setValue("NONE");
         }
         if (typeof caseBlock.render === "function") caseBlock.render();
@@ -321,6 +442,213 @@ function blockyConditionStateOptions(block) {
         return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"]];
     }
     return [["ON", "ON"], ["OFF", "OFF"]];
+}
+
+/** Compare op menu shared by numeric conditions and numeric device triggers. */
+const BLOCKY_COMPARE_OPS = [
+    ["==", "=="], ["!=", "!="], [">", ">"], [">=", ">="], ["<", "<"], ["<=", "<="]
+];
+
+/**
+ * Compare UX profile for if-device conditions and numeric When (sensors only).
+ */
+function blockyConditionCompareProfile(eid) {
+    const id = String(eid || "");
+    if (BLOCKY_STATUS_CONDITION_ONLY.has(id)) return { kind: "discrete" };
+    const type = blockyEntityTypeOf(id);
+    if (type === "door" || blockyIsMotionEntity(id)) return { kind: "discrete" };
+    // Actuators (blinds, hue, sonos, onkyo) — discrete ON/OFF (or OPEN/CLOSED) only.
+    if (type === "blinds" || type === "shutter" || type === "light" || type === "hue"
+        || type === "speaker" || type === "media_player") {
+        return { kind: "discrete" };
+    }
+    if (type === "temp_hum") {
+        return {
+            kind: "sensor",
+            attrs: ["temperature", "humidity"],
+            attrLabels: [["temperature °C", "temperature"], ["humidity %", "humidity"]]
+        };
+    }
+    if (blockyIsSensorLikeEntity(id, type)) return { kind: "sensor" };
+    return { kind: "discrete" };
+}
+
+/** Unit suffix shown after numeric threshold (conditions + When). */
+function blockySensorUnitLabel(eid, attr) {
+    const id = String(eid || "");
+    const type = blockyEntityTypeOf(id);
+    const a = String(attr || "").toLowerCase();
+    if (type === "temp_hum" || id.startsWith("sensor.temp_hum.")) {
+        if (a === "humidity" || a === "hum") return "%";
+        return "°C";
+    }
+    if (type === "hum" || a === "humidity") return "%";
+    if (type === "temp" || a === "temperature" || a === "temp") return "°C";
+    if (type === "power") return "W";
+    if (type === "energy") return "kWh";
+    if (id.includes("mains_voltage")) return "V";
+    if (id.includes("host_cpu_usage") || id.includes("host_load_average")) return "%";
+    if (id.includes("host_memory_free") || id.includes("host_log2ram_free")
+        || id.includes("host_disk_free") || id.includes("wanos_db_size")) {
+        return "MB";
+    }
+    return "";
+}
+
+/** Numeric When trigger — sensor / gauge entities only. */
+function blockyTriggerIsNumeric(eid) {
+    return blockyConditionCompareProfile(eid).kind === "sensor";
+}
+
+/** True when the condition block emits op/value (sensor gauges only). */
+function blockyConditionIsNumericCompare(block) {
+    if (!block) return false;
+    return blockyConditionCompareProfile(block.getFieldValue("ENTITY")).kind === "sensor";
+}
+
+function blockyConditionIsNumeric(eid, block) {
+    if (block) return blockyConditionIsNumericCompare(block);
+    return blockyConditionCompareProfile(eid).kind === "sensor";
+}
+
+/**
+ * Rebuild the dynamic "is …" row on b_condition_device:
+ * sensors → temp/hum ATTR (when temp_hum) + OP + VALUE + unit; actuators → discrete ON/OFF.
+ */
+function blockyConditionUpdateShape(block, opts) {
+    if (!block || !window.Blockly || block._condUpdating) return;
+    opts = opts || {};
+    block._condUpdating = true;
+    const Events = Blockly.Events;
+    Events.disable();
+    try {
+        const eid = block.getFieldValue("ENTITY");
+        const profile = blockyConditionCompareProfile(eid);
+
+        const snap = {};
+        ["STATE", "OP", "ATTR", "VALUE"].forEach((n) => {
+            try {
+                const f = block.getField(n);
+                if (f) snap[n] = f.getValue();
+            } catch (e) { /* ignore */ }
+        });
+
+        blockyRemoveInput(block, "COMPARE");
+
+        if (profile.kind === "sensor") {
+            const input = block.appendDummyInput("COMPARE").appendField("is");
+            if (profile.attrs) {
+                const labels = profile.attrLabels || profile.attrs.map((a) => [a, a]);
+                let attr = opts.forceAttr != null ? opts.forceAttr : snap.ATTR;
+                if (!profile.attrs.some((a) => a === attr)) attr = profile.attrs[0];
+                input.appendField(new Blockly.FieldDropdown(labels), "ATTR");
+                blockySafeSetField(block, "ATTR", attr);
+            }
+            let op = opts.forceOp != null ? opts.forceOp : snap.OP;
+            if (!BLOCKY_COMPARE_OPS.some((o) => o[1] === op)) op = "==";
+            input.appendField(new Blockly.FieldDropdown(BLOCKY_COMPARE_OPS), "OP");
+            const rawVal = opts.forceValue != null ? opts.forceValue : snap.VALUE;
+            const numVal = Number(rawVal);
+            input.appendField(new Blockly.FieldNumber(Number.isFinite(numVal) ? numVal : 0), "VALUE");
+            const unitAttr = profile.attrs ? (opts.forceAttr != null ? opts.forceAttr : snap.ATTR) : null;
+            const unit = blockySensorUnitLabel(eid, unitAttr);
+            if (unit) input.appendField(unit);
+            blockySafeSetField(block, "OP", op);
+            return;
+        }
+
+        block.appendDummyInput("COMPARE")
+            .appendField("is")
+            .appendField(new Blockly.FieldDropdown(() => blockyConditionStateOptions(block)), "STATE");
+        const st = opts.forceState != null ? opts.forceState : snap.STATE;
+        if (st) blockySafeSetField(block, "STATE", st);
+    } finally {
+        Events.enable();
+        block._condUpdating = false;
+        try {
+            if (block.rendered && typeof block.render === "function") block.render();
+        } catch (e) { /* ignore */ }
+    }
+}
+
+/** Apply a loaded condition's op/attribute/is onto a freshly-shaped b_condition_device. */
+function blockyApplyConditionRich(block, cond) {
+    if (!block || !cond) return;
+    const eid = cond.entity_id || block.getFieldValue("ENTITY");
+    blockyAttachOpaque(
+        block,
+        blockyOpaqueFromSource(cond, BLOCKY_CONDITION_LEGAL_KEYS, BLOCKY_CONDITION_UI_KEYS)
+    );
+    const profile = blockyConditionCompareProfile(eid);
+    const isNumericLoad = profile.kind === "sensor"
+        || (cond.op && cond.op !== "==");
+    if (isNumericLoad && profile.kind === "sensor") {
+        blockyConditionUpdateShape(block, {
+            forceOp: cond.op || "==",
+            forceAttr: cond.attribute || (profile.attrs ? profile.attrs[0] : null),
+            forceValue: cond.is != null ? cond.is : 0
+        });
+    } else {
+        blockyConditionUpdateShape(block, { forceState: cond.is || "ON" });
+    }
+}
+
+/**
+ * B9A: numeric "When device" trigger — replaces the static "(use cases for ON/OFF)"
+ * note with OP + optional ATTR (temp_hum) + FieldNumber VALUE. The threshold lives on
+ * the trigger itself; case MATCH chrome is hidden (blockyCaseUpdateEventChrome) and the
+ * sole case's to_state mirrors the same value string (see applyBlocklyToV2).
+ */
+function blockyTriggerUpdateShape(block, opts) {
+    if (!block || !window.Blockly || block._trigUpdating) return;
+    opts = opts || {};
+    block._trigUpdating = true;
+    const Events = Blockly.Events;
+    Events.disable();
+    try {
+        const eid = block.getFieldValue("ENTITY");
+        const profile = blockyConditionCompareProfile(eid);
+        const numeric = blockyTriggerIsNumeric(eid);
+
+        const snap = {};
+        ["OP", "ATTR", "VALUE"].forEach((n) => {
+            try {
+                const f = block.getField(n);
+                if (f) snap[n] = f.getValue();
+            } catch (e) { /* ignore */ }
+        });
+
+        blockyRemoveInput(block, "COMPARE");
+
+        if (numeric) {
+            const input = block.appendDummyInput("COMPARE");
+            if (profile.attrs) {
+                const labels = profile.attrLabels || profile.attrs.map((a) => [a, a]);
+                let attr = opts.forceAttr != null ? opts.forceAttr : snap.ATTR;
+                if (!profile.attrs.some((a) => a === attr)) attr = profile.attrs[0];
+                input.appendField(new Blockly.FieldDropdown(labels), "ATTR");
+                blockySafeSetField(block, "ATTR", attr);
+            }
+            let op = opts.forceOp != null ? opts.forceOp : snap.OP;
+            if (!BLOCKY_COMPARE_OPS.some((o) => o[1] === op)) op = ">=";
+            input.appendField(new Blockly.FieldDropdown(BLOCKY_COMPARE_OPS), "OP");
+            const rawVal = opts.forceValue != null ? opts.forceValue : snap.VALUE;
+            const numVal = Number(rawVal);
+            input.appendField(new Blockly.FieldNumber(Number.isFinite(numVal) ? numVal : 0), "VALUE");
+            const unitAttr = profile.attrs ? (opts.forceAttr != null ? opts.forceAttr : snap.ATTR) : null;
+            const unit = blockySensorUnitLabel(eid, unitAttr);
+            if (unit) input.appendField(unit);
+            blockySafeSetField(block, "OP", op);
+        } else {
+            block.appendDummyInput("COMPARE").appendField("(pick case: ON / OFF / transitioned)");
+        }
+    } finally {
+        Events.enable();
+        block._trigUpdating = false;
+        try {
+            if (block.rendered && typeof block.render === "function") block.render();
+        } catch (e) { /* ignore */ }
+    }
 }
 
 /** Stored blinds state = closed % (0 open … 100 closed). UI = open %. */
@@ -849,6 +1177,11 @@ function blockyApplyActionRich(block, action) {
     if (!block || !action) return;
     const eid = action.entity_id || block.getFieldValue("ENTITY");
     const type = blockyEntityTypeOf(eid);
+    // B9A B+C: stash legal keys Blockly does not author (e.g. target/scene).
+    blockyAttachOpaque(
+        block,
+        blockyOpaqueFromSource(action, BLOCKY_ACTION_LEGAL_KEYS, BLOCKY_ACTION_UI_KEYS)
+    );
 
     // Seed sticky keys before shape build so FieldDropdown accepts setValue.
     if (action.station) block._pendingStation = String(action.station);
@@ -916,7 +1249,7 @@ function blockyReadActionRich(block) {
             const openPct = block.getFieldValue("OPEN_PCT");
             out.state = blockyStoredFromOpenPct(openPct != null ? openPct : 50);
         }
-        return out;
+        return blockyMergeOpaque(out, block);
     }
 
     if ((type === "light" || type === "hue") && out.state === "ON") {
@@ -934,7 +1267,7 @@ function blockyReadActionRich(block) {
                 if (!Number.isNaN(x) && !Number.isNaN(y)) out.xy = [x, y];
             }
         }
-        return out;
+        return blockyMergeOpaque(out, block);
     }
 
     if ((type === "speaker" || type === "media_player") && out.state === "ON") {
@@ -947,10 +1280,10 @@ function blockyReadActionRich(block) {
             const station = block.getFieldValue("STATION");
             if (station) out.station = station;
         }
-        return out;
+        return blockyMergeOpaque(out, block);
     }
 
-    return out;
+    return blockyMergeOpaque(out, block);
 }
 
 function blockyCoerceFieldToOptions(block, fieldName, optionsFn) {
@@ -1042,18 +1375,22 @@ function defineBlockyBlocks(Blockly, providers) {
 
     Blockly.Blocks.b_trig_device = {
         init() {
-            this.appendDummyInput()
+            this.appendDummyInput("MAIN")
                 .appendField("When device")
-                .appendField(new Blockly.FieldDropdown(entityTriggerDd), "ENTITY")
-                .appendField("(use cases for ON/OFF)");
+                .appendField(new Blockly.FieldDropdown(entityTriggerDd), "ENTITY");
             this.setNextStatement(true, "Case");
             this.setColour(230);
+            blockyTriggerUpdateShape(this);
         },
         onchange(ev) {
             if (!this.workspace || this.isInFlyout) return;
             if (ev && (ev.type === "create" || ev.type === "move"
                 || (ev.type === "change" && ev.name === "ENTITY"))) {
                 blockyRefreshCaseMatchLabels(this.getNextBlock());
+            }
+            // B9A: numeric entity gets OP/ATTR/VALUE chrome instead of the static note.
+            if (ev && ev.type === "change" && (ev.name === "ENTITY" || ev.name === "ATTR") && !BlockyRT.loading) {
+                blockyTriggerUpdateShape(this);
             }
         }
     };
@@ -1184,20 +1521,18 @@ function defineBlockyBlocks(Blockly, providers) {
 
     Blockly.Blocks.b_condition_device = {
         init() {
-            const block = this;
-            this.appendDummyInput()
+            this.appendDummyInput("MAIN")
                 .appendField("if device")
-                .appendField(new Blockly.FieldDropdown(entityConditionDd), "ENTITY")
-                .appendField("is")
-                .appendField(new Blockly.FieldDropdown(() => blockyConditionStateOptions(block)), "STATE");
+                .appendField(new Blockly.FieldDropdown(entityConditionDd), "ENTITY");
             this.setPreviousStatement(true, "Condition");
             this.setNextStatement(true, "Condition");
             this.setColour(60);
+            blockyConditionUpdateShape(this);
         },
         onchange(ev) {
             if (!this.workspace || this.isInFlyout) return;
-            if (ev && ev.type === "change" && ev.name === "ENTITY") {
-                blockyCoerceFieldToOptions(this, "STATE", blockyConditionStateOptions);
+            if (ev && ev.type === "change" && (ev.name === "ENTITY" || ev.name === "ATTR") && !BlockyRT.loading) {
+                blockyConditionUpdateShape(this);
             }
         }
     };
@@ -1499,7 +1834,17 @@ function blockyFingerprint(block) {
     if (BLOCKY_ROOT_TRIGGERS.has(t)) return "trigger";
     try {
         if (t === "b_condition_device") {
-            return `cond:device:${block.getFieldValue("ENTITY")}:${block.getFieldValue("STATE")}`;
+            const eid = block.getFieldValue("ENTITY");
+            if (blockyConditionIsNumericCompare(block)) {
+                const profile = blockyConditionCompareProfile(eid);
+                let attrPart = "";
+                try {
+                    if (profile.attrs) attrPart = String(block.getFieldValue("ATTR") || "");
+                } catch (e) { /* ignore */ }
+                return `cond:device:${eid}:${attrPart}`
+                    + `:${block.getFieldValue("OP")}:${block.getFieldValue("VALUE")}`;
+            }
+            return `cond:device:${eid}:${block.getFieldValue("STATE")}`;
         }
         if (t === "b_condition_time") return `cond:time:${block.getFieldValue("TOD")}`;
         if (t === "b_action_device") {
@@ -1587,6 +1932,8 @@ function blockyEnforceUniqueness(forceToolbox) {
                     if (blk.type === "b_action_device"
                         && (fieldEv.name === "STATE" || fieldEv.name === "ENTITY" || fieldEv.name === "HUE_MODE")) {
                         blockyActionUpdateRichShape(blk);
+                    } else if (blk.type === "b_condition_device" && fieldEv.name === "ENTITY") {
+                        blockyConditionUpdateShape(blk);
                     }
                     changed = true;
                 }
@@ -1856,6 +2203,8 @@ function blockyApp() {
         ruleSaveFailed: false,
         isAdmin: false,
         errorMessage: "",
+        /** B9A silent-loss B: non-preservable drops detected on last canvas load. */
+        silentLossReasons: [],
         infoMessage: "",
         registryCheckMessage: "",
         registryCheckOk: null,
@@ -1877,13 +2226,12 @@ function blockyApp() {
         blockyColorBri: 100,
         blockyColorHex: "#FFD180",
         showHiddenEntities: false,
-        editorMode: "blockly",
         editorDirty: false,
         suppressDirtyUntil: 0,
         pendingNav: null,
         blocklyFullscreen: false,
         // Bump when block definitions change (B10E: user/system When+Fire twins).
-        blocklySchemaVersion: 52,
+        blocklySchemaVersion: 53,
         blocklyUiTick: 0,
         hardDenyEntityIds: ["switch.safety.safety_wisc_5v"],
         /**
@@ -1956,11 +2304,12 @@ function blockyApp() {
         },
 
         get showBlocklyWorkspace() {
-            // UE / SE catalog rows have no Blockly canvas.
+            // UE / SE catalog rows have no Blockly canvas. B9A: Blockly is the only
+            // rule editor, so any other selected rule always shows the canvas.
             if (this.selectedRule && (this.selectedRule.isEventRow || this.selectedRule.isSystemEventRow)) {
                 return false;
             }
-            return !!(this.selectedRule && this.editorMode === "blockly");
+            return !!this.selectedRule;
         },
 
         /** B10F: all Automations UI locked during rule save or until retry/dismiss. */
@@ -2296,8 +2645,10 @@ function blockyApp() {
         },
 
         entityDisplayLabel(opt) {
-            if (opt && opt.typeLabel) return `${opt.name} · ${opt.typeLabel}`;
-            return `${opt.name} · ${this.deviceTypeLabel(opt.type, opt.origin, opt.idx)}`;
+            // B9A: host/system gauges get a friendly override name over the raw device name.
+            const name = (opt && BLOCKY_HOST_GAUGE_LABELS[opt.eid]) || (opt && opt.name);
+            if (opt && opt.typeLabel) return `${name} · ${opt.typeLabel}`;
+            return `${name} · ${this.deviceTypeLabel(opt.type, opt.origin, opt.idx)}`;
         },
 
         /** Alpine-friendly wrapper for catalog UUID → name. */
@@ -2423,17 +2774,6 @@ function blockyApp() {
             this.requestLeave({ type: "href", url });
         },
 
-        onEditorModeChanged() {
-            this.blocklyFullscreen = false;
-            if (this.editorMode === "json") {
-                try {
-                    if (blockyWs()) this.applyBlocklyToV2();
-                } catch (e) { /* keep existing ruleJson if canvas incomplete */ }
-                return;
-            }
-            this.scheduleBlocklyLoad();
-        },
-
         blocklyHostReady() {
             const host = document.getElementById("blocklyWorkspace");
             if (!host) return null;
@@ -2505,6 +2845,9 @@ function blockyApp() {
                 if (!meta || typeof meta !== "object") continue;
                 const eid = meta.entity_id ? String(meta.entity_id) : "";
                 if (!eid || this.isHardDeniedEntityId(eid)) continue;
+                // B9A (G2): 1m/5m load gauges stay published but never enter the Blockly
+                // catalog. Already-open rules keep them via sticky (_stickyEntityIdsForRole).
+                if (BLOCKY_HOST_GAUGE_HIDDEN.has(eid)) continue;
                 const type = meta.type ? String(meta.type) : "unknown";
                 if (type === "scene") continue;
                 const labelName = meta.name ? String(meta.name) : eid;
@@ -2767,6 +3110,11 @@ function blockyApp() {
                     return root;
                 }
                 if (!allDevices) {
+                    // Mixed device+event OR cannot be represented faithfully — do not
+                    // silently collapse to the first edge (silent-loss B).
+                    this._noteSilentLoss(
+                        "OR trigger mixes device and event edges — cannot load safely; Save blocked"
+                    );
                     const first = t[0] || {};
                     if (first.event || first.entity_id) {
                         return this._mkTriggerRoot(first, cases);
@@ -2789,14 +3137,25 @@ function blockyApp() {
                 } else if (cases.length === 1 && !cases[0].to_state) {
                     cases[0].to_state = t.state;
                 }
-                return blockyMkBlock("b_trig_device", {
-                    ENTITY: t.entity_id
-                }, 16, 16);
+                const blk = blockyMkBlock("b_trig_device", { ENTITY: t.entity_id }, 16, 16);
+                // Shape was built in init() from the dropdown's default entity — rebuild now
+                // that ENTITY holds the real (loaded) eid.
+                blockyTriggerUpdateShape(blk);
+                return blk;
             }
             if (t && t.entity_id) {
-                return blockyMkBlock("b_trig_device", {
-                    ENTITY: t.entity_id
-                }, 16, 16);
+                // B9A: numeric When carries op/attribute/state (threshold). Rebuild the shape
+                // unconditionally — init() ran against the dropdown's default entity, not
+                // this loaded eid, so a discrete load must also drop any stale numeric chrome.
+                const blk = blockyMkBlock("b_trig_device", { ENTITY: t.entity_id }, 16, 16);
+                blockyTriggerUpdateShape(blk, t.op != null ? {
+                    forceOp: t.op, forceAttr: t.attribute, forceValue: t.state
+                } : undefined);
+                blockyAttachOpaque(
+                    blk,
+                    blockyOpaqueFromSource(t, BLOCKY_TRIGGER_LEGAL_KEYS, BLOCKY_TRIGGER_UI_KEYS)
+                );
+                return blk;
             }
             // B10B/E: trigger.event is always a catalog UUID — pick user vs system block by origin.
             if (t && t.event) {
@@ -2879,23 +3238,55 @@ function blockyApp() {
         },
 
         _conditionBlocks(list) {
-            return (list || []).map((c) => {
-                if (c.type === "time_of_day") {
-                    return blockyMkBlock("b_condition_time", { TOD: c.is || "dark" });
+            return (list || []).map((c, idx) => {
+                if (!c || typeof c !== "object") {
+                    this._noteSilentLoss(`Condition #${idx + 1}: empty/invalid — cannot load safely`);
+                    return blockyMkBlock("b_condition_time", { TOD: "dark" });
                 }
-                return blockyMkBlock("b_condition_device", {
-                    ENTITY: c.entity_id || this.firstEntityId("condition"),
-                    STATE: c.is || "ON"
-                });
+                if (c.type === "time_of_day") {
+                    const blk = blockyMkBlock("b_condition_time", { TOD: c.is || "dark" });
+                    blockyAttachOpaque(
+                        blk,
+                        blockyOpaqueFromSource(c, BLOCKY_CONDITION_LEGAL_KEYS, BLOCKY_CONDITION_UI_KEYS)
+                    );
+                    return blk;
+                }
+                if (c.type && !BLOCKY_SUPPORTED_CONDITION_TYPES.has(c.type)) {
+                    this._noteSilentLoss(
+                        `Condition type "${c.type}" has no Blockly block — Save blocked (silent-loss B)`
+                    );
+                }
+                if (c.type === "device_state" || c.entity_id) {
+                    const eid = c.entity_id || this.firstEntityId("condition");
+                    const blk = blockyMkBlock("b_condition_device", { ENTITY: eid });
+                    blockyApplyConditionRich(blk, c);
+                    return blk;
+                }
+                this._noteSilentLoss(
+                    `Condition #${idx + 1}: unsupported shape — Save blocked (silent-loss B)`
+                );
+                return blockyMkBlock("b_condition_time", { TOD: "dark" });
             });
         },
 
         _actionBlocks(list) {
-            return (list || []).map((a) => {
+            return (list || []).map((a, idx) => {
+                if (!a || typeof a !== "object") {
+                    this._noteSilentLoss(`Action #${idx + 1}: empty/invalid — cannot load safely`);
+                    return blockyMkBlock("b_action_device", {
+                        ENTITY: this.firstEntityId("action"),
+                        STATE: "ON"
+                    });
+                }
                 if (a.event && !a.entity_id) {
                     const origin = this._eventOrigin(a.event);
                     const type = origin === "system" ? "b_action_event_sys" : "b_action_event";
-                    return blockyMkBlock(type, { EVENT: a.event });
+                    const blk = blockyMkBlock(type, { EVENT: a.event });
+                    blockyAttachOpaque(
+                        blk,
+                        blockyOpaqueFromSource(a, BLOCKY_ACTION_LEGAL_KEYS, BLOCKY_ACTION_UI_KEYS)
+                    );
+                    return blk;
                 }
                 if (a.entity_id) {
                     const type = blockyEntityTypeOf(a.entity_id);
@@ -2907,6 +3298,10 @@ function blockyApp() {
                     blockyApplyActionRich(blk, a);
                     return blk;
                 }
+                // Neither entity nor event — cannot attach a faithful block (e.g. scene-only).
+                this._noteSilentLoss(
+                    `Action #${idx + 1}: no entity_id/event — Save blocked (silent-loss B)`
+                );
                 return blockyMkBlock("b_action_device", {
                     ENTITY: this.firstEntityId("action"),
                     STATE: "ON"
@@ -2916,10 +3311,14 @@ function blockyApp() {
 
         _caseBlocks(cases) {
             return (cases || []).map((c) => {
-                const match = (
-                    c.to_state === "ON" || c.to_state === "OFF"
-                    || c.to_state === "OPEN" || c.to_state === "CLOSED"
-                ) ? c.to_state : "NONE";
+                let match = "NONE";
+                if (c.to_state === "ON" || c.to_state === "OFF"
+                    || c.to_state === "OPEN" || c.to_state === "CLOSED") {
+                    match = c.to_state;
+                } else if (c.to_state == null || c.to_state === "") {
+                    // Engine: no to_state → fire on any device transition.
+                    match = "ANY";
+                }
                 const blk = blockyMkBlock("b_case", { MATCH: match });
                 blockyConnectChain(blk, "CONDS", this._conditionBlocks(c.conditions));
                 blockyConnectChain(blk, "ACTIONS", this._actionBlocks(c.actions));
@@ -2932,6 +3331,7 @@ function blockyApp() {
             blockyCancelUniqueness();
             BlockyRT.loading = true;
             BlockyRT.suppressHueWheel = true;
+            this.silentLossReasons = [];
             const Events = Blockly.Events;
             Events.disable();
             try {
@@ -2943,6 +3343,7 @@ function blockyApp() {
                     rule = JSON.parse(this.editor.ruleJson || "{}");
                 } catch (e) {
                     rule = { cases: [], trigger: {} };
+                    this._noteSilentLoss("Rule JSON could not be parsed — Save blocked");
                 }
                 const cases = rule.cases || [];
                 const root = this._mkTriggerRoot(rule.trigger, cases);
@@ -2965,6 +3366,9 @@ function blockyApp() {
                 }
 
                 // Coerce action/condition STATE to type-valid options after load; rebuild rich shapes.
+                // b_condition_device numeric shape (OP/ATTR/VALUE) was already applied by
+                // blockyApplyConditionRich in _conditionBlocks — coerce is a no-op there
+                // (no STATE field exists on the numeric shape).
                 ws.getAllBlocks(false).forEach((b) => {
                     if (b.type === "b_action_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyActionStateOptions);
@@ -3017,6 +3421,10 @@ function blockyApp() {
                 this.resizeBlockly();
                 this.scrollBlocklyToTopLeft();
                 blockyRefreshToolbox();
+                if (this.silentLossReasons.length) {
+                    this.errorMessage = "Silent-loss: Save blocked — "
+                        + this.silentLossReasons.join("; ");
+                }
                 requestAnimationFrame(() => {
                     this.resizeBlockly();
                     requestAnimationFrame(() => this.resizeBlockly());
@@ -3043,24 +3451,41 @@ function blockyApp() {
 
         _readConditions(start) {
             return blockyReadChain(start, (b) => {
-                if (b.type === "b_condition_time") return { type: "time_of_day", is: b.getFieldValue("TOD") };
-                return {
-                    type: "device_state",
-                    entity_id: b.getFieldValue("ENTITY"),
-                    is: b.getFieldValue("STATE")
-                };
+                if (b.type === "b_condition_time") {
+                    return blockyMergeOpaque(
+                        { type: "time_of_day", is: b.getFieldValue("TOD") },
+                        b
+                    );
+                }
+                const eid = b.getFieldValue("ENTITY");
+                const out = { type: "device_state", entity_id: eid };
+                if (blockyConditionIsNumericCompare(b)) {
+                    out.op = b.getFieldValue("OP") || "==";
+                    const profile = blockyConditionCompareProfile(eid);
+                    if (profile.attrs) {
+                        const attr = b.getFieldValue("ATTR");
+                        if (attr) out.attribute = attr;
+                    }
+                    out.is = String(b.getFieldValue("VALUE"));
+                } else {
+                    out.is = b.getFieldValue("STATE");
+                }
+                return blockyMergeOpaque(out, b);
             });
         },
 
         _readActions(start) {
             return blockyReadChain(start, (b) => {
-                if (BLOCKY_EVENT_ACTIONS.has(b.type)) return { event: b.getFieldValue("EVENT") };
+                if (BLOCKY_EVENT_ACTIONS.has(b.type)) {
+                    return blockyMergeOpaque({ event: b.getFieldValue("EVENT") }, b);
+                }
                 return blockyReadActionRich(b);
             });
         },
 
         applyBlocklyToV2() {
             this.ensureBlocklyReady();
+            this.assertSilentLossClear();
             const ws = blockyWs();
             if (!ws) throw new Error("Blockly workspace not ready.");
             blockyAssertNoOrphans(ws);
@@ -3090,9 +3515,24 @@ function blockyApp() {
                 if (!edges.length) throw new Error("OR trigger needs at least one edge.");
                 trigger = edges.length === 1 ? edges[0] : edges;
             } else if (root.type === "b_trig_device") {
-                trigger = { entity_id: root.getFieldValue("ENTITY") };
+                const eid = root.getFieldValue("ENTITY");
+                if (blockyTriggerIsNumeric(eid)) {
+                    trigger = {
+                        entity_id: eid,
+                        state: String(root.getFieldValue("VALUE")),
+                        op: root.getFieldValue("OP") || "=="
+                    };
+                    const profile = blockyConditionCompareProfile(eid);
+                    if (profile.attrs) {
+                        const attr = root.getFieldValue("ATTR");
+                        if (attr) trigger.attribute = attr;
+                    }
+                } else {
+                    trigger = { entity_id: eid };
+                }
+                trigger = blockyMergeOpaque(trigger, root);
             } else if (BLOCKY_EVENT_TRIGGERS.has(root.type)) {
-                trigger = { event: root.getFieldValue("EVENT") };
+                trigger = blockyMergeOpaque({ event: root.getFieldValue("EVENT") }, root);
             } else {
                 throw new Error(
                     "Unsupported trigger block. Use When device / When user event / When system event / When any of."
@@ -3103,13 +3543,19 @@ function blockyApp() {
             let cur = caseStart;
             // Device: MATCH writes to_state. Event / OR: conditions-gate only — never persist to_state.
             const matchWritesToState = root.type === "b_trig_device";
+            // B9A numeric When: no per-case MATCH chrome — every case mirrors the trigger threshold.
+            const numericTrig = matchWritesToState && blockyTriggerIsNumeric(root.getFieldValue("ENTITY"));
             while (cur && cur.type === "b_case") {
                 const match = cur.getFieldValue("MATCH");
                 const conds = this._readConditions(cur.getInputTargetBlock("CONDS"));
                 const acts = this._readActions(cur.getInputTargetBlock("ACTIONS"));
                 if (!acts.length) throw new Error("Each case needs at least one action.");
                 const c = { actions: acts };
-                if (matchWritesToState && (match === "ON" || match === "OFF"
+                if (numericTrig) {
+                    c.to_state = trigger.state;
+                } else if (matchWritesToState && match === "ANY") {
+                    // Omit to_state — engine fires on any transition for this device.
+                } else if (matchWritesToState && (match === "ON" || match === "OFF"
                     || match === "OPEN" || match === "CLOSED")) {
                     c.to_state = match;
                 }
@@ -3153,30 +3599,26 @@ function blockyApp() {
             if (denied.length) throw new Error(`Blocked by policy (hard deny): ${denied.join(", ")}`);
         },
 
+        /** B9A silent-loss B: record a non-preservable drop detected during canvas load. */
+        _noteSilentLoss(reason) {
+            const msg = String(reason || "unknown silent-loss");
+            if (!this.silentLossReasons) this.silentLossReasons = [];
+            if (!this.silentLossReasons.includes(msg)) this.silentLossReasons.push(msg);
+        },
+
+        /** B9A silent-loss B: refuse Save when load flagged a non-preservable drop. */
+        assertSilentLossClear() {
+            const reasons = this.silentLossReasons || [];
+            if (!reasons.length) return;
+            throw new Error(
+                "Save blocked (silent-loss B): rule cannot round-trip safely — "
+                + reasons.join("; ")
+            );
+        },
+
+        /** B9A: Blockly is the only rule editor — payload always comes off the canvas. */
         buildPayloadFromEditor() {
-            if (this.editorMode === "blockly") {
-                return this.applyBlocklyToV2();
-            }
-            let rule;
-            try {
-                rule = JSON.parse(this.editor.ruleJson || "{}");
-            } catch (e) {
-                throw new Error(`Rule JSON invalid (${e})`);
-            }
-            rule.id = this.editor.id || rule.id;
-            rule.name = (this.editor.name || "").trim();
-            rule.enabled = this.editor.enabled !== false;
-            // Strip legacy scene flags if present in hand-edited JSON.
-            delete rule.scene;
-            delete rule.require_confirmation;
-            // SR: name always equals companion SE catalog name.
-            this._bindSrNameToSeCatalog(rule);
-            if (!rule.name) throw new Error("Rule name is required.");
-            if (!Array.isArray(rule.cases) || !rule.cases.length) {
-                throw new Error("v2 rule requires cases[].");
-            }
-            this.validateNoHardDeniedEntityIds(rule);
-            return rule;
+            return this.applyBlocklyToV2();
         },
 
         /** B10D: block Save when another rule has the same trim+casefold name. */
@@ -3256,7 +3698,6 @@ function blockyApp() {
             this.markEditorClean();
             this.selectedRule = { isDraft: true };
             this.editor = this.blankEditor();
-            this.editorMode = "blockly";
             this.errorMessage = "";
             this.infoMessage = "";
             this.fireStatusLine = "";
@@ -3268,7 +3709,6 @@ function blockyApp() {
             this.markEditorClean();
             this.selectedRule = { isDraft: true };
             this.editor = this.blankEditorForEvent(eventId, origin);
-            this.editorMode = "blockly";
             this.errorMessage = "";
             this.infoMessage = "";
             this.fireStatusLine = "";
@@ -3311,7 +3751,6 @@ function blockyApp() {
                 eventRequireConfirmation: false,
                 eventEnabled: true
             };
-            this.editorMode = "blockly";
             this.errorMessage = "";
             this.infoMessage = "";
             this.fireRefRuleNames = [];
@@ -3342,7 +3781,6 @@ function blockyApp() {
                     eventRequireConfirmation: !!rule.require_confirmation,
                     eventEnabled: rule.enabled !== false
                 };
-                this.editorMode = "blockly";
                 // Prefill usages for disable-blocked + Show usages (listeners OR fire-refs).
                 this.fireRefRuleNames = this._usageRuleNamesForEvent(rule.id);
                 this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
@@ -3360,7 +3798,6 @@ function blockyApp() {
                     eventRequireConfirmation: false,
                     eventEnabled: true
                 };
-                this.editorMode = "blockly";
                 this.fireStatusLine = "";
                 this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
                 return;
@@ -3390,7 +3827,6 @@ function blockyApp() {
                 eventRequireConfirmation: false,
                 eventEnabled: true
             };
-            this.editorMode = "blockly";
             this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
             // Prefill usages for UR whose trigger event is fire-referenced.
             if (kind === "ur") {

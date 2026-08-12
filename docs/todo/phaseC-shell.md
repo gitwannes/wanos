@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C13**. Pipeline next: **B9A** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C13**. Pipeline next: **B9A** smoke (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -25,12 +25,12 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C9 — Device-ref app logs** | All device-ref lines in `wanos.log` → `entity_id (name, idx N)` | Every integration · mid |
 | **C10 — Explorer / History polish** | Plural Nodes; Planned past gone; Hue hex text; chart colors; binary/hits charts; omit scenes; filter+blinds | FE · mid |
 | **C11 — Control vs History lists** | Re-assess Explorer Control vs History list membership (post–C10 scene omit) | Assess → decide · low |
-| **C12 — Post-C10 polish** | Hue bri integer; binary duration charts; motion visibility; alert `produced_at`; Z-Wave `-term` filter | FE + log · mid |
+| **C12 — Post-C10 polish** | Hue bri int; binary duration; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter debounce assess | FE + log · mid |
 | **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4** (or when list-membership pain wins). **C12** then **C13** (inbox triage **2026-08-11**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4**. **C12** then **C13**. NOT CONNECTED + admin **`vNN`** → **B10G** (same ship block). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -167,11 +167,11 @@ The **Admin Force Sweep** bypasses idempotency checks and transmits physical OFF
 ## 📋 C4 — Rename HTML entrypoints 🔜 TODO
 
 * `commander.html` → `wisc.html`
-* `blocky.html` → `automations.html`
+* **`blocky` → `blockly` everywhere** — **locked 2026-08-12:** identifiers, text, **`blocky.html` → `blockly.html`**, **`blocky.js` → `blockly.js`**, nav/data attrs (`data-wanos-nav`, routes), shell label **Blockly**. **Do not** rename to **`automations.html`** / **`automations.js`** (prior C4 draft **withdrawn**).
 
-**to be checked:** All links, redirects, shell nav, kiosk, nginx/static routes, bookmarks. Shell chrome — not Blocky logic.
+**to be checked:** All links, redirects, shell nav, kiosk, nginx/static routes, bookmarks, cache-bust `?v=` query params. Shell chrome — not editor semantics (**B19**).
 
-**C4 DoD:** New names live everywhere operators hit; old URLs redirect or 404 intentionally documented. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C4 DoD:** New names live everywhere operators hit; no remaining `blocky` in paths/identifiers (except git history); no `automations.*` entrypoint names; old URLs redirect or 404 intentionally documented. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -402,6 +402,8 @@ Alert dismissed (bell): level=<level> "…message text…"
 | 3 | **Motion** — keep C10 **hits** model (not duration). **Visibility locked:** keep as-is — **75xxx stays soft-hidden**; not in Explorer/History list unless operator toggles **Hidden devices**; backend history unchanged. Document in ops/docs only (no list UX change). |
 | 4 | **Alert dismiss log — `produced_at`** — extend **C8** line shape: add **when the alert was produced** (`produced_at` only — dismiss time stays implicit log timestamp). UX unchanged. |
 | 5 | **Z-Wave config search — negative filter** — mirror Explorer: **`-term`** excludes (same `_parseTextQuery` semantics). Fields: **name, path, idx** (today’s Z-Wave positive match set). |
+| 6 | **Scene favorites bug** — favoriting **one** dashboard scene must not favorite **all** scenes (likely UUID `id` vs numeric idx in `actuatorFavorites`). |
+| 7 | **Shutters debounce — assess** — FE `getUiLockTime('blinds')` uses fixed **7s**; backend `hub_handlers` uses proportional delay from `blinds.travel_times` / `default_travel_time_secs`. Confirm gap; align FE lock (and/or rubberband) with travel math if needed. |
 
 ### Item 2 — chart families (extends C10 item 5)
 
@@ -426,7 +428,9 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * B10G Automations load checklist / timings / log overlay; **B10H** cold-load shorten.
 * C11 Control vs History membership model (item 3 does not reopen it).
 
-**C12 DoD:** Items 1–5 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works like Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C12 DoD:** Items 1–7 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+*(Former **C14** — NOT CONNECTED investigate + admin page **`vNN`** — folded into **B10G** same ship block; see [`phaseB-blocky.md`](phaseB-blocky.md) § B10G.)*
 
 ---
 
@@ -471,15 +475,15 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * **C9:** All device-ref lines in `wanos.log`, every integration → `entity_id (name, idx N)` (automation-log parity / `format_device_ref`).
 * **C10:** Plural Nodes; Planned past/done **removed** from list (not relabeled); Hue COLOR OUTPUT text-only remove; climate legend/line parity; binary ON/OFF vs non-binary set vs motion hits (day Y + month/year counts); History omit **all** `type === "scene"`; filter+blinds drag stable. ✅ **Done 2026-08-11**.
 * **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
-* **C12:** Hue bri integer (nearest; ON 1–100; slider floor 1); binary month/year = duration ON (minutes/hours); motion hits unchanged + **visibility keep-as-is** (75xxx soft-hidden); C8 + `produced_at`; Z-Wave `-term` filter.
-* **C13:** Merge hide into Timers & types as Hidden column; retire `hiddendevices`; **rename TBD**; save model **assess**; after **C12**.
-* **C3:** Force ALL-OFF parallel-per-integration + 300ms pace + exclusion tags + confirm UX.
-* **C4:** Rename entrypoints; update all consumers.
+* **C12:** Hue bri integer; binary duration ON; motion keep-as-is; alert `produced_at`; Z-Wave `-term`; scene favorites bug; shutter debounce assess.
+* **C13:** Merge hide into Timers & types (Hidden column; retire `hiddendevices`; rename TBD; after **C12**).
+* **C4:** **`blocky`→`blockly`** — **`blockly.html` / `blockly.js`**; shell label **Blockly**; **not** `automations.*`.
 
 ## ❓ Residual Open Qs
 
 * *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10** — C10 closed by Pi smoke **2026-08-11**.)*
 * **C11** assess open until kickoff (queued).
 * **C12:** spec locked for triage **2026-08-11** (`produced_at` wire format = impl detail at kickoff).
-* **C13:** assess at kickoff — column UX; save model; **new page name** (todo); leave-guard; rename vs **C4**.
 * **C3 / C4** remain open as specified above (later in sequence).
+* **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
+* NOT CONNECTED + admin **`vNN`** → **B10G** (not a C subphase).

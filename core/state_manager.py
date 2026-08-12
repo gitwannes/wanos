@@ -277,8 +277,14 @@ class StateManager:
             if s_idx not in self._state.devices:
                 self._state.devices[s_idx] = None
 
-        if hasattr(self._config, "hue") and getattr(self._config.hue, "presets", None):
-            self._state.system.hue_presets = {k: v.model_dump() for k, v in self._config.hue.presets.items()}
+        hue_cfg = getattr(self._config, "hue", None)
+        if hue_cfg is not None:
+            preset_map = getattr(hue_cfg, "presets", None) or {}
+            self._state.system.hue_presets = {
+                k: v.model_dump() for k, v in preset_map.items()
+            }
+        else:
+            self._state.system.hue_presets = {}
 
         if getattr(self._config, "sonos", None) and getattr(self._config.sonos, "stations", None):
             self._state.system.sonos_stations = dict(self._config.sonos.stations)

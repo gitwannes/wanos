@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). G2 assess-on-Pi first; G1 analysis-gated; **G3** config anytime; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G5** still TODO — partial `Cinema rolluik half` (Open→50) live, **DoD gaps** in § G5; **G6** scoped `CONFIG_RELOAD` (assessed **2026-08-11**); **G7** log prefixes (**2026-08-11**).
+**Status:** Spec **LOCKED** (intent). G2 assess-on-Pi first; G1 analysis-gated; **G3** config anytime; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G5** still TODO — partial `Cinema rolluik half` (Open→50) live, **DoD gaps** in § G5; **G6** scoped reload + Admin modal (**assessed 2026-08-12**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**).
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. Blocky CRUD still dispatches `CONFIG_RELOAD_REQUESTED` (B1/B5) — **G6** narrows what that recycle does. Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags).
 
@@ -17,12 +17,13 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G2 — Hue state** | Boot + live color/bri truth; UI must match bridge |
 | **G6 — Scoped reload** | Automations / hide / auto-off save ≠ Hue·Onkyo·Z-Wave recycle |
 | **G7 — Log prefixes** | `[Onkyo]` (and peer) tag parity with `[HUE]` |
+| **G8 — Boot autostart** | ~30s “integrations disabled” after restart — shorten enable + honest Admin UX |
 | **G1 — Epson boot** | `get_power_state` when safe |
 | **G3 — OWM poll** | Outside temp/hum every **10′** (was 30′) |
 | **G4 — OWM daily + hot sun** | One Call 4.0 once/day; hot+full-sun → cinema opens to **60% open** |
-| **G5 — Rolluik zon half** | Dashboard control: cinema → **60% closed** if not fully closed (**partial** UE/UR live — gaps documented) |
+| **G5 — Rolluik zon half** | Dashboard **60% closed** if cinema not fully closed — **after B9C**; partial UE/UR live, gaps in § G5 |
 
-Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G3** is config-only and may ship anytime. **G4** before **G5** preferred (shared cinema-sun story); **G5** can ship alone if operator wants the manual button first.
+Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G3** is config-only and may ship anytime. **G4** before **G5** preferred (shared cinema-sun story); **G5** can ship alone if operator wants the manual button first.
 
 ---
 
@@ -99,9 +100,13 @@ Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot 
 
 ## 📋 G5 — Dashboard “rolluik zon half” 🔜 TODO
 
-**Origin:** operator request **2026-08-10**.
+**Origin:** operator request **2026-08-10**. **Blockly prerequisites** extended **2026-08-12** (operator).
 
 **Status check 2026-08-11:** **still TODO** — operator added a **partial** UE/UR on Pi/repo; **does not satisfy DoD**. Keep queued.
+
+### Blockly prerequisite — **Phase B9C** (Ship **B2**; before **B19**)
+
+G5 needs blinds **position ≠ 100** on **if**. **B9C** patches the **legacy** canvas; **B19** replaces it with Domoticz Compare blocks. **G5** may ship after **B9C**; re-author rule on B19 when **B3** lands. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B9C, B19.
 
 ### Live partial (not DoD)
 
@@ -113,62 +118,168 @@ Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot 
 ### Intent (DoD — unchanged)
 
 * Add a **dashboard** control labeled **“rolluik zon half”** (**user** catalog event + rule; Explorer via `show_on_dashboard` / `dashboard_events` — B10B+D+E shipped).
-* Action: if **`blinds.cinema` is not fully closed** (`state` ≠ `100`) → set cinema to **60% closed** (`state: 60`).
+* Action: if **`blinds.cinema` is not fully closed** (`position` / stored `state` **≠ 100**) → set cinema to **60% closed** (`state: 60`).
 * If already fully closed → **no-op** (do not open / crack the blind).
+* Rule authored in **Blockly** using blinds **position %** condition (see prerequisites above) — not Open-only (`0`).
 
 ### Cleanup
 
 * Existing rule **“Rolluik cinema half (zon)”** is misnamed: trigger `blinds.cinema` → `OPEN` turns on **badkamer Hue** — does **not** set a half position. **Retire or rename** when G5 lands so operators are not confused.
 
-**to be checked (G5 owns — not B9A):** whether “not fully closed” needs a new Blocky/device-state compare (after B9A thresholds exist), a small hub guard, or an always-set-to-60 with explicit skip-if-100 in rule engine. (Open-only condition in the partial rule is **not** accepted as DoD.)
-
-**G5 DoD:** Dashboard button visible (label **rolluik zon half** or rename partial to match); with cinema **open or mid**, tap → **60% closed**; with cinema fully closed, tap leaves it closed; misnamed Hue-on-OPEN rule gone or clearly renamed; Pi smoke. Partial `Cinema rolluik half` / Open→50 must be updated or replaced. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G5 DoD:** Blockly blinds **position %** on **if** shipped; dashboard button visible (label **rolluik zon half** or rename partial to match); rule condition **not fully closed** (`≠ 100` closed %), not Open-only; with cinema **open or mid**, tap → **60% closed**; with cinema fully closed, tap leaves it closed; misnamed Hue-on-OPEN rule gone or clearly renamed; Pi smoke. Partial `Cinema rolluik half` / Open→50 must be updated or replaced. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
-## 📋 G6 — Scoped `CONFIG_RELOAD` (automations save ≠ bridge recycle) 🔜 TODO
+## 📋 G6 — Scoped `CONFIG_RELOAD` + Admin scoped-reload modal 🔜 TODO
 
-**Origin:** triage **2026-08-11** (Pi log after Blocky automation rule save).
+**Origin:** triage **2026-08-11** (Pi log after Blocky automation rule save). **Expanded 2026-08-12** — Admin UX: keep **full** reload; add **scoped** reload with operator-selectable parts.
 
-**Problem:** Blocky / soft-hide / auto-off / events CRUD correctly dispatch `CONFIG_RELOAD_REQUESTED` (`source: api`), but `handle_config_reload_requested` always runs a **full** recycle: Hue stop/start + initial sync, Onkyo TCP bounce, RFX/Sonos map refresh, Z-Wave remap + MQTT re-subscribe, NVRAM reload via `rebuild_core_metadata`, passive post-reload sweep. Z-Wave listens to the same event and forces `_is_mapped` / `_integration_enabled` reset even when `config_zwave.auto.yaml` did not change.
+**Problem:** Blocky / soft-hide / auto-off / events / hue-preset CRUD correctly dispatch `CONFIG_RELOAD_REQUESTED`, but `handle_config_reload_requested` almost always runs a **full** recycle: `load_config()` + full `rebuild_core_metadata()` + Hue stop/start + Onkyo TCP bounce + RFX/Sonos map refresh + Z-Wave remap + MQTT re-subscribe + NVRAM re-read + passive post-reload sweep (~2s). Z-Wave listens to **any** reload and forces `_is_mapped` / `_integration_enabled` reset.
 
 **Observed harm (automation-only save):** ~15s Hue outage + init state flood; Onkyo reconnect; Z-Wave discovery flood; brief `DEAD`→live transitions that can **re-arm auto-off timers** (e.g. `berging 2e`).
 
-### Locked intent
+---
 
-* After an **automations-only** write (`automations:` / `events:` surgical CRUD), reload must refresh **rules engine config** (and events/dashboard extract when that catalog changed) — **not** tear down Hue / Onkyo / Z-Wave / MQTT.
-* Soft-hide / auto-off saves need their **own narrow** refresh (hide list / auto-off block + Explorer flags) — still **no** bridge recycle.
-* **Admin “Reload config”** (and any write that changes Hue / Z-Wave / Onkyo / hardware maps) may keep today’s **full** path.
-* Blocky operator policy unchanged: CRUD still auto-dispatches reload; no return to routine Admin reload for saves.
+### Today (shipped) — Admin **“Reload Config”** = **full reload**
 
-### Needed vs not (automation rule save) — triage baseline
+Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button" }` (no `scope`) → **full path**:
 
-| Action | Needed? |
-|---|---|
-| Re-read automations YAML into `AppConfig` + clear `AutomationEngine._config` | **Yes** |
-| Events/dashboard extract | **Only if** `events:` changed |
-| Soft-hide / auto-off rebuild | **No** (separate APIs) |
-| Hue tear-down + full initial sync | **No** |
-| Onkyo stop/start + TCP reconnect | **No** |
-| Z-Wave remap + MQTT re-subscribe + discovery flood | **No** |
-| NVRAM reload from disk | **No** (side effect of full metadata rebuild) |
-| Full hardware metadata purge/rebuild | **No** |
-| Post-reload sweeper | **Mostly no** (already passive / skips blinds) |
+| Step | What runs |
+|------|-----------|
+| 1 | `load_config()` — **all** YAML profiles from disk (`config.yaml`, `config_hardware.yaml`, `config_hue.yaml`, `config_hue_presets.auto.yaml`, `config_zwave.auto.yaml`, `automations.auto.yaml`) |
+| 2 | `AutomationEngine._config = None` |
+| 3 | `rebuild_core_metadata()` — full metadata purge/rebuild, orphan eviction, NVRAM re-read, scenes/events extract, soft-hide idxs, `hue_presets`, `sonos_stations`, entity_registry ensure/flush |
+| 4 | **Hue bridge recycle** — `stop()` → new config → `_initialize_mappings()` → `start()` (full initial sync) |
+| 5 | **RFX** — rebuild in/outbound translation maps |
+| 6 | **Sonos** — device/station maps + speaker socket refresh |
+| 7 | **Onkyo** — stop/start TCP listeners |
+| 8 | **Z-Wave** (async listener) — `_is_mapped = False` → remap + MQTT re-subscribe on next state tick |
+| 9 | **Post-reload sweep** scheduled (+2s, passive — skips blinds movement) |
 
-### Design fork (pick at kickoff — no code until chosen)
+**Partial today:** Timers & types API already sends `scope: "timers_types"` — skips step 4–7 only; still runs full steps 1–3 and 9.
 
-1. **Scoped reload reasons** on the event payload (`scope`: `automations` / `hide` / `auto_off` / `events` / `full`) — callers declare intent; handler + Z-Wave only do matching work.
-2. **Hash / fingerprint skip** — still one event; skip Hue/Onkyo/Z-Wave recycle unless relevant YAML fingerprints changed since last load.
+**Not re-read from disk on reload:** `entity_registry.auto.yaml` (runtime-written births; Pi sync pull only). `.env` / auth secrets (process env; service restart if changed).
 
-Prefer (1) if API writers already know what they touched; (2) if Admin/manual paths must stay dumb.
+---
+
+### Target Admin UX (locked intent)
+
+| Control | Behaviour |
+|---------|-----------|
+| **Full reload** (rename/clarify current **Reload Config** row) | Unchanged semantics — everything in table above. Use after multi-file edits, deploy, or “something feels stale”. |
+| **Scoped reload** (new row + modal) | **12** checkboxes (see catalog) — each with a one-line **summary** of what reloads + **when**; **Select all** / **Clear** only (no preset bundles). **Apply** → `{ mode: "scoped", scopes: [...] }`. |
+| Blocky / API auto-reload | Unchanged policy: CRUD still auto-dispatches reload — but with **minimal** `scopes` (not Admin full). No return to routine Admin reload for saves. |
+
+**Admin UI home:** [`frontend/admin.html`](../frontend/admin.html) (shell) — detail cross-link → [`phaseC-shell.md`](phaseC-shell.md) when C docs mention Admin maintenance row.
+
+---
+
+### Event payload (kickoff design)
+
+```json
+{
+  "type": "CONFIG_RELOAD_REQUESTED",
+  "payload": {
+    "source": "ui_button",
+    "mode": "full"
+  }
+}
+```
+
+```json
+{
+  "type": "CONFIG_RELOAD_REQUESTED",
+  "payload": {
+    "source": "ui_button",
+    "mode": "scoped",
+    "scopes": ["automations", "hue_presets"]
+  }
+}
+```
+
+* **`mode: "full"`** — equivalent to today’s Admin button (ignore `scopes`).
+* **`mode: "scoped"`** — run only listed scopes; empty `scopes` → reject 400.
+* **API callers** use `"source": "api"` + minimal `scopes` (see mapping table below).
+* **Legacy:** bare `{ source: "api" }` with no `mode`/`scopes` → treat as **full** until callers migrated.
+
+**Implementation fork (pick at kickoff):**
+
+1. **Explicit scopes** (preferred) — handler + Z-Wave listener branch on `scopes[]`.
+2. **Hash skip** — optional add-on: within a scope, skip bridge recycle if YAML mtime unchanged (Admin dumb paths benefit).
+
+---
+
+### Scope catalog — **12** modal checkboxes (locked **2026-08-12**)
+
+**Count: 12.** One checkbox each; no quick-pick bundles. Each row shows **label** + **summary** (what reloads) + **when** (why you'd pick it). Anything **not** listed (GPIO/SHT11 in `config_hardware.yaml`, NVRAM, full metadata orphan pass) → use **Full reload** only.
+
+| # | Scope id | Modal label | Summary (what it reloads) | When you'd reload this | Recycle? |
+|---|----------|-------------|---------------------------|-------------------------|----------|
+| 1 | `automations` | Automation rules | Re-read `automations:` from `automations.auto.yaml`; clear rules engine cache | After hand-editing rules on disk, restoring from backup, or Blocky save didn't hot-reload and rules behave stale | No |
+| 2 | `events` | Events catalog | Re-read `events:`; refresh Library SE rows + Explorer dashboard buttons | After editing event names/UUIDs/show flags, or dashboard/Library buttons don't match `automations.auto.yaml` | No |
+| 3 | `soft_hide` | Explorer soft-hide | Re-read `deviceexplorer_hide:`; refresh hidden-device idx list | After editing hide list on disk or hidden devices still visible after Hidden-devices save | No |
+| 4 | `timers_types` | Timers & product types | Re-read `auto_off_devices:` + `device_product_types:`; refresh auto-off + type labels | After Timers & types save glitch, hand-editing auto-off minutes/types, or Explorer shows wrong light/switch type | No |
+| 5 | `hue_presets` | Hue colour presets | Re-read `config_hue_presets.auto.yaml` → `system.hue_presets` | After `wanos-sync` pulled `.auto` from Pi, hand-editing presets on disk, or colour-wheel chips missing/wrong (no bridge work) | No |
+| 6 | `hue_maps` | Hue bridge & maps | Re-read `config_hue.yaml` (bridge, lights, groups, scenes); **Hue bridge stop → remap → sync** | After adding/mapping Hue lights/groups locally (`hue_discovery.py`), changing bridge IP, or Explorer Hue names/idx wrong | **Hue** |
+| 7 | `zwave_map` | Z-Wave device map | Re-read `config_zwave.auto.yaml`; **MQTT re-subscribe + endpoint remap** | After Z-Wave config page save, provisioning new nodes, or Z-Wave devices missing/wrong in Explorer | **Z-Wave** |
+| 8 | `config_yaml` | Runtime config | Re-read **`config.yaml`** runtime blocks: `sauna`, `ir`, `bathroom1`, `blinds`, `environmental_schedule`, `weather`, `history`, `hardware_links`, `wanos` (non-secret); refresh domain config + OWM idx metadata + schedule clamps | After hand-editing sauna/IR/blinds/schedule/weather/history/power-link settings on PC and syncing, or env-schedule / sauna timing behaves stale — **without** touching integrations (pick 9–12 separately) | No |
+| 9 | `sonos` | Sonos | Re-read `sonos:` in `config.yaml`; speaker map + station dictionary | After changing speaker IPs, TuneIn station keys, or Blocky station picker / Explorer Sonos names stale | No |
+| 10 | `onkyo` | Onkyo AVR | Re-read `onkyo:` in `config.yaml`; **TCP listeners stop/start** | After receiver IP change, adding/removing a zone, or Onkyo volume/power UI stuck after config edit | **Onkyo** |
+| 11 | `rfx_native` | Native RFX (433 MHz) | Re-read `rfxcom:` + `native_rfx:` in `config.yaml`; rebuild RF translation maps | After editing virtual RFX devices or USB path, or 433 MHz switches not responding to mapped idx | No |
+| 12 | `epson` | Epson projector | Re-read `epson:` in `config.yaml`; projector idx metadata | After changing projector IP in `config.yaml` or cinema projector switch misnamed/offline in UI | No |
+
+**Modal layout:** numbered list 1–12; checkbox + **bold label** + grey **summary** line + grey **When:** line; ⚠ icon when row 6, 7, or 10 selected (bridge/TCP recycle). **Select all** / **Clear** at top — no bundle shortcuts.
+
+**Note:** Row **8** (`config_yaml`) and rows **9–12** all read from `config.yaml`; handler may re-read the file once if multiple are selected. Row 8 intentionally **excludes** integration blocks covered by 9–12 so operators can reload sauna/schedule without Sonos/Onkyo/RFX/Epson recycle.
+
+**Full reload still includes (not in the 12):** `config_hardware.yaml` (GPIO/SHT11); `wanos-nvram.json`; full `rebuild_core_metadata()` orphan pass; post-reload passive sweep. **`.env` / auth secrets** — service restart. **`entity_registry.auto.yaml`** — never a disk read on reload (runtime births).
+
+**When to use Full reload:** after `wanos-sync` deploy, editing **several** YAML files at once, changing **GPIO/SHT11**, NVRAM/counters, or when you don't know which slice is stale — accepts ~15s Hue outage + integration recycle.
+
+#### Not in modal (operator cannot hot-reload)
+
+| Item | Why |
+|------|-----|
+| `entity_registry.auto.yaml` | Runtime births / freeze — not a config read path |
+| `.env` / JWT secrets | Process environment — **service restart** |
+| `config_lab.yaml` | Lab/sim profile — separate from production reload path |
+
+---
+
+### API → minimal scope mapping (after G6)
+
+| Writer | Today | Target `scopes` |
+|--------|-------|-----------------|
+| `POST/PUT/DELETE /api/automations` | full | `automations` |
+| Events CRUD | full | `events` (+ `automations` if listener rules reference changed rules) |
+| `PUT /api/soft-hide` | full | `soft_hide` |
+| `PUT /api/auto-off-timer` | `timers_types` | `timers_types` *(keep)* |
+| Hue preset CRUD | full | `hue_presets` only |
+
+**First implementation:** **`hue_presets` API path** ships in **B10G Part D** (handler fast-path + Z-Wave ignore scoped reload). **G6** Admin 12-checkbox modal ships later in **G6**.
+| Z-Wave config save | full | `zwave_map` |
+| Admin **Full reload** | full | `mode: "full"` |
+
+---
+
+### Dependencies (enforce in UI + handler)
+
+* `config_yaml` (row 8) reloads runtime `config.yaml` blocks only — **does not** imply Sonos/Onkyo/RFX/Epson recycle (rows 9–12).
+* `hue_maps` ⊃ implies Hue bridge recycle; independent of `hue_presets`.
+* `zwave_map` ⊃ Z-Wave listener reset — do **not** fire on `automations` / `hue_presets` alone.
+* `events` may require `automations` if engine reads cross-linked rule names — handler may auto-add or document order.
+* Selecting **only** `hue_presets` must **not** stop Hue bridge (operator expectation after split-file work).
+
+---
 
 ### Not this item
 
-* Hue color/bri truth vs bridge → **G2**.
+* Hue live color/bri truth vs bridge → **G2**.
 * Blocky save chrome / Library polish → **B10F** ✅.
 * Changing *whether* CRUD dispatches reload (B1/B5 policy stays).
+* Replacing `wanos-sync` — sync remains file transport; reload applies RAM.
 
-**G6 DoD:** Blocky automation (and events) save: rules live immediately; **no** Hue torn-down / Onkyo stopped / Z-Wave “Core config reload… Rebuilding…” / MQTT re-open in logs; no spurious auto-off re-arm from rediscovery. Soft-hide / auto-off saves update Explorer/timers without bridge recycle. Admin full reload still remaps integrations when hardware YAML changed. Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G6 DoD:** Admin shows **Full reload** (today’s behaviour, labelled) + **Scoped reload** modal with **12** checkboxes (summaries + when per row; no bundles). Blocky automation/events save: rules/catalog live immediately; **no** Hue torn-down / Onkyo stopped / Z-Wave remap in logs when only scopes 1–5 / 8 selected. Hue preset CRUD: scope 5 only. Soft-hide / timers saves: scopes 3 / 4 only. Full reload still remaps all integrations + remaining YAML. API callers migrated to minimal scopes. Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -182,3 +293,40 @@ Prefer (1) if API writers already know what they touched; (2) if Admin/manual pa
 **Not this item:** device-ref shape → **C9** (done); Automations CRUD INFO → **B10F** item 11 ✅.
 
 **G7 DoD:** Onkyo bridge start/stop (and peers audited) use `[Onkyo]`-style tags in `wanos.log`; Pi smoke one reload/start path. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 G8 — Boot autostart timing (integrations “disabled” ~30s) 🔜 TODO
+
+**Origin:** operator inbox **2026-08-12** + bootlog analysis. Size **mid**. **Separate from B10G** (Automations overlays / NOT CONNECTED) and **B10H** (Automations cold-load shorten). Pipeline detail → [`pipeline.md`](pipeline.md) § **G8**.
+
+**Problem:** With `WANOS_AUTOSTART=true`, Admin shows integration master switches **DISABLED** for **~26–30s** after HTTP/SSE is online. Bootlog: +5s autostart delay; sync `load_config()` in simulator blocks event loop ~10s; ten separate toggle events → staggered SSE updates (~11s between first and rest). `*_integration_enabled` defaults **false** in `SystemState`; bridges may already be running from `lifespan`.
+
+**Ship:** **Option A + Option B** in one PR. **Out of scope:** persist last-known enabled flags to NVM (separate design decision).
+
+### Option A — shorten real enablement (backend)
+
+| Lever | Where |
+|---|---|
+| Offload `load_config()` | `hardware/simulator.py`, `core/event_handlers/system_handlers.py` — `asyncio.to_thread` |
+| Single `MASTER_START` event | `main.py`, new handler — atomic flags, one broadcast |
+| Trim / overlap 5s autostart delay | `main.py` `delayed_autostart` |
+| Non-blocking Sonos / Onkyo `start()` | `core/event_handlers/integration_handlers.py` — `create_task` |
+| Boot timing logs | Master Start → each flag true |
+
+Kickoff: profile `on_state_changed` if gap persists after thread offload.
+
+### Option B — honest Admin UX
+
+| Lever | Where |
+|---|---|
+| `system.autostart_in_progress` | `core/models.py`, `main.py`, SSE `system` domain |
+| Admin **STARTING** / **ARMING** states | `frontend/admin.html`, `app.js` |
+| Z-Wave “arming” copy | Match defer-until-MQTT behaviour |
+
+**G8 DoD:**
+
+- [ ] Option A: measurable shorter time from HTTP online to all intended `*_integration_enabled` true on Pi (baseline = bootlog **2026-08-12**).
+- [ ] Option B: Admin shows **STARTING** (not **DISABLED**) during autostart; Z-Wave defer shows **ARMING** until auto-recover.
+- [ ] Pi smoke: full `wanos` restart with `WANOS_AUTOSTART=true`; Admin opened within first 30s — no misleading “all disabled” without starting indicator.
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

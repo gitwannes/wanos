@@ -56,7 +56,7 @@ function wanosApp() {
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
                 dashboard_events: [], // ⚡ B10B: Explorer buttons from events: catalog ({id, name, require_confirmation})
                 hidden_explorer_idxs: [], // ⚡ Devices to hide from the Device Explorer
-                hue_presets: {}, // ⚡ Dynamically injected from config_hue.yaml
+                hue_presets: {}, // From config_hue_presets.auto.yaml (Pi) via load_config / SSE
                 sonos_stations: {} // ⚡ TuneIn station key → URI from config.yaml (Blocky 6C)
             },
             sensors: {
@@ -158,6 +158,22 @@ function wanosApp() {
         activeLightBri: 100,
         activeLightHex: "#FFD180",
         colorPicker: null, // ⚡ Holds the iro.js UI instance
+        // B9A: Hue colour-preset CRUD (config_hue_presets.auto.yaml) in Explorer Edit mode
+        huePresetEditMode: false,
+        huePresetUsages: {},
+        /** Last preset chip clicked; used with xy+bri match for Save-current gating. */
+        activeHuePresetKey: null,
+        /** True only after user tweaks wheel/brightness since selecting/saving a preset. */
+        huePresetDirtySinceSelect: false,
+        /** Suppress preset-key clear while iro snaps to a preset colour programmatically. */
+        _huePresetApplyGuard: false,
+        /** DaisyUI modals for preset save/rename/delete (replaces window.prompt/confirm). */
+        huePresetNameModalTitle: "",
+        huePresetNameInput: "",
+        huePresetNameModalMode: null,
+        huePresetNameModalKey: null,
+        huePresetDeleteKey: null,
+        huePresetDeleteDisplayName: "",
         // ⚡ Scene Confirmation Modal State
         activeSceneId: null,
         activeSceneName: "",
@@ -4113,14 +4129,16 @@ function wanosApp() {
         openLightModal(item) {
             this.activeLightId = item.id;
             this.activeLightName = item.name;
+            this.activeHuePresetKey = null;
+            this.huePresetDirtySinceSelect = false;
+            this.huePresetEditMode = false;
 
             // Load existing color from backend state, or default to Warm White
             if (typeof item.raw_value === 'object' && item.raw_value !== null) {
                 this.activeLightBri = item.raw_value.bri !== undefined ? item.raw_value.bri : 100;
-                this.activeLightHex = this.xyToHex(
+                this.activeLightHex = this.xyToWheelHex(
                     item.raw_value.xy ? item.raw_value.xy[0] : undefined,
-                    item.raw_value.xy ? item.raw_value.xy[1] : undefined,
-                    this.activeLightBri
+                    item.raw_value.xy ? item.raw_value.xy[1] : undefined
                 );
             } else {
                 this.activeLightBri = 100;
@@ -4139,13 +4157,23 @@ function wanosApp() {
                         ]
                     });
 
-                    // Update Alpine state when user drags the wheel
+                    // Update Alpine state from wheel changes.
                     this.colorPicker.on('color:change', (color) => {
+                        if (this.huePresetEditMode) return;
                         this.activeLightHex = color.hexString;
+                    });
+
+                    // User drag starts → this is no longer "exactly the selected preset".
+                    this.colorPicker.on('input:start', () => {
+                        if (this.huePresetEditMode) return;
+                        if (!this._huePresetApplyGuard && this.activeHuePresetKey) {
+                            this.huePresetDirtySinceSelect = true;
+                        }
                     });
 
                     // Send API call ONLY when the user stops dragging to prevent network spam
                     this.colorPicker.on('input:end', (color) => {
+                        if (this.huePresetEditMode) return;
                         this.updateActiveLightState();
                     });
                 }, 50); // Tiny delay ensures DaisyUI modal has rendered the div
@@ -4155,20 +4183,246 @@ function wanosApp() {
             }
 
             document.getElementById('light_control_modal').showModal();
+            if (this.isAdmin) {
+                this.refreshHuePresetsCatalog();
+            }
         },
 
-        applyPreset(preset) {
-            this.activeLightBri = preset.bri;
-            // The preset has xy coordinates. We need to convert xy back to hex for the UI wheel!
-            this.activeLightHex = this.xyToHex(preset.xy[0], preset.xy[1], preset.bri);
+        applyPreset(preset, key) {
+            if (!preset) return;
+            const prevHex = String(this.activeLightHex || "");
+            const prevBri = parseInt(this.activeLightBri, 10);
 
-            // Instantly snap the iro.js color wheel to the new preset color
-            if (this.colorPicker) {
+            this.activeHuePresetKey = key;
+            this.huePresetDirtySinceSelect = false;
+            this.activeLightBri = preset.bri;
+            // For rgb-backed presets keep exact wheel color; fallback to xy.
+            const nextHex = preset.rgb
+                ? String(preset.rgb)
+                : this.xyToWheelHex(preset.xy[0], preset.xy[1]);
+            this.activeLightHex = nextHex;
+
+            const shouldSkipWheelSnap =
+                String(prevHex).trim().toUpperCase() === String(nextHex || "").trim().toUpperCase()
+                && parseInt(prevBri, 10) === parseInt(this.activeLightBri, 10);
+
+            // Instantly snap the iro.js color wheel to the new preset color.
+            this._huePresetApplyGuard = true;
+            if (this.colorPicker && !shouldSkipWheelSnap) {
                 this.colorPicker.color.hexString = this.activeLightHex;
             }
+            setTimeout(() => {
+                this._huePresetApplyGuard = false;
+            }, 80);
 
             // Dispatch the command to the physical bulb, but leave the modal open for tweaking!
             this.updateActiveLightState();
+        },
+
+        /** B9A: refresh preset chips + usage map (immediate UI; does not wait for SSE reload). */
+        async refreshHuePresetsCatalog() {
+            try {
+                const res = await fetch("/api/hue-presets", { headers: this.getAuthHeaders() });
+                if (!res.ok) return;
+                const data = await res.json();
+                // Replace wholesale so Alpine x-for picks up add/rename/delete immediately.
+                this.state.system = {
+                    ...this.state.system,
+                    hue_presets: { ...(data.presets || {}) }
+                };
+                this.huePresetUsages = data.usages || {};
+            } catch (e) { /* ignore */ }
+        },
+
+        _applyHuePresetCatalogPatch(key, preset) {
+            if (!key) return;
+            const next = { ...(this.state.system.hue_presets || {}) };
+            if (preset) {
+                next[key] = preset;
+            } else {
+                delete next[key];
+            }
+            this.state.system = {
+                ...this.state.system,
+                hue_presets: next
+            };
+        },
+
+        _huePresetDisplayNameTaken(name, excludeKey) {
+            const target = String(name || "").trim().toLowerCase();
+            if (!target) return false;
+            const presets = this.state.system.hue_presets || {};
+            return Object.entries(presets).some(([key, preset]) => {
+                if (excludeKey && key === excludeKey) return false;
+                const label = String((preset && preset.name) || key).trim().toLowerCase();
+                return label === target;
+            });
+        },
+
+        /** True when wheel xy + brightness slider match the last clicked preset chip. */
+        hueCurrentMatchesActivePreset() {
+            return !!this.activeHuePresetKey && !this.huePresetDirtySinceSelect;
+        },
+
+        onHueBrightnessInput() {
+            if (this.huePresetEditMode) return;
+            if (!this._huePresetApplyGuard && this.activeHuePresetKey) {
+                this.huePresetDirtySinceSelect = true;
+            }
+            this.updateActiveLightState();
+        },
+
+        openHuePresetSaveModal() {
+            if (this.hueCurrentMatchesActivePreset()) return;
+            this.huePresetNameModalMode = "save";
+            this.huePresetNameModalKey = null;
+            this.huePresetNameModalTitle = "Save colour preset";
+            this.huePresetNameInput = "";
+            document.getElementById("hue_preset_name_modal")?.showModal();
+        },
+
+        openHuePresetRenameModal(key, preset) {
+            this.huePresetNameModalMode = "rename";
+            this.huePresetNameModalKey = key;
+            this.huePresetNameModalTitle = "Rename preset";
+            this.huePresetNameInput = (preset && preset.name) || key;
+            document.getElementById("hue_preset_name_modal")?.showModal();
+        },
+
+        cancelHuePresetNameModal() {
+            document.getElementById("hue_preset_name_modal")?.close();
+            this.huePresetNameModalMode = null;
+            this.huePresetNameModalKey = null;
+            this.huePresetNameInput = "";
+        },
+
+        async confirmHuePresetNameModal() {
+            const trimmed = String(this.huePresetNameInput || "").trim();
+            if (!trimmed) return;
+            const mode = this.huePresetNameModalMode;
+            const key = this.huePresetNameModalKey;
+            this.cancelHuePresetNameModal();
+            if (mode === "save") {
+                await this.saveCurrentAsHuePreset(trimmed);
+            } else if (mode === "rename" && key) {
+                await this.renameHuePreset(key, trimmed);
+            }
+        },
+
+        openHuePresetDeleteModal(key, preset) {
+            const usages = (this.huePresetUsages && this.huePresetUsages[key]) || [];
+            if (usages.length) {
+                this.showToast(`Cannot delete — in use by: ${usages.join(", ")}`);
+                return;
+            }
+            this.huePresetDeleteKey = key;
+            this.huePresetDeleteDisplayName = (preset && preset.name) || key;
+            document.getElementById("hue_preset_delete_modal")?.showModal();
+        },
+
+        cancelHuePresetDeleteModal() {
+            document.getElementById("hue_preset_delete_modal")?.close();
+            this.huePresetDeleteKey = null;
+            this.huePresetDeleteDisplayName = "";
+        },
+
+        async confirmHuePresetDeleteModal() {
+            const key = this.huePresetDeleteKey;
+            this.cancelHuePresetDeleteModal();
+            if (key) {
+                await this.deleteHuePreset(key);
+            }
+        },
+
+        async saveCurrentAsHuePreset(name) {
+            if (this.hueCurrentMatchesActivePreset()) return;
+            const trimmed = String(name || "").trim();
+            if (!trimmed) return;
+            if (this._huePresetDisplayNameTaken(trimmed)) {
+                this.showToast(`A preset named "${trimmed}" already exists.`);
+                return;
+            }
+            try {
+                const res = await fetch("/api/hue-presets", {
+                    method: "POST",
+                    headers: { ...this.getAuthHeaders(), "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name: trimmed,
+                        bri: parseInt(this.activeLightBri, 10),
+                        rgb: String(this.activeLightHex || "").trim()
+                    })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    this.showToast(data.error || "Failed to save preset");
+                    return;
+                }
+                if (data.key && data.preset) {
+                    this._applyHuePresetCatalogPatch(data.key, data.preset);
+                    // Immediately treat the saved preset as "active" so Save-current disables.
+                    this.activeHuePresetKey = data.key;
+                    this.huePresetDirtySinceSelect = false;
+                    this.activeLightBri = data.preset.bri;
+                    this.activeLightHex = data.preset.rgb
+                        ? String(data.preset.rgb)
+                        : this.xyToWheelHex(data.preset.xy[0], data.preset.xy[1]);
+                }
+                await this.refreshHuePresetsCatalog();
+            } catch (e) {
+                this.showToast(String(e && e.message ? e.message : e));
+            }
+        },
+
+        async renameHuePreset(key, name) {
+            const trimmed = String(name || "").trim();
+            if (!trimmed) return;
+            if (this._huePresetDisplayNameTaken(trimmed, key)) {
+                this.showToast(`A preset named "${trimmed}" already exists.`);
+                return;
+            }
+            try {
+                const res = await fetch(`/api/hue-presets/${encodeURIComponent(key)}`, {
+                    method: "PUT",
+                    headers: { ...this.getAuthHeaders(), "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: trimmed })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    this.showToast(data.error || "Failed to rename preset");
+                    return;
+                }
+                if (data.key && data.preset) {
+                    this._applyHuePresetCatalogPatch(data.key, data.preset);
+                }
+                await this.refreshHuePresetsCatalog();
+            } catch (e) {
+                this.showToast(String(e && e.message ? e.message : e));
+            }
+        },
+
+        async deleteHuePreset(key) {
+            try {
+                const res = await fetch(`/api/hue-presets/${encodeURIComponent(key)}`, {
+                    method: "DELETE",
+                    headers: this.getAuthHeaders()
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const extra = (data.usages && data.usages.length)
+                        ? ` — in use: ${data.usages.join(", ")}`
+                        : "";
+                    this.showToast((data.error || "Failed to delete preset") + extra);
+                    return;
+                }
+                if (this.activeHuePresetKey === key) {
+                    this.activeHuePresetKey = null;
+                    this.huePresetDirtySinceSelect = false;
+                }
+                this._applyHuePresetCatalogPatch(key, null);
+                await this.refreshHuePresetsCatalog();
+            } catch (e) {
+                this.showToast(String(e && e.message ? e.message : e));
+            }
         },
 
         updateActiveLightState() {
@@ -4184,6 +4438,11 @@ function wanosApp() {
                 xy: xy,
                 force: true
             });
+        },
+
+        // 🧮 Converts CIE 1931 [x, y] to hex for the iro.js wheel (fixed reference brightness).
+        xyToWheelHex(x, y) {
+            return this.xyToHex(x, y, 100);
         },
 
         // 🧮 Converts CIE 1931 [x, y] color space to standard Hex string for the UI Color Wheel

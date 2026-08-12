@@ -439,21 +439,27 @@ def _expand_v2_case_to_flat(
         suffix = f"#c{case_index}"
     elif isinstance(trigger, dict) and trigger.get("entity_id"):
         eid = trigger["entity_id"]
+        # B9A: preserve numeric When op/attribute from shared v2 trigger onto each flat clone.
+        extra: Dict[str, Any] = {}
+        if trigger.get("op"):
+            extra["op"] = trigger["op"]
+        if trigger.get("attribute"):
+            extra["attribute"] = trigger["attribute"]
         if to_state_u in ("ON", "OFF", "OPEN", "CLOSED"):
-            flat_trigger = {"entity_id": eid, "state": to_state_u}
+            flat_trigger = {"entity_id": eid, "state": to_state_u, **extra}
             suffix = f"#{to_state_u.lower()}"
             label = f" [{to_state_u}]"
         elif to_state is not None:
             st = str(to_state)
-            flat_trigger = {"entity_id": eid, "state": st}
+            flat_trigger = {"entity_id": eid, "state": st, **extra}
             suffix = f"#{st.lower()}"
             label = f" [{st}]"
         elif trigger.get("state"):
-            flat_trigger = {"entity_id": eid, "state": trigger["state"]}
+            flat_trigger = {"entity_id": eid, "state": trigger["state"], **extra}
             suffix = f"#c{case_index}" if case_index else ""
         else:
             # No edge — should not match device transitions usefully; still emit
-            flat_trigger = {"entity_id": eid}
+            flat_trigger = {"entity_id": eid, **extra}
             suffix = f"#c{case_index}"
     elif isinstance(trigger, dict) and trigger.get("event"):
         # B10B: event bus token is UUID (or legacy key → UUID via to_bus_token).

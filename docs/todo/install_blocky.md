@@ -6,7 +6,7 @@
 
 | Topic | File |
 |---|---|
-| Blocky phases **B0–B8**, **B10A/C**, **B10B+D+E**, **B10F** ✅, next **B9A** (spec locked) / queued **B10G** / **B10H** / **B9B** / **B11–B18** | [`phaseB-blocky.md`](phaseB-blocky.md) |
+| Blocky phases **B0–B8**, **B10A/C**, **B10B+D+E**, **B10F** ✅ · **B9A** (Pi smoke) → **Blockly cluster B9C/B19…** · [`pipeline.md`](pipeline.md) § Blockly ship groups | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | Sequence / Done / Change log | [`pipeline.md`](pipeline.md) |
 | Schedule admin + Library SE/SR model | [`../env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) |
 | Gmail transport (H5) | [`phaseE-gmail.md`](phaseE-gmail.md) |

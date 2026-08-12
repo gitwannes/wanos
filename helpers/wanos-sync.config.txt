@@ -20,6 +20,10 @@
 #   Empty LocalLogSubdir = land flat next to DBs; otherwise StatsDest\<LocalLogSubdir>\
 # =============================================================================
 
+[MirrorBootstrapFiles]
+# Push Local→Pi only when missing on Pi (seed). Still MirrorExclude on full mirror.
+config_hue_presets.auto.yaml
+
 [MirrorExcludeDirs]
 # Local-only / never deploy
 .git
@@ -41,6 +45,7 @@ __pycache__
 # Pi-owned runtime (pushing from PC destroys live state / fights StatsRepoPull)
 entity_registry.auto.yaml
 automations.auto.yaml
+config_hue_presets.auto.yaml
 wanos-nvram.json
 wanos-nvram.json.tmp
 .lgd-nfy0
@@ -76,6 +81,7 @@ wanos-nvram.json.tmp
 # Do NOT also mirror these Local-->Pi in the same run (that push+pull fights itself).
 entity_registry.auto.yaml
 automations.auto.yaml
+config_hue_presets.auto.yaml
 
 [PiSsh]
 # SSH + rsync for all jobs. Key auth BatchMode=yes. No Samba/Z: required.

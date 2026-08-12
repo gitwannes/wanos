@@ -69,6 +69,45 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
     changed_domains = set()
 
     try:
+        # B9A: Hue preset CRUD must be lightning fast.
+        # Avoid full load_config() + rebuild_core_metadata() (which triggers NVRAM + all integration reloads).
+        if scope == "hue_presets":
+            try:
+                from core.hue_presets_store import read_presets
+                from core.config import HuePresetConfig
+                from logic.automation_rules import AutomationEngine
+
+                raw_presets = read_presets()
+                new_presets: dict[str, HuePresetConfig] = {}
+                for key, raw in raw_presets.items():
+                    if not isinstance(raw, dict):
+                        continue
+                    xy = raw.get("xy")
+                    xy_val = xy if isinstance(xy, list) and len(xy) >= 2 else None
+                    rgb_val = raw.get("rgb")
+                    new_presets[str(key)] = HuePresetConfig(
+                        name=str(raw.get("name") or key),
+                        bri=int(raw.get("bri") or 0),
+                        xy=xy_val,
+                        rgb=rgb_val,
+                    )
+
+                # Update in-memory config (used by automation rules at runtime)
+                if getattr(manager._config, "hue", None) is not None:
+                    manager._config.hue.presets = new_presets
+
+                # Update UI-facing state only (no metadata rebuild, no NVRAM reload)
+                manager._state.system.hue_presets = {k: v.model_dump() for k, v in new_presets.items()}
+
+                # Reset any cached config reference in rules engine
+                AutomationEngine._config = None
+
+                state_changed = True
+                changed_domains.update({"system"})
+                return state_changed, changed_domains
+            except Exception as e:
+                await manager.logger.error(f"Fast hue_presets reload failed; falling back to full reload: {e}")
+
         from logic.automation_rules import AutomationEngine
         new_config = load_config()
         manager._config = new_config
@@ -78,7 +117,7 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         manager.rebuild_core_metadata()
 
         # D1: scoped reload — skip bridge recycle for Timers & types saves.
-        full_recycle = scope not in ("auto_off_metadata", "timers_types", "product_types")
+        full_recycle = scope not in ("auto_off_metadata", "timers_types", "product_types", "hue_presets")
         if full_recycle:
             # RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
             if manager.hue_bridge:

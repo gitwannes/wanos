@@ -20,6 +20,18 @@ At the top of each file, add a file reference:
 <!-- --- file: templates/index.html --- -->
 ```
 
+## Page version (admin cache-bust)
+
+Every operator HTML page must expose a **page version** for deploy verification:
+
+- **Format:** integer only, displayed as `vNN` (e.g. `v24`) — **no** semver on the badge.
+- **Placement:** immediately **right of the page title** in the shell header (e.g. `Automation v24`).
+- **Visibility:** **admin only** (`isAdmin` / JWT role gate — same as other admin-only chrome).
+- **Scope:** **per page** — each HTML entrypoint has its own counter; bump that page’s version when **that** HTML or **its** linked JS changes (shared `wanos-shell.js` / `app.js` bumps every page that includes them — document in commit/chat which pages were bumped).
+- **Agent duty:** on every HTML/JS edit that ships to an operator page, **increment** the affected page version(s) and **tell the operator** the latest `vNN` per touched page so they can confirm cache refresh.
+
+Implement via shared shell helper when present (`wanos-shell.js` title block); pages without shell get the same pattern locally.
+
 ## Comments
 
 - Update existing comments when markup changes.

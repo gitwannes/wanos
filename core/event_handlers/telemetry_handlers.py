@@ -34,6 +34,9 @@ async def handle_power_updated(event: Event, manager: Any) -> Tuple[bool, Set[st
     avg_val = round(sum(history) / len(history), 1)
 
     # GENERIC CATCH-ALL: Universally store ALL power sensors in the generic registry
+    prev_power = manager._state.devices.get(idx)
+    if "old_value" not in payload:
+        payload["old_value"] = prev_power
     if manager._state.devices.get(idx) != avg_val:
         manager._state.devices[idx] = avg_val
         state_changed = True
@@ -256,6 +259,9 @@ async def handle_temp_updated(event: Event, manager: Any) -> Tuple[bool, Set[str
     current = manager._state.devices.get(idx)
     if not isinstance(current, dict):
         current = {}
+    # B9A: stamp previous temp for numeric When edge-cross in AutomationEngine.
+    if "old_value" not in payload:
+        payload["old_value"] = current.get("temp")
     if current.get("temp") != val:
         current["temp"] = val
         manager._state.devices[idx] = current
@@ -295,6 +301,9 @@ async def handle_humidity_updated(event: Event, manager: Any) -> Tuple[bool, Set
     current = manager._state.devices.get(idx)
     if not isinstance(current, dict):
         current = {}
+    # B9A: stamp previous hum for numeric When edge-cross.
+    if "old_value" not in payload:
+        payload["old_value"] = current.get("hum")
     if current.get("hum") != val:
         current["hum"] = val
         manager._state.devices[idx] = current

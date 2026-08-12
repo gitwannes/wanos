@@ -99,6 +99,7 @@ function Read-WanosSyncConfig {
     }
 
     $sectionLists = @{
+        "MirrorBootstrapFiles" = New-Object System.Collections.Generic.List[string]
         "MirrorExcludeDirs"  = New-Object System.Collections.Generic.List[string]
         "MirrorExcludeFiles" = New-Object System.Collections.Generic.List[string]
         "StatsInclude"       = New-Object System.Collections.Generic.List[string]
@@ -170,6 +171,7 @@ function Read-WanosSyncConfig {
     }
 
     return @{
+        MirrorBootstrapFiles = @($sectionLists["MirrorBootstrapFiles"])
         MirrorExcludeDirs  = @($sectionLists["MirrorExcludeDirs"])
         MirrorExcludeFiles = @($sectionLists["MirrorExcludeFiles"])
         StatsInclude       = @($sectionLists["StatsInclude"])
@@ -180,11 +182,13 @@ function Read-WanosSyncConfig {
 
 Write-SyncVerbose "Loading sync config: $SyncConfigPath"
 $SyncConfig = Read-WanosSyncConfig -Path $SyncConfigPath
+$MirrorBootstrapFiles = $SyncConfig.MirrorBootstrapFiles
 $MirrorExcludeDirs  = $SyncConfig.MirrorExcludeDirs
 $MirrorExcludeFiles = $SyncConfig.MirrorExcludeFiles
 $StatsInclude       = $SyncConfig.StatsInclude
 $StatsRepoPull      = $SyncConfig.StatsRepoPull
 $PiSsh              = $SyncConfig.PiSsh
+Write-SyncVerbose ("  MirrorBootstrapFiles: {0}" -f $MirrorBootstrapFiles.Count)
 Write-SyncVerbose ("  MirrorExcludeDirs : {0}" -f $MirrorExcludeDirs.Count)
 Write-SyncVerbose ("  MirrorExcludeFiles: {0}" -f $MirrorExcludeFiles.Count)
 Write-SyncVerbose ("  StatsInclude      : {0}" -f $StatsInclude.Count)
@@ -327,6 +331,18 @@ function Get-RemoteSpec {
     )
     $path = $RemotePath.TrimEnd("/")
     return "{0}@{1}:{2}" -f $Ssh.User, $Ssh.Host, $path
+}
+
+function Test-RemoteFileExists {
+    param(
+        [hashtable]$Ssh,
+        [string]$RemoteFilePath
+    )
+    $remote = "{0}@{1}" -f $Ssh.User, $Ssh.Host
+    # Single remote argv: test -f '<path>' (path embedded; Pi paths have no single quotes)
+    $script = "test -f '$RemoteFilePath' && echo yes || echo no"
+    $out = & ssh.exe -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
+    return ($out -match "yes")
 }
 
 function ConvertTo-RsyncExcludeArgs {
@@ -528,6 +544,57 @@ function Invoke-WanosLocalMirrorJob {
 }
 
 # =============================================================================
+# JOB 0 - BOOTSTRAP (Local --> Pi when remote file missing)
+# =============================================================================
+
+function Invoke-WanosBootstrapPushJob {
+    param(
+        [string]$Source,
+        [hashtable]$Ssh,
+        [string[]]$BootstrapFiles,
+        [switch]$DryRun
+    )
+
+    if ($BootstrapFiles.Count -eq 0) {
+        return
+    }
+
+    Write-SyncJobHeader "=== BOOTSTRAP (Local --> Pi when missing) ==="
+    $remoteRoot = $Ssh.RemoteRoot.TrimEnd("/")
+    $sshShell = Get-SshRsyncShellArg
+    $repoLocal = ConvertTo-RsyncLocalPath -WindowsPath $Source
+    if (-not $repoLocal.EndsWith("/")) { $repoLocal = $repoLocal + "/" }
+
+    foreach ($name in $BootstrapFiles) {
+        $localPath = Join-Path $Source $name
+        if (-not (Test-Path -LiteralPath $localPath)) {
+            Write-Host ("Bootstrap skip (missing locally): {0}" -f $name) -ForegroundColor DarkYellow
+            continue
+        }
+
+        $remoteFilePath = "{0}/{1}" -f $remoteRoot, $name
+        if (Test-RemoteFileExists -Ssh $Ssh -RemoteFilePath $remoteFilePath) {
+            Write-SyncVerbose ("Bootstrap skip (exists on Pi): {0}" -f $name)
+            continue
+        }
+
+        $remoteFile = Get-RemoteSpec -Ssh $Ssh -RemotePath $remoteFilePath
+        $args = New-Object System.Collections.Generic.List[string]
+        [void]$args.Add("-avz")
+        if ($DryRun) { [void]$args.Add("-n") }
+        [void]$args.Add("-e")
+        [void]$args.Add($sshShell)
+        [void]$args.Add((ConvertTo-RsyncLocalPath -WindowsPath $localPath))
+        [void]$args.Add($remoteFile)
+
+        Write-SyncSection ("** BOOTSTRAP: {0} --> Pi" -f $name)
+        Invoke-Rsync -RsyncArgs @($args) -FailMessage ("Bootstrap push failed for {0}" -f $name)
+        Write-SyncDone ("* BOOTSTRAP: {0} done" -f $name)
+        Write-Host ""
+    }
+}
+
+# =============================================================================
 # JOB 1 - MIRROR (Local --> Pi via rsync)
 # =============================================================================
 
@@ -601,7 +668,13 @@ function Invoke-WanosRsyncStatsJob {
     $repoIndex = 0
     foreach ($name in $RepoPullPatterns) {
         $repoIndex++
-        $remoteFile = Get-RemoteSpec -Ssh $Ssh -RemotePath ("{0}/{1}" -f $remoteRoot, $name)
+        $remoteFilePath = "{0}/{1}" -f $remoteRoot, $name
+        if (-not (Test-RemoteFileExists -Ssh $Ssh -RemoteFilePath $remoteFilePath)) {
+            Write-Host ("* REPO{0}: skip (missing on Pi): {1}" -f $repoIndex, $name) -ForegroundColor DarkYellow
+            Write-Host ""
+            continue
+        }
+        $remoteFile = Get-RemoteSpec -Ssh $Ssh -RemotePath $remoteFilePath
         $args = New-Object System.Collections.Generic.List[string]
         [void]$args.Add("-avz")
         if ($DryRun) { [void]$args.Add("-n") }
@@ -750,6 +823,13 @@ if ($Mode -eq "codeimport") {
         -DryRun:$false
 } else {
     # test / run --> Pi via rsync
+    Invoke-WanosBootstrapPushJob `
+        -Source $MirrorSource `
+        -Ssh $PiSsh `
+        -BootstrapFiles $MirrorBootstrapFiles `
+        -DryRun:$DryRun
+
+    Write-Host ""
     Invoke-WanosRsyncMirrorJob `
         -Source $MirrorSource `
         -Ssh $PiSsh `

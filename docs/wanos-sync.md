@@ -21,6 +21,17 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) |
 | Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (flat; same folder as DBs) |
 
+### Split Hue config (maps vs presets)
+
+| File | Owner | Mirror (Local→Pi) | StatsRepoPull (Pi→Local) |
+|------|-------|-------------------|---------------------------|
+| `config_hue.yaml` | PC | Yes | No |
+| `config_hue_presets.auto.yaml` | Pi (Explorer CRUD) | **No** (MirrorExclude); **Bootstrap** if missing on Pi | **Yes** (Pi wins) |
+
+Edit lights/groups locally → `run` pushes `config_hue.yaml`. Edit presets on Pi → next `run` pulls `config_hue_presets.auto.yaml` into git. On first deploy, bootstrap pushes `.auto` from git when the Pi file is missing.
+
+Pi cutover for Hue presets is complete; `config_hue_presets.auto.yaml` is now the operational source of truth.
+
 Also: LF-normalize `*.sh` on `run` / `codeimport`.
 
 ### Modes
@@ -128,7 +139,7 @@ helpers\wanos-sync.bat run
 `helpers/wanos-sync.config.txt`:
 
 - `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`)
-- `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite)
+- `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite; missing remote file skipped with warning)
 - `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob
 
 Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine.

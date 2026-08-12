@@ -59,6 +59,13 @@ from core.event_catalog import (
     SYSTEM_UUID_TO_NAME,
 )
 from core.soft_hide_store import read_soft_hide_entity_ids, write_soft_hide_entity_ids
+from core.hue_presets_store import (
+    add_preset,
+    delete_preset,
+    read_presets,
+    rename_preset,
+    rule_names_using_preset,
+)
 from core.auto_off_store import read_auto_off_config, write_auto_off_config
 from core.auto_off_policy import (
     AUTO_OFF_ALLOWED_TYPES,
@@ -528,6 +535,12 @@ def _log_library_crud(kind: str, name: str, verb: str) -> None:
     logger.info(f'{kind} "{label}" {verb}')
 
 
+def _log_hue_preset_crud(name: str, verb: str) -> None:
+    """B9A: INFO line in wanos.log for Hue preset CRUD (display name only)."""
+    label = (name or "").strip() or "(unnamed)"
+    logger.info(f'hue preset "{label}" {verb}')
+
+
 def _rule_log_kind(rule: dict[str, Any]) -> str:
     """user rule vs system rule from primary trigger event origin."""
     eid = _primary_trigger_event_id(rule)
@@ -926,6 +939,98 @@ async def put_soft_hide(body: SoftHidePutRequest, req: Request) -> dict[str, Any
 
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
     return {"status": "Success", "entity_ids": written}
+
+
+class HuePresetCreateRequest(BaseModel):
+    name: str
+    bri: int
+    xy: Optional[list[float]] = None
+    rgb: Optional[str] = None
+
+
+class HuePresetRenameRequest(BaseModel):
+    name: str
+
+
+@app.get("/api/hue-presets")
+async def get_hue_presets(req: Request) -> dict[str, Any]:
+    """Admin: list hue.presets (+ usage rule names per key)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    presets = read_presets()
+    usages = {k: rule_names_using_preset(k) for k in presets}
+    return {"presets": presets, "usages": usages}
+
+
+@app.post("/api/hue-presets")
+async def post_hue_preset(body: HuePresetCreateRequest, req: Request) -> dict[str, Any]:
+    """Admin: add preset from current colour (new key only)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    if body.xy is None and not body.rgb:
+        return JSONResponse(status_code=400, content={"error": "xy or rgb required"})
+    try:
+        key, entry = add_preset(
+            name=body.name,
+            bri=body.bri,
+            xy=list(body.xy) if body.xy is not None else None,
+            rgb=body.rgb,
+        )
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        logger.error(f"hue-presets create failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to create preset."})
+    _log_hue_preset_crud(str(body.name), "added")
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api", "scope": "hue_presets"}))
+    return {"status": "Success", "key": key, "preset": entry}
+
+
+@app.put("/api/hue-presets/{key}")
+async def put_hue_preset(key: str, body: HuePresetRenameRequest, req: Request) -> dict[str, Any]:
+    """Admin: rename display name only (key immutable)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    try:
+        entry = rename_preset(key, body.name)
+    except KeyError as e:
+        return JSONResponse(status_code=404, content={"error": str(e)})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        logger.error(f"hue-presets rename failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to rename preset."})
+    _log_hue_preset_crud(str(body.name), "renamed")
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api", "scope": "hue_presets"}))
+    return {"status": "Success", "key": key, "preset": entry}
+
+
+@app.delete("/api/hue-presets/{key}")
+async def delete_hue_preset(key: str, req: Request) -> dict[str, Any]:
+    """Admin: delete preset; 409 if automations still reference the key."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    usages = rule_names_using_preset(key)
+    if usages:
+        return JSONResponse(
+            status_code=409,
+            content={"error": "Preset in use", "usages": usages},
+        )
+    presets_before = read_presets()
+    prior = presets_before.get(key) if isinstance(presets_before, dict) else None
+    prior_name = str((prior or {}).get("name") or key)
+    try:
+        delete_preset(key)
+    except KeyError as e:
+        return JSONResponse(status_code=404, content={"error": str(e)})
+    except ValueError as e:
+        return JSONResponse(status_code=409, content={"error": str(e), "usages": usages})
+    except Exception as e:
+        logger.error(f"hue-presets delete failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to delete preset."})
+    _log_hue_preset_crud(prior_name, "deleted")
+    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api", "scope": "hue_presets"}))
+    return {"status": "Success", "key": key}
 
 
 class AutoOffPutRequest(BaseModel):

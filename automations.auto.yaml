@@ -689,6 +689,52 @@ automations:
             state: "OFF"
     id: dc3edc7c-f4c5-4d7f-be9e-41f532c57486
     enabled: true
+  # B9A smoke: physical sauna switch → hue + zoutlamp gated on session + current hue state.
+  - name: Sauna hue physical
+    enabled: true
+    trigger:
+      entity_id: zwave.sauna_hue_physical
+    cases:
+      - to_state: "ON"
+        conditions:
+          - type: device_state
+            entity_id: sensor.generic.sauna_status
+            is: "ON"
+          - type: device_state
+            entity_id: hue.group.sauna_hue
+            is: "OFF"
+        actions:
+          - entity_id: hue.group.sauna_hue
+            state: "OFF"
+          - entity_id: zwave.sauna_zoutlamp
+            state: "OFF"
+      - to_state: "OFF"
+        conditions:
+          - type: device_state
+            entity_id: sensor.generic.sauna_status
+            is: "OFF"
+          - type: device_state
+            entity_id: hue.group.sauna_hue
+            is: "ON"
+        actions:
+          - entity_id: hue.group.sauna_hue
+            state: "OFF"
+          - entity_id: zwave.sauna_zoutlamp
+            state: "OFF"
+      - to_state: "OFF"
+        conditions:
+          - type: device_state
+            entity_id: sensor.generic.sauna_status
+            is: "OFF"
+          - type: device_state
+            entity_id: hue.group.sauna_hue
+            is: "OFF"
+        actions:
+          - entity_id: hue.group.sauna_hue
+            state: "ON"
+          - entity_id: zwave.sauna_zoutlamp
+            state: "ON"
+    id: 8f3a2c1e-5b4d-4a9f-9e2d-1c7b6a8d0e3f
   - name: Sauna ON
     enabled: true
     trigger:

@@ -271,24 +271,80 @@
             '<div class="flex justify-between text-xs font-mono font-bold text-base-400 mb-2 uppercase tracking-wider">' +
             "<span>Brightness</span>" +
             '<span class="text-warning" x-text="(activeLightBri ?? 100) + \'%\'"></span></div>' +
-            '<input type="range" min="1" max="100" class="range range-warning shadow-inner" ' +
-            'x-model="activeLightBri" @input.debounce.100ms="updateActiveLightState()" />' +
+            '<input type="range" min="1" max="100" class="range range-warning shadow-inner disabled:opacity-40 disabled:cursor-not-allowed" ' +
+            ':disabled="huePresetEditMode" ' +
+            ':class="huePresetEditMode ? \'opacity-40 cursor-not-allowed pointer-events-none\' : \'\'" ' +
+            'x-model="activeLightBri" @input.debounce.100ms="onHueBrightnessInput()" />' +
             "</div>" +
             // C10: remove COLOR OUTPUT hex text row; keep wheel + presets only
             "<div>" +
-            '<div class="flex flex-col items-center justify-center bg-base-200 p-4 rounded-box border border-base-300">' +
-            '<div id="color-picker-container"></div></div></div>' +
+            '<div class="relative flex flex-col items-center justify-center bg-base-200 p-4 rounded-box border border-base-300">' +
+            '<div id="color-picker-container"></div>' +
+            '<div x-show="huePresetEditMode" x-cloak class="absolute inset-0 rounded-box bg-base-300/35 cursor-not-allowed"></div>' +
+            '</div></div>' +
+            '<div class="flex items-center justify-between gap-2">' +
+            '<span class="text-xs font-mono font-bold text-base-400 uppercase tracking-wider">Presets</span>' +
+            '<label class="label cursor-pointer gap-2 py-0" x-show="isAdmin" x-cloak>' +
+            '<span class="label-text text-[10px] font-mono">Edit</span>' +
+            '<input type="checkbox" class="toggle toggle-xs toggle-warning" x-model="huePresetEditMode" />' +
+            "</label></div>" +
+            '<div class="max-h-40 overflow-y-auto pr-1">' +
             '<div class="grid grid-cols-2 md:grid-cols-4 gap-2">' +
             '<template x-for="(preset, key) in state.system.hue_presets" :key="key">' +
-            '<button class="btn btn-sm btn-outline border-base-content/20 text-[10px] font-mono tracking-wide truncate shadow-sm hover:text-primary" ' +
-            'x-text="preset.name || key" @click="applyPreset(preset)"></button>' +
-            "</template></div></div>" +
+            '<div class="flex flex-col gap-1 min-w-0">' +
+            '<button type="button" class="btn btn-sm btn-outline border-base-content/20 text-[10px] font-mono tracking-wide truncate shadow-sm hover:text-primary" ' +
+            ':disabled="huePresetEditMode" x-text="preset.name || key" @click="applyPreset(preset, key)"></button>' +
+            '<div class="flex gap-1" x-show="isAdmin && huePresetEditMode" x-cloak>' +
+            '<button type="button" class="btn btn-ghost btn-xs font-mono flex-1" @click.stop="openHuePresetRenameModal(key, preset)">Rename</button>' +
+            '<button type="button" class="btn btn-ghost btn-xs text-error font-mono flex-1" ' +
+            ':disabled="(huePresetUsages[key] || []).length > 0" ' +
+            ':title="(huePresetUsages[key] || []).length ? (\'In use: \' + huePresetUsages[key].join(\', \')) : \'Delete\'" ' +
+            '@click.stop="openHuePresetDeleteModal(key, preset)">Del</button>' +
+            "</div></div></template></div></div>" +
+            '<button type="button" class="btn btn-sm btn-warning btn-outline font-mono text-[10px] w-full" ' +
+            'x-show="isAdmin" x-cloak ' +
+            ':disabled="huePresetEditMode || hueCurrentMatchesActivePreset()" ' +
+            ':title="huePresetEditMode ? \'Disable Edit mode to save current colour\' : (hueCurrentMatchesActivePreset() ? \'Change colour or brightness to save a new preset\' : \'Save current colour as a new preset\')" ' +
+            '@click="openHuePresetSaveModal()">Save current color as preset</button>' +
+            "</div>" +
             '<div class="modal-action border-t border-base-200 pt-4 mt-6">' +
             '<form method="dialog" class="w-full flex justify-between">' +
             '<button class="btn btn-error btn-sm font-mono shadow-sm text-neutral-900" @click="injectLabHubStateChange(activeLightId, false)">TURN OFF</button>' +
             '<button class="btn btn-outline btn-sm font-mono text-base-content/70">Close</button>' +
             "</form></div></div>" +
             '<form method="dialog" class="modal-backdrop"><button>close</button></form>' +
+            "</dialog>" +
+            huePresetModals()
+        );
+    }
+
+    function huePresetModals() {
+        return (
+            '<dialog id="hue_preset_delete_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[10000]">' +
+            '<div class="modal-box border border-error/30 bg-base-300 shadow-2xl">' +
+            '<h3 class="font-bold text-lg text-error tracking-wide">Delete preset?</h3>' +
+            '<p class="py-3 text-sm text-base-content/80">' +
+            'Remove preset <span class="font-mono font-bold text-warning" x-text="huePresetDeleteDisplayName"></span>? This cannot be undone.' +
+            "</p>" +
+            '<div class="modal-action flex-wrap gap-2">' +
+            '<button type="button" class="btn btn-ghost btn-sm" @click="cancelHuePresetDeleteModal()">Cancel</button>' +
+            '<button type="button" class="btn btn-error btn-sm" @click="confirmHuePresetDeleteModal()">Delete</button>' +
+            "</div></div>" +
+            '<form method="dialog" class="modal-backdrop"><button type="button" @click="cancelHuePresetDeleteModal()">close</button></form>' +
+            "</dialog>" +
+            '<dialog id="hue_preset_name_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[10000]">' +
+            '<div class="modal-box border border-warning/30 bg-base-300 shadow-2xl">' +
+            '<h3 class="font-bold text-lg text-warning tracking-wide" x-text="huePresetNameModalTitle"></h3>' +
+            '<div class="py-3">' +
+            '<label class="label py-1"><span class="label-text text-xs font-mono uppercase tracking-wider">Display name</span></label>' +
+            '<input type="text" class="input input-bordered input-sm w-full font-mono" ' +
+            'x-model="huePresetNameInput" @keydown.enter.prevent="confirmHuePresetNameModal()" />' +
+            "</div>" +
+            '<div class="modal-action flex-wrap gap-2">' +
+            '<button type="button" class="btn btn-ghost btn-sm" @click="cancelHuePresetNameModal()">Cancel</button>' +
+            '<button type="button" class="btn btn-warning btn-sm" @click="confirmHuePresetNameModal()">Save</button>' +
+            "</div></div>" +
+            '<form method="dialog" class="modal-backdrop"><button type="button" @click="cancelHuePresetNameModal()">close</button></form>' +
             "</dialog>"
         );
     }
