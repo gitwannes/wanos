@@ -4071,6 +4071,20 @@ function wanosApp() {
                 return;
             }
 
+            // Optimistic UI: keep toggle/checkbox in sync with the click immediately.
+            // Without this, :checked="item.is_on" rebinds from still-old state → OFF→ON flicker,
+            // and repeated clicks enqueue more OFF/ON commands while SSE lags (RFX / Z-Wave / Hue).
+            let nextVal;
+            if (typeof current === 'object' && current !== null) {
+                nextVal = Object.assign({}, current, { state: targetState });
+            } else {
+                nextVal = targetState;
+            }
+            this.state.devices[idx] = nextVal;
+
+            // Ignore stale bridge echoes until the command settles (same anti-rubberband as shutters).
+            this.uiLocks[idx] = Date.now() + this.getUiLockTime('switch', false);
+
             this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), state: targetState });
         },
 
@@ -4137,6 +4151,11 @@ function wanosApp() {
                 // Give a short lock while dragging to prevent fighting the finger,
                 // but drop the lock to 0ms instantly upon release!
                 return isDragging ? 2000 : 0;
+            }
+            // Binary switch/light toggles (RFX / Z-Wave / Hue): cover bridge round-trip
+            // so a stale ON echo cannot snap the Explorer toggle back after optimistic OFF.
+            if (deviceType === 'switch' || deviceType === 'light') {
+                return 2000;
             }
             // Default fallback
             return 1000;
