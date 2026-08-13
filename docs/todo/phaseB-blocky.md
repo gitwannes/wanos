@@ -505,7 +505,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 2. **Blinds position % on if** — `attribute: position`, compare ops, unit **%**.
 3. **Sonos / Onkyo volume % on if** — `attribute: volume`, 0–`max_volume`.
 
-**Out of scope:** If/Do canvas (**B19**); AND/OR (**Ship B4**); Messages (**Ship B6**).
+**Out of scope:** If/Do canvas (**B19**); AND/OR (**Ship B4**); Messages (**Ship B6**). Blinds **Set** ON→OPEN labels → **B10K** (not this ship).
 
 **B9C DoD:** Pi smoke on **legacy** canvas; G5 rule authorable; Admin Debug GREEN. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -1292,6 +1292,8 @@ Pointers only — detail under § B10F / § B11–B18:
 * **B10H** — Automations cold-load shorten wait — ✅ **Done 2026-08-12**.
 * **B10I** — Used SE → **Go to SR** — **∥ cluster** (anytime after B10F).
 * **B10J** — **`Event Received`** catalog display name — **∥ cluster** (anytime after B10B).
+* **B10K** — Automations timings modal → header button; blinds Set **OPEN** (not ON) — **∥ cluster**.
+* **B10L** — Shared **NOT CONNECTED** overlay: richer connect status — **∥ cluster**.
 * **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
 * **G6** — Scoped `CONFIG_RELOAD` after CRUD (no bridge thrash) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
@@ -1654,6 +1656,57 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 * **Out of scope:** full **B16** full-bus UUID refactor; **G7** integration log tags.
 
 **B10J DoD:** Manual/catalog events log readable name on Pi smoke; internal events unchanged. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B10K — Automations timings button + blinds Set OPEN 🔜 TODO
+
+**Origin:** operator inbox **2026-08-13**. Automations (`blocky.html`) — **not** Explorer. Size **low**. **Parallel:** may run beside Ships **B2–B8** ([`pipeline.md`](pipeline.md) § Parallel tracks).
+
+**Covering operator request (verbatim):**
+> - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
+> - + 4 screenshots attached
+
+#### Item 1 — load-timings modal (B10G follow-up)
+
+**Screenshot / annotation:** (text item; no screenshot) Automations page after load.
+
+**Locked:** B10G admin floating **load-timings** modal must **not** auto-open after cold load. Add a **small button** immediately **right of the page-version** (`vNN`) that opens it on demand. Admin-only (same gate as `vNN` / timings today). Console timings unchanged.
+
+#### Item 2 — blinds Set state label OPEN (screenshot 4)
+
+**Operator request (verbatim from screenshot):**
+> should be 'OPEN'
+
+**Locked:** Blockly **Set device** / action state dropdown for **blinds / shutter** must show **OPEN** / **CLOSED** (not **ON** / **OFF**). B6C already specified OPEN/CLOSED/POS; this is a **current-canvas** rebuild/label bug (dropdown stuck on ON). Engine storage unchanged (closed % / OPEN-CLOSED as today). **Not** B19; **not** B9C if-% compare.
+
+**Out of scope:** Domoticz Set blocks (**B19**); Hidden view-preset (**C12 #9**); alert persist (**C17**); NOT CONNECTED copy (**B10L**).
+
+**B10K DoD:** Timings modal only via header button (no auto-open); blinds actions show OPEN/CLOSED; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B10L — NOT CONNECTED overlay status 🔜 TODO
+
+**Origin:** operator inbox **2026-08-13** (screenshot 2). Shared shell overlay (`data-wanos-offline`) — **all SSE pages** that use it (Automations, Explorer, Admin, WISC, History, …). Size **low**. **Parallel:** beside **B2–B8**. Extends **B10G** overlay **1** (not overlay **2** yellow checklist).
+
+**Covering operator request (verbatim):**
+> - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
+> - + 4 screenshots attached
+
+**Operator request (verbatim from screenshot):**
+> possible to put some info: connected, receiving x%, ...?
+
+**Locked triage intent:**
+
+* Keep heading **NOT CONNECTED** + current establishing line.
+* Add **honest status** under it: e.g. connecting / snapshot received / SSE open / waiting — **not** a fake percentage.
+* Real **%** only if a true progress metric exists at kickoff (otherwise omit %; use milestones).
+* Same copy on every page that uses the shared overlay.
+
+**Out of scope:** Yellow Automations load checklist (overlay **2**); timings modal (**B10K**).
+
+**B10L DoD:** Overlay shows live connect milestone (and % only if real); Pi smoke reconnect + cold open. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

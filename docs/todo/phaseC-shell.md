@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C16 → C15 → C13**. Pipeline next: **B2** / **B9C** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C17 → C16 → C15 → C13**. Pipeline next: **B2** / **B9C** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -25,14 +25,15 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C9 — Device-ref app logs** | All device-ref lines in `wanos.log` → `entity_id (name, idx N)` | Every integration · mid |
 | **C10 — Explorer / History polish** | Plural Nodes; Planned past gone; Hue hex text; chart colors; binary/hits charts; omit scenes; filter+blinds | FE · mid |
 | **C11 — Control vs History lists** | Re-assess Explorer Control vs History list membership (post–C10 scene omit) | Assess → decide · low |
-| **C12 — Post-C10 polish** | Hue bri int; binary duration; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter debounce; temp/hum frost line | FE + log · mid |
+| **C12 — Post-C10 polish** | Hue bri int; binary duration; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter debounce; temp/hum frost line; Hidden preset admin-only | FE + log · mid |
+| **C17 — Alert dismiss persist** | Banner dismiss vs reload — **assess at kickoff** | Admin alerts · low |
 | **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only | History charts · mid |
 | **C15 — Admin lab switch** | Move Enable lab controls → Debug Commands row; lab pane iff switch ON | Admin · low |
 | **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4**. **C12** → **C16** → **C15** → **C13**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4**. **C12** → **C17** → **C16** → **C15** → **C13**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -407,6 +408,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 | 6 | **Scene favorites bug** — favoriting **one** dashboard scene must not favorite **all** scenes (likely UUID `id` vs numeric idx in `actuatorFavorites`). |
 | 7 | **Shutters debounce — assess** — FE `getUiLockTime('blinds')` uses fixed **7s**; backend `hub_handlers` uses proportional delay from `blinds.travel_times` / `default_travel_time_secs`. Confirm gap; align FE lock (and/or rubberband) with travel math if needed. |
 | 8 | **Temp/hum frost line** — see § item 8 below. |
+| 9 | **Manage Presets — Hidden row admin-only** — see § item 9 below. |
 
 ### Item 8 — temp/hum frost styling (extends C5 dew)
 
@@ -418,6 +420,17 @@ Alert dismissed (bell): level=<level> "…message text…"
 > - in temp/hum graphs: when temp goes below dew point: change that part of the line in red and make it thicker -- Q: is it usefull to have this in month/year graphs as well? I think not, but verify&confirm -- general: is it usefull to have the consolidated dew point graph in month/year charts? again, I think not, but verify&confirm
 
 **Operator lock-in (2026-08-12):** remove dew from **month & year**; keep dew (and frost styling) on **day** only.
+
+### Item 9 — Hidden view-preset admin-only (Explorer Manage Presets)
+
+**Covering operator request (verbatim):**
+> - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
+> - + 4 screenshots attached
+
+**Operator request (verbatim from screenshot):**
+> should not be visible when not logged in as admin
+
+**Locked:** In Explorer **Manage Presets**, the **Hidden** preset row (screenshot: `5 Hidden • Sort: Name`) is **admin-only**. Non-admin must not see it (and must not be able to apply/save it). Hidden-devices **filter toggle** in the presets pane stays as C1 (admin already required for that chrome — confirm at impl that non-admin cannot reach Hidden).
 
 ### Item 2 — chart families (extends C10 item 5)
 
@@ -442,7 +455,7 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * B10G Automations load checklist / timings / NOT CONNECTED / `vNN` — ✅ **2026-08-12**; **B10H** cold-load shorten — ✅ **2026-08-12**.
 * C11 Control vs History membership model (item 3 does not reopen it).
 
-**C12 DoD:** Items 1–8 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed; temp/hum day frost line; **dew removed from month/year**. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C12 DoD:** Items 1–9 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed; temp/hum day frost line; **dew removed from month/year**; Hidden preset admin-only in Manage Presets. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 *(Former **C14** — NOT CONNECTED investigate + admin page **`vNN`** — folded into **B10G** ✅ **2026-08-12**; see [`phaseB-blocky.md`](phaseB-blocky.md) § B10G.)*
 
@@ -464,6 +477,30 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * Disabled-when-hardware-live rules unchanged (SHT11/GPIO guard).
 
 **C15 DoD:** Switch in Debug Commands row; **no lab UI when OFF**; full lab pane when ON; Pi smoke enable/disable + simulations guard. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C17 — Alert banner dismiss vs reload 🔜 TODO (assess)
+
+**Origin:** operator inbox **2026-08-13** (screenshot 1 — Admin critical banners). Extends **C2** / **C8**. Size **low**. Sequence: **after C12**.
+
+**Covering operator request (verbatim):**
+> - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
+> - + 4 screenshots attached
+
+**Operator request (verbatim from screenshot):**
+> msgs re-appear after dismissal and page reload
+
+**Fact (today):** Banner dismiss is **FE-session only** (C2 dual dismiss; C8 does not call server `ALERT_DISMISSED`). Reload restores still-active criticals.
+
+**Assess at kickoff (not locked):**
+
+* Persist dismiss across reload **while the fault is still true** vs only hide until that incident is gone / next new occurrence.
+* Bell vs banner (C2 dual dismiss) — whether persist applies to both.
+* Store: localStorage vs server instance id — pick with the semantics above.
+* Do not reopen C8 log shape except as needed for an instance key.
+
+**C17 DoD:** Assess decision recorded in this file; if impl: Pi smoke Admin dismiss + reload per that decision. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -535,7 +572,8 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * **C9:** All device-ref lines in `wanos.log`, every integration → `entity_id (name, idx N)` (automation-log parity / `format_device_ref`).
 * **C10:** Plural Nodes; Planned past/done **removed** from list (not relabeled); Hue COLOR OUTPUT text-only remove; climate legend/line parity; binary ON/OFF vs non-binary set vs motion hits (day Y + month/year counts); History omit **all** `type === "scene"`; filter+blinds drag stable. ✅ **Done 2026-08-11**.
 * **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
-* **C12:** item **8** — day frost line; dew removed from month/year.
+* **C12:** item **8** — day frost line; dew removed from month/year; item **9** Hidden preset admin-only.
+* **C17:** banner dismiss vs reload — **assess at kickoff** (not locked).
 * **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit.
 * **C15:** lab switch in Debug Commands; entire lab pane hidden when OFF.
 * **C13:** Merge hide into Timers & types …
@@ -545,7 +583,8 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 
 * *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10** — C10 closed by Pi smoke **2026-08-11**.)*
 * **C11** assess open until kickoff (queued).
-* **C12:** item **8** locked — day frost line; **dew removed from month/year** (day only).
+* **C12:** item **8** locked — day frost line; **dew removed from month/year** (day only). Item **9** — Hidden Manage Presets row **admin-only**.
+* **C17:** **assess at kickoff** — persist while fault still true vs new occurrence; bell vs banner; store.
 * **C16:** locked — 24 h max viewport; pan over **`hires_days`**; water day chart **assess at kickoff**.
 * **C15:** locked — switch in Debug Commands; **entire lab pane hidden when OFF**.
 * **C3 / C4** remain open as specified above (later in sequence).

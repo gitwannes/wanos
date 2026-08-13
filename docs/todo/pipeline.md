@@ -20,7 +20,7 @@ High-level **what’s next** and where the detailed specs live. This file does *
 | Letter | Affinity | Detail file |
 |---|---|---|
 | **B** | Blocky / Blockly / automations | [`phaseB-blocky.md`](phaseB-blocky.md) |
-| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10–C16) | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10–C17) | [`phaseC-shell.md`](phaseC-shell.md) |
 | **D** | Device typing (switch vs light) | [`phaseD-typing.md`](phaseD-typing.md) |
 | **E** | Gmail transport (OAuth, outbox, spooler) | [`phaseE-gmail.md`](phaseE-gmail.md) |
 | **F** | Public bridge / perimeter security | [`phaseF-security.md`](phaseF-security.md) |
@@ -67,7 +67,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal.
 
-**B10G** / **B10H** ✅ **Done 2026-08-12**. Next: **B2** (B9C). **B10I** / **B10J** anytime after **B10F** / **B10B**.
+**B10G** / **B10H** ✅ **Done 2026-08-12**. Next: **B2** (B9C). **B10I** / **B10J** / **B10K** / **B10L** anytime after **B10F** / **B10B** / **B10G**.
 
 | Ship | Phase(s) | Size | One go? |
 |---|---|---|---|
@@ -103,6 +103,8 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 |---|---|---|
 | **B10I** | Anytime after **B10F** | Library navigation only — parallel to **B2–B8** |
 | **B10J** | Anytime after **B10B** | Backend log polish — **`Event Received`** catalog name; parallel to **B2–B8** |
+| **B10K** | Anytime after **B10G** | Automations timings button + blinds Set OPEN; parallel to **B2–B8** |
+| **B10L** | Anytime after **B10G** | Shared NOT CONNECTED overlay status; parallel to **B2–B8** |
 | **G5** | After **B2** (B9C) | Parallel to **B3–B8**; re-author rule on B19 canvas when **B3** lands |
 | **E** (Gmail transport) | After **B3** or default after cluster | Parallel to **B5–B8**; **B6** alert ships without **E**; H5 email half waits **E** |
 | **Ship B5 ∥ Ship B6** | After **B4** | Bathroom/H12 vs Messages alert — independent; OR-heavy notify rules still want **B4** first |
@@ -130,12 +132,15 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 8.  low    G5           dashboard “rolluik zon half” — **∥ B3–B8** after B2; re-author on B19 when B3 done
 8b. low    B10I         used SE → Go to SR — **∥ cluster** (anytime after B10F)
 8c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ cluster** (anytime after B10B)
+8d. low    B10K         Automations timings modal → vNN button; blinds Set OPEN — **∥ cluster**
+8e. low    B10L         NOT CONNECTED overlay status (milestones; % if real) — **∥ cluster**
 ─── After Blockly cluster (E may start ∥ B5–B8 instead — see Parallel tracks) ───
 9.  high   E            Gmail transport / outbox — default slot; **∥ B5–B8** OK
 10. mid    C3           Force ALL-OFF
 11. mid    C4           Rename HTML entrypoints (`blocky`→`blockly`; not `automations`)
 12. low    C11          Control vs History list membership (assess → decide)
-13. mid    C12          Post-C10 polish (+ frost line item 8; scene favorites; shutter debounce)
+13. mid    C12          Post-C10 polish (+ Hidden preset admin-only)
+13b. low   C17          Alert banner dismiss vs reload (assess at kickoff)
 14b. mid   C16          Day chart sliding 24 h window over hires_days hi-res
 14c. low   C15          Admin lab switch → Debug Commands row; lab pane iff ON
 15. mid    C13          Merge Hidden → Timers & types
@@ -172,12 +177,14 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **B8** — library organization after canvas + **B7** stable.
 * **G5 after B2** — dashboard button + rule; **parallel to B3–B8**; re-touch rule on B19 canvas when **B3** lands.
 * **B10I** — Library **Go to SR**; **parallel to cluster** (no B19 dependency).
-* **B10J** — **`Event Received`** log lines: resolve catalog **display name** for UUID bus tokens (e.g. manual pickables); **parallel to cluster** (after **B10B**).
+* **B10J** — **`Event Received`** log lines: resolve catalog **display name**; **parallel to cluster**.
+* **B10K** — Automations timings modal on-demand button; blinds Set **OPEN**.
+* **B10L** — Shared NOT CONNECTED overlay richer status.
 * **C\*, G\*, E, F** — **after Blockly cluster** (default). **E** may start **parallel to B5–B8**. **G2/G6** may jump on operator pain (**G6** — Admin full vs scoped reload; see [`phaseG-integrations.md`](phaseG-integrations.md) § G6).
 * **B20 after F** — Domoticz **Time** trigger; catalog schedule events unchanged until then.
 * **B15–B18** — not Domoticz L&F; **B18** may jump on sauna safety pain.
 
-Near-term = **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
+Near-term = **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **B10K** / **B10L** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
 
 ---
 
@@ -414,9 +421,9 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 | Phase | Detail file |
 |---|---|
-| **B9C** / **B19** / **B9B** / **B10I** / **B10J** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
+| **B9C** / **B19** / **B9B** / **B10I** / **B10J** / **B10K** / **B10L** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
-| **C3** / **C4** / **C11** / **C12** / **C16** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C3** / **C4** / **C11** / **C12** / **C17** / **C16** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G6** / **G7** / **G8** / **G1** / **G3** / **G4** / **G5** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 
@@ -428,6 +435,8 @@ Detail + DoD stubs: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B20. Schedul
 |---|---|---|
 | **B10I** | Used SE → Go to SR | anytime after B10F |
 | **B10J** | Event Received log — catalog name | anytime after B10B |
+| **B10K** | Timings modal button + blinds Set OPEN | anytime after B10G |
+| **B10L** | NOT CONNECTED overlay status | anytime after B10G |
 | **B11** | Multi-flow one Blockly page | **B8** |
 | **B12** | Rule-list folder/tag | **B8** |
 | **B13** | Domoticz Else-if / Else | **B4** |
@@ -494,7 +503,7 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-10 | **B10B+D+E** done. **G4/G5** triage. |
 | 2026-08-11 | **B10F**, **C10**, **D** done. **B9A** code ship. **B10G/H** split. |
 | 2026-08-12 | **Domoticz Blockly goal locked** — … Detail → `phaseB-blocky.md`. |
-| 2026-08-12 | Inbox triage: **C16** sliding 24 h day viewport over `hires_days` hi-res (extends C5/C6); operator lock-in zoom-in only + pan to 1 week. |
+| 2026-08-13 | Inbox triage: **B10K** timings button + blinds OPEN; **B10L** NOT CONNECTED status; **C12 #9** Hidden preset admin-only; **C17** alert dismiss vs reload (**assess at kickoff**). |
 | 2026-08-12 | Inbox triage (batch 4): **C12 #8** frost/dew; **C15** lab switch; **B10J** Event Received catalog name; Ops **`.cursor`** sync exclude. |
 | 2026-08-12 | Inbox triage: **B10I**; **C12** extras; **B10G** += NOT CONNECTED + admin `vNN` (ex–C14, one ship); **C4** locked `blockly` not `automations`; Ops cinema; cursor rules. |
 | 2026-08-12 | **B10G triage:** overlay 2 copy locked; `vNN` Automation only; T4 C = SSE reload suppress all pages (not Admin button flag); Part B repro script + skip-if-no-repro. |
