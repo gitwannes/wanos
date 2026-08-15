@@ -1,6 +1,6 @@
 # WanOS sync (PC ↔ Pi)
 
-Day-to-day deploy and pull between the Windows workstation and the Pi. Transport: **rsync over SSH** (no Samba/`Z:` required for sync).
+Day-to-day deploy and pull between the Windows workstation and the Pi. Transport: **rsync over SSH** (no Samba/`Z:` required for sync). The engine uses Scoop git **MSYS** `ssh.exe` with `rsync-msys2` — not Windows OpenSSH.
 
 | File | Role |
 |------|------|
@@ -61,6 +61,8 @@ helpers\wanos-sync.bat codeimport <windows-folder> [verbose]
 
 Edit `[PiSsh]` Host/User/RemoteRoot if your Pi differs. Secrets never go in the config — only SSH keys.
 
+**SSH binary:** `helpers/wanos-sync.ps1` calls `%USERPROFILE%\scoop\apps\git\current\usr\bin\ssh.exe` (full path, and that dir prepended on PATH). MSYS `rsync` plus `C:\Windows\System32\OpenSSH\ssh.exe` resets the protocol stream (`safe_read` 4 bytes / `Connection reset` / `0 bytes received`). Both binaries read the same `%USERPROFILE%\.ssh\` keys. Windows OpenSSH is still fine for one-time `ssh-keygen` and pubkey install from a normal prompt.
+
 Console colours: yellow = files changing, red = deletes, cyan = section, green = done.
 
 ---
@@ -93,7 +95,8 @@ scoop install git
 scoop bucket add raisercostin https://github.com/raisercostin/raiser-scoop-bucket 2>$null
 scoop install rsync-msys2
 
-# MSYS DLLs from Scoop git must be on PATH
+# MSYS DLLs from Scoop git must be on PATH (rsync.exe). Sync itself pins this ssh.exe;
+# User PATH still often has Windows OpenSSH first after reboot.
 $GitUsrBin = "$env:USERPROFILE\scoop\apps\git\current\usr\bin"
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$GitUsrBin*") {
@@ -139,7 +142,7 @@ helpers\wanos-sync.bat run
 `helpers/wanos-sync.config.txt`:
 
 - `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`)
-- **Planned (Ops inbox 2026-08-12):** exclude **`.cursor`** (IDE rules under `.cursor/rules/`) from Local→Pi mirror — Pi does not need Cursor project rules. Track in [`docs/todo/pipeline.md`](todo/pipeline.md) § Ops — sync Local → Pi until shipped in `wanos-sync.config.txt`.
+- **`.cursor`** — IDE rules (`.cursor/rules/`) and other Cursor project files; PC-only, not deployed to the Pi
 - `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite; missing remote file skipped with warning)
 - `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob
 
@@ -152,6 +155,7 @@ Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always 
 | Symptom | Fix |
 |---------|-----|
 | `rsync not found` / `--version` silent | Scoop shims + git `usr\bin` on PATH; new shell |
+| `safe_read` 4 bytes / `Connection reset` / `0 bytes` `[Receiver]` | MSYS rsync used Windows OpenSSH (common after reboot: System32 `ssh` wins). Sync forces Scoop git `usr\bin\ssh.exe`; `verbose` must show that path |
 | `Permission denied (publickey)` | Pubkey in Pi `authorized_keys`; BatchMode test |
 | `Host key verification failed` | `ssh-keygen -R 10.32.251.30` then reconnect |
 | Mass `deleting wanos_venv/...` | Excludes broken — stop; check config; dry-run only |

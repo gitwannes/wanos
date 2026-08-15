@@ -115,10 +115,11 @@ native_rfx:
 # ==============================================================================
 
 weather:
+  # OWM
   idx: 30001
   name: "Outside temp & hum"
   location: "Borsbeek,BE"
-  poll_interval_mins: 30
+  poll_interval_mins: 10
   sun_refresh_hour: 3  # once-daily sunrise/sunset + env schedule (≥ this local hour)
 
 hardware_links:

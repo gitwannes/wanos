@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C17 → C16 → C15 → C13**. Pipeline next: **B2** / **B9C** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). Queued: **C3 → C4 → C11 → C12 → C17 → C20 → C18 → C19 → C21 → C22 → C16 → C15 → C13**. **C18** / **C19** / **C20** / **C21** / **C22** may run **∥ cluster**. Pipeline next: **B2** / **B9C** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -27,13 +27,18 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C11 — Control vs History lists** | Re-assess Explorer Control vs History list membership (post–C10 scene omit) | Assess → decide · low |
 | **C12 — Post-C10 polish** | Hue bri int; binary duration; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter debounce; temp/hum frost line; Hidden preset admin-only | FE + log · mid |
 | **C17 — Alert dismiss persist** | Banner dismiss vs reload — **assess at kickoff** | Admin alerts · low |
+| **C18 — Sensor live lag** | Explorer **Control** live numbers lag **seconds** after a toggle (all sensors) — kickoff **2026-08-15**; **cause lead not locked** | SSE / event drain · low |
+| **C19 — History auto-refresh blank** | Auto-refresh black / title-only; keep settings + window — **see C6** | History charts · low |
+| **C20 — Bell Clear All** | Admin SYSTEM NOTIFICATIONS **Clear All** does nothing | Admin alerts · low |
+| **C21 — AUTO OFF while OFF** | Explorer countdown runs on a device that is already OFF | Explorer live · low |
+| **C22 — Host “(no history)”** | Three Host gauges tagged no history; siblings are not | Host / History · low |
 | **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only | History charts · mid |
 | **C15 — Admin lab switch** | Move Enable lab controls → Debug Commands row; lab pane iff switch ON | Admin · low |
 | **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4**. **C12** → **C17** → **C16** → **C15** → **C13**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C11** after **C4**. **C12** → **C17** → **C20** → **C18** → **C19** → **C21** → **C22** → **C16** → **C15** → **C13**. **C18** / **C19** / **C20** / **C21** / **C22** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -388,7 +393,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 **Scope (assess → decide → impl if needed):** document current divergence; decide whether Control and History should share one membership rule (and what happens to SE/UE event history, hidden devices, utilities, etc.); then implement or explicitly defer with rationale.
 
-**Out of scope:** C10 polish items; Blocky Library UE/SE/SR; G2/G5.
+**Out of scope:** C10 polish items; Blocky Library UE/SE/SR; G2/G5; Host **(no history)** tag on three gauges → **C22**.
 
 **C11 DoD:** Written decision in this file + pipeline; if impl: Pi smoke for Control + History list parity rules; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -454,6 +459,8 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * G2 Hue bri/xy **bridge** truth.
 * B10G Automations load checklist / timings / NOT CONNECTED / `vNN` — ✅ **2026-08-12**; **B10H** cold-load shorten — ✅ **2026-08-12**.
 * C11 Control vs History membership model (item 3 does not reopen it).
+* Explorer **live** sensor lag after B10H / optimistic UI → **C18**.
+* History auto-refresh blank / lost window → **C19** (see **C6**; do not reopen C6).
 
 **C12 DoD:** Items 1–9 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed; temp/hum day frost line; **dew removed from month/year**; Hidden preset admin-only in Manage Presets. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -501,6 +508,132 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * Do not reopen C8 log shape except as needed for an instance key.
 
 **C17 DoD:** Assess decision recorded in this file; if impl: Pi smoke Admin dismiss + reload per that decision. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+**Out of scope:** Admin bell **Clear All** no-op → **C20**.
+
+---
+
+## 📋 C18 — Sensor live update lag 🔜 TODO (kickoff 2026-08-15)
+
+**Origin:** operator inbox **2026-08-15**. Size **low** (may bump **mid** if cause locks on event-worker drain). Sequence: **∥ cluster** anytime after **B10H** ✅; default after **C17** if not jumped.
+
+**Operator request (verbatim):**
+> did i already put this in the pipeline? sensors seems lagged since the "positivistic" fix (and the bug that came before that)? it seems that the sensors don't always update direcctly (they did before)
+
+*(“positivistic” = **optimistic** UI lock — see below.)*
+
+### Pipeline check (2026-08-15) — was **not** already queued
+
+Checked Sequence, Inbox, and phase files: **no** existing item for sensor live-lag after the optimistic toggle fix. This subphase is the first record.
+
+### Related shipped work (not this item)
+
+| When | What | Where |
+|---|---|---|
+| **B10H** ✅ **2026-08-12** | Event-driven SSE replaced the **0.5 s poll**. Operator later described this as **the bug that came before**: stale **ON** echoes became visible on light toggles. Shipped as cold-load / flicker fix — **not** as remaining sensor lag. | [`phaseB-blocky.md`](phaseB-blocky.md) § B10H; [`pipeline.md`](pipeline.md) Done |
+| **Optimistic UI + `uiLocks`** **2026-08-14** | Explorer light/switch toggle: mutate local `state.devices` immediately + short **`uiLocks`** so SSE cannot snap the checkbox back. Implemented **immediately** (not parked). Docs never mentioned a sensor-lag follow-up. | `frontend/app.js` `injectLabHubStateChange` + devices-domain SSE filter; chat [Item triage and adjustments](8196459f-b496-49cd-8ab9-181ed445571e) |
+
+**B10H effect (from that triage):** device deltas hit the browser in tens of milliseconds. The same stale ON report arrived **before** the lamp had moved. Alpine rebound `:checked="item.is_on"` → OFF→ON flicker. Speakers/shutters already had optimistic local state + locks; lights/switches did not — until the 2026-08-14 fix.
+
+### Kickoff Q&A (operator 2026-08-15) — surface / symptom **locked**
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | Surface | Explorer **Control** live numbers |
+| 2 | Which sensors | **All** |
+| 3 | What lag looks like | Value **does** update, but **(lots of) seconds later** |
+| 4 | Correlate with toggle? | **Mostly after something is toggled** |
+
+Quiet Explorer (no recent ON/OFF) is **not** the main repro. History **charts** stay **C19**. History-tab live numbers and WISC/kiosk were **not** reported — out of C18 unless a later repro says otherwise.
+
+### Cause — ranked lead, **not locked**
+
+Code review against the four answers (not Pi-traced):
+
+| Rank | Lead | Fits answers? |
+|---|---|---|
+| **1** | Event worker drains only when the queue is empty, then **`await`s every state listener before SSE** (`state_manager._process_events`). Hue **`await _send_light_command`**, RFX **`await _transmit_physical`**, Z-Wave **`await mqtt publish`** run **on that drain**. Sensor events sit in the queue until that I/O finishes; Control then jumps. Optimistic toggle makes the freeze obvious (light instant, sensors wait). | **Yes** — all sensors, seconds later, mostly after toggle |
+| 2 | SSE 10 s watchdog + reconnect snapshot — only if pings also stall (sync block, not `await`) | Possible amplifier; **unconfirmed** (no overlay report) |
+| — | `uiLocks` dropping **other** idxs | **No** — lock is per-idx, **2 s** for switch/light, would not delay **all** sensors |
+| — | Temp/hum exact `!=` skip | **No** — not all sensors, not “seconds later”, not toggle-correlated |
+| — | Climate history deadband | **No** — History DB, not Control live |
+
+**Working theory (pending operator confirm):** after a Control toggle, the event-worker drain waits on outbound integration I/O; Explorer Control sensor rows stay stale until that drain completes.
+
+### Out of scope
+
+* **C12** item 7 shutter debounce / **C12** frost line.
+* **C16** sliding 24 h History window.
+* **C19** History auto-refresh blank chart (points at **C6**; do not reopen C6).
+* **G3** ✅ OWM outside poll cadence (**10′**; was 30′).
+* **B10H** deferred list/v2 cache; **G8** boot autostart.
+* Reopening the optimistic **light/switch** toggle fix unless cause lock proves the lock itself delays sensors (code says it does not).
+
+**C18 DoD:** Assess decision recorded in this file (surface **locked**; cause **locked**). If impl: Pi smoke — Explorer Control live sensors keep updating during/after a toggle (no multi-second freeze of all sensor rows). **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C19 — History auto-refresh blank chart 🔜 TODO
+
+**Origin:** operator inbox **2026-08-15**. Explorer History charts — **not** C18 live sensor lag, **not** C16 sliding window (keep window on refresh). Size **low**. **Regression of C6** (Done) — **do not reopen C6 DoD**. Soft-refresh intent: § **C6**. Sequence: **∥ cluster** (C6 ✅); default after **C18** if not jumped.
+
+**Operator request (verbatim):**
+> bug: when graph updates automatically, shows nothing: black, only title, eg "Temperature / humidity last 24 hours" no graph at all - re-opening the graph: visible again // auto-refresh should keep ALL graph settings without flicker! also window
+
+**Locked triage intent:**
+
+* Auto-refresh must **not** blank the chart (black / title-only). Re-open working is the workaround, not the fix.
+* Keep **all** graph settings on refresh, **including window** — no flicker. Details: **C6** (merge soft `setOption`, axes/zoom/selection kept).
+* C16 window/pan, when it ships, must keep that same no-wipe refresh.
+
+**Out of scope:** Reopening **C6** as a Done phase; **C18** live Explorer numbers; **C12** frost line.
+
+**C19 DoD:** Auto-refresh keeps series + settings + window; no blank title-only chart; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C20 — Admin bell “Clear All” does nothing 🔜 TODO
+
+**Origin:** operator screenshot **2026-08-14** (Admin **SYSTEM NOTIFICATIONS**). Extends **C2** / **C8** — **not** C17 (banner dismiss vs reload). Size **low**. Sequence: **after C17** (same Admin alert surface); **∥ cluster** OK.
+
+**Operator request (verbatim from screenshot):**
+> clicking 'clear all' doesnt do anything
+
+**Locked triage intent:** Admin bell **Clear All** must clear the notification list (same effect as dismissing the visible rows). Individual **X** is not this bug. Do not reopen **C2** / **C8** DoD.
+
+**Out of scope:** **C17** persist dismiss across reload; **C12** item 4 `produced_at` log; **G14** ON bell copy.
+
+**C20 DoD:** Clear All empties the Admin SYSTEM NOTIFICATIONS list; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C21 — AUTO OFF countdown while device is OFF 🔜 TODO
+
+**Origin:** operator screenshot **2026-08-15** (Explorer Control, **cinema licht**). Explorer live row — **not** C10 item 2 (Planned Automations stale timers), **not** reopening **B8**. Size **low**. Sequence: **∥ cluster**.
+
+**Operator request (verbatim from screenshot):**
+> IS OFF, but timer runs!??
+
+**Locked triage intent:** If the device is **OFF**, Explorer must **not** show a running **AUTO OFF IN …** countdown. Screenshot: **cinema licht** toggle OFF + red **AUTO OFF IN 01:43:36**. Do not reopen **B8** (auto-off engine/config). Kickoff: UI leftover vs engine timer still armed.
+
+**Out of scope:** **C10** Planned Automations past-remove; **C3** Force ALL-OFF; **G6** reload re-arm (unless kickoff proves that path).
+
+**C21 DoD:** OFF device has no AUTO OFF countdown; Pi smoke Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C22 — Host gauges tagged “(no history)” 🔜 TODO
+
+**Origin:** operator screenshot **2026-08-15** (Explorer Host metrics). **Not** C11 (Control vs History **list membership**), **not** C19 (blank chart). Size **low**. Sequence: **∥ cluster**; default near **C16** if not jumped.
+
+**Operator request (verbatim from screenshot):**
+> how come these 3 have no history?
+
+**Locked triage intent:** Three Host rows show **(no history)** while siblings do not: **Host CPU Temperature**, **Host Load Average (15m)**, **Host Load Average (5m)**. Others (CPU Usage, Disk, Load 1m, Log2Ram, Memory) have no such tag. Kickoff: should they record history, or should the tag/list be consistent — **ask**, do not assume.
+
+**Out of scope:** **C11** membership model; **C19** auto-refresh wipe; **C5** / **C10** chart styling already shipped.
+
+**C22 DoD:** Assess recorded (record vs hide tag); impl if decided; Pi smoke those three Host rows. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -574,7 +707,12 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
 * **C12:** item **8** — day frost line; dew removed from month/year; item **9** Hidden preset admin-only.
 * **C17:** banner dismiss vs reload — **assess at kickoff** (not locked).
-* **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit.
+* **C20:** Admin bell **Clear All** must clear the list (not C17).
+* **C18:** Explorer **Control** live numbers — **all** sensors; updates **seconds later**; **mostly after a toggle**. Cause lead = event-worker drain awaits Hue/RFX/Z-Wave I/O before SSE (**not locked**).
+* **C19:** History auto-refresh blank — keep settings + window; **see C6**; do not reopen C6.
+* **C21:** Explorer AUTO OFF countdown must not run when the device is already OFF.
+* **C22:** three Host rows **(no history)** — assess record vs tag; not C11.
+* **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit. Blank auto-refresh → **C19**.
 * **C15:** lab switch in Debug Commands; entire lab pane hidden when OFF.
 * **C13:** Merge hide into Timers & types …
 * **C4:** **`blocky`→`blockly`** — **`blockly.html` / `blockly.js`**; shell label **Blockly**; **not** `automations.*`.
@@ -585,6 +723,11 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * **C11** assess open until kickoff (queued).
 * **C12:** item **8** locked — day frost line; **dew removed from month/year** (day only). Item **9** — Hidden Manage Presets row **admin-only**.
 * **C17:** **assess at kickoff** — persist while fault still true vs new occurrence; bell vs banner; store.
+* **C20:** Clear All currently no-op.
+* **C18:** surface/symptom locked **2026-08-15**; **cause** still open (working theory: drain awaits outbound I/O).
+* **C19:** auto-refresh must not blank; keep settings + window (**C6**).
+* **C21:** AUTO OFF countdown while toggle OFF.
+* **C22:** **assess at kickoff** — Host CPU temp / load 5m / load 15m missing history vs inconsistent tag.
 * **C16:** locked — 24 h max viewport; pan over **`hires_days`**; water day chart **assess at kickoff**.
 * **C15:** locked — switch in Debug Commands; **entire lab pane hidden when OFF**.
 * **C3 / C4** remain open as specified above (later in sequence).

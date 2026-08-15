@@ -270,7 +270,7 @@ Master–detail UI on `sensorhistory.html` → **Actuators** tab.
 |--------|------|
 | Switch / light | OFF→0; ON→**brightness** when present else **100** |
 | Speaker (Sonos / Onkyo) | OFF→0; ON→**volume**; chart / clamp ceiling = device meta **`max_volume`** (`config.sonos.max_volume` / `config.onkyo.max_volume`) — not a forced 0–100 scale |
-| Blinds | native 0=OPEN … 100=CLOSED |
+| Shutters | native 0=OPEN … 100=CLOSED |
 | Door | OPEN→0; CLOSED→100 |
 
 Every state/level change counts toward today / month averages.  
@@ -309,7 +309,7 @@ All `temp_hum` / `temp` sensors plus virtual **`20101` sauna temp** (0.7×20001 
 | Humidity deadband | 2 %RH |
 | Max interval | 300 s |
 
-Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate_daily` rollups.
+Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate_daily` rollups. Outside (`30001` / OWM) samples arrive on `weather.poll_interval_mins` (**10** after **G3**; cold boot), then these deadband / max-interval rules.
 
 ### Charts (ECharts, Sensors list)
 | Range | Series |

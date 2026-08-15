@@ -1,26 +1,12 @@
 ---
-description: HTML coding standards — semantic markup, comments, file header
+description: WanOS operator HTML page version (admin cache-bust badge)
 globs: "**/*.{html,htm}"
 alwaysApply: false
 ---
 
-# HTML standards
+# WanOS HTML page version (admin cache-bust)
 
-## Markup
-
-- Prefer semantic HTML5 elements over generic wrappers when meaning is clear.
-- Keep markup accessible (landmarks, labels, alt text where appropriate).
-- Follow current HTML best practices; avoid deprecated attributes and elements.
-
-## File header
-
-At the top of each file, add a file reference:
-
-```html
-<!-- --- file: templates/index.html --- -->
-```
-
-## Page version (admin cache-bust)
+Shared HTML markup, file headers, and comments live in User Rules (Shared coding conventions). This file is WanOS-only.
 
 Every operator HTML page must expose a **page version** for deploy verification:
 
@@ -31,10 +17,3 @@ Every operator HTML page must expose a **page version** for deploy verification:
 - **Agent duty:** on every HTML/JS edit that ships to an operator page, **increment** the affected page version(s) and **tell the operator** the latest `vNN` per touched page so they can confirm cache refresh.
 
 Implement via shared shell helper when present (`wanos-shell.js` title block); pages without shell get the same pattern locally.
-
-## Comments
-
-- Update existing comments when markup changes.
-- Keep existing comments; remove them only when they are no longer valid.
-- Never leave orphaned comments.
-- Add comments generously for clarity and programmer context.

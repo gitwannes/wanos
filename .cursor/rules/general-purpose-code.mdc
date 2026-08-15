@@ -1,0 +1,35 @@
+---
+description: Config-first, no hardcoded site/env values; generalize only after operator OK
+alwaysApply: true
+---
+
+# General-purpose / configurable code (WanOS)
+
+New and changed code must stay **portable**. Site facts live in **configuration** (`config.yaml`, `*.auto.yaml`, env, existing registry) — not in Python/JS literals.
+
+## Do not hardcode (environment-specific)
+
+- Pi **IP**, **URLs**, **usernames**
+- **All IDX** numbers (use entity_id / registry / config maps)
+- **Hue key path** and **all credentials**
+- **Sauna / IR:** SHT11 use, sensor count and wiring/config, heater control, and similar plant-specific control
+
+Prefer **plain-text config** (YAML/JSON/TOML) already used in this repo. Document new fields next to the key. Do **not** invent a second config system or a settings UI unless the operator asks.
+
+## New code
+
+Write environment-agnostic logic. Read site values from config/registry. Defaults may exist; they must be overridable.
+
+## Existing hardcodes — propose, do not apply
+
+When an edit would **move** hardcoded site facts into config (general-purpose extraction):
+
+1. **Propose** the change (what moves, which file, what stays).
+2. **Ask** the operator.
+3. **Do not** apply until they confirm.
+
+Unrelated bugfixes/features still must not **add** new hardcodes from the list above.
+
+## Conflicts
+
+User Rule “Collaboration standards” still wins: no unsolicited patches. This rule does not authorize drive-by refactors.

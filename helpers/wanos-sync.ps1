@@ -294,13 +294,28 @@ function Initialize-RsyncEnvironment {
     )
     foreach ($dir in $candidates) {
         if (Test-Path -LiteralPath $dir) {
-            if ($env:Path -notlike ("*{0}*" -f $dir)) {
-                $env:Path = "{0};{1}" -f $dir, $env:Path
-            }
+            # Always prepend. If git usr\bin is already later on PATH, Windows
+            # OpenSSH in System32 stays first and MSYS rsync resets the stream.
+            $env:Path = "{0};{1}" -f $dir, $env:Path
         }
     }
     # Avoid MSYS rewriting Windows paths / eating drive letters in args
     $env:MSYS_NO_PATHCONV = "1"
+}
+
+function Get-RsyncSshExe {
+    # Scoop git usr\bin ssh -- same MSYS runtime as rsync-msys2.
+    # Windows OpenSSH (System32) + MSYS rsync: safe_read 4 bytes / connection reset.
+    if ($script:RsyncSshExe -and (Test-Path -LiteralPath $script:RsyncSshExe)) {
+        return $script:RsyncSshExe
+    }
+    $candidate = Join-Path $env:USERPROFILE "scoop\apps\git\current\usr\bin\ssh.exe"
+    if (-not (Test-Path -LiteralPath $candidate)) {
+        Write-Error ("MSYS ssh not found (required by rsync-msys2). Expected: {0}. See docs\wanos-sync.md." -f $candidate)
+        exit 21
+    }
+    $script:RsyncSshExe = $candidate
+    return $script:RsyncSshExe
 }
 
 function Assert-RsyncAvailable {
@@ -310,18 +325,19 @@ function Assert-RsyncAvailable {
         Write-Error "rsync not found on PATH. See docs\wanos-sync.md (Scoop rsync-msys2 + Git usr\bin)."
         exit 20
     }
-    $ssh = Get-Command ssh -ErrorAction SilentlyContinue
-    if (-not $ssh) {
-        Write-Error "ssh not found on PATH. Install OpenSSH Client."
-        exit 21
-    }
+    $ssh = Get-RsyncSshExe
     Write-SyncVerbose ("rsync: {0}" -f $cmd.Source)
-    Write-SyncVerbose ("ssh:   {0}" -f $ssh.Source)
+    Write-SyncVerbose ("ssh:   {0}" -f $ssh)
 }
 
 function Get-SshRsyncShellArg {
+    # Full path: do not let rsync -e ssh pick Windows OpenSSH.
     # LogLevel=ERROR hides OpenSSH post-quantum banner noise on LAN.
-    return "ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR"
+    $sshUnix = ConvertTo-RsyncLocalPath -WindowsPath (Get-RsyncSshExe)
+    if ($sshUnix -match '\s') {
+        $sshUnix = '"{0}"' -f $sshUnix
+    }
+    return "{0} -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR" -f $sshUnix
 }
 
 function Get-RemoteSpec {
@@ -341,7 +357,7 @@ function Test-RemoteFileExists {
     $remote = "{0}@{1}" -f $Ssh.User, $Ssh.Host
     # Single remote argv: test -f '<path>' (path embedded; Pi paths have no single quotes)
     $script = "test -f '$RemoteFilePath' && echo yes || echo no"
-    $out = & ssh.exe -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
+    $out = & (Get-RsyncSshExe) -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
     return ($out -match "yes")
 }
 

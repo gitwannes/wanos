@@ -10,8 +10,8 @@
 //   fire allowlist for unused system (Sauna/IR ON/OFF always).
 // Phase B9A: sensor/host-gauge pickers (G2 — trigger+condition, never action);
 //   sauna/IR status = condition-only; numeric compare on device conditions +
-//   thresholds on numeric device triggers (op/attribute/value); JSON editor removed
-//   (Blockly is now the only rule editor — ruleJson stays as internal transport).
+// Phase B10K: timings stopwatch (no auto-open); shutter OPEN/CLOSED (no FORCE/POS);
+//   visible blinds→shutters; RFX ON/OFF no Hue color. G3: OWM poll 10′ (config).
 
 /** Min viewport width for History / Automation and the top-row join (tablets+). */
 const WANOS_WIDE_MIN_PX = 768;
@@ -216,14 +216,17 @@ function blockyEntityMeta(eid) {
 
 function blockyEntityTypeOf(eid) {
     const opt = blockyEntityMeta(eid);
+    const e = String(eid || "");
+    const nativeType = opt && opt.type ? String(opt.type).toLowerCase() : "";
+    // B10K: shutter native type / blinds.* must win over a missing-rpt fallback of "switch".
+    if (nativeType === "blinds" || nativeType === "shutter") return nativeType;
+    if (e.startsWith("blinds.")) return "blinds";
     if (opt && opt.resolvedProductType) {
         const rpt = String(opt.resolvedProductType).toLowerCase();
         if (rpt === "light" || rpt === "switch") return rpt;
     }
-    if (opt && opt.type) return String(opt.type).toLowerCase();
-    const e = String(eid || "");
+    if (nativeType) return nativeType;
     if (e.startsWith("sensor.temp_hum.")) return "temp_hum";
-    if (e.startsWith("blinds.")) return "blinds";
     if (e.startsWith("hue.")) return "light";
     if (e.startsWith("media_player.")) return "speaker";
     if (e.startsWith("sensor.door.") || e.startsWith("door.")) return "door";
@@ -407,14 +410,18 @@ function blockyEdgeStateOptions(block) {
 /**
  * Action state entries by device type / origin.
  * RFX / Sonos / Onkyo / Epson: no FORCE_* (engine always-forces RFX; OFF-only for the AV trio).
- * Blinds: STATE is a placeholder; position lives in OPEN_PCT (operator open %).
+ * Shutters: OPEN/CLOSED only this ship (no POS / open % — later phase).
  */
 function blockyActionStateOptions(block) {
     const eid = block.getFieldValue("ENTITY");
     const type = blockyEntityTypeOf(eid);
     const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
     if (type === "blinds" || type === "shutter") {
-        return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"], ["position %", "POS"]];
+        return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"]];
+    }
+    // RFX even when product type is light: ON/OFF only (engine always-force; no Hue color).
+    if (origin === "rfxcom") {
+        return [["ON", "ON"], ["OFF", "OFF"]];
     }
     if (type === "light" || type === "hue") {
         return [["ON", "ON"], ["OFF", "OFF"]];
@@ -422,8 +429,8 @@ function blockyActionStateOptions(block) {
     if (type === "speaker" || type === "media_player") {
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
-    // RFX + Epson: always-forced at engine — no FORCE_* in the menu.
-    if (origin === "rfxcom" || origin === "epson") {
+    // Epson: always-forced at engine — no FORCE_* in the menu (RFX handled above).
+    if (origin === "epson") {
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
     // Z-Wave / generic switches — explicit FORCE remains available.
@@ -436,7 +443,7 @@ function blockyActionStateOptions(block) {
 function blockyConditionStateOptions(block) {
     const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
     if (type === "blinds" || type === "shutter") {
-        return [["Open", "0"], ["Closed", "100"]];
+        return [["OPEN", "0"], ["CLOSED", "100"]];
     }
     if (type === "door") {
         return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"]];
@@ -589,7 +596,12 @@ function blockyApplyConditionRich(block, cond) {
             forceValue: cond.is != null ? cond.is : 0
         });
     } else {
-        blockyConditionUpdateShape(block, { forceState: cond.is || "ON" });
+        const type = blockyEntityTypeOf(eid);
+        let forceSt = cond.is || "ON";
+        if (type === "blinds" || type === "shutter") {
+            forceSt = blockyBlindsUiStateFromStored(cond.is) === "CLOSED" ? "100" : "0";
+        }
+        blockyConditionUpdateShape(block, { forceState: forceSt });
     }
 }
 
@@ -664,13 +676,13 @@ function blockyStoredFromOpenPct(openPct) {
     return String(Math.max(0, Math.min(100, Math.round(100 - n))));
 }
 
-/** Map stored blinds closed-% (or OPEN/CLOSED) → Blockly STATE value. */
+/** Map stored shutter closed-% / OPEN/CLOSED / ON/OFF leftovers → Blockly Set STATE. Mid-% → OPEN (no POS this ship). */
 function blockyBlindsUiStateFromStored(stored) {
-    if (stored === "OPEN" || stored === "CLOSED" || stored === "POS") return stored;
+    const su = String(stored == null ? "" : stored).trim().toUpperCase();
+    if (su === "CLOSED" || su === "OFF") return "CLOSED";
+    if (su === "OPEN" || su === "ON") return "OPEN";
     const n = Number(stored);
-    if (n === 0) return "OPEN";
     if (n === 100) return "CLOSED";
-    if (Number.isFinite(n)) return "POS";
     return "OPEN";
 }
 
@@ -1035,7 +1047,7 @@ function blockyActionUpdateRichShape(block, opts) {
         });
 
         const wantBlinds = type === "blinds" || type === "shutter";
-        const wantHue = (type === "light" || type === "hue") && state === "ON";
+        const wantHue = (type === "light" || type === "hue") && origin !== "rfxcom" && state === "ON";
         const wantAudio = (type === "speaker" || type === "media_player") && state === "ON";
 
         if (!wantBlinds) blockyRemoveInput(block, "RICH_BLINDS");
@@ -1048,25 +1060,13 @@ function blockyActionUpdateRichShape(block, opts) {
 
         if (wantBlinds) {
             let st = state;
-            if (st !== "OPEN" && st !== "CLOSED" && st !== "POS") {
+            if (st !== "OPEN" && st !== "CLOSED") {
                 st = blockyBlindsUiStateFromStored(st);
+                if (st !== "OPEN" && st !== "CLOSED") st = "OPEN";
                 blockyForceDropdownValue(block, "STATE", st);
             }
-            if (st === "POS") {
-                if (!block.getInput("RICH_BLINDS")) {
-                    const openDefault = snap.OPEN_PCT != null ? Number(snap.OPEN_PCT) : 50;
-                    block.appendDummyInput("RICH_BLINDS")
-                        .appendField("open")
-                        .appendField(new Blockly.FieldNumber(
-                            Number.isFinite(openDefault) ? openDefault : 50, 0, 100, 1
-                        ), "OPEN_PCT")
-                        .appendField("%  (stored closed % = 100−open)");
-                } else if (snap.OPEN_PCT != null) {
-                    blockySafeSetField(block, "OPEN_PCT", snap.OPEN_PCT);
-                }
-            } else {
-                blockyRemoveInput(block, "RICH_BLINDS");
-            }
+            // B10K: no POS / open-% row this ship.
+            blockyRemoveInput(block, "RICH_BLINDS");
             return;
         }
 
@@ -1177,6 +1177,7 @@ function blockyApplyActionRich(block, action) {
     if (!block || !action) return;
     const eid = action.entity_id || block.getFieldValue("ENTITY");
     const type = blockyEntityTypeOf(eid);
+    const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
     // B9A B+C: stash legal keys Blockly does not author (e.g. target/scene).
     blockyAttachOpaque(
         block,
@@ -1189,17 +1190,15 @@ function blockyApplyActionRich(block, action) {
 
     if (type === "blinds" || type === "shutter") {
         const ui = blockyBlindsUiStateFromStored(action.state);
-        // Must refresh dropdown options first — stale ON/OFF cache rejects CLOSED/POS
+        // Must refresh dropdown options first — stale ON/OFF cache rejects OPEN/CLOSED.
         // and coerce then snaps to OPEN (same class of bug as Hue after save→reload).
         blockyForceDropdownValue(block, "STATE", ui);
         blockyActionUpdateRichShape(block, { forceState: ui });
-        if (ui === "POS") {
-            blockySafeSetField(block, "OPEN_PCT", blockyOpenPctFromStored(action.state));
-        }
         return;
     }
 
-    if ((type === "light" || type === "hue") && String(action.state || "").toUpperCase() === "ON") {
+    if ((type === "light" || type === "hue") && origin !== "rfxcom"
+        && String(action.state || "").toUpperCase() === "ON") {
         if (action.preset) {
             // forceHueMode — do not let a prior NONE snap wipe _pendingPreset.
             blockyActionUpdateRichShape(block, { forceHueMode: "PRESET" });
@@ -1243,16 +1242,11 @@ function blockyReadActionRich(block) {
 
     if (type === "blinds" || type === "shutter") {
         const ui = block.getFieldValue("STATE");
-        if (ui === "OPEN") out.state = "0";
-        else if (ui === "CLOSED") out.state = "100";
-        else {
-            const openPct = block.getFieldValue("OPEN_PCT");
-            out.state = blockyStoredFromOpenPct(openPct != null ? openPct : 50);
-        }
+        out.state = ui === "CLOSED" ? "100" : "0";
         return blockyMergeOpaque(out, block);
     }
 
-    if ((type === "light" || type === "hue") && out.state === "ON") {
+    if ((type === "light" || type === "hue") && origin !== "rfxcom" && out.state === "ON") {
         const mode = block.getFieldValue("HUE_MODE") || "NONE";
         if (mode === "PRESET") {
             const preset = block.getFieldValue("PRESET");
@@ -1305,16 +1299,18 @@ function blockyCoerceFieldToOptions(block, fieldName, optionsFn) {
                 return;
             }
         }
-        // Blinds may still hold a stored closed-% ("100") or light leftover ("ON") after
-        // mkBlock — map closed-% before falling through to opts[0] (OPEN).
-        if (fieldName === "STATE" && !opts.some((o) => o[1] === v)) {
+        // Shutters may still hold closed-% ("100"), ON/OFF leftovers, or MATCH ON after mkBlock.
+        if ((fieldName === "STATE" || fieldName === "MATCH") && !opts.some((o) => o[1] === v)) {
             const et = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
-            if (et === "blinds" || et === "shutter") {
+            if (et === "blinds" || et === "shutter" || fieldName === "MATCH") {
                 const mapped = blockyBlindsUiStateFromStored(v);
-                if (opts.some((o) => o[1] === mapped)) {
-                    f.setValue(mapped);
-                    if (typeof f.forceRerender === "function") f.forceRerender();
-                    return;
+                const candidates = [mapped, mapped === "CLOSED" ? "100" : "0"];
+                for (let i = 0; i < candidates.length; i += 1) {
+                    if (opts.some((o) => o[1] === candidates[i])) {
+                        f.setValue(candidates[i]);
+                        if (typeof f.forceRerender === "function") f.forceRerender();
+                        return;
+                    }
                 }
             }
         }
@@ -1852,9 +1848,6 @@ function blockyFingerprint(block) {
             const type = blockyEntityTypeOf(eid);
             if (type === "blinds" || type === "shutter") {
                 const ui = block.getFieldValue("STATE");
-                if (ui === "POS") {
-                    return `act:device:${eid}:open:${block.getFieldValue("OPEN_PCT")}`;
-                }
                 return `act:device:${eid}:${ui || "OPEN"}`;
             }
             return `act:device:${eid}:${block.getFieldValue("STATE")}`;
@@ -2712,7 +2705,7 @@ function blockyApp() {
                 return "speaker";
             }
             const map = {
-                blinds: "blinds", switch: "switch", light: "light", hue: "light",
+                blinds: "shutters", shutter: "shutters", switch: "switch", light: "light", hue: "light",
                 motion: "motion"
             };
             return map[t] || t || "device";
@@ -4153,9 +4146,6 @@ function blockyApp() {
                     this.coldTimeToInteractiveMs = Math.round(performance.now());
                     this.editorLoading = false;
                     this._snapshotColdLoadTimings();
-                    if (this.isAdmin) {
-                        this._openLoadTimingsModal();
-                    }
                     this._logColdLoadTimings();
                     this._deferColdFireStatus(coldLoadWallStart);
                     this.connected = true;
@@ -4430,6 +4420,12 @@ function blockyApp() {
             const dlg = document.getElementById("blocky_load_timings_modal");
             if (dlg && typeof dlg.showModal === "function") dlg.showModal();
             this.loadTimingsModalOpen = true;
+        },
+
+        /** B10K: stopwatch — only after a successful cold-load snapshot. */
+        openLoadTimingsModal() {
+            if (this.editorLoading || !this.coldLoadTimingsSnapshot) return;
+            this._openLoadTimingsModal();
         },
 
         async runPostWriteRegistryCheck(opts = {}) {

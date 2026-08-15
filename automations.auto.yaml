@@ -163,6 +163,11 @@ automations:
             state: "ON"
           - entity_id: rfx.kerstboom
             state: "ON"
+      - conditions:
+          - type: device_state
+            entity_id: zwave.licht_living
+            is: "ON"
+        actions:
           - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
     id: ea2ab903-fe8c-4375-a771-3bb47a7c9417
     scene: false
@@ -830,11 +835,6 @@ automations:
             state: "ON"
           - entity_id: zwave.licht_keuken
             state: "OFF"
-      - conditions:
-          - type: device_state
-            entity_id: zwave.licht_living
-            is: "ON"
-        actions:
           - entity_id: zwave.licht_living
             state: "OFF"
     id: 08bc4a13-4375-4bf9-b3af-b0b48687d0d3

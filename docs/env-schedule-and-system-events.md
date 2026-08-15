@@ -32,7 +32,7 @@ Same scheduler math as today — clearer admin names and one mental model. No `T
 
 | Window | Purpose | START | STOP |
 |---|---|---|---|
-| **Blinds** | Blinds open for the day | **Blinds open** | **Blinds close** |
+| **Shutters** | Shutters open for the day | **Shutters open** | **Shutters close** |
 | **Morning lights** | Early outdoor/kerst lights | **Morning lights on** | **Morning lights off** |
 | **Evening lights** | Outdoor/kerst lights after dark | **Evening lights on** | **Evening lights off** |
 
@@ -47,8 +47,8 @@ Keep **UUIDs and timing**. UI/catalog labels:
 
 | Catalog / UI name | Meaning | Pre-migration label | `EventType` key (keep for now) |
 |---|---|---|---|
-| **Blinds open** | Open at clamped morning time | Blinds open | `BLINDS_OPEN_TRIGGER` |
-| **Blinds close** | Close at clamped evening time | Blinds close | `BLINDS_CLOSE_TRIGGER` |
+| **Shutters open** | Open at clamped morning time | Blinds open | `BLINDS_OPEN_TRIGGER` |
+| **Shutters close** | Close at clamped evening time | Blinds close | `BLINDS_CLOSE_TRIGGER` |
 | **Morning lights on** | Accent lights on at clock | Morning on | `MORNING_ON_TRIGGER` |
 | **Morning lights off** | Those lights off at sunrise | Sunrise | `SUNRISE_TRIGGER` |
 | **Evening lights on** | Accent lights on at sunset | Sunset | `SUNSET_TRIGGER` |
@@ -71,8 +71,8 @@ Name = what the house does. Astronomy belongs in the “when” column, not the 
 | Morning lights off | Sunrise | — |
 | Evening lights on | Sunset (raw) | — |
 | Evening lights off | Clock | `twilight.evening_off_time` (`23:00`) |
-| Blinds open | Sunrise, clamped | `blinds.morning_open_earliest` / `latest` (`07:00`–`09:00`) |
-| Blinds close | Sunset, clamped | `blinds.evening_close_earliest` / `latest` (`16:30`–`22:00`) |
+| Shutters open | Sunrise, clamped | `blinds.morning_open_earliest` / `latest` (`07:00`–`09:00`) |
+| Shutters close | Sunset, clamped | `blinds.evening_close_earliest` / `latest` (`16:30`–`22:00`) |
 
 *(Config path keys still say `twilight.*` — product labels do not.)*
 
@@ -80,7 +80,7 @@ Name = what the house does. Astronomy belongs in the “when” column, not the 
 
 ## 5. Timing rules
 
-*(Blinds + morning skip + evening skip = live math as of **B10F**.)*
+*(Shutters + morning skip + evening skip = live math as of **B10F**.)*
 
 ```text
 blinds_open = max(sunrise, morning_open_earliest)
@@ -106,7 +106,7 @@ else:
     schedule neither
 ```
 
-**Blinds ≠ evening lights:** blinds use **clamped** sun; evening lights on uses **raw** sunset.
+**Shutters ≠ evening lights:** shutters use **clamped** sun; evening lights on uses **raw** sunset.
 
 ### Edge cases (operators)
 
@@ -115,7 +115,7 @@ else:
 | Sunrise ≤ morning-on clock | Whole **morning lights** window skipped |
 | Sunset &lt; evening-off (normal) | On at sunset → off at clock |
 | Sunset ≥ evening-off | Whole **evening lights** window skipped (same pattern as morning; no inverted timers) — **B10F** |
-| Blinds open/close inverted by bad clamps | Scheduler does not skip; fix config |
+| Shutters open/close inverted by bad clamps | Scheduler does not skip; fix config |
 
 **Sweeper** (active sweeps only): re-dispatch current side of each window (not replay missed edges). Passive/boot sweeps skip time-series alignment.
 
@@ -127,7 +127,7 @@ else:
 |---|---|---|
 | Lights on later morning | Raise `morning_on_time` | Duplicate rules |
 | Lights off earlier night | Lower `evening_off_time` | Second listener on evening-on |
-| Blinds not before 7:30 | Set `morning_open_earliest` | Hardcode times in Blocky |
+| Shutters not before 7:30 | Set `morning_open_earliest` | Hardcode times in Blocky |
 | Behaviour at evening lights on | Edit the **one** **SR** under that **SE** | Retarget a dashboard user event onto a schedule edge |
 | Manual scene (Cinema, GoCosy) | **UE** + **UR**(s) | Attach scene rule to schedule system UUID |
 
@@ -157,16 +157,16 @@ Restore any user scene incorrectly retargeted onto Sunset (e.g. **GoCosy** must 
 # Typical
 06:00  Morning lights on
 08:10  Morning lights off (= sunrise)
-08:10  Blinds open
+08:10  Shutters open
 17:00  Evening lights on (= sunset)
-17:05  Blinds close (clamped; may differ slightly)
+17:05  Shutters close (clamped; may differ slightly)
 23:00  Evening lights off
 
 # Midsummer (sunrise before 06:00)
 (no morning lights)
-07:00  Blinds open (earliest clamp)
+07:00  Shutters open (earliest clamp)
 21:30  Evening lights on
-22:00  Blinds close (latest clamp if needed)
+22:00  Shutters close (latest clamp if needed)
 23:00  Evening lights off
 ```
 

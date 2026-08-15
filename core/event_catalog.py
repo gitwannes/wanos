@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # (legacy EventType key, fixed UUID, approved UI name)
 _SYSTEM_SEED_ROWS: Tuple[Tuple[str, str, str], ...] = (
-    ("BLINDS_OPEN_TRIGGER", "a130c1d4-1bc9-4491-b126-81f716c045c9", "Blinds open"),
-    ("BLINDS_CLOSE_TRIGGER", "70716703-5fc0-438b-8af5-db6a1cb1bd07", "Blinds close"),
+    ("BLINDS_OPEN_TRIGGER", "a130c1d4-1bc9-4491-b126-81f716c045c9", "Shutters open"),
+    ("BLINDS_CLOSE_TRIGGER", "70716703-5fc0-438b-8af5-db6a1cb1bd07", "Shutters close"),
     # B10E display names (UUIDs unchanged) — Morning/Evening lights windows
     ("MORNING_ON_TRIGGER", "9a6f9e9a-a571-472e-89ef-4b866b5c2525", "Morning lights on"),
     ("SUNRISE_TRIGGER", "7dd2bc22-f1fa-491f-a97d-085fd9b9d0c8", "Morning lights off"),

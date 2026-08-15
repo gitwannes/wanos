@@ -101,7 +101,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A ✅ DONE** (**2026-08-12** — Pi smoke OK + Admin Debug GREEN + docs close-out). **Phase B10G ✅ DONE** (**2026-08-12** — two overlays + load timings modal; SSE A+B+C; admin `v1` ×8; hue_presets scoped reload; Pi smoke A/B/C/D OK). **Phase B10H ✅ DONE** (**2026-08-12** — Automations cold open ~**2.1 s**; SSE reconnect flicker fixed; docs close-out). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A ✅ DONE** (**2026-08-12** — Pi smoke OK + Admin Debug GREEN + docs close-out). **Phase B10G ✅ DONE** (**2026-08-12** — two overlays + load timings modal; SSE A+B+C; admin `v1` ×8; hue_presets scoped reload; Pi smoke A/B/C/D OK). **Phase B10H ✅ DONE** (**2026-08-12** — Automations cold open ~**2.1 s**; SSE reconnect flicker fixed; docs close-out). **Phase B10K ✅ DONE** (**2026-08-15** — timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; one code run with **G3**; Pi smoke + docs close-out). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
 
 **Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
 
@@ -485,7 +485,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 **Not in Blockly cluster:** **B15** (schedule demotion), **B16** (internal bus UUID), **B17** (assess), **B18** (sauna clamp) — stay in general pipeline after **F** unless safety jumps **B18**.
 
-**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **G5** after Ship **B2** (∥ **B3–B8**); **E** transport ∥ Ships **B5–B8**; Ships **B5 ∥ B6** after **B4** if capacity allows (H5 email half still waits **E**).
+**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **C18** after **B10H** (sensor live lag, assess→fix); **G5** after Ship **B2** (∥ **B3–B8**); **E** transport ∥ Ships **B5–B8**; Ships **B5 ∥ B6** after **B4** if capacity allows (H5 email half still waits **E**).
 
 **After F:** **B20** — Domoticz **Time** trigger + time-compare blocks (every-minute evaluation model).
 
@@ -505,7 +505,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 2. **Blinds position % on if** — `attribute: position`, compare ops, unit **%**.
 3. **Sonos / Onkyo volume % on if** — `attribute: volume`, 0–`max_volume`.
 
-**Out of scope:** If/Do canvas (**B19**); AND/OR (**Ship B4**); Messages (**Ship B6**). Blinds **Set** ON→OPEN labels → **B10K** (not this ship).
+**Out of scope:** If/Do canvas (**B19**); AND/OR (**Ship B4**); Messages (**Ship B6**). Blinds **Set** ON→OPEN labels → **B10K** ✅ (**2026-08-15**).
 
 **B9C DoD:** Pi smoke on **legacy** canvas; G5 rule authorable; Admin Debug GREEN. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -683,8 +683,8 @@ Mark each item `LOCKED` before implementation starts.
 
 | Key | Label | Usage | After B10B |
 |---|---|---|---|
-| `BLINDS_OPEN_TRIGGER` | Blinds open | trigger-only | system seed UUID |
-| `BLINDS_CLOSE_TRIGGER` | Blinds close | trigger-only | system seed UUID |
+| `BLINDS_OPEN_TRIGGER` | Shutters open | trigger-only | system seed UUID; **B10K** ✅ display rename |
+| `BLINDS_CLOSE_TRIGGER` | Shutters close | trigger-only | system seed UUID; **B10K** ✅ display rename |
 | `MORNING_ON_TRIGGER` | Morning lights on (clock) | trigger-only | system seed UUID |
 | `SUNRISE_TRIGGER` | Morning lights off (astro sunrise) | trigger-only | system seed UUID |
 | `SUNSET_TRIGGER` | Evening lights on (astro sunset) | trigger-only | system seed UUID |
@@ -1115,8 +1115,8 @@ UUIDs: locked in `core/event_catalog.py`. **Name** = Blockly / catalog display s
 
 | EventType key | `name` | Notes |
 |---|---|---|
-| `BLINDS_OPEN_TRIGGER` | Blinds open | Unchanged; blinds window START |
-| `BLINDS_CLOSE_TRIGGER` | Blinds close | Unchanged; blinds window STOP |
+| `BLINDS_OPEN_TRIGGER` | **Shutters open** | **B10K** ✅ catalog/UI rename (UUID unchanged); shutters window START |
+| `BLINDS_CLOSE_TRIGGER` | **Shutters close** | **B10K** ✅ rename; shutters window STOP |
 | `MORNING_ON_TRIGGER` | **Morning lights on** | Was “Morning on”; **B10E** catalog/UI rename (UUID unchanged) |
 | `SUNRISE_TRIGGER` | **Morning lights off** | Was “Sunrise”; **B10E** rename |
 | `SUNSET_TRIGGER` | **Evening lights on** | Was “Sunset”; **B10E** rename |
@@ -1211,7 +1211,7 @@ Cinema ON/OFF: **manual only** (no clock today; unchanged).
 
 | Old rule | Family | New rule names |
 |---|---|---|
-| `Blinds Open/Close` | `blinds` | `Blinds open` + `Blinds close` |
+| `Blinds Open/Close` | `blinds` | `Blinds open` + `Blinds close` *(display **Shutters open/close** after **B10K** ✅)* |
 | `Kerstverlichting voor & achter aan 's morgens` | `twilight_morning` | `Morning lights on` + `Morning lights off` (was Morning on + Sunrise) |
 | `Sauna ON/OFF` | `sauna` | `Sauna ON` + `Sauna OFF` |
 
@@ -1292,10 +1292,14 @@ Pointers only — detail under § B10F / § B11–B18:
 * **B10H** — Automations cold-load shorten wait — ✅ **Done 2026-08-12**.
 * **B10I** — Used SE → **Go to SR** — **∥ cluster** (anytime after B10F).
 * **B10J** — **`Event Received`** catalog display name — **∥ cluster** (anytime after B10B).
-* **B10K** — Automations timings modal → header button; blinds Set **OPEN** (not ON) — **∥ cluster**.
-* **B10L** — Shared **NOT CONNECTED** overlay: richer connect status — **∥ cluster**.
+* **B10K** — ✅ **Done 2026-08-15** — timings stopwatch + shutter OPEN/CLOSED + RFX ON/OFF (no color); **one code run with G3**. Living schemer leftover → **B10N**.
+* **B10L** — Shared **NOT CONNECTED** overlay: richer connect status + copy **Re-connecting to WanOS...** — **∥ cluster**.
+* **B10M** — Explorer Hue preset duplicate settings — **∥ cluster** (after **B10G** Part D).
+* **B10N** — RFX living schemer still shows color — **∥ cluster** (after **B10K**).
+* **C18** — Explorer sensor live lag (B10H / optimistic leftover) — **assess → fix**; [`phaseC-shell.md`](phaseC-shell.md) § C18.
+* **C19** — History auto-refresh blank — **see C6**; [`phaseC-shell.md`](phaseC-shell.md) § C19.
 * **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
-* **G6** — Scoped `CONFIG_RELOAD` after CRUD (no bridge thrash) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
+* **G6** — Scoped `CONFIG_RELOAD` + Automations deferred Save config — [`phaseG-integrations.md`](phaseG-integrations.md); not a new B item.
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
 * **B11** — Multi-flow in one Blockly page.
 * **B12** — Rule-list folder/tag.
@@ -1533,7 +1537,7 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 
 **B10G DoD:**
 
-- [x] Part A: **two overlays** — shared `data-wanos-offline` + yellow load checklist; per-step durations on checklist + dismissable floating admin debug modal (auto-open after load) + console; **`wanos_debug.log` out of DoD**; load failure → red shared offline; post-save refresh uses B10F busy overlay only (not checklist).
+- [x] Part A: **two overlays** — shared `data-wanos-offline` + yellow load checklist; per-step durations on checklist + dismissable floating admin debug modal + console; **`wanos_debug.log` out of DoD**; load failure → red shared offline; post-save refresh uses B10F busy overlay only (not checklist). *(B10G shipped auto-open after load; **B10K** ✅ superseded — stopwatch right of `vNN`, no auto-open.)*
 - [x] Part B: SSE **A+B+C** (Pi repro **confirmed 2026-08-12**); T4 C exact per-scope suppress strings; alerts on **all** reload sources; unscoped API → **`full`** row (Option A); Admin GO **`full`** copy; `wanosApp` + `zwaveconfig.html`.
 - [x] Part C: **Eight shell pages** show admin-only **`vNN`** (each **`v1`** at ship); **`kiosk.html` excluded**; agent reports bump per touched page.
 - [x] **Part D:** Re-run Pi smoke on shipped B9A scoped path; verify + finish alerts, Explorer chip/save-disable UX; **&lt;2s** add/rename/delete; no integration recycle logs.
@@ -1557,7 +1561,7 @@ Filter: text + checkboxes **UE / UR / SE / SR / D** (default all on).
 | 4 | Building library | Parse JSON; `rebuildLibraryRows()`; `rebuildEntityOptions()`; presets; rule reselect | *(no single API — log as step name)* |
 | 5 | Schedule status | `GET /api/automations/fire-status` | `GET /api/automations/fire-status` |
 
-Steps **1–3** run in parallel (`Promise.all`). Overlay **2** clears after library build (**B10H** — fire-status deferred). REST heartbeat **10s**. Timings: console + admin modal with Resource Timing breakdown (wire TTFB / nav→byte / before fetch / totals) + **`coldTimeToInteractiveMs`**. **`(parallel)` label removed** (**B10H**). **`wanos_debug.log` — out of DoD**.
+Steps **1–3** run in parallel (`Promise.all`). Overlay **2** clears after library build (**B10H** — fire-status deferred). REST heartbeat **10s**. Timings: console + admin modal with Resource Timing breakdown (wire TTFB / nav→byte / before fetch / totals) + **`coldTimeToInteractiveMs`**. Open via **B10K** stopwatch (no auto-open). **`(parallel)` label removed** (**B10H**). **`wanos_debug.log` — out of DoD**.
 
 #### B — “NOT CONNECTED” — assess + fix (shipped)
 
@@ -1626,7 +1630,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 **Root cause (locked):** (1) sync `get_state_snapshot` + SSE poll blocked single worker; (2) double cold `refreshAll`; (3) later: N+1 YAML on automations list + merge-on-every-events-GET.
 
-**Out of scope (unchanged):** **G8** boot autostart; **G6** scoped reload; nginx as primary fix; list cache (deferred).
+**Out of scope (unchanged):** **G8** boot autostart; **G6** scoped reload; nginx as primary fix; list cache (deferred). Explorer sensor live lag after event-driven SSE / optimistic UI → **C18**.
 
 ---
 
@@ -1659,36 +1663,41 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ---
 
-### Phase B10K — Automations timings button + blinds Set OPEN 🔜 TODO
+### Phase B10K — Automations timings + shutter OPEN/CLOSED + RFX ON/OFF ✅ DONE (2026-08-15)
 
-**Origin:** operator inbox **2026-08-13**. Automations (`blocky.html`) — **not** Explorer. Size **low**. **Parallel:** may run beside Ships **B2–B8** ([`pipeline.md`](pipeline.md) § Parallel tracks).
+**Shipped summary:** One code run with **G3**. Pi smoke OK (operator **2026-08-15**). Automations timings modal no longer auto-opens — **stopwatch** immediately right of `vNN`. Shutter Blockly **OPEN / CLOSED** only (no FORCE, no POS). Visible UI **shutters** (Library titles **Shutters open/close**; catalog display names; Hidden-devices type column). RFX **ON/OFF**, no Hue color (`wantHue` excludes `rfxcom`). Identifiers unchanged (`blinds.*`, `BLINDS_*`, UUIDs). YAML leftovers coerce in UI until Save. Load-fail red NOT CONNECTED unchanged → **B10L**. Remaining RFX hole (living schemer still offers color) → **B10N** — not this ship.
 
-**Covering operator request (verbatim):**
-> - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
-> - + 4 screenshots attached
+| Item | Shipped |
+|---|---|
+| **1** | Stopwatch right of `vNN`; disabled while `editorLoading` / no snapshot; modal + console unchanged; no auto-open |
+| **2** | Native `blinds`/`shutter` and `blinds.*` win typing before switch; Set/if OPEN/CLOSED; YAML ON→OPEN, OFF→CLOSED, mid-%→OPEN |
+| **3** | Origin `rfxcom` even when typed light: ON/OFF, no Hue color/preset (`wantHue` excludes `rfxcom`) |
 
-#### Item 1 — load-timings modal (B10G follow-up)
+**B10K DoD:**
 
-**Screenshot / annotation:** (text item; no screenshot) Automations page after load.
+- [x] Timings only via stopwatch after successful load (no auto-open; not clickable while loading)
+- [x] Load-fail NOT CONNECTED unchanged (**B10L**)
+- [x] Shutter Blockly OPEN/CLOSED (no FORCE, no POS); visible “blinds” → “shutters” including Library rule titles
+- [x] RFX ON/OFF no color
+- [x] G3 interval in same code run
+- [x] Pi smoke — **2026-08-15**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-15**
 
-**Locked:** B10G admin floating **load-timings** modal must **not** auto-open after cold load. Add a **small button** immediately **right of the page-version** (`vNN`) that opens it on demand. Admin-only (same gate as `vNN` / timings today). Console timings unchanged.
+#### Locked decisions archive (Q&A 2026-08-15)
 
-#### Item 2 — blinds Set state label OPEN (screenshot 4)
+**Item 1 — load-timings modal (B10G follow-up):** No auto-open. Stopwatch immediately right of `vNN`. Automation already admin-only — no extra `isAdmin`. Not clickable while yellow load (`editorLoading`). After successful load: button enabled; modal content unchanged. Load failure / red NOT CONNECTED: no change this run → **B10L**. Do not put `errorMessage` in the timings modal.
 
-**Operator request (verbatim from screenshot):**
-> should be 'OPEN'
+**Item 2 — shutters:** Root cause was `rebuildEntityOptions` defaulting missing `resolved_product_type` to `switch` so `blockyEntityTypeOf` returned switch before `blinds.*`. Operator-facing **shutters** on all visible UI. Do **not** rename `blinds.*` eids, `config.yaml` `blinds:`, `BLINDS_*` keys, UUIDs, internals. Strip FORCE only on shutter devices; Z-Wave switches keep FORCE. No POS / open % this ship — **B9C** remains queued **if %**. Engine + Explorer already do closed-% including mid.
 
-**Locked:** Blockly **Set device** / action state dropdown for **blinds / shutter** must show **OPEN** / **CLOSED** (not **ON** / **OFF**). B6C already specified OPEN/CLOSED/POS; this is a **current-canvas** rebuild/label bug (dropdown stuck on ON). Engine storage unchanged (closed % / OPEN-CLOSED as today). **Not** B19; **not** B9C if-% compare.
+**Item 3 — RFX (separate from shutters):** Origin `rfxcom` even when `device_product_types` is light: ON/OFF only, no Hue color. Engine already always-force RFX — Blockly must not show FORCE. Inbox **2026-08-15** living schemer still shows color → **B10N** (do not reopen this Done ship).
 
-**Out of scope:** Domoticz Set blocks (**B19**); Hidden view-preset (**C12 #9**); alert persist (**C17**); NOT CONNECTED copy (**B10L**).
-
-**B10K DoD:** Timings modal only via header button (no auto-open); blinds actions show OPEN/CLOSED; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**Out of scope (unchanged):** Domoticz Set (**B19**); B9C if-%; Hidden preset (**C12 #9**); alert persist (**C17**); NOT CONNECTED copy (**B10L**); entity_id / config key / EventType renames; living schemer color leftover → **B10N**.
 
 ---
 
 ### Phase B10L — NOT CONNECTED overlay status 🔜 TODO
 
-**Origin:** operator inbox **2026-08-13** (screenshot 2). Shared shell overlay (`data-wanos-offline`) — **all SSE pages** that use it (Automations, Explorer, Admin, WISC, History, …). Size **low**. **Parallel:** beside **B2–B8**. Extends **B10G** overlay **1** (not overlay **2** yellow checklist).
+**Origin:** operator inbox **2026-08-13** (screenshot 2). **Copy line 2026-08-15.** Shared shell overlay (`data-wanos-offline`) — **all SSE pages** that use it (Automations, Explorer, Admin, WISC, History, …). Size **low**. **Parallel:** beside **B2–B8**. Extends **B10G** overlay **1** (not overlay **2** yellow checklist).
 
 **Covering operator request (verbatim):**
 > - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
@@ -1697,16 +1706,48 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 **Operator request (verbatim from screenshot):**
 > possible to put some info: connected, receiving x%, ...?
 
+**Operator request (verbatim, triage 2026-08-15):**
+> change "Establishing connection stream to WanOS backend..." to "Re-connecting to WanOS..."
+
 **Locked triage intent:**
 
-* Keep heading **NOT CONNECTED** + current establishing line.
+* Keep heading **NOT CONNECTED**.
+* Establishing line becomes **`Re-connecting to WanOS...`** (replaces `Establishing connection stream to WanOS backend...`). Same string on every shared-overlay page.
 * Add **honest status** under it: e.g. connecting / snapshot received / SSE open / waiting — **not** a fake percentage.
 * Real **%** only if a true progress metric exists at kickoff (otherwise omit %; use milestones).
 * Same copy on every page that uses the shared overlay.
 
-**Out of scope:** Yellow Automations load checklist (overlay **2**); timings modal (**B10K**).
+**Out of scope:** Yellow Automations load checklist (overlay **2**); timings modal (**B10K** ✅). Do not respec overlay 1 in **B10G** shipped notes — this ship supersedes the establishing line.
 
-**B10L DoD:** Overlay shows live connect milestone (and % only if real); Pi smoke reconnect + cold open. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**B10L DoD:** Overlay copy **Re-connecting to WanOS...**; live connect milestone (and % only if real); Pi smoke reconnect + cold open. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B10M — Explorer Hue preset duplicate settings 🔜 TODO
+
+**Origin:** operator inbox **2026-08-15**. Explorer Hue preset CRUD (B9A / B10G Part D) — **not** Automations save (**G6**), **not** G2 color truth. Size **low**. **Parallel:** beside **B2–B8** (after **B10G** Part D ✅).
+
+**Operator request (verbatim):**
+> bugfix: cannot save another preset with the same settings as an already existing preset
+
+**Locked triage intent:** Operator can save a **new** Explorer Hue preset whose color/bri/xy **matches** an existing preset (new name/key). Display-name uniqueness (B9A) stays. Not a second G6/B10G-D ship.
+
+**B10M DoD:** New preset with same settings as an existing one saves; Pi smoke Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B10N — RFX living schemer still shows color 🔜 TODO
+
+**Origin:** operator inbox **2026-08-15**. Blockly RFX color leftover after **B10K** ✅ — **do not reopen B10K**. Size **low**. **Parallel:** beside **B2–B8**.
+
+**Operator request (verbatim):**
+> bug: automation editor: for rfx device "living schemer switch" a 'color' is selectable: that is wrong
+
+**Locked triage intent:** RFX **living schemer switch** must not offer Hue preset / color in Blockly (ON/OFF only). B10K shipped general `rfxcom` / `wantHue` exclude; this device still wrong. Same RFX no-color rule as B10K Item 3 — new ship because B10K is closed.
+
+**Out of scope:** Reopening **B10K**; shutters (**B10K** Item 2); **B10L** overlay copy.
+
+**B10N DoD:** Living schemer (and any same-class RFX hole found at kickoff) Blockly ON/OFF only, no color; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -1812,7 +1853,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 **Constraints to respect in the write-up:** live safety / start gates / max-runtime in [`sauna-ir.md`](../sauna-ir.md) stay authoritative; catalog events + fire allowlist already in B10E.
 
-**B17 DoD:** written assessment (devices switched; keep-in-code vs rule candidates; recommended disposition). **No code cutover** unless a later phase is opened. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**B17 DoD:** written assessment (devices switched; keep-in-code vs rule candidates; recommended disposition). **No code cutover** unless a later phase is opened. Leftover plant-in-code after B17 → **P** [`phaseP-portability.md`](phaseP-portability.md). **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

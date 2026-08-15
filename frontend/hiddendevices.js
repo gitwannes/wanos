@@ -143,8 +143,8 @@ function hiddenDevicesApp() {
             const map = {
                 light: "Light",
                 switch: "Switch",
-                blinds: "Blinds",
-                shutter: "Blinds",
+                blinds: "Shutters",
+                shutter: "Shutters",
                 power: "Power",
                 motion: "Motion",
                 temp_hum: "Temp/Hum",

@@ -22,16 +22,22 @@
         '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">' +
         '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>';
 
+    /** B10K: Automations load-timings (right of vNN). */
+    const STOPWATCH_SVG =
+        '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">' +
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" ' +
+        'd="M12 2v3M9 2h6M17 6.5l1.5-1.5M21 13a9 9 0 11-18 0 9 9 0 0118 0zM12 13V9" /></svg>';
+
     /** B10G: per-page deploy version (admin-only badge in titleBlock). */
     const PAGE_VERSIONS = {
-        admin: 3,
-        explorer: 3,
-        commander: 3,
-        history: 3,
-        blocky: 4,
-        hiddendevices: 1,
-        lightingautooff: 1,
-        zwave: 1
+        admin: 4,
+        explorer: 4,
+        commander: 4,
+        history: 4,
+        blocky: 5,
+        hiddendevices: 2,
+        lightingautooff: 2,
+        zwave: 2
     };
 
     /** B10G: exact AlertManager-stored strings for reload suppress (T4 C). */
@@ -173,6 +179,9 @@
                 '<div class="flex items-center gap-1 min-w-0">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider text-warning truncate">⚡ WanOS // Automation</span>' +
                 pageVersionBadge("blocky") +
+                '<button type="button" class="btn btn-ghost btn-xs btn-circle shrink-0 text-base-content/50 hover:text-warning" ' +
+                'title="Load timings" :disabled="editorLoading || !coldLoadTimingsSnapshot" ' +
+                '@click="openLoadTimingsModal()">' + STOPWATCH_SVG + "</button>" +
                 "</div>"
             );
         }

@@ -553,7 +553,7 @@
             <p>A rule is: <b>trigger → cases (conditions + actions)</b>. Event triggers store a catalog <b>UUID</b>; the UI shows the event name.</p>
             <ul class="list-disc pl-5 space-y-2">
                 <li>One blue trigger per rule. Delete it (or drag a new one) to change type — cases stay attached.</li>
-                <li>Match and action options follow the device (lights, blinds, Sonos/Onkyo, etc.).</li>
+                <li>Match and action options follow the device (lights, shutters, Sonos/Onkyo, etc.).</li>
                 <li>Use <b>When user event</b> / <b>When system event</b> (and matching Fire actions). Family “start or end” triggers are gone.</li>
                 <li>Use <b>When any of</b> when several devices or events should OR together.</li>
                 <li>Explorer / confirm flags live on the <b>user event</b> (UE form) — not on rules. Disable a rule with <b>Rule enabled</b>. System events (SE) are catalog-only.</li>
@@ -650,7 +650,7 @@
     <form method="dialog" class="modal-backdrop" @submit="closeBlockyHueColor()"><button>close</button></form>
 </dialog>
 
-<!-- B10G: admin-only cold-load timings (auto-open after successful init). -->
+<!-- B10K: load timings — open from header stopwatch (no auto-open). -->
 <dialog id="blocky_load_timings_modal" class="modal modal-bottom sm:modal-middle backdrop-blur-sm z-[10001]"
         @close="loadTimingsModalOpen = false">
     <div class="modal-box border border-warning/30 bg-base-300 shadow-2xl max-w-lg">
@@ -683,7 +683,7 @@
     <form method="dialog" class="modal-backdrop"><button type="button" @click="loadTimingsModalOpen = false">close</button></form>
 </dialog>
 
-<script src="wanos-shell.js?v=8"></script>
-<script src="blocky.js?v=13"></script>
+<script src="wanos-shell.js?v=9"></script>
+<script src="blocky.js?v=14"></script>
 </body>
 </html>

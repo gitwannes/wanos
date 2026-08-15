@@ -84,7 +84,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `alert_manager.py`: Centralized UI notification engine (timestamping, dedup, severity). Levels: `critical` (red banner + bell), `error` / `warning` / `success` / `info` (bell only). Integration **connection transitions** (health telemetry up/down) use `error`/`success` + `wanos.log` ERROR/INFO — not the banner.
 * `automation_rules.py`: Dynamically evaluates declarative YAML rules.
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
-* `environment_scheduler.py`: Daily blinds + morning/evening **lights** windows (clamped blinds vs raw sunset for evening-lights on). Catalog / UI labels (B10E): Blinds open/close, Morning lights on/off, Evening lights on/off. Admin model + math: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md). Code keys remain `BLINDS_*` / `MORNING_ON` / `SUNRISE` / `SUNSET` / `EVENING_OFF` until a later key rename.
+* `environment_scheduler.py`: Daily shutters + morning/evening **lights** windows (clamped shutters vs raw sunset for evening-lights on). Catalog / UI labels: Shutters open/close, Morning lights on/off, Evening lights on/off. Admin model + math: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md). Code keys remain `BLINDS_*` / `MORNING_ON` / `SUNRISE` / `SUNSET` / `EVENING_OFF` until a later key rename.
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`. Connection up/down flags ride `SYSTEM_METRICS_UPDATED` (event log silenced); transition UI/log side-effects live in `telemetry_handlers`.
 * `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, **event-UUID** synthetic history `900000+`, host/mains gauge IDXs, `22009` DB size helper) and helpers for event-history hashing / numeric state parsing.
 * `history_manager.py`: Actuator / motion / **event-UUID** history (`device_history.db`) with retention tiers and insights tallies.
@@ -94,7 +94,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)
-* `open_weather.py`: OWM loop — climate (temp/humidity) on `poll_interval_mins`; sunrise/sunset once daily at `sun_refresh_hour` (plus boot/enable). Climate no longer emits sun events. Tripwires off on HTTP failure.
+* `open_weather.py`: OWM loop — climate (temp/humidity) on `weather.poll_interval_mins` (**10** after **G3**; takes effect on cold boot); sunrise/sunset once daily at `sun_refresh_hour` (plus boot/enable). Climate no longer emits sun events. Tripwires off on HTTP failure.
 * `onkyo.py`: Persistent asynchronous bridge maintaining zero-latency TCP sockets with Onkyo/Pioneer AV receivers, handling legacy hardware protocol variations.
 * `rfxcom.py`: Direct asyncio serial protocol driving the 433MHz antenna transceiver, utilizing custom packet generation blocks to protect against library crashes.
 * `sonos.py`: Asynchronous network integration tracking UPnP/HTTP topologies for Sonos speakers.

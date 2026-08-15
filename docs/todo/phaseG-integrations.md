@@ -2,9 +2,9 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). G2 assess-on-Pi first; G1 analysis-gated; **G3** config anytime; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G5** still TODO — partial `Cinema rolluik half` (Open→50) live, **DoD gaps** in § G5; **G6** scoped reload + Admin modal (**assessed 2026-08-12**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**).
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G5** still TODO — partial `Cinema rolluik half` (Open→50) live, **DoD gaps** in § G5; **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9–G13** five new vendor bridges (sequential own ships) — inbox **2026-08-14**.
 
-**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. Blocky CRUD still dispatches `CONFIG_RELOAD_REQUESTED` (B1/B5) — **G6** narrows what that recycle does. Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags).
+**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges).
 
 **DoD convention:** every G subphase ends with **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -15,15 +15,23 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | Subphase | Focus |
 |---|---|
 | **G2 — Hue state** | Boot + live color/bri truth; UI must match bridge |
-| **G6 — Scoped reload** | Automations / hide / auto-off save ≠ Hue·Onkyo·Z-Wave recycle |
+| **G6 — Scoped reload** | Automations deferred Save config + scoped recycle (hide / auto-off / Admin modal) |
 | **G7 — Log prefixes** | `[Onkyo]` (and peer) tag parity with `[HUE]` |
 | **G8 — Boot autostart** | ~30s “integrations disabled” after restart — shorten enable + honest Admin UX |
+| **G14 — Manual enable UX** | After network-failure disable: enabling status + ON bell; assess all integrations |
 | **G1 — Epson boot** | `get_power_state` when safe |
-| **G3 — OWM poll** | Outside temp/hum every **10′** (was 30′) |
+| **G3 — OWM poll** | ✅ **Done 2026-08-15** — outside temp/hum every **10′** (was 30′) |
 | **G4 — OWM daily + hot sun** | One Call 4.0 once/day; hot+full-sun → cinema opens to **60% open** |
 | **G5 — Rolluik zon half** | Dashboard **60% closed** if cinema not fully closed — **after B9C**; partial UE/UR live, gaps in § G5 |
+| **G9 — Honeywell** | Thermostats / Evohome — **own ship** (1st of 5) |
+| **G10 — HomeWizard** | Energy local API — **own ship** (2nd) |
+| **G11 — Samsung Airco** | Climate — **own ship** (3rd) |
+| **G12 — SMA** | Solar inverters — **own ship** (4th) |
+| **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 
-Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G3** is config-only and may ship anytime. **G4** before **G5** preferred (shared cinema-sun story); **G5** can ship alone if operator wants the manual button first.
+Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G3** ✅ **Done 2026-08-15** (config-only; cold boot; one code run with **B10K**). **G4** before **G5** preferred (shared cinema-sun story); **G5** can ship alone if operator wants the manual button first.
+
+**G9 → G10 → G11 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage.
 
 ---
 
@@ -63,14 +71,22 @@ Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot 
 
 ---
 
-## 📋 G3 — OWM outside poll interval 🔜 TODO
+## 📋 G3 — OWM outside poll interval ✅ DONE (2026-08-15)
 
-**Origin:** operator request **2026-08-09**.
+**Shipped summary:** One code run with **B10K**. Pi smoke OK (operator **2026-08-15**). `config.yaml` `weather.poll_interval_mins`: **30 → 10**. Lab `outside_tick` unchanged. No OWM loop rewrite. Interval takes effect on **cold boot** only.
 
-* Only production outside source: OWM **`30001`** / `sensor.temp_hum.outside_temp_hum` (`config.yaml` `weather.poll_interval_mins`).
-* Change **30 → 10** minutes. Lab `outside_tick` unchanged.
+**G3 DoD:**
 
-**G3 DoD:** Live OWM climate refresh ≤10′; Pi smoke outside temp/hum updates on that cadence. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] `poll_interval_mins: 10`
+- [x] After `wanos` restart, `[OWM] … climate every 10m`
+- [x] Different polled values show in Explorer + graphs
+- [x] Same code run as B10K
+- [x] Pi smoke — **2026-08-15**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-15**
+
+#### Locked decisions archive (Q&A 2026-08-15)
+
+Only production outside source: OWM **`30001`** / `sensor.temp_hum.outside_temp_hum`. Running loop captures seconds at task start; CONFIG_RELOAD does not restart it. Unchanged poll values may stay skipped (existing duplicate ignore).
 
 ---
 
@@ -90,7 +106,7 @@ Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot 
 
 ### Not this item
 
-* Current 2.5 climate poll cadence → **G3**.
+* Current 2.5 climate poll cadence → **G3** ✅ (**2026-08-15**).
 * Manual dashboard half-close → **G5**.
 * Paid Weather Startup / `/forecast/daily` — **not required** (One Call 4.0 is enough).
 
@@ -132,7 +148,10 @@ G5 needs blinds **position ≠ 100** on **if**. **B9C** patches the **legacy** c
 
 ## 📋 G6 — Scoped `CONFIG_RELOAD` + Admin scoped-reload modal 🔜 TODO
 
-**Origin:** triage **2026-08-11** (Pi log after Blocky automation rule save). **Expanded 2026-08-12** — Admin UX: keep **full** reload; add **scoped** reload with operator-selectable parts.
+**Origin:** triage **2026-08-11** (Pi log after Blocky automation rule save). **Expanded 2026-08-12** — Admin UX: keep **full** reload; add **scoped** reload with operator-selectable parts. **Expanded 2026-08-15** — Automations save: load-style step overlay + **defer** reload until Save config (dirty + leave modal). Not a separate phase.
+
+**Operator request (verbatim, triage 2026-08-15):**
+> when saving presets in the automation page : this takes long: add visibility: show steps to be taken, same timings as the one we use to load the automation page itself // maybe don't reload config on every rule change, but whenever a rule is changed, set the dirty mode for the reload config - a button "save config" then appears, or is enabled at least. when this reload config is not done while moving away from the page, show a modal similar to the modal which exists for the dirty-rule: with buttons "save config" "cancel" and "discard all rule changes"
 
 **Problem:** Blocky / soft-hide / auto-off / events / hue-preset CRUD correctly dispatch `CONFIG_RELOAD_REQUESTED`, but `handle_config_reload_requested` almost always runs a **full** recycle: `load_config()` + full `rebuild_core_metadata()` + Hue stop/start + Onkyo TCP bounce + RFX/Sonos map refresh + Z-Wave remap + MQTT re-subscribe + NVRAM re-read + passive post-reload sweep (~2s). Z-Wave listens to **any** reload and forces `_is_mapped` / `_integration_enabled` reset.
 
@@ -168,7 +187,8 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 |---------|-----------|
 | **Full reload** (rename/clarify current **Reload Config** row) | Unchanged semantics — everything in table above. Use after multi-file edits, deploy, or “something feels stale”. |
 | **Scoped reload** (new row + modal) | **12** checkboxes (see catalog) — each with a one-line **summary** of what reloads + **when**; **Select all** / **Clear** only (no preset bundles). **Apply** → `{ mode: "scoped", scopes: [...] }`. |
-| Blocky / API auto-reload | Unchanged policy: CRUD still auto-dispatches reload — but with **minimal** `scopes` (not Admin full). No return to routine Admin reload for saves. |
+| Automations **Save config** (deferred reload) | Rule YAML may persist on rule Save; **`CONFIG_RELOAD` does not run on every rule change.** Rule change → reload **dirty**. **Save config** appears or enables; that click runs scoped `automations` reload (see mapping). Leave Automations while dirty → modal like dirty-rule: **Save config** / **Cancel** / **Discard all rule changes**. While that reload runs: **same step checklist + timings as B10G overlay 2** (Automations cold load) — reuse, do not invent a second overlay spec. |
+| Other API auto-reload | Soft-hide / events / timers / etc. still auto-dispatch with **minimal** `scopes` (not Admin full) unless kickoff says otherwise. |
 
 **Admin UI home:** [`frontend/admin.html`](../frontend/admin.html) (shell) — detail cross-link → [`phaseC-shell.md`](phaseC-shell.md) when C docs mention Admin maintenance row.
 
@@ -250,7 +270,7 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 
 | Writer | Today | Target `scopes` |
 |--------|-------|-----------------|
-| `POST/PUT/DELETE /api/automations` | full | `automations` |
+| `POST/PUT/DELETE /api/automations` | full (every rule save) | **Defer** reload until Automations **Save config**; then `automations` |
 | Events CRUD | full | `events` (+ `automations` if listener rules reference changed rules) |
 | `PUT /api/soft-hide` | full | `soft_hide` |
 | `PUT /api/auto-off-timer` | `timers_types` | `timers_types` *(keep)* |
@@ -295,10 +315,11 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 
 * Hue live color/bri truth vs bridge → **G2**.
 * Blocky save chrome / Library polish → **B10F** ✅.
-* Changing *whether* CRUD dispatches reload (B1/B5 policy stays).
+* B10G overlay **2** load checklist itself (reuse for Save config; do not respec).
+* Explorer Hue preset duplicate-settings → **B10M**.
 * Replacing `wanos-sync` — sync remains file transport; reload applies RAM.
 
-**G6 DoD:** Admin shows **Full reload** (today’s behaviour, labelled) + **Scoped reload** modal with **12** checkboxes (summaries + when per row; no bundles). Blocky automation/events save: rules/catalog live immediately; **no** Hue torn-down / Onkyo stopped / Z-Wave remap in logs when only scopes 1–5 / 8 selected. Hue preset CRUD: scope 5 only (handler + alerts — ✅ **B10G Part D**). Soft-hide / timers saves: scopes 3 / 4 only. Full reload still remaps all integrations + remaining YAML. API callers migrated to minimal scopes **with matching scope-specific reload alerts** (see § Reload alerts — G6 follow-up). Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G6 DoD:** Admin shows **Full reload** (today’s behaviour, labelled) + **Scoped reload** modal with **12** checkboxes (summaries + when per row; no bundles). Automations: rule save does **not** full-recycle; **Save config** + dirty leave-modal; reload uses overlay-2-style steps/timings; scoped `automations` only (no Hue torn-down / Onkyo stopped / Z-Wave remap). Hue preset CRUD: scope 5 only (handler + alerts — ✅ **B10G Part D**). Soft-hide / timers saves: scopes 3 / 4 only. Full reload still remaps all integrations + remaining YAML. API callers migrated to minimal scopes **with matching scope-specific reload alerts** (see § Reload alerts — G6 follow-up). Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -321,7 +342,7 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 
 **Problem:** With `WANOS_AUTOSTART=true`, Admin shows integration master switches **DISABLED** for **~26–30s** after HTTP/SSE is online. Bootlog: +5s autostart delay; sync `load_config()` in simulator blocks event loop ~10s; ten separate toggle events → staggered SSE updates (~11s between first and rest). `*_integration_enabled` defaults **false** in `SystemState`; bridges may already be running from `lifespan`.
 
-**Ship:** **Option A + Option B** in one PR. **Out of scope:** persist last-known enabled flags to NVM (separate design decision).
+**Ship:** **Option A + Option B** in one PR. **Out of scope:** persist last-known enabled flags to NVM (separate design decision). **Manual** enable after network-failure disable (yellow DISABLED while switch ON; missing turned-ON bell) → **G14** — do not duplicate here.
 
 ### Option A — shorten real enablement (backend)
 
@@ -349,3 +370,157 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 - [ ] Option B: Admin shows **STARTING** (not **DISABLED**) during autostart; Z-Wave defer shows **ARMING** until auto-recover.
 - [ ] Pi smoke: full `wanos` restart with `WANOS_AUTOSTART=true`; Admin opened within first 30s — no misleading “all disabled” without starting indicator.
 - [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## Inbox 2026-08-14 — five new bridges (verbatim, all five ships)
+
+> - 5 integrations, each to be done seperately, not in the same code run - but in this order
+>
+> 🌡️ Honeywell Home Heater (Thermostats & Evohome)
+> The Library: somecomfort (for Total Connect Comfort), evohomeclient (for multi-zone Evohome hardware), or aiolyric (for Resideo Lyric lines).
+> How it works: These libraries handle login states for Resideo’s developer platform and allow you to read room target setpoints, ambient temperatures, and toggle HVAC firing states over HTTPS.
+>
+> ⚡ HomeWizard (Energy Monitoring)
+> The Library: python-homewizard-energy
+> How it works: This is an asynchronous client wrapper built for their Local API v1/v2. It reads metrics directly from your HomeWizard P1 Meter, Wi-Fi kWh meters, or Energy Sockets via rapid local HTTP/JSON hooks without touching the cloud.
+>
+> ❄️ Samsung Airco (Climate Control)
+> The Library: python-smartthings
+> How it works: Modern Samsung residential HVAC systems channel telemetry entirely through the SmartThings Cloud API. This library uses a REST client with bearer tokens to manage setpoints, blade adjustments, and power flags. Note: If you have an older generation unit (pre-2018), community libraries like samsungrac can handle direct local token handshakes over TCP port 8888 or 2878.
+>
+> ☀️ SMA (Solar Inverters)
+> The Library: pysma or native pymodbus
+> How it works: * pysma communicates asynchronously directly with the built-in Webconnect/WebUI server on modern Sunny Boy and Tripower inverters.
+> Alternatively, because SMA natively adheres to the SunSpec Modbus TCP standard (Port 502), you can drop standard pymodbus into a background logic service to fetch live grid production variables directly.
+>
+> 🍳 HomeConnect (Bosch / Siemens / Neff Appliances)
+> The Library: homeconnect or aiohomeconnect
+> How it works: This library interfaces with the official BSH Home Connect REST API. It establishes a local Server-Sent Events (SSE) stream connected to their cloud servers, allowing your Python code to listen for real-time oven temperatures, dishwasher states, or laundry cycle updates.
+
+**Locked for all five:** **one integration per PR / code run**; order **G9 → G10 → G11 → G12 → G13**; do not combine. Size **high** each. Default sequence: after **G4**, before **F**. Config/creds/IPs/device maps → home pack (**P**). **Library pick stays inside each phase** (G9/G11/G12/G13 kickoff) — **not this triage**. Admin enable + Explorer/Blockly surface + G6 reload row: **assess at that ship’s kickoff**.
+
+---
+
+## 📋 G9 — Honeywell Home (thermostats / Evohome) 🔜 TODO
+
+**Origin:** operator inbox **2026-08-14**. **1st of 5.** Own ship. **Not** G10–G13.
+
+**Operator request (verbatim):**
+> - 5 integrations, each to be done seperately, not in the same code run - but in this order
+>
+> 🌡️ Honeywell Home Heater (Thermostats & Evohome)
+> The Library: somecomfort (for Total Connect Comfort), evohomeclient (for multi-zone Evohome hardware), or aiolyric (for Resideo Lyric lines).
+> How it works: These libraries handle login states for Resideo’s developer platform and allow you to read room target setpoints, ambient temperatures, and toggle HVAC firing states over HTTPS.
+>
+> *(Plus HomeWizard, Samsung, SMA, HomeConnect — full inbox text in § Inbox 2026-08-14.)*
+
+**Intent:** Bridge Resideo / Honeywell Home — read room setpoints, ambient temp, HVAC firing over HTTPS.
+
+**Library:** `somecomfort` | `evohomeclient` | `aiolyric` — **in-scope of G9 kickoff** (not now).
+
+**G9 DoD:** One Honeywell/Evohome path live on Pi; not bundled with G10–G13. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 G10 — HomeWizard energy 🔜 TODO
+
+**Origin:** operator inbox **2026-08-14**. **2nd of 5.** Own ship. After **G9**. **Not** same run as G9/G11+.
+
+**Operator request (verbatim):**
+> - 5 integrations, each to be done seperately, not in the same code run - but in this order
+>
+> ⚡ HomeWizard (Energy Monitoring)
+> The Library: python-homewizard-energy
+> How it works: This is an asynchronous client wrapper built for their Local API v1/v2. It reads metrics directly from your HomeWizard P1 Meter, Wi-Fi kWh meters, or Energy Sockets via rapid local HTTP/JSON hooks without touching the cloud.
+>
+> *(Full five-integration inbox text in § Inbox 2026-08-14.)*
+
+**Intent:** Local API v1/v2 via `python-homewizard-energy` — P1 / Wi-Fi kWh / Energy Sockets; no cloud.
+
+**G10 DoD:** HomeWizard metrics in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 G11 — Samsung Airco 🔜 TODO
+
+**Origin:** operator inbox **2026-08-14**. **3rd of 5.** Own ship. After **G10**.
+
+**Operator request (verbatim):**
+> - 5 integrations, each to be done seperately, not in the same code run - but in this order
+>
+> ❄️ Samsung Airco (Climate Control)
+> The Library: python-smartthings
+> How it works: Modern Samsung residential HVAC systems channel telemetry entirely through the SmartThings Cloud API. This library uses a REST client with bearer tokens to manage setpoints, blade adjustments, and power flags. Note: If you have an older generation unit (pre-2018), community libraries like samsungrac can handle direct local token handshakes over TCP port 8888 or 2878.
+>
+> *(Full five-integration inbox text in § Inbox 2026-08-14.)*
+
+**Intent:** Climate setpoints / power (and blades if in scope at kickoff).
+
+**Library:** `python-smartthings` (cloud) vs `samsungrac` local TCP 8888/2878 (pre-2018) — **in-scope of G11 kickoff** (not now).
+
+**G11 DoD:** Samsung airco in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 G12 — SMA solar inverters 🔜 TODO
+
+**Origin:** operator inbox **2026-08-14**. **4th of 5.** Own ship. After **G11**.
+
+**Operator request (verbatim):**
+> - 5 integrations, each to be done seperately, not in the same code run - but in this order
+>
+> ☀️ SMA (Solar Inverters)
+> The Library: pysma or native pymodbus
+> How it works: * pysma communicates asynchronously directly with the built-in Webconnect/WebUI server on modern Sunny Boy and Tripower inverters.
+> Alternatively, because SMA natively adheres to the SunSpec Modbus TCP standard (Port 502), you can drop standard pymodbus into a background logic service to fetch live grid production variables directly.
+>
+> *(Full five-integration inbox text in § Inbox 2026-08-14.)*
+
+**Intent:** Live grid production from Sunny Boy / Tripower.
+
+**Library:** `pysma` (Webconnect) vs `pymodbus` SunSpec TCP 502 — **in-scope of G12 kickoff** (not now).
+
+**G12 DoD:** SMA production in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 G13 — HomeConnect (Bosch / Siemens / Neff) 🔜 TODO
+
+**Origin:** operator inbox **2026-08-14**. **5th of 5.** Own ship. After **G12**.
+
+**Operator request (verbatim):**
+> - 5 integrations, each to be done seperately, not in the same code run - but in this order
+>
+> 🍳 HomeConnect (Bosch / Siemens / Neff Appliances)
+> The Library: homeconnect or aiohomeconnect
+> How it works: This library interfaces with the official BSH Home Connect REST API. It establishes a local Server-Sent Events (SSE) stream connected to their cloud servers, allowing your Python code to listen for real-time oven temperatures, dishwasher states, or laundry cycle updates.
+>
+> *(Full five-integration inbox text in § Inbox 2026-08-14.)*
+
+**Intent:** BSH cloud REST + SSE — oven / dishwasher / laundry cycle state (which appliances = **G13 kickoff**, not now).
+
+**Library:** `homeconnect` | `aiohomeconnect` — **in-scope of G13 kickoff** (not now).
+
+**G13 DoD:** HomeConnect appliances in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 G14 — Manual integration enable status + ON alert 🔜 TODO (assess)
+
+**Origin:** operator inbox **2026-08-15**. Size **mid**. Admin integration rows — **not** G8 boot autostart (boot STARTING/ARMING stays G8). **Not** G6 reload.
+
+**Operator request (verbatim):**
+> when Sonos (or possibly any other) integration is disabled (because of previous network failure, eg), and I manually enable it, the yellow disabled status stays for a good number of seconds while the switch is green and ON - the status in this case should be "enabling" or something to that effect. Also, I see a bell notification for the disabling of the Sonos ("Sonos connection lost after 3 retries. Integration disabled.") but I don't see the "Sonos Integration turned ON" after it successfully does turn on (only then the status should change from "enabling" to "Live". assess first wether this is only for sonos integration or the case for others as well - propose changes
+
+**Locked triage intent:**
+
+* **Assess first (kickoff):** Sonos-only vs **all** integrations that can disable after network failure. Propose one pattern; do not assume Sonos-only.
+* While enabling: status **enabling** (not yellow disabled) even if the switch is already green/ON.
+* After success: status **Live**; bell **turned ON** (parity with the existing disable bell).
+* Reuse G8 **STARTING** copy/states if kickoff says they are the same UX — do not ship a second vocabulary without asking.
+
+**Out of scope:** G8 boot delay; G6 Save config; persist enabled flags to NVM.
+
+**G14 DoD:** Assess (Sonos vs all) recorded; enabling → Live + ON bell as decided; Pi smoke manual enable after disable. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+

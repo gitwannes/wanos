@@ -27,6 +27,7 @@ config_hue_presets.auto.yaml
 [MirrorExcludeDirs]
 # Local-only / never deploy
 .git
+.cursor
 .idea
 .venv
 docs
