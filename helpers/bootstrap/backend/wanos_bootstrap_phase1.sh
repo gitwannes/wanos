@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# --- file: helpers/bootstrap/backend/wanos_bootstrap_phase1.sh ---
 # ==============================================================================
 # WanOS Phase 1: System Bootstrapping (Debian 13 Trixie Lite 64-bit)
 # Run as root or with sudo: sudo ./wanos_bootstrap_phase1.sh
@@ -6,6 +7,9 @@
 
 # Enforce strict error handling and guard against undefined variables
 set -euo pipefail
+
+# Directory this script lives in (phase1 + logcap siblings when copied together)
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Ensure script is run with root privileges
 if [ "$(id -u)" -ne 0 ]; then
@@ -186,6 +190,27 @@ EOF
     systemctl daemon-reload
 else
     echo "Log2Ram is already installed. Skipping."
+fi
+
+# 6b. rsyslog logcap — stop daemon.log; truncate syslog at 20 MiB (no archive).
+# Scripts live in helpers/ (mirrored). Prefer the synced tree; fall back to
+# copies next to this phase1 script on a fresh host before first sync.
+LOGCAP_SCRIPT=""
+for cand in \
+    "${WANNES_HOME}/wanos/helpers/wanos_rsyslog_logcap.sh" \
+    "${SELF_DIR}/wanos_rsyslog_logcap.sh" \
+    "./wanos_rsyslog_logcap.sh"; do
+    if [ -f "${cand}" ]; then
+        LOGCAP_SCRIPT="${cand}"
+        break
+    fi
+done
+if [ -n "${LOGCAP_SCRIPT}" ]; then
+    echo "[6b] Applying WanOS rsyslog logcap (${LOGCAP_SCRIPT})..."
+    bash "${LOGCAP_SCRIPT}"
+else
+    echo "WARN: wanos_rsyslog_logcap.sh not found — skip rsyslog cap."
+    echo "      After code sync: sudo bash ${WANNES_HOME}/wanos/helpers/wanos_rsyslog_logcap.sh"
 fi
 
 # 7. Configure Samba using external smb.conf

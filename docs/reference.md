@@ -46,6 +46,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `requirements.txt`: Master Python package configuration file locking dependencies for strict type validation and async execution.
 * `wanos_boot.sh`: Universal production Bash infrastructure utility script handling process control loops, graceful termination sequences, and multi-file tail debugging routing.
 * `wanos-nvram.json`: Atomic Non-Volatile Memory (NVM) store bypassing `log2ram` to persist cumulative hardware metrics (e.g., liters, kWh) across unexpected power losses.
+* `helpers/wanos_rsyslog_logcap.sh`: Host rsyslog cap (mirrored). Disables `daemon.log`; rsyslog truncates `/var/log/syslog` at 20 MiB. Siblings: `wanos-syslog-truncate.sh`, `logrotate.rsyslog`. Pi: `sudo bash /home/wannes/wanos/helpers/wanos_rsyslog_logcap.sh`.
 
 **core/** (Central Coordination Kernel)
 * `__init__.py`: Package initialization contract.

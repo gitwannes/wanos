@@ -20,7 +20,7 @@ High-level **what’s next** and where the detailed specs live. This file does *
 | Letter | Affinity | Detail file |
 |---|---|---|
 | **B** | Blocky / Blockly / automations | [`phaseB-blocky.md`](phaseB-blocky.md) |
-| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10–C23) | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10–C25) | [`phaseC-shell.md`](phaseC-shell.md) |
 | **D** | Device typing (switch vs light) | [`phaseD-typing.md`](phaseD-typing.md) |
 | **E** | Gmail transport (OAuth, outbox, spooler) | [`phaseE-gmail.md`](phaseE-gmail.md) |
 | **F** | Public bridge / perimeter security | [`phaseF-security.md`](phaseF-security.md) |
@@ -63,6 +63,7 @@ Match [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** (If/
 | **B10N** | Closed **2026-08-15** — no dedicated code; operator cannot reproduce; covered by **B10K** Item 3 (`wantHue` excludes `rfxcom`) |
 | **C23** | SSE `SseClient` unhashable — `@dataclass(eq=False)` + live EventSource; closed **with C18** (Explorer smoke) **2026-08-16** |
 | **C18** | Explorer Control live lag after toggle — Q4/Q5 + live SSE; Pi smoke **2026-08-16** |
+| **Ops1** | log2ram / rsyslog cap — drop `daemon.log`; `$outchannel` wipes `syslog` at 20 MiB; no rsyslog archives — Pi smoke + docs close-out **2026-08-16** |
 
 Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md).
 
@@ -154,7 +155,9 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 13. mid    C12          Post-C10 polish (+ Hidden preset admin-only)
 13b. low   C17          Alert banner dismiss vs reload (assess at kickoff)
 14b. mid   C16          Day chart sliding 24 h window over hires_days hi-res
-14c. low   C15          Admin lab switch → Debug Commands row; lab pane iff ON
+14c. mid   C24          Temp/hum day fullscreen + AH/CI + checkboxes + CSV (after C16)
+14d. mid   C25          Overlay dew-likelihood % (OWM 2.5 clouds/wind; after C24)
+14e. low   C15          Admin lab switch → Debug Commands row; lab pane iff ON
 15. mid    C13          Merge Hidden → Timers & types
 16. mid    G2           bugfix: Hue color/bri truth
 17. mid    G6           bugfix: Scoped CONFIG_RELOAD + Admin modal + Automations deferred Save config (`hue_presets` path ✅ B10G Part D)
@@ -175,7 +178,7 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 25. high   B16          Full-bus UUID for internal EventTypes
 26. mid    B17          Sauna/IR hardcoded → automation (assess only)
 27. mid    B18          bugfix: Sauna session_end ≤ absolute_cutoff
-28. —      Ops          Inbox below when convenient
+28. —      Ops          **Ops1** ✅ Done; remaining **Ops1 later** + other Inbox when convenient
 ─── Very low (after everything above) ───
 29. high   P            Other homes / portability — home-specific config vs engine (assess)
 ```
@@ -207,6 +210,8 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **C21** — Explorer **AUTO OFF** countdown while device already OFF; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C21.
 * **C22** — Host CPU temp / load 5m / load 15m **(no history)**; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C22.
 * **C23** — ✅ **Done 2026-08-16** — closed **with C18**; `SseClient` `@dataclass(eq=False)` in the hub `set`; Explorer EventSource. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C23.
+* **C24** — temp/hum **day** overlay fills the **browser tab** (not F11); 24 h window; CSV of `hires_days`; AH 3rd y-axis; checkboxes only; **after C16**. Frost line stays **C12 #8**. Do not reopen **C5**. Kickoff **locked** 2026-08-16. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C24.
+* **C25** — overlay **dew likelihood %** (heuristic, not calibrated probability); OWM Current 2.5 clouds/wind + rain→0; **after C24**; do not reopen C24. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C25.
 * **G14** — Manual enable after network-failure disable: **enabling** → **Live** + ON bell; assess all integrations (not G8 boot).
 * **C\*, G\*, E, F** — **after Blockly cluster** (default). **E** may start **parallel to B5–B8**. **G2/G6** may jump on operator pain. **G9→G13** — one new vendor bridge per run, after **G4**, before **F**.
 * **B20 after F** — Domoticz **Time** trigger; catalog schedule events unchanged until then.
@@ -452,7 +457,7 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 |---|---|
 | **B9C** / **B19** / **B9B** / **B10I** / **B10J** / **B10L** / **B10M** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
-| **C3** / **C4** / **C11** / **C12** / **C17** / **C19** / **C20** / **C21** / **C22** / **C16** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C3** / **C4** / **C11** / **C12** / **C17** / **C19** / **C20** / **C21** / **C22** / **C16** / **C24** / **C25** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G6** / **G7** / **G8** / **G1** / **G4** / **G5** / **G9** / **G10** / **G11** / **G12** / **G13** / **G14** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 | **P** | [`phaseP-portability.md`](phaseP-portability.md) |
@@ -484,27 +489,26 @@ Detail + DoD stubs: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B20. Schedul
 
 Not lettered product phases. Unclear parts marked **to be checked**.
 
-### Ops — log2ram / rsyslog (2026-08-16)
+### Ops1 — log2ram / rsyslog ✅ **Done 2026-08-16**
 
-**Origin:** operator inbox **2026-08-16** — triage of “What actually prevents a repeat” after Pi `log2ram` 1.0G **100%** (`ENOSPC`). `/var/log/wanos` was only ~39M; the fill was rsyslog `syslog` + `daemon.log` (+ uncompressed `.1`) copying journald (uvicorn SSE reconnect + tracebacks). Host gauge `sensor.generic.host_log2ram_free` already warns; it does not vacuum.
+**Code:** **Ops1** (Ops band — not B/C/D/E/F/G/P). Detail stays in this file (no `phaseX-*.md`). **Done** table + shipped summary below. Optional follow-ups stay here as **Ops1 later** (not Sequence).
 
-**Operator request (verbatim):**
-> put these 3 "What actually prevents a repeat" in triage
+**Origin (verbatim 2026-08-16):** put these 3 "What actually prevents a repeat" in triage — (1) SSE flood → **C23** ✅ · (2) cap rsyslog → **Ops1** ✅ · (3) uvicorn access/JWT → **Ops1 later**.
 
-The three items (verbatim from that turn):
-> 1. **Stop the flood** — fix `SseClient` in a `set` (and keep SSE up). That is the real generator.
-> 2. **Cap rsyslog on the Pi** (OS, not Python), e.g. size-based `logrotate` for `syslog`/`daemon.log` (20–50M, compress `.1` immediately), and/or drop the duplicate `daemon.log` facility. Journald was already the well-behaved one (119M).
-> 3. Optional later: uvicorn `--no-access-log` or don’t log the JWT query string — each reconnect line is huge.
+**Shipped:** drop `daemon.log`; rsyslog `$outchannel wanos_syslog_cap` truncates `/var/log/syslog` at **20 MiB** (no `.1`/`.gz`); weekly logrotate for other rsyslog files only. Repo: `helpers/wanos_rsyslog_logcap.sh` + `wanos-syslog-truncate.sh` + `logrotate.rsyslog` (mirrored). Phase 1 **6b**. Apply: `sudo bash /home/wannes/wanos/helpers/wanos_rsyslog_logcap.sh`. Install: [`wanos-install-backend.md`](../../helpers/bootstrap/backend/wanos-install-backend.md) § **1.3**.
 
-| # | Placement | What |
-|---|---|---|
-| **1** | **C23** ✅ **Done 2026-08-16** (with **C18**) | `SseClient` `@dataclass(eq=False)` in `set`; Explorer EventSource; journal not a C23 DoD |
-| **2** | **Ops** (this section) | Size-based `logrotate` for `syslog`/`daemon.log`; optional drop duplicate `daemon.log` |
-| **3** | **Ops** (this section) — optional later | uvicorn `--no-access-log` and/or no JWT on the access line (`wanos.service` / bootstrap) |
+**Pi smoke:** rsyslog 8.2102.0; log2ram **16%**; `wanos.log` + `journalctl -u wanos.service` live; outchannel + commented `daemon.log` confirmed (`sudo grep`).
 
-**Item 2 — cap rsyslog (OS):** not Python. Pi `/etc/logrotate.d/rsyslog` (or drop-in): size 20–50M for `syslog` + `daemon.log`; compress `.1` immediately (`delaycompress` off for those). Optional: stop writing the same daemon lines to both files. `log2ram write` does **not** free the tmpfs. Not in Sequence.
+**DoD / Last DoD:** ✅ **2026-08-16**.
 
-**Item 3 — uvicorn access / JWT (optional later):** repo template `helpers/bootstrap/backend/wanos.service` + installed unit. Either `--no-access-log` or keep access log without the `?jwt=` query. Not **F** unless operator re-homes it as perimeter. Not in Sequence.
+#### Ops1 later (optional; not Sequence)
+
+| Later | What |
+|---|---|
+| **Item 3** | uvicorn `--no-access-log` / no `?jwt=` (`wanos.service` / bootstrap). Not **F** unless re-homed. |
+| **ForwardToSyslog** | Stop journald → rsyslog forwarding. |
+| **log2ram SIZE** | Shrink live **1.0G** toward bootstrap **256M**. |
+| **auth.log / kern.log** | Same “no archive” policy as `syslog`. |
 
 ### Ops — sync Local → Pi
 
@@ -547,6 +551,13 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 
 | When | What |
 |---|---|
+| 2026-08-16 | Inbox triage: **C25** overlay **dew likelihood %** from OWM 2.5 clouds/wind (heuristic list accepted); **after C24**; do not reopen C24. |
+| 2026-08-16 | **Ops1 ✅ Done** — log2ram/rsyslog cap coded **Ops1**; Done table; Pi smoke + docs close-out. **Ops1 later:** Item 3, ForwardToSyslog, log2ram SIZE, auth/kern. |
+| 2026-08-16 | **C24** lock-in: extra series overlay-only; month/year untouched; fullscreen = full browser tab (not F11). |
+| 2026-08-16 | **C24** lock-in: overlay **X** top-right; missing dew = C5 T+RH pairing (AH/CI omitted); comfort-line proposal pending. |
+| 2026-08-16 | **C24** comfort-line **accepted**; remaining open: overlay window, xls vs CSV, AH axis, checkboxes vs legend. |
+| 2026-08-16 | **C24** kickoff Q&A **locked**: 24 h overlay window; CSV of `hires_days`; 3rd y-axis AH (hide if series off); checkboxes only (no legend). Implement when commanded. |
+| 2026-08-16 | Inbox triage: **C24** temp/hum day fullscreen + AH/CI + checkboxes + 7-day xls — **after C16**; not C12 #8 frost; do not reopen **C5**. |
 | 2026-08-16 | **C23** kickoff locked then closed **with C18**: Explorer EventSource; `eq=False` in `set`; journal not a DoD; Last DoD docs audit. |
 | 2026-08-16 | **C18** + **C23** ✅ Done — Pi smoke OK; live SSE (`eq=False` + first ping + pure ASGI); Q4/Q5 command-commit; docs close-out. |
 | 2026-08-16 | Inbox triage: log2ram full / rsyslog — **C23** `bugfix:` SSE `SseClient` unhashable (**∥ cluster**; C18 smoke waits); **Ops** size-based `logrotate` (`syslog`/`daemon.log`); **Ops** optional uvicorn `--no-access-log` / no JWT query. |

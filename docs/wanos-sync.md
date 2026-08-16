@@ -141,7 +141,7 @@ helpers\wanos-sync.bat run
 
 `helpers/wanos-sync.config.txt`:
 
-- `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`)
+- `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`). Path segment **`bootstrap`** is excluded, so `helpers/bootstrap/**` is not mirrored. Rsyslog logcap lives in **`helpers/`** (`wanos_rsyslog_logcap.sh`, `wanos-syslog-truncate.sh`, `logrotate.rsyslog`) so it **does** sync.
 - **`.cursor`** — IDE rules (`.cursor/rules/`) and other Cursor project files; PC-only, not deployed to the Pi
 - `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite; missing remote file skipped with warning)
 - `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob

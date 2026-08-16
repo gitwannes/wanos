@@ -76,7 +76,7 @@ wanos/
 ├── core/                  # Event routing, State Manager, and Models
 ├── frontend/              # Alpine.js, Tailwind, and HTML assets
 ├── hardware/              # Raw GPIO actuators, sensors, and the Simulator
-├── helpers/               # Discovery tools (Hue, Sonos) and sync scripts
+├── helpers/               # Discovery tools, sync, rsyslog logcap (`wanos_rsyslog_logcap.sh`)
 ├── integrations/          # Dedicated API bridges (Z-Wave, Hue, Onkyo, etc.)
 ├── logic/                 # The "Brain" (PID, Automations, Analytics, Timers)
 └── main.py                # FastAPI Entrypoint & Boot Sequence

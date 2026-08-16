@@ -1,0 +1,29 @@
+# --- file: helpers/logrotate.rsyslog ---
+# Installed as /etc/logrotate.d/rsyslog (WanOS logcap).
+# /var/log/syslog is NOT listed: rsyslog $outchannel wipes it at 20 MiB (no .1 / .gz).
+# /var/log/daemon.log is NOT listed: that facility file is disabled in rsyslog.conf.
+# Remaining rsyslog files keep Debian weekly rotate 4 + compress + delaycompress.
+
+/var/log/mail.info
+/var/log/mail.warn
+/var/log/mail.err
+/var/log/mail.log
+/var/log/kern.log
+/var/log/auth.log
+/var/log/user.log
+/var/log/lpr.log
+/var/log/cron.log
+/var/log/debug
+/var/log/messages
+{
+    rotate 4
+    weekly
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        /usr/lib/rsyslog/rsyslog-rotate
+    endscript
+}

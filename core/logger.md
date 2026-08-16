@@ -51,7 +51,7 @@ Use `WanosLogger` for important system transitions that an admin monitoring the 
 Think of the standard `logger` and `automation_logger` as **Silent Archivists**.
 
 ### How it works
-WanOS uses the `loguru` library to handle writing text to the Raspberry Pi's hard drive (`wanos.log`, `wanos_debug.log`, and `wanos_automations.log`). 
+WanOS uses the `loguru` library to handle writing text to the Raspberry Pi's hard drive (`wanos.log`, `wanos_debug.log`, and `wanos_automations.log`). Those files are **not** `/var/log/syslog`. Host rsyslog `syslog` is OS-capped at 20 MiB and `daemon.log` is disabled (`helpers/wanos_rsyslog_logcap.sh`). Operator tails: `wanoslog.sh` (app files + `journalctl -u wanos.service`). 
 
 * **It is Synchronous:** You do not need to use `await`.
 * **It is Network-Free:** Messages sent here *never* go to MQTT and *never* show up on the UI.

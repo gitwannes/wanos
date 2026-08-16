@@ -314,7 +314,7 @@ Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate
 ### Charts (ECharts, Sensors list)
 | Range | Series |
 |-------|--------|
-| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16:** load **`hires_days`** hi-res; **24 h viewport**, pan/zoom-in. |
+| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16:** load **`hires_days`** hi-res; **24 h viewport**, pan/zoom-in. **C24 (queued, after C16):** temp/hum day **tab overlay** — AH + CI, 5 checkboxes, 3rd y-axis g/m³, **CSV** of full `hires_days` (not `.xls`). **C25 (queued, after C24):** overlay **Dew likelihood %** (OWM 2.5 clouds/wind heuristic; dew not rain). Month/year unchanged. |
 | Month | Daily **min/max** temp (+ hum when present); **no dew** (**C12**). |
 | Year | **Weekly** min/max (ISO week); **no dew** (**C12**). |
 

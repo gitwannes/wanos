@@ -89,6 +89,8 @@ To protect the Raspberry Pi's physical SD card from wear-leveling death caused b
 2. A recurring 5-minute `NVRAM_FLUSH_TRIGGER` heartbeat analyzes the memory. 
 3. If the math has changed, it writes to a temporary file (`wanos-nvram.json.tmp`) and executes a native `os.replace` to atomically swap it. This mathematically guarantees data cannot be corrupted if the Pi loses power mid-write.
 
+`/var/log` itself still sits on **log2ram** (tmpfs). App diagnostics are `/var/log/wanos/*` (Loguru, 5 MB × 3) and `journalctl -u wanos.service`. Host rsyslog **`syslog`** is truncated at **20 MiB** (`$outchannel wanos_syslog_cap`); **`daemon.log` is not written**. Apply: `helpers/wanos_rsyslog_logcap.sh` (**Ops1** ✅). **Ops1 later:** uvicorn access/JWT, `ForwardToSyslog`, log2ram `SIZE`, auth/kern no-archive.
+
 ### The SQLite Time-Series Batching Engine (WAL & Atomic Swaps)
 To manage the persistent 30-day device history without degrading the Raspberry Pi's SD card through excessive disk I/O, WanOS implements a decoupled, in-memory, thread-safe time-series engine for SQLite. 
 

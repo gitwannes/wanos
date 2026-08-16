@@ -1,4 +1,4 @@
-# --- file: docs/wanos-install-backend.md ---
+# --- file: helpers/bootstrap/backend/wanos-install-backend.md ---
 # ⚡ WanOS Backend Fresh Installation & Bootstrap Blueprint
 
 This document is the master operational guide for deploying a fresh WanOS backend installation on a Raspberry Pi 4 host. It provides a complete, step-by-step walkthrough detailing how the system is bootstrapped using automated shell scripts (`wanos_bootstrap_phase1.sh` and `wanos_bootstrap_phase2.sh`), helper configuration files (`smb.conf`, `docker-compose.yml`, `mosquitto-st.conf`, `wanos.service`), and NGINX with Let's Encrypt SSL via ACME-DNS challenge delegation for Nomeo DNS.
@@ -55,7 +55,7 @@ Before executing Phase 1, you must transfer the bootstrap scripts and helper con
 
 ## Phase 1: System Bootstrapping & OS Tuning (Scripted + Manual Post-Actions)
 
-Phase 1 optimizes the operating system, installs core packages from `apt-packages.txt`, disables onboard Bluetooth to free up hardware UART lanes, sets up `log2ram` to reduce SD card wear, and applies Samba network share parameters using `smb.conf`.
+Phase 1 optimizes the operating system, installs core packages from `apt-packages.txt`, disables onboard Bluetooth to free up hardware UART lanes, sets up `log2ram` to reduce SD card wear, applies the **rsyslog logcap** when `helpers/wanos_rsyslog_logcap.sh` is already on the host, and applies Samba network share parameters using `smb.conf`.
 
 ### 1.1 Execute Phase 1 Script
 Run `wanos_bootstrap_phase1.sh` with superuser privileges:
@@ -77,6 +77,7 @@ sudo ./wanos_bootstrap_phase1.sh
 > * Configures passwordless sudo policies for `log2ram write` and `systemctl restart wanos.service` (Admin “Reboot WanOS”).
 > * Creates `/var/log/wanos` owned by `wannes:wannes`.
 > * Downloads, installs, and configures `log2ram` with a 256M RAM buffer.
+> * Applies **rsyslog logcap** when `helpers/wanos_rsyslog_logcap.sh` is already on the host (after code sync): disable `daemon.log`; rsyslog truncates `/var/log/syslog` at 20 MiB (no `.1` / `.gz`); logrotate no longer archives those two files. If the tree is not synced yet, Phase 1 warns; run the script after the first `wanos-sync` (see § **1.3**).
 > * Copies external `smb.conf` to `/etc/samba/smb.conf` and enables `smbd`.
 
 ### 1.2 Manual Post-Phase 1 Actions
@@ -118,6 +119,33 @@ sudo ./wanos_bootstrap_phase1.sh
    * `requirements.txt`
    * `.env` (create on the Pi; never sync secrets from git)
    * Bootstrap helpers already used in Phase 0/1 (`docker-compose.yml`, `mosquitto-st.conf`, `wanos.service`, …)
+   * Rsyslog logcap (mirrored under `helpers/`): `wanos_rsyslog_logcap.sh`, `wanos-syslog-truncate.sh`, `logrotate.rsyslog`
+
+### 1.3 Existing host — rsyslog logcap (**Ops1** 2026-08-16) ✅ **Done**
+
+These files live in `helpers/` so day-to-day `wanos-sync` **mirrors** them (`helpers/bootstrap` stays excluded). After `helpers\wanos-sync.bat run`:
+
+```bash
+sudo bash /home/wannes/wanos/helpers/wanos_rsyslog_logcap.sh
+```
+
+The script is idempotent. It backs up `/etc/rsyslog.conf` and `/etc/logrotate.d/rsyslog` once (`.bak.wanos-logcap`), validates with `rsyslogd -N1`, then restarts `rsyslog`. It does **not** delete a leftover `/var/log/daemon.log`.
+
+**Pi smoke ✅ 2026-08-16:** rsyslog 8.2102.0; `log2ram` 16% (163M / 1.0G); `wanos.log` + `journalctl -u wanos.service` live; `$outchannel wanos_syslog_cap` + commented `daemon.log`; logrotate has no `/var/log/syslog` or `/var/log/daemon.log` paths. `/etc/rsyslog.conf` is `0640` — use **sudo** grep.
+
+```bash
+# daemon.log rule commented; syslog uses $outchannel wanos_syslog_cap
+sudo grep -E 'wanos_syslog_cap|daemon.log' /etc/rsyslog.conf
+
+# logrotate must not list /var/log/syslog or /var/log/daemon.log as paths
+sudo grep -E '^/var/log/(syslog|daemon\.log)' /etc/logrotate.d/rsyslog || true
+
+df -h /var/log
+ls -l /var/log/syslog /var/log/wanos/wanos.log
+journalctl -u wanos.service -n 5 --no-pager
+```
+
+WanOS app logs stay `/var/log/wanos/*`. Optional later (not this script): uvicorn `--no-access-log` / JWT, `ForwardToSyslog`, log2ram `SIZE`, auth/kern no-archive.
 
 ---
 
