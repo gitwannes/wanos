@@ -51,6 +51,8 @@ Pulse meters are event-threshold based (§2 row 3). Z-Wave sensors emit `POWER_U
 ### 2.2 Chart library
 **Apache ECharts 5** (CDN) on `sensorhistory.html` — day / month / year panels with dataZoom; water uses bar series.
 
+Operator day-to-day charts live on **Device Explorer → History** (`deviceexplorer.html`), not the standalone admin page. Open detail auto-refreshes every **60s** while the tab is visible (**C6** / **C19** ✅ **2026-08-16**): merge `setOption` with `replaceMerge: ['series', 'dataZoom']` (saved zoom copied onto the option); rebind the ECharts instance if Alpine replaced the chart DOM node. Hard open / row switch still full replace. `sensorhistory.html` session list is out of **C19**.
+
 ### 2.3 PC power kWh
 Z-Wave power IDXs (`74001`, `74003`) include **integrated kWh** in summary tiles (today / month / year). Lifetime total remains N/A (no hardware kWh accumulator ingested).
 
@@ -314,7 +316,7 @@ Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate
 ### Charts (ECharts, Sensors list)
 | Range | Series |
 |-------|--------|
-| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16:** load **`hires_days`** hi-res; **24 h viewport**, pan/zoom-in. **C24 (queued, after C16):** temp/hum day **tab overlay** — AH + CI, 5 checkboxes, 3rd y-axis g/m³, **CSV** of full `hires_days` (not `.xls`). **C25 (queued, after C24):** overlay **Dew likelihood %** (OWM 2.5 clouds/wind heuristic; dew not rain). Month/year unchanged. |
+| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16:** load **`hires_days`** hi-res; **24 h viewport**, pan/zoom-in. **C19 ✅:** 60s auto-refresh must not blank the plot. **C24 (queued, after C16):** temp/hum day **tab overlay** — AH + CI, 5 checkboxes, 3rd y-axis g/m³, **CSV** of full `hires_days` (not `.xls`). **C25 (queued, after C24):** overlay **Dew likelihood %** (OWM 2.5 clouds/wind heuristic; dew not rain). Month/year unchanged. |
 | Month | Daily **min/max** temp (+ hum when present); **no dew** (**C12**). |
 | Year | **Weekly** min/max (ISO week); **no dew** (**C12**). |
 
@@ -340,6 +342,7 @@ Same retention as actuators. Motion stays default-hidden (`75xxx`); use Hidden t
 
 | IDX | Label | Unit |
 |-----|-------|------|
+| 22001 | Host CPU Temperature | °C |
 | 22002 | Host CPU Usage | % |
 | 22003 | Host Memory Free | % |
 | 22004 | Host Disk Free | % |
@@ -349,5 +352,7 @@ Same retention as actuators. Motion stays default-hidden (`75xxx`); use Hidden t
 | 71046 | Mains voltage | V |
 
 `22009` = sum of `sensor_history.db` + `device_history.db` + `sauna_sessions.db` including `-wal`/`-shm` sidecars.
+
+**Not recorded (live only):** `22007` / `22008` Host Load Average (5m / 15m) — omitted from `HOST_HISTORY_IDXS` (**C22** ✅).
 
 Ingested from `HUB_STATE_CHANGED` (health_monitor ~60s; Z-Wave voltage). Charts: day line + month/year min/max (same shape as power). Visibility follows `deviceexplorer_hide` / Hidden toggle (same as Device Explorer; hide list lives in `automations.auto.yaml`).

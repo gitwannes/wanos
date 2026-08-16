@@ -7,6 +7,52 @@
 const wanosHistoryCharts = { day: null, month: null, year: null };
 const wanosActuatorCharts = { day: null, month: null, year: null };
 
+/**
+ * C19: stored ECharts instance is unusable for `el` (missing, disposed, or bound
+ * to a previous Alpine node after x-if / x-for remount).
+ * @param {Object|null|undefined} inst
+ * @param {HTMLElement|null} el
+ * @returns {boolean}
+ */
+function wanosChartInstanceStale(inst, el) {
+    if (!inst || !el) return true;
+    try {
+        if (typeof inst.isDisposed === "function" && inst.isDisposed()) return true;
+        return inst.getDom() !== el;
+    } catch (e) {
+        return true;
+    }
+}
+
+/**
+ * C19: drop a stale instance so the next ensure can init on the live node.
+ * @param {{ day: Object|null, month: Object|null, year: Object|null }} store
+ * @param {"day"|"month"|"year"} key
+ * @param {HTMLElement} el
+ * @returns {void}
+ */
+function wanosDisposeStaleChart(store, key, el) {
+    const inst = store[key];
+    if (!inst || !wanosChartInstanceStale(inst, el)) return;
+    try { inst.dispose(); } catch (e) { /* ignore */ }
+    store[key] = null;
+}
+
+/**
+ * C19: resize only instances still attached to the document.
+ * @param {{ day: Object|null, month: Object|null, year: Object|null }} store
+ * @returns {void}
+ */
+function wanosResizeConnectedCharts(store) {
+    Object.values(store || {}).forEach((c) => {
+        if (!c) return;
+        try {
+            const el = typeof c.getDom === "function" ? c.getDom() : null;
+            if (el && el.isConnected) c.resize();
+        } catch (e) { /* ignore */ }
+    });
+}
+
 /** Min viewport width for History / Automation and the top-row join (tablets+). */
 const WANOS_WIDE_MIN_PX = 768;
 
@@ -1688,8 +1734,8 @@ function wanosApp() {
             if (!window.location.pathname.includes("deviceexplorer.html")) return;
             await this.$nextTick();
             window.addEventListener("resize", () => {
-                Object.values(wanosHistoryCharts || {}).forEach(c => c && c.resize());
-                Object.values(wanosActuatorCharts || {}).forEach(c => c && c.resize());
+                wanosResizeConnectedCharts(wanosHistoryCharts);
+                wanosResizeConnectedCharts(wanosActuatorCharts);
             });
             // Preload capability maps so History mode can filter immediately
             try {
@@ -1763,6 +1809,9 @@ function wanosApp() {
 
         async refreshExplorerHistory() {
             await this.ensureExplorerHistoryData();
+            // C19: let Alpine morph the History list before we touch ECharts
+            // (x-for may replace #chart-day while the old instance is still stored).
+            await this.$nextTick();
             if (this.selectedSensorIdx != null && this.selectedSensorKind) {
                 const still = (this.explorerDisplayList || []).some(
                     i => Number(i.id) === Number(this.selectedSensorIdx)
@@ -2363,11 +2412,12 @@ function wanosApp() {
                 this.selectedHistoryIdx = this.selectedSensorIdx;
                 await this.reloadHistoryCharts({ soft });
                 // C6: one resize pass after soft/hard draw (soft helper skips per-chart resize)
-                Object.values(wanosHistoryCharts).forEach(c => c && c.resize());
+                // C19: skip detached instances (Alpine remount left the old canvas off-document)
+                wanosResizeConnectedCharts(wanosHistoryCharts);
             } else if (this.selectedSensorKind === "actuator" && this.selectedSensorIdx != null) {
                 this.selectedActuatorIdx = this.selectedSensorIdx;
                 await this.reloadActuatorCharts({ soft });
-                Object.values(wanosActuatorCharts).forEach(c => c && c.resize());
+                wanosResizeConnectedCharts(wanosActuatorCharts);
             }
         },
 
@@ -2479,6 +2529,8 @@ function wanosApp() {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById(elId);
             if (!el) return null;
+            // C19 cause 2: Alpine may have replaced this node; do not setOption on a detached canvas
+            wanosDisposeStaleChart(wanosActuatorCharts, key, el);
             if (wanosActuatorCharts[key]) {
                 // C6: soft path defers resize to a single pass after draw
                 if (!soft) {
@@ -2520,6 +2572,39 @@ function wanosApp() {
         },
 
         /**
+         * C19: stable series ids so replaceMerge matches by id (not a shifting index).
+         * @param {Object} opt
+         * @returns {void}
+         */
+        _pinSoftSeriesIds(opt) {
+            if (!opt || !Array.isArray(opt.series)) return;
+            opt.series.forEach((s, i) => {
+                if (!s) return;
+                if (s.id == null) s.id = String(s.name || ("s" + i));
+            });
+        },
+
+        /**
+         * C19 cause 1: true when the option had drawable series but the instance has none after merge.
+         * @param {Object} chart
+         * @param {Object} opt
+         * @returns {boolean}
+         */
+        _historySoftOptionDroppedSeries(chart, opt) {
+            const incomingHas = (opt.series || []).some(
+                (s) => s && Array.isArray(s.data) && s.data.length > 0
+            );
+            if (!incomingHas) return false;
+            try {
+                const got = chart.getOption();
+                const series = (got && got.series) || [];
+                return !series.some((s) => s && Array.isArray(s.data) && s.data.length > 0);
+            } catch (e) {
+                return false;
+            }
+        },
+
+        /**
          * setOption + optional resize. Soft refresh: merge (no wipe), no animation, no resize here.
          * Hard open/switch: notMerge wipe + resize (unchanged).
          */
@@ -2529,7 +2614,17 @@ function wanosApp() {
             if (soft) {
                 opt.animation = false;
                 opt.animationDurationUpdate = 0;
-                chart.setOption(opt, { notMerge: false, replaceMerge: ["series"] });
+                this._pinSoftSeriesIds(opt);
+                let el = null;
+                try { el = chart.getDom(); } catch (e) { el = null; }
+                // Cause 2: never paint onto a detached canvas (ensure should have rebound)
+                if (!el || !el.isConnected) return;
+                // Cause 1: replace series + dataZoom together so a merged stale zoom cannot
+                // collapse the window to empty. Saved zoom is already copied onto `opt`.
+                chart.setOption(opt, { notMerge: false, replaceMerge: ["series", "dataZoom"] });
+                if (this._historySoftOptionDroppedSeries(chart, opt)) {
+                    chart.setOption(opt, true);
+                }
             } else {
                 chart.setOption(opt, true);
                 chart.resize();
@@ -2686,15 +2781,8 @@ function wanosApp() {
             this._syncActuatorHasFlags();
 
             if (soft) {
-                const needRemount =
-                    (dayOk && !document.getElementById("chart-act-day"))
-                    || (monthOk && !document.getElementById("chart-act-month"))
-                    || (yearOk && !document.getElementById("chart-act-year"));
-                if (needRemount) {
-                    this.$nextTick(() => requestAnimationFrame(draw));
-                } else {
-                    draw();
-                }
+                // C19: always wait one Alpine tick so x-if remounts finish before ensure/setOption
+                this.$nextTick(() => requestAnimationFrame(draw));
                 return;
             }
 
@@ -2778,6 +2866,8 @@ function wanosApp() {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById(elId);
             if (!el) return null;
+            // C19 cause 2: Alpine may have replaced this node; do not setOption on a detached canvas
+            wanosDisposeStaleChart(wanosHistoryCharts, key, el);
             if (wanosHistoryCharts[key]) {
                 // C6: soft path defers resize to a single pass after draw
                 if (!soft) {
@@ -3246,15 +3336,8 @@ function wanosApp() {
             this._syncHistoryHasFlags();
 
             if (soft) {
-                const needRemount =
-                    (dayOk && !document.getElementById("chart-day"))
-                    || (monthOk && !document.getElementById("chart-month"))
-                    || (yearOk && !document.getElementById("chart-year"));
-                if (needRemount) {
-                    this.$nextTick(() => requestAnimationFrame(draw));
-                } else {
-                    draw();
-                }
+                // C19: always wait one Alpine tick so x-if remounts finish before ensure/setOption
+                this.$nextTick(() => requestAnimationFrame(draw));
                 return;
             }
 

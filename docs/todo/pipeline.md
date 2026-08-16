@@ -63,6 +63,8 @@ Match [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** (If/
 | **B10N** | Closed **2026-08-15** — no dedicated code; operator cannot reproduce; covered by **B10K** Item 3 (`wantHue` excludes `rfxcom`) |
 | **C23** | SSE `SseClient` unhashable — `@dataclass(eq=False)` + live EventSource; closed **with C18** (Explorer smoke) **2026-08-16** |
 | **C18** | Explorer Control live lag after toggle — Q4/Q5 + live SSE; Pi smoke **2026-08-16** |
+| **C19** | Explorer History auto-refresh blank — stale ECharts rebind + soft `replaceMerge` series/dataZoom; Pi smoke + docs close-out **2026-08-16** |
+| **C22** | Host CPU temp → `HOST_HISTORY_IDXS`; load 5m/15m live-only — docs close-out **2026-08-16** |
 | **Ops1** | log2ram / rsyslog cap — drop `daemon.log`; `$outchannel` wipes `syslog` at 20 MiB; no rsyslog archives — Pi smoke + docs close-out **2026-08-16** |
 
 Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md).
@@ -73,7 +75,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal.
 
-**B10G** / **B10H** / **B10K+G3** / **B10N** / **C18** / **C23** ✅ **Done**. Next: **B2** (B9C). **B10I** / **B10J** / **B10L** / **B10M** / **C19** / **C20** / **C21** / **C22** anytime after **B10F** / **B10B** / **B10G** / **B10H** / **B10K** / **C6**.
+**B10G** / **B10H** / **B10K+G3** / **B10N** / **C18** / **C19** / **C22** / **C23** ✅ **Done**. Next: **B2** (B9C). **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** anytime after **B10F** / **B10B** / **B10G** / **B10H** / **B10K** / **C6**.
 
 | Ship | Phase(s) | Size | One go? |
 |---|---|---|---|
@@ -111,10 +113,8 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 | **B10J** | Anytime after **B10B** | Backend log polish — **`Event Received`** catalog name; parallel to **B2–B8** |
 | **B10L** | Anytime after **B10G** | Shared NOT CONNECTED overlay status + copy **Re-connecting to WanOS...**; parallel to **B2–B8** |
 | **B10M** | Anytime after **B10G** Part D | Explorer Hue preset duplicate settings; parallel to **B2–B8** |
-| **C19** | Anytime (C6 ✅) | bugfix: History auto-refresh blank — **see C6**; parallel to **B2–B8** |
 | **C20** | Anytime after **C2** / **C8** | bugfix: Admin bell Clear All does nothing — kickoff **locked** 2026-08-15; parallel to **B2–B8** |
 | **C21** | Anytime | bugfix: Explorer AUTO OFF countdown while device already OFF; parallel to **B2–B8** |
-| **C22** | Anytime | bugfix: three Host gauges “(no history)”; parallel to **B2–B8** |
 | **G5** | After **B2** (B9C) | Parallel to **B3–B8**; re-author rule on B19 canvas when **B3** lands |
 | **E** (Gmail transport) | After **B3** or default after cluster | Parallel to **B5–B8**; **B6** alert ships without **E**; H5 email half waits **E** |
 | **Ship B5 ∥ Ship B6** | After **B4** | Bathroom/H12 vs Messages alert — independent; OR-heavy notify rules still want **B4** first |
@@ -142,11 +142,9 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 8b. low    B10I         used SE → Go to SR — **∥ cluster** (anytime after B10F)
 8c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ cluster** (anytime after B10B)
 8e. low    B10L         NOT CONNECTED overlay status + copy “Re-connecting to WanOS...” — **∥ cluster**
-8g. low    C19          bugfix: History auto-refresh blank (keep settings + window) — **see C6**; **∥ cluster**
 8h. low    B10M         bugfix: Explorer Hue preset duplicate settings — **∥ cluster** (after B10G Part D)
 8j. low    C20          bugfix: Admin SYSTEM NOTIFICATIONS Clear All does nothing — kickoff **locked** — **∥ cluster**
 8k. low    C21          bugfix: Explorer AUTO OFF countdown while device already OFF — **∥ cluster**
-8l. low    C22          bugfix: Host CPU temp / load 5m / load 15m “(no history)” — **∥ cluster**
 ─── After Blockly cluster (E may start ∥ B5–B8 instead — see Parallel tracks) ───
 9.  high   E            Gmail transport / outbox — default slot; **∥ B5–B8** OK
 10. mid    C3           Force ALL-OFF
@@ -205,10 +203,10 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **B10L** — Shared NOT CONNECTED overlay richer status; establishing line → **Re-connecting to WanOS...**
 * **B10M** — Explorer Hue preset: allow new preset with same settings as an existing one; **∥ cluster**.
 * **C18** — ✅ **Done 2026-08-16** — Explorer Control live lag. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C18.
-* **C19** — History auto-refresh blank / title-only; keep settings + window; **see C6**; do not reopen C6; **∥ cluster**. Kickoff + fix contract **locked** 2026-08-15. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C19.
+* **C19** — ✅ **Done 2026-08-16** — Explorer History 60s auto-refresh keeps series + window (**C6** soft path; stale instance rebind + `replaceMerge` series/dataZoom). Detail → [`phaseC-shell.md`](phaseC-shell.md) § C19.
 * **C20** — Admin bell **Clear All** no-op; **∥ cluster**. Kickoff + contract **locked** 2026-08-15. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C20.
 * **C21** — Explorer **AUTO OFF** countdown while device already OFF; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C21.
-* **C22** — Host CPU temp / load 5m / load 15m **(no history)**; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C22.
+* **C22** — ✅ **Done 2026-08-16** — Host CPU temp (`22001`) history; load 5m/15m live-only. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C22.
 * **C23** — ✅ **Done 2026-08-16** — closed **with C18**; `SseClient` `@dataclass(eq=False)` in the hub `set`; Explorer EventSource. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C23.
 * **C24** — temp/hum **day** overlay fills the **browser tab** (not F11); 24 h window; CSV of `hires_days`; AH 3rd y-axis; checkboxes only; **after C16**. Frost line stays **C12 #8**. Do not reopen **C5**. Kickoff **locked** 2026-08-16. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C24.
 * **C25** — overlay **dew likelihood %** (heuristic, not calibrated probability); OWM Current 2.5 clouds/wind + rain→0; **after C24**; do not reopen C24. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C25.
@@ -218,7 +216,7 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **B15–B18** — not Domoticz L&F; **B18** may jump on sauna safety pain.
 * **P** — other homes / portability — **very low**; after **F** and **B15–B18**. Home vs engine must be obvious; extraction **propose + ask**. Overlaps **B17** (sauna/IR). Detail → [`phaseP-portability.md`](phaseP-portability.md).
 
-Near-term = **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **B10L** / **B10M** / **C19** / **C20** / **C21** / **C22** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
+Near-term = **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
 
 ---
 
@@ -457,7 +455,7 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 |---|---|
 | **B9C** / **B19** / **B9B** / **B10I** / **B10J** / **B10L** / **B10M** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
-| **C3** / **C4** / **C11** / **C12** / **C17** / **C19** / **C20** / **C21** / **C22** / **C16** / **C24** / **C25** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C3** / **C4** / **C11** / **C12** / **C17** / **C20** / **C21** / **C16** / **C24** / **C25** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G6** / **G7** / **G8** / **G1** / **G4** / **G5** / **G9** / **G10** / **G11** / **G12** / **G13** / **G14** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 | **P** | [`phaseP-portability.md`](phaseP-portability.md) |
@@ -551,6 +549,7 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 
 | When | What |
 |---|---|
+| 2026-08-16 | **C22 ✅ Done** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m live-only; docs close-out. |
 | 2026-08-16 | Inbox triage: **C25** overlay **dew likelihood %** from OWM 2.5 clouds/wind (heuristic list accepted); **after C24**; do not reopen C24. |
 | 2026-08-16 | **Ops1 ✅ Done** — log2ram/rsyslog cap coded **Ops1**; Done table; Pi smoke + docs close-out. **Ops1 later:** Item 3, ForwardToSyslog, log2ram SIZE, auth/kern. |
 | 2026-08-16 | **C24** lock-in: extra series overlay-only; month/year untouched; fullscreen = full browser tab (not F11). |
@@ -572,7 +571,7 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-15 | **B10N ✅ Done** — closed without dedicated code; operator cannot reproduce; probably fixed in earlier phases, likely **B10K**. Docs close-out. |
 | 2026-08-15 | Ops **`.cursor`** sync exclude shipped (`[MirrorExcludeDirs]`). |
 | 2026-08-15 | **C18** Q4/Q5 **locked**: request-level success/fail per integration (silent skip = fail); bell `ERROR: Command failed: {ref} → ON\|OFF`. Fix contract complete — implement when commanded. |
-| 2026-08-15 | **C19** kickoff + fix contract **locked**: Explorer History all families; every ~60s dark empty box; keep settings + window (**C6**). Cause not locked. Implement when commanded. |
+| 2026-08-16 | **C19 ✅ Done** — Pi smoke OK; Explorer History 60s auto-refresh keeps series + window; docs close-out. |
 | 2026-08-15 | **B10K + G3 ✅ Done** — Pi smoke OK; timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; OWM poll 10′; docs close-out. |
 | 2026-08-15 | **B10K + G3** spec Q&A locked — one code run; detail → `phaseB-blocky.md` § B10K, `phaseG-integrations.md` § G3. |
 | 2026-08-15 | Sequence: prefix **bugfix:** on defect ships (**B10K**, **G2**, **G6**, **G8**, **G1**, **B18**). |

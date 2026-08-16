@@ -60,12 +60,13 @@ Originally engineered to safely manage a 9kW 3-phase electric sauna and infrared
 * FastAPI & Uvicorn (REST & SSE)
 * `aiomqtt` (Asynchronous MQTT)
 * Loguru (Multi-sink, thread-safe asynchronous logging)
-* SQLite (30-day rolling history and NVM caching)
+* SQLite (30-day rolling history and NVM caching). Host gauges use `HOST_HISTORY_IDXS` (`22001` CPU temp included; load 5m/15m live-only — **C22**).
 
 **Frontend:**
 * HTML5 / Vanilla JS
 * Alpine.js (Reactive State Management)
 * Tailwind CSS & DaisyUI (Component Styling)
+* Apache ECharts 5 on Explorer History (`deviceexplorer.html`) — 60s soft auto-refresh keeps series + window (**C6** / **C19**).
 
 ---
 

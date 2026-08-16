@@ -1297,7 +1297,7 @@ Pointers only — detail under § B10F / § B11–B18:
 * **B10M** — Explorer Hue preset duplicate settings — **∥ cluster** (after **B10G** Part D).
 * **B10N** — ✅ **Done 2026-08-15** — closed without dedicated code; covered by **B10K** Item 3.
 * **C18** — Explorer Control live lag — ✅ **Done 2026-08-16**; [`phaseC-shell.md`](phaseC-shell.md) § C18.
-* **C19** — History auto-refresh blank — **see C6**; [`phaseC-shell.md`](phaseC-shell.md) § C19.
+* **C19** — History auto-refresh blank — ✅ **Done 2026-08-16**; [`phaseC-shell.md`](phaseC-shell.md) § C19.
 * **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
 * **G6** — Scoped `CONFIG_RELOAD` + Automations deferred Save config — [`phaseG-integrations.md`](phaseG-integrations.md); not a new B item.
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.

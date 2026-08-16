@@ -23,6 +23,7 @@ SENSOR_META: Dict[int, Dict[str, str]] = {
     74003: {"label": "PC monitors power", "kind": "power", "unit": "W"},
     # 20101 : sauna temp — virtual composite (see logic/history_ids.py)
     SAUNA_CALC_IDX: {"label": "sauna temp", "kind": "climate", "unit": "°C"},
+    22001: {"label": "Host CPU Temperature", "kind": "host", "unit": "°C"},
     22002: {"label": "Host CPU Usage", "kind": "host", "unit": "%"},
     22003: {"label": "Host Memory Free", "kind": "host", "unit": "%"},
     22004: {"label": "Host Disk Free", "kind": "host", "unit": "%"},
@@ -268,7 +269,7 @@ class SensorHistoryManager:
 
     @staticmethod
     def _is_host_gauge(idx: int) -> bool:
-        """Host gauges reuse unit '%' (same as RH); never treat them as climate."""
+        """Host gauges (%, °C, V, MB) must never be treated as climate series."""
         try:
             i = int(idx)
         except (TypeError, ValueError):

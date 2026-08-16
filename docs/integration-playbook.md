@@ -292,7 +292,7 @@ New: `[Honeywell]`, `[HomeWizard]`, `[Samsung]`, `[SMA]`, `[HomeConnect]` (or wh
 **History:**
 
 - Actuator ON/OFF / level → `history_manager` (`should_track`).
-- Temp/hum → `sensor_history` deadband (do not treat as C18 lag; that’s C19/C16).
+- Temp/hum → `sensor_history` deadband (do not treat as C18 Control lag). Explorer History 60s soft refresh is **C6**/**C19** ✅; sliding 24 h window → **C16**.
 - Energy / solar → utility kind; ask whether it joins `history.tracked_entities`.
 
 **Soft-hide / auto-off:** hide via `deviceexplorer_hide` (entity_id), not hardcoded. Auto-off eligibility is D1 policy — climate/energy usually out.

@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** ✅ **DONE** (Pi smoke **2026-08-16**). Queued: **C3 → C4 → C11 → C12 → C17 → C20 → C19 → C21 → C22 → C16 → C24 → C25 → C15 → C13**. **C19** / **C20** / **C21** / **C22** may run **∥ cluster**. Pipeline next: **B2** / **B9C** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). Queued: **C3 → C4 → C11 → C12 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline next: **B2** / **B9C** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -28,10 +28,10 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C12 — Post-C10 polish** | Hue bri int; binary duration; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter debounce; temp/hum frost line; Hidden preset admin-only | FE + log · mid |
 | **C17 — Alert dismiss persist** | Banner dismiss vs reload — **assess at kickoff** | Admin alerts · low |
 | **C18 — Sensor live lag** | Explorer Control live lag after toggle — ✅ **Done 2026-08-16** | SSE / Q4–Q5 · mid |
-| **C19 — History auto-refresh blank** | Auto-refresh black / title-only; keep settings + window — kickoff **locked** 2026-08-15 (**see C6**) | History charts · low |
+| **C19 — History auto-refresh blank** | Auto-refresh black / title-only; keep settings + window — ✅ **Done 2026-08-16** | History charts · low |
 | **C20 — Bell Clear All** | Admin SYSTEM NOTIFICATIONS **Clear All** does nothing | Admin alerts · low |
 | **C21 — AUTO OFF while OFF** | Explorer countdown runs on a device that is already OFF | Explorer live · low |
-| **C22 — Host “(no history)”** | Three Host gauges tagged no history; siblings are not | Host / History · low |
+| **C22 — Host “(no history)”** | Host CPU temp on history allowlist; load 5m/15m live-only — ✅ **Done 2026-08-16** | Host / History · low |
 | **C23 — SSE SseClient unhashable** | EventSource dies ~25 ms — ✅ **Done 2026-08-16** (with **C18**) | SSE hub · low |
 | **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only | History charts · mid |
 | **C24 — Temp/hum day fullscreen** | Tab overlay; AH + CI overlay-only; 5 checkboxes; 3rd y-axis; CSV | History charts · mid |
@@ -41,7 +41,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** ✅ **2026-08-16**. **C11** after **C4**. **C12** → **C17** → **C20** → **C19** → **C21** → **C22** → **C16** → **C24** → **C25** → **C15** → **C13**. **C19** / **C20** / **C21** / **C22** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C11** after **C4**. **C12** → **C17** → **C20** → **C21** → **C16** → **C24** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -270,6 +270,8 @@ Constants: \(b = 17.62\), \(c = 243.12\) °C (\(a\) unused in this form; no \(d\
 4. Water + actuator period charts use the same soft helper.
 5. Hard open/switch unchanged.
 
+**C19 amendment (2026-08-16, does not reopen this DoD):** soft `replaceMerge` is `['series', 'dataZoom']` (saved zoom copied onto the option first); ECharts rebinds when `getDom()` ≠ the live node. See § **C19**.
+
 **C6 DoD:** Soft auto-refresh updates series without visible reset/flicker; axes/zoom/selection kept; Pi smoke all chart families. **Bundle Last DoD** with C7–C9: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior. — ✅ **2026-08-10** (Pi smoke + docs).
 
 ---
@@ -396,7 +398,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 **Scope (assess → decide → impl if needed):** document current divergence; decide whether Control and History should share one membership rule (and what happens to SE/UE event history, hidden devices, utilities, etc.); then implement or explicitly defer with rationale.
 
-**Out of scope:** C10 polish items; Blocky Library UE/SE/SR; G2/G5; Host **(no history)** tag on three gauges → **C22**.
+**Out of scope:** C10 polish items; Blocky Library UE/SE/SR; G2/G5; Host history allowlist (**C22** ✅ — CPU temp recorded; load 5m/15m live-only).
 
 **C11 DoD:** Written decision in this file + pipeline; if impl: Pi smoke for Control + History list parity rules; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -463,7 +465,7 @@ Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text
 * B10G Automations load checklist / timings / NOT CONNECTED / `vNN` — ✅ **2026-08-12**; **B10H** cold-load shorten — ✅ **2026-08-12**.
 * C11 Control vs History membership model (item 3 does not reopen it).
 * Explorer **live** Control lag after B10H / optimistic UI → **C18** ✅.
-* History auto-refresh blank / lost window → **C19** (see **C6**; do not reopen C6).
+* History auto-refresh blank / lost window → **C19** ✅ (**2026-08-16**; see **C6**; did not reopen C6).
 * Temp/hum day fullscreen + AH/CI + checkboxes + CSV → **C24** (after **C16**; do not reopen **C5**). Overlay dew likelihood → **C25**.
 
 **C12 DoD:** Items 1–9 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed; temp/hum day frost line; **dew removed from month/year**; Hidden preset admin-only in Manage Presets. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
@@ -556,7 +558,7 @@ Checked Sequence, Inbox, and phase files: **no** existing item for sensor live-l
 | 3 | What lag looks like | Value **does** update, but **(lots of) seconds later** |
 | 4 | Correlate with toggle? | **Mostly after something is toggled** |
 
-Quiet Explorer (no recent ON/OFF) is **not** the main repro. History **charts** stay **C19**. History-tab live numbers and WISC/kiosk were **not** reported — out of C18 unless a later repro says otherwise.
+Quiet Explorer (no recent ON/OFF) is **not** the main repro. History **charts** stay **C19** ✅. History-tab live numbers and WISC/kiosk were **not** reported — out of C18 unless a later repro says otherwise.
 
 ### Pi repros (operator 2026-08-15) — **locked**
 
@@ -579,7 +581,7 @@ Clicked: Hidden-view Z-Wave `zwave.badk_1e_hue_physical` (Explorer **Hidden devi
 
 Kickoff lock: drain awaits Hue PUT before SSE. **Shipped finding (2026-08-16):** that was real drain hygiene (`create_task` kept) but the ~10 s UI lag was a **dead EventSource** (**C23**). Keep the Q4/Q5 contract below; do not treat Hue-PUT-await as the 10 s generator.
 
-**DoD width locked:** Explorer **Control live rows** that were not the optimistic click — Hue, Z-Wave lights, Sonos, climate sensors, any sibling updated in the same drain. Not climate-only. Not History charts (**C19**).
+**DoD width locked:** Explorer **Control live rows** that were not the optimistic click — Hue, Z-Wave lights, Sonos, climate sensors, any sibling updated in the same drain. Not climate-only. Not History charts (**C19** ✅).
 
 ### UI timing contract (operator 2026-08-15) — **locked**
 
@@ -621,7 +623,7 @@ Example bell: `ERROR: Command failed: hue.group.badk_1e_hue (badk 1e Hue, idx 51
 
 * **C12** item 7 shutter debounce / **C12** frost line.
 * **C16** sliding 24 h History window.
-* **C19** History auto-refresh blank chart (points at **C6**; do not reopen C6).
+* **C19** History auto-refresh blank chart — ✅ **2026-08-16** (points at **C6**; did not reopen C6).
 * **G3** ✅ OWM outside poll cadence (**10′**; was 30′).
 * **B10H** deferred list/v2 cache; **G8** boot autostart.
 * Reopening the optimistic **light/switch** toggle on the **clicked** row (that path is working in these repros).
@@ -630,18 +632,23 @@ Example bell: `ERROR: Command failed: hue.group.badk_1e_hue (badk 1e Hue, idx 51
 
 ---
 
-## 📋 C19 — History auto-refresh blank chart 🔜 TODO
+## 📋 C19 — History auto-refresh blank chart ✅ DONE
 
-**Origin:** operator inbox **2026-08-15**. Explorer History charts — **not** C18 live sensor lag, **not** C16 sliding window (keep window on refresh). Size **low**. **Regression of C6** (Done) — **do not reopen C6 DoD**. Soft-refresh intent: § **C6**. Sequence: **∥ cluster** (C6 ✅); default after **C18** if not jumped.
+**Operator smoke:** ✅ OK on Pi (**2026-08-16**) — leave-open >60s; series stay drawn.
+
+**Origin:** operator inbox **2026-08-15**. Explorer History charts — **not** C18 live sensor lag, **not** C16 sliding window. Size **low**. **Regression of C6** (Done) — **did not reopen C6 DoD**. Soft-refresh intent: § **C6**.
 
 **Operator request (verbatim):**
 > bug: when graph updates automatically, shows nothing: black, only title, eg "Temperature / humidity last 24 hours" no graph at all - re-opening the graph: visible again // auto-refresh should keep ALL graph settings without flicker! also window
 
-**Locked triage intent:**
+### Shipped (2026-08-16)
 
-* Auto-refresh must **not** blank the chart (black / title-only). Re-open working is the workaround, not the fix.
-* Keep **all** graph settings on refresh, **including window** — no flicker. Details: **C6** (merge soft `setOption`, axes/zoom/selection kept).
-* C16 window/pan, when it ships, must keep that same no-wipe refresh.
+Explorer History 60s auto-refresh (`refreshExplorerHistory` → soft `reloadSelectedSensorDetail`) keeps series in the chart box (no title + dark-empty plot). Settings + titled windows (last 24h / month / year) and zoom/selection kept. Hard open/switch unchanged. **C16** (when it ships) must keep this no-wipe refresh.
+
+Both 60s-path defects were patched (cause not isolated on Pi; combined fix smoked OK):
+
+* **Stale instance:** `_ensureHistoryChart` / `_ensureActuatorChart` dispose + re-init when `getDom() !== el`; skip `setOption` / `resize` on detached nodes; `$nextTick` after list reload and before soft draw.
+* **Soft merge:** `setOption` `{ notMerge: false, replaceMerge: ['series', 'dataZoom'] }` (saved zoom copied onto the option); series `id`s; if merge drops drawable series, full `notMerge` replace (no dispose).
 
 ### Kickoff Q&A (operator 2026-08-15) — **locked**
 
@@ -653,32 +660,9 @@ Example bell: `ERROR: Command failed: hue.group.badk_1e_hue (badk 1e Hue, idx 51
 | 4 | Zoom / pan needed? | **No** — default window; still **keep** window + settings on refresh (**C6**) |
 | 5 | Which page | **Explorer History** only — not `sensorhistory.html` |
 
-### Fix contract **locked** 2026-08-15
+**Out of scope (unchanged):** Reopening **C6** as a Done phase; **C18** live Explorer numbers; **C12** frost line; **C16** sliding window; standalone **`sensorhistory.html`**.
 
-* **Surface:** Explorer → History, open detail. **All** chart families that C6 covered.
-* **Repro:** leave the chart open; every ~60s the plot goes empty (dark box + title). Close + re-open restores series (hard path).
-* **Fix bar:** soft auto-refresh must **keep series drawn** in that box. No flicker. Keep titled windows (last 24h / month / year) and any zoom/selection if present. Hard open/switch unchanged.
-* **Cause:** **not locked** — find at implement (C6 soft path still the mechanism).
-
-### Implement diagnostic (not a locked cause)
-
-Two mechanisms fit the locked repro. **Do not guess — measure one forced refresh, then fix the one that fired.** Forced `refreshExplorerHistory()` is the same path as the 60s timer (no need to wait).
-
-**Before / after that call, on `#chart-day` (and act/month/year if open):**
-
-| Probe | Cause 2 (stale instance / Alpine remount) | Cause 1 (`replaceMerge` on live instance) |
-|---|---|---|
-| `elAfter === elBefore` | **false** (new node) | **true** (same node) |
-| `inst.getDom() === elAfter` | **false** (instance still on old node) | **true** |
-| `echarts.getInstanceByDom(elAfter)` | **null** or ≠ stored `inst` | **=== stored `inst`** |
-| `elAfter.clientWidth/Height` | may be 280×… empty CSS box | non-zero |
-| `inst.getOption().series` data after `setOption` | may still have points (drawn off-screen) | **empty** → merge dropped series; **points present + still blank** → render/resize on live node |
-
-**Order at implement:** (1) add short-lived probes on the soft path (or one console run on Pi). (2) If cause 2: rebind when `getDom() !== el` (dispose stale + `init` on live node). (3) Re-run one refresh. (4) If still blank / if cause 1: change the C6 soft `setOption` so series stay drawn. (5) Remove probes. Both may be true — fix 2 first, then re-measure 1. Hard path unchanged.
-
-**Out of scope:** Reopening **C6** as a Done phase; **C18** live Explorer numbers; **C12** frost line; **C16** sliding window; standalone **`sensorhistory.html`**.
-
-**C19 DoD:** Kickoff + fix contract locked. Every ~60s Explorer History auto-refresh keeps series visible (no dark-empty box) on all chart families; settings + window kept (**C6**); Pi smoke leave-open >60s per family. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C19 DoD:** ✅ **2026-08-16** — Pi smoke leave-open >60s; series + window kept; Last DoD docs audit this close-out.
 
 ---
 
@@ -725,18 +709,30 @@ Two mechanisms fit the locked repro. **Do not guess — measure one forced refre
 
 ---
 
-## 📋 C22 — Host gauges tagged “(no history)” 🔜 TODO
+## 📋 C22 — Host gauges tagged “(no history)” ✅ DONE
 
-**Origin:** operator screenshot **2026-08-15** (Explorer Host metrics). **Not** C11 (Control vs History **list membership**), **not** C19 (blank chart). Size **low**. Sequence: **∥ cluster**; default near **C16** if not jumped.
+**Operator smoke / close:** ✅ **2026-08-16** — operator close-out after allowlist ship.
+
+**Origin:** operator screenshot **2026-08-15** (Explorer Host metrics). **Not** C11 (Control vs History **list membership**), **not** C19 (blank chart). Size **low**.
 
 **Operator request (verbatim from screenshot):**
 > how come these 3 have no history?
 
-**Locked triage intent:** Three Host rows show **(no history)** while siblings do not: **Host CPU Temperature**, **Host Load Average (15m)**, **Host Load Average (5m)**. Others (CPU Usage, Disk, Load 1m, Log2Ram, Memory) have no such tag. Kickoff: should they record history, or should the tag/list be consistent — **ask**, do not assume.
+### Shipped summary
 
-**Out of scope:** **C11** membership model; **C19** auto-refresh wipe; **C5** / **C10** chart styling already shipped.
+Cause was a **hardcoded allowlist** (`HOST_HISTORY_IDXS` in `logic/history_ids.py` + `SENSOR_META` / `note_gauge`), not a special UI flag. Explorer `(no history)` = idx missing from `/api/history/sensors`.
 
-**C22 DoD:** Assess recorded (record vs hide tag); impl if decided; Pi smoke those three Host rows. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+| IDX | Gauge | Decision |
+|-----|--------|----------|
+| `22001` | Host CPU Temperature | **Record** — added to `HOST_HISTORY_IDXS` + `SENSOR_META` (`kind: host`, `unit: °C`) |
+| `22007` | Host Load Average (5m) | **Live only** — stay off allowlist |
+| `22008` | Host Load Average (15m) | **Live only** — stay off allowlist |
+
+Ingest unchanged: `HUB_STATE_CHANGED` → `note_gauge` when `idx in HOST_HISTORY_IDXS`. Detail → [`docs/sensor_history.md`](../sensor_history.md) §17.
+
+**Out of scope (unchanged):** **C11** membership model; **C19** auto-refresh wipe ✅; **C5** / **C10** chart styling.
+
+**C22 DoD:** ✅ **2026-08-16** — locked decision shipped; Last DoD docs audit this close-out.
 
 ---
 
@@ -1020,7 +1016,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * Month / year temp/hum charts.
 * **C12 #8** frost styling of the temperature line.
 * **C16** viewport / pan / `maxValueSpan`.
-* **C19** auto-refresh blank.
+* **C19** auto-refresh blank — ✅ **2026-08-16**.
 * Reopening **C5**.
 * F11 / Fullscreen API.
 * `.xls` / `.xlsx` library.
@@ -1101,7 +1097,8 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C2:** Timeline name+type, strip “will”; dual banner/bell dismiss; service reboot via sudoers `NOPASSWD: systemctl restart wanos.service` + UI error on fail; gear-only on hide / auto-off / zwave; leave-guard on those three (Blocky-style). Types = today’s metadata until **D**.
 * **C5:** Explorer History (not `sensorhistory`); compact filters only when chart open; dew via **Sonntag Magnus** (1 decimal) when temp+hum; Y from dataZoom; snaps per table (power **10 W**); climate day/month/year lines **`smooth: true`** (no `step`).
 * **C6–C9 ship:** one code run / one deploy; combined Pi smoke ✅ **2026-08-10**; one Last Docs audit ✅.
-* **C6:** Soft refresh — merge `setOption` (no notMerge wipe), no soft animation, ≤1 resize, water/actuator period via soft helper; hard path unchanged. Bar: in-place series update; axes/zoom/selection kept.
+* **C6:** Soft refresh — merge `setOption` (no notMerge wipe), no soft animation, ≤1 resize, water/actuator period via soft helper; hard path unchanged. Bar: in-place series update; axes/zoom/selection kept. **C19** ✅: `replaceMerge` also `dataZoom`; rebind stale ECharts nodes.
+* **C19:** ✅ **Done 2026-08-16** — Explorer History 60s auto-refresh keeps series + window (stale instance rebind + soft `replaceMerge` series/dataZoom). Did not reopen **C6**.
 * **C7:** All four: smartphone-portrait two-row presets only (chips+pencil / Show Favorites+Edit+Hidden devices, compact text, no wrap; PC/landscape single row); SSE filter restore (shared Control+History bindings, all four + blue); landscape phone filters **not sticky** + chart-open hide Control/History + hint; legend dots removed.
 * **C8:** Log-only dismiss lines — `Alert dismissed (banner|bell): level=<ui-severity> "…text…"`; no alert id; no `ALERT_DISMISSED` state removal; UX unchanged.
 * **C9:** All device-ref lines in `wanos.log`, every integration → `entity_id (name, idx N)` (automation-log parity / `format_device_ref`).
@@ -1112,10 +1109,9 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C20:** kickoff **locked** 2026-08-15 — **Clear All** dismisses every visible bell row (same as each X); C8 per row; button iff list non-empty; reload same as X (**C17**). Implement when commanded.
 * **C18:** ✅ **Done 2026-08-16** — Explorer Control live rows; Q4/Q5; live SSE (**C23**); drain `create_task` I/O.
 * **C23:** ✅ **Done 2026-08-16** (closed **with C18**) — `SseClient` `eq=False` in the hub `set`; first ping; pure ASGI; no HTTP/2 `Connection` header. Explorer EventSource smoke; journal not a DoD.
-* **C19:** History auto-refresh blank — Explorer all families, every ~60s, dark empty box; keep settings + window (**C6**); do not reopen C6. Kickoff + fix contract **locked** 2026-08-15. Cause not locked. Implement when commanded.
 * **C21:** Explorer AUTO OFF countdown must not run when the device is already OFF.
-* **C22:** three Host rows **(no history)** — assess record vs tag; not C11.
-* **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit. Blank auto-refresh → **C19**. Fullscreen + extra climate lines → **C24**.
+* **C22:** ✅ **Done 2026-08-16** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m (`22007`/`22008`) live-only; not C11.
+* **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit. Blank auto-refresh → **C19** ✅. Fullscreen + extra climate lines → **C24**.
 * **C24:** temp/hum **day** overlay fills the **browser tab** (not F11) with **X** top-right; 24 h window (C16); CSV of full `hires_days`; 3rd y-axis AH (axes iff series checked); checkboxes only; month/year unchanged; **after C16**; not C12 #8 frost; do not reopen **C5**. Kickoff Q&A **locked 2026-08-16** — implement when commanded. Dew likelihood → **C25**.
 * **C25:** overlay **Dew likelihood %** (heuristic); OWM 2.5 clouds/wind; rain→0; **after C24**; do not reopen C24. Storage/weights/checkbox/CSV/axis → kickoff.
 * **C15:** lab switch in Debug Commands; entire lab pane hidden when OFF.
@@ -1124,14 +1120,12 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ## ❓ Residual Open Qs
 
-* *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10 / C18 / C23** — **C18**/**C23** closed by Pi smoke **2026-08-16**.)*
+* *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10 / C18 / C19 / C22 / C23** — **C18**/**C23**/**C19** Pi smoke **2026-08-16**; **C22** closed **2026-08-16**.)*
 * **C11** assess open until kickoff (queued).
 * **C12:** item **8** locked — day frost line; **dew removed from month/year** (day only). Item **9** — Hidden Manage Presets row **admin-only**. Extra climate lines / fullscreen / CSV → **C24**.
 * **C17:** **assess at kickoff** — persist while fault still true vs new occurrence; bell vs banner; store.
 * **C20:** kickoff + contract **locked** 2026-08-15 — implement when commanded.
-* **C19:** kickoff + fix contract **locked** 2026-08-15 — implement when commanded. Cause not locked.
 * **C21:** AUTO OFF countdown while toggle OFF.
-* **C22:** **assess at kickoff** — Host CPU temp / load 5m / load 15m missing history vs inconsistent tag.
 * **C16:** locked — 24 h max viewport; pan over **`hires_days`**; water day chart **assess at kickoff**.
 * **C24:** kickoff Q&A **locked 2026-08-16** — overlay = full browser tab (not F11); **X** top-right; extra series overlay-only; month/year untouched; 24 h window + CSV of `hires_days`; 3rd y-axis AH (hide axis when series off); checkboxes only; CI piecewise color + tooltip. Implement when commanded. Dew likelihood → **C25**.
 * **C25:** **not locked** — persist OWM clouds/wind/rain; formula weights; 6th checkbox/CSV; axis. Placement: after **C24**, overlay-only, OWM/outside only.

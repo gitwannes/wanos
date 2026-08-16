@@ -1,3 +1,4 @@
+// --- file: frontend/wanos-shell.js ---
 /**
  * Shared WanOS page shell (offline overlay, app nav, light modal).
  * Injects before Alpine (defer) binds — keep this script sync, before app.js / blocky.js.
@@ -30,14 +31,14 @@
 
     /** B10G: per-page deploy version (admin-only badge in titleBlock). */
     const PAGE_VERSIONS = {
-        admin: 8,
-        explorer: 8,
-        commander: 8,
-        history: 8,
-        blocky: 7,
-        hiddendevices: 4,
-        lightingautooff: 4,
-        zwave: 4
+        admin: 9,
+        explorer: 9,
+        commander: 9,
+        history: 9,
+        blocky: 8,
+        hiddendevices: 5,
+        lightingautooff: 5,
+        zwave: 5
     };
 
     /** B10G: exact AlertManager-stored strings for reload suppress (T4 C). */

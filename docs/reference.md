@@ -76,7 +76,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 **frontend/** (Dumb Asset Interfaces)
 * `app.js`: Master Alpine.js reactive interface store managing SSE channel bindings, connection watchdogs, dynamic client-side uptimes, local UI layout persistence, and JWT role routing.
 * `dashboard.html`: The Device Explorer panel. Implements search query matrices, type exclusions, and cascading alphanumeric sorting algorithms. (**Shipped UI:** `deviceexplorer.html` — Control + History modes.)
-* Explorer History (**C10**): omits `type === "scene"` catalog-event rows from the History list; actuator charts use binary ON/OFF, Level (Hue/Sonos/Onkyo/blinds), or motion hits; Planned Automations drops past/done timers (no stale `imminent`).
+* Explorer History (**C10** / **C19**): omits `type === "scene"` catalog-event rows from the History list; actuator charts use binary ON/OFF, Level (Hue/Sonos/Onkyo/blinds), or motion hits; Planned Automations drops past/done timers (no stale `imminent`). Open detail auto-refreshes every **60s** (tab visible): soft `setOption` `{ notMerge: false, replaceMerge: ['series', 'dataZoom'] }`; rebind ECharts if Alpine replaced the DOM node; hard open/switch unchanged.
 * `index.html`: Primary operational web interface layout structured around side-by-side grids, 4-column responsive admin panels, and physical action safety interceptors.
 
 **hardware/** (Local Peripherals)
@@ -89,7 +89,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
 * `environment_scheduler.py`: Daily shutters + morning/evening **lights** windows (clamped shutters vs raw sunset for evening-lights on). Catalog / UI labels: Shutters open/close, Morning lights on/off, Evening lights on/off. Admin model + math: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md). Code keys remain `BLINDS_*` / `MORNING_ON` / `SUNRISE` / `SUNSET` / `EVENING_OFF` until a later key rename.
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`. Connection up/down flags ride `SYSTEM_METRICS_UPDATED` (event log silenced); transition UI/log side-effects live in `telemetry_handlers`.
-* `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, **event-UUID** synthetic history `900000+`, host/mains gauge IDXs, `22009` DB size helper) and helpers for event-history hashing / numeric state parsing.
+* `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, **event-UUID** synthetic history `900000+`, `HOST_HISTORY_IDXS` host/mains gauges incl. `22001` CPU temp, `22009` DB size helper; load 5m/15m **not** recorded) and helpers for event-history hashing / numeric state parsing.
 * `history_manager.py`: Actuator / motion / **event-UUID** history (`device_history.db`) with retention tiers and insights tallies.
 * `power_analytics.py`: Sauna/IR session energy accounting, background leak baseline, and session SQLite persistence.
 * `sauna_controller.py`: Manages element priority wear-leveling algorithms, probe math aggregation, and handles anti-windup loops for high thermal mass zones.
@@ -202,7 +202,9 @@ To communicate with the system, payloads must align with the exact structural da
 * All physical hardware devices, digital probes, switches, relays, and cumulative fluid/power meters are addressed using their unique, raw integer **`idx`** derived from the dashboard hardware map.
 * **System Telemetry / Virtual Sensors (IDXs 22001-22009):**
   * Internally reserved block for host machine health. Soft-hidden via `deviceexplorer_hide` in `automations.auto.yaml`.
+  * **History allowlist** (`HOST_HISTORY_IDXS`): `22001` CPU temp (°C), `22002`–`22006`, `22009` DB size, plus mains `71046`. **Live only (no series):** `22007` / `22008` load 5m / 15m (**C22**).
   * `22009` = WanOS DB size (MiB): sum of `sensor_history.db`, `device_history.db`, `sauna_sessions.db` plus `-wal`/`-shm` sidecars.
+  * E.g., `{ "type": "HUB_STATE_CHANGED", "payload": { "idx": 22001, "state": "70 °C", "origin": "system" } }`
   * E.g., `{ "type": "HUB_STATE_CHANGED", "payload": { "idx": 22002, "state": "20.0 %", "origin": "system" } }`
   * E.g., `{ "type": "HUB_STATE_CHANGED", "payload": { "idx": 22009, "state": "12.4 MB", "origin": "system" } }`
 * **Temperature Update:**
