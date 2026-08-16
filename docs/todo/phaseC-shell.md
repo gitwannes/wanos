@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). Queued: **C3 → C4 → C11 → C12 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline next: **B2** / **B9C** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). Queued: **C3 → C4 → C11 → C12 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline next: **B3** / **B19** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -382,7 +382,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 ### Out of scope
 
-* G2 Hue bri/xy bridge truth; G5 rolluik; B10F Automations chrome; integration log prefixes → **G7**.
+* G2 Hue bri/xy bridge truth; G5 ✅ cinema rolluik half; B10F Automations chrome; integration log prefixes → **G7**.
 * Control vs History list membership product model → **C11**.
 * Automations SR/UR fire-status timing strings (different surface).
 
@@ -398,7 +398,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 **Scope (assess → decide → impl if needed):** document current divergence; decide whether Control and History should share one membership rule (and what happens to SE/UE event history, hidden devices, utilities, etc.); then implement or explicitly defer with rationale.
 
-**Out of scope:** C10 polish items; Blocky Library UE/SE/SR; G2/G5; Host history allowlist (**C22** ✅ — CPU temp recorded; load 5m/15m live-only).
+**Out of scope:** C10 polish items; Blocky Library UE/SE/SR; G2; **G5** ✅; Host history allowlist (**C22** ✅ — CPU temp recorded; load 5m/15m live-only).
 
 **C11 DoD:** Written decision in this file + pipeline; if impl: Pi smoke for Control + History list parity rules; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 

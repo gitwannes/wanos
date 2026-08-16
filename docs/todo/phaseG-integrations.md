@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G5** still TODO — partial `Cinema rolluik half` (Open→50) live, **DoD gaps** in § G5; **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9–G13** five new vendor bridges (sequential own ships) — inbox **2026-08-14**.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9–G13** five new vendor bridges (sequential own ships) — inbox **2026-08-14**.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges).
 
@@ -22,14 +22,14 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G1 — Epson boot** | `get_power_state` when safe |
 | **G3 — OWM poll** | ✅ **Done 2026-08-15** — outside temp/hum every **10′** (was 30′) |
 | **G4 — OWM daily + hot sun** | One Call 4.0 once/day; hot+full-sun → cinema opens to **60% open** |
-| **G5 — Rolluik zon half** | Dashboard **60% closed** if cinema not fully closed — **after B9C**; partial UE/UR live, gaps in § G5 |
+| **G5 — Cinema rolluik half** | ✅ **Done 2026-08-16** — dashboard UE/UR; open % **> 50** → set **50%** open (stored **50**); legacy canvas + **B9C** |
 | **G9 — Honeywell** | Thermostats / Evohome — **own ship** (1st of 5) |
 | **G10 — HomeWizard** | Energy local API — **own ship** (2nd) |
 | **G11 — Samsung Airco** | Climate — **own ship** (3rd) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 
-Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G3** ✅ **Done 2026-08-15** (config-only; cold boot; one code run with **B10K**). **G4** before **G5** preferred (shared cinema-sun story); **G5** can ship alone if operator wants the manual button first.
+Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G3** ✅ **Done 2026-08-15** (config-only; cold boot; one code run with **B10K**). **G5** ✅ **Done 2026-08-16** (manual cinema half). **G4** still owns the automatic hot-sun morning open.
 
 **G9 → G10 → G11 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
@@ -107,42 +107,44 @@ Only production outside source: OWM **`30001`** / `sensor.temp_hum.outside_temp_
 ### Not this item
 
 * Current 2.5 climate poll cadence → **G3** ✅ (**2026-08-15**).
-* Manual dashboard half-close → **G5**.
+* Manual dashboard half → **G5** ✅ (**`Cinema rolluik half`**, **50% open**).
 * Paid Weather Startup / `/forecast/daily` — **not required** (One Call 4.0 is enough).
 
 **G4 DoD:** Morning assess stores hot-sun flag from One Call 1-day; Pi smoke on a qualifying forecast day shows cinema at **60% open** after blinds-open (others full open); cool/cloudy day still full-open cinema; Admin Debug clean; ≤ a few One Call calls/day in normal use. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
-## 📋 G5 — Dashboard “rolluik zon half” 🔜 TODO
+## 📋 G5 — Dashboard `Cinema rolluik half` ✅ DONE (2026-08-16)
 
-**Origin:** operator request **2026-08-10**. **Blockly prerequisites** extended **2026-08-12** (operator).
+**Origin:** operator request **2026-08-10**. Blockly **%** capability via **B9C** (**2026-08-16**). **DoD revised 2026-08-16** (operator): accept live Pi rule as shipped — no B19 re-author, no rename to “rolluik zon half”, no 40%/≠0 condition.
 
-**Status check 2026-08-11:** **still TODO** — operator added a **partial** UE/UR on Pi/repo; **does not satisfy DoD**. Keep queued.
+**Shipped summary:** Operator YAML on Pi (legacy `When` + `case` canvas + **B9C** shutter open-%). Dashboard button + rule **`Cinema rolluik half`**. Misnamed Hue-on-OPEN rule **`Rolluik cinema half (zon)`** absent on Pi. No product-code ship for G5 itself.
 
-### Blockly prerequisite — **Phase B9C** (Ship **B2**; before **B19**)
+| Piece | Live |
+|---|---|
+| UE | `856d0f0d-1f6b-4a1a-ace8-a5856a5ee491` — name **`Cinema rolluik half`**, `origin: user`, `show_on_dashboard: true`, `enabled: true` |
+| UR | `0efe3829-625e-4979-a234-1b70dfdc8af6` — trigger that UE |
+| Condition | `blinds.cinema` `attribute: position` `op: <` `is: '50'` (YAML closed %; Blockly UI = open % **> 50**) |
+| Action | `blinds.cinema` `state: '50'` (**50% open** / stored closed **50**) |
+| Canvas | Legacy + **B9C** (not **B19**) |
 
-G5 needs blinds **position ≠ 100** on **if**. **B9C** patches the **legacy** canvas; **B19** replaces it with Domoticz Compare blocks. **G5** may ship after **B9C** (Ship **B2**); **parallel to Ships B3–B8** if capacity allows; re-author rule on B19 when **B3** lands. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B9C, B19; parallel → [`pipeline.md`](pipeline.md) § Parallel tracks.
+**% convention (B6C/B9C):** Blockly UI = **open %**; YAML/`state` = **closed %** (`100 − open`); inequalities via `blockyInvertCompareOp`.
 
-### Live partial (not DoD)
+#### Locked decisions archive (close **2026-08-16**)
 
-* **UE/UR name:** `Cinema rolluik half` (`events:` UUID `856d0f0d-…`, rule id `0efe3829-…`).
-* **Dashboard:** UE `show_on_dashboard: true` (button exists).
-* **Rule today:** When UE → if `blinds.cinema` **is Open (`0`)** → set `state: '50'` (50% closed).
-* **Gaps vs DoD:** label not **“rolluik zon half”**; target **50** not **60** closed; condition **Open-only** (mid positions no-op) instead of **not fully closed** (`≠ 100`); misnamed old Hue-on-OPEN cleanup still **to be checked**.
+* Label stays **`Cinema rolluik half`** (not “rolluik zon half”).
+* Target **50% open** (stored **50**), not 40%/60.
+* Gate = open % **> 50** (stored closed **< 50**), not “not fully closed” (≠ 0).
+* Authored on **legacy + B9C**; **B19** re-author **out** of G5.
+* Prior B19-authoring lock from kickoff **2026-08-16** **superseded** by this close.
 
-### Intent (DoD — unchanged)
+**G5 DoD:**
 
-* Add a **dashboard** control labeled **“rolluik zon half”** (**user** catalog event + rule; Explorer via `show_on_dashboard` / `dashboard_events` — B10B+D+E shipped).
-* Action: if **`blinds.cinema` is not fully closed** (`position` / stored `state` **≠ 100**) → set cinema to **60% closed** (`state: 60`).
-* If already fully closed → **no-op** (do not open / crack the blind).
-* Rule authored in **Blockly** using blinds **position %** condition (see prerequisites above) — not Open-only (`0`).
-
-### Cleanup
-
-* Existing rule **“Rolluik cinema half (zon)”** is misnamed: trigger `blinds.cinema` → `OPEN` turns on **badkamer Hue** — does **not** set a half position. **Retire or rename** when G5 lands so operators are not confused.
-
-**G5 DoD:** Blockly blinds **position %** on **if** shipped; dashboard button visible (label **rolluik zon half** or rename partial to match); rule condition **not fully closed** (`≠ 100` closed %), not Open-only; with cinema **open or mid**, tap → **60% closed**; with cinema fully closed, tap leaves it closed; misnamed Hue-on-OPEN rule gone or clearly renamed; Pi smoke. Partial `Cinema rolluik half` / Open→50 must be updated or replaced. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] Dashboard UE visible (`show_on_dashboard`)
+- [x] UR: when UE → if cinema open % **> 50** → set **50%** open
+- [x] Misnamed Hue-on-OPEN rule gone (not on Pi)
+- [x] Pi smoke (operator; B9C session + close confirm)
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-16**
 
 ---
 

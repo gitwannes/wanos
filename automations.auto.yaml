@@ -567,26 +567,28 @@ automations:
     id: 751cdc57-c079-488b-91ca-708246f15e3a
     scene: false
     require_confirmation: false
-  - name: "Badk 1e: Hue App Syncs to Main Switch-ON"
+  - name: 'Badk 1e: Hue App Syncs to Main Switch-ON'
+    enabled: true
     trigger:
       entity_id: hue.group.badk_1e_hue
     cases:
-      - to_state: ON
+      - to_state: "ON"
         actions:
           - entity_id: zwave.badk_1e_hue_physical
             state: "ON"
           - entity_id: media_player.badk_1e
             state: "ON"
-            volume: 10
-            station: "qmaxhits"
-      - to_state: OFF
+            volume: 8
+            station: qmaxhits
+      - to_state: "OFF"
         actions:
           - entity_id: zwave.badk_1e_hue_physical
             state: "OFF"
           - entity_id: media_player.badk_1e
             state: "OFF"
     id: caa74273-e140-4354-8021-741bf7c311ca
-    enabled: true
+    scene: false
+    require_confirmation: false
   - name: "Badk 2e: Main Switch ON -> Hue Red"
     trigger:
       entity_id: zwave.badk_2e_hue_physical
@@ -841,34 +843,20 @@ automations:
     scene: false
     require_confirmation: false
   - name: Cinema rolluik half
-    enabled: false
+    enabled: true
     trigger:
       event: 856d0f0d-1f6b-4a1a-ace8-a5856a5ee491
     cases:
       - conditions:
           - type: device_state
             entity_id: blinds.cinema
-            is: "ON"
+            op: <
+            attribute: position
+            is: '50'
         actions:
           - entity_id: blinds.cinema
-            state: "ON"
+            state: '50'
     id: 0efe3829-625e-4979-a234-1b70dfdc8af6
-    scene: false
-    require_confirmation: false
-  - name: test
-    enabled: false
-    trigger:
-      entity_id: media_player.badk_1e
-    cases:
-      - to_state: "ON"
-        conditions:
-          - type: time_of_day
-            is: dark
-        actions:
-          - entity_id: media_player.badk_1e
-            state: "ON"
-            volume: 0
-    id: 69dd2578-5645-4713-863c-38f29f00b1fb
     scene: false
     require_confirmation: false
 events:

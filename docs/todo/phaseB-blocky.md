@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **Blockly cluster** = **B9C → B19 → …** before shell/integrations/F — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport (H5) → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **B9C** (Ship **B2**) ✅ **Done 2026-08-16**; **Blockly cluster next** = **B19 → …** before shell/integrations/F — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport (H5) → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
 
 **Historical:** `docs/todo/install_blocky.md` was an early Blocky install / phase pointer. It still described pre-**B10B** surface (E1 families, `SCHEDULE_WINDOW_EDGES`, `TWILIGHT_*`, old schedule labels, next = Phase 9A/9B). Retired to a stub at **B10B+D+E** close-out (**2026-08-10**); **deleted 2026-08-12** — this file is the only SoT. Bus pickers = `events:` UUIDs; schedule display = Morning/Evening **lights** on/off; sun refresh = `SUNRISE_SUNSET_UPDATE`; actuator ids `zwave.*` / `rfx.*` / `zwave.vent.*`; product light|switch via Timers & types.
 
@@ -101,7 +101,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A ✅ DONE** (**2026-08-12** — Pi smoke OK + Admin Debug GREEN + docs close-out). **Phase B10G ✅ DONE** (**2026-08-12** — two overlays + load timings modal; SSE A+B+C; admin `v1` ×8; hue_presets scoped reload; Pi smoke A/B/C/D OK). **Phase B10H ✅ DONE** (**2026-08-12** — Automations cold open ~**2.1 s**; SSE reconnect flicker fixed; docs close-out). **Phase B10K ✅ DONE** (**2026-08-15** — timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; one code run with **G3**; Pi smoke + docs close-out). **Phase B10N ✅ DONE** (**2026-08-15** — closed without dedicated code; operator cannot reproduce; covered by **B10K** Item 3). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16** — legacy-canvas bridge: temp/hum ATTR; shutters OPEN/CLOSED/open-% When+if + Set open %; audio ON/OFF/volume When+if; Pi smoke + docs close-out). **Next cluster:** **B19** (Ship **B3**). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered backlog.
 
 **Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
 
@@ -345,7 +345,7 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
     - **No** “replace existing key with another color.”
     - **Reload path (✅ B10G Part D):** CRUD must **not** run full `CONFIG_RELOAD` (`load_config` + `rebuild_core_metadata` + bridge recycle). Shipped: **`hue_presets`-only** sync — re-read `.auto` → `system.hue_presets` + in-memory `config.hue.presets`; SSE `system` domain only; **no** Hue bridge / Z-Wave / Onkyo / NVRAM / passive sweep. See **G6** [`phaseG-integrations.md`](phaseG-integrations.md) scope row `hue_presets`.
 21. **Smoke rule — sauna hue physical (in B9A DoD)** — author on Pi: trigger `zwave.sauna_hue_physical` (**71035**) on **any** change (duplicate when ON + when OFF cases); conditions via `sensor.generic.sauna_status` + `hue.group.sauna_hue` (**51002**); actions on sauna hue + `zwave.sauna_zoutlamp`. Logic: sauna ON → if hue already ON → no-op, else OFF hue + zoutlamp; sauna OFF → if hue ON → OFF hue + zoutlamp, else ON hue + zoutlamp.
-22. **G5 blinds “not fully closed”** — **out of B9A** → [`phaseG-integrations.md`](phaseG-integrations.md) § G5.
+22. **G5 blinds dashboard half** — **out of B9A** → [`phaseG-integrations.md`](phaseG-integrations.md) § G5 ✅ **Done 2026-08-16**.
 
 #### Open
 
@@ -386,7 +386,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | Action rich | `preset` / `bri`+`xy` / `volume`+`station` — B6C round-trip |
 | Triggers | Device / event UUID / OR-device — supported; no mixed device+event OR in live set |
 | Rule-level `scene` / `require_confirmation` | Deprecated (B10B); intentionally omitted on Save — not action opaque |
-| Gaps deferred | H4 and/or, H5 notify, H12 hysteresis, FORCE completeness (G1), G5 blinds “not fully closed” — **not** B9A |
+| Gaps deferred | H4 and/or, H5 notify, H12 hysteresis, FORCE completeness (G1); G5 (✅ Done 2026-08-16) — **not** B9A |
 | **Post-audit:** no pressure to pull H\* into B9A | Confirmed |
 
 #### Gap inventory (B9A targets)
@@ -412,7 +412,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 7. Hue preset CRUD (Explorer; text keys; name-only rename).
 8. JSON removal + B+C + update decision #12 prose.
 
-**Out of scope for B9A:** bathroom climate; H4/H5/H12; vent-lock Blockly; H1–H3/H6–H11; schema v2 redesign; Phase B7/8 UIs; Gmail stack / Phase E (see `phaseE-gmail.md` — hooks land in **B9B H5**); **FORCE completeness / Epson force policy** (→ **G1**); events catalog expand / `SAUNA_SETPOINT_REACHED` (already done); G5 blinds condition. Bathroom feasibility write-up lives under **Phase B9B** (not a B9A deliverable).
+**Out of scope for B9A:** bathroom climate; H4/H5/H12; vent-lock Blockly; H1–H3/H6–H11; schema v2 redesign; Phase B7/8 UIs; Gmail stack / Phase E (see `phaseE-gmail.md` — hooks land in **B9B H5**); **FORCE completeness / Epson force policy** (→ **G1**); events catalog expand / `SAUNA_SETPOINT_REACHED` (already done); G5 blinds dashboard (→ **G5** ✅). Bathroom feasibility write-up lives under **Phase B9B** (not a B9A deliverable).
 
 **Constraints:** Admin Debug GREEN; B+C no silent strip; hard-deny unchanged.
 
@@ -436,7 +436,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | **Time trigger** | Domoticz **Time** trigger (evaluate every minute) — **out of Blockly cluster**; schedule **after F** (**B20**). Until then: system catalog events + `if time` / twilight conditions (B10B+E). |
 | **Explicitly out of scope** | **User variables**; **Debug/Log** Blockly block; Security panel trigger (unless product adds alarm). |
 
-**Sequence:** finish **B9A** → **B9C** (bridge on legacy canvas) → **Blockly cluster** Ships **B3–B8** (B19 → B13/H4 → H12/bathroom → H5 → B14 → B11+B12) → then shell (**C\***), integrations (**G\***), **E**, **F** → **B20** time trigger. Parallel options → [`pipeline.md`](pipeline.md) § Parallel tracks.
+**Sequence:** finish **B9A** → **B9C** ✅ → **Blockly cluster** Ships **B3–B8** (B19 → B13/H4 → H12/bathroom → H5 → B14 → B11+B12) → then shell (**C\***), integrations (**G\***), **E**, **F** → **B20** time trigger. Parallel options → [`pipeline.md`](pipeline.md) § Parallel tracks.
 
 ---
 
@@ -460,8 +460,8 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 |---|---|---|
 | **If/Do + Compare canvas** | Control + Compare in If | **B19** |
 | **Device trigger = any change** | Device mode; logic in Compare | **B19** |
-| **Temperature vs Humidity blocks** | Separate toolbox entries | **B19** (B9C patches legacy picker until then) |
-| **Level compare in If** | Dimmer ≠ 0, blinds % | **B19** + **B9C** bridge |
+| **Temperature vs Humidity blocks** | Separate toolbox entries | **B19** (B9C ✅ patched legacy picker) |
+| **Level compare in If** | Dimmer ≠ 0, blinds % | **B19** (B9C ✅ bridge on legacy When/if) |
 | **AND/OR in If** | Nested Compare | **B9B H4** — **Ship B4** with **B13** |
 | **Else-if / Else** | Control gear | **B13** — **Ship B4** |
 | **Set for X min / delay** | Set + timer | **B14** — **Ship B7** |
@@ -475,7 +475,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | Ship | Phases | Size | Notes |
 |---|---|---|---|
 | **B1** | **B9A** closeout | low | Pi smoke + Debug GREEN + docs. **Alone.** |
-| **B2** | **B9C** | mid | Legacy-canvas bridge: temp/hum picker, blinds/audio **if** % — unblocks **G5**. **Alone.** Superseded by B19 UI but keeps rules working pre-cutover. |
+| **B2** | **B9C** | mid | ✅ **Done 2026-08-16** — legacy bridge: temp/hum ATTR; shutters OPEN/CLOSED/% + Set open %; audio ON/OFF/volume When+if. Enabled **G5** (✅ Done same day). |
 | **B3** | **B19** Domoticz canvas | **high** | If/Do, Compare, **Device** trigger, typed device toolbox, **Set** in Do, v2↔canvas migrator. **Alone — do not combine.** |
 | **B4** | **B13** + **B9B H4** | high | Domoticz **Logic**: Else-if/Else + nested AND/OR in Compare. One interpreter/toolbox pass. |
 | **B5** | **B9B H12** + bathroom | mid | Hysteresis block + humidity band cutover; vent lock stays in hub. |
@@ -485,29 +485,34 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 **Not in Blockly cluster:** **B15** (schedule demotion), **B16** (internal bus UUID), **B17** (assess), **B18** (sauna clamp) — stay in general pipeline after **F** unless safety jumps **B18**.
 
-**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **C18** ✅ after **B10H**; **G5** after Ship **B2** (∥ **B3–B8**); **E** transport ∥ Ships **B5–B8**; Ships **B5 ∥ B6** after **B4** if capacity allows (H5 email half still waits **E**).
+**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **C18** ✅ after **B10H**; **G5** ✅ **Done 2026-08-16** (legacy + **B9C**, not after B19); **E** transport ∥ Ships **B5–B8**; Ships **B5 ∥ B6** after **B4** if capacity allows (H5 email half still waits **E**).
 
 **After F:** **B20** — Domoticz **Time** trigger + time-compare blocks (every-minute evaluation model).
 
 ---
 
-### Phase B9C — Legacy-canvas bridge (pre-B19) 🔜 TODO (spec lock **2026-08-12**)
+### Phase B9C — Legacy-canvas bridge (pre-B19) ✅ DONE (2026-08-16)
 
-**Origin:** operator triage vs [Domoticz Blockly](https://wiki.domoticz.com/Blockly) + live gaps during B9A polish (**2026-08-12**).
+**Origin:** operator triage vs [Domoticz Blockly](https://wiki.domoticz.com/Blockly) + live gaps during B9A polish (**2026-08-12**). Kickoff Q&A **2026-08-16**. Ship **B2**.
 
-**Depends on:** **B9A** Pi smoke ✅. **Before** **G5** and **B19** cutover. **Gate for Ship B3** — not done until this ships.
+**Shipped summary:** Pi smoke OK (operator **2026-08-16**). Legacy `When` + `case` canvas: dual **temp_hum** ATTR (temp + hum); shutters **OPEN / CLOSED / open %** on When+if; **Set** open % restored (B6C); Sonos/Onkyo **ON / OFF / volume** on When+if (0…`max_volume`). Blockly UI = **open %**; YAML/`state` = **closed %**; inequalities flip via `blockyInvertCompareOp`. Native sensor/speaker types win over rpt `switch` fallback. **G5** dashboard rule authored on this canvas (✅ **Done 2026-08-16** — see [`phaseG-integrations.md`](phaseG-integrations.md) § G5). Cache at close: `blocky.js?v=16`, Automations **v10**. Also: `wanoslog.sh log 4 debug` tails automation log including DEBUG/X-RAY.
 
-**Goal:** Patch **today’s** `When` + `case` canvas so live rules and **G5** are authorable. **Not** the Domoticz look & feel end state — **B19** replaces this UX.
+| # | Shipped |
+|---|---|
+| **1** | Dual `temp_hum` temperature + humidity ATTR on When + if (temp-only / host CPU → °C only) |
+| **2–3** | Shutters + audio level MODE on When + if (OPEN/CLOSED/% · ON/OFF/volume) |
+| **4** | Numeric / % / volume When = edge-cross (B9A); discrete OPEN/CLOSED/ON/OFF keep edge/MATCH |
+| **5** | Volume = audio only; shutters = open % |
+| **8–9** | Open-% UI + Set open %; closed-% storage + op flip |
 
-**In scope:**
+**Out of scope (unchanged):** If/Do (**B19**); AND/OR (**B4**); Messages (**B6**); Hue bri on if. (**G5** closed separately on this canvas.)
 
-1. **`temp_hum` channel picker** on legacy blocks (dual `sensor.temp_hum.*`; temp-only → °C only).
-2. **Blinds position % on if** — `attribute: position`, compare ops, unit **%**.
-3. **Sonos / Onkyo volume % on if** — `attribute: volume`, 0–`max_volume`.
+**B9C DoD:**
 
-**Out of scope:** If/Do canvas (**B19**); AND/OR (**Ship B4**); Messages (**Ship B6**). Blinds **Set** ON→OPEN labels → **B10K** ✅ (**2026-08-15**).
-
-**B9C DoD:** Pi smoke on **legacy** canvas; G5 rule authorable; Admin Debug GREEN. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] Pi smoke on today’s canvas (temp+hum; shutter OPEN/CLOSED/% When+if; Set open %; audio ON/OFF/volume When+if)
+- [x] Admin Debug GREEN (operator)
+- [x] G5 rule/dashboard not required in this ship (landed as **G5** ✅ same day)
+- [x] **Last DoD:** audit & update ALL `docs/**/*.md` (and root README) against shipped behavior (**2026-08-16**)
 
 ---
 
@@ -515,7 +520,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 **Origin:** operator lock **2026-08-12** — Domoticz **look & feel**, not semantic equivalence on legacy blocks.
 
-**Depends on:** **B9C** (Ship **B2**) — gate before kickoff. **Ship B3 — alone.**
+**Depends on:** **B9C** (Ship **B2**) ✅ **Done 2026-08-16**. **Ship B3 — alone.**
 
 **Reference:** [Domoticz Blockly](https://wiki.domoticz.com/Blockly) — Getting started, Triggers (**Device**), Control (**If/Do**, **Else-if**), Logic (**Compare**, **Set**), Devices (Switches, Temperature, Humidity, …).
 
@@ -1687,11 +1692,11 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 **Item 1 — load-timings modal (B10G follow-up):** No auto-open. Stopwatch immediately right of `vNN`. Automation already admin-only — no extra `isAdmin`. Not clickable while yellow load (`editorLoading`). After successful load: button enabled; modal content unchanged. Load failure / red NOT CONNECTED: no change this run → **B10L**. Do not put `errorMessage` in the timings modal.
 
-**Item 2 — shutters:** Root cause was `rebuildEntityOptions` defaulting missing `resolved_product_type` to `switch` so `blockyEntityTypeOf` returned switch before `blinds.*`. Operator-facing **shutters** on all visible UI. Do **not** rename `blinds.*` eids, `config.yaml` `blinds:`, `BLINDS_*` keys, UUIDs, internals. Strip FORCE only on shutter devices; Z-Wave switches keep FORCE. No POS / open % this ship — **B9C** remains queued **if %**. Engine + Explorer already do closed-% including mid.
+**Item 2 — shutters:** Root cause was `rebuildEntityOptions` defaulting missing `resolved_product_type` to `switch` so `blockyEntityTypeOf` returned switch before `blinds.*`. Operator-facing **shutters** on all visible UI. Do **not** rename `blinds.*` eids, `config.yaml` `blinds:`, `BLINDS_*` keys, UUIDs, internals. Strip FORCE only on shutter devices; Z-Wave switches keep FORCE. No POS / open % this ship — later **B9C** ✅ (**2026-08-16**). Engine + Explorer already do closed-% including mid.
 
 **Item 3 — RFX (separate from shutters):** Origin `rfxcom` even when `device_product_types` is light: ON/OFF only, no Hue color. Engine already always-force RFX — Blockly must not show FORCE. Inbox **2026-08-15** living schemer still shows color → **B10N** (closed **2026-08-15** as already covered here; do not reopen this Done ship).
 
-**Out of scope (unchanged):** Domoticz Set (**B19**); B9C if-%; Hidden preset (**C12 #9**); alert persist (**C17**); NOT CONNECTED copy (**B10L**); entity_id / config key / EventType renames.
+**Out of scope (unchanged):** Domoticz Set (**B19**); Hidden preset (**C12 #9**); alert persist (**C17**); NOT CONNECTED copy (**B10L**); entity_id / config key / EventType renames. (B9C if-% ✅ shipped **2026-08-16**.)
 
 ---
 

@@ -12,6 +12,9 @@
 //   sauna/IR status = condition-only; numeric compare on device conditions +
 // Phase B10K: timings stopwatch (no auto-open); shutter OPEN/CLOSED (no FORCE/POS);
 //   visible blinds→shutters; RFX ON/OFF no Hue color. G3: OWM poll 10′ (config).
+// Phase B9C: temp_hum ATTR (temp+hum); shutters OPEN/CLOSED/open-% on When+if + Set open %;
+//   audio ON/OFF/volume on When+if; open-% UI / closed-% YAML (B6C helpers);
+//   open↔closed inequality flip on emit/load (`blockyInvertCompareOp`).
 
 /** Min viewport width for History / Automation and the top-row join (tablets+). */
 const WANOS_WIDE_MIN_PX = 768;
@@ -218,12 +221,25 @@ function blockyEntityTypeOf(eid) {
     const opt = blockyEntityMeta(eid);
     const e = String(eid || "");
     const nativeType = opt && opt.type ? String(opt.type).toLowerCase() : "";
-    // B10K: shutter native type / blinds.* must win over a missing-rpt fallback of "switch".
+    // B10K / B9C: native blinds/sensors/speakers must win over rebuildEntityOptions'
+    // missing-rpt fallback of "switch" (that fallback is for actuators only).
     if (nativeType === "blinds" || nativeType === "shutter") return nativeType;
     if (e.startsWith("blinds.")) return "blinds";
+    if (nativeType === "temp_hum" || nativeType === "temp" || nativeType === "hum"
+        || nativeType === "power" || nativeType === "energy" || nativeType === "fluid"
+        || nativeType === "sensor" || nativeType === "motion" || nativeType === "door"
+        || nativeType === "speaker" || nativeType === "media_player"
+        || nativeType === "climate" || nativeType === "host") {
+        return nativeType;
+    }
+    // Product light|switch only overrides switch-class actuators (Timers & types).
     if (opt && opt.resolvedProductType) {
         const rpt = String(opt.resolvedProductType).toLowerCase();
-        if (rpt === "light" || rpt === "switch") return rpt;
+        if ((rpt === "light" || rpt === "switch")
+            && (!nativeType || nativeType === "switch" || nativeType === "light"
+                || nativeType === "unknown")) {
+            return rpt;
+        }
     }
     if (nativeType) return nativeType;
     if (e.startsWith("sensor.temp_hum.")) return "temp_hum";
@@ -317,9 +333,9 @@ function blockyCaseMatchOptions(caseBlock) {
         if (root && root.type === "b_trig_device") {
             const eid = root.getFieldValue("ENTITY");
             const type = blockyEntityTypeOf(eid);
-            if (blockyTriggerIsNumeric(eid)) {
-                // B9A: threshold lives on the trigger block itself (OP + VALUE).
-                opts = [["(threshold set on trigger)", "NONE"]];
+            if (blockyTriggerHidesCaseMatch(root)) {
+                // B9A/B9C: threshold or OPEN/CLOSED/volume mode lives on the When block.
+                opts = [["(set on trigger)", "NONE"]];
             } else if (type === "blinds" || type === "shutter") {
                 opts = [
                     ["when transitioned", "ANY"],
@@ -380,9 +396,8 @@ function blockyCaseUpdateEventChrome(caseBlock) {
     if (!caseBlock || caseBlock.type !== "b_case") return;
     let root = null;
     try { root = caseBlock.getRootBlock && caseBlock.getRootBlock(); } catch (e) { /* ignore */ }
-    const numericDeviceTrig = !!(root && root.type === "b_trig_device"
-        && blockyTriggerIsNumeric(root.getFieldValue("ENTITY")));
-    const hideChrome = blockyRootIsEventTrigger(root) || numericDeviceTrig;
+    // B9A sensors + B9C level (OPEN/CLOSED/PCT on When) — hide per-case MATCH.
+    const hideChrome = blockyRootIsEventTrigger(root) || blockyTriggerHidesCaseMatch(root);
     const matchField = caseBlock.getField("MATCH");
     const ifLabel = caseBlock.getField("IF_LABEL");
     try {
@@ -410,7 +425,7 @@ function blockyEdgeStateOptions(block) {
 /**
  * Action state entries by device type / origin.
  * RFX / Sonos / Onkyo / Epson: no FORCE_* (engine always-forces RFX; OFF-only for the AV trio).
- * Shutters: OPEN/CLOSED only this ship (no POS / open % — later phase).
+ * Shutters: OPEN/CLOSED (+ open % row when OPEN — B9C restores B6C).
  */
 function blockyActionStateOptions(block) {
     const eid = block.getFieldValue("ENTITY");
@@ -457,19 +472,49 @@ const BLOCKY_COMPARE_OPS = [
 ];
 
 /**
- * Compare UX profile for if-device conditions and numeric When (sensors only).
+ * Compare UX profile for if-device conditions and When device triggers.
+ * kind:
+ *   sensor  — numeric OP/VALUE (+ optional temp/hum ATTR)
+ *   level   — OPEN/CLOSED or ON/OFF plus optional PCT compare (shutters / audio)
+ *   discrete — plain STATE dropdown (switches, lights, doors, …)
  */
 function blockyConditionCompareProfile(eid) {
     const id = String(eid || "");
     if (BLOCKY_STATUS_CONDITION_ONLY.has(id)) return { kind: "discrete" };
     const type = blockyEntityTypeOf(id);
     if (type === "door" || blockyIsMotionEntity(id)) return { kind: "discrete" };
-    // Actuators (blinds, hue, sonos, onkyo) — discrete ON/OFF (or OPEN/CLOSED) only.
-    if (type === "blinds" || type === "shutter" || type === "light" || type === "hue"
-        || type === "speaker" || type === "media_player") {
-        return { kind: "discrete" };
+
+    // B9C: shutters — OPEN | CLOSED | open % compare (UI open %, YAML closed %).
+    if (type === "blinds" || type === "shutter") {
+        return {
+            kind: "level",
+            modes: [["OPEN", "OPEN"], ["CLOSED", "CLOSED"], ["open %", "PCT"]],
+            attribute: "position",
+            valueUi: "open_pct",
+            unit: "% open",
+            min: 0,
+            max: 100
+        };
     }
-    if (type === "temp_hum") {
+    // B9C: Sonos / Onkyo — ON | OFF | volume compare (0…max_volume).
+    if (type === "speaker" || type === "media_player") {
+        return {
+            kind: "level",
+            modes: [["ON", "ON"], ["OFF", "OFF"], ["volume", "PCT"]],
+            attribute: "volume",
+            valueUi: "raw",
+            unit: "",
+            min: 0,
+            maxFromMeta: true
+        };
+    }
+    if (type === "light" || type === "hue") return { kind: "discrete" };
+
+    // Dual temp/hum — channel ATTR (host CPU temp-only stays °C-only).
+    if (type === "temp_hum" || id.startsWith("sensor.temp_hum.")) {
+        if (id.includes("host_cpu_temperature")) {
+            return { kind: "sensor" };
+        }
         return {
             kind: "sensor",
             attrs: ["temperature", "humidity"],
@@ -502,15 +547,42 @@ function blockySensorUnitLabel(eid, attr) {
     return "";
 }
 
-/** Numeric When trigger — sensor / gauge entities only. */
-function blockyTriggerIsNumeric(eid) {
-    return blockyConditionCompareProfile(eid).kind === "sensor";
+/** Max for level PCT FieldNumber (volume from entity meta). */
+function blockyLevelValueMax(eid, profile) {
+    if (profile && profile.maxFromMeta) return blockyEntityMaxVolume(eid);
+    if (profile && profile.max != null) return Number(profile.max);
+    return 100;
 }
 
-/** True when the condition block emits op/value (sensor gauges only). */
+/**
+ * Numeric When / if — sensors always; level blocks only in PCT mode.
+ * @param {string} eid
+ * @param {object} [block] trigger or condition block (needed for level MODE)
+ */
+function blockyTriggerIsNumeric(eid, block) {
+    const profile = blockyConditionCompareProfile(eid);
+    if (profile.kind === "sensor") return true;
+    if (profile.kind === "level" && block) {
+        return block.getFieldValue("MODE") === "PCT";
+    }
+    return false;
+}
+
+/** True when case MATCH chrome should hide (threshold / mode lives on When). */
+function blockyTriggerHidesCaseMatch(root) {
+    if (!root || root.type !== "b_trig_device") return false;
+    const profile = blockyConditionCompareProfile(root.getFieldValue("ENTITY"));
+    return profile.kind === "sensor" || profile.kind === "level";
+}
+
+/** True when the condition block emits op/value (sensor gauges or level PCT). */
 function blockyConditionIsNumericCompare(block) {
     if (!block) return false;
-    return blockyConditionCompareProfile(block.getFieldValue("ENTITY")).kind === "sensor";
+    const eid = block.getFieldValue("ENTITY");
+    const profile = blockyConditionCompareProfile(eid);
+    if (profile.kind === "sensor") return true;
+    if (profile.kind === "level") return block.getFieldValue("MODE") === "PCT";
+    return false;
 }
 
 function blockyConditionIsNumeric(eid, block) {
@@ -520,7 +592,9 @@ function blockyConditionIsNumeric(eid, block) {
 
 /**
  * Rebuild the dynamic "is …" row on b_condition_device:
- * sensors → temp/hum ATTR (when temp_hum) + OP + VALUE + unit; actuators → discrete ON/OFF.
+ * sensors → temp/hum ATTR + OP + VALUE + unit;
+ * level → MODE (OPEN/CLOSED/ON/OFF/PCT) + optional OP/VALUE;
+ * discrete → STATE dropdown.
  */
 function blockyConditionUpdateShape(block, opts) {
     if (!block || !window.Blockly || block._condUpdating) return;
@@ -533,7 +607,7 @@ function blockyConditionUpdateShape(block, opts) {
         const profile = blockyConditionCompareProfile(eid);
 
         const snap = {};
-        ["STATE", "OP", "ATTR", "VALUE"].forEach((n) => {
+        ["STATE", "MODE", "OP", "ATTR", "VALUE"].forEach((n) => {
             try {
                 const f = block.getField(n);
                 if (f) snap[n] = f.getValue();
@@ -544,9 +618,10 @@ function blockyConditionUpdateShape(block, opts) {
 
         if (profile.kind === "sensor") {
             const input = block.appendDummyInput("COMPARE").appendField("is");
+            let attr = null;
             if (profile.attrs) {
                 const labels = profile.attrLabels || profile.attrs.map((a) => [a, a]);
-                let attr = opts.forceAttr != null ? opts.forceAttr : snap.ATTR;
+                attr = opts.forceAttr != null ? opts.forceAttr : snap.ATTR;
                 if (!profile.attrs.some((a) => a === attr)) attr = profile.attrs[0];
                 input.appendField(new Blockly.FieldDropdown(labels), "ATTR");
                 blockySafeSetField(block, "ATTR", attr);
@@ -557,10 +632,37 @@ function blockyConditionUpdateShape(block, opts) {
             const rawVal = opts.forceValue != null ? opts.forceValue : snap.VALUE;
             const numVal = Number(rawVal);
             input.appendField(new Blockly.FieldNumber(Number.isFinite(numVal) ? numVal : 0), "VALUE");
-            const unitAttr = profile.attrs ? (opts.forceAttr != null ? opts.forceAttr : snap.ATTR) : null;
+            const unitAttr = profile.attrs
+                ? (block.getFieldValue("ATTR") || attr || opts.forceAttr || snap.ATTR)
+                : null;
             const unit = blockySensorUnitLabel(eid, unitAttr);
             if (unit) input.appendField(unit);
             blockySafeSetField(block, "OP", op);
+            return;
+        }
+
+        if (profile.kind === "level") {
+            const input = block.appendDummyInput("COMPARE").appendField("is");
+            let mode = opts.forceMode != null ? opts.forceMode : snap.MODE;
+            if (!profile.modes.some((m) => m[1] === mode)) {
+                mode = profile.modes[0][1];
+            }
+            input.appendField(new Blockly.FieldDropdown(profile.modes), "MODE");
+            blockySafeSetField(block, "MODE", mode);
+            if (mode === "PCT") {
+                let op = opts.forceOp != null ? opts.forceOp : snap.OP;
+                if (!BLOCKY_COMPARE_OPS.some((o) => o[1] === op)) op = ">";
+                input.appendField(new Blockly.FieldDropdown(BLOCKY_COMPARE_OPS), "OP");
+                const maxV = blockyLevelValueMax(eid, profile);
+                const rawVal = opts.forceValue != null ? opts.forceValue : snap.VALUE;
+                const numVal = Number(rawVal);
+                const clamped = Number.isFinite(numVal)
+                    ? Math.min(maxV, Math.max(profile.min || 0, numVal))
+                    : 0;
+                input.appendField(new Blockly.FieldNumber(clamped, profile.min || 0, maxV, 1), "VALUE");
+                if (profile.unit) input.appendField(profile.unit);
+                blockySafeSetField(block, "OP", op);
+            }
             return;
         }
 
@@ -587,29 +689,59 @@ function blockyApplyConditionRich(block, cond) {
         blockyOpaqueFromSource(cond, BLOCKY_CONDITION_LEGAL_KEYS, BLOCKY_CONDITION_UI_KEYS)
     );
     const profile = blockyConditionCompareProfile(eid);
-    const isNumericLoad = profile.kind === "sensor"
-        || (cond.op && cond.op !== "==");
-    if (isNumericLoad && profile.kind === "sensor") {
+
+    if (profile.kind === "sensor") {
         blockyConditionUpdateShape(block, {
             forceOp: cond.op || "==",
             forceAttr: cond.attribute || (profile.attrs ? profile.attrs[0] : null),
             forceValue: cond.is != null ? cond.is : 0
         });
-    } else {
-        const type = blockyEntityTypeOf(eid);
-        let forceSt = cond.is || "ON";
-        if (type === "blinds" || type === "shutter") {
-            forceSt = blockyBlindsUiStateFromStored(cond.is) === "CLOSED" ? "100" : "0";
-        }
-        blockyConditionUpdateShape(block, { forceState: forceSt });
+        return;
     }
+
+    if (profile.kind === "level") {
+        const attr = String(cond.attribute || "").toLowerCase();
+        const n = Number(cond.is);
+        const wantPct = attr === profile.attribute
+            || (cond.op && cond.op !== "==")
+            || (profile.valueUi === "open_pct" && Number.isFinite(n) && n !== 0 && n !== 100
+                && String(cond.is).toUpperCase() !== "OPEN"
+                && String(cond.is).toUpperCase() !== "CLOSED");
+        if (wantPct) {
+            let uiVal = cond.is != null ? cond.is : 0;
+            let uiOp = cond.op || "==";
+            if (profile.valueUi === "open_pct") {
+                uiVal = blockyOpenPctFromStored(cond.is);
+                uiOp = blockyInvertCompareOp(uiOp);
+            }
+            blockyConditionUpdateShape(block, {
+                forceMode: "PCT",
+                forceOp: uiOp,
+                forceValue: uiVal
+            });
+            return;
+        }
+        let mode;
+        if (profile.valueUi === "open_pct") {
+            mode = blockyBlindsUiStateFromStored(cond.is) === "CLOSED" ? "CLOSED" : "OPEN";
+        } else {
+            mode = String(cond.is || "ON").toUpperCase() === "OFF" ? "OFF" : "ON";
+        }
+        blockyConditionUpdateShape(block, { forceMode: mode });
+        return;
+    }
+
+    const type = blockyEntityTypeOf(eid);
+    let forceSt = cond.is || "ON";
+    if (type === "blinds" || type === "shutter") {
+        forceSt = blockyBlindsUiStateFromStored(cond.is) === "CLOSED" ? "100" : "0";
+    }
+    blockyConditionUpdateShape(block, { forceState: forceSt });
 }
 
 /**
- * B9A: numeric "When device" trigger — replaces the static "(use cases for ON/OFF)"
- * note with OP + optional ATTR (temp_hum) + FieldNumber VALUE. The threshold lives on
- * the trigger itself; case MATCH chrome is hidden (blockyCaseUpdateEventChrome) and the
- * sole case's to_state mirrors the same value string (see applyBlocklyToV2).
+ * B9A/B9C: When device chrome — sensors (ATTR/OP/VALUE); level (MODE + optional PCT);
+ * discrete actuators keep the case-MATCH note.
  */
 function blockyTriggerUpdateShape(block, opts) {
     if (!block || !window.Blockly || block._trigUpdating) return;
@@ -620,10 +752,9 @@ function blockyTriggerUpdateShape(block, opts) {
     try {
         const eid = block.getFieldValue("ENTITY");
         const profile = blockyConditionCompareProfile(eid);
-        const numeric = blockyTriggerIsNumeric(eid);
 
         const snap = {};
-        ["OP", "ATTR", "VALUE"].forEach((n) => {
+        ["MODE", "OP", "ATTR", "VALUE"].forEach((n) => {
             try {
                 const f = block.getField(n);
                 if (f) snap[n] = f.getValue();
@@ -632,11 +763,12 @@ function blockyTriggerUpdateShape(block, opts) {
 
         blockyRemoveInput(block, "COMPARE");
 
-        if (numeric) {
+        if (profile.kind === "sensor") {
             const input = block.appendDummyInput("COMPARE");
+            let attr = null;
             if (profile.attrs) {
                 const labels = profile.attrLabels || profile.attrs.map((a) => [a, a]);
-                let attr = opts.forceAttr != null ? opts.forceAttr : snap.ATTR;
+                attr = opts.forceAttr != null ? opts.forceAttr : snap.ATTR;
                 if (!profile.attrs.some((a) => a === attr)) attr = profile.attrs[0];
                 input.appendField(new Blockly.FieldDropdown(labels), "ATTR");
                 blockySafeSetField(block, "ATTR", attr);
@@ -647,10 +779,34 @@ function blockyTriggerUpdateShape(block, opts) {
             const rawVal = opts.forceValue != null ? opts.forceValue : snap.VALUE;
             const numVal = Number(rawVal);
             input.appendField(new Blockly.FieldNumber(Number.isFinite(numVal) ? numVal : 0), "VALUE");
-            const unitAttr = profile.attrs ? (opts.forceAttr != null ? opts.forceAttr : snap.ATTR) : null;
+            const unitAttr = profile.attrs
+                ? (block.getFieldValue("ATTR") || attr || opts.forceAttr || snap.ATTR)
+                : null;
             const unit = blockySensorUnitLabel(eid, unitAttr);
             if (unit) input.appendField(unit);
             blockySafeSetField(block, "OP", op);
+        } else if (profile.kind === "level") {
+            const input = block.appendDummyInput("COMPARE");
+            let mode = opts.forceMode != null ? opts.forceMode : snap.MODE;
+            if (!profile.modes.some((m) => m[1] === mode)) {
+                mode = profile.modes[0][1];
+            }
+            input.appendField(new Blockly.FieldDropdown(profile.modes), "MODE");
+            blockySafeSetField(block, "MODE", mode);
+            if (mode === "PCT") {
+                let op = opts.forceOp != null ? opts.forceOp : snap.OP;
+                if (!BLOCKY_COMPARE_OPS.some((o) => o[1] === op)) op = ">";
+                input.appendField(new Blockly.FieldDropdown(BLOCKY_COMPARE_OPS), "OP");
+                const maxV = blockyLevelValueMax(eid, profile);
+                const rawVal = opts.forceValue != null ? opts.forceValue : snap.VALUE;
+                const numVal = Number(rawVal);
+                const clamped = Number.isFinite(numVal)
+                    ? Math.min(maxV, Math.max(profile.min || 0, numVal))
+                    : 0;
+                input.appendField(new Blockly.FieldNumber(clamped, profile.min || 0, maxV, 1), "VALUE");
+                if (profile.unit) input.appendField(profile.unit);
+                blockySafeSetField(block, "OP", op);
+            }
         } else {
             block.appendDummyInput("COMPARE").appendField("(pick case: ON / OFF / transitioned)");
         }
@@ -659,6 +815,10 @@ function blockyTriggerUpdateShape(block, opts) {
         block._trigUpdating = false;
         try {
             if (block.rendered && typeof block.render === "function") block.render();
+        } catch (e) { /* ignore */ }
+        // Level / sensor When owns MATCH — refresh case chrome after MODE rebuild.
+        try {
+            blockyRefreshCaseMatchLabels(block.getNextBlock && block.getNextBlock());
         } catch (e) { /* ignore */ }
     }
 }
@@ -676,7 +836,23 @@ function blockyStoredFromOpenPct(openPct) {
     return String(Math.max(0, Math.min(100, Math.round(100 - n))));
 }
 
-/** Map stored shutter closed-% / OPEN/CLOSED / ON/OFF leftovers → Blockly Set STATE. Mid-% → OPEN (no POS this ship). */
+/**
+ * B9C: open % and closed % move in opposite directions — flip inequality ops
+ * when converting UI open-% ↔ YAML closed-% (`==` / `!=` unchanged).
+ * @param {string|null|undefined} op
+ * @returns {string}
+ */
+function blockyInvertCompareOp(op) {
+    const o = String(op || "==").trim();
+    if (o === ">") return "<";
+    if (o === "<") return ">";
+    if (o === ">=") return "<=";
+    if (o === "<=") return ">=";
+    return o;
+}
+
+/** Map stored shutter closed-% / OPEN/CLOSED / ON/OFF leftovers → Blockly Set STATE.
+ * Mid-% → OPEN (open % field holds the intermediate). */
 function blockyBlindsUiStateFromStored(stored) {
     const su = String(stored == null ? "" : stored).trim().toUpperCase();
     if (su === "CLOSED" || su === "OFF") return "CLOSED";
@@ -1065,8 +1241,20 @@ function blockyActionUpdateRichShape(block, opts) {
                 if (st !== "OPEN" && st !== "CLOSED") st = "OPEN";
                 blockyForceDropdownValue(block, "STATE", st);
             }
-            // B10K: no POS / open-% row this ship.
-            blockyRemoveInput(block, "RICH_BLINDS");
+            // B9C: restore B6C open-% row when OPEN (CLOSED = fully closed, no field).
+            if (st === "OPEN") {
+                const rawPct = opts.forceOpenPct != null ? opts.forceOpenPct : snap.OPEN_PCT;
+                const n = Number(rawPct);
+                const openPct = Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 100;
+                if (!block.getInput("RICH_BLINDS")) {
+                    block.appendDummyInput("RICH_BLINDS")
+                        .appendField("open %")
+                        .appendField(new Blockly.FieldNumber(openPct, 0, 100, 1), "OPEN_PCT");
+                }
+                blockySafeSetField(block, "OPEN_PCT", openPct);
+            } else {
+                blockyRemoveInput(block, "RICH_BLINDS");
+            }
             return;
         }
 
@@ -1189,11 +1377,14 @@ function blockyApplyActionRich(block, action) {
     if (action.preset) block._pendingPreset = String(action.preset);
 
     if (type === "blinds" || type === "shutter") {
-        const ui = blockyBlindsUiStateFromStored(action.state);
-        // Must refresh dropdown options first — stale ON/OFF cache rejects OPEN/CLOSED.
-        // and coerce then snaps to OPEN (same class of bug as Hue after save→reload).
+        const stored = action.state;
+        const n = Number(stored);
+        const ui = blockyBlindsUiStateFromStored(stored);
         blockyForceDropdownValue(block, "STATE", ui);
-        blockyActionUpdateRichShape(block, { forceState: ui });
+        const forceOpenPct = (ui === "OPEN")
+            ? (Number.isFinite(n) ? blockyOpenPctFromStored(n) : 100)
+            : undefined;
+        blockyActionUpdateRichShape(block, { forceState: ui, forceOpenPct });
         return;
     }
 
@@ -1242,7 +1433,12 @@ function blockyReadActionRich(block) {
 
     if (type === "blinds" || type === "shutter") {
         const ui = block.getFieldValue("STATE");
-        out.state = ui === "CLOSED" ? "100" : "0";
+        if (ui === "CLOSED") {
+            out.state = "100";
+        } else {
+            const pct = block.getFieldValue("OPEN_PCT");
+            out.state = blockyStoredFromOpenPct(pct != null && pct !== "" ? pct : 100);
+        }
         return blockyMergeOpaque(out, block);
     }
 
@@ -1384,8 +1580,10 @@ function defineBlockyBlocks(Blockly, providers) {
                 || (ev.type === "change" && ev.name === "ENTITY"))) {
                 blockyRefreshCaseMatchLabels(this.getNextBlock());
             }
-            // B9A: numeric entity gets OP/ATTR/VALUE chrome instead of the static note.
-            if (ev && ev.type === "change" && (ev.name === "ENTITY" || ev.name === "ATTR") && !BlockyRT.loading) {
+            // B9A/B9C: rebuild When chrome on entity / ATTR / MODE (level PCT).
+            if (ev && ev.type === "change"
+                && (ev.name === "ENTITY" || ev.name === "ATTR" || ev.name === "MODE")
+                && !BlockyRT.loading) {
                 blockyTriggerUpdateShape(this);
             }
         }
@@ -1527,7 +1725,9 @@ function defineBlockyBlocks(Blockly, providers) {
         },
         onchange(ev) {
             if (!this.workspace || this.isInFlyout) return;
-            if (ev && ev.type === "change" && (ev.name === "ENTITY" || ev.name === "ATTR") && !BlockyRT.loading) {
+            if (ev && ev.type === "change"
+                && (ev.name === "ENTITY" || ev.name === "ATTR" || ev.name === "MODE")
+                && !BlockyRT.loading) {
                 blockyConditionUpdateShape(this);
             }
         }
@@ -1831,8 +2031,16 @@ function blockyFingerprint(block) {
     try {
         if (t === "b_condition_device") {
             const eid = block.getFieldValue("ENTITY");
+            const profile = blockyConditionCompareProfile(eid);
+            if (profile.kind === "level") {
+                const mode = block.getFieldValue("MODE") || "";
+                if (mode === "PCT") {
+                    return `cond:device:${eid}:${profile.attribute || "pct"}`
+                        + `:${block.getFieldValue("OP")}:${block.getFieldValue("VALUE")}`;
+                }
+                return `cond:device:${eid}:${mode}`;
+            }
             if (blockyConditionIsNumericCompare(block)) {
-                const profile = blockyConditionCompareProfile(eid);
                 let attrPart = "";
                 try {
                     if (profile.attrs) attrPart = String(block.getFieldValue("ATTR") || "");
@@ -1848,7 +2056,9 @@ function blockyFingerprint(block) {
             const type = blockyEntityTypeOf(eid);
             if (type === "blinds" || type === "shutter") {
                 const ui = block.getFieldValue("STATE");
-                return `act:device:${eid}:${ui || "OPEN"}`;
+                let pct = "";
+                try { pct = String(block.getFieldValue("OPEN_PCT") || ""); } catch (e) { /* ignore */ }
+                return `act:device:${eid}:${ui || "OPEN"}:${pct}`;
             }
             return `act:device:${eid}:${block.getFieldValue("STATE")}`;
         }
@@ -2933,7 +3143,8 @@ function blockyApp() {
                     type,
                     origin,
                     resolvedProductType: meta.resolved_product_type
-                        || (origin === "hue" ? "light" : "switch"),
+                        || (origin === "hue" ? "light"
+                            : (type === "switch" || type === "light" ? "switch" : null)),
                     typeLabel,
                     max_volume: meta.max_volume != null ? Number(meta.max_volume) : null,
                     // Honor Explorer soft-hide; exclusive Hidden toggle filters via visibleEntityOptions.
@@ -3211,13 +3422,39 @@ function blockyApp() {
                 return blk;
             }
             if (t && t.entity_id) {
-                // B9A: numeric When carries op/attribute/state (threshold). Rebuild the shape
-                // unconditionally — init() ran against the dropdown's default entity, not
-                // this loaded eid, so a discrete load must also drop any stale numeric chrome.
+                // B9A/B9C: rebuild When chrome for this eid (sensor ATTR, level MODE, discrete note).
                 const blk = blockyMkBlock("b_trig_device", { ENTITY: t.entity_id }, 16, 16);
-                blockyTriggerUpdateShape(blk, t.op != null ? {
-                    forceOp: t.op, forceAttr: t.attribute, forceValue: t.state
-                } : undefined);
+                const profile = blockyConditionCompareProfile(t.entity_id);
+                const shapeOpts = {};
+                if (t.op != null || t.attribute) {
+                    // Numeric / level PCT threshold on the trigger.
+                    shapeOpts.forceOp = t.op;
+                    shapeOpts.forceAttr = t.attribute;
+                    let forceVal = t.state;
+                    if (profile.kind === "level" && profile.valueUi === "open_pct") {
+                        shapeOpts.forceMode = "PCT";
+                        forceVal = blockyOpenPctFromStored(t.state);
+                        shapeOpts.forceOp = blockyInvertCompareOp(t.op || "==");
+                    } else if (profile.kind === "level") {
+                        shapeOpts.forceMode = "PCT";
+                    }
+                    shapeOpts.forceValue = forceVal;
+                    blockyTriggerUpdateShape(blk, shapeOpts);
+                } else if (profile.kind === "level") {
+                    // Discrete OPEN/CLOSED/ON/OFF — prefer first case to_state when present.
+                    let mode = profile.modes[0][1];
+                    if (cases && cases[0] && cases[0].to_state != null) {
+                        const ts = String(cases[0].to_state).toUpperCase();
+                        if (profile.valueUi === "open_pct") {
+                            mode = blockyBlindsUiStateFromStored(cases[0].to_state);
+                        } else if (ts === "OFF" || ts === "ON") {
+                            mode = ts;
+                        }
+                    }
+                    blockyTriggerUpdateShape(blk, { forceMode: mode });
+                } else {
+                    blockyTriggerUpdateShape(blk);
+                }
                 blockyAttachOpaque(
                     blk,
                     blockyOpaqueFromSource(t, BLOCKY_TRIGGER_LEGAL_KEYS, BLOCKY_TRIGGER_UI_KEYS)
@@ -3526,9 +3763,26 @@ function blockyApp() {
                 }
                 const eid = b.getFieldValue("ENTITY");
                 const out = { type: "device_state", entity_id: eid };
-                if (blockyConditionIsNumericCompare(b)) {
+                const profile = blockyConditionCompareProfile(eid);
+                if (profile.kind === "level") {
+                    const mode = b.getFieldValue("MODE") || profile.modes[0][1];
+                    if (mode === "PCT") {
+                        out.op = b.getFieldValue("OP") || "==";
+                        out.attribute = profile.attribute;
+                        let v = b.getFieldValue("VALUE");
+                        if (profile.valueUi === "open_pct") {
+                            // UI open-% → YAML closed-%; flip inequalities.
+                            out.op = blockyInvertCompareOp(out.op);
+                            v = blockyStoredFromOpenPct(v);
+                        }
+                        out.is = String(v);
+                    } else if (profile.valueUi === "open_pct") {
+                        out.is = mode === "CLOSED" ? "100" : "0";
+                    } else {
+                        out.is = mode;
+                    }
+                } else if (blockyConditionIsNumericCompare(b)) {
                     out.op = b.getFieldValue("OP") || "==";
-                    const profile = blockyConditionCompareProfile(eid);
                     if (profile.attrs) {
                         const attr = b.getFieldValue("ATTR");
                         if (attr) out.attribute = attr;
@@ -3583,14 +3837,25 @@ function blockyApp() {
                 trigger = edges.length === 1 ? edges[0] : edges;
             } else if (root.type === "b_trig_device") {
                 const eid = root.getFieldValue("ENTITY");
-                if (blockyTriggerIsNumeric(eid)) {
+                const profile = blockyConditionCompareProfile(eid);
+                const mode = root.getFieldValue("MODE");
+                const levelPct = profile.kind === "level" && mode === "PCT";
+                const sensorNum = profile.kind === "sensor";
+                if (sensorNum || levelPct) {
+                    let thresh = root.getFieldValue("VALUE");
+                    let op = root.getFieldValue("OP") || "==";
+                    if (levelPct && profile.valueUi === "open_pct") {
+                        thresh = blockyStoredFromOpenPct(thresh);
+                        op = blockyInvertCompareOp(op);
+                    }
                     trigger = {
                         entity_id: eid,
-                        state: String(root.getFieldValue("VALUE")),
-                        op: root.getFieldValue("OP") || "=="
+                        state: String(thresh),
+                        op
                     };
-                    const profile = blockyConditionCompareProfile(eid);
-                    if (profile.attrs) {
+                    if (levelPct && profile.attribute) {
+                        trigger.attribute = profile.attribute;
+                    } else if (profile.attrs) {
                         const attr = root.getFieldValue("ATTR");
                         if (attr) trigger.attribute = attr;
                     }
@@ -3610,8 +3875,15 @@ function blockyApp() {
             let cur = caseStart;
             // Device: MATCH writes to_state. Event / OR: conditions-gate only — never persist to_state.
             const matchWritesToState = root.type === "b_trig_device";
-            // B9A numeric When: no per-case MATCH chrome — every case mirrors the trigger threshold.
-            const numericTrig = matchWritesToState && blockyTriggerIsNumeric(root.getFieldValue("ENTITY"));
+            const rootEid = matchWritesToState ? root.getFieldValue("ENTITY") : "";
+            const rootProfile = matchWritesToState ? blockyConditionCompareProfile(rootEid) : null;
+            // B9A/B9C: sensor threshold or level PCT — case mirrors trigger.state; MATCH hidden.
+            const numericTrig = matchWritesToState && blockyTriggerIsNumeric(rootEid, root);
+            // B9C level OPEN/CLOSED/ON/OFF on When — case to_state = MODE.
+            const levelDiscreteMode = (matchWritesToState && rootProfile && rootProfile.kind === "level"
+                && root.getFieldValue("MODE") !== "PCT")
+                ? root.getFieldValue("MODE")
+                : null;
             while (cur && cur.type === "b_case") {
                 const match = cur.getFieldValue("MATCH");
                 const conds = this._readConditions(cur.getInputTargetBlock("CONDS"));
@@ -3620,6 +3892,8 @@ function blockyApp() {
                 const c = { actions: acts };
                 if (numericTrig) {
                     c.to_state = trigger.state;
+                } else if (levelDiscreteMode) {
+                    c.to_state = levelDiscreteMode;
                 } else if (matchWritesToState && match === "ANY") {
                     // Omit to_state — engine fires on any transition for this device.
                 } else if (matchWritesToState && (match === "ON" || match === "OFF"

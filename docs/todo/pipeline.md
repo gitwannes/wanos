@@ -66,8 +66,10 @@ Match [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** (If/
 | **C19** | Explorer History auto-refresh blank — stale ECharts rebind + soft `replaceMerge` series/dataZoom; Pi smoke + docs close-out **2026-08-16** |
 | **C22** | Host CPU temp → `HOST_HISTORY_IDXS`; load 5m/15m live-only — docs close-out **2026-08-16** |
 | **Ops1** | log2ram / rsyslog cap — drop `daemon.log`; `$outchannel` wipes `syslog` at 20 MiB; no rsyslog archives — Pi smoke + docs close-out **2026-08-16** |
+| **B2 / B9C** | Legacy-canvas bridge — temp/hum ATTR; shutters OPEN/CLOSED/open-% When+if + Set open %; audio ON/OFF/volume; op flip open↔closed — Pi smoke + docs close-out **2026-08-16** |
+| **G5** | Dashboard `Cinema rolluik half` — open % > 50 → set 50%; legacy + B9C; DoD revised to live Pi rule — docs close-out **2026-08-16** |
 
-Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md).
+Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md), [`phaseG-integrations.md`](phaseG-integrations.md).
 
 ---
 
@@ -75,12 +77,12 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal.
 
-**B10G** / **B10H** / **B10K+G3** / **B10N** / **C18** / **C19** / **C22** / **C23** ✅ **Done**. Next: **B2** (B9C). **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** anytime after **B10F** / **B10B** / **B10G** / **B10H** / **B10K** / **C6**.
+**B10G** / **B10H** / **B10K+G3** / **B10N** / **C18** / **C19** / **C22** / **C23** / **B2 (B9C)** ✅ **Done**. Next: **B3** (B19). **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** anytime after **B10F** / **B10B** / **B10G** / **B10H** / **B10K** / **C6**.
 
 | Ship | Phase(s) | Size | One go? |
 |---|---|---|---|
 | **B1** | **B9A** closeout | low | ✅ alone — Pi smoke + GREEN + docs |
-| **B2** | **B9C** legacy bridge | mid | ✅ alone — temp/hum picker, blinds/audio **if** %; unblocks **G5** |
+| **B2** | **B9C** legacy bridge | mid | ✅ **Done 2026-08-16** — temp/hum ATTR; shutters OPEN/CLOSED/% + Set open %; audio ON/OFF/volume; enabled **G5** (✅ Done same day) |
 | **B3** | **B19** Domoticz canvas | **high** | ✅ **alone** — If/Do, Compare, Device trigger, typed toolbox, Set, migrator |
 | **B4** | **B13** + **B9B H4** | high | ✅ together — Else-if/Else + nested AND/OR in Compare |
 | **B5** | **B9B H12** + bathroom | mid | ✅ alone |
@@ -99,8 +101,8 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 | Gate | Rule |
 |---|---|
 | **B3** (B19) | **Alone** — do not combine with **B4** or bridge work |
-| **B10H → B2** | ✅ **B10H Done** — cold-load before legacy-canvas bridge |
-| **B2 → B3** | B19 depends on B9C bridge + G5 authorability |
+| **B10H → B2** | ✅ **B10H Done** → ✅ **B2 Done** |
+| **B2 → B3** | ✅ **B9C Done** — B19 kickoff unblocked |
 | **B3 → B4** | Logic (Else-if + AND/OR) builds on Domoticz canvas |
 | **B4 → B7** | Timed Set / delay patterns prefer Logic stable (**B14** stub) |
 | **B7 → B8** | Library org (multi-flow + folder) after canvas + control blocks stable |
@@ -115,7 +117,6 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 | **B10M** | Anytime after **B10G** Part D | Explorer Hue preset duplicate settings; parallel to **B2–B8** |
 | **C20** | Anytime after **C2** / **C8** | bugfix: Admin bell Clear All does nothing — kickoff **locked** 2026-08-15; parallel to **B2–B8** |
 | **C21** | Anytime | bugfix: Explorer AUTO OFF countdown while device already OFF; parallel to **B2–B8** |
-| **G5** | After **B2** (B9C) | Parallel to **B3–B8**; re-author rule on B19 canvas when **B3** lands |
 | **E** (Gmail transport) | After **B3** or default after cluster | Parallel to **B5–B8**; **B6** alert ships without **E**; H5 email half waits **E** |
 | **Ship B5 ∥ Ship B6** | After **B4** | Bathroom/H12 vs Messages alert — independent; OR-heavy notify rules still want **B4** first |
 
@@ -129,56 +130,54 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 
 ```text
 #  Size   Phase / Ship   What
-─── Blockly cluster (operator: B9C → B19…B8 before shell/integrations/F) ───
-1.  mid    B2 / B9C     legacy-canvas bridge — picker + blinds/audio if %
-2.  high   B3 / B19     Domoticz If/Do + Compare + Device trigger + toolbox + Set
-3.  high   B4           B13 Else-if/Else + B9B H4 AND/OR in Compare
-4.  mid    B5           B9B H12 hysteresis + bathroom climate cutover
-5.  mid    B6           B9B H5 Messages (alert; + email when E)
-6.  high   B7 / B14     timed Set, delay, cooldown, remaining HA patterns (no Time trigger)
-7.  mid    B8           B11 multi-flow + B12 folder/tag
+─── Blockly cluster (operator: B19…B8 before shell/integrations/F; B9C ✅) ───
+1.  high   B3 / B19     Domoticz If/Do + Compare + Device trigger + toolbox + Set
+2.  high   B4           B13 Else-if/Else + B9B H4 AND/OR in Compare
+3.  mid    B5           B9B H12 hysteresis + bathroom climate cutover
+4.  mid    B6           B9B H5 Messages (alert; + email when E)
+5.  high   B7 / B14     timed Set, delay, cooldown, remaining HA patterns (no Time trigger)
+6.  mid    B8           B11 multi-flow + B12 folder/tag
 ─── Parallel beside cluster (after gates above) ───
-8.  low    G5           dashboard “rolluik zon half” — **∥ B3–B8** after B2; re-author on B19 when B3 done
-8b. low    B10I         used SE → Go to SR — **∥ cluster** (anytime after B10F)
-8c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ cluster** (anytime after B10B)
-8e. low    B10L         NOT CONNECTED overlay status + copy “Re-connecting to WanOS...” — **∥ cluster**
-8h. low    B10M         bugfix: Explorer Hue preset duplicate settings — **∥ cluster** (after B10G Part D)
-8j. low    C20          bugfix: Admin SYSTEM NOTIFICATIONS Clear All does nothing — kickoff **locked** — **∥ cluster**
-8k. low    C21          bugfix: Explorer AUTO OFF countdown while device already OFF — **∥ cluster**
+7b. low    B10I         used SE → Go to SR — **∥ cluster** (anytime after B10F)
+7c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ cluster** (anytime after B10B)
+7e. low    B10L         NOT CONNECTED overlay status + copy “Re-connecting to WanOS...” — **∥ cluster**
+7h. low    B10M         bugfix: Explorer Hue preset duplicate settings — **∥ cluster** (after B10G Part D)
+7j. low    C20          bugfix: Admin SYSTEM NOTIFICATIONS Clear All does nothing — kickoff **locked** — **∥ cluster**
+7k. low    C21          bugfix: Explorer AUTO OFF countdown while device already OFF — **∥ cluster**
 ─── After Blockly cluster (E may start ∥ B5–B8 instead — see Parallel tracks) ───
-9.  high   E            Gmail transport / outbox — default slot; **∥ B5–B8** OK
-10. mid    C3           Force ALL-OFF
-11. mid    C4           Rename HTML entrypoints (`blocky`→`blockly`; not `automations`)
-12. low    C11          Control vs History list membership (assess → decide)
-13. mid    C12          Post-C10 polish (+ Hidden preset admin-only)
-13b. low   C17          Alert banner dismiss vs reload (assess at kickoff)
-14b. mid   C16          Day chart sliding 24 h window over hires_days hi-res
-14c. mid   C24          Temp/hum day fullscreen + AH/CI + checkboxes + CSV (after C16)
-14d. mid   C25          Overlay dew-likelihood % (OWM 2.5 clouds/wind; after C24)
-14e. low   C15          Admin lab switch → Debug Commands row; lab pane iff ON
-15. mid    C13          Merge Hidden → Timers & types
-16. mid    G2           bugfix: Hue color/bri truth
-17. mid    G6           bugfix: Scoped CONFIG_RELOAD + Admin modal + Automations deferred Save config (`hue_presets` path ✅ B10G Part D)
-18. low    G7           Integration log tags
-18b. mid   G8           bugfix: Boot autostart timing — shorten real enable + honest Admin UX (A+B)
-18c. mid   G14          bugfix: Manual integration enable — enabling status + ON bell (assess all)
-19. mid    G1           bugfix: Epson get_power_state
-21. mid    G4           OWM One Call + hot-sun cinema 60% open
-21b. high  G9           Honeywell / Evohome — **own ship** (1/5)
-21c. high  G10          HomeWizard energy — **own ship** (2/5)
-21d. high  G11          Samsung Airco — **own ship** (3/5)
-21e. high  G12          SMA solar — **own ship** (4/5)
-21f. high  G13          HomeConnect BSH — **own ship** (5/5)
-22. high   F            Security bridge (F1→F7)
+8.  high   E            Gmail transport / outbox — default slot; **∥ B5–B8** OK
+9.  mid    C3           Force ALL-OFF
+10. mid    C4           Rename HTML entrypoints (`blocky`→`blockly`; not `automations`)
+11. low    C11          Control vs History list membership (assess → decide)
+12. mid    C12          Post-C10 polish (+ Hidden preset admin-only)
+12b. low   C17          Alert banner dismiss vs reload (assess at kickoff)
+13b. mid   C16          Day chart sliding 24 h window over hires_days hi-res
+13c. mid   C24          Temp/hum day fullscreen + AH/CI + checkboxes + CSV (after C16)
+13d. mid   C25          Overlay dew-likelihood % (OWM 2.5 clouds/wind; after C24)
+13e. low   C15          Admin lab switch → Debug Commands row; lab pane iff ON
+14. mid    C13          Merge Hidden → Timers & types
+15. mid    G2           bugfix: Hue color/bri truth
+16. mid    G6           bugfix: Scoped CONFIG_RELOAD + Admin modal + Automations deferred Save config (`hue_presets` path ✅ B10G Part D)
+17. low    G7           Integration log tags
+17b. mid   G8           bugfix: Boot autostart timing — shorten real enable + honest Admin UX (A+B)
+17c. mid   G14          bugfix: Manual integration enable — enabling status + ON bell (assess all)
+18. mid    G1           bugfix: Epson get_power_state
+19. mid    G4           OWM One Call + hot-sun cinema 60% open
+19b. high  G9           Honeywell / Evohome — **own ship** (1/5)
+19c. high  G10          HomeWizard energy — **own ship** (2/5)
+19d. high  G11          Samsung Airco — **own ship** (3/5)
+19e. high  G12          SMA solar — **own ship** (4/5)
+19f. high  G13          HomeConnect BSH — **own ship** (5/5)
+20. high   F            Security bridge (F1→F7)
 ─── After F ───
-23. mid    B20          Domoticz Time trigger + time-compare blocks
-24. mid    B15          Demote schedule edges → user origin
-25. high   B16          Full-bus UUID for internal EventTypes
-26. mid    B17          Sauna/IR hardcoded → automation (assess only)
-27. mid    B18          bugfix: Sauna session_end ≤ absolute_cutoff
-28. —      Ops          **Ops1** ✅ Done; remaining **Ops1 later** + other Inbox when convenient
+21. mid    B20          Domoticz Time trigger + time-compare blocks
+22. mid    B15          Demote schedule edges → user origin
+23. high   B16          Full-bus UUID for internal EventTypes
+24. mid    B17          Sauna/IR hardcoded → automation (assess only)
+25. mid    B18          bugfix: Sauna session_end ≤ absolute_cutoff
+26. —      Ops          **Ops1** ✅ Done; remaining **Ops1 later** + other Inbox when convenient
 ─── Very low (after everything above) ───
-29. high   P            Other homes / portability — home-specific config vs engine (assess)
+27. high   P            Other homes / portability — home-specific config vs engine (assess)
 ```
 
 ### Why this order
@@ -188,14 +187,14 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **B10H** — ✅ **Done 2026-08-12** — cold open ~**2.1 s** TTI; SSE reconnect flicker fixed; detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B10H.
 * **B10H follow-up (deferred)** — list / v2 cache for sub-**500 ms** cold open — **triage 2026-08-12: defer**; detail § **B10H — deferred list cache** below.
 * **G8** — boot autostart timing (~30s “integrations disabled”) — **A+B** ship; separate from **B10H** — detail § **G8** below.
-* **Blockly cluster B2–B8** — operator lock **2026-08-12**: [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** before Explorer/integrations/F churn. **B3 (B19) is mandatory**, not optional UX polish.
-* **B2 B9C** — patch **legacy** canvas only; unblocks **G5** “not fully closed”; superseded visually by **B19**.
+* **Blockly cluster B3–B8** — operator lock **2026-08-12**: [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** before Explorer/integrations/F churn. **B2 (B9C)** ✅. **B3 (B19) is mandatory**, not optional UX polish.
+* **B2 B9C** — ✅ **Done 2026-08-16** — today’s canvas (temp/hum + shutters/audio `%` When+if + Set open %).
 * **B3 B19 alone** — canvas + engine projection + rule migrator; do **not** combine with B4.
 * **B4** — Domoticz **Logic** (Else-if + AND/OR) on new canvas.
 * **B5–B6** — bathroom / notify on Domoticz blocks; **Ship B5 ∥ Ship B6** after **B4** if capacity allows; **H5 email** still waits on **E** (alert ships first).
 * **B7 B14** — timed **Set**, delays, cooldowns — **excludes** Time trigger (**B20**).
 * **B8** — library organization after canvas + **B7** stable.
-* **G5 after B2** — dashboard button + rule; **parallel to B3–B8**; re-touch rule on B19 canvas when **B3** lands.
+* **G5** — ✅ **Done 2026-08-16** — `Cinema rolluik half` on legacy + **B9C** (DoD revised to live Pi rule; not after B19).
 * **B10I** — Library **Go to SR**; **parallel to cluster** (no B19 dependency).
 * **B10J** — **`Event Received`** log lines: resolve catalog **display name**; **parallel to cluster**.
 * **B10K + G3** — ✅ **Done 2026-08-15** — timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; OWM poll 10′.
@@ -216,7 +215,7 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **B15–B18** — not Domoticz L&F; **B18** may jump on sauna safety pain.
 * **P** — other homes / portability — **very low**; after **F** and **B15–B18**. Home vs engine must be obvious; extraction **propose + ask**. Overlaps **B17** (sauna/IR). Detail → [`phaseP-portability.md`](phaseP-portability.md).
 
-Near-term = **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
+Near-term = **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
 
 ---
 
@@ -443,7 +442,6 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 | Step | Detail |
 |---|---|
-| **B2 / B9C** | [`phaseB-blocky.md`](phaseB-blocky.md) § B9C — legacy bridge |
 | **B3 / B19** | [`phaseB-blocky.md`](phaseB-blocky.md) § B19 — Domoticz canvas |
 | **Domoticz goal** | [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal + ship groups |
 
@@ -453,10 +451,10 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 | Phase | Detail file |
 |---|---|
-| **B9C** / **B19** / **B9B** / **B10I** / **B10J** / **B10L** / **B10M** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
+| **B19** / **B9B** / **B10I** / **B10J** / **B10L** / **B10M** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
 | **C3** / **C4** / **C11** / **C12** / **C17** / **C20** / **C21** / **C16** / **C24** / **C25** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
-| **G2** / **G6** / **G7** / **G8** / **G1** / **G4** / **G5** / **G9** / **G10** / **G11** / **G12** / **G13** / **G14** | [`phaseG-integrations.md`](phaseG-integrations.md) |
+| **G2** / **G6** / **G7** / **G8** / **G1** / **G4** / **G9** / **G10** / **G11** / **G12** / **G13** / **G14** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 | **P** | [`phaseP-portability.md`](phaseP-portability.md) |
 
@@ -536,7 +534,7 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 
 | Item | Notes |
 |---|---|
-| **Cinema — merge ON/OFF rules** | Collapse **`--- CINEMA ON`** + **`--- CINEMA OFF`** → one **`switch cinema`** rule. **Pickable “cinema state”** (likely **`switch.epson`**) as condition — **to be checked**; may need **B9C** device-state on projector before rule rewrite. Operator YAML on Pi. |
+| **Cinema — merge ON/OFF rules** | Collapse **`--- CINEMA ON`** + **`--- CINEMA OFF`** → one **`switch cinema`** rule. **Pickable “cinema state”** (likely **`switch.epson`**) as condition — **to be checked**. Shutter **%** compares ✅ **B9C**. Operator YAML on Pi. |
 | Background Leak = **0.0 W** | Verify — **check!** |
 | Where is the **3-phase kWh meter** connected? | Site / wiring — **manual** |
 | Where do the **Pis** get power? | Site / UPS / circuit — **manual** |
@@ -550,6 +548,8 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | When | What |
 |---|---|
 | 2026-08-16 | **C22 ✅ Done** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m live-only; docs close-out. |
+| 2026-08-16 | **G5 ✅ Done** — DoD revised to live Pi rule `Cinema rolluik half` (open % > 50 → set 50%; legacy + B9C); docs close-out. |
+| 2026-08-16 | **B2/B9C ✅ Done** — Pi smoke OK; temp/hum ATTR; shutters OPEN/CLOSED/open-% When+if + Set open %; audio ON/OFF/volume; `blockyInvertCompareOp`; `wanoslog.sh log 4 debug`; docs close-out. Next **B3** (B19). |
 | 2026-08-16 | Inbox triage: **C25** overlay **dew likelihood %** from OWM 2.5 clouds/wind (heuristic list accepted); **after C24**; do not reopen C24. |
 | 2026-08-16 | **Ops1 ✅ Done** — log2ram/rsyslog cap coded **Ops1**; Done table; Pi smoke + docs close-out. **Ops1 later:** Item 3, ForwardToSyslog, log2ram SIZE, auth/kern. |
 | 2026-08-16 | **C24** lock-in: extra series overlay-only; month/year untouched; fullscreen = full browser tab (not F11). |
