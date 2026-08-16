@@ -1,9 +1,10 @@
 # --- file: integrations/zwave.py ---
 import json
 import asyncio
-from typing import Any, List
+from typing import Any, Dict, List
 from core.models import Event, EventType, SystemState, device_name, format_device_ref
 from core.event_catalog import legacy_key_for_bus_token
+from core.command_commit import claim_and_finish, claim_payload
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
@@ -549,6 +550,12 @@ class ZWaveJSUIBridge(WanosComponent):
 
             payload = event.payload or {}
             idx = payload.get("idx")
+            try:
+                if idx is not None:
+                    idx = int(idx)
+                    payload["idx"] = idx
+            except (TypeError, ValueError):
+                pass
             new_state = payload.get("state")
             origin = payload.get("origin")
             is_force = payload.get("force", False)
@@ -564,6 +571,7 @@ class ZWaveJSUIBridge(WanosComponent):
                     f"🛡️ Z-Wave Bridge intercepted and dropped an unauthorized outbound command to "
                     f"Pi safety relay ({format_device_ref(self.state_manager._state, idx)})."
                 )
+                claim_and_finish(self.state_manager, payload, False, "[Z-Wave] Pi safety relay deny")
                 continue
 
             prop_path = self.idx_to_name.get(idx)
@@ -588,8 +596,23 @@ class ZWaveJSUIBridge(WanosComponent):
             else:
                 zwave_payload = {"value": True if new_state == "ON" else False}
 
-            await self.mqtt_client.publish(target_topic, zwave_payload)
+            claim_payload(self.state_manager, payload)
+            asyncio.create_task(
+                self._publish_and_report(payload, target_topic, zwave_payload, idx, new_state, is_force)
+            )
 
+    async def _publish_and_report(
+        self,
+        payload: Dict[str, Any],
+        target_topic: str,
+        zwave_payload: Dict[str, Any],
+        idx: int,
+        new_state: Any,
+        is_force: bool,
+    ) -> None:
+        """MQTT publish off the drain path; C18 success = publish() True."""
+        ok = await self.mqtt_client.publish(target_topic, zwave_payload)
+        if ok:
             if is_force:
                 await self.logger.warning(
                     f"⚡ [FORCED] Z-Wave Command Sent: "
@@ -600,3 +623,6 @@ class ZWaveJSUIBridge(WanosComponent):
                     f"[Z-Wave] Command Sent: "
                     f"{format_device_ref(self.state_manager._state, idx)} -> {new_state}"
                 )
+            claim_and_finish(self.state_manager, payload, True, "")
+        else:
+            claim_and_finish(self.state_manager, payload, False, "[Z-Wave] MQTT publish failed")

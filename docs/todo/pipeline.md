@@ -2,7 +2,7 @@
 
 High-level **what’s next** and where the detailed specs live. This file does **not** hold phase DoD / locked-decision novels — those live in `phaseX-yyy.md`.
 
-**Last updated:** 2026-08-15
+**Last updated:** 2026-08-16
 
 ---
 
@@ -20,7 +20,7 @@ High-level **what’s next** and where the detailed specs live. This file does *
 | Letter | Affinity | Detail file |
 |---|---|---|
 | **B** | Blocky / Blockly / automations | [`phaseB-blocky.md`](phaseB-blocky.md) |
-| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10–C22) | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C** | Operator shell (Explorer, Admin, History charts, force sweep, HTML names, C10–C23) | [`phaseC-shell.md`](phaseC-shell.md) |
 | **D** | Device typing (switch vs light) | [`phaseD-typing.md`](phaseD-typing.md) |
 | **E** | Gmail transport (OAuth, outbox, spooler) | [`phaseE-gmail.md`](phaseE-gmail.md) |
 | **F** | Public bridge / perimeter security | [`phaseF-security.md`](phaseF-security.md) |
@@ -60,6 +60,9 @@ Match [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** (If/
 | **B10G** | Shell connection + load UX + admin `vNN` + hue preset scoped reload — Pi smoke (A/B/C/D) + docs close-out **2026-08-12** |
 | **B10H** | Automations cold-load shorten (~39 s → ~2.1 s TTI) + SSE reconnect flicker fix — Pi smoke + docs close-out **2026-08-12** |
 | **B10K + G3** | Timings stopwatch + shutter OPEN/CLOSED + RFX ON/OFF; OWM poll 10′ — Pi smoke + docs close-out **2026-08-15** |
+| **B10N** | Closed **2026-08-15** — no dedicated code; operator cannot reproduce; covered by **B10K** Item 3 (`wantHue` excludes `rfxcom`) |
+| **C23** | SSE `SseClient` unhashable — `@dataclass(eq=False)` + live EventSource; closed **with C18** (Explorer smoke) **2026-08-16** |
+| **C18** | Explorer Control live lag after toggle — Q4/Q5 + live SSE; Pi smoke **2026-08-16** |
 
 Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md).
 
@@ -69,7 +72,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal.
 
-**B10G** / **B10H** / **B10K+G3** ✅ **Done**. Next: **B2** (B9C). **B10I** / **B10J** / **B10L** / **B10M** / **B10N** / **C18** / **C19** / **C20** / **C21** / **C22** anytime after **B10F** / **B10B** / **B10G** / **B10H** / **B10K** / **C6**.
+**B10G** / **B10H** / **B10K+G3** / **B10N** / **C18** / **C23** ✅ **Done**. Next: **B2** (B9C). **B10I** / **B10J** / **B10L** / **B10M** / **C19** / **C20** / **C21** / **C22** anytime after **B10F** / **B10B** / **B10G** / **B10H** / **B10K** / **C6**.
 
 | Ship | Phase(s) | Size | One go? |
 |---|---|---|---|
@@ -107,10 +110,8 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 | **B10J** | Anytime after **B10B** | Backend log polish — **`Event Received`** catalog name; parallel to **B2–B8** |
 | **B10L** | Anytime after **B10G** | Shared NOT CONNECTED overlay status + copy **Re-connecting to WanOS...**; parallel to **B2–B8** |
 | **B10M** | Anytime after **B10G** Part D | Explorer Hue preset duplicate settings; parallel to **B2–B8** |
-| **B10N** | Anytime after **B10K** | bugfix: RFX living schemer still shows color — **do not reopen B10K**; parallel to **B2–B8** |
-| **C18** | Anytime after **B10H** | bugfix: Explorer Control sensor live lag after toggle — kickoff surface locked; **cause not locked**; parallel to **B2–B8** |
 | **C19** | Anytime (C6 ✅) | bugfix: History auto-refresh blank — **see C6**; parallel to **B2–B8** |
-| **C20** | Anytime after **C2** / **C8** | bugfix: Admin bell Clear All does nothing; parallel to **B2–B8** |
+| **C20** | Anytime after **C2** / **C8** | bugfix: Admin bell Clear All does nothing — kickoff **locked** 2026-08-15; parallel to **B2–B8** |
 | **C21** | Anytime | bugfix: Explorer AUTO OFF countdown while device already OFF; parallel to **B2–B8** |
 | **C22** | Anytime | bugfix: three Host gauges “(no history)”; parallel to **B2–B8** |
 | **G5** | After **B2** (B9C) | Parallel to **B3–B8**; re-author rule on B19 canvas when **B3** lands |
@@ -140,11 +141,9 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 8b. low    B10I         used SE → Go to SR — **∥ cluster** (anytime after B10F)
 8c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ cluster** (anytime after B10B)
 8e. low    B10L         NOT CONNECTED overlay status + copy “Re-connecting to WanOS...” — **∥ cluster**
-8f. low    C18          bugfix: Explorer Control sensor live lag after toggle — **∥ cluster** (anytime after B10H)
 8g. low    C19          bugfix: History auto-refresh blank (keep settings + window) — **see C6**; **∥ cluster**
 8h. low    B10M         bugfix: Explorer Hue preset duplicate settings — **∥ cluster** (after B10G Part D)
-8i. low    B10N         bugfix: RFX living schemer still shows color — **∥ cluster** (after B10K; do not reopen B10K)
-8j. low    C20          bugfix: Admin SYSTEM NOTIFICATIONS Clear All does nothing — **∥ cluster**
+8j. low    C20          bugfix: Admin SYSTEM NOTIFICATIONS Clear All does nothing — kickoff **locked** — **∥ cluster**
 8k. low    C21          bugfix: Explorer AUTO OFF countdown while device already OFF — **∥ cluster**
 8l. low    C22          bugfix: Host CPU temp / load 5m / load 15m “(no history)” — **∥ cluster**
 ─── After Blockly cluster (E may start ∥ B5–B8 instead — see Parallel tracks) ───
@@ -198,22 +197,23 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **G5 after B2** — dashboard button + rule; **parallel to B3–B8**; re-touch rule on B19 canvas when **B3** lands.
 * **B10I** — Library **Go to SR**; **parallel to cluster** (no B19 dependency).
 * **B10J** — **`Event Received`** log lines: resolve catalog **display name**; **parallel to cluster**.
-* **B10K + G3** — ✅ **Done 2026-08-15** — timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; OWM poll 10′. Living schemer leftover → **B10N**.
+* **B10K + G3** — ✅ **Done 2026-08-15** — timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; OWM poll 10′.
+* **B10N** — ✅ **Done 2026-08-15** — closed without dedicated code; operator cannot reproduce; covered by **B10K** Item 3.
 * **B10L** — Shared NOT CONNECTED overlay richer status; establishing line → **Re-connecting to WanOS...**
 * **B10M** — Explorer Hue preset: allow new preset with same settings as an existing one; **∥ cluster**.
-* **B10N** — RFX **living schemer switch** still offers color after B10K; **∥ cluster**. Do not reopen B10K.
-* **C18** — Explorer **Control** live sensor lag **seconds after a toggle** (all sensors); kickoff **2026-08-15** surface locked; **cause lead not locked**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C18.
-* **C19** — History auto-refresh blank / title-only; keep settings + window; **see C6**; do not reopen C6; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C19.
-* **C20** — Admin bell **Clear All** no-op; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C20.
+* **C18** — ✅ **Done 2026-08-16** — Explorer Control live lag. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C18.
+* **C19** — History auto-refresh blank / title-only; keep settings + window; **see C6**; do not reopen C6; **∥ cluster**. Kickoff + fix contract **locked** 2026-08-15. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C19.
+* **C20** — Admin bell **Clear All** no-op; **∥ cluster**. Kickoff + contract **locked** 2026-08-15. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C20.
 * **C21** — Explorer **AUTO OFF** countdown while device already OFF; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C21.
 * **C22** — Host CPU temp / load 5m / load 15m **(no history)**; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C22.
+* **C23** — ✅ **Done 2026-08-16** — closed **with C18**; `SseClient` `@dataclass(eq=False)` in the hub `set`; Explorer EventSource. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C23.
 * **G14** — Manual enable after network-failure disable: **enabling** → **Live** + ON bell; assess all integrations (not G8 boot).
 * **C\*, G\*, E, F** — **after Blockly cluster** (default). **E** may start **parallel to B5–B8**. **G2/G6** may jump on operator pain. **G9→G13** — one new vendor bridge per run, after **G4**, before **F**.
 * **B20 after F** — Domoticz **Time** trigger; catalog schedule events unchanged until then.
 * **B15–B18** — not Domoticz L&F; **B18** may jump on sauna safety pain.
 * **P** — other homes / portability — **very low**; after **F** and **B15–B18**. Home vs engine must be obvious; extraction **propose + ask**. Overlaps **B17** (sauna/IR). Detail → [`phaseP-portability.md`](phaseP-portability.md).
 
-Near-term = **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **B10L** / **B10M** / **B10N** / **C18** / **C19** / **C20** / **C21** / **C22** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
+Near-term = **B2** (B9C) → **B3** (B19) → **B4** → (**B5** ∥ **B6** after B4) → **B7** → **B8**. **B10I** / **B10J** / **B10L** / **B10M** / **C19** / **C20** / **C21** / **C22** / **G5** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
 
 ---
 
@@ -400,7 +400,7 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 **Cheaper future lever (if reopened):** pre-convert v2 once at boot (same invalidation story; no double cache layer). Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B10H.
 
-**Not this item:** reconnect policy / Admin flicker → **B10H** ✅ (SSE R1–R3); post-restart ~10 s offline → **G8**; Explorer sensor live lag → **C18**.
+**Not this item:** reconnect policy / Admin flicker → **B10H** ✅ (SSE R1–R3); post-restart ~10 s offline → **G8**; Explorer Control live lag → **C18** ✅.
 
 ---
 
@@ -450,9 +450,9 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 | Phase | Detail file |
 |---|---|
-| **B9C** / **B19** / **B9B** / **B10I** / **B10J** / **B10L** / **B10M** / **B10N** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
+| **B9C** / **B19** / **B9B** / **B10I** / **B10J** / **B10L** / **B10M** / **B11–B20** | [`phaseB-blocky.md`](phaseB-blocky.md) |
 | **E** | [`phaseE-gmail.md`](phaseE-gmail.md) |
-| **C3** / **C4** / **C11** / **C12** / **C17** / **C18** / **C19** / **C20** / **C21** / **C22** / **C16** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
+| **C3** / **C4** / **C11** / **C12** / **C17** / **C19** / **C20** / **C21** / **C22** / **C16** / **C15** / **C13** | [`phaseC-shell.md`](phaseC-shell.md) |
 | **G2** / **G6** / **G7** / **G8** / **G1** / **G4** / **G5** / **G9** / **G10** / **G11** / **G12** / **G13** / **G14** | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **F1–F7** | [`phaseF-security.md`](phaseF-security.md) |
 | **P** | [`phaseP-portability.md`](phaseP-portability.md) |
@@ -467,7 +467,6 @@ Detail + DoD stubs: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B20. Schedul
 | **B10J** | Event Received log — catalog name | anytime after B10B |
 | **B10L** | NOT CONNECTED overlay status + **Re-connecting to WanOS...** | anytime after B10G |
 | **B10M** | Explorer Hue preset duplicate settings | anytime after B10G Part D |
-| **B10N** | RFX living schemer still shows color | anytime after B10K; do not reopen B10K |
 | **B11** | Multi-flow one Blockly page | **B8** |
 | **B12** | Rule-list folder/tag | **B8** |
 | **B13** | Domoticz Else-if / Else | **B4** |
@@ -484,6 +483,28 @@ Detail + DoD stubs: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B20. Schedul
 ## Inbox — Ops / Manual (2026-08-09)
 
 Not lettered product phases. Unclear parts marked **to be checked**.
+
+### Ops — log2ram / rsyslog (2026-08-16)
+
+**Origin:** operator inbox **2026-08-16** — triage of “What actually prevents a repeat” after Pi `log2ram` 1.0G **100%** (`ENOSPC`). `/var/log/wanos` was only ~39M; the fill was rsyslog `syslog` + `daemon.log` (+ uncompressed `.1`) copying journald (uvicorn SSE reconnect + tracebacks). Host gauge `sensor.generic.host_log2ram_free` already warns; it does not vacuum.
+
+**Operator request (verbatim):**
+> put these 3 "What actually prevents a repeat" in triage
+
+The three items (verbatim from that turn):
+> 1. **Stop the flood** — fix `SseClient` in a `set` (and keep SSE up). That is the real generator.
+> 2. **Cap rsyslog on the Pi** (OS, not Python), e.g. size-based `logrotate` for `syslog`/`daemon.log` (20–50M, compress `.1` immediately), and/or drop the duplicate `daemon.log` facility. Journald was already the well-behaved one (119M).
+> 3. Optional later: uvicorn `--no-access-log` or don’t log the JWT query string — each reconnect line is huge.
+
+| # | Placement | What |
+|---|---|---|
+| **1** | **C23** ✅ **Done 2026-08-16** (with **C18**) | `SseClient` `@dataclass(eq=False)` in `set`; Explorer EventSource; journal not a C23 DoD |
+| **2** | **Ops** (this section) | Size-based `logrotate` for `syslog`/`daemon.log`; optional drop duplicate `daemon.log` |
+| **3** | **Ops** (this section) — optional later | uvicorn `--no-access-log` and/or no JWT on the access line (`wanos.service` / bootstrap) |
+
+**Item 2 — cap rsyslog (OS):** not Python. Pi `/etc/logrotate.d/rsyslog` (or drop-in): size 20–50M for `syslog` + `daemon.log`; compress `.1` immediately (`delaycompress` off for those). Optional: stop writing the same daemon lines to both files. `log2ram write` does **not** free the tmpfs. Not in Sequence.
+
+**Item 3 — uvicorn access / JWT (optional later):** repo template `helpers/bootstrap/backend/wanos.service` + installed unit. Either `--no-access-log` or keep access log without the `?jwt=` query. Not **F** unless operator re-homes it as perimeter. Not in Sequence.
 
 ### Ops — sync Local → Pi
 
@@ -526,6 +547,9 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 
 | When | What |
 |---|---|
+| 2026-08-16 | **C23** kickoff locked then closed **with C18**: Explorer EventSource; `eq=False` in `set`; journal not a DoD; Last DoD docs audit. |
+| 2026-08-16 | **C18** + **C23** ✅ Done — Pi smoke OK; live SSE (`eq=False` + first ping + pure ASGI); Q4/Q5 command-commit; docs close-out. |
+| 2026-08-16 | Inbox triage: log2ram full / rsyslog — **C23** `bugfix:` SSE `SseClient` unhashable (**∥ cluster**; C18 smoke waits); **Ops** size-based `logrotate` (`syslog`/`daemon.log`); **Ops** optional uvicorn `--no-access-log` / no JWT query. |
 | 2026-08 | **B0–B8** done on Pi. **B9A/B9B** + **B10A/B10B** specs locked. |
 | 2026-08-09 | Intermediary shell/typing + pipeline; letter rename B/C/D/E/F/G. |
 | 2026-08-10 | **B10B+D+E** done. **G4/G5** triage. |
@@ -534,8 +558,10 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-13 | Inbox triage: **B10K** timings button + blinds OPEN; **B10L** NOT CONNECTED status; **C12 #9** Hidden preset admin-only; **C17** alert dismiss vs reload (**assess at kickoff**). |
 | 2026-08-15 | Inbox triage (screenshots): **C20** Admin Clear All no-op; **C21** AUTO OFF while OFF; **C22** Host “(no history)” on CPU temp / load 5m / 15m. Sequence **bugfix:** prefix in triage rule. |
 | 2026-08-15 | Inbox triage: **B10M** Explorer Hue preset same-settings; **G6** += Automations deferred Save config + overlay-2 timings; **B10N** RFX living schemer color (split off **B10K** so B10K stays closed); **B10L** copy **Re-connecting to WanOS...**; **C19** History auto-refresh blank (**see C6**); **G14** manual enable status + ON bell. |
+| 2026-08-15 | **B10N ✅ Done** — closed without dedicated code; operator cannot reproduce; probably fixed in earlier phases, likely **B10K**. Docs close-out. |
 | 2026-08-15 | Ops **`.cursor`** sync exclude shipped (`[MirrorExcludeDirs]`). |
-| 2026-08-15 | **C18** kickoff: Explorer **Control**, all sensors, seconds later, mostly after toggle. Surface/symptom locked; cause lead (drain awaits Hue/RFX/Z-Wave) **not locked**. |
+| 2026-08-15 | **C18** Q4/Q5 **locked**: request-level success/fail per integration (silent skip = fail); bell `ERROR: Command failed: {ref} → ON\|OFF`. Fix contract complete — implement when commanded. |
+| 2026-08-15 | **C19** kickoff + fix contract **locked**: Explorer History all families; every ~60s dark empty box; keep settings + window (**C6**). Cause not locked. Implement when commanded. |
 | 2026-08-15 | **B10K + G3 ✅ Done** — Pi smoke OK; timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; OWM poll 10′; docs close-out. |
 | 2026-08-15 | **B10K + G3** spec Q&A locked — one code run; detail → `phaseB-blocky.md` § B10K, `phaseG-integrations.md` § G3. |
 | 2026-08-15 | Sequence: prefix **bugfix:** on defect ships (**B10K**, **G2**, **G6**, **G8**, **G1**, **B18**). |

@@ -5,6 +5,7 @@ import soco
 from typing import Dict, Any, Optional
 from loguru import logger
 from core.models import Event, EventType, format_device_ref
+from core.command_commit import claim_and_finish
 
 
 class SonosBridge:
@@ -147,6 +148,7 @@ class SonosBridge:
         idx = payload.get("idx")
         speaker = self.speakers.get(idx)
         if not speaker:
+            claim_and_finish(self.manager, payload, False, "[Sonos] no speaker")
             return
 
         try:
@@ -158,6 +160,7 @@ class SonosBridge:
                 self.manager.dispatch(Event(
                     type=EventType.HUB_STATE_CHANGED,
                     payload={"idx": idx, "state": "OFF", "origin": "sonos"}))
+                claim_and_finish(self.manager, payload, True, "")
                 return
 
             volume = payload.get("volume")
@@ -175,26 +178,31 @@ class SonosBridge:
             if not should_play:
                 if volume is not None:
                     await asyncio.to_thread(setattr, speaker, 'volume', volume)
+                    claim_and_finish(self.manager, payload, True, "")
+                    return
+                claim_and_finish(self.manager, payload, False, "[Sonos] empty command")
                 return
 
-            playback_started = await asyncio.to_thread(
+            await asyncio.to_thread(
                 self._start_playback, speaker, volume, station_key, station_url)
 
-            if playback_started:
-                # Include volume so the Explorer slider does not stay stuck at 0/SYNC
-                # after an ON confirm that previously omitted the level.
-                try:
-                    current_vol = volume
-                    if current_vol is None:
-                        current_vol = await asyncio.to_thread(getattr, speaker, "volume")
-                except Exception:
-                    current_vol = volume
-                confirm = {"idx": idx, "state": "ON", "origin": "sonos"}
-                if current_vol is not None:
-                    confirm["volume"] = int(current_vol)
-                self.manager.dispatch(Event(
-                    type=EventType.HUB_STATE_CHANGED,
-                    payload=confirm))
+            # _start_playback False = station already playing (skip send), not a request failure.
+            # Include volume so the Explorer slider does not stay stuck at 0/SYNC
+            # after an ON confirm that previously omitted the level.
+            try:
+                current_vol = volume
+                if current_vol is None:
+                    current_vol = await asyncio.to_thread(getattr, speaker, "volume")
+            except Exception:
+                current_vol = volume
+            confirm = {"idx": idx, "state": "ON", "origin": "sonos"}
+            if current_vol is not None:
+                confirm["volume"] = int(current_vol)
+            self.manager.dispatch(Event(
+                type=EventType.HUB_STATE_CHANGED,
+                payload=confirm))
+            claim_and_finish(self.manager, payload, True, "")
         except Exception as e:
             logger.error(
                 f"Sonos command failed on {format_device_ref(self.manager._state, idx)}: {e}")
+            claim_and_finish(self.manager, payload, False, f"[Sonos] {e}")

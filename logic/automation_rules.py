@@ -153,6 +153,10 @@ class AutomationEngine:
     @staticmethod
     def _normalize_edge_state(raw: Any, meta: Any = None) -> str:
         """Normalize trigger/event states for comparison (blinds OPEN↔0, CLOSED↔100)."""
+        if isinstance(raw, dict):
+            raw = raw.get("state")
+        if isinstance(raw, bool):
+            raw = "ON" if raw else "OFF"
         s = str(raw).strip() if raw is not None else ""
         su = s.upper()
         dtype = ""
@@ -256,6 +260,8 @@ class AutomationEngine:
         if cond_idx is None:
             return False
         raw_state = state.devices.get(cond_idx)
+        if raw_state is None:
+            raw_state = state.devices.get(str(cond_idx))
         actual = AutomationEngine._extract_device_value(
             raw_state, getattr(condition, "attribute", None)
         )
@@ -329,7 +335,14 @@ class AutomationEngine:
         event_name = legacy_key_for_bus_token(bus_token)
 
         event_idx = payload.get("idx")
+        try:
+            if event_idx is not None:
+                event_idx = int(event_idx)
+        except (TypeError, ValueError):
+            pass
         new_state = payload.get("state")
+        if isinstance(new_state, dict):
+            new_state = new_state.get("state")
         is_transition = payload.get("transitioned", False)
 
         # =========================================================================
@@ -368,7 +381,6 @@ class AutomationEngine:
                 if trigger_idx is not None and t.state:
                     # B9A numeric When — threshold-cross on sensor/host telemetry events.
                     if t_op and t_op in (">", ">=", "<", "<=", "!=", "=="):
-                        event_idx = payload.get("idx")
                         if trigger_idx == event_idx and event_name in (
                             "HUB_STATE_CHANGED",
                             "TEMP_UPDATED",
@@ -431,8 +443,7 @@ class AutomationEngine:
                             break
 
                 # Any transition — trigger has entity_id but no target state/op (v2 case "when transitioned").
-                elif trigger_idx is not None and not t.state and not t_op:
-                    event_idx = payload.get("idx")
+                elif trigger_idx is not None and t.state is None and not t_op:
                     if (
                         event_name == "HUB_STATE_CHANGED"
                         and is_transition
@@ -538,6 +549,8 @@ class AutomationEngine:
                         if action_idx is not None and getattr(action, "target", None) != "hue_scene":
                             # ⚡ Extract state safely whether it's a flat string or a rich Hue dictionary
                             raw_target_state = state.devices.get(action_idx)
+                            if raw_target_state is None:
+                                raw_target_state = state.devices.get(str(action_idx))
                             current_target_state = raw_target_state.get("state") if isinstance(raw_target_state,
                                                                                                dict) else raw_target_state
 

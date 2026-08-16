@@ -4,7 +4,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 
 **Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G5** still TODO — partial `Cinema rolluik half` (Open→50) live, **DoD gaps** in § G5; **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9–G13** five new vendor bridges (sequential own ships) — inbox **2026-08-14**.
 
-**Related:** Sequence → [`pipeline.md`](pipeline.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges).
+**Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges).
 
 **DoD convention:** every G subphase ends with **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -31,7 +31,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 
 Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G3** ✅ **Done 2026-08-15** (config-only; cold boot; one code run with **B10K**). **G4** before **G5** preferred (shared cinema-sun story); **G5** can ship alone if operator wants the manual button first.
 
-**G9 → G10 → G11 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage.
+**G9 → G10 → G11 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
 ---
 
@@ -398,7 +398,7 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 > The Library: homeconnect or aiohomeconnect
 > How it works: This library interfaces with the official BSH Home Connect REST API. It establishes a local Server-Sent Events (SSE) stream connected to their cloud servers, allowing your Python code to listen for real-time oven temperatures, dishwasher states, or laundry cycle updates.
 
-**Locked for all five:** **one integration per PR / code run**; order **G9 → G10 → G11 → G12 → G13**; do not combine. Size **high** each. Default sequence: after **G4**, before **F**. Config/creds/IPs/device maps → home pack (**P**). **Library pick stays inside each phase** (G9/G11/G12/G13 kickoff) — **not this triage**. Admin enable + Explorer/Blockly surface + G6 reload row: **assess at that ship’s kickoff**.
+**Locked for all five:** **one integration per PR / code run**; order **G9 → G10 → G11 → G12 → G13**; do not combine. Size **high** each. Default sequence: after **G4**, before **F**. Config/creds/IPs/device maps → home pack (**P**). **Library pick stays inside each phase** (G9/G11/G12/G13 kickoff) — **not this triage**. Admin enable + Explorer/Blockly surface + G6 reload row: **assess at that ship’s kickoff**. Shared procedure (do not copy into each stub): [`docs/integration-playbook.md`](../integration-playbook.md).
 
 ---
 
@@ -416,6 +416,8 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 > *(Plus HomeWizard, Samsung, SMA, HomeConnect — full inbox text in § Inbox 2026-08-14.)*
 
 **Intent:** Bridge Resideo / Honeywell Home — read room setpoints, ambient temp, HVAC firing over HTTPS.
+
+**Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G9-only (library, devices, C18 row).
 
 **Library:** `somecomfort` | `evohomeclient` | `aiolyric` — **in-scope of G9 kickoff** (not now).
 
@@ -438,6 +440,8 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 
 **Intent:** Local API v1/v2 via `python-homewizard-energy` — P1 / Wi-Fi kWh / Energy Sockets; no cloud.
 
+**Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G10-only.
+
 **G10 DoD:** HomeWizard metrics in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
@@ -456,6 +460,8 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 > *(Full five-integration inbox text in § Inbox 2026-08-14.)*
 
 **Intent:** Climate setpoints / power (and blades if in scope at kickoff).
+
+**Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G11-only.
 
 **Library:** `python-smartthings` (cloud) vs `samsungrac` local TCP 8888/2878 (pre-2018) — **in-scope of G11 kickoff** (not now).
 
@@ -479,6 +485,8 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 
 **Intent:** Live grid production from Sunny Boy / Tripower.
 
+**Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G12-only.
+
 **Library:** `pysma` (Webconnect) vs `pymodbus` SunSpec TCP 502 — **in-scope of G12 kickoff** (not now).
 
 **G12 DoD:** SMA production in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
@@ -499,6 +507,8 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 > *(Full five-integration inbox text in § Inbox 2026-08-14.)*
 
 **Intent:** BSH cloud REST + SSE — oven / dishwasher / laundry cycle state (which appliances = **G13 kickoff**, not now).
+
+**Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G13-only.
 
 **Library:** `homeconnect` | `aiohomeconnect` — **in-scope of G13 kickoff** (not now).
 

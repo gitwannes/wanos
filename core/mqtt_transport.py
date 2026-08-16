@@ -51,15 +51,18 @@ class MqttClientManager:
         self.client = None
         logger.warning(f"MQTT Disconnected ({self.broker_host}).")
 
-    async def publish(self, topic: str, payload: dict) -> None:
+    async def publish(self, topic: str, payload: dict) -> bool:
+        """Publish JSON to MQTT. Returns False if skipped or the broker write failed."""
         if not self.is_connected or not self.client:
             logger.warning(f"MQTT publish skipped ({self.broker_host}): no connection.")
-            return
+            return False
 
         try:
             await self.client.publish(topic, payload=json.dumps(payload))
+            return True
         except aiomqtt.MqttError as e:
             logger.error(f"MQTT Publish error: {e}")
+            return False
 
     async def subscribe(self, topic: str, callback: Callable[[str, str], Awaitable[None]]) -> None:
         """Registers a topic and maps it to an async callback function."""

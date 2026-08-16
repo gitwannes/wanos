@@ -476,7 +476,9 @@ function wanosApp() {
                     if (isHiddenDevice) continue;
                 }
 
-                const rawValue = this.state.devices[idx];
+                const rawValue = this.state.devices[idx]
+                    ?? this.state.devices[idxStr]
+                    ?? this.state.devices[String(idx)];
                 let isOn = false;
 
                 const isDead = rawValue === 'DEAD';
@@ -1265,9 +1267,8 @@ function wanosApp() {
                 }
             }
 
-            // ⚡ Natively merge the numeric IDXs directly without any string translation loops!
             if (fullState.devices) {
-                this.state.devices = Object.assign({}, this.state.devices, fullState.devices);
+                this._mergeDevicesIntoState(fullState.devices);
             }
 
             if (fullState.boot_seed) {
@@ -1331,6 +1332,21 @@ function wanosApp() {
             this.connected = true;
         },
 
+        /**
+         * Merge device idx keys as both string and number so Control `item.is_on`
+         * (numeric lookup) sees SSE JSON string keys.
+         * @param {Object<string, *>} incoming
+         */
+        _mergeDevicesIntoState(incoming) {
+            const next = Object.assign({}, this.state.devices);
+            for (const [key, val] of Object.entries(incoming || {})) {
+                next[key] = val;
+                const n = Number(key);
+                if (!Number.isNaN(n)) next[n] = val;
+            }
+            this.state.devices = next;
+        },
+
         _applyDomainDelta(domain, data) {
             // 🛡️ Enforce immutability: Clone the incoming payload so we don't mutate the caller's parsed SSE object
             const payload = { ...data };
@@ -1353,6 +1369,19 @@ function wanosApp() {
             if (domain === "hardware") {
                 if (!payload.sensor_errors) payload.sensor_errors = [];
             }
+            if (domain === "c18_commit") {
+                // C18: apply/revert RAM for Control rows; bypass uiLocks (clicked optimistic snap-back).
+                for (const idx of Object.keys(payload)) {
+                    delete this.uiLocks[idx];
+                    const n = Number(idx);
+                    if (!Number.isNaN(n)) delete this.uiLocks[n];
+                }
+                this._mergeDevicesIntoState(payload);
+                if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
+                    this.syncLabControls();
+                }
+                return;
+            }
             if (domain === "devices") {
                 // ⚡ OPTIMISTIC UI LOCK GUARD (Anti-Rubberbanding)
                 // Filter out incoming telemetry for sliders we recently touched to prevent snapping
@@ -1360,17 +1389,19 @@ function wanosApp() {
                 const now = Date.now();
 
                 for (const [idx, val] of Object.entries(payload)) {
-                    if (this.uiLocks[idx] && now < this.uiLocks[idx]) {
-                        // ⚡ Calculate remaining lock time for the console log
-                        const remaining = Math.round((this.uiLocks[idx] - now) / 1000);
+                    const n = Number(idx);
+                    const locked = (this.uiLocks[idx] && now < this.uiLocks[idx])
+                        || (!Number.isNaN(n) && this.uiLocks[n] && now < this.uiLocks[n]);
+                    if (locked) {
+                        const until = this.uiLocks[idx] || this.uiLocks[n];
+                        const remaining = Math.round((until - now) / 1000);
                         console.info(`[UI Guard] Event ignored for IDX ${idx}: locked for ${remaining} more seconds to prevent rubberbanding.`);
                         continue;
                     }
                     filteredPayload[idx] = val;
                 }
 
-                // Merge device keys individually natively!
-                this.state.devices = Object.assign({}, this.state.devices, filteredPayload);
+                this._mergeDevicesIntoState(filteredPayload);
                 if (!document.activeElement || !document.activeElement.classList.contains('lab-slider')) {
                     this.syncLabControls();
                 }

@@ -21,7 +21,7 @@ Originally engineered to safely manage a 9kW 3-phase electric sauna and infrared
 
 ### Reactive, Event-Driven Core
 * **Zero-Blocking Architecture:** Built on `asyncio` and `FastAPI`, WanOS uses a centralized asynchronous queue to process events.
-* **Real-Time Telemetry:** The Alpine.js frontend subscribes to an SSE (Server-Sent Events) stream, instantly diffing and rendering JSON state payloads without polling.
+* **Real-Time Telemetry:** The Alpine.js frontend subscribes to an SSE (Server-Sent Events) stream, instantly diffing and rendering JSON state payloads without polling. The hub is event-driven (`core/sse_hub.py`); `SseClient` is identity-hashable so the hub `set` can subscribe (**C23**); Control sibling rows follow request-level command commit (**C18**).
 * **Declarative Rules:** A powerful YAML-based rule engine that supports complex `AND/OR` triggers, time/environment conditions, and rich payloads (like Hue color presets or Sonos URIs).
 
 ### Sauna Control & Thermal Management

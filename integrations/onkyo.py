@@ -3,6 +3,7 @@ import asyncio
 from typing import Dict, Any
 from loguru import logger
 from core.models import Event, EventType, format_device_ref
+from core.command_commit import claim_and_finish
 
 
 def pack_standard(command: str) -> bytes:
@@ -225,6 +226,7 @@ class OnkyoBridge:
         idx = payload.get("idx")
         writer = self.receivers.get(idx)
         if not writer:
+            claim_and_finish(self.manager, payload, False, "[Onkyo] no TCP writer")
             return
 
         # ⚡ INFINITE ECHO GUARD
@@ -274,12 +276,20 @@ class OnkyoBridge:
                     await asyncio.sleep(boot_delay)
                     writer.write(pack_func("MVLQSTN"))
                     await writer.drain()
+                    command_sent = True
 
                 elif target_state == "OFF":
                     writer.write(pack_func("PWR00"))
                     await writer.drain()
+                    command_sent = True
+
+            if command_sent:
+                claim_and_finish(self.manager, payload, True, "")
+            else:
+                claim_and_finish(self.manager, payload, False, "[Onkyo] empty payload")
 
         except Exception as e:
             logger.error(
                 f"Onkyo command transmission failed on "
                 f"{format_device_ref(self.manager._state, idx)}: {e}")
+            claim_and_finish(self.manager, payload, False, f"[Onkyo] {e}")

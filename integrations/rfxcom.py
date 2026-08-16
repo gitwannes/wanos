@@ -1,10 +1,11 @@
 # --- file: integrations/rfxcom.py ---
 import asyncio
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.models import Event, EventType, SystemState, format_device_ref
 from core.event_catalog import legacy_key_for_bus_token
+from core.command_commit import claim_and_finish, claim_payload
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
@@ -253,15 +254,21 @@ class NativeRFXCOMBridge(WanosComponent):
                 self._last_known_states[idx] = new_state
 
                 if rfx_origin is None:
-                    await self._transmit_physical(idx, new_state)
+                    claim_payload(self.state_manager, event.payload)
+                    asyncio.create_task(self._transmit_and_report(event.payload, idx, new_state))
 
         except Exception as e:
             await self.logger.error(f"[Native RFX] Unexpected error in _on_state_changed: {e}")
 
-    async def _transmit_physical(self, idx: int, state: str) -> None:
+    async def _transmit_and_report(self, payload: Dict[str, Any], idx: int, state: str) -> None:
+        """RFX write off the drain path; C18 success = transport.write completed."""
+        ok, reason = await self._transmit_physical(idx, state)
+        claim_and_finish(self.state_manager, payload, ok, reason if not ok else "")
+
+    async def _transmit_physical(self, idx: int, state: str) -> Tuple[bool, str]:
         config = self._outbound_map.get(idx)
         if not config:
-            return
+            return False, "[RFX] unmapped idx"
 
         target_hex = config["ON"] if state == "ON" else config["OFF"]
         protocol = config["protocol"]
@@ -271,7 +278,7 @@ class NativeRFXCOMBridge(WanosComponent):
             await self.logger.error(
                 f"[Native RFX] Cannot transmit for "
                 f"{format_device_ref(self.state_manager._state, idx)}: transport is dead.")
-            return
+            return False, "[RFX] transport is dead"
 
         try:
             payload_bytes = None
@@ -301,7 +308,7 @@ class NativeRFXCOMBridge(WanosComponent):
                     await self.logger.error(
                         f"[Native RFX] Unknown protocol '{protocol}' for "
                         f"{format_device_ref(self.state_manager._state, idx)}.")
-                    return
+                    return False, f"[RFX] unknown protocol '{protocol}'"
 
                 pkt = pkt_class()
 
@@ -319,12 +326,12 @@ class NativeRFXCOMBridge(WanosComponent):
                             pkt.parse_id(target_hex)
                         except Exception as parse_err:
                             await self.logger.error(f"[Native RFX] Parse failed for {target_hex}: {parse_err}")
-                            return
+                            return False, f"[RFX] parse failed: {parse_err}"
 
                 # The Poison Pill Guard
                 if not hasattr(pkt, 'data') or pkt.data is None:
                     await self.logger.error(f"[Native RFX] Library failed to generate byte array for {target_hex}.")
-                    return
+                    return False, "[RFX] library failed to generate byte array"
 
                 # Strict type casting
                 payload_bytes = bytes(pkt.data) if isinstance(pkt.data, (bytearray, list)) else pkt.data
@@ -335,8 +342,11 @@ class NativeRFXCOMBridge(WanosComponent):
                 await self.logger.info(
                     f"[Native RFX] Transmitted: {format_device_ref(self.state_manager._state, idx)} "
                     f"-> {state} | Protocol: {protocol} | Hex: {target_hex}")
+                return True, ""
+            return False, "[RFX] empty payload"
 
         except Exception as e:
             await self.logger.error(
                 f"[Native RFX] Transmission failed for "
                 f"{format_device_ref(self.state_manager._state, idx)}: {e}")
+            return False, f"[RFX] {e}"

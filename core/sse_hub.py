@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass, field
-from typing import Any, Optional, Set
+from typing import Any, Set
 
 from .models import SystemState
 
@@ -25,9 +25,13 @@ SSE_DOMAIN_KEYS: tuple[str, ...] = (
 )
 
 
-@dataclass
+@dataclass(eq=False)
 class SseClient:
-    """One browser EventSource connection."""
+    """One browser EventSource connection.
+
+    eq=False: identity hash so the hub can keep clients in a set.
+    Default dataclass eq (unfrozen) sets __hash__ = None → TypeError on subscribe.
+    """
 
     queue: asyncio.Queue[str] = field(default_factory=lambda: asyncio.Queue(maxsize=256))
     last_domain_snapshots: dict[str, str] = field(default_factory=dict)
@@ -67,9 +71,9 @@ class SseHub:
                 if domain_data is None:
                     continue
                 if hasattr(domain_data, "model_dump"):
-                    domain_json = json.dumps(domain_data.model_dump())
+                    domain_json = json.dumps(domain_data.model_dump(), default=str)
                 else:
-                    domain_json = json.dumps(domain_data)
+                    domain_json = json.dumps(domain_data, default=str)
                 if client.last_domain_snapshots.get(domain) == domain_json:
                     continue
                 client.last_domain_snapshots[domain] = domain_json
@@ -80,6 +84,21 @@ class SseHub:
                 except asyncio.QueueFull:
                     # Slow consumer — drop delta; client still has REST snapshot + pings.
                     pass
+
+    async def broadcast_payload(self, domain: str, data: Any) -> None:
+        """
+        Push one domain payload (not a SystemState snapshot).
+        C18: per-idx apply/revert (`c18_commit` + `devices`) after request success/fail.
+        """
+        payload = json.dumps({"domain": domain, "data": data}, default=str)
+        line = f"data: {payload}\n\n"
+        async with self._lock:
+            clients = list(self._clients)
+        for client in clients:
+            try:
+                client.queue.put_nowait(line)
+            except asyncio.QueueFull:
+                pass
 
 
 # Process-wide hub wired from main.py → StateManager._sse_hub

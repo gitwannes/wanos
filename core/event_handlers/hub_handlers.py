@@ -6,6 +6,7 @@ from core.models import Event, EventType
 from core.well_known_entities import ENTITY_SAUNA_DOOR
 from logic.alert_manager import AlertManager
 from logic.history_manager import normalize_level, level_max_for_idx
+from core.command_commit import is_outbound_hub_command, claim_payload
 
 # 1. Standard System Logger: Handles general INFO, DEBUG, and ERROR terminal outputs and system health
 from loguru import logger as system_logger
@@ -70,8 +71,16 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
     changed_domains = set()
 
     idx = payload.get("idx")
+    try:
+        if idx is not None:
+            idx = int(idx)
+            payload["idx"] = idx
+    except (TypeError, ValueError):
+        pass
     state_val = payload.get("state")  # "ON" or "OFF"
     old_val = manager._state.devices.get(idx)
+    if old_val is None and idx is not None:
+        old_val = manager._state.devices.get(str(idx))
     is_init = payload.get("is_initialization", False)
 
     # RICH PAYLOAD MERGE FOR ADVANCED DEVICES (Hue, Sonos)
@@ -157,6 +166,12 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         manager._state.devices[idx] = new_val
         state_changed = True
         changed_domains.add("devices")
+
+        # C18: hold sibling Control rows until request success or 0.5 s.
+        if idx is not None and is_outbound_hub_command(payload) and hasattr(manager, "command_commit"):
+            token = manager.command_commit.register(idx, old_val, state_val if state_val is not None else new_val)
+            if token is not None and isinstance(event.payload, dict):
+                event.payload["_c18_token"] = token
 
         # --- ⚡ DEVICE INSIGHTS HISTORY LOGGING ---
         if not is_init and hasattr(manager, "history_manager"):
@@ -336,7 +351,21 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         if epson_idx is not None and idx == epson_idx and (old_val != state_val or is_force):
             if manager._state.system.epson_integration_enabled:
                 if getattr(manager, "epson_bridge", None):
-                    asyncio.create_task(manager.epson_bridge.power(state_val))
+                    c18_token = payload.get("_c18_token") if isinstance(payload, dict) else None
+                    commit = getattr(manager, "command_commit", None)
+                    if commit is not None and c18_token is not None:
+                        commit.claim(idx, c18_token)
+
+                    async def _epson_and_report() -> None:
+                        ok = await manager.epson_bridge.power(state_val)
+                        if commit is None or c18_token is None:
+                            return
+                        if ok:
+                            commit.report_success(idx, c18_token)
+                        else:
+                            commit.report_fail(idx, c18_token, "[Epson] communication failed")
+
+                    asyncio.create_task(_epson_and_report())
                 else:
                     automation_logger.error(
                         "Tried to trigger Epson projector, but bridge is offline or misconfigured.")
@@ -361,6 +390,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
             if manager._state.system.sonos_integration_enabled:
                 if getattr(manager, "sonos_bridge", None):
                     # Route the entire rich payload containing volume and station parameters
+                    claim_payload(manager, payload)
                     asyncio.create_task(manager.sonos_bridge.execute_command(payload))
                 else:
                     automation_logger.error(
@@ -376,6 +406,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         if meta_origin == "onkyo" and (old_val != state_val or is_force or "volume" in payload):
             if manager._state.system.onkyo_integration_enabled:
                 if getattr(manager, "onkyo_bridge", None):
+                    claim_payload(manager, payload)
                     asyncio.create_task(manager.onkyo_bridge.execute_command(payload))
                 else:
                     automation_logger.error(

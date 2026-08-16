@@ -25,6 +25,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, RedirectResponse, JSONResponse, Response
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Receive, Scope, Send
 from loguru import logger
 from datetime import datetime, timedelta, timezone
 
@@ -351,50 +353,89 @@ app: FastAPI = FastAPI(lifespan=lifespan, title="WanOS Backend API")
 failed_attempts: dict[str, dict] = {}
 
 
-@app.middleware("http")
-async def rbac_security_middleware(request: Request, call_next):
-    """Universal Pre-Flight Interceptor enforcing RBAC via Tab-Isolated JWTs."""
-    path = request.url.path
+class RbacASGI:
+    """
+    JWT RBAC as pure ASGI (not BaseHTTPMiddleware).
 
-    # 1. Allow open access to all static assets AND HTML pages initially.
-    # The frontend JS will enforce redirection if its API calls fail.
-    if path.endswith((".js", ".css", ".png", ".ico", ".svg", ".html")) and not path.startswith("/api/"):
-        return await call_next(request)
+    FastAPI @app.middleware("http") wraps StreamingResponse. Keep SSE on a
+    pass-through ASGI stack so the generator is not cancelled after headers.
+    """
 
-    # 2. Redirect root directly to login, preserving query params (magic links)
-    if path == "/":
-        query_string = request.url.query
-        target_url = f"/login.html?{query_string}" if query_string else "/login.html"
-        return RedirectResponse(url=target_url, status_code=302)
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
 
-    # 3. Allow public access to the login endpoint itself
-    if path == "/api/auth/login":
-        return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        request = Request(scope, receive)
+        path = request.url.path
 
-    # 4. EXTRACT TOKEN (From Header for standard API calls, or Query string for SSE stream)
-    token = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-    elif request.query_params.get("jwt"):
-        token = request.query_params.get("jwt")
+        if path.endswith((".js", ".css", ".png", ".ico", ".svg", ".html")) and not path.startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
 
-    # 5. Verify the Token
-    role = None
-    if token:
-        try:
-            payload = jwt.decode(token, config.auth.secret_key, algorithms=["HS256"])
-            role = payload.get("role")
-        except Exception:
-            pass
+        if path == "/":
+            query_string = request.url.query
+            target_url = f"/login.html?{query_string}" if query_string else "/login.html"
+            await RedirectResponse(url=target_url, status_code=302)(scope, receive, send)
+            return
 
-    # 6. Block unauthenticated access to the backend APIs
-    if not role and path.startswith("/api/"):
-        return JSONResponse(status_code=401, content={"detail": "Unauthorized. Session expired."})
+        if path == "/api/auth/login":
+            await self.app(scope, receive, send)
+            return
 
-    # Store role in request state so downstream endpoints can verify admin privileges
-    request.state.role = role
-    return await call_next(request)
+        token = None
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+        elif request.query_params.get("jwt"):
+            token = request.query_params.get("jwt")
+
+        role = None
+        if token:
+            try:
+                payload = jwt.decode(token, config.auth.secret_key, algorithms=["HS256"])
+                role = payload.get("role")
+            except Exception:
+                pass
+
+        if not role and path.startswith("/api/"):
+            await JSONResponse(status_code=401, content={"detail": "Unauthorized. Session expired."})(
+                scope, receive, send
+            )
+            return
+
+        request.state.role = role
+        await self.app(scope, receive, send)
+
+
+class NoCacheStaticASGI:
+    """Cache-bust static HTML/JS/CSS without wrapping API/SSE streams."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        path = scope.get("path") or ""
+        if path.startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(raw=message.setdefault("headers", []))
+                headers["Cache-Control"] = (
+                    "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+                )
+                headers["Pragma"] = "no-cache"
+                headers["Expires"] = "0"
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 class LoginRequest(BaseModel):
@@ -1376,16 +1417,22 @@ async def sse_state_stream(request: Request):
     Payload format: {"domain": "<key>", "data": { ... }}
     The frontend fetches /api/state on connect for the full snapshot, then
     applies these partial updates by domain key as they arrive.
+
+    First byte is an immediate ping: behind nginx, awaiting is_disconnected()
+    before any yield returned 200 + empty body (~10 ms) and EventSource.onerror.
+    X-Accel-Buffering tells nginx 1.18 not to buffer the stream.
     """
     import time
 
-    async def event_generator():
+    def _ping_line() -> str:
+        return f"data: {json.dumps({'domain': 'ping', 'data': {}})}\n\n"
+
+    async def event_generator() -> AsyncGenerator[str, None]:
         client = await sse_hub.subscribe()
         last_ping_time = time.time()
         try:
+            yield _ping_line()
             while not shutdown_event.is_set():
-                if await request.is_disconnected():
-                    break
                 try:
                     line = await asyncio.wait_for(client.queue.get(), timeout=5.0)
                     yield line
@@ -1393,30 +1440,26 @@ async def sse_state_stream(request: Request):
                 except asyncio.TimeoutError:
                     now = time.time()
                     if now - last_ping_time >= 5.0:
-                        ping_payload = json.dumps({"domain": "ping", "data": {}})
-                        yield f"data: {ping_payload}\n\n"
+                        yield _ping_line()
                         last_ping_time = now
+                if await request.is_disconnected():
+                    break
         except asyncio.CancelledError:
             pass
         finally:
             await sse_hub.unsubscribe(client)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
-# TIER 3 CACHE-BUSTING MIDDLEWARE
-# Intercepts every outgoing HTTP request. If the browser is asking for a frontend asset
-# (HTML, JS, CSS), we forcefully inject HTTP headers forbidding the browser from caching it.
-@app.middleware("http")
-async def add_no_cache_headers(request: Request, call_next):
-    response = await call_next(request)
-
-    # Do not mess with API endpoints or SSE streams, only static files.
-    if not request.url.path.startswith("/api/"):
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-    return response
+    # Do not send Connection: keep-alive. HTTP/2 forbids hop-by-hop headers;
+    # nginx 1.18 + listen http2 then yields Chrome net::ERR_HTTP2_PROTOCOL_ERROR
+    # (200) and EventSource.onerror. Keep-alive is implicit for HTTP/1.1 proxy.
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
@@ -1424,3 +1467,8 @@ if os.path.exists(frontend_path):
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 else:
     logger.warning(f"⚠️ Warning: Frontend directory not found at {frontend_path}")
+
+# Last added = outermost. RBAC first; static no-cache must not wrap SSE
+# (BaseHTTPMiddleware is unsafe for StreamingResponse).
+app.add_middleware(NoCacheStaticASGI)
+app.add_middleware(RbacASGI)

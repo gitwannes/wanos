@@ -119,7 +119,7 @@ automations:
   # --------------------------------------------------------------------------
   # 🌍 ENVIRONMENTAL SCHEDULER: BLINDS & TWILIGHT
   # --------------------------------------------------------------------------
-  - name: Blinds open
+  - name: Shutters open
     enabled: true
     trigger:
       event: a130c1d4-1bc9-4491-b126-81f716c045c9
@@ -134,7 +134,7 @@ automations:
           - entity_id: blinds.cinema
             state: '0'
     id: 9d518d73-fbf2-4e11-8aeb-0f2ab7ba7320
-  - name: Blinds close
+  - name: Shutters close
     enabled: true
     trigger:
       event: 70716703-5fc0-438b-8af5-db6a1cb1bd07
@@ -873,13 +873,13 @@ automations:
     require_confirmation: false
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
-    name: Blinds open
+    name: Shutters open
     origin: system
     show_on_dashboard: false
     require_confirmation: false
     enabled: true
   - id: 70716703-5fc0-438b-8af5-db6a1cb1bd07
-    name: Blinds close
+    name: Shutters close
     origin: system
     show_on_dashboard: false
     require_confirmation: false

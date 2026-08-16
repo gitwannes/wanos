@@ -101,7 +101,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A ✅ DONE** (**2026-08-12** — Pi smoke OK + Admin Debug GREEN + docs close-out). **Phase B10G ✅ DONE** (**2026-08-12** — two overlays + load timings modal; SSE A+B+C; admin `v1` ×8; hue_presets scoped reload; Pi smoke A/B/C/D OK). **Phase B10H ✅ DONE** (**2026-08-12** — Automations cold open ~**2.1 s**; SSE reconnect flicker fixed; docs close-out). **Phase B10K ✅ DONE** (**2026-08-15** — timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; one code run with **G3**; Pi smoke + docs close-out). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10** — Library UX UE/UR/SE/SR/D, UE form, When/Fire split, schedule display names, `SUNRISE_SUNSET_UPDATE`; operator Pi smoke + Admin Debug GREEN + kiosk; migrator + D1 aliases deleted). **Phase B10F ✅ DONE** (**2026-08-11** — Automations UX polish: save chrome, fire-status, evening skip, SE→SR/UE→UR, inline usages, CRUD INFO quoted, SR name = SE catalog). **Phase B9A ✅ DONE** (**2026-08-12** — Pi smoke OK + Admin Debug GREEN + docs close-out). **Phase B10G ✅ DONE** (**2026-08-12** — two overlays + load timings modal; SSE A+B+C; admin `v1` ×8; hue_presets scoped reload; Pi smoke A/B/C/D OK). **Phase B10H ✅ DONE** (**2026-08-12** — Automations cold open ~**2.1 s**; SSE reconnect flicker fixed; docs close-out). **Phase B10K ✅ DONE** (**2026-08-15** — timings stopwatch; shutter OPEN/CLOSED; RFX ON/OFF no color; one code run with **G3**; Pi smoke + docs close-out). **Phase B10N ✅ DONE** (**2026-08-15** — closed without dedicated code; operator cannot reproduce; covered by **B10K** Item 3). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered ex–Later B (multi-flow, folder/tag, IF/ELSE, remaining HA, demote schedule, bus UUID, Sauna/IR assess, sauna session_end clamp).
 
 **Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
 
@@ -485,7 +485,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 **Not in Blockly cluster:** **B15** (schedule demotion), **B16** (internal bus UUID), **B17** (assess), **B18** (sauna clamp) — stay in general pipeline after **F** unless safety jumps **B18**.
 
-**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **C18** after **B10H** (sensor live lag, assess→fix); **G5** after Ship **B2** (∥ **B3–B8**); **E** transport ∥ Ships **B5–B8**; Ships **B5 ∥ B6** after **B4** if capacity allows (H5 email half still waits **E**).
+**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **C18** ✅ after **B10H**; **G5** after Ship **B2** (∥ **B3–B8**); **E** transport ∥ Ships **B5–B8**; Ships **B5 ∥ B6** after **B4** if capacity allows (H5 email half still waits **E**).
 
 **After F:** **B20** — Domoticz **Time** trigger + time-compare blocks (every-minute evaluation model).
 
@@ -1292,11 +1292,11 @@ Pointers only — detail under § B10F / § B11–B18:
 * **B10H** — Automations cold-load shorten wait — ✅ **Done 2026-08-12**.
 * **B10I** — Used SE → **Go to SR** — **∥ cluster** (anytime after B10F).
 * **B10J** — **`Event Received`** catalog display name — **∥ cluster** (anytime after B10B).
-* **B10K** — ✅ **Done 2026-08-15** — timings stopwatch + shutter OPEN/CLOSED + RFX ON/OFF (no color); **one code run with G3**. Living schemer leftover → **B10N**.
+* **B10K** — ✅ **Done 2026-08-15** — timings stopwatch + shutter OPEN/CLOSED + RFX ON/OFF (no color); **one code run with G3**.
 * **B10L** — Shared **NOT CONNECTED** overlay: richer connect status + copy **Re-connecting to WanOS...** — **∥ cluster**.
 * **B10M** — Explorer Hue preset duplicate settings — **∥ cluster** (after **B10G** Part D).
-* **B10N** — RFX living schemer still shows color — **∥ cluster** (after **B10K**).
-* **C18** — Explorer sensor live lag (B10H / optimistic leftover) — **assess → fix**; [`phaseC-shell.md`](phaseC-shell.md) § C18.
+* **B10N** — ✅ **Done 2026-08-15** — closed without dedicated code; covered by **B10K** Item 3.
+* **C18** — Explorer Control live lag — ✅ **Done 2026-08-16**; [`phaseC-shell.md`](phaseC-shell.md) § C18.
 * **C19** — History auto-refresh blank — **see C6**; [`phaseC-shell.md`](phaseC-shell.md) § C19.
 * **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
 * **G6** — Scoped `CONFIG_RELOAD` + Automations deferred Save config — [`phaseG-integrations.md`](phaseG-integrations.md); not a new B item.
@@ -1586,7 +1586,7 @@ Eight shell pages @ **`v1`**; `login` / `kiosk` excluded. Bump per page when HTM
 | Lever / fix | Shipped |
 |---|---|
 | **1a** | `asyncio.to_thread` on `GET /api/state`; REST snapshot **cache** refreshed on queue drain + boot warm |
-| **1b** | Event-driven SSE hub (`core/sse_hub.py`) — push on drain; **5 s ping**; no 0.5 s poll |
+| **1b** | Event-driven SSE hub (`core/sse_hub.py`) — push on drain; **5 s ping**; no 0.5 s poll. **C23** (2026-08-16): `SseClient` `@dataclass(eq=False)` + immediate connect ping + pure ASGI (B10H `set.add` was unhashable) |
 | **2** | `refreshAll` in-flight guard (`blocky.js`) |
 | **3** | SSE connect guard (`app.js` / `wanosApp` only) |
 | **4** | Clear yellow overlay after library; defer fire-status; **`coldTimeToInteractiveMs`** |
@@ -1630,7 +1630,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 **Root cause (locked):** (1) sync `get_state_snapshot` + SSE poll blocked single worker; (2) double cold `refreshAll`; (3) later: N+1 YAML on automations list + merge-on-every-events-GET.
 
-**Out of scope (unchanged):** **G8** boot autostart; **G6** scoped reload; nginx as primary fix; list cache (deferred). Explorer sensor live lag after event-driven SSE / optimistic UI → **C18**.
+**Out of scope (unchanged):** **G8** boot autostart; **G6** scoped reload; nginx as primary fix; list cache (deferred). Explorer Control live lag after event-driven SSE / optimistic UI → **C18** ✅. Hub `SseClient` unhashable / dead EventSource → **C23** ✅.
 
 ---
 
@@ -1665,7 +1665,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ### Phase B10K — Automations timings + shutter OPEN/CLOSED + RFX ON/OFF ✅ DONE (2026-08-15)
 
-**Shipped summary:** One code run with **G3**. Pi smoke OK (operator **2026-08-15**). Automations timings modal no longer auto-opens — **stopwatch** immediately right of `vNN`. Shutter Blockly **OPEN / CLOSED** only (no FORCE, no POS). Visible UI **shutters** (Library titles **Shutters open/close**; catalog display names; Hidden-devices type column). RFX **ON/OFF**, no Hue color (`wantHue` excludes `rfxcom`). Identifiers unchanged (`blinds.*`, `BLINDS_*`, UUIDs). YAML leftovers coerce in UI until Save. Load-fail red NOT CONNECTED unchanged → **B10L**. Remaining RFX hole (living schemer still offers color) → **B10N** — not this ship.
+**Shipped summary:** One code run with **G3**. Pi smoke OK (operator **2026-08-15**). Automations timings modal no longer auto-opens — **stopwatch** immediately right of `vNN`. Shutter Blockly **OPEN / CLOSED** only (no FORCE, no POS). Visible UI **shutters** (Library titles **Shutters open/close**; catalog display names; Hidden-devices type column). RFX **ON/OFF**, no Hue color (`wantHue` excludes `rfxcom`). Identifiers unchanged (`blinds.*`, `BLINDS_*`, UUIDs). YAML leftovers coerce in UI until Save. Load-fail red NOT CONNECTED unchanged → **B10L**. Inbox leftover **living schemer color** → **B10N** (closed **2026-08-15** as already covered by Item 3).
 
 | Item | Shipped |
 |---|---|
@@ -1689,9 +1689,9 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 **Item 2 — shutters:** Root cause was `rebuildEntityOptions` defaulting missing `resolved_product_type` to `switch` so `blockyEntityTypeOf` returned switch before `blinds.*`. Operator-facing **shutters** on all visible UI. Do **not** rename `blinds.*` eids, `config.yaml` `blinds:`, `BLINDS_*` keys, UUIDs, internals. Strip FORCE only on shutter devices; Z-Wave switches keep FORCE. No POS / open % this ship — **B9C** remains queued **if %**. Engine + Explorer already do closed-% including mid.
 
-**Item 3 — RFX (separate from shutters):** Origin `rfxcom` even when `device_product_types` is light: ON/OFF only, no Hue color. Engine already always-force RFX — Blockly must not show FORCE. Inbox **2026-08-15** living schemer still shows color → **B10N** (do not reopen this Done ship).
+**Item 3 — RFX (separate from shutters):** Origin `rfxcom` even when `device_product_types` is light: ON/OFF only, no Hue color. Engine already always-force RFX — Blockly must not show FORCE. Inbox **2026-08-15** living schemer still shows color → **B10N** (closed **2026-08-15** as already covered here; do not reopen this Done ship).
 
-**Out of scope (unchanged):** Domoticz Set (**B19**); B9C if-%; Hidden preset (**C12 #9**); alert persist (**C17**); NOT CONNECTED copy (**B10L**); entity_id / config key / EventType renames; living schemer color leftover → **B10N**.
+**Out of scope (unchanged):** Domoticz Set (**B19**); B9C if-%; Hidden preset (**C12 #9**); alert persist (**C17**); NOT CONNECTED copy (**B10L**); entity_id / config key / EventType renames.
 
 ---
 
@@ -1736,18 +1736,19 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ---
 
-### Phase B10N — RFX living schemer still shows color 🔜 TODO
+### Phase B10N — RFX living schemer still shows color ✅ DONE (2026-08-15)
 
-**Origin:** operator inbox **2026-08-15**. Blockly RFX color leftover after **B10K** ✅ — **do not reopen B10K**. Size **low**. **Parallel:** beside **B2–B8**.
+**Closed without a dedicated code run.** Operator **2026-08-15:** cannot reproduce; **probably fixed in earlier phases, likely B10K**. Same RFX no-color rule as **B10K** Item 3 (`wantHue` excludes origin `rfxcom`, including `rfx.living_schemer` typed `light`).
 
-**Operator request (verbatim):**
+**Operator request (verbatim, inbox 2026-08-15):**
 > bug: automation editor: for rfx device "living schemer switch" a 'color' is selectable: that is wrong
 
-**Locked triage intent:** RFX **living schemer switch** must not offer Hue preset / color in Blockly (ON/OFF only). B10K shipped general `rfxcom` / `wantHue` exclude; this device still wrong. Same RFX no-color rule as B10K Item 3 — new ship because B10K is closed.
+**Why closed:** Split off closed **B10K** so that ship stayed Done. No extra Blockly hole was found after the operator re-checked. Do not reopen **B10K**.
 
-**Out of scope:** Reopening **B10K**; shutters (**B10K** Item 2); **B10L** overlay copy.
-
-**B10N DoD:** Living schemer (and any same-class RFX hole found at kickoff) Blockly ON/OFF only, no color; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**B10N DoD:**
+- [x] No dedicated code — covered by **B10K** Item 3
+- [x] Operator cannot reproduce (close command **2026-08-15**)
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-15**
 
 ---
 

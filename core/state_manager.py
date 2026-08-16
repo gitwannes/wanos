@@ -15,6 +15,7 @@ from .entity_registry import EntityRegistry
 from core.event_handlers.registry import EVENT_ROUTERS
 from core.nvm_manager import NVRAMManager
 from core.event_catalog import to_bus_token, legacy_key_for_bus_token
+from core.command_commit import CommandCommit
 
 from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
@@ -46,6 +47,7 @@ class StateManager:
     def __init__(self, mqtt_client: MqttClientManager, logger: WanosLogger) -> None:
         self._state: SystemState = SystemState()
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
+        self._drain_sink: Optional[list] = None
         self._worker_task: Optional[asyncio.Task] = None
         self._state_listeners: list[Any] = []  
         self.mqtt_client: MqttClientManager = mqtt_client
@@ -68,6 +70,9 @@ class StateManager:
 
         # B10H: event-driven SSE broadcast (set from main.py).
         self._sse_hub: Optional[Any] = None
+
+        # C18: Q4/Q5 request-level success/fail (siblings hold old_val until apply).
+        self.command_commit = CommandCommit(self)
 
         # B10H: REST /api/state cache — refreshed on queue drain (avoid per-request deep copy).
         self._api_state_cache: Optional[Dict[str, Any]] = None
@@ -603,15 +608,16 @@ class StateManager:
     def _snapshot_and_cache_for_broadcast(self) -> SystemState:
         """Deep snapshot for MQTT/SSE listeners + refresh REST cache (sync — worker thread)."""
         snapshot: SystemState = self.get_state_snapshot()
+        self.command_commit.hold_pending_on_snapshot(snapshot)
         self._update_api_state_cache_from_snapshot(snapshot)
         return snapshot
 
     def get_api_state_payload(self) -> Dict[str, Any]:
-        """Cached model_dump for GET /api/state; fallback if cache not yet warm."""
+        """Cached model_dump for GET /api/state."""
         with self._api_state_cache_lock:
             cached = self._api_state_cache
         if cached is not None:
-            return cached
+            return dict(cached)
         return self.get_state_snapshot().model_dump()
 
     def _set_hardware_safety_gate(self, state: bool) -> None:
@@ -620,20 +626,24 @@ class StateManager:
     async def _process_events(self) -> None:
         pending_broadcast = False
         changed_domains: Set[str] = set()
-        batch_events: list[Event] = [] 
+        batch_events: list[Event] = []
 
         while True:
             event: Event = await self._queue.get()
             try:
+                # Follow-ups append into this list during _handle_event (same drain).
+                self._drain_sink = batch_events
                 changed, domains = await self._handle_event(event)
                 if changed:
                     pending_broadcast = True
                     changed_domains.update(domains)
-                    batch_events.append(event) 
+                    if event not in batch_events:
+                        batch_events.append(event)
             except Exception as e:
                 type_label = event.type.value if hasattr(event.type, "value") else str(event.type)
                 await self.logger.error(f"Error handling event {type_label}: {e}")
             finally:
+                self._drain_sink = None
                 self._queue.task_done()
 
             if self._queue.empty():
@@ -641,10 +651,17 @@ class StateManager:
                 self.flush_entity_registry()
 
                 if pending_broadcast:
+                    # Snapshot holds C18 in-flight idxs at old_val (Q4/Q5). Listeners
+                    # only send hardware — I/O is create_task, not awaited here.
                     snapshot_obj: SystemState = await asyncio.to_thread(
                         self._snapshot_and_cache_for_broadcast
                     )
-                    domains_for_push: Set[str] = set(changed_domains)
+
+                    if self._sse_hub is not None:
+                        try:
+                            await self._sse_hub.broadcast(snapshot_obj, changed_domains)
+                        except Exception as e:
+                            await self.logger.error(f"Error in SSE hub broadcast: {e}")
 
                     if self.mqtt_publisher:
                         try:
@@ -658,11 +675,8 @@ class StateManager:
                         except Exception as e:
                             await self.logger.error(f"Error in state listener: {e}")
 
-                    if self._sse_hub is not None:
-                        try:
-                            await self._sse_hub.broadcast(snapshot_obj, domains_for_push)
-                        except Exception as e:
-                            await self.logger.error(f"Error in SSE hub broadcast: {e}")
+                    self.command_commit.fail_unclaimed()
+                    self.command_commit.arm_watch()
 
                     pending_broadcast = False
                     changed_domains.clear()
@@ -692,10 +706,18 @@ class StateManager:
         # If the device is currently NULL or "Sync..." in memory, this is its first heartbeat.
         meta_idx = payload.get("idx")
         if meta_idx is not None:
+            try:
+                meta_idx = int(meta_idx)
+                payload["idx"] = meta_idx
+            except (TypeError, ValueError):
+                pass
+        if meta_idx is not None:
             if meta_idx not in self._initialized_idxs:
                 payload["is_initialization"] = True
                 self._initialized_idxs.add(meta_idx)
             current_cached_val: Any = self._state.devices.get(meta_idx)
+            if current_cached_val is None:
+                current_cached_val = self._state.devices.get(str(meta_idx))
             if current_cached_val is None or current_cached_val == "Sync...":
                 payload["is_initialization"] = True
             elif not payload.get("is_initialization"):
@@ -1126,10 +1148,16 @@ class StateManager:
             state_changed = True
             changed_domains.add("sauna")
 
-        # AUTOMATION ENGINE HOOK — pass Event with bus UUID type (catalog) for rule matching
+        # AUTOMATION ENGINE HOOK — apply YAML follow-ups in this drain (do not
+        # dispatch onto the queue: empty()+snapshot would SSE old sibling RAM).
         if self._state.system.automations_enabled:
+            sink = getattr(self, "_drain_sink", None)
+            if state_changed and sink is not None and event not in sink:
+                sink.append(event)
             for auto_event in AutomationEngine.evaluate(event, self._state):
-                self.dispatch(auto_event)
+                ch, dom = await self._handle_event(auto_event)
+                state_changed = state_changed or ch
+                changed_domains |= dom
 
         # ---------------------------------------------------------------------
         # CRITICAL INTERLOCK & SCADA VISUAL ANNUNCIATOR CONCERNS

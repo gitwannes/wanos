@@ -3,12 +3,13 @@ import asyncio
 import json
 import os
 import ssl
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import aiohttp
 from loguru import logger
 
 from core.models import Event, EventType, SystemState, device_name, format_device_ref
 from core.event_catalog import legacy_key_for_bus_token
+from core.command_commit import claim_and_finish, claim_payload
 from core.state_manager import StateManager
 from core.config import AppConfig
 
@@ -305,30 +306,65 @@ class HueLocalBridge:
             if origin == "hue":
                 continue
 
-            # Scenario A: Native Hue Scene Trigger
-            # Fired by config.yaml actions using `target: "hue_scene"`
-            target = payload.get("target")
-            if target == "hue_scene":
-                scene_name = payload.get("scene")
-                idx = payload.get("idx")
-                if scene_name and idx is not None:
-                    await self._send_scene_command(idx, scene_name)
+            if not self._owns_payload(payload):
                 continue
 
-            # Scenario B: Direct Light Command (State, Brightness, Color)
+            # Coerce idx so claim/maps match int keys (JSON/YAML sometimes send str).
+            try:
+                payload["idx"] = int(payload.get("idx"))
+            except (TypeError, ValueError):
+                pass
+
+            # Claim before returning so fail_unclaimed does not treat in-flight PUT as a skip.
+            claim_payload(self.state_manager, payload)
+            # C18: do not await HTTP PUT on the event-worker drain (blocks sibling SSE).
+            asyncio.create_task(self._outbound_and_report(payload))
+
+    def _owns_payload(self, payload: Dict[str, Any]) -> bool:
+        """True when this HUB_STATE_CHANGED targets a Hue light, group, or scene."""
+        if payload.get("target") == "hue_scene":
+            return True
+        idx = payload.get("idx")
+        try:
+            idx_i = int(idx)
+        except (TypeError, ValueError):
+            return False
+        return idx_i in self.idx_to_uuid or idx_i in self.idx_to_group_uuid
+
+    async def _outbound_and_report(self, payload: Dict[str, Any]) -> None:
+        """Send Hue command off the drain path and report C18 request-level success/fail."""
+        result = await self._outbound(payload)
+        if result is None:
+            return
+        ok, reason = result
+        tagged = reason if reason.startswith("[Hue]") else (f"[Hue] {reason}" if reason else "[Hue]")
+        claim_and_finish(self.state_manager, payload, ok, tagged if not ok else "")
+
+    async def _outbound(self, payload: Dict[str, Any]) -> Optional[Tuple[bool, str]]:
+        if not self._is_integration_enabled():
+            return False, "Hue integration disabled"
+
+        target = payload.get("target")
+        if target == "hue_scene":
+            scene_name = payload.get("scene")
             idx = payload.get("idx")
-            if idx in self.idx_to_uuid:
-                await self._send_light_command(idx, payload)
+            if scene_name and idx is not None:
+                return await self._send_scene_command(idx, scene_name)
+            return False, "Hue scene missing scene or idx"
 
-            # Scenario C: Group Command (Rooms and Zones)
-            elif idx in self.idx_to_group_uuid:
-                await self._send_group_command(idx, payload)
+        idx = payload.get("idx")
+        if idx in self.idx_to_uuid:
+            return await self._send_light_command(idx, payload)
+        if idx in self.idx_to_group_uuid:
+            return await self._send_group_command(idx, payload)
+        # Not a Hue idx — Z-Wave/RFX may claim this payload instead.
+        return None
 
-    async def _send_light_command(self, idx: int, payload: Dict[str, Any]) -> None:
+    async def _send_light_command(self, idx: int, payload: Dict[str, Any]) -> Tuple[bool, str]:
         """Translates WanOS abstract rich payloads into Hue API v2 JSON format for individual bulbs."""
         uuid = self.idx_to_uuid.get(idx)
         if not uuid or not self._session:
-            return
+            return False, "no UUID or session"
 
         state_val = payload.get("state")
         bri = payload.get("bri")
@@ -348,11 +384,10 @@ class HueLocalBridge:
             hue_payload["dimming"] = {"brightness": clamped_bri}
 
         if xy is not None and isinstance(xy, list) and len(xy) == 2:
-            # Hue V2 expects explicit x and y nested attributes
             hue_payload["color"] = {"xy": {"x": float(xy[0]), "y": float(xy[1])}}
 
         if not hue_payload:
-            return  # No actionable light data in payload
+            return False, "empty payload"
 
         url = f"https://{self.bridge_ip}/clip/v2/resource/light/{uuid}"
         headers = {"hue-application-key": self.api_key}
@@ -364,15 +399,18 @@ class HueLocalBridge:
                     logger.error(
                         f"🔴 [HUE] API Error {resp.status} for light "
                         f"{format_device_ref(self.state_manager._state, idx)}: {err_text}")
+                    return False, f"HTTP {resp.status}"
+                return True, ""
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on light command: {e}")
             self.is_connected = False
+            return False, str(e)
 
-    async def _send_group_command(self, idx: int, payload: Dict[str, Any]) -> None:
+    async def _send_group_command(self, idx: int, payload: Dict[str, Any]) -> Tuple[bool, str]:
         """Translates WanOS abstract rich payloads into Hue API v2 JSON format for Rooms/Zones."""
         uuid = self.idx_to_group_uuid.get(idx)
         if not uuid or not self._session:
-            return
+            return False, "no group UUID or session"
 
         state_val = payload.get("state")
         bri = payload.get("bri")
@@ -394,7 +432,7 @@ class HueLocalBridge:
             hue_payload["color"] = {"xy": {"x": float(xy[0]), "y": float(xy[1])}}
 
         if not hue_payload:
-            return  # No actionable data
+            return False, "empty payload"
 
         url = f"https://{self.bridge_ip}/clip/v2/resource/grouped_light/{uuid}"
         headers = {"hue-application-key": self.api_key}
@@ -406,11 +444,14 @@ class HueLocalBridge:
                     logger.error(
                         f"🔴 [HUE] API Error {resp.status} for group "
                         f"{format_device_ref(self.state_manager._state, idx)}: {err_text}")
+                    return False, f"HTTP {resp.status}"
+                return True, ""
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on group command: {e}")
             self.is_connected = False
+            return False, str(e)
 
-    async def _send_scene_command(self, idx: int, scene_name: str) -> None:
+    async def _send_scene_command(self, idx: int, scene_name: str) -> Tuple[bool, str]:
         """Triggers a perfectly synchronized native Zigbee multicast scene."""
         clean_name = "".join(
             c for c in scene_name.lower().replace(" ", "_").replace("-", "_") if c.isalnum() or c == "_")
@@ -421,7 +462,7 @@ class HueLocalBridge:
                 f"🟠 [HUE] Scene '{scene_name}' "
                 f"({format_device_ref(self.state_manager._state, idx)}) triggered but not found in mapped room scenes!"
             )
-            return
+            return False, "scene not mapped"
 
         # V2 API requires sending the 'active' recall action to the scene resource UUID
         hue_payload = {"recall": {"action": "active"}}
@@ -432,14 +473,16 @@ class HueLocalBridge:
             async with self._session.put(url, headers=headers, json=hue_payload) as resp:
                 if resp.status not in (200, 207):
                     logger.error(f"🔴 [HUE] API Error {resp.status} for scene '{scene_name}'")
-                else:
-                    logger.info(
-                        f"🎬 [HUE] Multicast Scene triggered natively: {scene_name} "
-                        f"({format_device_ref(self.state_manager._state, idx)})"
-                    )
+                    return False, f"HTTP {resp.status}"
+                logger.info(
+                    f"🎬 [HUE] Multicast Scene triggered natively: {scene_name} "
+                    f"({format_device_ref(self.state_manager._state, idx)})"
+                )
+                return True, ""
         except Exception as e:
             logger.error(f"🔴 [HUE] Communication failure on scene command: {e}")
             self.is_connected = False
+            return False, str(e)
 
     async def _sse_listener_loop(self) -> None:
         """
