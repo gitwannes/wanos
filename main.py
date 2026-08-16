@@ -586,15 +586,9 @@ def _rule_log_kind(rule: dict[str, Any]) -> str:
 
 
 def _primary_trigger_event_id(rule: dict[str, Any]) -> Optional[str]:
-    """First event UUID on a v2 trigger (dict or list of edges)."""
-    trig = rule.get("trigger")
-    if isinstance(trig, dict) and trig.get("event"):
-        return str(trig["event"])
-    if isinstance(trig, list):
-        for t in trig:
-            if isinstance(t, dict) and t.get("event"):
-                return str(t["event"])
-    return None
+    """First event UUID on B19 event Compares or legacy v2 trigger."""
+    from core.automations_schema_b19 import primary_event_id_from_rule
+    return primary_event_id_from_rule(rule)
 
 
 def _bind_sr_name_to_se_catalog(
@@ -605,7 +599,7 @@ def _bind_sr_name_to_se_catalog(
     """
     SR invariant: rule name always equals companion SE catalog name.
 
-    On automations POST/PUT, if the primary trigger is a system event, overwrite
+    On automations POST/PUT, if the primary wake event is a system event, overwrite
     ``name`` from the live catalog (YAML events:) or seed constant so YAML cannot
     drift (e.g. old free-text SR titles).
 
@@ -629,36 +623,53 @@ def _bind_sr_name_to_se_catalog(
 
 def _persist_automation_payload(rule: dict[str, Any]) -> dict[str, Any]:
     """
-    Accept Y1 / flat / v2 payloads; always persist canonical v2 (Phase 6A).
-    SR: force name = SE catalog name when trigger is a system event.
+    B19: persist Domoticz branch shape only. Legacy trigger+cases / Y1 / flat → 400.
     """
     import uuid
 
-    # Prefer validating known legacy shapes when not already v2
-    if not is_v2_rule(rule) and (("on" in rule) or ("off" in rule)):
-        parsed = BranchedAutomationRuleRequest.model_validate(rule)
-        intermediate = parsed.model_dump(exclude_none=True, by_alias=True)
-    elif not is_v2_rule(rule):
-        parsed = FlatAutomationRuleRequest.model_validate(rule)
-        intermediate = parsed.model_dump(exclude_none=True, by_alias=True)
-    else:
-        intermediate = rule
+    from core.automations_schema_b19 import (
+        is_branch_rule,
+        is_legacy_cases_rule,
+        normalize_branch_rule,
+        ordered_branch_dict,
+        validate_branch_entity_ids,
+        validate_branch_rule_for_enable,
+    )
 
-    v2 = ordered_v2_dict(legacy_to_v2(intermediate))
-    if not v2.get("id"):
-        v2["id"] = str(uuid.uuid4())
-    # B10B: default enabled when missing on write.
-    if "enabled" not in v2:
-        v2["enabled"] = True
-    # SR ↔ SE: same name (overwrite free-text / drifted YAML titles).
-    _bind_sr_name_to_se_catalog(v2)
-    validate_v2_entity_ids(v2)
-    if not v2.get("cases"):
-        raise ValueError("Automation must contain at least one case with actions.")
-    for c in v2["cases"]:
-        if not (c.get("actions") or []):
-            raise ValueError("Each case must contain at least one action.")
-    return v2
+    if is_legacy_cases_rule(rule) or (
+        isinstance(rule, dict)
+        and ("trigger" in rule or "cases" in rule)
+        and not is_branch_rule(rule)
+    ):
+        raise ValueError(
+            "Legacy trigger+cases authoring is retired (B19). "
+            "Use branches (If/Do). Multi-device OR leftovers wait Ship B4/H4."
+        )
+    if ("on" in rule) or ("off" in rule) or (
+        not is_branch_rule(rule) and ("conditions" in rule or "actions" in rule)
+        and "branches" not in rule
+    ):
+        raise ValueError(
+            "Legacy Y1/flat automation payloads are retired (B19). Use branches."
+        )
+
+    if not is_branch_rule(rule):
+        raise ValueError("Automation must use branches: [{ when, conditions, actions }, …].")
+
+    br = ordered_branch_dict(normalize_branch_rule(rule))
+    if not br.get("id"):
+        br["id"] = str(uuid.uuid4())
+    if "enabled" not in br:
+        br["enabled"] = True
+    _bind_sr_name_to_se_catalog(br)
+    validate_branch_entity_ids(br)
+    enable_err = validate_branch_rule_for_enable(br)
+    if br.get("enabled", True) is not False and enable_err:
+        raise ValueError(enable_err)
+    if enable_err and br.get("enabled", True) is False:
+        # Disabled invalid drafts are allowed (locked B19).
+        pass
+    return br
 
 
 def _assert_one_system_listener(rule: dict[str, Any]) -> Optional[str]:
@@ -812,8 +823,11 @@ async def delete_automation_api(req_body: AutomationsRuleIdRequest, req: Request
     state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
     if prior:
         try:
-            v2 = ordered_v2_dict(legacy_to_v2(dict(prior)))
-            _log_library_crud(_rule_log_kind(v2), str(v2.get("name") or prior.get("name") or ""), "deleted")
+            _log_library_crud(
+                _rule_log_kind(dict(prior)),
+                str(prior.get("name") or ""),
+                "deleted",
+            )
         except Exception:
             _log_library_crud("user rule", str(prior.get("name") or req_body.id), "deleted")
     return {"status": "Success"}
@@ -1216,15 +1230,24 @@ def _build_state_api_payload() -> dict[str, Any]:
 
 def _list_automations_payload() -> dict[str, Any]:
     """Sync automations list for GET /api/automations (B10H: one YAML load, no N+1 bind)."""
+    from core.automations_schema_b19 import is_branch_rule, ordered_branch_dict, normalize_branch_rule
+
     root, _ = load_automations_roundtrip()
     catalog = events_by_id_from_root(root)
     out: list[dict[str, Any]] = []
     for r in automations_from_root(root):
         if not isinstance(r, dict):
             continue
-        v2 = ordered_v2_dict(legacy_to_v2(dict(r)))
-        _bind_sr_name_to_se_catalog(v2, events_by_id=catalog)
-        out.append(v2)
+        if is_branch_rule(r):
+            try:
+                row = ordered_branch_dict(normalize_branch_rule(dict(r)))
+            except ValueError:
+                row = dict(r)
+        else:
+            # Cutover window: still list legacy v2 until migrator runs.
+            row = ordered_v2_dict(legacy_to_v2(dict(r)))
+        _bind_sr_name_to_se_catalog(row, events_by_id=catalog)
+        out.append(row)
     return {"automations": out}
 
 

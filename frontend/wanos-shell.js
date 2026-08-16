@@ -31,14 +31,14 @@
 
     /** B10G: per-page deploy version (admin-only badge in titleBlock). */
     const PAGE_VERSIONS = {
-        admin: 10,
-        explorer: 10,
-        commander: 10,
-        history: 10,
-        blocky: 10,
-        hiddendevices: 6,
-        lightingautooff: 6,
-        zwave: 6
+        admin: 11,
+        explorer: 11,
+        commander: 11,
+        history: 11,
+        blocky: 18,
+        hiddendevices: 7,
+        lightingautooff: 7,
+        zwave: 7
     };
 
     /** B10G: exact AlertManager-stored strings for reload suppress (T4 C). */

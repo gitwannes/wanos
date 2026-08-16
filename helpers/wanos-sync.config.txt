@@ -66,6 +66,8 @@ wanos-sync.config.txt
 *.zip
 dhcpcd.conf
 *.bak
+# Migrator cutover backups on Pi: <file>.bak-YYYYMMDD-HHMMSS (not covered by *.bak)
+*.bak-*
 *.tmp
 
 [StatsInclude]

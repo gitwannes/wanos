@@ -1,4 +1,5 @@
-// Phase 6B: unified Blockly canvas for schema v2 (trigger + ordered cases).
+// Phase B19: Domoticz If/Do + Else-if/Else (first-match); branches YAML; wake from Compares.
+// Legacy Phase 6B: unified Blockly canvas for schema v2 (trigger + ordered cases) — retired.
 // Contextual dropdowns: only show entries valid for the current trigger / device type.
 // Phase 6C: rich action authoring — Hue preset XOR custom color (iro→bri/xy), blinds open %, Sonos/Onkyo volume, Sonos station.
 // Phase B10A: editor trust — Hue picker-only / type-switch rebuild / no restore-modal;
@@ -36,8 +37,10 @@ const BLOCKY_EDGE_STATES = [
     ["ON", "ON"], ["OFF", "OFF"]
 ];
 
-/** Blue trigger roots — B10E adds system-event twin of When user event. */
-const BLOCKY_ROOT_TRIGGERS = new Set([
+/** B19: single If/Do control root (Else-if / Else chain via next). */
+const BLOCKY_ROOT_TRIGGERS = new Set(["b_if_do"]);
+/** @deprecated legacy — kept only so old workspaces dispose cleanly; not in toolbox. */
+const BLOCKY_LEGACY_TRIGGERS = new Set([
     "b_trig_device", "b_trig_or", "b_trig_event", "b_trig_event_sys"
 ]);
 /** Event-trigger roots (user or system) — same wire shape { event: uuid }. */
@@ -46,6 +49,10 @@ const BLOCKY_EVENT_TRIGGERS = new Set(["b_trig_event", "b_trig_event_sys"]);
 const BLOCKY_EVENT_EDGES = new Set(["b_trig_event_edge", "b_trig_event_edge_sys"]);
 /** Fire-event action block types. */
 const BLOCKY_EVENT_ACTIONS = new Set(["b_action_event", "b_action_event_sys"]);
+/** B19 control branch chain. */
+const BLOCKY_CONTROL_BRANCH = new Set(["b_if_do", "b_else_if", "b_else"]);
+/** Event Compare block types. */
+const BLOCKY_EVENT_COMPARES = new Set(["b_condition_event", "b_condition_event_sys"]);
 /**
  * Sensor / temp-class — B9A (G2): allowed for trigger (When) + condition (if), never
  * action. Motion is handled separately (trigger only, never condition/action).
@@ -98,10 +105,10 @@ const BLOCKY_ACTION_UI_KEYS = new Set([
     "entity_id", "state", "event", "preset", "bri", "xy", "volume", "station"
 ]);
 const BLOCKY_CONDITION_LEGAL_KEYS = new Set([
-    "type", "entity_id", "is", "op", "attribute"
+    "type", "entity_id", "event", "is", "op", "attribute"
 ]);
 const BLOCKY_CONDITION_UI_KEYS = new Set([
-    "type", "entity_id", "is", "op", "attribute"
+    "type", "entity_id", "event", "is", "op", "attribute"
 ]);
 const BLOCKY_TRIGGER_LEGAL_KEYS = new Set([
     "entity_id", "state", "event", "op", "attribute"
@@ -109,7 +116,7 @@ const BLOCKY_TRIGGER_LEGAL_KEYS = new Set([
 const BLOCKY_TRIGGER_UI_KEYS = new Set([
     "entity_id", "state", "event", "op", "attribute"
 ]);
-const BLOCKY_SUPPORTED_CONDITION_TYPES = new Set(["device_state", "time_of_day"]);
+const BLOCKY_SUPPORTED_CONDITION_TYPES = new Set(["device_state", "time_of_day", "event"]);
 
 /** Deep-enough copy for opaque bag values (scalars / small arrays / plain objects). */
 function blockyOpaqueClone(value) {
@@ -318,8 +325,9 @@ function blockyEntityAllowedForRole(opt, role) {
         return role === "condition";
     }
     if (blockyIsMotionEntity(opt)) {
-        // Motion OK as When-device trigger (garage/toilet); never a condition.
-        return role === "trigger";
+        // B19: motion wakes via device Compare (If), same as other discrete devices.
+        // Never an action target.
+        return role === "trigger" || role === "condition";
     }
     // G2: sensor-like classes (temp/hum/power/energy/fluid/type:sensor) are now
     // legal for both trigger (When) and condition (if) — see blockyConditionIsNumeric.
@@ -458,12 +466,26 @@ function blockyActionStateOptions(block) {
 function blockyConditionStateOptions(block) {
     const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
     if (type === "blinds" || type === "shutter") {
-        return [["OPEN", "0"], ["CLOSED", "100"]];
+        // Level profile normally owns shutters; keep OPEN/CLOSED + transitioned if discrete shape used.
+        return [
+            ["OPEN", "0"],
+            ["CLOSED", "100"],
+            ["transitioned", "ANY"]
+        ];
     }
     if (type === "door") {
-        return [["OPEN", "OPEN"], ["CLOSED", "CLOSED"]];
+        return [
+            ["OPEN", "OPEN"],
+            ["CLOSED", "CLOSED"],
+            ["transitioned", "ANY"]
+        ];
     }
-    return [["ON", "ON"], ["OFF", "OFF"]];
+    // Lights / switches / status: ON, OFF, or any edge (wake).
+    return [
+        ["ON", "ON"],
+        ["OFF", "OFF"],
+        ["transitioned", "ANY"]
+    ];
 }
 
 /** Compare op menu shared by numeric conditions and numeric device triggers. */
@@ -484,11 +506,16 @@ function blockyConditionCompareProfile(eid) {
     const type = blockyEntityTypeOf(id);
     if (type === "door" || blockyIsMotionEntity(id)) return { kind: "discrete" };
 
-    // B9C: shutters — OPEN | CLOSED | open % compare (UI open %, YAML closed %).
+    // B9C: shutters — OPEN | CLOSED | transitioned | open % compare (UI open %, YAML closed %).
     if (type === "blinds" || type === "shutter") {
         return {
             kind: "level",
-            modes: [["OPEN", "OPEN"], ["CLOSED", "CLOSED"], ["open %", "PCT"]],
+            modes: [
+                ["OPEN", "OPEN"],
+                ["CLOSED", "CLOSED"],
+                ["transitioned", "ANY"],
+                ["open %", "PCT"]
+            ],
             attribute: "position",
             valueUi: "open_pct",
             unit: "% open",
@@ -496,11 +523,16 @@ function blockyConditionCompareProfile(eid) {
             max: 100
         };
     }
-    // B9C: Sonos / Onkyo — ON | OFF | volume compare (0…max_volume).
+    // B9C: Sonos / Onkyo — ON | OFF | transitioned | volume compare (0…max_volume).
     if (type === "speaker" || type === "media_player") {
         return {
             kind: "level",
-            modes: [["ON", "ON"], ["OFF", "OFF"], ["volume", "PCT"]],
+            modes: [
+                ["ON", "ON"],
+                ["OFF", "OFF"],
+                ["transitioned", "ANY"],
+                ["volume", "PCT"]
+            ],
             attribute: "volume",
             valueUi: "raw",
             unit: "",
@@ -592,6 +624,7 @@ function blockyConditionIsNumeric(eid, block) {
 
 /**
  * Rebuild the dynamic "is …" row on b_condition_device:
+ * motion → fixed "motion" label (wake on detect; YAML is: ON);
  * sensors → temp/hum ATTR + OP + VALUE + unit;
  * level → MODE (OPEN/CLOSED/ON/OFF/PCT) + optional OP/VALUE;
  * discrete → STATE dropdown.
@@ -615,6 +648,12 @@ function blockyConditionUpdateShape(block, opts) {
         });
 
         blockyRemoveInput(block, "COMPARE");
+
+        // Motion sensors only wake on detect — no ON/OFF/transitioned picker.
+        if (blockyIsMotionEntity(eid)) {
+            block.appendDummyInput("COMPARE").appendField("motion");
+            return;
+        }
 
         if (profile.kind === "sensor") {
             const input = block.appendDummyInput("COMPARE").appendField("is");
@@ -690,6 +729,12 @@ function blockyApplyConditionRich(block, cond) {
     );
     const profile = blockyConditionCompareProfile(eid);
 
+    // Motion: fixed chrome only (ignore stored is; always ON on emit).
+    if (blockyIsMotionEntity(eid)) {
+        blockyConditionUpdateShape(block);
+        return;
+    }
+
     if (profile.kind === "sensor") {
         blockyConditionUpdateShape(block, {
             forceOp: cond.op || "==",
@@ -700,6 +745,11 @@ function blockyApplyConditionRich(block, cond) {
     }
 
     if (profile.kind === "level") {
+        // Any edge (ON↔OFF / OPEN↔CLOSED) — same YAML is: ANY as discrete wake.
+        if (String(cond.is || "").toUpperCase() === "ANY") {
+            blockyConditionUpdateShape(block, { forceMode: "ANY" });
+            return;
+        }
         const attr = String(cond.attribute || "").toLowerCase();
         const n = Number(cond.is);
         const wantPct = attr === profile.attribute
@@ -733,7 +783,9 @@ function blockyApplyConditionRich(block, cond) {
 
     const type = blockyEntityTypeOf(eid);
     let forceSt = cond.is || "ON";
-    if (type === "blinds" || type === "shutter") {
+    if (String(forceSt).toUpperCase() === "ANY") {
+        forceSt = "ANY";
+    } else if (type === "blinds" || type === "shutter") {
         forceSt = blockyBlindsUiStateFromStored(cond.is) === "CLOSED" ? "100" : "0";
     }
     blockyConditionUpdateShape(block, { forceState: forceSt });
@@ -1713,10 +1765,42 @@ function defineBlockyBlocks(Blockly, providers) {
         }
     };
 
+    // --- B19 Domoticz If/Do + Else-if + Else (first-match; gear = next-chain) ---
+    Blockly.Blocks.b_if_do = {
+        init() {
+            // No title row — If / Do statement labels are enough.
+            this.appendStatementInput("IF").setCheck("Condition").appendField("If");
+            this.appendStatementInput("DO").setCheck("Action").appendField("Do");
+            this.setNextStatement(true, "BranchCont");
+            this.setColour(120);
+            this.setTooltip("If/Do — first branch. Chain Else-if / Else below. First match wins.");
+        }
+    };
+    Blockly.Blocks.b_else_if = {
+        init() {
+            this.appendDummyInput().appendField("Else-if");
+            // No second "If" label — Else-if title already names the branch.
+            this.appendStatementInput("IF").setCheck("Condition");
+            this.appendStatementInput("DO").setCheck("Action").appendField("Do");
+            this.setPreviousStatement(true, "BranchCont");
+            this.setNextStatement(true, "BranchCont");
+            this.setColour(120);
+            this.setTooltip("Else-if branch (first match wins — not Domoticz stacked-If).");
+        }
+    };
+    Blockly.Blocks.b_else = {
+        init() {
+            this.appendDummyInput().appendField("Else");
+            this.appendStatementInput("DO").setCheck("Action").appendField("Do");
+            this.setPreviousStatement(true, "BranchCont");
+            this.setColour(120);
+            this.setTooltip("Else — runs only when no prior If/Else-if matched.");
+        }
+    };
+
     Blockly.Blocks.b_condition_device = {
         init() {
             this.appendDummyInput("MAIN")
-                .appendField("if device")
                 .appendField(new Blockly.FieldDropdown(entityConditionDd), "ENTITY");
             this.setPreviousStatement(true, "Condition");
             this.setNextStatement(true, "Condition");
@@ -1735,18 +1819,40 @@ function defineBlockyBlocks(Blockly, providers) {
     Blockly.Blocks.b_condition_time = {
         init() {
             this.appendDummyInput()
-                .appendField("if time is")
+                .appendField("time is")
                 .appendField(new Blockly.FieldDropdown([["dark", "dark"], ["light", "light"]]), "TOD");
             this.setPreviousStatement(true, "Condition");
             this.setNextStatement(true, "Condition");
             this.setColour(60);
         }
     };
+    Blockly.Blocks.b_condition_event = {
+        init() {
+            this.appendDummyInput()
+                .appendField("user event")
+                .appendField(new Blockly.FieldDropdown(eventUserTrigDd), "EVENT");
+            this.setPreviousStatement(true, "Condition");
+            this.setNextStatement(true, "Condition");
+            this.setColour(60);
+            this.setTooltip("Wake + match when this user catalog event is on the bus.");
+        }
+    };
+    Blockly.Blocks.b_condition_event_sys = {
+        init() {
+            this.appendDummyInput()
+                .appendField("system event")
+                .appendField(new Blockly.FieldDropdown(eventSysTrigDd), "EVENT");
+            this.setPreviousStatement(true, "Condition");
+            this.setNextStatement(true, "Condition");
+            this.setColour(60);
+            this.setTooltip("Wake + match when this system catalog event is on the bus.");
+        }
+    };
     Blockly.Blocks.b_action_device = {
         init() {
             const block = this;
             this.appendDummyInput("MAIN")
-                .appendField("set device")
+                .appendField("Set")
                 .appendField(new Blockly.FieldDropdown(entityActionDd, (newEid) => {
                     // Validator runs before commit — ENTITY field still holds previous id.
                     const prevEid = block.getFieldValue("ENTITY");
@@ -1820,69 +1926,45 @@ function defineBlockyBlocks(Blockly, providers) {
 }
 
 function blockyToolboxDefinition(_presentTypes) {
-    // Trigger flyout always available so operators can replace a deleted root.
-    // Uniqueness still enforces one blue root on the canvas (extras are dropped).
+    // B19 Domoticz drawers — legacy When/case removed from toolbox.
     const contents = [
         {
             kind: "category",
-            name: "Trigger",
-            colour: "#5C81A6",
-            contents: [
-                { kind: "block", type: "b_trig_device" },
-                { kind: "block", type: "b_trig_or" },
-                { kind: "block", type: "b_trig_event" },
-                { kind: "block", type: "b_trig_event_sys" }
-            ]
-        }
-    ];
-    let showOrEdges = false;
-    try {
-        const ws = blockyWs();
-        if (ws) {
-            const roots = ws.getTopBlocks(false).filter((b) => BLOCKY_ROOT_TRIGGERS.has(b.type));
-            showOrEdges = roots.some((b) => b.type === "b_trig_or");
-        }
-    } catch (e) { /* ignore */ }
-    // OR edges only snap inside “When any of” — hide the category otherwise.
-    if (showOrEdges) {
-        contents.push({
-            kind: "category",
-            name: "OR edges",
-            colour: "#6B8CAE",
-            contents: [
-                { kind: "block", type: "b_trig_device_edge" },
-                { kind: "block", type: "b_trig_event_edge" },
-                { kind: "block", type: "b_trig_event_edge_sys" }
-            ]
-        });
-    }
-    contents.push(
-        {
-            kind: "category",
-            name: "Cases",
+            name: "Control",
             colour: "#5CA65C",
-            contents: [{ kind: "block", type: "b_case" }]
+            contents: [
+                { kind: "block", type: "b_if_do" },
+                { kind: "block", type: "b_else_if" },
+                { kind: "block", type: "b_else" }
+            ]
         },
         {
             kind: "category",
-            name: "Conditions",
+            name: "Logic",
             colour: "#A6745C",
             contents: [
                 { kind: "block", type: "b_condition_device" },
-                { kind: "block", type: "b_condition_time" }
+                { kind: "block", type: "b_action_device" }
             ]
         },
         {
             kind: "category",
-            name: "Actions",
+            name: "Time",
+            colour: "#5C81A6",
+            contents: [{ kind: "block", type: "b_condition_time" }]
+        },
+        {
+            kind: "category",
+            name: "Events",
             colour: "#A65C81",
             contents: [
-                { kind: "block", type: "b_action_device" },
+                { kind: "block", type: "b_condition_event" },
+                { kind: "block", type: "b_condition_event_sys" },
                 { kind: "block", type: "b_action_event" },
                 { kind: "block", type: "b_action_event_sys" }
             ]
         }
-    );
+    ];
     return { kind: "categoryToolbox", contents };
 }
 
@@ -2027,10 +2109,16 @@ function blockyWs() {
 function blockyFingerprint(block) {
     if (!block) return "";
     const t = block.type;
-    if (BLOCKY_ROOT_TRIGGERS.has(t)) return "trigger";
+    if (BLOCKY_ROOT_TRIGGERS.has(t) || t === "b_else_if" || t === "b_else") return "control";
     try {
+        if (BLOCKY_EVENT_COMPARES.has(t)) {
+            return `cond:event:${block.getFieldValue("EVENT") || ""}`;
+        }
         if (t === "b_condition_device") {
             const eid = block.getFieldValue("ENTITY");
+            if (blockyIsMotionEntity(eid)) {
+                return `cond:device:${eid}:motion`;
+            }
             const profile = blockyConditionCompareProfile(eid);
             if (profile.kind === "level") {
                 const mode = block.getFieldValue("MODE") || "";
@@ -2142,7 +2230,7 @@ function blockyEnforceUniqueness(forceToolbox) {
                 }
             }
         }
-        // Only one root trigger — keep the existing rule; reject extras.
+        // Only one If/Do root — keep the existing rule; reject extras.
         const roots = ws.getTopBlocks(false).filter((b) => BLOCKY_ROOT_TRIGGERS.has(b.type));
         if (roots.length > 1) {
             const newId = BlockyRT.pendingCreateRootId;
@@ -2150,13 +2238,13 @@ function blockyEnforceUniqueness(forceToolbox) {
             let rejected = false;
             roots.forEach((b) => {
                 if (b.id === keep.id) return;
-                // healStack true — keep case chain attached to the surviving trigger.
+                // healStack true — keep Else-if chain attached to the surviving If/Do.
                 try { b.dispose(true); changed = true; rejected = true; } catch (e) { /* ignore */ }
             });
             blockyRefreshCaseMatchLabels(keep.getNextBlock());
             if (rejected && BlockyRT.app) {
                 BlockyRT.app.infoMessage =
-                    "Only one trigger per rule — delete the current blue block before adding another type.";
+                    "Only one If/Do per rule — use Else-if / Else on the chain (gear-style next blocks).";
             }
         }
         BlockyRT.pendingCreateRootId = null;
@@ -2165,8 +2253,8 @@ function blockyEnforceUniqueness(forceToolbox) {
         ws.getAllBlocks(false).forEach((b) => {
             if (b.isInsertionMarker) return;
             const fp = blockyFingerprint(b);
-            if (!fp || fp === "trigger") return;
-            // Immediate parent scope: allows same device twice in one case (per-action rich).
+            if (!fp || fp === "trigger" || fp === "control") return;
+            // Immediate parent scope: allows same device twice in one branch (per-action rich).
             const parent = b.getParent();
             const scope = parent ? parent.id : "top";
             const key = `${scope}::${fp}`;
@@ -2180,7 +2268,7 @@ function blockyEnforceUniqueness(forceToolbox) {
     } finally {
         Events.enable();
         BlockyRT.enforcing = false;
-        // Always refresh — OR-edges category depends on whether root is “When any of”.
+        // Always refresh toolbox after uniqueness.
         blockyRefreshToolbox();
     }
 }
@@ -2356,22 +2444,21 @@ function blockyOrphanLeaves(ws) {
         if (!b) return false;
         if (b.isInsertionMarker) return false;
         if (typeof b.isDeadOrDying === "function" && b.isDeadOrDying()) return false;
-        if (BLOCKY_ROOT_TRIGGERS.has(b.type)) return false;
-        if (b.type === "b_case") {
+        if (b.type === "b_if_do") return false;
+        if (b.type === "b_else_if" || b.type === "b_else") {
             const prev = b.previousConnection;
             return !(prev && prev.isConnected());
-        }
-        // trig edges may be inside OR
-        if (b.type === "b_trig_device_edge" || BLOCKY_EVENT_EDGES.has(b.type)) {
-            const p = b.getParent();
-            if (p && p.type === "b_trig_or") return false;
-            return true; // must live inside “When any of”
         }
         if (b.type === "b_condition_device" || b.type === "b_condition_time"
+            || BLOCKY_EVENT_COMPARES.has(b.type)
             || b.type === "b_action_device" || BLOCKY_EVENT_ACTIONS.has(b.type)) {
-            // Statement stacks: previousConnection is authoritative (getParent can lag).
             const prev = b.previousConnection;
             return !(prev && prev.isConnected());
+        }
+        // Legacy blocks (if any left on canvas) count as orphans — must delete.
+        if (BLOCKY_LEGACY_TRIGGERS.has(b.type) || b.type === "b_case"
+            || b.type === "b_trig_device_edge" || BLOCKY_EVENT_EDGES.has(b.type)) {
+            return true;
         }
         return false;
     });
@@ -2393,6 +2480,98 @@ function blockyReadChain(start, fn) {
         cur = cur.getNextBlock();
     }
     return out;
+}
+
+/**
+ * Project legacy v2 trigger+cases → B19 branches for canvas load (cutover window).
+ * Mirrors core/automations_schema_b19.convert_v2_rule_to_branches (simplified).
+ */
+function blockyProjectLegacyToBranches(rule) {
+    if (rule && Array.isArray(rule.branches)) return rule;
+    const cases = (rule && rule.cases) || [];
+    let trig = (rule && rule.trigger) || {};
+    // Unwrap singleton list triggers (same as migrator).
+    if (Array.isArray(trig) && trig.length === 1) trig = trig[0];
+    const branches = [];
+    const wakeCommon = [];
+    if (Array.isArray(trig)) {
+        // True OR-list — unexpressable; empty if/do for operator fix
+        return {
+            id: rule.id,
+            name: rule.name,
+            enabled: rule.enabled !== false,
+            branches: [{ when: "if", conditions: [], actions: [] }]
+        };
+    }
+    if (trig.event) {
+        wakeCommon.push({ type: "event", event: String(trig.event) });
+    }
+    const deviceEid = trig.entity_id ? String(trig.entity_id) : "";
+    const numericTrig = !!(trig.op);
+    if (numericTrig && deviceEid) {
+        const c = {
+            type: "device_state",
+            entity_id: deviceEid,
+            op: String(trig.op),
+            is: trig.state
+        };
+        if (trig.attribute) c.attribute = trig.attribute;
+        wakeCommon.push(c);
+    }
+    const list = cases.length ? cases : [{ actions: [] }];
+    list.forEach((c, i) => {
+        const when = i === 0 ? "if" : "else_if";
+        const conds = wakeCommon.map((x) => Object.assign({}, x));
+        if (deviceEid && !numericTrig) {
+            const ts = c.to_state;
+            if (ts == null || ts === "") {
+                conds.push({ type: "device_state", entity_id: deviceEid, is: "ANY" });
+            } else {
+                conds.push({
+                    type: "device_state",
+                    entity_id: deviceEid,
+                    is: String(ts).toUpperCase()
+                });
+            }
+        }
+        (c.conditions || []).forEach((cc) => conds.push(Object.assign({}, cc)));
+        branches.push({
+            when,
+            conditions: conds,
+            actions: (c.actions || []).map((a) => Object.assign({}, a))
+        });
+    });
+    return {
+        id: rule.id,
+        name: rule.name,
+        enabled: rule.enabled !== false,
+        branches
+    };
+}
+
+/** Build condition blocks from B19 condition dicts. */
+function blockyConditionBlocksFromList(conds) {
+    return (conds || []).map((c) => {
+        if (!c || typeof c !== "object") return null;
+        if (c.type === "time_of_day") {
+            return blockyMkBlock("b_condition_time", { TOD: c.is || "dark" });
+        }
+        if (c.type === "event") {
+            const eid = String(c.event || "");
+            let origin = "user";
+            try {
+                if (BlockyRT.app && typeof BlockyRT.app._eventOrigin === "function") {
+                    origin = BlockyRT.app._eventOrigin(eid);
+                }
+            } catch (e) { /* ignore */ }
+            const type = origin === "system" ? "b_condition_event_sys" : "b_condition_event";
+            return blockyMkBlock(type, { EVENT: eid });
+        }
+        // device_state (incl. is: ANY → UI "transitioned")
+        const blk = blockyMkBlock("b_condition_device", { ENTITY: c.entity_id });
+        blockyApplyConditionRich(blk, c);
+        return blk;
+    }).filter(Boolean);
 }
 
 function blockyApp() {
@@ -2562,15 +2741,12 @@ function blockyApp() {
             const saved = rid
                 ? (this.automations || []).find((r) => r && String(r.id) === String(rid))
                 : null;
-            let trigger = saved && saved.trigger;
-            if (!trigger) {
-                try {
-                    trigger = JSON.parse(this.editor.ruleJson || "{}").trigger;
-                } catch (e) {
-                    trigger = null;
-                }
+            if (saved) return this._primaryEventIdFromRule(saved);
+            try {
+                return this._primaryEventIdFromRule(JSON.parse(this.editor.ruleJson || "{}"));
+            } catch (e) {
+                return "";
             }
-            return this._primaryTriggerEventId(trigger);
         },
 
         /** Manual test fire — saved UR/SR only (same bus path as Explorer scene buttons). */
@@ -2610,12 +2786,12 @@ function blockyApp() {
             if (this.selectedRule && this.selectedRule.isSystemEventRow) {
                 return String(this.selectedRule.id || this.editor.id || "");
             }
-            let trigger = this.selectedRule && this.selectedRule.trigger;
-            if (!trigger) {
-                try { trigger = JSON.parse(this.editor.ruleJson || "{}").trigger; }
-                catch (e) { trigger = null; }
+            let rule = this.selectedRule;
+            if (!rule || (!rule.branches && !rule.trigger)) {
+                try { rule = JSON.parse(this.editor.ruleJson || "{}"); }
+                catch (e) { rule = null; }
             }
-            const evId = this._primaryTriggerEventId(trigger);
+            const evId = this._primaryEventIdFromRule(rule);
             if (!evId) return "";
             if (this._eventOrigin(evId) === "user") return evId;
             return "";
@@ -2649,7 +2825,7 @@ function blockyApp() {
             if (!eid) return "";
             for (const rule of this.automations || []) {
                 if (!rule) continue;
-                if (this._primaryTriggerEventId(rule.trigger) === eid) {
+                if (this._primaryEventIdFromRule(rule) === eid) {
                     return String(rule.listName || rule.name || rule.id || "");
                 }
             }
@@ -2672,7 +2848,10 @@ function blockyApp() {
         libraryRowLabel(row) {
             if (!row) return "(unnamed)";
             if (row.listName) return row.listName;
-            return row.name || "(unnamed)";
+            const base = row.name || "(unnamed)";
+            if (row.isEventRow || row.isSystemEventRow || row.isDraft) return base;
+            const wake = this._wakeSummaryFromRule(row);
+            return wake ? `${base} · ${wake}` : base;
         },
 
         /** Disabled for exclusive Show disabled/unused filter (UE/UR/SR/D). SE uses unused XOR separately. */
@@ -2694,7 +2873,7 @@ function blockyApp() {
             if (rule.libraryKind) return rule.libraryKind;
             if (rule.isEventRow) return "ue";
             if (rule.isSystemEventRow) return "se";
-            const evId = this._primaryTriggerEventId(rule.trigger);
+            const evId = this._primaryEventIdFromRule(rule);
             if (evId) {
                 if (this._eventOrigin(evId) === "system") return "sr";
                 return "ur";
@@ -2745,8 +2924,17 @@ function blockyApp() {
             });
         },
 
-        _primaryTriggerEventId(trigger) {
-            let t = trigger;
+        _primaryTriggerEventId(triggerOrRule) {
+            // B19: full rule with branches — first event Compare.
+            if (triggerOrRule && Array.isArray(triggerOrRule.branches)) {
+                for (const br of triggerOrRule.branches) {
+                    for (const c of (br && br.conditions) || []) {
+                        if (c && c.type === "event" && c.event) return String(c.event);
+                    }
+                }
+                return "";
+            }
+            let t = triggerOrRule;
             if (Array.isArray(t) && t.length === 1) t = t[0];
             if (Array.isArray(t)) {
                 const first = (t || []).find((x) => x && x.event && !x.entity_id);
@@ -2754,6 +2942,44 @@ function blockyApp() {
             }
             if (t && t.event && !t.entity_id) return String(t.event);
             return "";
+        },
+
+        /** Wake event id from a stored automation row (branches or legacy trigger). */
+        _primaryEventIdFromRule(rule) {
+            if (!rule || typeof rule !== "object") return "";
+            if (Array.isArray(rule.branches)) return this._primaryTriggerEventId(rule);
+            return this._primaryTriggerEventId(rule.trigger);
+        },
+
+        /** Read-only Library wake summary from Compares (B19). */
+        _wakeSummaryFromRule(rule) {
+            if (!rule || typeof rule !== "object") return "";
+            const parts = [];
+            const seen = new Set();
+            const push = (s) => {
+                const k = String(s || "");
+                if (!k || seen.has(k)) return;
+                seen.add(k);
+                parts.push(k);
+            };
+            if (Array.isArray(rule.branches)) {
+                for (const br of rule.branches) {
+                    for (const c of (br && br.conditions) || []) {
+                        if (!c) continue;
+                        if (c.type === "device_state" && c.entity_id) push(c.entity_id);
+                        if (c.type === "event" && c.event) {
+                            push(this._catalogEventName(c.event) || c.event);
+                        }
+                    }
+                }
+            } else if (rule.trigger) {
+                const t = Array.isArray(rule.trigger) ? rule.trigger : [rule.trigger];
+                t.forEach((x) => {
+                    if (x && x.entity_id) push(x.entity_id);
+                    if (x && x.event) push(this._catalogEventName(x.event) || x.event);
+                });
+            }
+            return parts.join(", ");
         },
 
         /** Catalog origin for an event UUID (`user` | `system` | ""). */
@@ -2778,7 +3004,7 @@ function blockyApp() {
          */
         _bindSrNameToSeCatalog(payload) {
             if (!payload || typeof payload !== "object") return payload;
-            const evId = this._primaryTriggerEventId(payload.trigger);
+            const evId = this._primaryEventIdFromRule(payload);
             if (!evId || this._eventOrigin(evId) !== "system") return payload;
             const catName = this._catalogEventName(evId);
             if (catName) {
@@ -2795,7 +3021,7 @@ function blockyApp() {
          */
         _ruleDisplayName(rule) {
             if (!rule) return "(unnamed)";
-            const evId = this._primaryTriggerEventId(rule.trigger);
+            const evId = this._primaryEventIdFromRule(rule);
             if (evId && this._eventOrigin(evId) === "system") {
                 return (
                     this._catalogEventName(evId)
@@ -2815,7 +3041,7 @@ function blockyApp() {
             const names = [];
             for (const rule of this.automations || []) {
                 if (!rule) continue;
-                if (this._primaryTriggerEventId(rule.trigger) === id) {
+                if (this._primaryEventIdFromRule(rule) === id) {
                     names.push(this._ruleDisplayName(rule));
                 }
             }
@@ -2871,7 +3097,7 @@ function blockyApp() {
             const out = new Set();
             for (const rule of this.automations || []) {
                 if (!rule) continue;
-                const evId = this._primaryTriggerEventId(rule.trigger);
+                const evId = this._primaryEventIdFromRule(rule);
                 if (evId && this._eventOrigin(evId) === "system") out.add(evId);
             }
             return out;
@@ -3193,7 +3419,7 @@ function blockyApp() {
 
         /**
          * role: "trigger" | "condition" | "action"
-         * Sensors/temp excluded; motion OK as trigger only; actions = actuators only.
+         * Motion OK as trigger or condition (B19 Compare wake); actions = actuators only.
          * Sticky: eids still selected for this role stay in the menu on the wrong Hidden
          * side (can clear, cannot re-pick once gone). Hard deny never sticky.
          * HIDDEN is exclusive (ON = soft-hidden catalog; OFF = non-hidden) + sticky current.
@@ -3271,6 +3497,28 @@ function blockyApp() {
             const push = (eid) => {
                 if (eid) out.push(String(eid));
             };
+            // B19: sticky from branches. Legacy: trigger + cases.
+            if (Array.isArray(rule.branches)) {
+                if (role === "trigger") {
+                    // No authoring trigger; wake devices live as condition Compares.
+                    return out;
+                }
+                rule.branches.forEach((br) => {
+                    if (!br) return;
+                    if (role === "condition") {
+                        (br.conditions || []).forEach((cond) => {
+                            if (cond && cond.type !== "event" && cond.type !== "time_of_day") {
+                                push(cond.entity_id);
+                            }
+                        });
+                    } else if (role === "action") {
+                        (br.actions || []).forEach((a) => {
+                            if (a && a.entity_id) push(a.entity_id);
+                        });
+                    }
+                });
+                return out;
+            }
             if (role === "trigger") {
                 const t = rule.trigger;
                 if (Array.isArray(t)) t.forEach((x) => x && push(x.entity_id));
@@ -3331,16 +3579,32 @@ function blockyApp() {
             };
             try {
                 const rule = JSON.parse(this.editor.ruleJson || "{}");
-                const t = rule.trigger;
-                if (role === "trigger") {
-                    if (Array.isArray(t)) t.forEach((x) => x && addSticky(x.event));
-                    else if (t) addSticky(t.event);
-                } else {
-                    (rule.cases || []).forEach((c) => {
-                        (c.actions || []).forEach((a) => {
-                            if (a && a.event && !a.entity_id) addSticky(a.event);
-                        });
+                // B19: sticky from branches (event Compare / Fire). Legacy: trigger + cases.
+                if (Array.isArray(rule.branches)) {
+                    rule.branches.forEach((br) => {
+                        if (!br) return;
+                        if (role === "trigger") {
+                            (br.conditions || []).forEach((c) => {
+                                if (c && c.type === "event" && c.event) addSticky(c.event);
+                            });
+                        } else {
+                            (br.actions || []).forEach((a) => {
+                                if (a && a.event && !a.entity_id) addSticky(a.event);
+                            });
+                        }
                     });
+                } else {
+                    const t = rule.trigger;
+                    if (role === "trigger") {
+                        if (Array.isArray(t)) t.forEach((x) => x && addSticky(x.event));
+                        else if (t) addSticky(t.event);
+                    } else {
+                        (rule.cases || []).forEach((c) => {
+                            (c.actions || []).forEach((a) => {
+                                if (a && a.event && !a.entity_id) addSticky(a.event);
+                            });
+                        });
+                    }
                 }
             } catch (e) { /* ignore */ }
             // Also sticky live canvas picks during edit.
@@ -3350,7 +3614,10 @@ function blockyApp() {
                     ws.getAllBlocks(false).forEach((b) => {
                         if (b.isInFlyout) return;
                         if (role === "trigger") {
-                            if (BLOCKY_EVENT_TRIGGERS.has(b.type) || BLOCKY_EVENT_EDGES.has(b.type)) {
+                            // B19 wake = event Compare; keep legacy When/OR-edge sticky too.
+                            if (BLOCKY_EVENT_TRIGGERS.has(b.type)
+                                || BLOCKY_EVENT_EDGES.has(b.type)
+                                || BLOCKY_EVENT_COMPARES.has(b.type)) {
                                 addSticky(b.getFieldValue("EVENT"));
                             }
                         } else if (BLOCKY_EVENT_ACTIONS.has(b.type)) {
@@ -3646,74 +3913,66 @@ function blockyApp() {
                 try {
                     rule = JSON.parse(this.editor.ruleJson || "{}");
                 } catch (e) {
-                    rule = { cases: [], trigger: {} };
+                    rule = { branches: [{ when: "if", conditions: [], actions: [] }] };
                     this._noteSilentLoss("Rule JSON could not be parsed — Save blocked");
                 }
-                const cases = rule.cases || [];
-                const root = this._mkTriggerRoot(rule.trigger, cases);
+                rule = blockyProjectLegacyToBranches(rule);
+                const branches = rule.branches || [];
+                if (!branches.length) {
+                    branches.push({ when: "if", conditions: [], actions: [] });
+                }
 
-                // Empty draft: no root and no cases → blank workspace (B10F).
-                const caseBlocks = root
-                    ? this._caseBlocks(cases.length ? cases : [{ actions: [] }])
-                    : (cases.length ? this._caseBlocks(cases) : []);
-                if (root && caseBlocks.length) {
-                    if (root.nextConnection && caseBlocks[0].previousConnection) {
-                        try {
-                            root.nextConnection.connect(caseBlocks[0].previousConnection);
-                        } catch (e) { /* ignore */ }
-                        blockyConnectNext(caseBlocks[0], caseBlocks.slice(1));
+                let prev = null;
+                branches.forEach((br, bi) => {
+                    const when = br.when || (bi === 0 ? "if" : "else_if");
+                    let blk;
+                    if (when === "else") {
+                        blk = blockyMkBlock("b_else", null, bi === 0 ? 16 : undefined, bi === 0 ? 16 : undefined);
+                        blockyConnectChain(blk, "DO", this._actionBlocks(br.actions || []));
+                    } else {
+                        const type = when === "if" ? "b_if_do" : "b_else_if";
+                        blk = blockyMkBlock(type, null, bi === 0 ? 16 : undefined, bi === 0 ? 16 : undefined);
+                        blockyConnectChain(blk, "IF", blockyConditionBlocksFromList(br.conditions || []));
+                        blockyConnectChain(blk, "DO", this._actionBlocks(br.actions || []));
                     }
-                }
+                    if (prev && prev.nextConnection && blk.previousConnection) {
+                        try { prev.nextConnection.connect(blk.previousConnection); } catch (e) { /* ignore */ }
+                    }
+                    prev = blk;
+                });
 
-                if (root) {
-                    blockyRefreshCaseMatchLabels(root.getNextBlock());
-                }
-
-                // Coerce action/condition STATE to type-valid options after load; rebuild rich shapes.
-                // b_condition_device numeric shape (OP/ATTR/VALUE) was already applied by
-                // blockyApplyConditionRich in _conditionBlocks — coerce is a no-op there
-                // (no STATE field exists on the numeric shape).
                 ws.getAllBlocks(false).forEach((b) => {
                     if (b.type === "b_action_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyActionStateOptions);
                         blockyActionUpdateRichShape(b);
                     } else if (b.type === "b_condition_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyConditionStateOptions);
-                    } else if (b.type === "b_case") {
-                        blockyCoerceFieldToOptions(b, "MATCH", blockyCaseMatchOptions);
-                        blockyCaseUpdateEventChrome(b);
                     }
                 });
 
-                // Re-apply rich from rule JSON (authoritative) — defeats any stray shape
-                // rebuild that lost _hueBri / preset during coerce.
-                {
-                    let caseNode = root ? root.getNextBlock() : null;
-                    let ci = 0;
-                    while (caseNode && caseNode.type === "b_case") {
-                        const acts = (cases[ci] && cases[ci].actions) || [];
-                        let ab = caseNode.getInputTargetBlock("ACTIONS");
-                        let ai = 0;
-                        while (ab) {
-                            if (ab.type === "b_action_device") {
-                                if (acts[ai] && acts[ai].entity_id) {
-                                    // Re-assert ENTITY after full sticky catalog exists (heals
-                                    // any mid-load snap if options were still incomplete).
-                                    blockySafeSetField(ab, "ENTITY", acts[ai].entity_id);
-                                    blockyApplyActionRich(ab, acts[ai]);
-                                }
-                                ai += 1;
-                            } else if (BLOCKY_EVENT_ACTIONS.has(ab.type)) {
-                                ai += 1;
+                let node = ws.getTopBlocks(true).find((b) => b.type === "b_if_do");
+                let bi = 0;
+                while (node && BLOCKY_CONTROL_BRANCH.has(node.type)) {
+                    const br = branches[bi] || {};
+                    const acts = br.actions || [];
+                    let ab = node.getInputTargetBlock("DO");
+                    let ai = 0;
+                    while (ab) {
+                        if (ab.type === "b_action_device") {
+                            if (acts[ai] && acts[ai].entity_id) {
+                                blockySafeSetField(ab, "ENTITY", acts[ai].entity_id);
+                                blockyApplyActionRich(ab, acts[ai]);
                             }
-                            ab = ab.getNextBlock();
+                            ai += 1;
+                        } else if (BLOCKY_EVENT_ACTIONS.has(ab.type)) {
+                            ai += 1;
                         }
-                        ci += 1;
-                        caseNode = caseNode.getNextBlock();
+                        ab = ab.getNextBlock();
                     }
+                    bi += 1;
+                    node = node.getNextBlock();
                 }
 
-                // Drop any rich/uniqueness work queued by field validators during mkBlock.
                 if (BlockyRT.richTimer) {
                     clearTimeout(BlockyRT.richTimer);
                     BlockyRT.richTimer = null;
@@ -3735,7 +3994,6 @@ function blockyApp() {
                 });
             } finally {
                 Events.enable();
-                // Create SR/UE→UR drafts stay dirty; normal loads clear dirty after inject.
                 if (this._markDirtyAfterBlocklyLoad) {
                     this._markDirtyAfterBlocklyLoad = false;
                     this.editorDirty = true;
@@ -3744,8 +4002,6 @@ function blockyApp() {
                 } else {
                     this.markEditorClean();
                 }
-                // ENTITY validators from mkBlock setField are queued as microtasks.
-                // Keep loading=true until after they run so they do not clear Hue rich.
                 queueMicrotask(() => {
                     BlockyRT.loading = false;
                     BlockyRT.suppressHueWheel = false;
@@ -3761,17 +4017,24 @@ function blockyApp() {
                         b
                     );
                 }
+                if (BLOCKY_EVENT_COMPARES.has(b.type)) {
+                    return blockyMergeOpaque(
+                        { type: "event", event: b.getFieldValue("EVENT") },
+                        b
+                    );
+                }
                 const eid = b.getFieldValue("ENTITY");
                 const out = { type: "device_state", entity_id: eid };
                 const profile = blockyConditionCompareProfile(eid);
                 if (profile.kind === "level") {
                     const mode = b.getFieldValue("MODE") || profile.modes[0][1];
-                    if (mode === "PCT") {
+                    if (mode === "ANY") {
+                        out.is = "ANY";
+                    } else if (mode === "PCT") {
                         out.op = b.getFieldValue("OP") || "==";
                         out.attribute = profile.attribute;
                         let v = b.getFieldValue("VALUE");
                         if (profile.valueUi === "open_pct") {
-                            // UI open-% → YAML closed-%; flip inequalities.
                             out.op = blockyInvertCompareOp(out.op);
                             v = blockyStoredFromOpenPct(v);
                         }
@@ -3788,6 +4051,9 @@ function blockyApp() {
                         if (attr) out.attribute = attr;
                     }
                     out.is = String(b.getFieldValue("VALUE"));
+                } else if (blockyIsMotionEntity(eid)) {
+                    // Wake on detect only — matches garage/toilet YAML.
+                    out.is = "ON";
                 } else {
                     out.is = b.getFieldValue("STATE");
                 }
@@ -3811,116 +4077,71 @@ function blockyApp() {
             if (!ws) throw new Error("Blockly workspace not ready.");
             blockyAssertNoOrphans(ws);
             const tops = ws.getTopBlocks(true);
-            const root = tops.find((b) => BLOCKY_ROOT_TRIGGERS.has(b.type));
-            if (!root) throw new Error("Blockly requires one trigger block.");
+            const root = tops.find((b) => b.type === "b_if_do");
+            if (!root) throw new Error("Blockly requires one If/Do block.");
+            if (tops.filter((b) => b.type === "b_if_do").length > 1) {
+                throw new Error("Only one If/Do root allowed — use Else-if / Else on the chain.");
+            }
 
-            let trigger;
-            let caseStart = root.getNextBlock();
-
-            if (root.type === "b_trig_or") {
-                const edges = [];
-                let e = root.getInputTargetBlock("EDGES");
-                while (e) {
-                    if (e.type === "b_trig_device_edge") {
-                        edges.push({
-                            entity_id: e.getFieldValue("ENTITY"),
-                            state: e.getFieldValue("STATE")
-                        });
-                    } else if (BLOCKY_EVENT_EDGES.has(e.type)) {
-                        edges.push({ event: e.getFieldValue("EVENT") });
-                    } else {
-                        throw new Error("OR trigger only accepts device or event edges.");
+            const branches = [];
+            let cur = root;
+            let i = 0;
+            while (cur) {
+                if (cur.type === "b_if_do" || cur.type === "b_else_if") {
+                    const when = cur.type === "b_if_do" ? "if" : "else_if";
+                    const conds = this._readConditions(cur.getInputTargetBlock("IF"));
+                    const acts = this._readActions(cur.getInputTargetBlock("DO"));
+                    if (!conds.length) {
+                        // Invalid for enable — still allow serialize while disabled.
                     }
-                    e = e.getNextBlock();
-                }
-                if (!edges.length) throw new Error("OR trigger needs at least one edge.");
-                trigger = edges.length === 1 ? edges[0] : edges;
-            } else if (root.type === "b_trig_device") {
-                const eid = root.getFieldValue("ENTITY");
-                const profile = blockyConditionCompareProfile(eid);
-                const mode = root.getFieldValue("MODE");
-                const levelPct = profile.kind === "level" && mode === "PCT";
-                const sensorNum = profile.kind === "sensor";
-                if (sensorNum || levelPct) {
-                    let thresh = root.getFieldValue("VALUE");
-                    let op = root.getFieldValue("OP") || "==";
-                    if (levelPct && profile.valueUi === "open_pct") {
-                        thresh = blockyStoredFromOpenPct(thresh);
-                        op = blockyInvertCompareOp(op);
+                    branches.push({ when, conditions: conds, actions: acts });
+                } else if (cur.type === "b_else") {
+                    if (cur.getNextBlock()) {
+                        throw new Error("Else must be the last branch.");
                     }
-                    trigger = {
-                        entity_id: eid,
-                        state: String(thresh),
-                        op
-                    };
-                    if (levelPct && profile.attribute) {
-                        trigger.attribute = profile.attribute;
-                    } else if (profile.attrs) {
-                        const attr = root.getFieldValue("ATTR");
-                        if (attr) trigger.attribute = attr;
-                    }
+                    const acts = this._readActions(cur.getInputTargetBlock("DO"));
+                    branches.push({ when: "else", conditions: [], actions: acts });
                 } else {
-                    trigger = { entity_id: eid };
+                    throw new Error("Unexpected block on control chain: " + cur.type);
                 }
-                trigger = blockyMergeOpaque(trigger, root);
-            } else if (BLOCKY_EVENT_TRIGGERS.has(root.type)) {
-                trigger = blockyMergeOpaque({ event: root.getFieldValue("EVENT") }, root);
-            } else {
-                throw new Error(
-                    "Unsupported trigger block. Use When device / When user event / When system event / When any of."
-                );
-            }
-
-            const cases = [];
-            let cur = caseStart;
-            // Device: MATCH writes to_state. Event / OR: conditions-gate only — never persist to_state.
-            const matchWritesToState = root.type === "b_trig_device";
-            const rootEid = matchWritesToState ? root.getFieldValue("ENTITY") : "";
-            const rootProfile = matchWritesToState ? blockyConditionCompareProfile(rootEid) : null;
-            // B9A/B9C: sensor threshold or level PCT — case mirrors trigger.state; MATCH hidden.
-            const numericTrig = matchWritesToState && blockyTriggerIsNumeric(rootEid, root);
-            // B9C level OPEN/CLOSED/ON/OFF on When — case to_state = MODE.
-            const levelDiscreteMode = (matchWritesToState && rootProfile && rootProfile.kind === "level"
-                && root.getFieldValue("MODE") !== "PCT")
-                ? root.getFieldValue("MODE")
-                : null;
-            while (cur && cur.type === "b_case") {
-                const match = cur.getFieldValue("MATCH");
-                const conds = this._readConditions(cur.getInputTargetBlock("CONDS"));
-                const acts = this._readActions(cur.getInputTargetBlock("ACTIONS"));
-                if (!acts.length) throw new Error("Each case needs at least one action.");
-                const c = { actions: acts };
-                if (numericTrig) {
-                    c.to_state = trigger.state;
-                } else if (levelDiscreteMode) {
-                    c.to_state = levelDiscreteMode;
-                } else if (matchWritesToState && match === "ANY") {
-                    // Omit to_state — engine fires on any transition for this device.
-                } else if (matchWritesToState && (match === "ON" || match === "OFF"
-                    || match === "OPEN" || match === "CLOSED")) {
-                    c.to_state = match;
-                }
-                if (conds.length) c.conditions = conds;
-                cases.push(c);
                 cur = cur.getNextBlock();
+                i += 1;
+                if (i > 64) throw new Error("Branch chain too long.");
+            }
+            if (!branches.length || branches[0].when !== "if") {
+                throw new Error("First branch must be If/Do.");
             }
 
-            if (!cases.length) throw new Error("Add at least one case with actions.");
-
-            // B10B: scene/require_confirmation no longer live on the rule — flags are on events:.
             const payload = {
                 id: this.editor.id || undefined,
                 name: (this.editor.name || "").trim(),
                 enabled: this.editor.enabled !== false,
-                trigger,
-                cases
+                branches
             };
-            // SR: name always equals companion SE catalog name (before uniqueness check).
             this._bindSrNameToSeCatalog(payload);
             if (!payload.name) throw new Error("Rule name is required.");
             this.validateNoHardDeniedEntityIds(payload);
+            // B19 enable gate (mirrors backend).
+            const enableErr = this._validateBranchesForEnable(payload);
+            if (payload.enabled !== false && enableErr) {
+                throw new Error(enableErr);
+            }
             this.editor.ruleJson = JSON.stringify(payload, null, 2);
             return payload;
+        },
+
+        _validateBranchesForEnable(payload) {
+            const branches = payload.branches || [];
+            if (!branches.length) return "Automation must contain at least one branch.";
+            if (branches[0].when !== "if") return "First branch must be If.";
+            for (let i = 0; i < branches.length; i += 1) {
+                const br = branches[i];
+                if ((br.when === "if" || br.when === "else_if")
+                    && !(br.conditions && br.conditions.length)) {
+                    return "Each If / Else-if needs at least one condition (or disable the rule).";
+                }
+            }
+            return null;
         },
 
         validateNoHardDeniedEntityIds(rulePayload) {
@@ -3980,15 +4201,14 @@ function blockyApp() {
         },
 
         blankEditor() {
-            // B10F: New rule starts empty — no default When device / actions.
+            // B19: New rule = empty If/Do, disabled until Compares added.
             return {
                 id: "",
                 name: "",
-                enabled: true,
+                enabled: false,
                 ruleJson: JSON.stringify({
-                    enabled: true,
-                    trigger: {},
-                    cases: []
+                    enabled: false,
+                    branches: [{ when: "if", conditions: [], actions: [] }]
                 }, null, 2),
                 eventShowOnDashboard: false,
                 eventRequireConfirmation: false,
@@ -3997,13 +4217,12 @@ function blockyApp() {
         },
 
         /**
-         * B10F: draft New rule with When-system/user event preselected (no POST until Save).
+         * B10F/B19: draft New rule with event Compare preselected (no POST until Save).
          */
         blankEditorForEvent(eventId, origin) {
             const eid = String(eventId || "");
             let name = "";
             if (origin === "system") {
-                // SR name locked to SE catalog name.
                 name = this._catalogEventName(eid)
                     || (() => {
                         const se = (this.libraryRows || []).find(
@@ -4015,11 +4234,14 @@ function blockyApp() {
             return {
                 id: "",
                 name,
-                enabled: true,
+                enabled: false,
                 ruleJson: JSON.stringify({
-                    enabled: true,
-                    trigger: { event: eid },
-                    cases: [{ to_state: "ON", actions: [] }]
+                    enabled: false,
+                    branches: [{
+                        when: "if",
+                        conditions: [{ type: "event", event: eid }],
+                        actions: []
+                    }]
                 }, null, 2),
                 eventShowOnDashboard: false,
                 eventRequireConfirmation: false,
@@ -4149,21 +4371,30 @@ function blockyApp() {
             let displayName = rule.name || "";
             if (kind === "sr") {
                 displayName = rule.listName
-                    || this._catalogEventName(this._primaryTriggerEventId(rule.trigger))
+                    || this._catalogEventName(this._primaryEventIdFromRule(rule))
                     || displayName;
             }
 
-            this.editor = {
-                id: rule.id || "",
-                name: displayName,
-                enabled: rule.enabled !== false,
-                ruleJson: JSON.stringify({
+            // B19: prefer branches; keep trigger+cases only for unmigrated legacy rows.
+            const ruleBody = Array.isArray(rule.branches)
+                ? {
+                    id: rule.id,
+                    name: displayName,
+                    enabled: rule.enabled !== false,
+                    branches: rule.branches
+                }
+                : {
                     id: rule.id,
                     name: displayName,
                     enabled: rule.enabled !== false,
                     trigger: rule.trigger,
                     cases: rule.cases || []
-                }, null, 2),
+                };
+            this.editor = {
+                id: rule.id || "",
+                name: displayName,
+                enabled: rule.enabled !== false,
+                ruleJson: JSON.stringify(ruleBody, null, 2),
                 eventShowOnDashboard: false,
                 eventRequireConfirmation: false,
                 eventEnabled: true
@@ -4171,7 +4402,7 @@ function blockyApp() {
             this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
             // Prefill usages for UR whose trigger event is fire-referenced.
             if (kind === "ur") {
-                const evId = this._primaryTriggerEventId(rule.trigger);
+                const evId = this._primaryEventIdFromRule(rule);
                 this.fireRefRuleNames = this._fireRefNamesForEvent(evId);
             }
             this.refreshFireStatusLine();
@@ -4208,14 +4439,14 @@ function blockyApp() {
             for (const rule of rules) {
                 if (!rule || typeof rule !== "object") continue;
                 const kind = (() => {
-                    const evId = this._primaryTriggerEventId(rule.trigger);
+                    const evId = this._primaryEventIdFromRule(rule);
                     if (evId) {
                         return this._eventOrigin(evId) === "system" ? "sr" : "ur";
                     }
                     return "d";
                 })();
                 if (kind === "sr") {
-                    const evId = this._primaryTriggerEventId(rule.trigger);
+                    const evId = this._primaryEventIdFromRule(rule);
                     const cat = catalog.find((r) => r && String(r.id) === evId);
                     // List label = SE catalog name (SR name always equals SE).
                     const catName = cat ? String(cat.name || evId) : evId;
@@ -4788,13 +5019,13 @@ function blockyApp() {
          * Throws if save would create a second listener.
          */
         assertOneSystemListener(payload) {
-            const evId = this._primaryTriggerEventId(payload && payload.trigger);
+            const evId = this._primaryEventIdFromRule(payload);
             if (!evId || this._eventOrigin(evId) !== "system") return;
             const excludeId = payload && payload.id ? String(payload.id) : "";
             for (const r of this.automations || []) {
                 if (!r) continue;
                 if (excludeId && String(r.id) === excludeId) continue;
-                if (this._primaryTriggerEventId(r.trigger) === evId) {
+                if (this._primaryEventIdFromRule(r) === evId) {
                     const nm = (r.name || r.id || "").trim();
                     throw new Error(
                         `Only one rule may listen to this system event`
@@ -4990,12 +5221,12 @@ function blockyApp() {
             if (!this.selectedRule || this.selectedRule.isEventRow || this.selectedRule.isSystemEventRow) {
                 return;
             }
-            let trigger = this.selectedRule.trigger;
-            if (!trigger) {
-                try { trigger = JSON.parse(this.editor.ruleJson || "{}").trigger; }
-                catch (e) { trigger = null; }
+            let rule = this.selectedRule;
+            if (!rule || (!rule.branches && !rule.trigger)) {
+                try { rule = JSON.parse(this.editor.ruleJson || "{}"); }
+                catch (e) { rule = null; }
             }
-            const evId = this._primaryTriggerEventId(trigger);
+            const evId = this._primaryEventIdFromRule(rule);
             if (!evId || this._eventOrigin(evId) !== "system") return;
             const entry = this.fireStatusByUuid[String(evId)];
             if (!entry) return;

@@ -1,7 +1,7 @@
 # --- file: logic/automation_rules.py ---
 import time
 import json
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 
 from core.models import Event, EventType, SystemState, device_name, device_entity_id, format_device_ref as core_format_device_ref
 from core.config import load_config
@@ -98,7 +98,7 @@ class AutomationEngine:
     def format_rule_ref(rule: Any) -> str:
         """
         DEBUG / ERROR observability — keep uuid + branch + name:
-        rule=<id> branch=on|off|- name="<base name>"
+        rule=<id> branch=on|off|if|elifN|else|- name="<base name>"
         """
         rid = getattr(rule, "id", None)
         name = getattr(rule, "name", None) or ""
@@ -111,12 +111,23 @@ class AutomationEngine:
             elif rid.endswith("#off"):
                 branch = "off"
                 base_id = rid[:-4]
+            elif "#elif" in rid:
+                # B19: <uuid>#elif0
+                base_id, _, suf = rid.partition("#")
+                branch = suf or "-"
+            elif rid.endswith("#if"):
+                branch = "if"
+                base_id = rid[:-3]
+            elif rid.endswith("#else"):
+                branch = "else"
+                base_id = rid[:-5]
         display = name
         if display.endswith(" [ON]"):
             display = display[:-5]
         elif display.endswith(" [OFF]"):
             display = display[:-6]
         return f'rule={base_id} branch={branch} name="{display}"'
+
 
     @staticmethod
     def _timer_exists(active_timers: List[Any], target_timer_id: str) -> bool:
@@ -245,8 +256,19 @@ class AutomationEngine:
         return eq if op_s == "==" else (not eq)
 
     @staticmethod
-    def _condition_holds(condition: Any, state: SystemState) -> bool:
-        """Evaluate one condition; True = pass."""
+    def _condition_holds(
+        condition: Any,
+        state: SystemState,
+        *,
+        event: Optional[Event] = None,
+        bus_token: Optional[str] = None,
+        event_name: Optional[str] = None,
+        event_idx: Any = None,
+        new_state: Any = None,
+        is_transition: bool = False,
+        payload: Optional[dict] = None,
+    ) -> bool:
+        """Evaluate one condition; True = pass. B19: event / ANY / numeric edge when event given."""
         if condition.type == "time_of_day":
             is_dark = AutomationEngine._is_dark(state)
             if condition.condition_is == "dark":
@@ -254,19 +276,155 @@ class AutomationEngine:
             if condition.condition_is == "light":
                 return not is_dark
             return False
+        if condition.type == "event":
+            # B19 event Compare — holds when the current bus event matches.
+            want = getattr(condition, "event", None)
+            if not want or not bus_token:
+                return False
+            return to_bus_token(bus_token) == to_bus_token(str(want))
         if condition.type != "device_state":
             return True
         cond_idx = AutomationEngine.resolve_device_ref(condition, state)
         if cond_idx is None:
             return False
+        is_val = condition.condition_is
+        op = getattr(condition, "op", None) or "=="
+        # B19: is ANY → true when this device is the waking device (any transition).
+        if is_val is not None and str(is_val).upper() == "ANY":
+            if event_idx is None or cond_idx != event_idx:
+                return False
+            if event_name == "DOOR_CHANGED":
+                return True
+            return bool(event_name == "HUB_STATE_CHANGED" and is_transition)
+        # B9A/B19 numeric op: edge-cross when this device woke; else level check.
+        if op in (">", ">=", "<", "<=", "!=", "==") and AutomationEngine._parse_compare_number(is_val) is not None:
+            if event is not None and event_idx is not None and cond_idx == event_idx and event_name in (
+                "HUB_STATE_CHANGED",
+                "TEMP_UPDATED",
+                "HUMIDITY_UPDATED",
+                "POWER_UPDATED",
+            ):
+                pl = payload or {}
+                t_attr = getattr(condition, "attribute", None)
+                if event_name == "HUB_STATE_CHANGED":
+                    old_raw = pl.get("old_state", pl.get("old_val"))
+                    new_raw = pl.get("state", new_state)
+                    if new_raw is None:
+                        new_raw = state.devices.get(cond_idx)
+                elif event_name == "TEMP_UPDATED":
+                    old_raw = {"temp": pl.get("old_value")}
+                    new_raw = state.devices.get(cond_idx)
+                    if t_attr is None:
+                        t_attr = "temperature"
+                elif event_name == "HUMIDITY_UPDATED":
+                    old_raw = {"hum": pl.get("old_value")}
+                    new_raw = state.devices.get(cond_idx)
+                    if t_attr is None:
+                        t_attr = "humidity"
+                else:
+                    old_raw = pl.get("old_value")
+                    new_raw = state.devices.get(cond_idx)
+                return AutomationEngine._numeric_trigger_edge(
+                    op=op,
+                    attribute=t_attr,
+                    threshold=is_val,
+                    new_raw=new_raw,
+                    old_raw=old_raw,
+                )
         raw_state = state.devices.get(cond_idx)
         if raw_state is None:
             raw_state = state.devices.get(str(cond_idx))
         actual = AutomationEngine._extract_device_value(
             raw_state, getattr(condition, "attribute", None)
         )
-        op = getattr(condition, "op", None) or "=="
-        return AutomationEngine._compare_values(op, actual, condition.condition_is)
+        return AutomationEngine._compare_values(op, actual, is_val)
+
+    @staticmethod
+    def _branch_rule_wakes(
+        rule: Any,
+        *,
+        bus_token: str,
+        event_name: str,
+        event_idx: Any,
+        is_transition: bool,
+        state: SystemState,
+    ) -> Tuple[bool, str, Optional[str]]:
+        """
+        B19 wake: any device/event Compare in any branch mentions this event.
+        Returns (woke, reason, matched_event_uuid).
+        """
+        branches = getattr(rule, "branches", None) or []
+        for br in branches:
+            for cond in getattr(br, "conditions", None) or []:
+                if cond.type == "event":
+                    want = getattr(cond, "event", None)
+                    if want and to_bus_token(bus_token) == to_bus_token(str(want)):
+                        return True, f"Event [{to_bus_token(str(want))}]", to_bus_token(str(want))
+                if cond.type == "device_state":
+                    cond_idx = AutomationEngine.resolve_device_ref(cond, state)
+                    if cond_idx is None or event_idx is None or cond_idx != event_idx:
+                        continue
+                    if event_name == "DOOR_CHANGED":
+                        return True, f"Door {AutomationEngine.format_device_ref(state, event_idx)}", None
+                    if event_name in (
+                        "HUB_STATE_CHANGED",
+                        "TEMP_UPDATED",
+                        "HUMIDITY_UPDATED",
+                        "POWER_UPDATED",
+                    ):
+                        if event_name == "HUB_STATE_CHANGED" and not is_transition:
+                            continue
+                        return (
+                            True,
+                            f"{AutomationEngine.format_device_ref(state, event_idx)} (wake)",
+                            None,
+                        )
+        return False, "", None
+
+    @staticmethod
+    def _first_matching_branch(
+        rule: Any,
+        state: SystemState,
+        *,
+        event: Event,
+        bus_token: str,
+        event_name: str,
+        event_idx: Any,
+        new_state: Any,
+        is_transition: bool,
+        payload: dict,
+    ) -> Tuple[Any, str]:
+        """First-match If / Else-if / Else. Returns (branch|None, id_suffix)."""
+        elif_i = 0
+        for br in getattr(rule, "branches", None) or []:
+            when = getattr(br, "when", "") or ""
+            if when == "else":
+                return br, "else"
+            if when == "if":
+                suffix = "if"
+            elif when == "else_if":
+                suffix = f"elif{elif_i}"
+                elif_i += 1
+            else:
+                continue
+            ok = True
+            for cond in getattr(br, "conditions", None) or []:
+                if not AutomationEngine._condition_holds(
+                    cond,
+                    state,
+                    event=event,
+                    bus_token=bus_token,
+                    event_name=event_name,
+                    event_idx=event_idx,
+                    new_state=new_state,
+                    is_transition=is_transition,
+                    payload=payload,
+                ):
+                    ok = False
+                    break
+            if ok:
+                return br, suffix
+        return None, ""
 
     @staticmethod
     def _numeric_trigger_edge(
@@ -369,101 +527,149 @@ class AutomationEngine:
             trigger_matched = False
             trigger_reason = ""
             matched_event_uuid: Optional[str] = None
+            branch_mode = False
 
-            # ⚡ Normalize trigger to a list so we can loop through it (Enabling OR logic)
-            triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
+            # B19: Domoticz If/Do branches — derived wake + first-match.
+            if getattr(rule, "branches", None):
+                woke, trigger_reason, matched_event_uuid = AutomationEngine._branch_rule_wakes(
+                    rule,
+                    bus_token=bus_token,
+                    event_name=event_name,
+                    event_idx=event_idx,
+                    is_transition=is_transition,
+                    state=state,
+                )
+                if not woke:
+                    continue
+                br, suffix = AutomationEngine._first_matching_branch(
+                    rule,
+                    state,
+                    event=event,
+                    bus_token=bus_token,
+                    event_name=event_name,
+                    event_idx=event_idx,
+                    new_state=new_state,
+                    is_transition=is_transition,
+                    payload=payload,
+                )
+                if br is None:
+                    automation_logger.debug(
+                        f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} woke ({trigger_reason}) "
+                        f"but no If/Else-if/Else matched."
+                    )
+                    continue
+                from types import SimpleNamespace
+                base_id = getattr(rule, "id", None) or "-"
+                rule = SimpleNamespace(
+                    id=f"{base_id}#{suffix}",
+                    name=getattr(rule, "name", None),
+                    enabled=True,
+                    trigger=None,
+                    conditions=None,
+                    actions=list(getattr(br, "actions", None) or []),
+                    scene=bool(getattr(rule, "scene", False)),
+                    require_confirmation=bool(getattr(rule, "require_confirmation", False)),
+                    branches=None,
+                )
+                trigger_matched = True
+                branch_mode = True
+            else:
+                # ⚡ Normalize trigger to a list so we can loop through it (Enabling OR logic)
+                triggers = rule.trigger if isinstance(rule.trigger, list) else [rule.trigger]
 
-            for t in triggers:
-                trigger_idx = AutomationEngine.resolve_device_ref(t, state)
-                t_op = getattr(t, "op", None)
-                t_attr = getattr(t, "attribute", None)
-                # Trigger Type A: Device State Change (entity_id → idx)
-                if trigger_idx is not None and t.state:
-                    # B9A numeric When — threshold-cross on sensor/host telemetry events.
-                    if t_op and t_op in (">", ">=", "<", "<=", "!=", "=="):
-                        if trigger_idx == event_idx and event_name in (
-                            "HUB_STATE_CHANGED",
-                            "TEMP_UPDATED",
-                            "HUMIDITY_UPDATED",
-                            "POWER_UPDATED",
-                        ):
-                            if event_name == "HUB_STATE_CHANGED":
-                                old_raw = payload.get("old_state", payload.get("old_val"))
-                                new_raw = payload.get("state", new_state)
-                                if new_raw is None:
-                                    new_raw = state.devices.get(trigger_idx)
-                            elif event_name == "TEMP_UPDATED":
-                                old_raw = {"temp": payload.get("old_value")}
-                                new_raw = state.devices.get(trigger_idx)
-                                if t_attr is None:
-                                    t_attr = "temperature"
-                            elif event_name == "HUMIDITY_UPDATED":
-                                old_raw = {"hum": payload.get("old_value")}
-                                new_raw = state.devices.get(trigger_idx)
-                                if t_attr is None:
-                                    t_attr = "humidity"
-                            else:  # POWER_UPDATED
-                                old_raw = payload.get("old_value")
-                                new_raw = state.devices.get(trigger_idx)
-                            if AutomationEngine._numeric_trigger_edge(
-                                op=t_op,
-                                attribute=t_attr,
-                                threshold=t.state,
-                                new_raw=new_raw,
-                                old_raw=old_raw,
+                for t in triggers:
+                    if t is None:
+                        continue
+                    trigger_idx = AutomationEngine.resolve_device_ref(t, state)
+                    t_op = getattr(t, "op", None)
+                    t_attr = getattr(t, "attribute", None)
+                    # Trigger Type A: Device State Change (entity_id → idx)
+                    if trigger_idx is not None and t.state:
+                        # B9A numeric When — threshold-cross on sensor/host telemetry events.
+                        if t_op and t_op in (">", ">=", "<", "<=", "!=", "=="):
+                            if trigger_idx == event_idx and event_name in (
+                                "HUB_STATE_CHANGED",
+                                "TEMP_UPDATED",
+                                "HUMIDITY_UPDATED",
+                                "POWER_UPDATED",
                             ):
+                                if event_name == "HUB_STATE_CHANGED":
+                                    old_raw = payload.get("old_state", payload.get("old_val"))
+                                    new_raw = payload.get("state", new_state)
+                                    if new_raw is None:
+                                        new_raw = state.devices.get(trigger_idx)
+                                elif event_name == "TEMP_UPDATED":
+                                    old_raw = {"temp": payload.get("old_value")}
+                                    new_raw = state.devices.get(trigger_idx)
+                                    if t_attr is None:
+                                        t_attr = "temperature"
+                                elif event_name == "HUMIDITY_UPDATED":
+                                    old_raw = {"hum": payload.get("old_value")}
+                                    new_raw = state.devices.get(trigger_idx)
+                                    if t_attr is None:
+                                        t_attr = "humidity"
+                                else:  # POWER_UPDATED
+                                    old_raw = payload.get("old_value")
+                                    new_raw = state.devices.get(trigger_idx)
+                                if AutomationEngine._numeric_trigger_edge(
+                                    op=t_op,
+                                    attribute=t_attr,
+                                    threshold=t.state,
+                                    new_raw=new_raw,
+                                    old_raw=old_raw,
+                                ):
+                                    trigger_matched = True
+                                    trigger_reason = (
+                                        f"{AutomationEngine.format_device_ref(state, event_idx)} "
+                                        f"{t_op} {t.state} (edge)"
+                                    )
+                                    break
+                        elif event_name == "HUB_STATE_CHANGED" and is_transition:
+                            if trigger_idx == event_idx and AutomationEngine._states_match(
+                                    t.state, new_state, state.device_metadata.get(trigger_idx, {})):
                                 trigger_matched = True
                                 trigger_reason = (
-                                    f"{AutomationEngine.format_device_ref(state, event_idx)} "
-                                    f"{t_op} {t.state} (edge)"
+                                    f"{AutomationEngine.format_device_ref(state, event_idx)} -> {new_state}"
                                 )
                                 break
-                    elif event_name == "HUB_STATE_CHANGED" and is_transition:
-                        if trigger_idx == event_idx and AutomationEngine._states_match(
-                                t.state, new_state, state.device_metadata.get(trigger_idx, {})):
+                        # ⚡ Support Native Door Telemetry: Map the semantic is_open boolean to standard ON/OFF string states
+                        # Note: Hardware door events are inherently edge-triggered transitions, so is_transition is bypassed.
+                        elif event_name == "DOOR_CHANGED":
+                            is_open = payload.get("is_open")
+                            mapped_state = "ON" if is_open else "OFF"
+                            if trigger_idx == event_idx and AutomationEngine._states_match(
+                                    t.state, mapped_state, state.device_metadata.get(trigger_idx, {})):
+                                trigger_matched = True
+                                trigger_reason = (
+                                    f"Door {AutomationEngine.format_device_ref(state, event_idx)} -> {mapped_state}"
+                                )
+                                # Temporarily inject the mapped state into the local loop context
+                                # so downstream Action resolving doesn't fail if it relies on 'new_state'
+                                new_state = mapped_state
+                                break
+
+                    # Any transition — trigger has entity_id but no target state/op (v2 case "when transitioned").
+                    elif trigger_idx is not None and t.state is None and not t_op:
+                        if (
+                            event_name == "HUB_STATE_CHANGED"
+                            and is_transition
+                            and trigger_idx == event_idx
+                        ):
                             trigger_matched = True
                             trigger_reason = (
-                                f"{AutomationEngine.format_device_ref(state, event_idx)} -> {new_state}"
+                                f"{AutomationEngine.format_device_ref(state, event_idx)} (transitioned)"
                             )
                             break
-                    # ⚡ Support Native Door Telemetry: Map the semantic is_open boolean to standard ON/OFF string states
-                    # Note: Hardware door events are inherently edge-triggered transitions, so is_transition is bypassed.
-                    elif event_name == "DOOR_CHANGED":
-                        is_open = payload.get("is_open")
-                        mapped_state = "ON" if is_open else "OFF"
-                        if trigger_idx == event_idx and AutomationEngine._states_match(
-                                t.state, mapped_state, state.device_metadata.get(trigger_idx, {})):
+
+                    # Trigger Type B: Semantic / catalog event (UUID-on-bus after B10B)
+                    elif t.event:
+                        rule_event_str = t.event.value if hasattr(t.event, "value") else str(t.event)
+                        # Compare bus tokens on both sides (legacy key ↔ UUID both normalize).
+                        if to_bus_token(bus_token) == to_bus_token(rule_event_str):
                             trigger_matched = True
-                            trigger_reason = (
-                                f"Door {AutomationEngine.format_device_ref(state, event_idx)} -> {mapped_state}"
-                            )
-                            # Temporarily inject the mapped state into the local loop context
-                            # so downstream Action resolving doesn't fail if it relies on 'new_state'
-                            new_state = mapped_state
+                            matched_event_uuid = to_bus_token(rule_event_str)
+                            trigger_reason = f"Event [{matched_event_uuid}]"
                             break
-
-                # Any transition — trigger has entity_id but no target state/op (v2 case "when transitioned").
-                elif trigger_idx is not None and t.state is None and not t_op:
-                    if (
-                        event_name == "HUB_STATE_CHANGED"
-                        and is_transition
-                        and trigger_idx == event_idx
-                    ):
-                        trigger_matched = True
-                        trigger_reason = (
-                            f"{AutomationEngine.format_device_ref(state, event_idx)} (transitioned)"
-                        )
-                        break
-
-                # Trigger Type B: Semantic / catalog event (UUID-on-bus after B10B)
-                elif t.event:
-                    rule_event_str = t.event.value if hasattr(t.event, "value") else str(t.event)
-                    # Compare bus tokens on both sides (legacy key ↔ UUID both normalize).
-                    if to_bus_token(bus_token) == to_bus_token(rule_event_str):
-                        trigger_matched = True
-                        matched_event_uuid = to_bus_token(rule_event_str)
-                        trigger_reason = f"Event [{matched_event_uuid}]"
-                        break
 
             # --- TIER B: The Thought Process (DEBUG ONLY) ---
             if trigger_matched:
@@ -472,9 +678,20 @@ class AutomationEngine:
                     f"Evaluating conditions...")
 
                 conditions_met = True
-                if rule.conditions:
+                # B19 branch_mode: first-match already applied — skip flat conditions.
+                if not branch_mode and rule.conditions:
                     for condition in rule.conditions:
-                        if not AutomationEngine._condition_holds(condition, state):
+                        if not AutomationEngine._condition_holds(
+                            condition,
+                            state,
+                            event=event,
+                            bus_token=bus_token,
+                            event_name=event_name,
+                            event_idx=event_idx,
+                            new_state=new_state,
+                            is_transition=is_transition,
+                            payload=payload,
+                        ):
                             conditions_met = False
                             if condition.type == "time_of_day":
                                 automation_logger.debug(
@@ -515,7 +732,7 @@ class AutomationEngine:
                         except Exception:
                             pass
 
-                    for action in rule.actions:
+                    for action in (rule.actions or []):
                         # ⚡ Resolve modifiers
                         raw_action_state = action.state
                         is_force = False

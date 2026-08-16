@@ -489,7 +489,8 @@ def _expand_v2_case_to_flat(
 
 def expand_automations_for_engine(raw_automations: Any) -> List[dict]:
     """
-    Dual-read expand: v2 cases, Y1 on/off, and flat → flat list for AutomationEngine.
+    Dual-read expand: B19 branches (pass-through), v2 cases, Y1 on/off, and flat
+    → list for AutomationEngine.
     """
     if raw_automations is None:
         return []
@@ -497,9 +498,19 @@ def expand_automations_for_engine(raw_automations: Any) -> List[dict]:
         _warn(f"automations: expected list, got {type(raw_automations)}")
         return []
 
+    from core.automations_schema_b19 import is_branch_rule, normalize_branch_rule
+
     expanded: List[dict] = []
     for rule in raw_automations:
         if not isinstance(rule, dict):
+            continue
+
+        # B19: one engine rule per authoring rule (first-match branches).
+        if is_branch_rule(rule):
+            try:
+                expanded.append(normalize_branch_rule(rule))
+            except ValueError as exc:
+                _warn(f"automations: skip invalid branch rule {rule.get('name')!r}: {exc}")
             continue
 
         if is_v2_rule(rule):

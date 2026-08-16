@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **B9C** (Ship **B2**) ✅ **Done 2026-08-16**; **Blockly cluster next** = **B19 → …** before shell/integrations/F — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport (H5) → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **B9C** (Ship **B2**) ✅ **Done 2026-08-16**; **B19+B13** (Ship **B3**) ✅ **Done 2026-08-16**; **Blockly cluster next** = **B4 (H4) → …** — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport (H5) → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
 
 **Historical:** `docs/todo/install_blocky.md` was an early Blocky install / phase pointer. It still described pre-**B10B** surface (E1 families, `SCHEDULE_WINDOW_EDGES`, `TWILIGHT_*`, old schedule labels, next = Phase 9A/9B). Retired to a stub at **B10B+D+E** close-out (**2026-08-10**); **deleted 2026-08-12** — this file is the only SoT. Bus pickers = `events:` UUIDs; schedule display = Morning/Evening **lights** on/off; sun refresh = `SUNRISE_SUNSET_UPDATE`; actuator ids `zwave.*` / `rfx.*` / `zwave.vent.*`; product light|switch via Timers & types.
 
@@ -101,7 +101,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16** — legacy-canvas bridge: temp/hum ATTR; shutters OPEN/CLOSED/open-% When+if + Set open %; audio ON/OFF/volume When+if; Pi smoke + docs close-out). **Next cluster:** **B19** (Ship **B3**). **B9B** split → Ships **B4** (H4) · **B5** (H12 + bathroom) · **B6** (H5) after **B19**. **B11–B18** = lettered backlog.
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-16** — Domoticz If/Do canvas; Pi smoke; migrator deleted; Admin Debug **RED accepted** until **B4/H4** for 4 OR-list leftovers). **Next cluster:** **B4** (H4) → **B5** / **B6** → **B7** → **B8**. **B11–B18** / **B20** = lettered backlog.
 
 **Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
 
@@ -366,7 +366,7 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 | **H5** | Notify / alert action | UI alert first; **extend with Gmail** — Blockly/automation emits `EMAIL_REQUESTED` only (never calls Gmail). SoT: `docs/todo/phaseE-gmail.md` (OAuth outbox, producer hysteresis, transport dedup) |
 | **H12** | Generic hysteresis / dual-threshold block | Vehicle for bathroom humidity band; reusable |
 
-**Later lettered (not B9A/B9B):** H1–H3, H6–H10 → **B14** (Ship B7); H11 → **B13** (Ship B4). Domoticz canvas → **B19** (Ship B3). Time trigger → **B20** (after F). See § B11–B20.
+**Later lettered (not B9A/B9B):** H1–H3, H6–H10 → **B14** (Ship B7); H11 → **B13** (Ship **B3** with **B19**). Domoticz canvas → **B19** (Ship B3). Time trigger → **B20** (after F). See § B11–B20.
 
 #### Facts
 
@@ -431,12 +431,12 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | **Canvas structure** | **If/Do** control block; **Compare** blocks plug into **If**; **Set** (and Messages) in **Do** — retire `When device` + `case MATCH` + flat `if device` chain as the primary authoring model (**B19**). |
 | **Device trigger** | Domoticz **Device** mode: device change wakes the rule; **all** discrimination lives in **Compare** inside **If** — not on case `when ON/OFF` or a threshold row on the trigger block. |
 | **Toolbox** | Device blocks **by class** (Switch, **Temperature**, **Humidity**, Blinds level, …) like Domoticz § Devices — not one generic `if device` row per entity. |
-| **Logic** | Nested **AND/OR** inside Compare (**B9B H4**); **Else-if** chain on control block (**B13**). |
+| **Logic** | **Else-if** / **Else** on control block (**B13** — **Ship B3** with **B19**); nested **AND/OR** inside Compare (**B9B H4** — **Ship B4**). |
 | **Actions** | **Set** blocks in **Do** (incl. level / open % / volume / Hue); timed Set variants (**B14**). **Messages** notify (**B9B H5**). |
 | **Time trigger** | Domoticz **Time** trigger (evaluate every minute) — **out of Blockly cluster**; schedule **after F** (**B20**). Until then: system catalog events + `if time` / twilight conditions (B10B+E). |
 | **Explicitly out of scope** | **User variables**; **Debug/Log** Blockly block; Security panel trigger (unless product adds alarm). |
 
-**Sequence:** finish **B9A** → **B9C** ✅ → **Blockly cluster** Ships **B3–B8** (B19 → B13/H4 → H12/bathroom → H5 → B14 → B11+B12) → then shell (**C\***), integrations (**G\***), **E**, **F** → **B20** time trigger. Parallel options → [`pipeline.md`](pipeline.md) § Parallel tracks.
+**Sequence:** finish **B9A** → **B9C** ✅ → **Blockly cluster** Ships **B3–B8** (**B19+B13** → **H4** → H12/bathroom → H5 → B14 → B11+B12) → then shell (**C\***), integrations (**G\***), **E**, **F** → **B20** time trigger. Parallel options → [`pipeline.md`](pipeline.md) § Parallel tracks.
 
 ---
 
@@ -452,7 +452,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | Dimmer/blinds **Set** to level | Blinds open %, Hue bri, volume (B6C) | **Set** block + level fields |
 | Time / twilight in **If** | `if time is dark/light` | **Time** compare in **If** (unchanged) |
 | Fire scene / dashboard | UE/UR + fire event (B10B+D+E) | **Fire event** in **Do** (or parallel track) |
-| User/system catalog events | When user/system event roots | **Event** trigger mode (parallel to Device) — spec at B19 kickoff |
+| User/system catalog events | When user/system event roots | **Event Compare** (+ fire in Do) — no authoring trigger (**B19** kickoff locked) |
 
 #### Gaps — **require Blockly cluster** (not “good enough” on legacy canvas)
 
@@ -462,8 +462,8 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | **Device trigger = any change** | Device mode; logic in Compare | **B19** |
 | **Temperature vs Humidity blocks** | Separate toolbox entries | **B19** (B9C ✅ patched legacy picker) |
 | **Level compare in If** | Dimmer ≠ 0, blinds % | **B19** (B9C ✅ bridge on legacy When/if) |
-| **AND/OR in If** | Nested Compare | **B9B H4** — **Ship B4** with **B13** |
-| **Else-if / Else** | Control gear | **B13** — **Ship B4** |
+| **AND/OR in If** | Nested Compare | **B9B H4** — **Ship B4** |
+| **Else-if / Else** | Control gear | **B13** — **Ship B3** with **B19** |
 | **Set for X min / delay** | Set + timer | **B14** — **Ship B7** |
 | **Notifications** | Messages | **B9B H5** — **Ship B6** |
 | **Time trigger (every minute)** | Time mode | **B20** — **after F** |
@@ -476,12 +476,12 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 |---|---|---|---|
 | **B1** | **B9A** closeout | low | Pi smoke + Debug GREEN + docs. **Alone.** |
 | **B2** | **B9C** | mid | ✅ **Done 2026-08-16** — legacy bridge: temp/hum ATTR; shutters OPEN/CLOSED/% + Set open %; audio ON/OFF/volume When+if. Enabled **G5** (✅ Done same day). |
-| **B3** | **B19** Domoticz canvas | **high** | If/Do, Compare, **Device** trigger, typed device toolbox, **Set** in Do, v2↔canvas migrator. **Alone — do not combine.** |
-| **B4** | **B13** + **B9B H4** | high | Domoticz **Logic**: Else-if/Else + nested AND/OR in Compare. One interpreter/toolbox pass. |
+| **B3** | **B19** + **B13** | **high** | ✅ **Done 2026-08-16** — If/Do + Else-if/Else, Compare, toolbox, Set, branch cutover; Debug RED OK until H4 for 4 OR leftovers. |
+| **B4** | **B9B H4** only | high | Nested **AND/OR** in Compare (Domoticz Logic). Else-if already in **B3**. |
 | **B5** | **B9B H12** + bathroom | mid | Hysteresis block + humidity band cutover; vent lock stays in hub. |
 | **B6** | **B9B H5** notify | mid | **Alert** in Messages block; **Gmail** half waits on **E** (can split: alert first). |
 | **B7** | **B14** (excl. time) | high | H1 sustained-for · H2 delay/wait · H3 cooldown · H6–H10 subset — **no** Domoticz Time trigger (→ **B20**). Pick subset at kickoff. |
-| **B8** | **B11** + **B12** | mid | Multi-flow + folder/tag — after B19 canvas stable. |
+| **B8** | **B11** + **B12** | mid | Multi-flow (**all matching If/Do fire** — reunite CINEMA OFF / Evening lights on splits) + folder/tag — after B19 canvas stable. |
 
 **Not in Blockly cluster:** **B15** (schedule demotion), **B16** (internal bus UUID), **B17** (assess), **B18** (sauna clamp) — stay in general pipeline after **F** unless safety jumps **B18**.
 
@@ -516,48 +516,60 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 ---
 
-### Phase B19 — Domoticz Blockly canvas 🔜 TODO (spec lock **2026-08-12**)
+### Phase B19 — Domoticz Blockly canvas ✅ DONE (2026-08-16)
 
-**Origin:** operator lock **2026-08-12** — Domoticz **look & feel**, not semantic equivalence on legacy blocks.
+**Ship B3** with **B13**. Pi smoke OK. Migrator deleted after soak. **Admin Debug RED accepted** until **Ship B4/H4** migrates the 4 leftover OR-list rules into Blockly.
 
-**Depends on:** **B9C** (Ship **B2**) ✅ **Done 2026-08-16**. **Ship B3 — alone.**
+#### Shipped summary
 
-**Reference:** [Domoticz Blockly](https://wiki.domoticz.com/Blockly) — Getting started, Triggers (**Device**), Control (**If/Do**, **Else-if**), Logic (**Compare**, **Set**), Devices (Switches, Temperature, Humidity, …).
+- Authoring: **If/Do** + **Else-if** / **Else** (first-match); no When/case; wake derived from device/event Compares; time Compare = gate only until B20.
+- On-disk: `branches: [{ when, conditions, actions }]`; API hard-rejects legacy `trigger`+`cases` writes.
+- Toolbox: Control · Logic · Time · Events (legacy When/case removed).
+- UX polish at close: branch load sticky; SE/event sticky; motion = fixed “motion” (`is: ON`); discrete **transitioned** (`is: ANY`); leaner block labels.
+- Cutover: 7A migrator ran on Pi; **4 SKIP** OR-list rules remain legacy (engine still runs them):
+  - `KeukenLivingEetk_EetkHue` — multi-device OR → **H4**
+  - Spare Button ×3 — same-device ON|OFF list → expressible today as **transitioned**; operator defers with H4 cutover
+- Non-exclusive splits kept as separate rules (CINEMA OFF ×3, Evening lights on ×2) → reunite under **B11** (Ship **B8**).
+- Sync: `*.bak-*` mirror-exclude so Pi migrator backups are not deleted.
 
-**Goal:** Replace primary authoring model:
+#### Locked decisions (kickoff 2026-08-16) — archived
 
-| Domoticz | WanOS B19 deliverable |
+| Topic | Lock |
 |---|---|
-| Trigger: **Device** | Rule trigger mode **device** — any `HUB_STATE_CHANGED` (and sensor telemetry events) on listed devices wakes evaluation |
-| **If/Do** control | Root **If/Do** block; conditions stack in **If**; actions in **Do** |
-| **Compare** in If | Typed compare blocks (device picker + op + value); nest AND/OR (stub slots until **Ship B4**) |
-| **Set** in Do | Replace `set device` chain with **Set** blocks; carry B6C rich fields (Hue, blinds %, volume, station) |
-| Devices toolbox | Categories: Switch, Temperature, Humidity, Power, Blinds, Light/Hue, Speaker, … — not one generic entity row |
-| Event rules | **User/system event** trigger mode remains (B10B) — parallel top-level trigger choice, Domoticz-shaped **If** for conditions |
+| **Authoring model** | **If/Do only** — no When/case, no page-level Device/Event/Time mode in B19. |
+| **Wake** | Runtime-derived from device/event Compares; not persisted; time = gate until **B20**. |
+| **Branches** | One If/Do + Else-if* + optional Else; **first match wins**. |
+| **Conditions** | Flat AND until **H4**. |
+| **Schema** | Hybrid branches; no authoring `trigger`. |
+| **OR-list** | Retire `b_trig_or`; skip+report until H4 (4 leftovers accepted RED). |
+| **Out of scope** | H4 (**B4**); Messages (**B6**); Time trigger (**B20**); timed Set (**B14**); multi-root (**B11**). |
 
-**Engine / schema:**
+#### DoD
 
-- v2 `trigger` + `cases` **migrator** from legacy + B9A rules → B19 canvas (and reverse for diff/debug if needed).
-- Device trigger: `{ entity_id }` or list — **no** `to_state` on trigger; compares live in conditions (Domoticz semantics).
-- Retire `b_case` / `MATCH` / numeric threshold on `b_trig_device` as **authoring** paths (engine may keep internal projection during transition).
-
-**Out of scope:** Else-if gear (**Ship B4**); Messages (**Ship B6**); Time trigger (**B20** after **F**); user variables; debug block.
-
-**B19 DoD:** New rule authored only on Domoticz canvas; migrated smoke rules (incl. sauna hue physical); toolbox matches Domoticz class split; Device trigger with Compare-in-If demo; Pi smoke; Admin Debug GREEN. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] New rule authored only on Domoticz canvas (If/Do + Compare + Set)
+- [x] Else-if / Else gear works (first-match); migrated ON/OFF → If/Else-if smoke
+- [x] Event Compare + fire + dashboard bind smoke
+- [x] Sauna hue physical works (migrate or re-author on Pi)
+- [x] Toolbox class split + legacy When/case gone
+- [x] Migrator 7A + backup + skip+report; API rejects legacy shape — migrator **deleted** post-soak
+- [x] Pi smoke; Admin Debug **RED accepted** (4 OR leftovers → **B4/H4**)
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-16**
 
 ---
 
 ### Phase B9B — Bathroom climate + H4 / H5 / H12 🔜 DEFERRED (feasibility done for bathroom)
 
-**Not B9A.** Split across **Ship B4** (H4), **Ship B5** (H12 + bathroom), **Ship B6** (H5). **Depends on B19** (Ship **B3**) — gate before kickoff.
+**Not B9A.** Split across **Ship B4** (H4), **Ship B5** (H12 + bathroom), **Ship B6** (H5).
 
-**Locked ship order (2026-08-12):** Ship **B4** (H4 + **B13**) → Ship **B5** (H12 + bathroom) → Ship **B6** (H5 alert; Gmail when **E** ready). Ships **B5 ∥ B6** allowed after **B4** — see [`pipeline.md`](pipeline.md) § Parallel tracks.
+**Depends on:** **B19+B13** (Ship **B3**) ✅ **Done 2026-08-16** — gate cleared.
+
+**Locked ship order (2026-08-16):** Ship **B4** (**H4** only — nested AND/OR) → Ship **B5** (H12 + bathroom) → Ship **B6** (H5 alert; Gmail when **E** ready). **B13** Else-if ships in **B3** (not B4). Ships **B5 ∥ B6** allowed after **B4** — see [`pipeline.md`](pipeline.md) § Parallel tracks.
 
 **Goal:**
 
 1. **Bathroom climate** — humidity ON/OFF band in Blockly; retire hardcoded climate paths; **vent min-runtime lock stays in hub**.
 2. **H12** — generic hysteresis / dual-threshold block (bathroom is the first consumer).
-3. **H4** — nested AND/OR in **Compare** (Domoticz Logic); drop legacy trigger “when any of” — **Ship B4** with **B13**.
+3. **H4** — nested AND/OR in **Compare** (Domoticz Logic); finish drop of legacy “when any of” leftovers — **Ship B4** (Else-if already in **B3**).
 4. **H5** — **Messages** block (Domoticz); alert + Gmail via `EMAIL_REQUESTED` — **Ship B6** (email waits on **E**).
 
 #### Assessment — packing H4/H5/H12 into B9B (2026-08-08)
@@ -572,7 +584,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | H3 cooldown | **Out** (future) | Gmail MD already has **transport** dedup; rule-level cooldown can wait |
 | H6 helpers | **Out** (future) | Would ease `bathroom1.vent_*` literals later; not required if literals OK for v1 band |
 
-**Superseded proposal (pre-Domoticz lock 2026-08-08):** ~~H12 → bathroom → H4 → H5 alert → H5 email~~ — replaced by locked ship order above (**B4** before **B5** so H4/OR exists before OR-heavy notify rules; H12 stays with bathroom in **B5**).
+**Superseded proposal (pre-Domoticz lock 2026-08-08):** ~~H12 → bathroom → H4 → H5 alert → H5 email~~ — replaced by locked ship order (**B4** H4 before **B5**; **B13** moved into Ship **B3** with **B19** on **2026-08-16**).
 
 **Risk:** B9B scope grew from “bathroom only” — treat H4/H5 as explicit sub-deliverables; bathroom+H12 can DoD independently of Gmail if email lags.
 
@@ -964,7 +976,7 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 - [ ] **Bathroom:** humidity ON/OFF band via H12; hardcoded climate paths retired; **vent min-runtime lock remains in hub**.
 - [ ] **`bathroom1.vent_*` cutover** decided and applied.
 - [ ] **Sweeper** climate recovery: keep-thin or drop — explicit at impl.
-- [ ] **H4:** condition AND/OR groups in schema + Blockly + engine; remove trigger “when any of”; multi-match via condition and/or.
+- [ ] **H4:** condition AND/OR groups in schema + Blockly + engine; remove trigger “when any of”; multi-match via condition and/or. **Cutover leftovers (B3):** `KeukenLivingEetk_EetkHue` + Spare Button ×3 — Admin Debug RED accepted until these are branch rules.
 - [ ] **H5 alert:** Blockly notify/alert action (UI path).
 - [ ] **H5 Gmail:** action emits `EMAIL_REQUESTED` only; aligns with `docs/todo/phaseE-gmail.md` (outbox/OAuth may land in parallel; email DoD can trail alert if needed).
 - [ ] Hot-water/sauna-grace still out unless reopened.
@@ -1763,7 +1775,18 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 **Ship with B12** — one PR.
 
-**B11 DoD (stub):** multi-flow authoring + load/save + engine semantics locked; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**Operator request (2026-08-16, verbatim):**
+> this should be possible - put that in the pipeline where it fits
+
+**Intent (locked into B11 — not H4 / not soften B13 first-match):** After B19 migrator, rules with **non-exclusive parallel cases** (legacy “all matching cases run”) were split into multiple Library rows — e.g. **`--- CINEMA OFF`** + `(2)` + `(3)`, **Evening lights on** + `(2)`. Operator wants **one Library rule / one Blockly page** that can express that again.
+
+**Engine / authoring target (stub — lock at kickoff):**
+- Multiple **If/Do** roots on one page (multi-flow).
+- On wake: **every matching If/Do runs** (non-exclusive). Else-if / Else **within** one chain stays **first-match** (B13 / B19 — unchanged).
+- **Not** Ship **B4** (H4 = nested AND/OR in Compare only).
+- Cutover: hand-merge or helper to reunite migrator splits after B11 lands.
+
+**B11 DoD (stub):** multi-flow authoring + load/save + engine semantics locked (**all matching If/Do fire**); reunite smoke for CINEMA OFF-style + Evening lights on-style; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -1777,25 +1800,23 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ---
 
-### Phase B13 — Domoticz Else-if / Else (Ship B4) 🔜 TODO
+### Phase B13 — Domoticz Else-if / Else (Ship B3 with B19) ✅ DONE (2026-08-16)
 
-**Origin:** operator inbox **2026-08-10** (HA **H11**). **Ship with B9B H4** — one **Logic** pass on B19 canvas.
+**Origin:** operator inbox **2026-08-10** (HA **H11**). Shipped with **B19**.
 
-**Goal:** Domoticz **If/Do** control gear: add **Else-if** / **Else** branches (see [Domoticz If Else](https://wiki.domoticz.com/Blockly#if_else)). Beyond ON/OFF case pairs.
+**Shipped:** Else-if / Else gear; **first match wins** (intentional Domoticz divergence). Covered by B19 DoD + Pi smoke.
 
-**Depends on:** **B19** (Ship **B3**) — gate before kickoff.
-
-**B13 DoD (stub):** schema + Blockly + engine for IF/ELSEIF/ELSE on Domoticz canvas; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**Last DoD:** with B19 docs audit **2026-08-16**.
 
 ---
 
 ### Phase B14 — Domoticz timed Set & HA patterns (Ship B7) 🔜 TODO
 
-**Not B9A/B9B.** H1 sustained-for · H2 delay/wait · H3 cooldown · H6 input_number · H7 presence/mode · H8 area trigger · H9 sun elevation · H10 blueprints. (**H11** → **B13**; **H4/H5/H12** → **B9B**.)
+**Not B9A/B9B.** H1 sustained-for · H2 delay/wait · H3 cooldown · H6 input_number · H7 presence/mode · H8 area trigger · H9 sun elevation · H10 blueprints. (**H11** → **B13** with **B19** / Ship **B3**; **H4/H5/H12** → **B9B**.)
 
 **Excludes:** Domoticz **Time trigger** (every minute) → **B20** after **F**. User variables · debug block.
 
-**Depends on:** **B19** (Ship **B3**) — gate before kickoff; prefer after **Ship B4**.
+**Depends on:** **B19+B13** (Ship **B3**) — gate before kickoff; prefer after **Ship B4** (H4).
 
 **B14 DoD (stub):** pick subset + lock order at kickoff; Domoticz **Set for X minutes** / **Set after X seconds** where selected. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 

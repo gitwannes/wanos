@@ -262,7 +262,7 @@
             <template x-if="selectedRule">
                 <div class="space-y-4">
                     <div x-show="selectedRule.isDraft && !selectedRule.isEventRow && !selectedRule.isSystemEventRow"
-                         class="text-xs text-warning font-semibold">New rule — pick trigger + cases in Blockly, name it, then Save.</div>
+                         class="text-xs text-warning font-semibold">New rule — add If conditions and Do actions in Blockly, name it, then Save.</div>
                     <div x-show="selectedRule.isDraft && selectedRule.isEventRow" class="text-xs text-warning font-semibold">New user event — set name and explorer flags, then Save (no Blockly).</div>
                     <div x-show="selectedRule.isSystemEventRow" class="text-xs text-slate-300/90 font-semibold">
                         System event (catalog) — view only. Use <b>Create System Rule</b> when unused, or New rule → When system event.
@@ -684,6 +684,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=14"></script>
-<script src="blocky.js?v=16"></script>
+<script src="blocky.js?v=24"></script>
 </body>
 </html>

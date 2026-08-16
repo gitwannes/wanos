@@ -183,7 +183,10 @@ class ConditionConfig(BaseModel):
 
     type: str
     entity_id: Optional[str] = None
-    condition_is: str = Field(alias="is")
+    # B19 event Compare — catalog UUID (type == "event").
+    event: Optional[str] = None
+    # Optional for event Compares; required for device_state / time_of_day.
+    condition_is: Optional[str] = Field(default=None, alias="is")
     # B9A: compare op (default equality) + optional temp_hum attribute.
     op: Optional[str] = None
     attribute: Optional[str] = None
@@ -191,6 +194,8 @@ class ConditionConfig(BaseModel):
     @field_validator("condition_is", mode="before")
     @classmethod
     def _coerce_is(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
         if isinstance(v, bool):
             return "ON" if v else "OFF"
         if isinstance(v, (int, float)) and not isinstance(v, bool):
@@ -238,6 +243,17 @@ class ActionConfig(BaseModel):
             return str(v)
         return v
 
+
+class BranchConfig(BaseModel):
+    """B19 If / Else-if / Else branch (first-match)."""
+    model_config = ConfigDict(extra="forbid")
+
+    when: str  # if | else_if | else
+    conditions: Optional[List[ConditionConfig]] = None
+    actions: List[ActionConfig] = Field(default_factory=list)
+    label: Optional[str] = None
+
+
 class AutomationRuleConfig(BaseModel):
     # Stable per-rule identity used by Blocky CRUD.
     # Expanded X1 engine clones use runtime-only ids like "<id>#on"/"<id>#off".
@@ -250,9 +266,11 @@ class AutomationRuleConfig(BaseModel):
     # Kept optional so old YAML / migrator input still validates until cutover strips them.
     scene: bool = False
     require_confirmation: bool = False
-    trigger: Union[TriggerConfig, List[TriggerConfig]]
+    # B19: branch rules have no authoring trigger. Flat/legacy expand still uses trigger+actions.
+    trigger: Optional[Union[TriggerConfig, List[TriggerConfig]]] = None
+    branches: Optional[List[BranchConfig]] = None
     conditions: Optional[List[ConditionConfig]] = None
-    actions: List[ActionConfig]
+    actions: Optional[List[ActionConfig]] = None
 
 
 def _expand_branched_automations_for_engine(raw_automations: Any) -> List[dict]:

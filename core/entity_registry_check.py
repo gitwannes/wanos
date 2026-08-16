@@ -214,6 +214,47 @@ def run_entity_cutover_checks(
     }
     stats["automations_source"] = auto_source
 
+    # B19: fail if legacy trigger+cases remain; basic branch-shape checks.
+    try:
+        from core.automations_schema_b19 import (
+            is_branch_rule,
+            is_legacy_cases_rule,
+            normalize_branch_rule,
+            validate_branch_rule_for_enable,
+        )
+
+        auto_list = merged_auto.get("automations") or []
+        legacy_n = 0
+        branch_n = 0
+        if isinstance(auto_list, list):
+            for r in auto_list:
+                if not isinstance(r, dict):
+                    continue
+                name = str(r.get("name") or r.get("id") or "?")
+                if is_legacy_cases_rule(r) or (
+                    ("trigger" in r or "cases" in r) and not is_branch_rule(r)
+                ):
+                    legacy_n += 1
+                    errors.append(
+                        f"B19 legacy trigger/cases still present: {name} "
+                        f"(hand-author on If/Do, or Ship B4/H4 for multi-device OR)"
+                    )
+                elif is_branch_rule(r):
+                    branch_n += 1
+                    try:
+                        normalize_branch_rule(r)
+                    except ValueError as exc:
+                        errors.append(f"B19 invalid branches on {name}: {exc}")
+                    else:
+                        if r.get("enabled", True) is not False:
+                            verr = validate_branch_rule_for_enable(r)
+                            if verr:
+                                errors.append(f"B19 enabled rule invalid ({name}): {verr}")
+        stats["b19_branch_rules"] = branch_n
+        stats["b19_legacy_cases_rules"] = legacy_n
+    except Exception as exc:
+        warnings.append(f"B19 branch checks skipped: {exc}")
+
     if "lighting" in raw_auto or "lighting" in (raw_cfg or {}):
         errors.append(
             "legacy lighting: must not exist — SoT is auto_off_devices: "

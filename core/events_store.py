@@ -59,15 +59,9 @@ def rule_display_name(rule: Dict[str, Any]) -> str:
     System rules (SR): always the companion SE catalog name (never drifted YAML
     free-text). User rules: YAML ``name`` (or id fallback).
     """
-    trig = rule.get("trigger")
-    eid = ""
-    if isinstance(trig, dict) and trig.get("event"):
-        eid = str(trig["event"])
-    elif isinstance(trig, list):
-        for t in trig:
-            if isinstance(t, dict) and t.get("event") and not t.get("entity_id"):
-                eid = str(t["event"])
-                break
+    from core.automations_schema_b19 import primary_event_id_from_rule
+
+    eid = primary_event_id_from_rule(rule) or ""
     if eid and eid in SYSTEM_UUID_TO_KEY:
         cat = find_event(eid)
         if isinstance(cat, dict) and cat.get("name"):
@@ -397,18 +391,25 @@ def rule_fire_refs_to_event(event_id: str) -> List[str]:
 
 
 def rule_trigger_refs_to_event(event_id: str) -> List[str]:
-    """Return rule names whose trigger listens to this event id."""
+    """Return rule names whose wake/Compare listens to this event id."""
     eid = str(event_id)
     hits: List[str] = []
     for rule in read_automations():
         if not isinstance(rule, dict):
             continue
-        if _trigger_has_event(rule.get("trigger"), eid):
+        if _rule_listens_to_event(rule, eid):
             hits.append(rule_display_name(rule))
     return hits
 
 
 def _rule_fires_event(rule: Dict[str, Any], event_id: str) -> bool:
+    from core.automations_schema_b19 import is_branch_rule, iter_branch_actions
+
+    if is_branch_rule(rule):
+        for action in iter_branch_actions(rule):
+            if str(action.get("event") or "") == event_id:
+                return True
+        return False
     for case in rule.get("cases") or []:
         if not isinstance(case, dict):
             continue
@@ -435,29 +436,25 @@ def count_system_event_listeners(event_id: str, *, exclude_rule_id: Optional[str
         rid = str(rule.get("id") or "")
         if exclude_rule_id and rid == exclude_rule_id:
             continue
-        if _trigger_has_event(rule.get("trigger"), eid):
+        if _rule_listens_to_event(rule, eid):
             n += 1
     return n
 
 
+def _rule_listens_to_event(rule: Dict[str, Any], event_id: str) -> bool:
+    """True if rule wakes on / Compares this event (B19 branches or legacy trigger)."""
+    from core.automations_schema_b19 import derive_wake_event_ids, is_branch_rule
+
+    if is_branch_rule(rule):
+        return event_id in derive_wake_event_ids(rule)
+    return _trigger_has_event(rule.get("trigger"), event_id)
+
+
 def _rule_references_event(rule: Dict[str, Any], event_id: str) -> bool:
-    trig = rule.get("trigger")
-    if _trigger_has_event(trig, event_id):
+    if _rule_listens_to_event(rule, event_id):
         return True
-    for case in rule.get("cases") or []:
-        if not isinstance(case, dict):
-            continue
-        for action in case.get("actions") or []:
-            if isinstance(action, dict) and str(action.get("event") or "") == event_id:
-                return True
-    # Legacy on/off branches if still present
-    for branch_key in ("on", "off"):
-        branch = rule.get(branch_key)
-        if not isinstance(branch, dict):
-            continue
-        for action in branch.get("actions") or []:
-            if isinstance(action, dict) and str(action.get("event") or "") == event_id:
-                return True
+    if _rule_fires_event(rule, event_id):
+        return True
     return False
 
 
@@ -478,7 +475,7 @@ def enabled_listener_rule_ids(event_id: str) -> List[str]:
             continue
         if rule.get("enabled", True) is False:
             continue
-        if _trigger_has_event(rule.get("trigger"), eid):
+        if _rule_listens_to_event(rule, eid):
             rid = str(rule.get("id") or "")
             if rid:
                 out.append(rid)
