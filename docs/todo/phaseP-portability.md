@@ -64,7 +64,7 @@ Make WanOS **usable for another house**: engine stays generic; **home-specific**
 * `logic/history_ids.py` — `SAUNA_CALC_IDX = 20101`
 * `hardware/actuators.py` — **topology** fixed: 3 sauna phases + IR + one safety GPIO (pins from config)
 * `core/well_known_entities.py` — sauna door/probes, badk 1e vent/hum, Epson, SSR/WISC 5V
-* `logic/automation_rules.py` — bathroom1 humidity → `zwave.vent.badk_1e`
+* `logic/automation_rules.py` — shower `WATER_PULSE` → badk 1e vent ON only; humidity band → Library rule **`Badk 1e ventilatie`** (Ship **B5** ✅ **2026-08-17**)
 * `logic/history_manager.py` — doors **10001 / 10002**
 * `core/entity_id_list.py` — IDX band → origin
 * WISC / kiosk / Admin lab **HTML/JS** — hardcoded IDXs (`10001`, `51002`, `71036`, `72004`, `71038`, `20001`…, `72001`, …) and house copy

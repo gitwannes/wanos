@@ -172,9 +172,7 @@ ir:
   max_time_mins: 20
 
 bathroom1:
-  vent_on_humidity: 80           # Auto-engage fan above this %
-  vent_off_humidity: 74          # Auto-disengage fan below this %
-  vent_min_runtime_mins: 5       # Minimum time the fan must run before auto-disengaging
+  vent_min_runtime_mins: 5       # Shower vent lock duration (hub 90001); humidity band → Library rule Badk 1e ventilatie
 
 blinds:
   default_travel_time_secs: 35

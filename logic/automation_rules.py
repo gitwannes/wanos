@@ -9,7 +9,6 @@ from core.logger import automation_logger  # explicitly isolated logger for logi
 from core.event_catalog import to_bus_token, legacy_key_for_bus_token
 from core.auto_off_policy import resolve_auto_off_minutes
 from core.well_known_entities import (
-    ENTITY_BATHROOM_HUM,
     ENTITY_BATHROOM_VENT,
     ENTITY_WATER_HOT,
 )
@@ -40,7 +39,6 @@ class AutomationEngine:
 
     # Well-known system fixtures: re-exported from core.well_known_entities.
     ENTITY_BATHROOM_VENT = ENTITY_BATHROOM_VENT
-    ENTITY_BATHROOM_HUM = ENTITY_BATHROOM_HUM
     ENTITY_WATER_HOT = ENTITY_WATER_HOT
 
     @classmethod
@@ -566,8 +564,6 @@ class AutomationEngine:
     def _evaluate_body(event: Event, state: SystemState) -> List[Event]:
         bathroom_vent_idx = AutomationEngine.resolve_entity_id(
             state, AutomationEngine.ENTITY_BATHROOM_VENT)
-        bathroom_hum_idx = AutomationEngine.resolve_entity_id(
-            state, AutomationEngine.ENTITY_BATHROOM_HUM)
         water_hot_idx = AutomationEngine.resolve_entity_id(
             state, AutomationEngine.ENTITY_WATER_HOT)
 
@@ -603,7 +599,7 @@ class AutomationEngine:
 
         # 🛡️ THE GENERIC BOOT GUARD 🛡️
         # Prevent "Boot Storms": We skip custom YAML rules if this is a boot initialization.
-        # We do NOT return early so System Timers and Hysteresis loops can safely arm on boot!
+        # We do NOT return early so System Timers and shower vent watchdog can arm on boot!
         active_rules = [] if payload.get("is_initialization", False) else config.automations
 
         for rule in active_rules:
@@ -1055,12 +1051,10 @@ class AutomationEngine:
         # it triggers a Sweeper. The sweeper looks at the clock and the live sensor data,
         # then explicitly commands the hardware to snap back to the mathematically correct state.
         # This prevents the house from staying "stuck" if an event fired while the hub was offline.
-        # (Note: Environmental Blinds/Twilight are swept inside state_manager.py, but
-        # transient timers and climate locks are swept here).
+        # (Note: Environmental Blinds/Twilight are swept inside state_manager.py.)
         # =========================================================================
         if event_name == "SYSTEM_SWEEP_REQUESTED":
             recovered_timers: int = 0
-            recovered_vents: int = 0
 
             # --- Audit A: Auto-off Timers ---
             if hasattr(config, "auto_off_devices") and config.auto_off_devices.managed_auto_off:
@@ -1117,46 +1111,11 @@ class AutomationEngine:
                                 f"Turning OFF in {delay_mins} min.")
                             recovered_timers += 1
 
-            # --- Audit B: Bathroom Climate Ventilation ---
-            if hasattr(config, "bathroom1"):
-                on_threshold: int = config.bathroom1.vent_on_humidity
-                off_threshold: int = config.bathroom1.vent_off_humidity
-
-                d_bath = state.devices.get(bathroom_hum_idx) if bathroom_hum_idx is not None else None
-                current_hum: Optional[int] = d_bath.get("hum") if isinstance(d_bath, dict) else None
-
-                if current_hum is not None and bathroom_vent_idx is not None:
-                    current_vent_state = state.devices.get(bathroom_vent_idx, "OFF")
-                    is_locked: bool = state.devices.get(90001, False)
-
-                    if current_hum >= on_threshold and current_vent_state != "ON":
-                        follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED,
-                                  payload={"idx": bathroom_vent_idx, "state": "ON", "origin": "SYSTEM"})
-                        )
-                        automation_logger.info(
-                            f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) >= Threshold ({on_threshold}%). "
-                            f"Forced {AutomationEngine.format_device_ref(state, bathroom_vent_idx)} ON.")
-                        recovered_vents += 1
-                    elif current_hum <= off_threshold and current_vent_state == "ON" and not is_locked:
-                        follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED,
-                                  payload={"idx": bathroom_vent_idx, "state": "OFF", "origin": "SYSTEM"})
-                        )
-                        automation_logger.info(
-                            f"[System Sweeper] Recovered environment: Humidity ({current_hum}%) <= Threshold ({off_threshold}%). "
-                            f"Forced {AutomationEngine.format_device_ref(state, bathroom_vent_idx)} OFF.")
-                        recovered_vents += 1
-
             # Feedback Alert for the Web UI
-            total_recovered: int = recovered_timers + recovered_vents
-            if total_recovered == 0:
+            if recovered_timers == 0:
                 msg: str = "🟢 Sweeper complete: all synced."
             else:
-                parts: List[str] = []
-                if recovered_timers > 0: parts.append(f"{recovered_timers} timers")
-                if recovered_vents > 0: parts.append(f"{recovered_vents} HVAC states")
-                msg: str = f"🟢 Sweeper complete: Recovered {' and '.join(parts)}."
+                msg = f"🟢 Sweeper complete: Recovered {recovered_timers} timers."
 
             follow_up_events.append(Event(
                 type=EventType.ALERT_INJECTED,
@@ -1164,54 +1123,7 @@ class AutomationEngine:
             ))
 
         # =========================================================================
-        # 3. CLIMATE HYSTERESIS LOOPS (Bathroom 1eV Ventilator)
-        # =========================================================================
-        # Hysteresis prevents "Flapping". If you set a fan to turn on at 80%, it will turn on at 80%,
-        # instantly drop the humidity to 79.9%, turn off, the humidity will rise back to 80%, turn on, etc.
-        # This breaks relays.
-        # Solution:
-        # - Turn ON when threshold > 80% (vent_on_humidity)
-        # - Turn OFF ONLY when threshold < 74% (vent_off_humidity)
-        # - ⚡ INTERNAL LOCK (IDX 90001): When the fan turns on, it locks itself "ON" for a minimum of
-        #   5 minutes, regardless of humidity drops. This guarantees a full air cycle.
-        # =========================================================================
-        if event_name == "HUMIDITY_UPDATED":
-            idx = payload.get("idx")
-            if idx == bathroom_hum_idx and bathroom_hum_idx is not None:
-                config = AutomationEngine._get_config()
-                val = payload.get("value", 0)
-
-                if hasattr(config, "bathroom1") and bathroom_vent_idx is not None:
-                    on_threshold = config.bathroom1.vent_on_humidity
-                    off_threshold = config.bathroom1.vent_off_humidity
-
-                    current_vent_state = state.devices.get(bathroom_vent_idx, "OFF")
-                    is_locked = state.devices.get(90001, False)
-
-                    if val >= on_threshold and current_vent_state != "ON":
-                        # Humidity is high: Auto-engage ventilator
-                        follow_up_events.append(
-                            Event(type=EventType.HUB_STATE_CHANGED,
-                                  payload={"idx": bathroom_vent_idx, "state": "ON", "origin": "AUTOMATION"})
-                        )
-                        automation_logger.info(
-                            f"[Bathroom Climate] Humidity crossed upper threshold ({val}% >= {on_threshold}%). Auto-engaging extraction fan.")
-
-                    elif val <= off_threshold and current_vent_state == "ON":
-                        # Humidity is low: Auto-disengage ventilator (ONLY IF 5-MIN LOCK EXPIRED)
-                        if not is_locked:
-                            follow_up_events.append(
-                                Event(type=EventType.HUB_STATE_CHANGED,
-                                      payload={"idx": bathroom_vent_idx, "state": "OFF", "origin": "AUTOMATION"})
-                            )
-                            automation_logger.info(
-                                f"[Bathroom Climate] Humidity dropped below lower threshold ({val}% <= {off_threshold}%). Auto-disengaging extraction fan.")
-                        else:
-                            automation_logger.debug(
-                                f"[X-RAY] Bathroom humidity ({val}%) is low enough to turn off, but 5-minute safety lock is still engaged. Waiting.")
-
-        # =========================================================================
-        # 4. AUTO-OFF TIMERS (auto_off_devices)
+        # 3. AUTO-OFF TIMERS (auto_off_devices)
         # =========================================================================
         # Prevents lights in transitive rooms (hallways, toilets, pantries) from being left on indefinitely.
         # - Only affects entity_ids explicitly listed in `managed_auto_off`.

@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). Queued: **C3 → C4 → C11 → C12 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B5** / **H12** + bathroom (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). Queued: **C3 → C4 → C11 → C12 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B6** / **H5** Messages (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -971,7 +971,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 | Month / year | **Not affected.** No button, no AH/CI, no overlay. Matches **C12 #8** (dew already off month/year). |
 | Fullscreen | Fills the **entire browser tab** (page viewport). Browser chrome (tab strip, URL bar) **stays visible**. **Not** F11 / `requestFullscreen()` (that hides the browser UI). WanOS Explorer chrome (list, filters, nav) is covered by the overlay. |
 | Close | **X** in the **top-right** of the overlay. |
-| Missing dew / AH / CI | **Confirmed from shipped C5** (`frontend/app.js` `_dewPointC` / `_dewSeriesFromTempHum`). Dew is **never stored** — FE Sonntag Magnus from **T + RH at the same timestamp**. No dew when T is missing/invalid, RH is missing/invalid (`RH <= 0` or `RH > 100`), or T and RH do not share a timestamp. Overlay **reuses that same pairing**; no second Td formula. At those timestamps **Td, AH, and CI are omitted** (gaps; do not invent). AH needs T+Td; CI needs Td; Td needs T+RH — so 4th and 5th cannot be calculated without dew. T and/or RH still plot if present. |
+| Missing dew / AH / CI | **Confirmed from shipped C5** (`frontend/app.js` `_dewPointC` / `_dewSeriesFromTempHum`). Dew is **never stored** — FE Sonntag Magnus from **T + RH at the same timestamp**. No dew when T is missing/invalid, RH is missing/invalid (`RH <= 0` or `RH > 100`), or T and RH do not share a timestamp. Overlay **reuses that same pairing**; no second Td formula. At those timestamps **Td, AH, and CI are omitted** (gaps; do not invent). AH needs T+Td; **CI needs T+Td** (formula **2026-08-17**). Td needs T+RH — so 4th and 5th cannot be calculated without dew. T and/or RH still plot if present. |
 | Overlay time window | **Same 24 h viewport as C16** (pan over `hires_days`). Export is the **full** `hires_days` buffer, not only the visible window. |
 | Export format | **CSV** (Excel-openable). No `.xls` / `.xlsx` library. Button/file: **Export CSV**. Empty cells where Td/AH/CI cannot be computed. Span = `history.retention.hires_days` (not a hardcoded 7). |
 | Axes | Left **°C** (T + Td). Right **%** (RH + CI). **Third** y-axis **g/m³** (AH). Each y-axis **shown only when at least one series on that axis is checked**. |
@@ -984,6 +984,40 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 3. One line width for CI (same as humidity, width **2**).
 4. No point markers.
 5. No smooth gradient; no per-band width.
+
+**CI formula — locked 2026-08-17** (replaces the simpler Td-only line in the 2026-08-16 inbox). Band **colors** stay Td table (§9). Plotted **CI %** uses T + Td:
+
+```
+CI_base = 4.5 * Td - 30
+if CI_base < 0: CI_base = 0
+if CI_base > 100: CI_base = 100
+TC = 0.8 * (T - 20)
+CI = CI_base + TC
+if CI < 0: CI = 0
+if CI > 100: CI = 100
+```
+
+**Superseded (inbox 2026-08-16, simpler):** `CI = 4.5 * Td - 30` then clamp 0–100 — no temperature correction.
+
+**Operator request (verbatim, screenshot 2026-08-17):**
+> 4. In plain tekst (klaar voor code)
+>
+> Input:
+> - T (°C) = luchttemperatuur
+> - Td (°C) = dauwpunt
+>
+> Stap 1 – Basis op dauwpunt
+> CI_base = 4.5 * Td - 30
+> if CI_base < 0: CI_base = 0
+> if CI_base > 100: CI_base = 100
+>
+> Stap 2 – Temperatuurcorrectie
+> TC = 0.8 * (T - 20)
+>
+> Stap 3 – Totale comfortindex
+> CI = CI_base + TC
+> if CI < 0: CI = 0
+> if CI > 100: CI = 100
 
 **Operator (2026-08-16):**
 > accept - any other open items?
@@ -1023,7 +1057,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * Standalone `sensorhistory.html` unless kickoff includes it.
 * Overlay **dew likelihood %** / persist OWM clouds/wind → **C25**.
 
-**C24 DoD:** Kickoff Q&A **locked 2026-08-16**. Temp/hum **day** chart has “open detail in full screen”; overlay fills the browser tab with **X** top-right; 24 h viewport (C16 pan); five checkboxes default on, no overlay legend; third y-axis g/m³ for AH, axes hidden when their series are unchecked; CSV export of five columns for the full `hires_days` buffer; month/year unchanged; Td/AH/CI reuse C5 pairing; CI piecewise comfort colors + tooltip, one width, no markers; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C24 DoD:** Kickoff Q&A **locked 2026-08-16**. CI formula **locked 2026-08-17** (`CI_base` from Td + `TC = 0.8*(T-20)`, clamp). Temp/hum **day** chart has “open detail in full screen”; overlay fills the browser tab with **X** top-right; 24 h viewport (C16 pan); five checkboxes default on, no overlay legend; third y-axis g/m³ for AH, axes hidden when their series are unchecked; CSV export of five columns for the full `hires_days` buffer; month/year unchanged; Td/AH/CI reuse C5 pairing; CI piecewise comfort colors (Td bands) + tooltip (new CI %), one width, no markers; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -1112,7 +1146,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C21:** Explorer AUTO OFF countdown must not run when the device is already OFF.
 * **C22:** ✅ **Done 2026-08-16** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m (`22007`/`22008`) live-only; not C11.
 * **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit. Blank auto-refresh → **C19** ✅. Fullscreen + extra climate lines → **C24**.
-* **C24:** temp/hum **day** overlay fills the **browser tab** (not F11) with **X** top-right; 24 h window (C16); CSV of full `hires_days`; 3rd y-axis AH (axes iff series checked); checkboxes only; month/year unchanged; **after C16**; not C12 #8 frost; do not reopen **C5**. Kickoff Q&A **locked 2026-08-16** — implement when commanded. Dew likelihood → **C25**.
+* **C24:** temp/hum **day** overlay fills the **browser tab** (not F11) with **X** top-right; 24 h window (C16); CSV of full `hires_days`; 3rd y-axis AH (axes iff series checked); checkboxes only; month/year unchanged; **after C16**; not C12 #8 frost; do not reopen **C5**. Kickoff Q&A **locked 2026-08-16**. CI **2026-08-17:** Td base + T correction. Dew likelihood → **C25**.
 * **C25:** overlay **Dew likelihood %** (heuristic); OWM 2.5 clouds/wind; rain→0; **after C24**; do not reopen C24. Storage/weights/checkbox/CSV/axis → kickoff.
 * **C15:** lab switch in Debug Commands; entire lab pane hidden when OFF.
 * **C13:** Merge hide into Timers & types …
@@ -1127,7 +1161,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C20:** kickoff + contract **locked** 2026-08-15 — implement when commanded.
 * **C21:** AUTO OFF countdown while toggle OFF.
 * **C16:** locked — 24 h max viewport; pan over **`hires_days`**; water day chart **assess at kickoff**.
-* **C24:** kickoff Q&A **locked 2026-08-16** — overlay = full browser tab (not F11); **X** top-right; extra series overlay-only; month/year untouched; 24 h window + CSV of `hires_days`; 3rd y-axis AH (hide axis when series off); checkboxes only; CI piecewise color + tooltip. Implement when commanded. Dew likelihood → **C25**.
+* **C24:** kickoff Q&A **locked 2026-08-16** — overlay = full browser tab (not F11); **X** top-right; extra series overlay-only; month/year untouched; 24 h window + CSV of `hires_days`; 3rd y-axis AH (hide axis when series off); checkboxes only; CI piecewise color + tooltip. CI formula **locked 2026-08-17** (Td base + `TC = 0.8*(T-20)`). Implement when commanded. Dew likelihood → **C25**.
 * **C25:** **not locked** — persist OWM clouds/wind/rain; formula weights; 6th checkbox/CSV; axis. Placement: after **C24**, overlay-only, OWM/outside only.
 * **C15:** locked — switch in Debug Commands; **entire lab pane hidden when OFF**.
 * **C3 / C4** remain open as specified above (later in sequence).

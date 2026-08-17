@@ -5,7 +5,7 @@ This document serves as the master blueprint and reference guide for the directo
 ## 1. Directory & File Structure Blueprint
 
 **Root Directory (`/home/wannes/wanos/`)**
-* `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, hysteresis parameters, and manual integration settings. (Manual / human-edited; comments preserved.) Automatic domains (`deviceexplorer_hide`, `auto_off_devices`, `automations`) live in `automations.auto.yaml`.
+* `config.yaml`: The unified production system configuration file storing the dynamic semantic version string, dynamic runtime limits, sauna/IR/bathroom timing, and manual integration settings. (Manual / human-edited; comments preserved.) Automatic domains (`deviceexplorer_hide`, `auto_off_devices`, `automations`) live in `automations.auto.yaml`. Bathroom 1e humidity band (80 / 74) is a Library rule in `automations.auto.yaml`, not `config.yaml`.
 * `automations.auto.yaml`: UI/system-owned automatic sections — Explorer soft-hide (`deviceexplorer_hide`), auto-off + product-type overrides (`auto_off_devices`, `device_product_types`), automation **rules**, and the `events:` catalog (system + user; bus token = UUID).
 * `config_hue.yaml`: PC-owned Hue profile — bridge IP, `device_map`, `group_map`, `scene_map` (provision locally; mirrored to Pi).
 * `config_hue_presets.auto.yaml`: Pi-owned **`hue.presets`** (text keys → `{ name, bri, xy|rgb }`; Explorer CRUD on Pi; **StatsRepoPull** into git). Runtime merge in `load_config()`. Explorer/Blocky consume `system.hue_presets`. **B9A:** CRUD via `/api/hue-presets` (add / rename display name / delete-when-unused; unique display names).

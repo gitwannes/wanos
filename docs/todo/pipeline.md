@@ -70,6 +70,7 @@ Match [Domoticz Blockly](https://wiki.domoticz.com/Blockly) **look & feel** (If/
 | **G5** | Dashboard `Cinema rolluik half` — open % > 50 → set 50%; legacy + B9C; DoD revised to live Pi rule — docs close-out **2026-08-16** |
 | **B3 / B19+B13** | Domoticz If/Do + Else-if/Else + branches cutover — Pi smoke **2026-08-17**; migrator 7A deleted — docs close-out **2026-08-17** |
 | **B4 / H4** | Nested AND/OR/NOT in Compare + OR-list migrator (KeukenLiving + Spare ×3) — Pi smoke + Admin Debug GREEN + migrator deleted — docs close-out **2026-08-17** |
+| **B5 / H12** | Bathroom If/Else-if edge-cross — `Badk 1e ventilatie`; hardcoded climate + sweeper Audit B removed; `vent_on/off_humidity` retired — Pi smoke + Admin Debug GREEN — docs close-out **2026-08-17** |
 
 Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phaseC-shell.md), [`phaseD-typing.md`](phaseD-typing.md), [`phaseG-integrations.md`](phaseG-integrations.md).
 
@@ -79,7 +80,7 @@ Detail DoD → [`phaseB-blocky.md`](phaseB-blocky.md), [`phaseC-shell.md`](phase
 
 One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal.
 
-**B10G** / **B10H** / **B10K+G3** / **B10N** / **C18** / **C19** / **C22** / **C23** / **B2 (B9C)** / **B3 (B19+B13)** / **B4 (H4)** ✅ **Done**. Next: **B5** (**H12** + bathroom). **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** anytime after **B10F** / **B10B** / **B10G** / **B10H** / **B10K** / **C6**.
+**B10G** / **B10H** / **B10K+G3** / **B10N** / **C18** / **C19** / **C22** / **C23** / **B2 (B9C)** / **B3 (B19+B13)** / **B4 (H4)** / **B5 (H12)** ✅ **Done**. Next: **B6** (**H5** Messages alert). **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** anytime after **B10F** / **B10B** / **B10G** / **B10H** / **B10K** / **C6**.
 
 | Ship | Phase(s) | Size | One go? |
 |---|---|---|---|
@@ -87,9 +88,9 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 | **B2** | **B9C** legacy bridge | mid | ✅ **Done 2026-08-16** — temp/hum ATTR; shutters OPEN/CLOSED/% + Set open %; audio ON/OFF/volume; enabled **G5** (✅ Done same day) |
 | **B3** | **B19** + **B13** | **high** | ✅ **Done 2026-08-17** — If/Do canvas + Else-if; Pi smoke OK |
 | **B4** | **B9B H4** only | high | ✅ **Done 2026-08-17** — nested AND/OR/NOT in Compare; 4 OR-list leftovers migrated; `b_trig_or` removed |
-| **B5** | **B9B H12** + bathroom | mid | ✅ alone |
+| **B5** | **B9B H12** + bathroom | mid | ✅ **Done 2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed |
 | **B6** | **B9B H5** Messages | mid | ✅ alert alone; Gmail half when **E** ready |
-| **B7** | **B14** (no Time trigger) | high | ✅ together — timed Set, delay, cooldown, … |
+| **B7** | **B14** (no Time trigger) | high | ✅ together — timed Set, delay, cooldown + B5-deferred hygrostat/min-runtime |
 | **B8** | **B11** + **B12** | mid | ✅ together — multi-flow (**all matching If/Do fire**) + folder/tag |
 
 **After F:** **B20** — Domoticz **Time** trigger (every-minute model). **Not** in cluster above.
@@ -120,7 +121,7 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 | **C20** | Anytime after **C2** / **C8** | bugfix: Admin bell Clear All does nothing — kickoff **locked** 2026-08-15; parallel to **B2–B8** |
 | **C21** | Anytime | bugfix: Explorer AUTO OFF countdown while device already OFF; parallel to **B2–B8** |
 | **E** (Gmail transport) | After **B3** or default after cluster | Parallel to **B5–B8**; **B6** alert ships without **E**; H5 email half waits **E** |
-| **Ship B5 ∥ Ship B6** | After **B4** | Bathroom/H12 vs Messages alert — independent; OR-heavy notify rules still want **B4** first |
+| **Ship B6** | After **B5** ✅ | Messages alert (H5); Gmail half waits **E** — **B5** ✅ **Done 2026-08-17** |
 
 **Default pipeline order** below is the conservative merge sequence when not running parallel tracks.
 
@@ -132,11 +133,10 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 
 ```text
 #  Size   Phase / Ship   What
-─── Blockly cluster (operator: B5…B8 before shell/integrations/F; B3–B4 ✅) ───
-1.  mid    B5           B9B H12 hysteresis + bathroom climate cutover
-2.  mid    B6           B9B H5 Messages (alert; + email when E)
-3.  high   B7 / B14     timed Set, delay, cooldown, remaining HA patterns (no Time trigger)
-4.  mid    B8           B11 multi-flow (all matching If/Do) + B12 folder/tag
+─── Blockly cluster (operator: B6…B8 before shell/integrations/F; B3–B5 ✅) ───
+1.  mid    B6           B9B H5 Messages (alert; + email when E)
+2.  high   B7 / B14     timed Set, delay, cooldown, remaining HA patterns + B5-deferred hygrostat/min-runtime (no Time trigger)
+3.  mid    B8           B11 multi-flow (all matching If/Do) + B12 folder/tag
 ─── Parallel beside cluster (after gates above) ───
 7b. low    B10I         used SE → Go to SR — **∥ cluster** (anytime after B10F)
 7c. low    B10J         Event Received log — catalog display name (not raw UUID) — **∥ cluster** (anytime after B10B)
@@ -191,8 +191,9 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **B2 B9C** — ✅ **Done 2026-08-16** — today’s canvas (temp/hum + shutters/audio `%` When+if + Set open %).
 * **B3 B19+B13** — ✅ **Done 2026-08-17** — Domoticz If/Do + Else-if/Else (first-match) + branches; migrator 7A deleted.
 * **B4 H4** — ✅ **Done 2026-08-17** — nested AND/OR/NOT in Compare; KeukenLiving + Spare Button ×3 migrated; Admin Debug GREEN; migrator deleted.
-* **B5–B6** — bathroom / notify on Domoticz blocks; **Ship B5 ∥ Ship B6** if capacity allows; **H5 email** still waits on **E** (alert ships first).
-* **B7 B14** — timed **Set**, delays, cooldowns — **excludes** Time trigger (**B20**).
+* **B5 H12** — ✅ **Done 2026-08-17** — bathroom If/Else-if edge-cross (`Badk 1e ventilatie`); hardcoded climate + sweeper Audit B removed; Pi smoke + Admin Debug GREEN; docs close-out.
+* **B6 H5** — Messages alert (**Ship B6**); **H5 email** still waits on **E** (alert ships first).
+* **B7 B14** — timed **Set**, delays, cooldowns + B5-deferred (5 min lock, level Compare, Auto switch, hygrostat, Schmitt block, sweeper replay) — **excludes** Time trigger (**B20**).
 * **B8** — library organization + multi-flow (all matching If/Do) after canvas + **B7** stable.
 * **G5** — ✅ **Done 2026-08-16** — `Cinema rolluik half` on legacy + **B9C** (DoD revised to live Pi rule; not after B19).
 * **B10I** — Library **Go to SR**; **parallel to cluster** (no B19 dependency).
@@ -207,7 +208,7 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **C21** — Explorer **AUTO OFF** countdown while device already OFF; **∥ cluster**. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C21.
 * **C22** — ✅ **Done 2026-08-16** — Host CPU temp (`22001`) history; load 5m/15m live-only. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C22.
 * **C23** — ✅ **Done 2026-08-16** — closed **with C18**; `SseClient` `@dataclass(eq=False)` in the hub `set`; Explorer EventSource. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C23.
-* **C24** — temp/hum **day** overlay fills the **browser tab** (not F11); 24 h window; CSV of `hires_days`; AH 3rd y-axis; checkboxes only; **after C16**. Frost line stays **C12 #8**. Do not reopen **C5**. Kickoff **locked** 2026-08-16. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C24.
+* **C24** — temp/hum **day** overlay fills the **browser tab** (not F11); 24 h window; CSV of `hires_days`; AH 3rd y-axis; checkboxes only; **after C16**. Frost line stays **C12 #8**. Do not reopen **C5**. Kickoff **locked** 2026-08-16. CI formula **2026-08-17:** Td base + `TC = 0.8*(T-20)`. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C24.
 * **C25** — overlay **dew likelihood %** (heuristic, not calibrated probability); OWM Current 2.5 clouds/wind + rain→0; **after C24**; do not reopen C24. Detail → [`phaseC-shell.md`](phaseC-shell.md) § C25.
 * **G14** — Manual enable after network-failure disable: **enabling** → **Live** + ON bell; assess all integrations (not G8 boot).
 * **C\*, G\*, E, F** — **after Blockly cluster** (default). **E** may start **parallel to B5–B8**. **G2/G6** may jump on operator pain. **G9→G13** — one new vendor bridge per run, after **G4**, before **F**.
@@ -215,7 +216,7 @@ One PR per row. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz go
 * **B15–B18** — not Domoticz L&F; **B18** may jump on sauna safety pain.
 * **P** — other homes / portability — **very low**; after **F** and **B15–B18**. Home vs engine must be obvious; extraction **propose + ask**. Overlaps **B17** (sauna/IR). Detail → [`phaseP-portability.md`](phaseP-portability.md).
 
-Near-term = **B5** (H12 + bathroom) → (**B5** ∥ **B6**) → **B7** → **B8**. **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
+Near-term = **B6** (H5 Messages alert) → **B7** → **B8**. **B10I** / **B10J** / **B10L** / **B10M** / **C20** / **C21** / **E** may run beside cluster per § Parallel tracks. **No** user-variable or debug Blockly blocks.
 
 ---
 
@@ -442,7 +443,7 @@ Admin GO: replace legacy `🔄 Reloading all config yaml configurations…` with
 
 | Step | Detail |
 |---|---|
-| **B5 / H12** | [`phaseB-blocky.md`](phaseB-blocky.md) § Phase B9B — bathroom + hysteresis (H4 ✅ in **B4**) |
+| **B6 / H5** | [`phaseB-blocky.md`](phaseB-blocky.md) § Ship B6 / H5 — Messages alert (Gmail half waits **E**) |
 | **Domoticz goal** | [`phaseB-blocky.md`](phaseB-blocky.md) § Domoticz goal + ship groups |
 
 ---
@@ -471,7 +472,7 @@ Detail + DoD stubs: [`phaseB-blocky.md`](phaseB-blocky.md) § B11–B20. Schedul
 | **B11** | Multi-flow one Blockly page — **all matching If/Do fire** (reunite CINEMA OFF / Evening lights on) | **B8** |
 | **B12** | Rule-list folder/tag | **B8** |
 | **B13** | Domoticz Else-if / Else | ✅ **Done** with **B19** / **B3** |
-| **B14** | Timed Set, delay, HA patterns (no Time trigger) | **B7** |
+| **B14** | Timed Set, delay, HA patterns + B5-deferred hygrostat/min-runtime (no Time trigger) | **B7** |
 | **B15** | Demote schedule edges → user origin | after **F** |
 | **B16** | Full-bus UUID internals | after **F** |
 | **B17** | Sauna/IR → automation assess | after **F** |
@@ -547,6 +548,9 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 
 | When | What |
 |---|---|
+| 2026-08-17 | **B5 / H12 ✅ Done** — Pi smoke OK; Admin Debug GREEN; docs close-out. `Badk 1e ventilatie` If/Else-if edge-cross; hardcoded climate + sweeper Audit B removed; `vent_on/off_humidity` retired. Next **B6**. |
+| 2026-08-17 | **B5 / H12 shipped (code)** — `Badk 1e ventilatie` If/Else-if edge-cross in `automations.auto.yaml`; hardcoded climate + sweeper Audit B removed; `vent_on/off_humidity` retired. |
+| 2026-08-17 | **B5 / H12 kickoff locked (Option A)** — If/Else-if edge-cross; 1e humidity cutover; drop climate 5 min + sweeper Audit B; no new block. Deferred (min-runtime, level Compare, Auto, hygrostat, Schmitt, replay) → **B14**. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Ship B5. |
 | 2026-08-17 | **B4 / H4 ✅ Done** — nested AND/OR/NOT; Pi migrator (4 rules); Admin Debug GREEN; `b_trig_or` removed; `blocky.js?v=26` / schema 54; migrator deleted post-soak. Docs close-out. Next **B5**. |
 | 2026-08-17 | **B3 / B19+B13 close-out** — operator Pi smoke OK; Last DoD docs audit; post-smoke polish (branch load, save persist, registry banner, duplicate error). Four OR leftovers closed same day under **B4**. |
 | 2026-08-16 | **B4 / H4 kickoff locked (Domoticz-faithful)** — nested AND/OR/NOT; level Compare only (no became); Pi migrator KeukenLiving level-OR + Spare ×3; skip+report; remove `b_trig_or`. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Ship B4 / H4. |
@@ -554,6 +558,7 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 | 2026-08-16 | **B19+B13 kickoff locked** — Ship **B3** = Domoticz If/Do + Else-if/Else (first-match); no authoring trigger; Compare/event wake; hybrid branch YAML; **B4** = H4 only. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § B19. |
 | 2026-08-16 | **G5 ✅ Done** — DoD revised to live Pi rule `Cinema rolluik half` (open % > 50 → set 50%; legacy + B9C); docs close-out. |
 | 2026-08-16 | **B2/B9C ✅ Done** — Pi smoke OK; temp/hum ATTR; shutters OPEN/CLOSED/open-% When+if + Set open %; audio ON/OFF/volume; `blockyInvertCompareOp`; `wanoslog.sh log 4 debug`; docs close-out. Next **B3** (B19). |
+| 2026-08-17 | **C24** CI formula: Td-only `4.5*Td-30` superseded by Td base + `TC = 0.8*(T-20)` (screenshot); band colors still Td. |
 | 2026-08-16 | Inbox triage: **C25** overlay **dew likelihood %** from OWM 2.5 clouds/wind (heuristic list accepted); **after C24**; do not reopen C24. |
 | 2026-08-16 | **Ops1 ✅ Done** — log2ram/rsyslog cap coded **Ops1**; Done table; Pi smoke + docs close-out. **Ops1 later:** Item 3, ForwardToSyslog, log2ram SIZE, auth/kern. |
 | 2026-08-16 | **C24** lock-in: extra series overlay-only; month/year untouched; fullscreen = full browser tab (not F11). |

@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **B9C** (Ship **B2**) ✅ **Done 2026-08-16**; **B19+B13** (Ship **B3**) ✅ **Done 2026-08-17**; **H4** (Ship **B4**) ✅ **Done 2026-08-17**; **Blockly cluster next** = **B5 (H12 + bathroom) → …** — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport (H5) → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **B9C** (Ship **B2**) ✅ **Done 2026-08-16**; **B19+B13** (Ship **B3**) ✅ **Done 2026-08-17**; **H4** (Ship **B4**) ✅ **Done 2026-08-17**; **H12 + bathroom** (Ship **B5**) ✅ **Done 2026-08-17**; **Blockly cluster next** = **B6 (H5) → …** — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport (H5) → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
 
 **Historical:** `docs/todo/install_blocky.md` was an early Blocky install / phase pointer. It still described pre-**B10B** surface (E1 families, `SCHEDULE_WINDOW_EDGES`, `TWILIGHT_*`, old schedule labels, next = Phase 9A/9B). Retired to a stub at **B10B+D+E** close-out (**2026-08-10**); **deleted 2026-08-12** — this file is the only SoT. Bus pickers = `events:` UUIDs; schedule display = Morning/Evening **lights** on/off; sun refresh = `SUNRISE_SUNSET_UPDATE`; actuator ids `zwave.*` / `rfx.*` / `zwave.vent.*`; product light|switch via Timers & types.
 
@@ -101,9 +101,9 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-17**). **Ship B4 (H4) ✅ DONE** (**2026-08-17** — nested AND/OR/NOT; OR-list migrator; Admin Debug GREEN; migrator deleted). **Next cluster:** **B5** (H12 + bathroom) → **B6** → **B7** → **B8**. **B11–B18** / **B20** = lettered backlog.
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-17**). **Ship B4 (H4) ✅ DONE** (**2026-08-17**). **Ship B5 (H12 + bathroom) ✅ DONE** (**2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN). **Next cluster:** **B6** (H5 Messages) → **B7** → **B8**. **B11–B18** / **B20** = lettered backlog.
 
-**Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B** = bathroom climate + H4/H5/H12 (H4: drop trigger “when any of” → condition and/or; H5 notify→Gmail; H12 hysteresis).
+**Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B:** **H4** ✅ **B4**; **H12 + bathroom** ✅ **B5**; **H5** notify → **B6** (Gmail when **E**).
 
 ### Phase B0 — Blocky prep (decisions at start of Blocky work) ✅ DONE
 
@@ -364,13 +364,13 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 |---|---------|---------|
 | **H4** | Condition AND/OR groups + retire trigger “when any of” | ✅ **Ship B4** **2026-08-17** — schema + Blockly Logic + engine; OR-list migrator |
 | **H5** | Notify / alert action | UI alert first; **extend with Gmail** — Blockly/automation emits `EMAIL_REQUESTED` only (never calls Gmail). SoT: `docs/todo/phaseE-gmail.md` (OAuth outbox, producer hysteresis, transport dedup) |
-| **H12** | Generic hysteresis / dual-threshold block | Vehicle for bathroom humidity band; reusable |
+| **H12** | Dual-threshold humidity band | ✅ **Done (Ship B5 2026-08-17)** — If/Else-if **edge-cross** (no new block). Dedicated Schmitt / hygrostat / min-runtime → **B14**. |
 
 **Later lettered (not B9A/B9B):** H1–H3, H6–H10 → **B14** (Ship B7); H11 → **B13** (Ship **B3** with **B19**). Domoticz canvas → **B19** (Ship B3). Time trigger → **B20** (after F). See § B11–B20.
 
 #### Facts
 
-- Engine `device_state` + numeric When: compare ops `== != > >= < <=` (B9A); hysteresis remains **B9B H12**.
+- Engine `device_state` + numeric When: compare ops `== != > >= < <=` (B9A); **H12** bathroom = If/Else-if edge-cross (**B5**); extra hysteresis primitives → **B14**.
 - Live YAML still has no numeric-threshold rules (smoke uses discrete status/hue); engine + Blockly ready.
 - Host gauges / many sensors may be soft-hidden → Hidden toggle / open-rule sticky unchanged; Blockly additionally hides host 1m/5m load eids.
 - `sauna_status` / `ir_status` mirror session ON/OFF; Blockly allows them as **condition (if) only**.
@@ -478,9 +478,9 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | **B2** | **B9C** | mid | ✅ **Done 2026-08-16** — legacy bridge: temp/hum ATTR; shutters OPEN/CLOSED/% + Set open %; audio ON/OFF/volume When+if. Enabled **G5** (✅ Done same day). |
 | **B3** | **B19** + **B13** | **high** | ✅ **Done 2026-08-17** — If/Do + Else-if/Else, Compare, toolbox, Set, branch cutover; Pi smoke OK. |
 | **B4** | **B9B H4** only | high | ✅ **Done 2026-08-17** — nested AND/OR/NOT in Compare; OR-list migrator; `b_trig_or` removed; Debug GREEN. |
-| **B5** | **B9B H12** + bathroom | mid | Hysteresis block + humidity band cutover; vent lock stays in hub. |
+| **B5** | **B9B H12** + bathroom | mid | ✅ **Done 2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN |
 | **B6** | **B9B H5** notify | mid | **Alert** in Messages block; **Gmail** half waits on **E** (can split: alert first). |
-| **B7** | **B14** (excl. time) | high | H1 sustained-for · H2 delay/wait · H3 cooldown · H6–H10 subset — **no** Domoticz Time trigger (→ **B20**). Pick subset at kickoff. |
+| **B7** | **B14** (excl. time) | high | H1–H3 · H6–H10 subset + **B5-deferred** (min-runtime, level Compare, Auto switch, hygrostat, Schmitt block, sweeper replay). **No** Time trigger (→ **B20**). Pick subset at kickoff. |
 | **B8** | **B11** + **B12** | mid | Multi-flow (**all matching If/Do fire** — reunite CINEMA OFF / Evening lights on splits) + folder/tag — after B19 canvas stable. |
 
 **Not in Blockly cluster:** **B15** (schedule demotion), **B16** (internal bus UUID), **B17** (assess), **B18** (sauna clamp) — stay in general pipeline after **F** unless safety jumps **B18**.
@@ -604,20 +604,62 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 ---
 
-### Phase B9B — Bathroom climate + H5 / H12 🔜 NEXT (feasibility done for bathroom)
+### Phase B9B — Bathroom climate + H5 / H12 🔜 NEXT (H5 only)
 
-**Not B9A.** **H4 ✅ Done** (Ship **B4**). Remaining: **Ship B5** (H12 + bathroom), **Ship B6** (H5).
+**Not B9A.** **H4 ✅ Done** (Ship **B4**). **H12 + bathroom ✅ Done** (Ship **B5**). Remaining: **Ship B6** (H5).
 
-**Depends on:** **B19+B13** (Ship **B3**) ✅ **Done 2026-08-17**; **H4** ✅ **Done 2026-08-17** (§ Ship B4 / H4 above).
+**Depends on:** **B19+B13** (Ship **B3**) ✅ **Done 2026-08-17**; **H4** ✅ **Done 2026-08-17** (§ Ship B4 / H4); **H12 + bathroom** ✅ **Done 2026-08-17** (§ Ship B5 / H12 below).
 
-**Locked ship order (2026-08-16):** Ship **B5** (H12 + bathroom) → Ship **B6** (H5 alert; Gmail when **E** ready). Ships **B5 ∥ B6** allowed — see [`pipeline.md`](pipeline.md) § Parallel tracks.
+**Locked ship order (2026-08-16):** Ship **B5** ✅ → Ship **B6** (H5 alert; Gmail when **E** ready). Ships **B5 ∥ B6** was allowed — **B5** closed **2026-08-17**; **B6** is next.
 
 **Goal:**
 
-1. **Bathroom climate** — humidity ON/OFF band in Blockly; retire hardcoded climate paths; **vent min-runtime lock stays in hub**.
-2. **H12** — generic hysteresis / dual-threshold block (bathroom is the first consumer).
+1. **Bathroom climate** — ✅ **Done (Ship B5)** — humidity ON/OFF band as Library If/Else-if `Badk 1e ventilatie`; hardcoded climate paths + sweeper Audit B removed.
+2. **H12 (B5)** — ✅ **Done** — dual-threshold via numeric Compare (**edge-cross**); no new Blockly block. Dedicated Schmitt / hygrostat / min-runtime / Auto switch → **B14**.
 3. **H4** — ✅ **Done 2026-08-17** (Ship **B4**) — nested AND/OR in Compare; OR-list leftovers migrated.
 4. **H5** — **Messages** block (Domoticz); alert + Gmail via `EMAIL_REQUESTED` — **Ship B6** (email waits on **E**).
+
+### Ship B5 / H12 — If/Else-if edge-cross + bathroom cutover ✅ DONE (2026-08-17)
+
+**Ship B5** = bathroom 1e humidity band in Blockly + delete hardcoded climate loop. Historical Phase B5 (hardening) remains ✅ Done separately.
+
+#### Shipped summary (2026-08-17)
+
+- **Library rule** `Badk 1e ventilatie` (`id: a7c4e8f2-3b6d-4e91-9c0a-5f1d8e2b4c73`) in `automations.auto.yaml`: If hum **≥ 80** → `zwave.vent.badk_1e` ON; Else-if hum **≤ 74** → OFF; numeric Compare **edge-cross** on `sensor.temp_hum.badk_1e`.
+- **Removed:** hardcoded `HUMIDITY_UPDATED` climate loop + sweeper Audit B in `logic/automation_rules.py`.
+- **Config:** retired `bathroom1.vent_on_humidity` / `vent_off_humidity`; kept `vent_min_runtime_mins` (shower / hub `90001`).
+- **Unchanged:** shower `WATER_PULSE` watchdog + hub vent lock on rising ON.
+
+**Kickoff Q&A — locked 2026-08-17 (operator):**
+
+| # | Topic | Lock |
+|---|---|---|
+| **1** | **H12 authoring** | **Option A** — one If / Else-if; **no** new hysteresis block. Numeric Compare stays **edge-cross** (B9A). |
+| **2** | **Rule shape** | If bathroom humidity **≥ 80** → Set `zwave.vent.badk_1e` ON. Else-if humidity **≤ 74** → Set OFF. Humidity-only (vent not in If) so manual ON does not wake the rule. |
+| **3** | **5 min / 90001** | **Dropped** for climate. Manual ON at 50% stays ON until humidity **crosses** 74 from above (or the operator turns it off). |
+| **4** | **Sweeper Audit B** | **Drop** — next real humidity **crossing** runs the rule. No climate copy in the sweeper. |
+| **5** | **config.yaml** | Retire `bathroom1.vent_on_humidity` / `vent_off_humidity` (literals **80 / 74** in the rule). Keep `vent_min_runtime_mins` while shower / hub `90001` remain (out of this ship). |
+| **6** | **Other vents** | Pattern is authorable for any numeric sensor / vent. **DoD is 1e only** (`sensor.temp_hum.badk_1e` → `zwave.vent.badk_1e`). |
+| **7** | **Cutover** | **Same ship:** add the 1e rule under `automations:` in `automations.auto.yaml` + delete hardcoded climate loop (`HUMIDITY_UPDATED` 80/74) + sweeper Audit B. |
+| **8** | **Out of B5** | Hot-water shower watchdog; hub `90001` path used by shower; sauna grace; **B14** list below. |
+| **9** | **Engine numeric edge** | **Leave as-is.** Humidity Compare may also wake on `TEMP_UPDATED` for that SHT11 (temp-only tick can Set OFF while hum stays ≤74). |
+| **10** | **First sample** | **Accept.** Missing `old_value` counts as an edge — first humidity publish after boot can Set ON (≥80) or OFF (≤74). |
+| **11** | **Shower vs Blockly OFF** | **Accept for B5.** Humidity **crossing 74** may Set OFF while `90001` / shower overrun is still running. **Fix → B14** row 1. |
+| **12** | **Library name** | **Proposed** `Badk 1e ventilatie` (same pattern as `Toilet gv ventilatie`). Confirm before implement. `id` minted at write like other rows. |
+
+**Superseded (do not implement in B5):** new Schmitt/H12 block; numeric **level** Compare; `AND vent is ON/OFF`; Auto/Manual switch; hygrostat helper; hub defer-OFF for 90001; sweeper humidity replay; restrict humidity Compare to `HUMIDITY_UPDATED` only.
+
+**Deferred → Ship B7 / B14** (operator 2026-08-17: *“A for now — put the rest in the pipeline in the existing future phases”*): § Phase B14.
+
+#### Ship B5 / H12 DoD
+
+- [x] 1e Library rule: If hum ≥80 → vent ON; Else-if hum ≤74 → vent OFF; edge-cross numeric Compare
+- [x] Hardcoded climate loop + sweeper Audit B removed
+- [x] `vent_on_humidity` / `vent_off_humidity` retired from `config.yaml` + `BathroomConfig`
+- [x] Shower `WATER_PULSE` path **unchanged**; do not delete `90001` hub lock in this ship
+- [x] Pi smoke: rise through 80 → ON; fall through 74 → OFF; humidity 50→51 with vent already ON does **not** auto-OFF (edge-cross). First-sample / temp-only tick / shower 74-cross OFF = accepted B5.
+- [x] Admin Debug GREEN
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-17**
 
 #### Assessment — packing H4/H5/H12 into B9B (2026-08-08)
 
@@ -635,16 +677,25 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 **Risk:** B9B scope grew from “bathroom only” — treat H4/H5 as explicit sub-deliverables; bathroom+H12 can DoD independently of Gmail if email lags.
 
-#### Feasibility — bathroom climate / vent (2026-08-08) ✅ DONE
+#### Feasibility — bathroom climate / vent (2026-08-08) ✅ DONE — shipped **B5 2026-08-17**
 
-Pre-impl write-up (moved out of B9A in-scope; owned by **B9B**).
+Pre-impl write-up (moved out of B9A in-scope; owned by **B9B**). **Cutover complete** — see § Ship B5 shipped summary above.
 
-**What is hardcoded today**
+**Pre-ship state (removed in Ship B5)**
 
 1. **Event path** (`HUMIDITY_UPDATED` on bathroom SHT11): if `hum >= vent_on_humidity` → vent ON; if `hum <= vent_off_humidity` and vent ON and **not** lock → vent OFF. Thresholds from `config.yaml` → `bathroom1.vent_on_humidity` / `vent_off_humidity` (80 / 74).
-2. **Min-runtime lock** (`90001`): on vent rising edge ON, hub sets `devices[90001]=True` and schedules `BATH1_VENT_LOCK_EXPIRED` after `vent_min_runtime_mins`; expiry clears lock and re-dispatches `HUMIDITY_UPDATED` to re-evaluate OFF. **Stays in code (locked 2026-08-08).**
-3. **Sweeper recovery** (Audit B): same ON/OFF thresholds on manual sweep — recovers desynced vent state.
-4. **Related (out of B9B scope):** hot-water pulse → vent ON — not part of this phase unless reopened.
+2. **Min-runtime lock** (`90001`): on vent rising edge ON, hub sets `devices[90001]=True` and schedules `BATH1_VENT_LOCK_EXPIRED` after `vent_min_runtime_mins`; expiry clears lock and re-dispatches `HUMIDITY_UPDATED` to re-evaluate OFF. **Stays in code for shower** (locked 2026-08-08); climate path no longer uses it (**B5**).
+3. **Sweeper recovery** (Audit B): same ON/OFF thresholds on manual sweep — **dropped in B5**.
+4. **Related (out of B9B scope):** hot-water pulse → vent ON — shower watchdog **unchanged** in `logic/automation_rules.py`.
+
+**Shipped state (2026-08-17)**
+
+| Piece | Where |
+|-------|--------|
+| Humidity band ≥80 / ≤74 | Library rule **`Badk 1e ventilatie`** in `automations.auto.yaml` (If/Else-if edge-cross) |
+| Shower `WATER_PULSE` → vent ON | `logic/automation_rules.py` |
+| Hub `90001` min-runtime lock | `hub_handlers.py` (shower / rising ON only) |
+| `bathroom1.vent_min_runtime_mins` | `config.yaml` (shower lock duration) |
 
 **Can humidity band become Blockly-authorable?**
 
@@ -652,15 +703,13 @@ Pre-impl write-up (moved out of B9A in-scope; owned by **B9B**).
 |-------|---------|
 | `humidity >= 80` → vent ON | **Yes after B9A** (numeric When + `humidity` + action) |
 | `humidity <= 74` → vent OFF | **B9B** — hysteresis / dual-threshold (or two-rule pattern) |
-| Min-runtime lock | **Keep in hub code** — Blockly-unaware side-effect on vent ON |
-| Sweeper recovery | Decide at B9B impl: thin keep vs rely on next humidity event |
-| `bathroom1.vent_*` in `config.yaml` | B9B migration: literals in automations and/or retire config keys |
+| Min-runtime lock | **B5: drop for climate** (→ **B14**). Hub `90001` remains for shower until that ship. |
+| Sweeper recovery | **B5: drop** Audit B. |
+| `bathroom1.vent_*` in `config.yaml` | **B5:** retire on/off humidity keys; keep `vent_min_runtime_mins` while shower lock remains. |
 
-**Verdict:** **Yes for B9B** for the humidity band, with lock remaining in code. Not a B9A deliverable.
+**Verdict:** **Yes for B9B** for the humidity band. Not a B9A deliverable.
 
-**Locked B9B approach:** humidity band → Blockly via **H12**; **lock stays in hub**; plus **H4** + **H5** (alert → Gmail). Hot-water/sauna-grace still out.
-
-**Not started (impl).**
+**Locked B9B approach (updated 2026-08-17):** humidity band → Blockly **Option A** (If/Else-if edge-cross) ✅ **shipped B5**; climate 5 min lock **dropped**; **H4** ✅ + **H5** (alert → Gmail) → **B6**. Hot-water/sauna-grace still out.
 
 ---
 
@@ -892,7 +941,7 @@ Phase B5 does **not** require a rollback rehearsal that depends on hand-edit + A
 4. **Phase B7:** ✅ unified soft-hide — **`deviceexplorer_hide`**; `hiddendevices.html` + `/api/soft-hide`; hard-deny = 71040 (A); 71036 soft-hide + commandable + Blocky-selectable; migrator removed after cutover.
 5. **Phase B8:** ✅ auto-off timers UI + engine — `auto_off_devices:`; `lightingautooff.html` + `/api/auto-off-timer`; migrator removed after cutover.
 6. **Phase B9A:** Blockly parity + sensor/threshold/host-gauge authoring + sauna/IR status conditions + Hue preset CRUD + **remove JSON** — ✅ **Done 2026-08-12** (Pi smoke + Debug GREEN + docs close-out).
-7. **Phase B9B:** bathroom climate + **H12** hysteresis + **H4** condition and/or (+ drop trigger “when any of”) + **H5** notify (→ Gmail per `phaseE-gmail.md`); vent lock stays in hub — deferred.
+7. **Phase B9B:** bathroom climate + **H12** (B5 = If/Else-if edge-cross) + **H4** ✅ + **H5** notify (→ Gmail per `phaseE-gmail.md`); climate 5 min lock dropped → **B14**.
 8. **Phase B10A:** ✅ Blockly editor fixes (Hue picker-only a/b/c, toolbar Delete, dirty leave; Hue/blinds rich survive save→reload); smoke OK Pi **2026-08-09**.
 9. **Phase B10C:** ✅ soft-hide action device picker (exclusive + sticky load); smoke OK Pi **2026-08-09**.
 10. **Phase B10B+D:** `events:` catalog (UUID-on-bus) + per-rule enable + family/`SCENE_*` cutover + unique rule names — ✅ **DONE 2026-08-10** (Pi migrate 7A + smoke/GREEN + migrator deleted).
@@ -1019,10 +1068,9 @@ Fix: non-reactive `BlockyRT` workspace, park panel off-screen instead of `displa
 ### Phase B9B DoD — Bathroom climate + H4 / H5 / H12
 
 - [x] **Bathroom feasibility:** write-up under Phase B9B (**2026-08-08**).
-- [ ] **H12:** generic hysteresis / dual-threshold authorable in Blockly + engine. (**Ship B5**)
-- [ ] **Bathroom:** humidity ON/OFF band via H12; hardcoded climate paths retired; **vent min-runtime lock remains in hub**. (**Ship B5**)
-- [ ] **`bathroom1.vent_*` cutover** decided and applied. (**Ship B5**)
-- [ ] **Sweeper** climate recovery: keep-thin or drop — explicit at impl. (**Ship B5**)
+- [x] **H12 / bathroom:** → § **Ship B5 / H12 DoD** (shipped **2026-08-17** — Option A).
+- [x] **`bathroom1.vent_on/off_humidity`** retired; min-runtime key stays while shower lock remains. (**Ship B5**)
+- [x] **Sweeper Audit B** dropped. (**Ship B5**)
 - [x] **H4:** → § **Ship B4 / H4** ✅ **2026-08-17**
 - [ ] **H5 alert:** Blockly notify/alert action (UI path). (**Ship B6**)
 - [ ] **H5 Gmail:** action emits `EMAIL_REQUESTED` only; aligns with `docs/todo/phaseE-gmail.md` (outbox/OAuth may land in parallel; email DoD can trail alert if needed). (**Ship B6**)
@@ -1859,13 +1907,28 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ### Phase B14 — Domoticz timed Set & HA patterns (Ship B7) 🔜 TODO
 
-**Not B9A/B9B.** H1 sustained-for · H2 delay/wait · H3 cooldown · H6 input_number · H7 presence/mode · H8 area trigger · H9 sun elevation · H10 blueprints. (**H11** → **B13** with **B19** / Ship **B3**; **H4/H5/H12** → **B9B**.)
+**Not B9A/B9B.** H1 sustained-for · H2 delay/wait · H3 cooldown · H6 input_number · H7 presence/mode · H8 area trigger · H9 sun elevation · H10 blueprints. (**H11** → **B13** with **B19** / Ship **B3**; **H4** ✅ **B4**; **H5** → **B6**; **H12 bathroom** → **B5** Option A.)
 
 **Excludes:** Domoticz **Time trigger** (every minute) → **B20** after **F**. User variables · debug block.
 
 **Depends on:** **B19+B13** (Ship **B3**) ✅; **Ship B4** (H4) ✅ — gate before kickoff.
 
-**B14 DoD (stub):** pick subset + lock order at kickoff; Domoticz **Set for X minutes** / **Set after X seconds** where selected. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+#### B5 kickoff deferred here (2026-08-17)
+
+**Origin (verbatim 2026-08-17):** ok, A for now - put the rest in the pipeline in the existing future phases
+
+Pick subset + order at **B14 kickoff**. Not in Ship **B5**.
+
+| # | What | Maps to |
+|---|---|---|
+| **1** | Bathroom **5 min min-runtime** / `90001` / HA `min_cycle_duration` (minimum ON, then re-eval humidity — **not** Domoticz Set-for-X which forces OFF at timeout). **Includes:** B5 humidity rule Set OFF **ignores** `90001`, so a **74-crossing can turn the vent OFF while shower rolling overrun is still running** — restore so climate/shower OFF waits out the lock. Optional: generalize beyond 1e. | H1 / H3 / timed Set — pick at kickoff |
+| **2** | Explicit numeric Compare **level vs edge-cross** (B5 keeps edge-cross only) | Compare mode; not B9A reopen |
+| **3** | **Auto / Manual** override switch so a level (or hygrostat) rule does not kill Explorer ON | H7 presence/mode |
+| **4** | **Generic hygrostat** helper (sensor + switch + high/low or target+band) — not a Library If/Else-if | H6 helpers |
+| **5** | Dedicated **H12 Schmitt** Blockly block (latch on high, clear on low; act on latch edges) | original H12 block; B5 uses If/Else-if instead |
+| **6** | Boot / sweeper **replay** of current humidity so a missed crossing recovers without waiting for the next edge | sweeper; B5 drops Audit B |
+
+**B14 DoD (stub):** pick subset + lock order at kickoff; Domoticz **Set for X minutes** / **Set after X seconds** where selected; include or explicitly skip the B5-deferred rows above. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

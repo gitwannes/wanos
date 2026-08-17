@@ -71,8 +71,6 @@ class IRRuntimeConfig(BaseModel):
 
 
 class BathroomConfig(BaseModel):
-    vent_on_humidity: int
-    vent_off_humidity: int
     vent_min_runtime_mins: int
 
 
