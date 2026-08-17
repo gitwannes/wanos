@@ -244,7 +244,7 @@
     <section class="xl:col-span-2 card bg-base-100 border border-base-200 shadow-xl"
              :class="uiLocked && !ruleSaveFailed ? 'pointer-events-none opacity-60' : ''">
         <div class="card-body p-4">
-            <div x-show="errorMessage" class="alert alert-error text-sm mb-3">
+            <div x-show="errorMessage && !ruleSaveFailed" class="alert alert-error text-sm mb-3">
                 <span x-text="errorMessage"></span>
             </div>
             <div x-show="infoMessage" class="alert alert-success text-sm mb-3">
@@ -507,7 +507,7 @@
                         </div>
                         <!-- Save/error banners must live inside the FS overlay (card-top alerts sit under z-200). -->
                         <div x-show="blocklyFullscreen && showBlocklyWorkspace" class="flex flex-col gap-2 mb-2 shrink-0">
-                            <div x-show="errorMessage" class="alert alert-error text-sm py-2">
+                            <div x-show="errorMessage && !ruleSaveFailed" class="alert alert-error text-sm py-2">
                                 <span x-text="errorMessage"></span>
                             </div>
                             <div x-show="infoMessage" class="alert alert-success text-sm py-2">
@@ -684,6 +684,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=14"></script>
-<script src="blocky.js?v=24"></script>
+<script src="blocky.js?v=26"></script>
 </body>
 </html>

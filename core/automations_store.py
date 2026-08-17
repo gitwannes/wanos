@@ -141,33 +141,52 @@ def write_automations(rules: List[Dict[str, Any]]) -> None:
     _dump_root(root, path)
 
 
-def append_automation(rule: Dict[str, Any]) -> None:
-    """Append one rule (expected v2 canonical); preserve comments on existing entries."""
+def _canonical_rule_for_disk(rule: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Shape to write into automations.auto.yaml.
+
+    B19 branch rules must stay as ``branches`` — never run through ``legacy_to_v2``
+    (that would rewrite them to trigger+cases and break Admin Debug / reload).
+    Cutover leftovers without branches still use the v2 path.
+    """
+    from core.automations_schema_b19 import (
+        is_branch_rule,
+        normalize_branch_rule,
+        ordered_branch_dict,
+        validate_branch_entity_ids,
+    )
     from core.automations_schema_v2 import legacy_to_v2, ordered_v2_dict, validate_v2_entity_ids
 
+    if is_branch_rule(rule):
+        br = ordered_branch_dict(normalize_branch_rule(dict(rule)))
+        validate_branch_entity_ids(br)
+        return br
     v2 = ordered_v2_dict(legacy_to_v2(rule))
     validate_v2_entity_ids(v2)
+    return v2
+
+
+def append_automation(rule: Dict[str, Any]) -> None:
+    """Append one rule (B19 branches or legacy v2); preserve comments on existing entries."""
+    row = _canonical_rule_for_disk(rule)
     root, path = load_automations_roundtrip()
     seq = _ensure_automations_seq(root)
-    item = _to_commented(v2)
+    item = _to_commented(row)
     _quote_boolish_scalars(item)
     seq.append(item)
     _dump_root(root, path)
 
 
 def update_automation(rule_id: str, rule: Dict[str, Any]) -> bool:
-    """Replace one rule by id with v2 canonical shape."""
-    from core.automations_schema_v2 import legacy_to_v2, ordered_v2_dict, validate_v2_entity_ids
-
-    v2 = ordered_v2_dict(legacy_to_v2(rule))
-    validate_v2_entity_ids(v2)
-    if v2.get("id") is None:
-        v2["id"] = rule_id
+    """Replace one rule by id (B19 branches or legacy v2)."""
+    row = _canonical_rule_for_disk(rule)
+    if row.get("id") is None:
+        row["id"] = rule_id
     root, path = load_automations_roundtrip()
     seq = _ensure_automations_seq(root)
     for i, existing in enumerate(seq):
         if isinstance(existing, dict) and existing.get("id") == rule_id:
-            item = _to_commented(ordered_v2_dict(v2))
+            item = _to_commented(row)
             _quote_boolish_scalars(item)
             seq[i] = item
             _dump_root(root, path)
@@ -187,6 +206,7 @@ def replace_all_automations(rules: List[Dict[str, Any]]) -> None:
         seq.append(item)
     root["automations"] = seq
     _dump_root(root, path)
+
 
 def delete_automation(rule_id: str) -> bool:
     """Remove one rule by id; preserve comments on remaining entries."""

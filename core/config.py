@@ -2,8 +2,8 @@
 import os
 import yaml
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
-from typing import Optional, Dict, List, Union, Any, Tuple
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, Discriminator, Tag
+from typing import Optional, Dict, List, Union, Any, Tuple, Annotated, Literal
 from dotenv import load_dotenv
 
 class WeatherConfig(BaseModel):
@@ -177,6 +177,45 @@ class TriggerConfig(BaseModel):
         return s if s else None
 
 
+class ConditionGroupConfig(BaseModel):
+    """B4/H4 nested Logic group (and / or / not)."""
+    model_config = ConfigDict(extra="forbid")
+
+    op: Literal["and", "or", "not"]
+    children: List["ConditionNode"] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_group(self) -> "ConditionGroupConfig":
+        from core.condition_tree import validate_group_node
+
+        err = validate_group_node(self.model_dump(by_alias=True), path="group")
+        if err:
+            raise ValueError(err)
+        return self
+
+
+def _condition_discriminator(v: Any) -> str:
+    if isinstance(v, dict):
+        if v.get("type") in ("device_state", "time_of_day", "event"):
+            return "leaf"
+        op = str(v.get("op") or "").strip().lower()
+        if op in ("and", "or", "not") and isinstance(v.get("children"), list):
+            return "group"
+        return "leaf"
+    if isinstance(v, ConditionGroupConfig):
+        return "group"
+    return "leaf"
+
+
+ConditionNode = Annotated[
+    Union[
+        Annotated["ConditionConfig", Tag("leaf")],
+        Annotated[ConditionGroupConfig, Tag("group")],
+    ],
+    Discriminator(_condition_discriminator),
+]
+
+
 class ConditionConfig(BaseModel):
     """Automation condition — device refs use entity_id only (no numeric idx)."""
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -218,6 +257,9 @@ class ConditionConfig(BaseModel):
         return s if s else None
 
 
+ConditionGroupConfig.model_rebuild()
+
+
 class ActionConfig(BaseModel):
     """Automation action — device refs use entity_id only (no numeric idx)."""
     model_config = ConfigDict(extra="forbid")
@@ -249,7 +291,7 @@ class BranchConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     when: str  # if | else_if | else
-    conditions: Optional[List[ConditionConfig]] = None
+    conditions: Optional[List[ConditionNode]] = None
     actions: List[ActionConfig] = Field(default_factory=list)
     label: Optional[str] = None
 

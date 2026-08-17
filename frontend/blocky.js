@@ -1,4 +1,5 @@
 // Phase B19: Domoticz If/Do + Else-if/Else (first-match); branches YAML; wake from Compares.
+// Phase B4/H4: nested AND/OR/NOT Logic groups in Compare; OR-list migrator; legacy When/OR blocks removed.
 // Legacy Phase 6B: unified Blockly canvas for schema v2 (trigger + ordered cases) — retired.
 // Contextual dropdowns: only show entries valid for the current trigger / device type.
 // Phase 6C: rich action authoring — Hue preset XOR custom color (iro→bri/xy), blinds open %, Sonos/Onkyo volume, Sonos station.
@@ -1617,153 +1618,7 @@ function defineBlockyBlocks(Blockly, providers) {
         if (t.startsWith("b_")) delete Blockly.Blocks[t];
     });
 
-    Blockly.Blocks.b_trig_device = {
-        init() {
-            this.appendDummyInput("MAIN")
-                .appendField("When device")
-                .appendField(new Blockly.FieldDropdown(entityTriggerDd), "ENTITY");
-            this.setNextStatement(true, "Case");
-            this.setColour(230);
-            blockyTriggerUpdateShape(this);
-        },
-        onchange(ev) {
-            if (!this.workspace || this.isInFlyout) return;
-            if (ev && (ev.type === "create" || ev.type === "move"
-                || (ev.type === "change" && ev.name === "ENTITY"))) {
-                blockyRefreshCaseMatchLabels(this.getNextBlock());
-            }
-            // B9A/B9C: rebuild When chrome on entity / ATTR / MODE (level PCT).
-            if (ev && ev.type === "change"
-                && (ev.name === "ENTITY" || ev.name === "ATTR" || ev.name === "MODE")
-                && !BlockyRT.loading) {
-                blockyTriggerUpdateShape(this);
-            }
-        }
-    };
-    Blockly.Blocks.b_trig_device_edge = {
-        init() {
-            const block = this;
-            this.appendDummyInput()
-                .appendField("When device")
-                .appendField(new Blockly.FieldDropdown(entityTriggerDd), "ENTITY")
-                .appendField("becomes")
-                .appendField(new Blockly.FieldDropdown(() => blockyEdgeStateOptions(block)), "STATE");
-            this.setPreviousStatement(true, "TrigEdge");
-            this.setNextStatement(true, "TrigEdge");
-            this.setColour(230);
-            this.setTooltip("OR-list edge only — put inside “When any of”. For a single device use “When device” + cases.");
-        },
-        onchange(ev) {
-            if (!this.workspace || this.isInFlyout) return;
-            if (ev && ev.type === "change" && ev.name === "ENTITY") {
-                blockyCoerceFieldToOptions(this, "STATE", blockyEdgeStateOptions);
-            }
-        }
-    };
-    // B10E: OR edges for user vs system events (same wire as root triggers).
-    Blockly.Blocks.b_trig_event_edge = {
-        init() {
-            this.appendDummyInput()
-                .appendField("When user event")
-                .appendField(new Blockly.FieldDropdown(eventUserTrigDd), "EVENT");
-            this.setPreviousStatement(true, "TrigEdge");
-            this.setNextStatement(true, "TrigEdge");
-            this.setColour(210);
-            this.setTooltip("OR-list edge — user catalog event. Put inside “When any of”.");
-        }
-    };
-    Blockly.Blocks.b_trig_event_edge_sys = {
-        init() {
-            this.appendDummyInput()
-                .appendField("When system event")
-                .appendField(new Blockly.FieldDropdown(eventSysTrigDd), "EVENT");
-            this.setPreviousStatement(true, "TrigEdge");
-            this.setNextStatement(true, "TrigEdge");
-            this.setColour(210);
-            this.setTooltip("OR-list edge — system catalog event. Put inside “When any of”.");
-        }
-    };
-    Blockly.Blocks.b_trig_or = {
-        init() {
-            this.appendDummyInput().appendField("When any of");
-            this.appendStatementInput("EDGES").setCheck("TrigEdge");
-            this.setNextStatement(true, "Case");
-            this.setColour(220);
-        },
-        onchange(ev) {
-            if (!this.workspace || this.isInFlyout) return;
-            if (ev && (ev.type === "create" || ev.type === "move")) {
-                blockyRefreshCaseMatchLabels(this.getNextBlock());
-            }
-        }
-    };
-    // B10E: one block type pair — labels say user vs system; dropdowns filter by origin.
-    Blockly.Blocks.b_trig_event = {
-        init() {
-            this.appendDummyInput()
-                .appendField("When user event")
-                .appendField(new Blockly.FieldDropdown(eventUserTrigDd), "EVENT");
-            this.setNextStatement(true, "Case");
-            this.setColour(210);
-            this.setTooltip("Fires when this user catalog event UUID is emitted on the bus.");
-        },
-        onchange(ev) {
-            if (!this.workspace || this.isInFlyout) return;
-            if (ev && (ev.type === "create" || ev.type === "move"
-                || (ev.type === "change" && ev.name === "EVENT"))) {
-                blockyRefreshCaseMatchLabels(this.getNextBlock());
-            }
-        }
-    };
-    Blockly.Blocks.b_trig_event_sys = {
-        init() {
-            this.appendDummyInput()
-                .appendField("When system event")
-                .appendField(new Blockly.FieldDropdown(eventSysTrigDd), "EVENT");
-            this.setNextStatement(true, "Case");
-            this.setColour(210);
-            this.setTooltip("Fires when this system catalog event UUID is emitted on the bus.");
-        },
-        onchange(ev) {
-            if (!this.workspace || this.isInFlyout) return;
-            if (ev && (ev.type === "create" || ev.type === "move"
-                || (ev.type === "change" && ev.name === "EVENT"))) {
-                blockyRefreshCaseMatchLabels(this.getNextBlock());
-            }
-        }
-    };
-
-    Blockly.Blocks.b_case = {
-        init() {
-            const block = this;
-            this.appendDummyInput("MATCH_ROW")
-                .appendField(new Blockly.FieldLabel("if"), "IF_LABEL")
-                .appendField(new Blockly.FieldDropdown(() => blockyCaseMatchOptions(block)), "MATCH");
-            this.appendDummyInput().appendField("conditions");
-            this.appendStatementInput("CONDS").setCheck("Condition");
-            this.appendDummyInput().appendField("actions");
-            this.appendStatementInput("ACTIONS").setCheck("Action");
-            this.setPreviousStatement(true, "Case");
-            this.setNextStatement(true, "Case");
-            this.setColour(120);
-            this.setInputsInline(false);
-        },
-        onchange(ev) {
-            if (!this.workspace || this.isInFlyout) return;
-            if (ev && (ev.type === "move" || ev.type === "create")) {
-                blockyCoerceFieldToOptions(this, "MATCH", blockyCaseMatchOptions);
-                const f = this.getField("MATCH");
-                if (f) {
-                    try {
-                        const v = f.getValue();
-                        f.setValue(v);
-                        if (typeof f.forceRerender === "function") f.forceRerender();
-                    } catch (e) { /* ignore */ }
-                }
-                blockyCaseUpdateEventChrome(this);
-            }
-        }
-    };
+    // Legacy When/case / OR-list blocks removed (B4/H4). Old block types → silent-loss on Save.
 
     // --- B19 Domoticz If/Do + Else-if + Else (first-match; gear = next-chain) ---
     Blockly.Blocks.b_if_do = {
@@ -1795,6 +1650,38 @@ function defineBlockyBlocks(Blockly, providers) {
             this.setPreviousStatement(true, "BranchCont");
             this.setColour(120);
             this.setTooltip("Else — runs only when no prior If/Else-if matched.");
+        }
+    };
+
+    // B4/H4 Domoticz Logic — nested AND / OR / NOT inside If Compare sockets.
+    Blockly.Blocks.b_logic_and = {
+        init() {
+            this.appendDummyInput().appendField("and");
+            this.appendStatementInput("CHILDREN").setCheck("Condition");
+            this.setPreviousStatement(true, "Condition");
+            this.setNextStatement(true, "Condition");
+            this.setColour(210);
+            this.setTooltip("All nested Compares must be true (Domoticz Logic).");
+        }
+    };
+    Blockly.Blocks.b_logic_or = {
+        init() {
+            this.appendDummyInput().appendField("or");
+            this.appendStatementInput("CHILDREN").setCheck("Condition");
+            this.setPreviousStatement(true, "Condition");
+            this.setNextStatement(true, "Condition");
+            this.setColour(210);
+            this.setTooltip("Any nested Compare may be true (Domoticz Logic).");
+        }
+    };
+    Blockly.Blocks.b_logic_not = {
+        init() {
+            this.appendDummyInput().appendField("not");
+            this.appendStatementInput("CHILD").setCheck("Condition");
+            this.setPreviousStatement(true, "Condition");
+            this.setNextStatement(true, "Condition");
+            this.setColour(210);
+            this.setTooltip("Inverts one nested Compare or Logic group.");
         }
     };
 
@@ -1943,6 +1830,9 @@ function blockyToolboxDefinition(_presentTypes) {
             name: "Logic",
             colour: "#A6745C",
             contents: [
+                { kind: "block", type: "b_logic_and" },
+                { kind: "block", type: "b_logic_or" },
+                { kind: "block", type: "b_logic_not" },
                 { kind: "block", type: "b_condition_device" },
                 { kind: "block", type: "b_action_device" }
             ]
@@ -2482,6 +2372,100 @@ function blockyReadChain(start, fn) {
     return out;
 }
 
+/** B4/H4: walk nested condition trees (branch top-level or Logic group children). */
+function blockyForEachConditionLeaf(conds, fn) {
+    (conds || []).forEach((c) => {
+        if (!c || typeof c !== "object") return;
+        if ((c.op === "and" || c.op === "or" || c.op === "not") && Array.isArray(c.children)) {
+            blockyForEachConditionLeaf(c.children, fn);
+        } else if (c.type) {
+            fn(c);
+        }
+    });
+}
+
+/** Count leaf Compare rows (ignores Logic group wrappers). */
+function blockyCountLeafCompares(conds) {
+    let n = 0;
+    blockyForEachConditionLeaf(conds, () => { n += 1; });
+    return n;
+}
+
+function blockyOrListWakeConditions(trigger) {
+    const edges = (trigger || []).filter((x) => x && x.entity_id);
+    const unique = [...new Set(edges.map((x) => String(x.entity_id)))];
+    if (unique.length === 1) {
+        return [{ type: "device_state", entity_id: unique[0], is: "ANY" }];
+    }
+    const children = edges.map((edge) => {
+        const eid = String(edge.entity_id);
+        const raw = edge.state;
+        if (raw == null || raw === "") {
+            return { type: "device_state", entity_id: eid, is: "ANY" };
+        }
+        const st = String(raw).toUpperCase();
+        const isVal = (st === "ON" || st === "OFF" || st === "OPEN" || st === "CLOSED")
+            ? st : String(raw);
+        return { type: "device_state", entity_id: eid, is: isVal };
+    });
+    if (children.length <= 1) return children;
+    return [{ op: "or", children }];
+}
+
+/** Read one leaf or Logic group block → YAML condition expr. */
+function blockyReadConditionExpr(block, readLeafFn) {
+    if (!block) return null;
+    if (block.type === "b_logic_and" || block.type === "b_logic_or") {
+        const op = block.type === "b_logic_and" ? "and" : "or";
+        const children = blockyReadChain(block.getInputTargetBlock("CHILDREN"), (b) =>
+            blockyReadConditionExpr(b, readLeafFn)).filter(Boolean);
+        return children.length ? { op, children } : null;
+    }
+    if (block.type === "b_logic_not") {
+        const inner = blockyReadConditionExpr(block.getInputTargetBlock("CHILD"), readLeafFn);
+        return inner ? { op: "not", children: [inner] } : null;
+    }
+    return readLeafFn(block);
+}
+
+/** Build one Blockly block from a YAML condition leaf or Logic group. */
+function blockyConditionBlockFromExpr(c, applyRichFn) {
+    if (!c || typeof c !== "object") return null;
+    if ((c.op === "and" || c.op === "or" || c.op === "not") && Array.isArray(c.children)) {
+        if (c.op === "not") {
+            const blk = blockyMkBlock("b_logic_not");
+            const child = blockyConditionBlockFromExpr(c.children[0], applyRichFn);
+            if (child) blockyConnectChain(blk, "CHILD", [child]);
+            return blk;
+        }
+        const blk = blockyMkBlock(c.op === "and" ? "b_logic_and" : "b_logic_or");
+        const kids = (c.children || []).map((x) => blockyConditionBlockFromExpr(x, applyRichFn)).filter(Boolean);
+        blockyConnectChain(blk, "CHILDREN", kids);
+        return blk;
+    }
+    if (c.type === "time_of_day") {
+        return blockyMkBlock("b_condition_time", { TOD: c.is || "dark" });
+    }
+    if (c.type === "event") {
+        const eid = String(c.event || "");
+        let origin = "user";
+        try {
+            if (BlockyRT.app && typeof BlockyRT.app._eventOrigin === "function") {
+                origin = BlockyRT.app._eventOrigin(eid);
+            }
+        } catch (e) { /* ignore */ }
+        const type = origin === "system" ? "b_condition_event_sys" : "b_condition_event";
+        return blockyMkBlock(type, { EVENT: eid });
+    }
+    if (c.type === "device_state") {
+        const blk = blockyMkBlock("b_condition_device", { ENTITY: c.entity_id });
+        if (typeof applyRichFn === "function") applyRichFn(blk, c);
+        else blockyApplyConditionRich(blk, c);
+        return blk;
+    }
+    return null;
+}
+
 /**
  * Project legacy v2 trigger+cases → B19 branches for canvas load (cutover window).
  * Mirrors core/automations_schema_b19.convert_v2_rule_to_branches (simplified).
@@ -2489,25 +2473,18 @@ function blockyReadChain(start, fn) {
 function blockyProjectLegacyToBranches(rule) {
     if (rule && Array.isArray(rule.branches)) return rule;
     const cases = (rule && rule.cases) || [];
-    let trig = (rule && rule.trigger) || {};
-    // Unwrap singleton list triggers (same as migrator).
+    const rawTrig = (rule && rule.trigger) || {};
+    let trig = rawTrig;
     if (Array.isArray(trig) && trig.length === 1) trig = trig[0];
     const branches = [];
-    const wakeCommon = [];
-    if (Array.isArray(trig)) {
-        // True OR-list — unexpressable; empty if/do for operator fix
-        return {
-            id: rule.id,
-            name: rule.name,
-            enabled: rule.enabled !== false,
-            branches: [{ when: "if", conditions: [], actions: [] }]
-        };
-    }
-    if (trig.event) {
+    let wakeCommon = [];
+    if (Array.isArray(rawTrig) && rawTrig.length >= 2) {
+        wakeCommon = blockyOrListWakeConditions(rawTrig);
+    } else if (trig && trig.event) {
         wakeCommon.push({ type: "event", event: String(trig.event) });
     }
-    const deviceEid = trig.entity_id ? String(trig.entity_id) : "";
-    const numericTrig = !!(trig.op);
+    const deviceEid = (trig && trig.entity_id) ? String(trig.entity_id) : "";
+    const numericTrig = !!(trig && trig.op);
     if (numericTrig && deviceEid) {
         const c = {
             type: "device_state",
@@ -2518,18 +2495,25 @@ function blockyProjectLegacyToBranches(rule) {
         if (trig.attribute) c.attribute = trig.attribute;
         wakeCommon.push(c);
     }
+    const orDeviceEid = (Array.isArray(rawTrig) && rawTrig.length >= 2)
+        ? ([...new Set(rawTrig.filter((x) => x && x.entity_id).map((x) => String(x.entity_id)))].length === 1
+            ? String(rawTrig.find((x) => x && x.entity_id).entity_id) : "")
+        : deviceEid;
+    const wakeHasAny = wakeCommon.some((c) => c.type === "device_state" && c.is === "ANY");
     const list = cases.length ? cases : [{ actions: [] }];
     list.forEach((c, i) => {
         const when = i === 0 ? "if" : "else_if";
         const conds = wakeCommon.map((x) => Object.assign({}, x));
-        if (deviceEid && !numericTrig) {
+        if (orDeviceEid && !numericTrig && !Array.isArray(rawTrig)) {
             const ts = c.to_state;
             if (ts == null || ts === "") {
-                conds.push({ type: "device_state", entity_id: deviceEid, is: "ANY" });
+                if (!wakeHasAny) {
+                    conds.push({ type: "device_state", entity_id: orDeviceEid, is: "ANY" });
+                }
             } else {
                 conds.push({
                     type: "device_state",
-                    entity_id: deviceEid,
+                    entity_id: orDeviceEid,
                     is: String(ts).toUpperCase()
                 });
             }
@@ -2549,29 +2533,9 @@ function blockyProjectLegacyToBranches(rule) {
     };
 }
 
-/** Build condition blocks from B19 condition dicts. */
+/** Build condition blocks from B19 condition dicts (flat AND + nested Logic groups). */
 function blockyConditionBlocksFromList(conds) {
-    return (conds || []).map((c) => {
-        if (!c || typeof c !== "object") return null;
-        if (c.type === "time_of_day") {
-            return blockyMkBlock("b_condition_time", { TOD: c.is || "dark" });
-        }
-        if (c.type === "event") {
-            const eid = String(c.event || "");
-            let origin = "user";
-            try {
-                if (BlockyRT.app && typeof BlockyRT.app._eventOrigin === "function") {
-                    origin = BlockyRT.app._eventOrigin(eid);
-                }
-            } catch (e) { /* ignore */ }
-            const type = origin === "system" ? "b_condition_event_sys" : "b_condition_event";
-            return blockyMkBlock(type, { EVENT: eid });
-        }
-        // device_state (incl. is: ANY → UI "transitioned")
-        const blk = blockyMkBlock("b_condition_device", { ENTITY: c.entity_id });
-        blockyApplyConditionRich(blk, c);
-        return blk;
-    }).filter(Boolean);
+    return (conds || []).map((c) => blockyConditionBlockFromExpr(c)).filter(Boolean);
 }
 
 function blockyApp() {
@@ -2637,7 +2601,7 @@ function blockyApp() {
         pendingNav: null,
         blocklyFullscreen: false,
         // Bump when block definitions change (B10E: user/system When+Fire twins).
-        blocklySchemaVersion: 53,
+        blocklySchemaVersion: 54,
         blocklyUiTick: 0,
         hardDenyEntityIds: ["switch.safety.safety_wisc_5v"],
         /**
@@ -2928,9 +2892,11 @@ function blockyApp() {
             // B19: full rule with branches — first event Compare.
             if (triggerOrRule && Array.isArray(triggerOrRule.branches)) {
                 for (const br of triggerOrRule.branches) {
-                    for (const c of (br && br.conditions) || []) {
-                        if (c && c.type === "event" && c.event) return String(c.event);
-                    }
+                    let found = "";
+                    blockyForEachConditionLeaf((br && br.conditions) || [], (c) => {
+                        if (!found && c.type === "event" && c.event) found = String(c.event);
+                    });
+                    if (found) return found;
                 }
                 return "";
             }
@@ -3506,7 +3472,7 @@ function blockyApp() {
                 rule.branches.forEach((br) => {
                     if (!br) return;
                     if (role === "condition") {
-                        (br.conditions || []).forEach((cond) => {
+                        blockyForEachConditionLeaf(br.conditions, (cond) => {
                             if (cond && cond.type !== "event" && cond.type !== "time_of_day") {
                                 push(cond.entity_id);
                             }
@@ -3584,7 +3550,7 @@ function blockyApp() {
                     rule.branches.forEach((br) => {
                         if (!br) return;
                         if (role === "trigger") {
-                            (br.conditions || []).forEach((c) => {
+                            blockyForEachConditionLeaf(br.conditions, (c) => {
                                 if (c && c.type === "event" && c.event) addSticky(c.event);
                             });
                         } else {
@@ -3627,115 +3593,6 @@ function blockyApp() {
                 }
             } catch (e) { /* ignore */ }
             return opts.length ? opts : [["(no events)", ""]];
-        },
-
-        /** Unwrap singleton trigger lists (legacy YAML often uses a 1-item list). */
-        _canonicalTrigger(trigger) {
-            if (Array.isArray(trigger) && trigger.length === 1) {
-                return trigger[0];
-            }
-            return trigger;
-        },
-
-        _mkTriggerRoot(trigger, cases) {
-            const t = this._canonicalTrigger(trigger);
-
-            if (Array.isArray(t) && t.length) {
-                const allDevices = t.every((x) => x && x.entity_id);
-                const allEvents = t.every((x) => x && x.event && !x.entity_id);
-                if (allEvents) {
-                    // Multi-event OR: use event-edge blocks inside OR (user vs system by catalog).
-                    const root = blockyMkBlock("b_trig_or", null, 16, 16);
-                    const edges = t.map((edge) => {
-                        const origin = this._eventOrigin(edge.event);
-                        const type = origin === "system" ? "b_trig_event_edge_sys" : "b_trig_event_edge";
-                        return blockyMkBlock(type, { EVENT: edge.event });
-                    });
-                    blockyConnectChain(root, "EDGES", edges);
-                    return root;
-                }
-                if (!allDevices) {
-                    // Mixed device+event OR cannot be represented faithfully — do not
-                    // silently collapse to the first edge (silent-loss B).
-                    this._noteSilentLoss(
-                        "OR trigger mixes device and event edges — cannot load safely; Save blocked"
-                    );
-                    const first = t[0] || {};
-                    if (first.event || first.entity_id) {
-                        return this._mkTriggerRoot(first, cases);
-                    }
-                    return blockyMkBlock("b_trig_device", { ENTITY: this.firstEntityId() }, 16, 16);
-                }
-                const root = blockyMkBlock("b_trig_or", null, 16, 16);
-                const edges = t.map((edge) => blockyMkBlock("b_trig_device_edge", {
-                    ENTITY: edge.entity_id || this.firstEntityId(),
-                    STATE: edge.state || "ON"
-                }));
-                blockyConnectChain(root, "EDGES", edges);
-                return root;
-            }
-
-            if (t && t.entity_id && (t.state === "ON" || t.state === "OFF")) {
-                // Legacy edge-on-trigger → device wake; put edge into cases
-                if (!cases.length) {
-                    cases.push({ to_state: t.state, actions: [] });
-                } else if (cases.length === 1 && !cases[0].to_state) {
-                    cases[0].to_state = t.state;
-                }
-                const blk = blockyMkBlock("b_trig_device", { ENTITY: t.entity_id }, 16, 16);
-                // Shape was built in init() from the dropdown's default entity — rebuild now
-                // that ENTITY holds the real (loaded) eid.
-                blockyTriggerUpdateShape(blk);
-                return blk;
-            }
-            if (t && t.entity_id) {
-                // B9A/B9C: rebuild When chrome for this eid (sensor ATTR, level MODE, discrete note).
-                const blk = blockyMkBlock("b_trig_device", { ENTITY: t.entity_id }, 16, 16);
-                const profile = blockyConditionCompareProfile(t.entity_id);
-                const shapeOpts = {};
-                if (t.op != null || t.attribute) {
-                    // Numeric / level PCT threshold on the trigger.
-                    shapeOpts.forceOp = t.op;
-                    shapeOpts.forceAttr = t.attribute;
-                    let forceVal = t.state;
-                    if (profile.kind === "level" && profile.valueUi === "open_pct") {
-                        shapeOpts.forceMode = "PCT";
-                        forceVal = blockyOpenPctFromStored(t.state);
-                        shapeOpts.forceOp = blockyInvertCompareOp(t.op || "==");
-                    } else if (profile.kind === "level") {
-                        shapeOpts.forceMode = "PCT";
-                    }
-                    shapeOpts.forceValue = forceVal;
-                    blockyTriggerUpdateShape(blk, shapeOpts);
-                } else if (profile.kind === "level") {
-                    // Discrete OPEN/CLOSED/ON/OFF — prefer first case to_state when present.
-                    let mode = profile.modes[0][1];
-                    if (cases && cases[0] && cases[0].to_state != null) {
-                        const ts = String(cases[0].to_state).toUpperCase();
-                        if (profile.valueUi === "open_pct") {
-                            mode = blockyBlindsUiStateFromStored(cases[0].to_state);
-                        } else if (ts === "OFF" || ts === "ON") {
-                            mode = ts;
-                        }
-                    }
-                    blockyTriggerUpdateShape(blk, { forceMode: mode });
-                } else {
-                    blockyTriggerUpdateShape(blk);
-                }
-                blockyAttachOpaque(
-                    blk,
-                    blockyOpaqueFromSource(t, BLOCKY_TRIGGER_LEGAL_KEYS, BLOCKY_TRIGGER_UI_KEYS)
-                );
-                return blk;
-            }
-            // B10B/E: trigger.event is always a catalog UUID — pick user vs system block by origin.
-            if (t && t.event) {
-                const origin = this._eventOrigin(t.event);
-                const type = origin === "system" ? "b_trig_event_sys" : "b_trig_event";
-                return blockyMkBlock(type, { EVENT: t.event }, 16, 16);
-            }
-            // B10F: empty New rule — no default When device (blank canvas).
-            return null;
         },
 
         ensureBlocklyReady() {
@@ -3880,23 +3737,6 @@ function blockyApp() {
             });
         },
 
-        _caseBlocks(cases) {
-            return (cases || []).map((c) => {
-                let match = "NONE";
-                if (c.to_state === "ON" || c.to_state === "OFF"
-                    || c.to_state === "OPEN" || c.to_state === "CLOSED") {
-                    match = c.to_state;
-                } else if (c.to_state == null || c.to_state === "") {
-                    // Engine: no to_state → fire on any device transition.
-                    match = "ANY";
-                }
-                const blk = blockyMkBlock("b_case", { MATCH: match });
-                blockyConnectChain(blk, "CONDS", this._conditionBlocks(c.conditions));
-                blockyConnectChain(blk, "ACTIONS", this._actionBlocks(c.actions));
-                return blk;
-            });
-        },
-
         loadV2IntoBlockly() {
             if (!this.ensureBlocklyReady()) return;
             blockyCancelUniqueness();
@@ -4010,7 +3850,7 @@ function blockyApp() {
         },
 
         _readConditions(start) {
-            return blockyReadChain(start, (b) => {
+            const readLeaf = (b) => {
                 if (b.type === "b_condition_time") {
                     return blockyMergeOpaque(
                         { type: "time_of_day", is: b.getFieldValue("TOD") },
@@ -4052,13 +3892,13 @@ function blockyApp() {
                     }
                     out.is = String(b.getFieldValue("VALUE"));
                 } else if (blockyIsMotionEntity(eid)) {
-                    // Wake on detect only — matches garage/toilet YAML.
                     out.is = "ON";
                 } else {
                     out.is = b.getFieldValue("STATE");
                 }
                 return blockyMergeOpaque(out, b);
-            });
+            };
+            return blockyReadChain(start, (b) => blockyReadConditionExpr(b, readLeaf)).filter(Boolean);
         },
 
         _readActions(start) {
@@ -4137,7 +3977,7 @@ function blockyApp() {
             for (let i = 0; i < branches.length; i += 1) {
                 const br = branches[i];
                 if ((br.when === "if" || br.when === "else_if")
-                    && !(br.conditions && br.conditions.length)) {
+                    && blockyCountLeafCompares(br.conditions) < 1) {
                     return "Each If / Else-if needs at least one condition (or disable the rule).";
                 }
             }
@@ -4937,6 +4777,8 @@ function blockyApp() {
             const okMsg = opts.okMsg || "Rule saved";
             const failMsg = opts.failMsg || "Saved, but registry check failed — open Admin → Debug.";
             const verifyFailMsg = opts.verifyFailMsg || "Saved, but could not verify — open Admin → Debug.";
+            // Post-save registry check — GREEN expected after B4/H4 OR-list cutover.
+            const savedName = String(opts.savedRuleName || "").trim();
             this.registryCheckMessage = "";
             this.registryCheckOk = null;
             try {
@@ -4949,13 +4791,30 @@ function blockyApp() {
                     this.registryCheckMessage = verifyFailMsg;
                     return;
                 }
+                const errors = Array.isArray(report.errors) ? report.errors.map(String) : [];
                 const warnN = (report.warnings || []).length;
-                this.registryCheckOk = !!report.ok;
-                this.registryCheckMessage = report.ok
-                    ? (warnN
+                if (report.ok) {
+                    this.registryCheckOk = true;
+                    this.registryCheckMessage = warnN
                         ? `${okMsg} (warnings in Admin → Debug).`
-                        : okMsg)
-                    : failMsg;
+                        : okMsg;
+                    return;
+                }
+                const legacyRe = /^B19 legacy trigger\/cases still present:/;
+                const onlyAcceptedLegacy = errors.length > 0
+                    && errors.every((e) => legacyRe.test(e));
+                const savedFlaggedLegacy = !!(savedName && errors.some((e) =>
+                    legacyRe.test(e) && e.indexOf(savedName) !== -1
+                ));
+                if (onlyAcceptedLegacy && !savedFlaggedLegacy) {
+                    this.registryCheckOk = true;
+                    this.registryCheckMessage = `${okMsg} `
+                        + `(Admin Debug still RED until H4 — ${errors.length} leftover OR rule`
+                        + `${errors.length === 1 ? "" : "s"}).`;
+                    return;
+                }
+                this.registryCheckOk = false;
+                this.registryCheckMessage = failMsg;
             } catch (e) {
                 this.registryCheckOk = false;
                 this.registryCheckMessage = verifyFailMsg;
@@ -5126,7 +4985,8 @@ function blockyApp() {
                 }
                 await this.runPostWriteRegistryCheck({
                     okMsg: isUpdate ? "Rule updated" : "Rule created",
-                    failMsg: "Saved, but registry check failed — open Admin → Debug."
+                    failMsg: "Saved, but registry check failed — open Admin → Debug.",
+                    savedRuleName: (body.automation && body.automation.name) || payload.name || ""
                 });
                 this.ruleSaveBusy = false;
                 this.ruleSaveFailed = false;

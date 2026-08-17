@@ -268,7 +268,59 @@ class AutomationEngine:
         is_transition: bool = False,
         payload: Optional[dict] = None,
     ) -> bool:
-        """Evaluate one condition; True = pass. B19: event / ANY / numeric edge when event given."""
+        """Evaluate one leaf condition; True = pass. B19: event / ANY / numeric edge when event given."""
+        from core.condition_tree import evaluate_condition_node, is_group_node
+
+        if is_group_node(condition if isinstance(condition, dict) else condition):
+            node = condition.model_dump(by_alias=True) if hasattr(condition, "model_dump") else condition
+            return evaluate_condition_node(
+                node,
+                lambda leaf: AutomationEngine._condition_holds(
+                    leaf,
+                    state,
+                    event=event,
+                    bus_token=bus_token,
+                    event_name=event_name,
+                    event_idx=event_idx,
+                    new_state=new_state,
+                    is_transition=is_transition,
+                    payload=payload,
+                ),
+            )
+        if not hasattr(condition, "type") and isinstance(condition, dict):
+            # Engine may receive plain dict leaves from expanded YAML.
+            from core.config import ConditionConfig
+
+            try:
+                condition = ConditionConfig.model_validate(condition)
+            except Exception:
+                return False
+        return AutomationEngine._condition_holds_leaf(
+            condition,
+            state,
+            event=event,
+            bus_token=bus_token,
+            event_name=event_name,
+            event_idx=event_idx,
+            new_state=new_state,
+            is_transition=is_transition,
+            payload=payload,
+        )
+
+    @staticmethod
+    def _condition_holds_leaf(
+        condition: Any,
+        state: SystemState,
+        *,
+        event: Optional[Event] = None,
+        bus_token: Optional[str] = None,
+        event_name: Optional[str] = None,
+        event_idx: Any = None,
+        new_state: Any = None,
+        is_transition: bool = False,
+        payload: Optional[dict] = None,
+    ) -> bool:
+        """Evaluate one leaf Compare (device / event / time)."""
         if condition.type == "time_of_day":
             is_dark = AutomationEngine._is_dark(state)
             if condition.condition_is == "dark":
@@ -353,14 +405,45 @@ class AutomationEngine:
         B19 wake: any device/event Compare in any branch mentions this event.
         Returns (woke, reason, matched_event_uuid).
         """
+        from core.condition_tree import (
+            condition_node_may_wake_device,
+            condition_node_may_wake_event,
+            is_group_node,
+        )
+
         branches = getattr(rule, "branches", None) or []
         for br in branches:
             for cond in getattr(br, "conditions", None) or []:
-                if cond.type == "event":
-                    want = getattr(cond, "event", None)
+                if isinstance(cond, dict) and is_group_node(cond):
+                    matched = condition_node_may_wake_event(
+                        cond, bus_token=bus_token, to_bus_token=to_bus_token
+                    )
+                    if matched:
+                        return True, f"Event [{matched}]", matched
+                    if condition_node_may_wake_device(
+                        cond,
+                        event_idx=event_idx,
+                        event_name=event_name,
+                        is_transition=is_transition,
+                        resolve_idx=lambda c: AutomationEngine.resolve_device_ref(c, state),
+                    ):
+                        return (
+                            True,
+                            f"{AutomationEngine.format_device_ref(state, event_idx)} (wake)",
+                            None,
+                        )
+                    continue
+                if getattr(cond, "type", None) == "event" or (
+                    isinstance(cond, dict) and cond.get("type") == "event"
+                ):
+                    want = getattr(cond, "event", None) or (
+                        cond.get("event") if isinstance(cond, dict) else None
+                    )
                     if want and to_bus_token(bus_token) == to_bus_token(str(want)):
                         return True, f"Event [{to_bus_token(str(want))}]", to_bus_token(str(want))
-                if cond.type == "device_state":
+                if getattr(cond, "type", None) == "device_state" or (
+                    isinstance(cond, dict) and cond.get("type") == "device_state"
+                ):
                     cond_idx = AutomationEngine.resolve_device_ref(cond, state)
                     if cond_idx is None or event_idx is None or cond_idx != event_idx:
                         continue
@@ -408,20 +491,24 @@ class AutomationEngine:
             else:
                 continue
             ok = True
-            for cond in getattr(br, "conditions", None) or []:
-                if not AutomationEngine._condition_holds(
-                    cond,
-                    state,
-                    event=event,
-                    bus_token=bus_token,
-                    event_name=event_name,
-                    event_idx=event_idx,
-                    new_state=new_state,
-                    is_transition=is_transition,
-                    payload=payload,
-                ):
-                    ok = False
-                    break
+            conds = getattr(br, "conditions", None) or []
+            if conds:
+                from core.condition_tree import evaluate_condition_list
+
+                ok = evaluate_condition_list(
+                    conds,
+                    lambda node: AutomationEngine._condition_holds(
+                        node,
+                        state,
+                        event=event,
+                        bus_token=bus_token,
+                        event_name=event_name,
+                        event_idx=event_idx,
+                        new_state=new_state,
+                        is_transition=is_transition,
+                        payload=payload,
+                    ),
+                )
             if ok:
                 return br, suffix
         return None, ""

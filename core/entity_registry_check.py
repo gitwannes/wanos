@@ -237,7 +237,7 @@ def run_entity_cutover_checks(
                     legacy_n += 1
                     errors.append(
                         f"B19 legacy trigger/cases still present: {name} "
-                        f"(hand-author on If/Do, or Ship B4/H4 for multi-device OR)"
+                        f"(re-author on If/Do branches)"
                     )
                 elif is_branch_rule(r):
                     branch_n += 1

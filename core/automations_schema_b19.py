@@ -18,6 +18,14 @@ from core.automations_schema_v2 import (
     legacy_to_v2,
     ordered_v2_dict,
 )
+from core.condition_tree import (
+    copy_condition_node,
+    count_leaf_compares,
+    iter_condition_leaves,
+    normalize_condition_list,
+    validate_condition_list,
+    validate_condition_node,
+)
 
 # Canonical dump order: name first … id last.
 _B19_KEY_ORDER = (
@@ -69,7 +77,7 @@ def _normalize_branch(branch: Any, *, index: int) -> Dict[str, Any]:
         acts_in = []
     out: Dict[str, Any] = {
         "when": when,
-        "conditions": [_copy_condition(c) for c in conds_in],
+        "conditions": normalize_condition_list(conds_in),
         "actions": [_copy_action(a) for a in acts_in],
     }
     label = branch.get("label")
@@ -103,13 +111,11 @@ def normalize_branch_rule(rule: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def iter_branch_conditions(rule: Dict[str, Any]):
-    """Yield condition dicts from all branches."""
+    """Yield leaf condition dicts from all branches (recursive through Logic groups)."""
     for br in rule.get("branches") or []:
         if not isinstance(br, dict):
             continue
-        for c in br.get("conditions") or []:
-            if isinstance(c, dict):
-                yield c
+        yield from iter_condition_leaves(br.get("conditions") or [])
 
 
 def iter_branch_actions(rule: Dict[str, Any]):
@@ -183,23 +189,11 @@ def validate_branch_rule_for_enable(rule: Dict[str, Any]) -> Optional[str]:
     for i, br in enumerate(norm["branches"]):
         when = br["when"]
         conds = br.get("conditions") or []
-        if when in (_WHEN_IF, _WHEN_ELIF) and not conds:
+        if when in (_WHEN_IF, _WHEN_ELIF) and count_leaf_compares(conds) < 1:
             return f"Branch {i} ({when}): at least one Compare is required."
-        for j, c in enumerate(conds):
-            ctype = str(c.get("type") or "")
-            if ctype == "device_state":
-                if not c.get("entity_id"):
-                    return f"Branch {i} condition {j}: device Compare needs entity_id."
-                if c.get("is") is None and c.get("op") is None:
-                    return f"Branch {i} condition {j}: device Compare needs is/op."
-            elif ctype == "event":
-                if not c.get("event"):
-                    return f"Branch {i} condition {j}: event Compare needs event id."
-            elif ctype == "time_of_day":
-                if c.get("is") not in ("dark", "light"):
-                    return f"Branch {i} condition {j}: time Compare must be dark|light."
-            else:
-                return f"Branch {i} condition {j}: unknown Compare type {ctype!r}."
+        err = validate_condition_list(conds)
+        if err:
+            return f"Branch {i} ({when}): {err}"
     return None
 
 
@@ -232,14 +226,24 @@ def _case_has_discrete_to_state(case: Dict[str, Any]) -> bool:
     return str(ts).upper() in ("ON", "OFF", "OPEN", "CLOSED")
 
 
-def _cases_need_split_for_first_match(cases: List[Dict[str, Any]], *, numeric_on_trigger: bool) -> bool:
+def _cases_need_split_for_first_match(
+    cases: List[Dict[str, Any]],
+    *,
+    numeric_on_trigger: bool,
+    is_or_list: bool = False,
+) -> bool:
     """
     True when first-match Else-if cannot preserve legacy “all matching cases run”.
 
     - Every case has discrete to_state (even duplicates like OFF/OFF) → Else-if chain OK.
+    - OR-list + condition-only cases (Spare Button) → Else-if, no split.
     - Otherwise (always-run case + conditionals, event multi-case without edges) → split.
     """
     if len(cases) < 2 or numeric_on_trigger:
+        return False
+    if is_or_list and not any(
+        c.get("to_state") not in (None, "") for c in cases
+    ):
         return False
     if all(_case_has_discrete_to_state(c) for c in cases):
         return False
@@ -253,16 +257,52 @@ def _canonicalize_trigger(trigger: Any) -> Any:
     return trigger
 
 
+def _or_list_wake_conditions(trigger: List[Any]) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """
+    H4: convert legacy OR-list trigger edges into branch Compare fragments.
+
+    Same device ON|OFF edges → ``is: ANY`` (transitioned). Multi-device ON edges → nested ``or`` group.
+    """
+    if len(trigger) < 2:
+        return [], "OR-list trigger needs at least two edges"
+    eids: List[str] = []
+    for t in trigger:
+        if isinstance(t, dict) and t.get("entity_id"):
+            eids.append(str(t["entity_id"]))
+    unique = list(dict.fromkeys(eids))
+    if len(unique) == 1:
+        return [{"type": "device_state", "entity_id": unique[0], "is": "ANY"}], None
+    children: List[Dict[str, Any]] = []
+    for t in trigger:
+        if not isinstance(t, dict) or not t.get("entity_id"):
+            continue
+        eid = str(t["entity_id"])
+        raw_st = t.get("state")
+        if raw_st is None or raw_st == "":
+            children.append({"type": "device_state", "entity_id": eid, "is": "ANY"})
+            continue
+        st = str(raw_st).upper()
+        if st in ("ON", "OFF", "OPEN", "CLOSED"):
+            children.append({"type": "device_state", "entity_id": eid, "is": st})
+        else:
+            children.append({"type": "device_state", "entity_id": eid, "is": str(raw_st)})
+    if not children:
+        return [], "OR-list trigger: no valid device edges"
+    if len(children) == 1:
+        return children, None
+    return [{"op": "or", "children": children}], None
+
+
 def _trigger_wake_conditions(trigger: Any) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """
-    Build Compare list fragments from a legacy trigger.
+    Build Compare list fragments from a legacy singleton trigger.
 
     Returns (common_conds, error_or_none).
-    Multi-edge OR-list → error (skip until H4). Singleton lists are unwrapped first.
+    Multi-edge OR-list → use ``_or_list_wake_conditions`` (H4). Singleton lists unwrapped first.
     """
     trigger = _canonicalize_trigger(trigger)
     if isinstance(trigger, list):
-        return [], "OR-list trigger (when any of) — skip until H4 / manual"
+        return _or_list_wake_conditions(trigger)
     if not isinstance(trigger, dict):
         return [], "missing trigger"
     if trigger.get("event"):
@@ -308,30 +348,46 @@ def convert_v2_rule_to_branches(rule: Dict[str, Any]) -> Tuple[Optional[Dict[str
 
     # Unwrap singleton trigger lists before wake / skip decisions.
     v2 = dict(v2)
-    v2["trigger"] = _canonicalize_trigger(v2.get("trigger"))
+    raw_trigger = v2.get("trigger")
+    v2["trigger"] = _canonicalize_trigger(raw_trigger)
+    is_or_list = isinstance(raw_trigger, list) and len(raw_trigger) >= 2
 
     cases = [c for c in (v2.get("cases") or []) if isinstance(c, dict)]
     if not cases:
         return None, "no cases", []
 
-    wake_common, err = _trigger_wake_conditions(v2.get("trigger"))
+    wake_common, err = _trigger_wake_conditions(raw_trigger if is_or_list else v2.get("trigger"))
     if err:
         return None, err, []
 
     trig = v2.get("trigger") if isinstance(v2.get("trigger"), dict) else {}
-    device_eid = str(trig.get("entity_id") or "") if trig else ""
+    if is_or_list and isinstance(raw_trigger, list):
+        or_eids = [
+            str(t["entity_id"]) for t in raw_trigger
+            if isinstance(t, dict) and t.get("entity_id")
+        ]
+        device_eid = or_eids[0] if len(set(or_eids)) == 1 else ""
+    else:
+        device_eid = str(trig.get("entity_id") or "") if trig else ""
     numeric_on_trigger = bool(trig.get("op")) if trig else False
-    # Edge already expressed in wake_common (unwrapped OR-edge with state on trigger).
     wake_has_device = any(
         isinstance(c, dict)
         and c.get("type") == "device_state"
-        and str(c.get("entity_id") or "") == device_eid
+        and (
+            str(c.get("entity_id") or "") == device_eid
+            or (c.get("op") == "or" and device_eid == "")
+        )
+        for c in wake_common
+    ) or any(
+        isinstance(c, dict) and c.get("op") == "or"
         for c in wake_common
     )
 
     # Non-exclusive multi-case (e.g. always + conditional) → split rules.
     # Discrete to_state chains (incl. duplicate OFF/OFF like sauna) → Else-if, no split.
-    if _cases_need_split_for_first_match(cases, numeric_on_trigger=numeric_on_trigger):
+    if _cases_need_split_for_first_match(
+        cases, numeric_on_trigger=numeric_on_trigger, is_or_list=is_or_list
+    ):
         split_rules: List[Dict[str, Any]] = []
         base_name = str(v2.get("name") or "rule")
         for i, case in enumerate(cases):
@@ -353,7 +409,7 @@ def convert_v2_rule_to_branches(rule: Dict[str, Any]) -> Tuple[Optional[Dict[str
         conds: List[Dict[str, Any]] = [_copy_condition(c) for c in wake_common]
         # Per-case device edge from to_state (skip ANY if wake_common already has device Compare).
         to_state = case.get("to_state")
-        if device_eid and not numeric_on_trigger:
+        if device_eid and not numeric_on_trigger and not is_or_list:
             if to_state is None or to_state == "":
                 if not wake_has_device:
                     conds.append({

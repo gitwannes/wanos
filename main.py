@@ -643,7 +643,7 @@ def _persist_automation_payload(rule: dict[str, Any]) -> dict[str, Any]:
     ):
         raise ValueError(
             "Legacy trigger+cases authoring is retired (B19). "
-            "Use branches (If/Do). Multi-device OR leftovers wait Ship B4/H4."
+            "Use branches (If/Do)."
         )
     if ("on" in rule) or ("off" in rule) or (
         not is_branch_rule(rule) and ("conditions" in rule or "actions" in rule)
@@ -767,7 +767,7 @@ async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
 
 @app.put("/api/automations")
 async def update_automation_api(rule: dict[str, Any], req: Request) -> dict[str, Any]:
-    """Admin: replace automation by id — persisted as schema v2 only."""
+    """Admin: replace automation by id — persisted as B19 branches."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
 
