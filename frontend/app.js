@@ -4305,15 +4305,13 @@ function wanosApp() {
             current.volume = rawVol;
             this.state.devices[idx] = current;
 
-            // ⚡ DYNAMIC ROUTING: Dispatch to the correct integration based on the origin
+            // ⚡ DYNAMIC ROUTING: volume via HUB_STATE_CHANGED so automations see the edge (B19; mirror Onkyo).
             if (meta && meta.origin === 'onkyo') {
                 // ⚡ Optimistic UI Lock: Instantly force the "SYNC..." state in Alpine to disable the slider
                 // until the physical receiver answers back with the true volume value.
                 this.state.devices[idx] = null;
-                this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), volume: rawVol });
-            } else {
-                this.publishEvent("SONOS_COMMAND", { idx: parseInt(idx, 10), volume: rawVol });
             }
+            this.publishEvent("HUB_STATE_CHANGED", { idx: parseInt(idx, 10), volume: rawVol });
         },
 
         updateSpeakerOptimistic(idx, uiVol) {

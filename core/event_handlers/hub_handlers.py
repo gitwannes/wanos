@@ -82,6 +82,14 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
     if old_val is None and idx is not None:
         old_val = manager._state.devices.get(str(idx))
     is_init = payload.get("is_initialization", False)
+    suppress_log = payload.get("suppress_device_log", False)
+
+    # B19: stamp pre-merge RAM for automation numeric edge-cross (volume / bri / …).
+    if idx is not None and old_val is not None and "old_val" not in payload:
+        if isinstance(old_val, dict):
+            payload["old_val"] = old_val.copy()
+        else:
+            payload["old_val"] = old_val
 
     # RICH PAYLOAD MERGE FOR ADVANCED DEVICES (Hue, Sonos)
     is_rich_payload = "bri" in payload or "xy" in payload or "volume" in payload
@@ -175,7 +183,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                 event.payload["_c18_token"] = token
 
         # --- ⚡ DEVICE INSIGHTS HISTORY LOGGING ---
-        if not is_init and hasattr(manager, "history_manager"):
+        if not is_init and not suppress_log and hasattr(manager, "history_manager"):
             device_meta = manager._state.device_metadata.get(idx, {})
             dev_type = device_meta.get("type", "")
 
@@ -387,7 +395,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
         if (meta_origin == "sonos"
                 and event_origin != "sonos"
                 and not is_init
-                and (old_state != state_val or is_force)):
+                and (old_state != state_val or is_force or "volume" in payload)):
             if manager._state.system.sonos_integration_enabled:
                 if getattr(manager, "sonos_bridge", None):
                     # Route the entire rich payload containing volume and station parameters

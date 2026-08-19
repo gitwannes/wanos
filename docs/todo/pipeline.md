@@ -2,7 +2,7 @@
 
 High-level **what’s next** and where the detailed specs live. This file does **not** hold phase DoD / locked-decision novels — those live in `phaseX-yyy.md`.
 
-**Last updated:** 2026-08-17
+**Last updated:** 2026-08-19
 
 ---
 
@@ -548,6 +548,7 @@ Copy DBs off Pi (include `-wal`/`-shm` if present) → DB Browser / `sqlite3` / 
 
 | When | What |
 |---|---|
+| 2026-08-19 | **B19 follow-up ✅ Done** — Pi smoke OK (Sonos volume 8→14, Explorer slider, shutter open %, no regression). Auto-off dedup (OFF→ON only). Discrete `is:ON/OFF` wake fix (no color-change false trigger). Shutter edge-cross origin:zwave only. Blockly condition labels Option A ("crosses above/below", "turns ON/OFF", "opens/closes", "changes state"). Docs close-out. |
 | 2026-08-17 | **B5 / H12 ✅ Done** — Pi smoke OK; Admin Debug GREEN; docs close-out. `Badk 1e ventilatie` If/Else-if edge-cross; hardcoded climate + sweeper Audit B removed; `vent_on/off_humidity` retired. Next **B6**. |
 | 2026-08-17 | **B5 / H12 shipped (code)** — `Badk 1e ventilatie` If/Else-if edge-cross in `automations.auto.yaml`; hardcoded climate + sweeper Audit B removed; `vent_on/off_humidity` retired. |
 | 2026-08-17 | **B5 / H12 kickoff locked (Option A)** — If/Else-if edge-cross; 1e humidity cutover; drop climate 5 min + sweeper Audit B; no new block. Deferred (min-runtime, level Compare, Auto, hygrostat, Schmitt, replay) → **B14**. Detail → [`phaseB-blocky.md`](phaseB-blocky.md) § Ship B5. |

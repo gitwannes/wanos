@@ -19,7 +19,7 @@ Once started, the `_poll_loop` enters an infinite `while self._running:` cycle.
 
 *   **The 10-Second Sweep:** Every 10 seconds, the bridge iterates over every `SoCo` object.
 *   **State Extraction:** It queries `get_current_transport_info` (to determine `PLAYING` vs `STOPPED`/`PAUSED`) and queries the integer `volume`.
-*   **Silent Syncing:** If the speaker's physical state differs from what is stored in the WanOS RAM, it dispatches a `HUB_STATE_CHANGED` event to update the UI. It intentionally attaches an `is_initialization: True` flag to this event to suppress console logging noise, ensuring that routine background syncs don't flood the terminal.
+*   **Silent Syncing:** If the speaker's physical state differs from what is stored in the WanOS RAM, it dispatches a `HUB_STATE_CHANGED` event to update the UI. Poll events may carry a **log-suppress** flag so routine syncs do not flood the terminal — they must **not** use `is_initialization: True` (that skips YAML automations). See [`todo/phaseB-blocky.md`](todo/phaseB-blocky.md) § B19 follow-up — rich level Compare (**2026-08-18**).
 
 ## 4. UI Quirks & State Synchronization
 The Sonos bridge aligns with WanOS's Optimistic UI but handles data differently than stateless protocols.

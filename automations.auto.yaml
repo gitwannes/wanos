@@ -1021,6 +1021,44 @@ automations:
           - entity_id: zwave.vent.badk_1e
             state: 'OFF'
     id: a7c4e8f2-3b6d-4e91-9c0a-5f1d8e2b4c73
+  - name: cinema-warm
+    enabled: true
+    branches:
+      - when: if
+        conditions:
+          - op: and
+            children:
+              - type: device_state
+                entity_id: sensor.temp_hum.cinema
+                op: '>='
+                attribute: temperature
+                is: '26'
+        actions:
+          - event: 856d0f0d-1f6b-4a1a-ace8-a5856a5ee491
+          - entity_id: zwave.cinema_licht
+            state: "ON"
+    id: 41c05efd-5c5d-4281-82b3-87213bd8ad68
+  - name: cinema too loud-test
+    enabled: true
+    branches:
+      - when: if
+        conditions:
+          - type: device_state
+            entity_id: blinds.cinema
+            op: <
+            attribute: position
+            is: '50'
+          - type: device_state
+            entity_id: hue.group.cinema_hue
+            is: "ON"
+        actions:
+          - entity_id: hue.group.cinema_hue
+            state: "ON"
+            bri: 100
+            xy:
+              - 0.18559991143671542
+              - 0.7356269961081279
+    id: e1025236-8ed1-470c-90da-b6d287a57c9d
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

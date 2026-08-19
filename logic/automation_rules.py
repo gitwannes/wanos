@@ -221,6 +221,112 @@ class AutomationEngine:
         return raw
 
     @staticmethod
+    def _uses_rich_hub_numeric(attribute: Optional[str], op: str, threshold: Any) -> bool:
+        """Rich actuator dict fields (volume, bri, shutter %) for HUB_STATE_CHANGED edge-cross."""
+        if op not in (">", ">=", "<", "<=", "!=", "=="):
+            return False
+        if AutomationEngine._parse_compare_number(threshold) is None:
+            return False
+        if AutomationEngine._attr_ram_key(attribute) is not None:
+            return True
+        attr = str(attribute or "").strip().lower()
+        return attr in ("position", "closed", "closed_pct", "open_pct")
+
+    @staticmethod
+    def _numeric_edge_raws_for_event(
+        *,
+        event_name: str,
+        pl: dict,
+        state: SystemState,
+        cond_idx: int,
+        t_attr: Optional[str],
+        op: str,
+        threshold: Any,
+        new_state: Any,
+    ) -> Tuple[Any, Any]:
+        """Resolve old/new samples for B9A numeric edge-cross."""
+        if event_name == "HUB_STATE_CHANGED":
+            if AutomationEngine._is_shutter_position_numeric_compare(
+                state, cond_idx, t_attr, op, threshold
+            ):
+                # Consecutive mesh reports — not optimistic RAM vs inbound (false reverse edge).
+                old_raw = pl.get("old_value")
+                if old_raw is None:
+                    old_raw = pl.get("old_val", pl.get("old_state"))
+                new_raw = pl.get("state", new_state)
+                if new_raw is None:
+                    new_raw = state.devices.get(cond_idx)
+                return old_raw, new_raw
+            if AutomationEngine._uses_rich_hub_numeric(t_attr, op, threshold):
+                old_raw = pl.get("old_val", pl.get("old_state"))
+                new_raw = state.devices.get(cond_idx)
+                if new_raw is None:
+                    new_raw = state.devices.get(str(cond_idx))
+                return old_raw, new_raw
+            old_raw = pl.get("old_state", pl.get("old_val"))
+            new_raw = pl.get("state", new_state)
+            if new_raw is None:
+                new_raw = state.devices.get(cond_idx)
+            return old_raw, new_raw
+        if event_name == "TEMP_UPDATED":
+            return {"temp": pl.get("old_value")}, state.devices.get(cond_idx)
+        if event_name == "HUMIDITY_UPDATED":
+            return {"hum": pl.get("old_value")}, state.devices.get(cond_idx)
+        return pl.get("old_value"), state.devices.get(cond_idx)
+
+    @staticmethod
+    def _is_shutter_position_numeric_compare(
+        state: SystemState,
+        idx: Any,
+        attribute: Optional[str],
+        op: str,
+        threshold: Any,
+    ) -> bool:
+        """True when edge-cross is shutter open-/closed-% (not volume/bri/temp)."""
+        if not AutomationEngine._uses_rich_hub_numeric(attribute, op, threshold):
+            return False
+        if AutomationEngine._attr_ram_key(attribute) is not None:
+            return False
+        attr = str(attribute or "").strip().lower()
+        if attr and attr not in ("position", "closed", "closed_pct", "open_pct"):
+            return False
+        meta = state.device_metadata.get(idx) or state.device_metadata.get(str(idx)) or {}
+        return str(meta.get("type") or "").lower() in ("blinds", "shutter")
+
+    @staticmethod
+    def _shutter_position_zwave_telemetry(payload: Optional[dict]) -> bool:
+        """Shutter % edge-cross uses sequential mesh reports, not optimistic commands."""
+        return str((payload or {}).get("origin") or "").lower() == "zwave"
+
+    @staticmethod
+    def _hub_state_change_may_wake_compare(
+        cond: Any,
+        *,
+        is_transition: bool,
+        payload: Optional[dict],
+    ) -> bool:
+        from core.condition_tree import (
+            condition_discrete_hub_wakes,
+            condition_is_hub_level_numeric_compare,
+            condition_is_shutter_position_numeric_compare,
+        )
+
+        if condition_is_shutter_position_numeric_compare(cond):
+            return AutomationEngine._shutter_position_zwave_telemetry(payload)
+        if condition_is_hub_level_numeric_compare(cond):
+            return True
+        return condition_discrete_hub_wakes(cond, payload)
+
+    @staticmethod
+    def _binary_device_state(raw: Any) -> str:
+        """Normalize ON/OFF from a devices[] entry or flat scalar."""
+        if isinstance(raw, dict):
+            val = raw.get("state")
+        else:
+            val = raw
+        return str(val).strip().upper() if val is not None else ""
+
+    @staticmethod
     def _parse_compare_number(value: Any) -> Optional[float]:
         from logic.history_ids import parse_numeric_state
         return parse_numeric_state(value)
@@ -356,24 +462,28 @@ class AutomationEngine:
             ):
                 pl = payload or {}
                 t_attr = getattr(condition, "attribute", None)
-                if event_name == "HUB_STATE_CHANGED":
-                    old_raw = pl.get("old_state", pl.get("old_val"))
-                    new_raw = pl.get("state", new_state)
-                    if new_raw is None:
-                        new_raw = state.devices.get(cond_idx)
-                elif event_name == "TEMP_UPDATED":
-                    old_raw = {"temp": pl.get("old_value")}
-                    new_raw = state.devices.get(cond_idx)
-                    if t_attr is None:
-                        t_attr = "temperature"
-                elif event_name == "HUMIDITY_UPDATED":
-                    old_raw = {"hum": pl.get("old_value")}
-                    new_raw = state.devices.get(cond_idx)
-                    if t_attr is None:
-                        t_attr = "humidity"
-                else:
-                    old_raw = pl.get("old_value")
-                    new_raw = state.devices.get(cond_idx)
+                if (
+                    event_name == "HUB_STATE_CHANGED"
+                    and AutomationEngine._is_shutter_position_numeric_compare(
+                        state, cond_idx, t_attr, op, is_val
+                    )
+                    and not AutomationEngine._shutter_position_zwave_telemetry(pl)
+                ):
+                    return False
+                old_raw, new_raw = AutomationEngine._numeric_edge_raws_for_event(
+                    event_name=event_name or "",
+                    pl=pl,
+                    state=state,
+                    cond_idx=cond_idx,
+                    t_attr=t_attr,
+                    op=op,
+                    threshold=is_val,
+                    new_state=new_state,
+                )
+                if event_name == "TEMP_UPDATED" and t_attr is None:
+                    t_attr = "temperature"
+                elif event_name == "HUMIDITY_UPDATED" and t_attr is None:
+                    t_attr = "humidity"
                 return AutomationEngine._numeric_trigger_edge(
                     op=op,
                     attribute=t_attr,
@@ -398,6 +508,7 @@ class AutomationEngine:
         event_idx: Any,
         is_transition: bool,
         state: SystemState,
+        payload: Optional[dict] = None,
     ) -> Tuple[bool, str, Optional[str]]:
         """
         B19 wake: any device/event Compare in any branch mentions this event.
@@ -424,6 +535,7 @@ class AutomationEngine:
                         event_name=event_name,
                         is_transition=is_transition,
                         resolve_idx=lambda c: AutomationEngine.resolve_device_ref(c, state),
+                        payload=payload,
                     ):
                         return (
                             True,
@@ -453,7 +565,9 @@ class AutomationEngine:
                         "HUMIDITY_UPDATED",
                         "POWER_UPDATED",
                     ):
-                        if event_name == "HUB_STATE_CHANGED" and not is_transition:
+                        if event_name == "HUB_STATE_CHANGED" and not AutomationEngine._hub_state_change_may_wake_compare(
+                            cond, is_transition=is_transition, payload=payload
+                        ):
                             continue
                         return (
                             True,
@@ -621,6 +735,7 @@ class AutomationEngine:
                     event_idx=event_idx,
                     is_transition=is_transition,
                     state=state,
+                    payload=payload,
                 )
                 if not woke:
                     continue
@@ -676,24 +791,28 @@ class AutomationEngine:
                                 "HUMIDITY_UPDATED",
                                 "POWER_UPDATED",
                             ):
-                                if event_name == "HUB_STATE_CHANGED":
-                                    old_raw = payload.get("old_state", payload.get("old_val"))
-                                    new_raw = payload.get("state", new_state)
-                                    if new_raw is None:
-                                        new_raw = state.devices.get(trigger_idx)
-                                elif event_name == "TEMP_UPDATED":
-                                    old_raw = {"temp": payload.get("old_value")}
-                                    new_raw = state.devices.get(trigger_idx)
-                                    if t_attr is None:
-                                        t_attr = "temperature"
-                                elif event_name == "HUMIDITY_UPDATED":
-                                    old_raw = {"hum": payload.get("old_value")}
-                                    new_raw = state.devices.get(trigger_idx)
-                                    if t_attr is None:
-                                        t_attr = "humidity"
-                                else:  # POWER_UPDATED
-                                    old_raw = payload.get("old_value")
-                                    new_raw = state.devices.get(trigger_idx)
+                                if (
+                                    event_name == "HUB_STATE_CHANGED"
+                                    and AutomationEngine._is_shutter_position_numeric_compare(
+                                        state, trigger_idx, t_attr, t_op, t.state
+                                    )
+                                    and not AutomationEngine._shutter_position_zwave_telemetry(payload)
+                                ):
+                                    continue
+                                old_raw, new_raw = AutomationEngine._numeric_edge_raws_for_event(
+                                    event_name=event_name or "",
+                                    pl=payload,
+                                    state=state,
+                                    cond_idx=trigger_idx,
+                                    t_attr=t_attr,
+                                    op=t_op,
+                                    threshold=t.state,
+                                    new_state=new_state,
+                                )
+                                if event_name == "TEMP_UPDATED" and t_attr is None:
+                                    t_attr = "temperature"
+                                elif event_name == "HUMIDITY_UPDATED" and t_attr is None:
+                                    t_attr = "humidity"
                                 if AutomationEngine._numeric_trigger_edge(
                                     op=t_op,
                                     attribute=t_attr,
@@ -1128,7 +1247,7 @@ class AutomationEngine:
         # Prevents lights in transitive rooms (hallways, toilets, pantries) from being left on indefinitely.
         # - Only affects entity_ids explicitly listed in `managed_auto_off`.
         # - Delay = per-device override → type default → general default.
-        # - Re-schedules the deadline dynamically if motion is re-triggered while already ON.
+        # - Schedule only on OFF→ON for the managed device (ignore Hue/Sonos rich echoes while already ON).
         # =========================================================================
         if event_name == "HUB_STATE_CHANGED":
             idx = payload.get("idx")
@@ -1146,8 +1265,10 @@ class AutomationEngine:
 
                 # Normalize string to uppercase to catch mixed-case "On"/"Off" states
                 safe_state = str(current_state).upper() if current_state else ""
+                prior_raw = payload.get("old_val", payload.get("old_state"))
+                was_on = AutomationEngine._binary_device_state(prior_raw) == "ON"
 
-                if safe_state == "ON":
+                if safe_state == "ON" and not was_on:
                     meta = state.device_metadata.get(idx) or {}
                     dtype = meta.get("type") if isinstance(meta, dict) else None
                     origin = meta.get("origin") if isinstance(meta, dict) else None

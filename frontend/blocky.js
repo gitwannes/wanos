@@ -467,25 +467,25 @@ function blockyActionStateOptions(block) {
 function blockyConditionStateOptions(block) {
     const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
     if (type === "blinds" || type === "shutter") {
-        // Level profile normally owns shutters; keep OPEN/CLOSED + transitioned if discrete shape used.
+        // Level profile normally owns shutters; keep opens/closes + changes state if discrete shape used.
         return [
-            ["OPEN", "0"],
-            ["CLOSED", "100"],
-            ["transitioned", "ANY"]
+            ["opens", "0"],
+            ["closes", "100"],
+            ["changes state", "ANY"]
         ];
     }
     if (type === "door") {
         return [
-            ["OPEN", "OPEN"],
-            ["CLOSED", "CLOSED"],
-            ["transitioned", "ANY"]
+            ["opens", "OPEN"],
+            ["closes", "CLOSED"],
+            ["changes state", "ANY"]
         ];
     }
-    // Lights / switches / status: ON, OFF, or any edge (wake).
+    // Lights / switches / status: turns ON, turns OFF, or any edge (wake).
     return [
-        ["ON", "ON"],
-        ["OFF", "OFF"],
-        ["transitioned", "ANY"]
+        ["turns ON", "ON"],
+        ["turns OFF", "OFF"],
+        ["changes state", "ANY"]
     ];
 }
 
@@ -493,6 +493,24 @@ function blockyConditionStateOptions(block) {
 const BLOCKY_COMPARE_OPS = [
     ["==", "=="], ["!=", "!="], [">", ">"], [">=", ">="], ["<", "<"], ["<=", "<="]
 ];
+
+/**
+ * Human-readable label for a numeric operator used in condition blocks.
+ * Describes the crossing direction to the author.
+ * @param {string} op
+ * @returns {string}
+ */
+function blockyOpCrossesLabel(op) {
+    switch (op) {
+        case ">":  return "crosses above";
+        case ">=": return "reaches";
+        case "<":  return "crosses below";
+        case "<=": return "falls to";
+        case "==": return "equals";
+        case "!=": return "is not";
+        default:   return "crosses above";
+    }
+}
 
 /**
  * Compare UX profile for if-device conditions and When device triggers.
@@ -507,14 +525,14 @@ function blockyConditionCompareProfile(eid) {
     const type = blockyEntityTypeOf(id);
     if (type === "door" || blockyIsMotionEntity(id)) return { kind: "discrete" };
 
-    // B9C: shutters — OPEN | CLOSED | transitioned | open % compare (UI open %, YAML closed %).
+    // B9C: shutters — opens | closes | changes state | open % compare (UI open %, YAML closed %).
     if (type === "blinds" || type === "shutter") {
         return {
             kind: "level",
             modes: [
-                ["OPEN", "OPEN"],
-                ["CLOSED", "CLOSED"],
-                ["transitioned", "ANY"],
+                ["opens", "OPEN"],
+                ["closes", "CLOSED"],
+                ["changes state", "ANY"],
                 ["open %", "PCT"]
             ],
             attribute: "position",
@@ -524,14 +542,14 @@ function blockyConditionCompareProfile(eid) {
             max: 100
         };
     }
-    // B9C: Sonos / Onkyo — ON | OFF | transitioned | volume compare (0…max_volume).
+    // B9C: Sonos / Onkyo — turns ON | turns OFF | changes state | volume compare (0…max_volume).
     if (type === "speaker" || type === "media_player") {
         return {
             kind: "level",
             modes: [
-                ["ON", "ON"],
-                ["OFF", "OFF"],
-                ["transitioned", "ANY"],
+                ["turns ON", "ON"],
+                ["turns OFF", "OFF"],
+                ["changes state", "ANY"],
                 ["volume", "PCT"]
             ],
             attribute: "volume",
@@ -657,7 +675,11 @@ function blockyConditionUpdateShape(block, opts) {
         }
 
         if (profile.kind === "sensor") {
-            const input = block.appendDummyInput("COMPARE").appendField("is");
+            // Numeric sensor: show crossing direction label that updates with the op dropdown.
+            let op = opts.forceOp != null ? opts.forceOp : snap.OP;
+            if (!BLOCKY_COMPARE_OPS.some((o) => o[1] === op)) op = "==";
+            const input = block.appendDummyInput("COMPARE")
+                .appendField(blockyOpCrossesLabel(op), "CROSSES_LABEL");
             let attr = null;
             if (profile.attrs) {
                 const labels = profile.attrLabels || profile.attrs.map((a) => [a, a]);
@@ -666,8 +688,6 @@ function blockyConditionUpdateShape(block, opts) {
                 input.appendField(new Blockly.FieldDropdown(labels), "ATTR");
                 blockySafeSetField(block, "ATTR", attr);
             }
-            let op = opts.forceOp != null ? opts.forceOp : snap.OP;
-            if (!BLOCKY_COMPARE_OPS.some((o) => o[1] === op)) op = "==";
             input.appendField(new Blockly.FieldDropdown(BLOCKY_COMPARE_OPS), "OP");
             const rawVal = opts.forceValue != null ? opts.forceValue : snap.VALUE;
             const numVal = Number(rawVal);
@@ -682,7 +702,9 @@ function blockyConditionUpdateShape(block, opts) {
         }
 
         if (profile.kind === "level") {
-            const input = block.appendDummyInput("COMPARE").appendField("is");
+            // level: discrete mode labels already carry the verb ("turns ON", "opens", …).
+            // PCT mode: prefix with "crosses" + op.
+            const input = block.appendDummyInput("COMPARE");
             let mode = opts.forceMode != null ? opts.forceMode : snap.MODE;
             if (!profile.modes.some((m) => m[1] === mode)) {
                 mode = profile.modes[0][1];
@@ -706,8 +728,8 @@ function blockyConditionUpdateShape(block, opts) {
             return;
         }
 
+        // Discrete (switches, lights, doors, …): "turns ON / turns OFF / changes state".
         block.appendDummyInput("COMPARE")
-            .appendField("is")
             .appendField(new Blockly.FieldDropdown(() => blockyConditionStateOptions(block)), "STATE");
         const st = opts.forceState != null ? opts.forceState : snap.STATE;
         if (st) blockySafeSetField(block, "STATE", st);
@@ -2213,6 +2235,20 @@ function blockyOnChange(ev) {
     let touchedActionId = null;
     if (isChange) {
         BlockyRT.pendingFieldEv = ev;
+        // When OP changes on a sensor condition, update the crosses/equals/… label live.
+        if (ev.blockId && ev.name === "OP") {
+            const ws = blockyWs();
+            const blk = ws && ws.getBlockById(ev.blockId);
+            if (blk && blk.type === "b_condition_device") {
+                const profile = blockyConditionCompareProfile(blk.getFieldValue("ENTITY"));
+                if (profile.kind === "sensor") {
+                    try {
+                        const lf = blk.getField("CROSSES_LABEL");
+                        if (lf) lf.setValue(blockyOpCrossesLabel(ev.newValue));
+                    } catch (e) { /* ignore */ }
+                }
+            }
+        }
         // Backup path: field validators usually queue rich shape; this covers setFieldValue.
         if (ev.blockId && (ev.name === "STATE" || ev.name === "ENTITY" || ev.name === "HUE_MODE")) {
             const ws = blockyWs();

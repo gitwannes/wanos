@@ -11,7 +11,7 @@ Top-level ``conditions: [ ... ]`` on a branch = implicit AND of each entry (flat
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 _VALID_OPS = frozenset({"and", "or", "not"})
 _LEAF_TYPES = frozenset({"device_state", "time_of_day", "event"})
@@ -189,6 +189,88 @@ def evaluate_condition_node(
     return hold_fn(cond)
 
 
+def _parse_numeric_threshold(val: Any) -> bool:
+    if val is None:
+        return False
+    try:
+        float(val)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def condition_is_hub_level_numeric_compare(cond: Any) -> bool:
+    """True when a device Compare uses numeric edge-cross on a rich HUB level field."""
+    d = _cond_as_dict(cond)
+    if d.get("type") != "device_state":
+        return False
+    op = str(d.get("op") or "==").strip()
+    if op not in (">", ">=", "<", "<=", "!=", "=="):
+        return False
+    if not _parse_numeric_threshold(_leaf_is_value(d)):
+        return False
+    attr = str(d.get("attribute") or "").strip().lower()
+    if attr in ("volume", "vol", "brightness", "bri", "temperature", "temp", "humidity", "hum"):
+        return True
+    return attr in ("position", "closed", "closed_pct", "open_pct")
+
+
+def condition_is_shutter_position_numeric_compare(cond: Any) -> bool:
+    """Numeric Compare on shutter closed % / open % (not volume/bri/temp)."""
+    d = _cond_as_dict(cond)
+    if d.get("type") != "device_state":
+        return False
+    op = str(d.get("op") or "==").strip()
+    if op not in (">", ">=", "<", "<=", "!=", "=="):
+        return False
+    if not _parse_numeric_threshold(_leaf_is_value(d)):
+        return False
+    attr = str(d.get("attribute") or "").strip().lower()
+    if attr in ("volume", "vol", "brightness", "bri", "temperature", "temp", "humidity", "hum"):
+        return False
+    if attr in ("position", "closed", "closed_pct", "open_pct"):
+        return True
+    return False
+
+
+def _payload_hub_binary_pair(payload: Optional[dict]) -> Tuple[str, str]:
+    """Previous vs new core ON/OFF (or shutter OPEN/0) from a HUB_STATE_CHANGED payload."""
+    pl = payload or {}
+    old_raw = pl.get("old_val", pl.get("old_state"))
+    if isinstance(old_raw, dict):
+        old = str(old_raw.get("state") or "").strip().upper()
+    else:
+        old = str(old_raw or "").strip().upper()
+    new_raw = pl.get("state")
+    if isinstance(new_raw, dict):
+        new = str(new_raw.get("state") or "").strip().upper()
+    else:
+        new = str(new_raw or "").strip().upper()
+    if not new:
+        new = old
+    return old, new
+
+
+def condition_discrete_hub_wakes(cond: Any, payload: Optional[dict]) -> bool:
+    """
+    Discrete is ON/OFF/OPEN/CLOSED/ANY: wake only when the binary field changes.
+    Bri/xy/volume-only updates keep the same ON and must not wake.
+    """
+    d = _cond_as_dict(cond)
+    if d.get("type") != "device_state":
+        return False
+    want = _leaf_is_value(d)
+    if want is None:
+        return False
+    want_s = str(want).strip().upper()
+    old, new = _payload_hub_binary_pair(payload)
+    if old == new:
+        return False
+    if want_s == "ANY":
+        return True
+    return new == want_s
+
+
 def condition_node_may_wake_device(
     cond: Any,
     *,
@@ -196,6 +278,7 @@ def condition_node_may_wake_device(
     event_name: str,
     is_transition: bool,
     resolve_idx: Callable[[Any], Any],
+    payload: Optional[dict] = None,
 ) -> bool:
     """True when this node mentions the waking device for B19 derived wake."""
     if not isinstance(cond, dict):
@@ -208,6 +291,7 @@ def condition_node_may_wake_device(
                 event_name=event_name,
                 is_transition=is_transition,
                 resolve_idx=resolve_idx,
+                payload=payload,
             )
             for c in (cond.get("children") or [])
         )
@@ -224,8 +308,12 @@ def condition_node_may_wake_device(
         "HUMIDITY_UPDATED",
         "POWER_UPDATED",
     ):
-        if event_name == "HUB_STATE_CHANGED" and not is_transition:
-            return False
+        if event_name == "HUB_STATE_CHANGED":
+            if condition_is_shutter_position_numeric_compare(cond):
+                return str((payload or {}).get("origin") or "").lower() == "zwave"
+            if condition_is_hub_level_numeric_compare(cond):
+                return True
+            return condition_discrete_hub_wakes(cond, payload)
         return True
     return False
 

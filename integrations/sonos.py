@@ -73,7 +73,8 @@ class SonosBridge:
                                 "state": expected_state,
                                 "volume": current_vol,
                                 "origin": "sonos",
-                                "is_initialization": True  # Suppresses the UI logger spam
+                                # Quiet IWHW/device logs — must not use is_initialization (skips YAML automations).
+                                "suppress_device_log": True,
                             }
                         ))
                 except Exception:
@@ -177,7 +178,20 @@ class SonosBridge:
 
             if not should_play:
                 if volume is not None:
-                    await asyncio.to_thread(setattr, speaker, 'volume', volume)
+                    await asyncio.to_thread(setattr, speaker, "volume", volume)
+                    current = self.manager._state.devices.get(idx)
+                    state_str = "ON"
+                    if isinstance(current, dict):
+                        state_str = current.get("state") or "ON"
+                    self.manager.dispatch(Event(
+                        type=EventType.HUB_STATE_CHANGED,
+                        payload={
+                            "idx": idx,
+                            "state": state_str,
+                            "volume": int(volume),
+                            "origin": "sonos",
+                        },
+                    ))
                     claim_and_finish(self.manager, payload, True, "")
                     return
                 claim_and_finish(self.manager, payload, False, "[Sonos] empty command")

@@ -15,7 +15,9 @@ class ZWaveJSUIBridge(WanosComponent):
         self.mqtt_client = mqtt_client
         self.name_to_idx: dict[str, int] = {}
         self.idx_to_name: dict[int, str] = {}
-        self._last_known_states: dict[int, str] = {}
+        # Last *inbound* report only. Outbound commands must not write this, or
+        # the mesh arrival (same %) is dropped and shutter % automations never wake.
+        self._last_known_states: dict[int, Any] = {}
         self._integration_enabled: bool = False
 
         # Re-scoped tracking booleans for lazy-boot architecture
@@ -220,10 +222,8 @@ class ZWaveJSUIBridge(WanosComponent):
                 except ValueError:
                     state_val = 0
 
-                if self._last_known_states.get(target_idx) == state_val:
-                    return
-
-                if self._last_known_states.get(target_idx) == state_val:
+                old_reported = self._last_known_states.get(target_idx)
+                if old_reported == state_val:
                     return
                 self._last_known_states[target_idx] = state_val
 
@@ -232,6 +232,7 @@ class ZWaveJSUIBridge(WanosComponent):
                     payload={
                         "idx": target_idx,
                         "state": state_val,
+                        "old_value": old_reported,
                         "name": custom_name,
                         "device_type": "blinds",
                         "origin": "zwave",
@@ -578,8 +579,13 @@ class ZWaveJSUIBridge(WanosComponent):
             if not prop_path:
                 continue
 
-            # Update cache to prevent bounce-back
-            self._last_known_states[idx] = new_state
+            # Binary / other CCs: cache outbound so the mesh echo is not re-dispatched.
+            # Blinds: leave last-known as the last *inbound* % so arrival + travel
+            # reports still reach automations (optimistic RAM already holds the target).
+            meta = self.state_manager._state.device_metadata.get(idx) or {}
+            dtype = str(meta.get("type") or "").lower()
+            if dtype not in ("blinds", "shutter"):
+                self._last_known_states[idx] = new_state
 
             # Format the target topic for Z-Wave JS UI
             # Z-Wave JS UI uses /targetValue/set to receive intent payloads

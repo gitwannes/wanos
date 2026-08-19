@@ -558,6 +558,70 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 - [x] Pi smoke (**2026-08-17**); leftover OR-list migrated same day under **B4/H4** (Admin Debug GREEN)
 - [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-17**
 
+#### B19 follow-up — rich level Compare (volume / bri / open %) ✅ DONE (2026-08-19)
+
+**Operator report:** Rule **Test** — If `living · Sonos` **volume > 12** → Set `living Hue · light` ON (+ color). Volume crossed **8 → 14** from Sonos app and WanOS Explorer; **no action**. Same numeric Compare primitive as bathroom humidity (B9A **edge-cross**), but B19 If/Do + integration path was broken for speaker/shutter/Hue **level** attributes.
+
+**Shipped in code (2026-08-18):** F1–F6 below — `integrations/sonos.py`, `hub_handlers.py`, `automation_rules.py`, `condition_tree.py`, `state_manager.py`, `frontend/app.js`. **Pi smoke + Blockly label update (2026-08-19):** F7 smoke OK; discrete is:ON/OFF wake fix; Blockly condition labels updated (Option A — see below).
+
+**Not B14 “level Compare mode”.** B14 = optional sustained/level vs edge-cross authoring toggle. This fix keeps **edge-cross** (B9C/B9A lock); it makes edge-cross **actually run** on real volume/bri/open-% telemetry.
+
+**Root causes (verified in code):**
+
+| # | Layer | Bug |
+|---|---|---|
+| **1** | `integrations/sonos.py` poll | Background sync sets `is_initialization: True` on every poll `HUB_STATE_CHANGED`. `automation_rules.py` sets `active_rules = []` → **YAML rules never run** on Sonos app / knob volume changes. |
+| **2** | `frontend/app.js` Explorer | Sonos slider publishes **`SONOS_COMMAND`**, not `HUB_STATE_CHANGED`. Handler only forwards to bridge — **automation engine never sees Explorer volume changes**. (Onkyo uses `HUB_STATE_CHANGED` + `volume`.) |
+| **3** | `integrations/sonos.py` `execute_command` | Volume-only path sets hardware volume and returns — **no confirm `HUB_STATE_CHANGED`** (unlike play/ON path). |
+| **4** | `hub_handlers.py` Sonos interceptor | Outbound gate requires binary `old_state != state_val` — **volume-only** Explorer `HUB_STATE_CHANGED` would not reach bridge (Onkyo already has `\|"volume" in payload`). |
+| **5** | B19 wake (`condition_tree.py`, `_branch_rule_wakes`) | `HUB_STATE_CHANGED` wake requires `transitioned: True` (binary ON↔OFF). **Volume-only** change (ON stays ON) does not wake rules even when event is evaluated. |
+| **6** | Numeric edge eval (`automation_rules.py` `_condition_holds_leaf`) | On `HUB_STATE_CHANGED`, edge path uses `payload.state` (ON/OFF string) as `new_raw`, not the device dict **`volume`**. Compare `volume > 12` against `"ON"` → always false. Humidity works because `HUMIDITY_UPDATED` has a dedicated `old_value` path. |
+
+**In scope attributes (same engine fix):** `volume` (Sonos, Onkyo), `bri` (Hue), open % / `position` (shutters) — any numeric Compare on `HUB_STATE_CHANGED` with a level `attribute`.
+
+**Locked fix (one ship — B19 hotfix):**
+
+| # | Change | Where |
+|---|---|---|
+| **F1** | Split **log suppress** from **boot guard**. Poll sync must **not** set `is_initialization: True`. Use a separate flag (e.g. `suppress_device_log`) if poll noise must stay quiet. Automations evaluate on real volume/bri changes. | `integrations/sonos.py`, `docs/integration_sonos.md`, optionally `state_manager` if it treats the flag |
+| **F2** | After Sonos **volume-only** command, dispatch confirm **`HUB_STATE_CHANGED`** `{ idx, state, volume, origin: sonos }` without `is_initialization`. | `integrations/sonos.py` |
+| **F3** | Explorer Sonos slider: publish **`HUB_STATE_CHANGED`** `{ idx, volume }` (mirror Onkyo), or re-dispatch evaluable `HUB_STATE_CHANGED` after `SONOS_COMMAND`. Prefer **one** path — align with Onkyo. | `frontend/app.js` (+ handler if kept) |
+| **F4** | Sonos hub interceptor: allow outbound when **`"volume" in payload`** (same as Onkyo). | `core/event_handlers/hub_handlers.py` |
+| **F5** | B19 **wake**: for Compares with level `attribute` (`volume`, `bri`, `position`, …), wake on `HUB_STATE_CHANGED` when that idx matches **and** the level field changed (or payload carries it), **without** requiring binary `transitioned`. | `core/condition_tree.py`, `logic/automation_rules.py` `_branch_rule_wakes` |
+| **F6** | **Edge-cross old/new**: before hub merge, stamp prior rich snapshot on payload (e.g. full prior dict or `old_volume` / `old_bri`). Edge eval reads **`state.devices[idx]`** (new) + stamped old for the Compare `attribute`. Apply to **branch conditions** and **legacy trigger** numeric paths. | `core/event_handlers/hub_handlers.py`, `logic/automation_rules.py` |
+| **F7** | Pi smoke: Sonos volume **8 → 14** fires rule once; **13 → 15** does not re-fire; Sonos app + Explorer; optional Onkyo volume + Hue bri regression. | operator |
+
+**Semantics (unchanged from B9A/B5):** edge-cross only — crossing **up** through 12 fires; already above 12 then nudging higher does **not**. No Else-if OFF unless author adds it. First-sample edge after boot accepted (same as bathroom).
+
+**Discrete `is: ON/OFF` (2026-08-18):** wake only when the binary field changes. Hue bri/xy (and Sonos volume-only) while already ON must not wake an `is: ON` Compare — otherwise AND with a shutter/% gate re-fires on color.
+
+**Blockly condition label changes (Option A — 2026-08-19):** The Blockly condition block UI labels now reflect engine semantics (edge-cross / transition) rather than a generic "is":
+
+| Context | Before | After (Option A) |
+|---|---|---|
+| Numeric sensor (temp, hum, …) | `is` + OP dropdown | Dynamic label: **"crosses above"** / **"crosses below"** / **"reaches"** / **"falls to"** / **"equals"** / **"is not"** — updates live when OP changes |
+| Level PCT (volume, open %) | `is` + MODE dropdown + OP | MODE dropdown (no prefix) + OP dropdown |
+| Shutter OPEN/CLOSED/ANY | `is` + `["OPEN","CLOSED","transitioned"]` | MODE dropdown: **"opens"** / **"closes"** / **"changes state"** |
+| Speaker ON/OFF/ANY | `is` + `["ON","OFF","transitioned"]` | MODE dropdown: **"turns ON"** / **"turns OFF"** / **"changes state"** |
+| Discrete (light, switch) | `is` + `["ON","OFF","transitioned"]` | STATE dropdown: **"turns ON"** / **"turns OFF"** / **"changes state"** |
+| Door | `is` + `["OPEN","CLOSED","transitioned"]` | STATE dropdown: **"opens"** / **"closes"** / **"changes state"** |
+
+YAML wire values (`is: ON`, `is: ANY`, `op: >`, etc.) are unchanged — only display labels changed.
+
+**DoD:**
+
+- [x] Sonos app/knob volume cross runs B19 If/Do numeric Compare (edge-cross) — **operator Pi smoke ✅ 2026-08-19**
+- [x] WanOS Explorer Sonos slider cross runs same rule — **operator Pi smoke ✅ 2026-08-19**
+- [x] Onkyo volume + Hue bri Compare smoke (no regression) — **operator ✅ 2026-08-19**
+- [x] Poll sync no longer skips YAML automations (`is_initialization` misuse fixed → `suppress_device_log`)
+- [x] Engine: rich level old/new + B19 wake on volume/bri/open-% Compares
+- [x] Explorer Sonos slider → `HUB_STATE_CHANGED` + `volume` (mirror Onkyo)
+- [x] Discrete `is: ON/OFF` wake: only fires when binary state changes (not on color/bri change while already ON)
+- [x] Shutter open-% Compare: only fires on `origin: zwave` with `old_value` (no optimistic-UI false triggers)
+- [x] Auto-off timer: scheduled only on true OFF→ON transition (no duplicate logs on rich-payload echoes)
+- [x] Blockly condition labels (Option A): "crosses above/below", "turns ON/OFF", "opens/closes", "changes state"
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-19**
+
 ---
 
 ### Ship B4 / H4 — Nested AND/OR in Compare ✅ DONE (2026-08-17)

@@ -913,6 +913,7 @@ class StateManager:
                 # ⚡ SILENCE BOOT STORMS: Ignore events explicitly flagged as initialization,
                 # or transitions involving None / 'Sync...' as either the origin or destination.
                 is_init = payload.get("is_initialization", False)
+                suppress_log = payload.get("suppress_device_log", False)
                 is_valid_transition = (
                     old_bin != new_bin
                     and new_bin is not None
@@ -920,6 +921,7 @@ class StateManager:
                     and old_bin is not None
                     and old_bin not in ["Sync...", "DEAD"]
                     and not is_init
+                    and not suppress_log
                 )
                 # If the core binary state transitioned safely, write to the dedicated log
                 if is_valid_transition:
