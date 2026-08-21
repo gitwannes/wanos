@@ -285,13 +285,21 @@ class ActionConfig(BaseModel):
 
 
 class BranchConfig(BaseModel):
-    """B19 If / Else-if / Else branch (first-match)."""
+    """B19 If / Else-if branch (first-match). Bare Else retired 2026-08-21."""
     model_config = ConfigDict(extra="forbid")
 
-    when: str  # if | else_if | else
+    when: str  # if | else_if
     conditions: Optional[List[ConditionNode]] = None
     actions: List[ActionConfig] = Field(default_factory=list)
     label: Optional[str] = None
+
+    @field_validator("when")
+    @classmethod
+    def _when_if_elif_only(cls, v: str) -> str:
+        w = str(v or "").strip()
+        if w not in ("if", "else_if"):
+            raise ValueError("Branch when must be if|else_if (bare else is retired).")
+        return w
 
 
 class AutomationRuleConfig(BaseModel):

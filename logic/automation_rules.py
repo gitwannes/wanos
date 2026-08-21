@@ -589,12 +589,13 @@ class AutomationEngine:
         is_transition: bool,
         payload: dict,
     ) -> Tuple[Any, str]:
-        """First-match If / Else-if / Else. Returns (branch|None, id_suffix)."""
+        """First-match If / Else-if. Returns (branch|None, id_suffix)."""
         elif_i = 0
         for br in getattr(rule, "branches", None) or []:
             when = getattr(br, "when", "") or ""
+            # Bare else retired — skip if present in old in-memory/config shapes.
             if when == "else":
-                return br, "else"
+                continue
             if when == "if":
                 suffix = "if"
             elif when == "else_if":

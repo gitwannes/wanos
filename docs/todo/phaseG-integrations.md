@@ -23,15 +23,15 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G3 — OWM poll** | ✅ **Done 2026-08-15** — outside temp/hum every **10′** (was 30′) |
 | **G4 — OWM daily + hot sun** | One Call 4.0 once/day; hot+full-sun → cinema opens to **60% open** |
 | **G5 — Cinema rolluik half** | ✅ **Done 2026-08-16** — dashboard UE/UR; open % **> 50** → set **50%** open (stored **50**); legacy canvas + **B9C** |
-| **G9 — Honeywell** | Thermostats / Evohome — **own ship** (1st of 5) |
-| **G10 — HomeWizard** | Energy local API — **own ship** (2nd) |
-| **G11 — Samsung Airco** | Climate — **own ship** (3rd) |
+| **G11 — Samsung SmartThings** | Airco climate — **own ship** (1st of 5) — kickoff **locked 2026-08-20** |
+| **G9 — Honeywell** | Thermostats / Evohome — **own ship** (2nd) |
+| **G10 — HomeWizard** | Energy local API — **own ship** (3rd) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 
 Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G3** ✅ **Done 2026-08-15** (config-only; cold boot; one code run with **B10K**). **G5** ✅ **Done 2026-08-16** (manual cinema half). **G4** still owns the automatic hot-sun morning open.
 
-**G9 → G10 → G11 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
+**G11 → G9 → G10 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. Operator reordered **G11 first** **2026-08-20**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
 ---
 
@@ -400,13 +400,13 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 > The Library: homeconnect or aiohomeconnect
 > How it works: This library interfaces with the official BSH Home Connect REST API. It establishes a local Server-Sent Events (SSE) stream connected to their cloud servers, allowing your Python code to listen for real-time oven temperatures, dishwasher states, or laundry cycle updates.
 
-**Locked for all five:** **one integration per PR / code run**; order **G9 → G10 → G11 → G12 → G13**; do not combine. Size **high** each. Default sequence: after **G4**, before **F**. Config/creds/IPs/device maps → home pack (**P**). **Library pick stays inside each phase** (G9/G11/G12/G13 kickoff) — **not this triage**. Admin enable + Explorer/Blockly surface + G6 reload row: **assess at that ship’s kickoff**. Shared procedure (do not copy into each stub): [`docs/integration-playbook.md`](../integration-playbook.md).
+**Locked for all five:** **one integration per PR / code run**; order **G11 → G9 → G10 → G12 → G13** (operator reordered **2026-08-20**); do not combine. Size **high** each. Default sequence: after **G4**, before **F**. Config/creds/IPs/device maps → home pack (**P**). **Library pick stays inside each phase** (G9/G11/G12/G13 kickoff) — **not this triage**. Admin enable + Explorer/Blockly surface + G6 reload row: **assess at that ship’s kickoff**. Shared procedure (do not copy into each stub): [`docs/integration-playbook.md`](../integration-playbook.md).
 
 ---
 
 ## 📋 G9 — Honeywell Home (thermostats / Evohome) 🔜 TODO
 
-**Origin:** operator inbox **2026-08-14**. **1st of 5.** Own ship. **Not** G10–G13.
+**Origin:** operator inbox **2026-08-14**. **2nd of 5.** Own ship. After **G11**.
 
 **Operator request (verbatim):**
 > - 5 integrations, each to be done seperately, not in the same code run - but in this order
@@ -429,7 +429,7 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 
 ## 📋 G10 — HomeWizard energy 🔜 TODO
 
-**Origin:** operator inbox **2026-08-14**. **2nd of 5.** Own ship. After **G9**. **Not** same run as G9/G11+.
+**Origin:** operator inbox **2026-08-14**. **3rd of 5.** Own ship. After **G9**. **Not** same run as G9/G11+.
 
 **Operator request (verbatim):**
 > - 5 integrations, each to be done seperately, not in the same code run - but in this order
@@ -448,26 +448,139 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 
 ---
 
-## 📋 G11 — Samsung Airco 🔜 TODO
+## 📋 G11 — Samsung SmartThings / Airco 🔜 TODO — kickoff **locked 2026-08-20**
 
-**Origin:** operator inbox **2026-08-14**. **3rd of 5.** Own ship. After **G10**.
+**Origin:** operator inbox **2026-08-14**; kickoff Q&A **2026-08-20**. **1st of 5** (operator moved ahead of G9/G10). Own ship.
 
-**Operator request (verbatim):**
+**Operator request (verbatim 2026-08-14):**
 > - 5 integrations, each to be done seperately, not in the same code run - but in this order
 >
 > ❄️ Samsung Airco (Climate Control)
 > The Library: python-smartthings
 > How it works: Modern Samsung residential HVAC systems channel telemetry entirely through the SmartThings Cloud API. This library uses a REST client with bearer tokens to manage setpoints, blade adjustments, and power flags. Note: If you have an older generation unit (pre-2018), community libraries like samsungrac can handle direct local token handshakes over TCP port 8888 or 2878.
->
-> *(Full five-integration inbox text in § Inbox 2026-08-14.)*
 
-**Intent:** Climate setpoints / power (and blades if in scope at kickoff).
+**Operator kickoff (verbatim 2026-08-20):**
+> kickoff G11 - Samsung Smartthings integration - currently I only have 1 device there: an airco unit
+>
+> Q1: move G11 before G9
+> Q3: power: setpoint, hvac mode, temp & humidity
+> Q4: C (ON/OFF + mode + setpoint)
+> Q5: 810xx is ok
+> Q6: A - is it possible to track power consumption as well? (currently in Watt & total in kWh)?
+> Q7: yes, all integrations should have their own checkbox
+> Q8: don't have it yet, guide me how to create this
 
 **Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G11-only.
 
-**Library:** `python-smartthings` (cloud) vs `samsungrac` local TCP 8888/2878 (pre-2018) — **in-scope of G11 kickoff** (not now).
+### Locked decisions (2026-08-20)
 
-**G11 DoD:** Samsung airco in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+| Topic | Decision |
+|---|---|
+| **Sequence** | **G11 first** among G9–G13 (operator override **2026-08-20**). Still one ship; not bundled with G9/G10. |
+| **Devices in scope** | **1** SmartThings device today: Samsung **airco / climate** unit. |
+| **Protocol** | **SmartThings Cloud REST API** only. **`samsungrac` / local TCP — out of scope.** |
+| **Library** | **`pysmartthings`** (PyPI; inbox “python-smartthings” = informal name). Pin to **last release compatible with Pi Python** at implement (v4.x requires **3.13+**; v3.7.x requires **3.12+** — confirm Pi venv before pin). **Fallback:** thin **`aiohttp`** client against public REST if no compatible wheel. |
+| **Auth — production** | **OAuth 2.0 refresh-token flow** (SmartThings-recommended for ongoing access). Tokens in **`.env`** / home pack — not git. |
+| **Auth — discovery** | **PAT** acceptable for **initial device/capability discovery only** (see § PAT guide below). New PATs expire in **24 h** — not a production credential. |
+| **IDX band** | **`810xx`** — **`81001`** = airco climate entity (only device today). |
+| **Entity prefix** | **`climate.samsung.<slug>`** (from display name via registry birth). |
+| **Bridge kind** | **Mixed / commandable climate** — C18 applies to outbound power / mode / setpoint commands. |
+| **Commandable** | **Power** on/off · **cooling setpoint** (16–30 °C) · **HVAC mode** (`cool` / `dry` / `wind` / `auto` / `heat`) |
+| **Read-only telemetry** | **Current temp** · **humidity** · **instant W** · **cumulative energy (Wh→kWh)** |
+| **Power consumption** | **Yes** — `powerConsumptionReport.powerConsumption`: `power` (W) + `energy` / `persistedEnergy` (Wh). Track on idx **81001** + sensor history. |
+| **Explorer Control** | **Option C:** ON/OFF + **HVAC mode selector** + **setpoint** control. Show current temp / humidity as read-only alongside controls. |
+| **History** | **Yes** — at minimum **ON/OFF**; plus **setpoint**, **mode**, **temp**, **humidity** when present; plus **W / kWh** if device exposes them. |
+| **Blockly** | Existing **`HUB_STATE_CHANGED`** pickers for ON/OFF / level where applicable; **no new block types** in G11 unless implement discovers a gap (assess then — default: metadata-only appearance). |
+| **Log tag** | **`[Samsung]`** |
+| **G6 scoped reload** | **Yes** — scope id **`samsung`**. Adds **row 13+** to G6 modal catalog when G6 ships (or ships with G11 if G6 lands first). Recycles Samsung bridge (stop → remap → poll restart). Scope alert row: `🔄 Reloading Samsung SmartThings…` / `🟢 Samsung SmartThings reloaded.` / `ERROR: Samsung SmartThings reload failed: …`. Full reload also recycles. |
+| **Force policy** | **Ask at implement** — default **no force** until kickoff follow-up; do not copy Epson OFF-only silently. |
+| **Product type (D1)** | **`climate`** — intrinsic read-only on Timers & types. |
+
+### C18 success / fail row (locked at kickoff — implement against chosen library)
+
+| Integration | Success | Fail |
+|---|---|---|
+| **Samsung SmartThings** | REST command **`POST /v1/devices/{id}/commands`** returns **HTTP 2xx** (body not parsed beyond status) | Non-2xx; exception; no device id / no session / empty payload; integration disabled |
+
+Echo `origin: "samsung"` in `_INBOUND_ORIGINS`. Silent skip = fail.
+
+### PAT guide (discovery only — operator **2026-08-20**)
+
+Use a PAT to discover device id + capabilities before OAuth wiring. **Do not** rely on PAT for production WanOS.
+
+1. Open **[https://account.smartthings.com/tokens](https://account.smartthings.com/tokens)** and sign in with your **Samsung account** (same account as the SmartThings app).
+2. Click **Generate new token**.
+3. **Name:** e.g. `WanOS discovery` (any label).
+4. **Authorized scopes** — minimum for discovery:
+   - **`r:devices:*`** — list devices + read status
+   - **`w:devices:*`** — send test commands (optional for discovery smoke)
+   - **`r:locations:*`** — list locations (needed to find device location)
+5. Click **Generate Token**.
+6. **Copy the token immediately** — it is shown **once only**. Store in Pi `.env` as e.g. `SMARTTHINGS_PAT=…` (never commit).
+7. **Expiry:** newly issued PATs are valid **24 hours**. Use for discovery / Pi smoke only; production ship uses **OAuth refresh** (G11 implement).
+
+**Quick discovery curl** (replace `{PAT}` and `{DEVICE_ID}` after listing devices):
+
+```bash
+curl -s -H "Authorization: Bearer {PAT}" https://api.smartthings.com/v1/devices
+curl -s -H "Authorization: Bearer {PAT}" https://api.smartthings.com/v1/devices/{DEVICE_ID}/status
+```
+
+Second call reveals capabilities (temperature, humidity, switch, thermostatMode, thermostatSetpoint, powerMeter, etc.) — locks power-consumption answer for your unit.
+
+### Device discovery (Pi PAT, **2026-08-20** — verified)
+
+**Airco (G11 in-scope):**
+
+| Field | Value |
+|---|---|
+| **deviceId** | `dc46cc64-2654-06d9-5e06-c4203668aa64` |
+| **label** | `buro-cinema` |
+| **name** | Samsung Room A/C |
+| **type** | OCF · `AirConditioner` · presentation `DA-AC-RAC-000003` |
+| **locationId** | `a42f8c0e-c3d4-46da-a82e-62d528aaa226` |
+| **executionContext** | `CLOUD` |
+
+**Capabilities relevant to locked G11 scope (main component):**
+
+| Capability | Role |
+|---|---|
+| `switch` | Power on/off |
+| `airConditionerMode` | HVAC mode (Samsung AC — not generic `thermostatMode`) |
+| `thermostatCoolingSetpoint` | Target setpoint |
+| `temperatureMeasurement` | Current temp |
+| `relativeHumidityMeasurement` | Humidity |
+| `powerConsumptionReport` | **Power present** — unlocks W / energy history (parse at status poll) |
+
+**Also on device (out of G11 v1 command scope unless operator expands later):** `airConditionerFanMode`, `fanOscillationMode`, air-quality/dust/odor sensors, `audioVolume`, filters, SPI/optional modes, etc.
+
+**Second account device (not G11):** Siemens dishwasher `Afwasmachien` (`deviceId` `e40db3c2-727e-4ce6-8739-844c32798418`) — **G13 / HomeConnect** territory. Do **not** bridge in G11.
+
+**Status poll (Pi PAT, `info.log` **2026-08-20** — verified):**
+
+| Attribute | Live value | Notes |
+|---|---|---|
+| **Power** | `switch` = **off** | Command: `on` / `off` |
+| **Mode** | `airConditionerMode` = **cool** | Supported: **`cool` · `dry` · `wind` · `auto` · `heat`** (`availableAcModes` was null — use `supportedAcModes`) |
+| **Setpoint** | `coolingSetpoint` = **23 °C** | Range **16–30 °C** via `custom.thermostatSetpointControl` |
+| **Temp** | **23 °C** | `temperatureMeasurement` |
+| **Humidity** | **52 %** | `relativeHumidityMeasurement` |
+| **Instant power** | **`power` = 0 W** | Expected while OFF |
+| **Cumulative energy** | **`energy` = 769530** | SmartThings convention = **Wh** → **769.53 kWh**; also `persistedEnergy` = 769530. Map both W + kWh into WanOS history. |
+
+**Also live (out of G11 v1 command scope unless expanded later):** fan `auto` (modes: auto/low/medium/high/turbo); oscillation `horizontal`; optional mode `off` (incl. windFree / sleep / quiet / …).
+
+**Disabled capabilities** (ignore for ship): air quality / dust / odor sensors, SPI, remote-control status, DRLC, several filter extras — listed under `custom.disabledCapabilities`.
+
+### Open at implement (not blockers for kickoff)
+
+* Pi Python version → **`pysmartthings` pin** vs aiohttp fallback.
+* OAuth client registration (SmartThings developer workspace) — step-by-step in `docs/integration_samsung.md` at ship.
+* Confirm energy unit display (Wh → kWh) in Explorer History / Control readouts.
+* Poll interval default (propose in config YAML comment at implement).
+* Stale cloud reads (CLOUD OCF RAC — monitor on Pi smoke; `reportStateRealtime` is **disabled** on this unit).
+
+**G11 DoD:** One Samsung airco (`buro-cinema`, idx **81001**) live on Pi via SmartThings Cloud; Explorer ON/mode/setpoint + temp/humidity; history for ON/OFF + climate attrs + **power W + energy kWh from `powerConsumptionReport`**; C18 on commands; Admin enable + `[Samsung]` logs; G6 scope **`samsung`** (handler + alerts; modal row when G6 ships); OAuth refresh for ongoing auth; no `samsungrac`; dishwasher not in this ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

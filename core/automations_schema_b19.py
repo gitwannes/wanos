@@ -1,6 +1,8 @@
 # --- file: core/automations_schema_b19.py ---
 """
-B19 / B13 — Domoticz-shaped branch authoring (If / Else-if / Else).
+B19 / B13 — Domoticz-shaped branch authoring (If / Else-if).
+
+Bare ``when: else`` retired 2026-08-21 — use Else-if with an explicit complementary Compare.
 
 On-disk: ``branches`` (no authoring ``trigger``). Wake is derived at runtime from
 device/event Compares in any branch. Legacy ``trigger``+``cases`` is migrator input
@@ -37,8 +39,8 @@ _B19_KEY_ORDER = (
 
 _WHEN_IF = "if"
 _WHEN_ELIF = "else_if"
-_WHEN_ELSE = "else"
-_VALID_WHEN = frozenset({_WHEN_IF, _WHEN_ELIF, _WHEN_ELSE})
+# Bare ``when: else`` retired 2026-08-21 — authors use Else-if with an explicit Compare.
+_VALID_WHEN = frozenset({_WHEN_IF, _WHEN_ELIF})
 
 
 def is_branch_rule(rule: Any) -> bool:
@@ -68,7 +70,7 @@ def _normalize_branch(branch: Any, *, index: int) -> Dict[str, Any]:
         raise ValueError(f"Branch {index}: must be a mapping.")
     when = str(branch.get("when") or "").strip()
     if when not in _VALID_WHEN:
-        raise ValueError(f"Branch {index}: when must be if|else_if|else (got {when!r}).")
+        raise ValueError(f"Branch {index}: when must be if|else_if (got {when!r}).")
     conds_in = branch.get("conditions") or []
     if not isinstance(conds_in, list):
         conds_in = []
@@ -92,12 +94,10 @@ def normalize_branch_rule(rule: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(branches_in, list) or not branches_in:
         raise ValueError("Automation must contain at least one branch.")
     branches = [_normalize_branch(b, index=i) for i, b in enumerate(branches_in)]
-    # Structural: first must be if; else only last; else_if only after if.
+    # Structural: first must be if; else_if only after if (bare else retired).
     if branches[0]["when"] != _WHEN_IF:
         raise ValueError("First branch must be when: if.")
     for i, b in enumerate(branches):
-        if b["when"] == _WHEN_ELSE and i != len(branches) - 1:
-            raise ValueError("when: else is only allowed as the last branch.")
         if b["when"] == _WHEN_IF and i != 0:
             raise ValueError("Only the first branch may be when: if (use else_if).")
     out = {
@@ -180,7 +180,8 @@ def validate_branch_rule_for_enable(rule: Dict[str, Any]) -> Optional[str]:
     """
     Return error message if rule cannot be enabled; None if valid.
 
-    Locked: one if root; every if/else_if has ≥1 Compare; else optional; Do may be empty.
+    Locked: one if root; every if/else_if has ≥1 Compare; Do may be empty.
+    Bare ``when: else`` is rejected (use else_if with an explicit complementary Compare).
     """
     try:
         norm = normalize_branch_rule(rule)

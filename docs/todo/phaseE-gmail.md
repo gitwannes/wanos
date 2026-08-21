@@ -1,7 +1,8 @@
 # ⚡ WanOS Phase E — Gmail
 
-Outbound email **transport** (OAuth, outbox, spooler). Sequence → [`pipeline.md`](pipeline.md).  
-**Blocky hook:** Phase **B9B H5** (Ship **B6**) emits `EMAIL_REQUESTED` only; rules never call Gmail. Transport (**E**) can ship before or **parallel to Ships B5–B8** (cluster); H5 email DoD waits on **E**. **B10B** does **not** seed `EMAIL_REQUESTED` into the `events:` catalog — that seed lands with **E** (or with H5 when E is ready). Parallel detail → [`pipeline.md`](pipeline.md) § Parallel tracks.
+Outbound email **transport** (OAuth, outbox, spooler) **and** Blockly **Messages** action (H5 — was B9B / Ship **B6**, operator **2026-08-20**). Sequence → [`pipeline.md`](pipeline.md).
+
+**Scope lock (2026-08-20):** **No** standalone bell/alert action block in Blockly — only email via **Messages** block → `EMAIL_REQUESTED`. Transport + Blockly hook ship together in **E**. Rules never call Gmail directly. **B10B** does **not** seed `EMAIL_REQUESTED` into the `events:` catalog — that seed lands with **E**. Parallel detail → [`pipeline.md`](pipeline.md) § Parallel tracks.
 
 Architectural blueprint for outbound email from WanOS via **Google Workspace OAuth2** and the **Gmail API**. Includes an offline-capable outbox so critical alerts still leave the Pi when WAN returns, without blocking the core asyncio event loop.
 
@@ -97,11 +98,15 @@ Background task `email_spooler_task` runs alongside the StateManager loop.
 
 Any code path that needs mail builds an `EmailPayload` (with a stable `source_id`) and emits `EMAIL_REQUESTED`. Prefer a small shared helper that only enqueues the event — keep Gmail and SQLite out of call sites.
 
-### Automations
+### Automations (Blockly Messages block — H5)
+
+**Origin:** HA pattern **H5** notify; was B9B / Ship **B6** — moved to **E** when operator declined bell/alert-only block (**2026-08-20**).
 
 Extend `logic/automation_rules.py` in line with **existing** action shapes (`idx` / `state` / `event` / `target`), not a parallel `action_type:` vocabulary.
 
-*   **Preferred shape:** an action that results in `EMAIL_REQUESTED` (e.g. dedicated email action fields, or an `event`-style action that carries email fields). Exact YAML keys are an implementation detail; the invariant is: rules never talk to Gmail.
+*   **Blockly:** Domoticz-style **Messages** action block in **Do** — author fills recipient (email) + subject + body (plaintext). Round-trip save/load in Blockly.
+*   **Engine:** action results in `EMAIL_REQUESTED` only — rules never talk to Gmail.
+*   **No bell path:** do **not** add a separate alert/notification action block; email is the only Messages outcome for v1.
 *   **Templates:** Plaintext body/subject may interpolate live state (e.g. `Warning: Sauna temperature reached {{ sauna_calc_temp }}°C`). Escape or sanitize only as needed for plaintext; no HTML pipeline.
 *   **Producer hysteresis (dedup layer E):** For flappy sensors, the rule/condition side should require stability (must stay true for N seconds / crossing with hysteresis) **before** emitting `EMAIL_REQUESTED`. Transport dedup is a safety net, not the primary flap filter.
 
@@ -146,7 +151,8 @@ Distribute logic so the event loop stays decoupled:
 *   **`core/models.py`:** `EmailPayload` (+ `EventType.EMAIL_REQUESTED` if that is where event enums live)
 
 ### Automation & other producers
-*   **`logic/automation_rules.py`:** Recognize email actions; apply producer hysteresis where needed; template plaintext; dispatch `EMAIL_REQUESTED` with `source_id`
+*   **`frontend/blocky.js` / Blockly toolbox:** **Messages** action block (H5)
+*   **`logic/automation_rules.py`:** Recognize email/Messages actions; apply producer hysteresis where needed; template plaintext; dispatch `EMAIL_REQUESTED` with `source_id`
 *   Other modules (health, admin, …): same event, their own `source_id`
 
 ### Integration & handlers
@@ -171,4 +177,4 @@ Distribute logic so the event loop stays decoupled:
 
 ## 10. DoD (standing)
 
-When this phase ships: transport live; Blockly/producers emit `EMAIL_REQUESTED` only; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+When this phase ships: transport live; Blockly **Messages** block + other producers emit `EMAIL_REQUESTED` only; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

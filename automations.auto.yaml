@@ -169,8 +169,13 @@ automations:
             state: "ON"
           - entity_id: rfx.kerstboom
             state: "ON"
-      - when: else
-        conditions: []
+      - when: else_if
+        conditions:
+          - type: event
+            event: bd0413be-926a-45ef-bdb8-1adfe3b7e8ab
+          - type: device_state
+            entity_id: zwave.licht_living
+            is: "OFF"
         actions:
           - entity_id: zwave.tuin
             state: "ON"
@@ -576,15 +581,18 @@ automations:
         conditions:
           - type: device_state
             entity_id: switch.vent.toilet_ventilatie
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: zwave.vent.toilet_motor
-            state: 'ON'
-      - when: else
-        conditions: []
+            state: "ON"
+      - when: else_if
+        conditions:
+          - type: device_state
+            entity_id: switch.vent.toilet_ventilatie
+            is: "OFF"
         actions:
           - entity_id: zwave.vent.toilet_motor
-            state: 'OFF'
+            state: "OFF"
     id: 7ffde6cb-61e2-4754-a392-47d136a0b0b4
   - name: 'Badk 1e: Main Switch ON -> Hue Red'
     enabled: true
@@ -953,8 +961,12 @@ automations:
             state: "OFF"
           - entity_id: hue.group.cinema_hue
             state: "OFF"
-      - when: else
-        conditions: []
+      - when: else_if
+        conditions:
+          - type: event
+            event: 44667b31-c281-4487-9d05-9093ba111a86
+          - type: time_of_day
+            is: light
         actions:
           - entity_id: blinds.cinema
             state: '0'
@@ -1026,13 +1038,11 @@ automations:
     branches:
       - when: if
         conditions:
-          - op: and
-            children:
-              - type: device_state
-                entity_id: sensor.temp_hum.cinema
-                op: '>='
-                attribute: temperature
-                is: '26'
+          - type: device_state
+            entity_id: sensor.temp_hum.cinema
+            op: '>='
+            attribute: temperature
+            is: '26'
         actions:
           - event: 856d0f0d-1f6b-4a1a-ace8-a5856a5ee491
           - entity_id: zwave.cinema_licht

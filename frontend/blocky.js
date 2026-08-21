@@ -1,5 +1,10 @@
+// --- file: frontend/blocky.js ---
 // Phase B19: Domoticz If/Do + Else-if/Else (first-match); branches YAML; wake from Compares.
 // Phase B4/H4: nested AND/OR/NOT Logic groups in Compare; OR-list migrator; legacy When/OR blocks removed.
+// Discrete Compare labels: "turns ON" alone; "is ON" when the same If/Else-if also has an event Compare.
+// Duplicate fix: reshape b_condition_device on BLOCK_CREATE (init shaped the dropdown-default entity).
+// Toolbox: Control · Logic (and/or) · Conditions · Actions; bare Else/NOT retired from toolbox.
+// Device defaults: Hidden OFF → zwave.buro_licht ON; Hidden ON → door sauna opens / zwave.vent.sauna ON.
 // Legacy Phase 6B: unified Blockly canvas for schema v2 (trigger + ordered cases) — retired.
 // Contextual dropdowns: only show entries valid for the current trigger / device type.
 // Phase 6C: rich action authoring — Hue preset XOR custom color (iro→bri/xy), blinds open %, Sonos/Onkyo volume, Sonos station.
@@ -38,7 +43,7 @@ const BLOCKY_EDGE_STATES = [
     ["ON", "ON"], ["OFF", "OFF"]
 ];
 
-/** B19: single If/Do control root (Else-if / Else chain via next). */
+/** B19: single If/Do control root (Else-if chain via next; bare Else retired). */
 const BLOCKY_ROOT_TRIGGERS = new Set(["b_if_do"]);
 /** @deprecated legacy — kept only so old workspaces dispose cleanly; not in toolbox. */
 const BLOCKY_LEGACY_TRIGGERS = new Set([
@@ -51,7 +56,9 @@ const BLOCKY_EVENT_EDGES = new Set(["b_trig_event_edge", "b_trig_event_edge_sys"
 /** Fire-event action block types. */
 const BLOCKY_EVENT_ACTIONS = new Set(["b_action_event", "b_action_event_sys"]);
 /** B19 control branch chain. */
-const BLOCKY_CONTROL_BRANCH = new Set(["b_if_do", "b_else_if", "b_else"]);
+const BLOCKY_CONTROL_BRANCH = new Set(["b_if_do", "b_else_if"]);
+/** Retired bare Else — kept only so old canvases dispose; not in toolbox. */
+const BLOCKY_LEGACY_ELSE = "b_else";
 /** Event Compare block types. */
 const BLOCKY_EVENT_COMPARES = new Set(["b_condition_event", "b_condition_event_sys"]);
 /**
@@ -182,10 +189,66 @@ function blockyConfigureDropdownChrome(Blockly) {
 /**
  * Catalog UUIDs seeded for bus/dashboard but excluded from Blockly event pickers.
  * Keep in sync with core.event_catalog.NON_PICKABLE_SYSTEM_UUIDS.
+ * Prefer device Compares for telemetry; keep schedule + sauna/IR session SEs pickable.
  */
 const BLOCKY_NON_PICKABLE_EVENT_IDS = new Set([
-    "c3457c08-c26e-4ab7-8c32-76e0a746d6c3" // HUB_STATE_CHANGED — hub telemetry chatter
+    "c3457c08-c26e-4ab7-8c32-76e0a746d6c3", // HUB_STATE_CHANGED
+    "02d6b1d7-de0b-41f1-b89b-f371e2d35cea", // DOOR_CHANGED — use door device Compare
+    "0b334052-620b-4379-89fb-8a548948873e", // TEMP_UPDATED
+    "317b453b-18bb-4083-8b62-e14ba2bc4d26", // HUMIDITY_UPDATED
+    "d6bebc9e-394e-4806-a007-4f863a7ccf5e", // POWER_UPDATED
+    "0117e989-cf45-4359-98d3-9656284eb577", // SUNRISE_SUNSET_UPDATE — use schedule edges
+    "b94ab2e2-a5d6-4651-9ff8-c832221c9169", // SAUNA_MODULATION_UPDATED
+    "8bcbaacf-b072-422d-a270-b7810228684b", // IR_MODULATION_UPDATED
+    "9fa21346-3952-4267-b2fd-c3362e520431", // SAUNA_SETPOINT_CHANGED
+    "cef390eb-f9e0-4757-ae34-0e7918d49a9e", // WATER_PULSE
+    "a1f2fe49-82db-4011-a9bb-c8afdbd46358", // KWH_PULSE
+    "fff4c790-1b10-4084-a11f-4d7bf519ce40", // SENSOR_ERROR
+    "718d81a1-c9bb-4f02-8b92-78de27c9aae9"  // SAUNA_HOLD
 ]);
+
+/** Preferred new-block device refs (Hidden OFF vs soft-hidden catalog). */
+const BLOCKY_DEFAULT_DEVICE_NORMAL = {
+    condition: { entity_id: "zwave.buro_licht", state: "ON" },
+    action: { entity_id: "zwave.buro_licht", state: "ON" }
+};
+const BLOCKY_DEFAULT_DEVICE_HIDDEN = {
+    condition: { entity_id: "sensor.door.sauna_deur", state: "OPEN" },
+    action: { entity_id: "zwave.vent.sauna", state: "ON" }
+};
+
+/**
+ * Defaults for new device Compare / Set blocks — follows Automations Hidden toggle.
+ * @param {"condition"|"action"} role
+ * @returns {{ entity_id: string, state: string }}
+ */
+function blockyPreferredDeviceDefaults(role) {
+    const hidden = !!(BlockyRT.app && BlockyRT.app.showHiddenEntities);
+    const table = hidden ? BLOCKY_DEFAULT_DEVICE_HIDDEN : BLOCKY_DEFAULT_DEVICE_NORMAL;
+    const row = table[role] || BLOCKY_DEFAULT_DEVICE_NORMAL.action;
+    return { entity_id: row.entity_id, state: row.state };
+}
+
+/**
+ * Apply preferred ENTITY + state on a freshly inited device block (toolbox / flyout).
+ * Load/duplicate overwrite via setFieldValue after init — safe.
+ * @param {Blockly.Block} block
+ * @param {"condition"|"action"} role
+ */
+function blockyApplyPreferredDeviceDefaults(block, role) {
+    if (!block || BlockyRT.loading) return;
+    const pref = blockyPreferredDeviceDefaults(role);
+    if (!pref.entity_id) return;
+    try {
+        blockySafeSetField(block, "ENTITY", pref.entity_id);
+    } catch (e) { /* picker may not list eid yet */ }
+    if (role === "condition") {
+        blockyConditionUpdateShape(block, { forceState: pref.state });
+    } else {
+        blockyForceDropdownValue(block, "STATE", pref.state);
+        blockyActionUpdateRichShape(block, { forceState: pref.state });
+    }
+}
 
 /**
  * B10E: system UUIDs always fireable as actions even with no listening rule
@@ -464,29 +527,150 @@ function blockyActionStateOptions(block) {
     ];
 }
 
+/**
+ * Walk up from a Compare / Logic block to its If or Else-if control root.
+ * @param {Blockly.Block|null|undefined} block
+ * @returns {Blockly.Block|null}
+ */
+function blockyFindConditionBranchRoot(block) {
+    let b = block || null;
+    while (b) {
+        if (b.type === "b_if_do" || b.type === "b_else_if") return b;
+        if (typeof b.getSurroundParent === "function") {
+            const sur = b.getSurroundParent();
+            if (sur) {
+                b = sur;
+                continue;
+            }
+        }
+        if (typeof b.getParent === "function") {
+            b = b.getParent();
+            continue;
+        }
+        break;
+    }
+    return null;
+}
+
+/**
+ * True when a condition statement chain (and nested Logic groups) contains an event Compare.
+ * @param {Blockly.Block|null|undefined} start
+ * @returns {boolean}
+ */
+function blockyConditionTreeHasEvent(start) {
+    let b = start || null;
+    while (b) {
+        if (BLOCKY_EVENT_COMPARES.has(b.type)) return true;
+        if (b.type === "b_logic_and" || b.type === "b_logic_or") {
+            if (blockyConditionTreeHasEvent(b.getInputTargetBlock("CHILDREN"))) return true;
+        } else if (b.type === "b_logic_not") {
+            if (blockyConditionTreeHasEvent(b.getInputTargetBlock("CHILD"))) return true;
+        }
+        b = typeof b.getNextBlock === "function" ? b.getNextBlock() : null;
+    }
+    return false;
+}
+
+/**
+ * Call ``fn`` for every device Compare in a condition statement tree.
+ * @param {Blockly.Block|null|undefined} start
+ * @param {(b: Blockly.Block) => void} fn
+ */
+function blockyForEachConditionDeviceInTree(start, fn) {
+    let b = start || null;
+    while (b) {
+        if (b.type === "b_condition_device") fn(b);
+        else if (b.type === "b_logic_and" || b.type === "b_logic_or") {
+            blockyForEachConditionDeviceInTree(b.getInputTargetBlock("CHILDREN"), fn);
+        } else if (b.type === "b_logic_not") {
+            blockyForEachConditionDeviceInTree(b.getInputTargetBlock("CHILD"), fn);
+        }
+        b = typeof b.getNextBlock === "function" ? b.getNextBlock() : null;
+    }
+}
+
+/**
+ * Device Compare is a level gate (wording "is ON") when the same If/Else-if also
+ * has an event Compare. Alone → wake-edge wording ("turns ON").
+ * @param {Blockly.Block|null|undefined} block
+ * @returns {boolean}
+ */
+function blockyConditionUsesLevelGateWording(block) {
+    if (!block || block.isInFlyout) return false;
+    const root = blockyFindConditionBranchRoot(block);
+    if (!root) return false;
+    return blockyConditionTreeHasEvent(root.getInputTargetBlock("IF"));
+}
+
+/**
+ * Rebuild discrete / level Compare chrome for every device Compare under all If/Else-if.
+ * Used when event Compares are added/removed so "turns" ↔ "is" labels stay honest.
+ */
+function blockyRefreshAllConditionGateWording() {
+    const ws = blockyWs();
+    if (!ws) return;
+    const blocks = typeof ws.getAllBlocks === "function" ? ws.getAllBlocks(false) : [];
+    blocks.forEach((b) => {
+        if (b.type !== "b_if_do" && b.type !== "b_else_if") return;
+        blockyForEachConditionDeviceInTree(b.getInputTargetBlock("IF"), (d) => {
+            blockyConditionUpdateShape(d);
+        });
+    });
+}
+
+/** Schedule a single gate-wording pass after create/delete/move settles. */
+function blockyScheduleConditionGateWordingRefresh() {
+    if (BlockyRT.gateWordingTimer) return;
+    BlockyRT.gateWordingTimer = setTimeout(() => {
+        BlockyRT.gateWordingTimer = null;
+        blockyRefreshAllConditionGateWording();
+    }, 0);
+}
+
+/**
+ * Discrete STATE dropdown labels — "turns ON" when device-only wake; "is ON" when
+ * the branch also has an event Compare (level gate after event wake).
+ * @param {Blockly.Block} block
+ * @returns {string[][]}
+ */
 function blockyConditionStateOptions(block) {
     const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
+    const levelGate = blockyConditionUsesLevelGateWording(block);
     if (type === "blinds" || type === "shutter") {
         // Level profile normally owns shutters; keep opens/closes + changes state if discrete shape used.
-        return [
-            ["opens", "0"],
-            ["closes", "100"],
-            ["changes state", "ANY"]
-        ];
+        return levelGate
+            ? [["is open", "0"], ["is closed", "100"], ["changes state", "ANY"]]
+            : [["opens", "0"], ["closes", "100"], ["changes state", "ANY"]];
     }
     if (type === "door") {
-        return [
-            ["opens", "OPEN"],
-            ["closes", "CLOSED"],
-            ["changes state", "ANY"]
-        ];
+        return levelGate
+            ? [["is OPEN", "OPEN"], ["is CLOSED", "CLOSED"], ["changes state", "ANY"]]
+            : [["opens", "OPEN"], ["closes", "CLOSED"], ["changes state", "ANY"]];
     }
-    // Lights / switches / status: turns ON, turns OFF, or any edge (wake).
-    return [
-        ["turns ON", "ON"],
-        ["turns OFF", "OFF"],
-        ["changes state", "ANY"]
-    ];
+    // Lights / switches / status.
+    return levelGate
+        ? [["is ON", "ON"], ["is OFF", "OFF"], ["changes state", "ANY"]]
+        : [["turns ON", "ON"], ["turns OFF", "OFF"], ["changes state", "ANY"]];
+}
+
+/**
+ * Level-profile MODE labels with the same turns/is context as discrete STATE.
+ * @param {Blockly.Block} block
+ * @param {{ modes?: string[][] }} profile
+ * @returns {string[][]}
+ */
+function blockyConditionLevelModeOptions(block, profile) {
+    const modes = (profile && profile.modes) || [];
+    if (!blockyConditionUsesLevelGateWording(block)) return modes.slice();
+    return modes.map((row) => {
+        const label = row[0];
+        const value = row[1];
+        if (value === "ON") return ["is ON", value];
+        if (value === "OFF") return ["is OFF", value];
+        if (value === "OPEN") return ["is open", value];
+        if (value === "CLOSED") return ["is closed", value];
+        return [label, value];
+    });
 }
 
 /** Compare op menu shared by numeric conditions and numeric device triggers. */
@@ -702,14 +886,17 @@ function blockyConditionUpdateShape(block, opts) {
         }
 
         if (profile.kind === "level") {
-            // level: discrete mode labels already carry the verb ("turns ON", "opens", …).
-            // PCT mode: prefix with "crosses" + op.
+            // level: MODE labels are turns/opens alone, or is ON / is open when event gate.
+            // PCT mode: op dropdown (crosses via separate OP field).
             const input = block.appendDummyInput("COMPARE");
             let mode = opts.forceMode != null ? opts.forceMode : snap.MODE;
             if (!profile.modes.some((m) => m[1] === mode)) {
                 mode = profile.modes[0][1];
             }
-            input.appendField(new Blockly.FieldDropdown(profile.modes), "MODE");
+            input.appendField(
+                new Blockly.FieldDropdown(() => blockyConditionLevelModeOptions(block, profile)),
+                "MODE"
+            );
             blockySafeSetField(block, "MODE", mode);
             if (mode === "PCT") {
                 let op = opts.forceOp != null ? opts.forceOp : snap.OP;
@@ -728,7 +915,7 @@ function blockyConditionUpdateShape(block, opts) {
             return;
         }
 
-        // Discrete (switches, lights, doors, …): "turns ON / turns OFF / changes state".
+        // Discrete: turns ON / is ON (context) — see blockyConditionStateOptions.
         block.appendDummyInput("COMPARE")
             .appendField(new Blockly.FieldDropdown(() => blockyConditionStateOptions(block)), "STATE");
         const st = opts.forceState != null ? opts.forceState : snap.STATE;
@@ -1650,7 +1837,7 @@ function defineBlockyBlocks(Blockly, providers) {
             this.appendStatementInput("DO").setCheck("Action").appendField("Do");
             this.setNextStatement(true, "BranchCont");
             this.setColour(120);
-            this.setTooltip("If/Do — first branch. Chain Else-if / Else below. First match wins.");
+            this.setTooltip("If/Do — first branch. Chain Else-if below. First match wins.");
         }
     };
     Blockly.Blocks.b_else_if = {
@@ -1662,16 +1849,18 @@ function defineBlockyBlocks(Blockly, providers) {
             this.setPreviousStatement(true, "BranchCont");
             this.setNextStatement(true, "BranchCont");
             this.setColour(120);
-            this.setTooltip("Else-if branch (first match wins — not Domoticz stacked-If).");
+            this.setTooltip("Else-if branch (first match wins — complementary Compare required).");
         }
     };
+    // Bare Else retired (2026-08-21): use Else-if with an explicit complementary Compare.
+    // Definition kept so a stale workspace can dispose; not in the toolbox.
     Blockly.Blocks.b_else = {
         init() {
-            this.appendDummyInput().appendField("Else");
+            this.appendDummyInput().appendField("Else (retired)");
             this.appendStatementInput("DO").setCheck("Action").appendField("Do");
             this.setPreviousStatement(true, "BranchCont");
             this.setColour(120);
-            this.setTooltip("Else — runs only when no prior If/Else-if matched.");
+            this.setTooltip("Retired — replace with Else-if + complementary Compare (no bare Else).");
         }
     };
 
@@ -1698,12 +1887,12 @@ function defineBlockyBlocks(Blockly, providers) {
     };
     Blockly.Blocks.b_logic_not = {
         init() {
-            this.appendDummyInput().appendField("not");
+            this.appendDummyInput().appendField("not (retired)");
             this.appendStatementInput("CHILD").setCheck("Condition");
             this.setPreviousStatement(true, "Condition");
             this.setNextStatement(true, "Condition");
             this.setColour(210);
-            this.setTooltip("Inverts one nested Compare or Logic group.");
+            this.setTooltip("Retired — not in toolbox; delete if present on an old canvas.");
         }
     };
 
@@ -1715,6 +1904,7 @@ function defineBlockyBlocks(Blockly, providers) {
             this.setNextStatement(true, "Condition");
             this.setColour(60);
             blockyConditionUpdateShape(this);
+            blockyApplyPreferredDeviceDefaults(this, "condition");
         },
         onchange(ev) {
             if (!this.workspace || this.isInFlyout) return;
@@ -1804,6 +1994,7 @@ function defineBlockyBlocks(Blockly, providers) {
             this.setNextStatement(true, "Action");
             this.setColour(290);
             blockyActionUpdateRichShape(this);
+            blockyApplyPreferredDeviceDefaults(this, "action");
         },
         // Shape updates come from field validators + blockyQueueRichShape (not onchange).
         onchange() { /* intentional no-op */ }
@@ -1835,7 +2026,7 @@ function defineBlockyBlocks(Blockly, providers) {
 }
 
 function blockyToolboxDefinition(_presentTypes) {
-    // B19 Domoticz drawers — legacy When/case removed from toolbox.
+    // Control · Logic · Conditions · Actions (Time drawer folded into Conditions).
     const contents = [
         {
             kind: "category",
@@ -1843,8 +2034,7 @@ function blockyToolboxDefinition(_presentTypes) {
             colour: "#5CA65C",
             contents: [
                 { kind: "block", type: "b_if_do" },
-                { kind: "block", type: "b_else_if" },
-                { kind: "block", type: "b_else" }
+                { kind: "block", type: "b_else_if" }
             ]
         },
         {
@@ -1853,25 +2043,26 @@ function blockyToolboxDefinition(_presentTypes) {
             colour: "#A6745C",
             contents: [
                 { kind: "block", type: "b_logic_and" },
-                { kind: "block", type: "b_logic_or" },
-                { kind: "block", type: "b_logic_not" },
-                { kind: "block", type: "b_condition_device" },
-                { kind: "block", type: "b_action_device" }
+                { kind: "block", type: "b_logic_or" }
             ]
         },
         {
             kind: "category",
-            name: "Time",
+            name: "Conditions",
             colour: "#5C81A6",
-            contents: [{ kind: "block", type: "b_condition_time" }]
+            contents: [
+                { kind: "block", type: "b_condition_device" },
+                { kind: "block", type: "b_condition_time" },
+                { kind: "block", type: "b_condition_event" },
+                { kind: "block", type: "b_condition_event_sys" }
+            ]
         },
         {
             kind: "category",
-            name: "Events",
+            name: "Actions",
             colour: "#A65C81",
             contents: [
-                { kind: "block", type: "b_condition_event" },
-                { kind: "block", type: "b_condition_event_sys" },
+                { kind: "block", type: "b_action_device" },
                 { kind: "block", type: "b_action_event" },
                 { kind: "block", type: "b_action_event_sys" }
             ]
@@ -2021,7 +2212,7 @@ function blockyWs() {
 function blockyFingerprint(block) {
     if (!block) return "";
     const t = block.type;
-    if (BLOCKY_ROOT_TRIGGERS.has(t) || t === "b_else_if" || t === "b_else") return "control";
+    if (BLOCKY_ROOT_TRIGGERS.has(t) || t === "b_else_if" || t === BLOCKY_LEGACY_ELSE) return "control";
     try {
         if (BLOCKY_EVENT_COMPARES.has(t)) {
             return `cond:event:${block.getFieldValue("EVENT") || ""}`;
@@ -2156,7 +2347,7 @@ function blockyEnforceUniqueness(forceToolbox) {
             blockyRefreshCaseMatchLabels(keep.getNextBlock());
             if (rejected && BlockyRT.app) {
                 BlockyRT.app.infoMessage =
-                    "Only one If/Do per rule — use Else-if / Else on the chain (gear-style next blocks).";
+                    "Only one If/Do per rule — use Else-if on the chain (gear-style next blocks).";
             }
         }
         BlockyRT.pendingCreateRootId = null;
@@ -2225,12 +2416,32 @@ function blockyOnChange(ev) {
     if (isCreate) {
         const ws = blockyWs();
         const ids = ev.ids || (ev.blockId ? [ev.blockId] : []);
+        let needGateWording = false;
         ids.forEach((id) => {
             const b = ws && ws.getBlockById(id);
-            if (b && BLOCKY_ROOT_TRIGGERS.has(b.type)) {
+            if (!b) return;
+            if (BLOCKY_ROOT_TRIGGERS.has(b.type)) {
                 BlockyRT.pendingCreateRootId = b.id;
             }
+            // Duplicate/paste: init() shaped COMPARE for the dropdown-default ENTITY;
+            // Blockly then restores the copied ENTITY without a field-change reshape.
+            if (b.type === "b_condition_device") {
+                blockyConditionUpdateShape(b);
+                needGateWording = true;
+            } else if (
+                BLOCKY_EVENT_COMPARES.has(b.type)
+                || b.type === "b_logic_and"
+                || b.type === "b_logic_or"
+                || b.type === "b_logic_not"
+            ) {
+                needGateWording = true;
+            }
         });
+        if (needGateWording) blockyScheduleConditionGateWordingRefresh();
+    }
+    if (isDelete || isMoveRelink) {
+        // Event Compare added/removed/moved → refresh turns ↔ is on sibling device Compares.
+        blockyScheduleConditionGateWordingRefresh();
     }
     let touchedActionId = null;
     if (isChange) {
@@ -2371,10 +2582,12 @@ function blockyOrphanLeaves(ws) {
         if (b.isInsertionMarker) return false;
         if (typeof b.isDeadOrDying === "function" && b.isDeadOrDying()) return false;
         if (b.type === "b_if_do") return false;
-        if (b.type === "b_else_if" || b.type === "b_else") {
+        if (b.type === "b_else_if") {
             const prev = b.previousConnection;
             return !(prev && prev.isConnected());
         }
+        // Bare Else / NOT retired — always treat as orphan until the author deletes them.
+        if (b.type === BLOCKY_LEGACY_ELSE || b.type === "b_logic_not") return true;
         if (b.type === "b_condition_device" || b.type === "b_condition_time"
             || BLOCKY_EVENT_COMPARES.has(b.type)
             || b.type === "b_action_device" || BLOCKY_EVENT_ACTIONS.has(b.type)) {
@@ -2637,7 +2850,7 @@ function blockyApp() {
         pendingNav: null,
         blocklyFullscreen: false,
         // Bump when block definitions change (B10E: user/system When+Fire twins).
-        blocklySchemaVersion: 54,
+        blocklySchemaVersion: 57,
         blocklyUiTick: 0,
         hardDenyEntityIds: ["switch.safety.safety_wisc_5v"],
         /**
@@ -3385,7 +3598,13 @@ function blockyApp() {
         },
 
         firstEntityId(role = "trigger", preferTypes = null) {
-            const opts = this.blocklyEntityDropdownOptions({ role });
+            const pickerRole = role === "trigger" ? "condition" : role;
+            const opts = this.blocklyEntityDropdownOptions({ role: pickerRole });
+            const prefRole = role === "action" ? "action" : "condition";
+            const pref = blockyPreferredDeviceDefaults(prefRole);
+            if (pref.entity_id && opts.some((o) => o[1] === pref.entity_id)) {
+                return pref.entity_id;
+            }
             const types = preferTypes
                 ? (Array.isArray(preferTypes) ? preferTypes : [preferTypes])
                 : null;
@@ -3801,16 +4020,16 @@ function blockyApp() {
                 let prev = null;
                 branches.forEach((br, bi) => {
                     const when = br.when || (bi === 0 ? "if" : "else_if");
-                    let blk;
                     if (when === "else") {
-                        blk = blockyMkBlock("b_else", null, bi === 0 ? 16 : undefined, bi === 0 ? 16 : undefined);
-                        blockyConnectChain(blk, "DO", this._actionBlocks(br.actions || []));
-                    } else {
-                        const type = when === "if" ? "b_if_do" : "b_else_if";
-                        blk = blockyMkBlock(type, null, bi === 0 ? 16 : undefined, bi === 0 ? 16 : undefined);
-                        blockyConnectChain(blk, "IF", blockyConditionBlocksFromList(br.conditions || []));
-                        blockyConnectChain(blk, "DO", this._actionBlocks(br.actions || []));
+                        this._noteSilentLoss(
+                            `Branch #${bi + 1}: bare Else is retired — re-author as Else-if`
+                        );
+                        return;
                     }
+                    const type = when === "if" ? "b_if_do" : "b_else_if";
+                    const blk = blockyMkBlock(type, null, bi === 0 ? 16 : undefined, bi === 0 ? 16 : undefined);
+                    blockyConnectChain(blk, "IF", blockyConditionBlocksFromList(br.conditions || []));
+                    blockyConnectChain(blk, "DO", this._actionBlocks(br.actions || []));
                     if (prev && prev.nextConnection && blk.previousConnection) {
                         try { prev.nextConnection.connect(blk.previousConnection); } catch (e) { /* ignore */ }
                     }
@@ -3821,7 +4040,12 @@ function blockyApp() {
                     if (b.type === "b_action_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyActionStateOptions);
                         blockyActionUpdateRichShape(b);
-                    } else if (b.type === "b_condition_device") {
+                    }
+                });
+                // IF trees are connected: reshape device Compares (turns vs is; duplicate-safe chrome).
+                blockyRefreshAllConditionGateWording();
+                ws.getAllBlocks(false).forEach((b) => {
+                    if (b.type === "b_condition_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyConditionStateOptions);
                     }
                 });
@@ -3956,7 +4180,7 @@ function blockyApp() {
             const root = tops.find((b) => b.type === "b_if_do");
             if (!root) throw new Error("Blockly requires one If/Do block.");
             if (tops.filter((b) => b.type === "b_if_do").length > 1) {
-                throw new Error("Only one If/Do root allowed — use Else-if / Else on the chain.");
+                throw new Error("Only one If/Do root allowed — use Else-if on the chain.");
             }
 
             const branches = [];
@@ -3971,12 +4195,10 @@ function blockyApp() {
                         // Invalid for enable — still allow serialize while disabled.
                     }
                     branches.push({ when, conditions: conds, actions: acts });
-                } else if (cur.type === "b_else") {
-                    if (cur.getNextBlock()) {
-                        throw new Error("Else must be the last branch.");
-                    }
-                    const acts = this._readActions(cur.getInputTargetBlock("DO"));
-                    branches.push({ when: "else", conditions: [], actions: acts });
+                } else if (cur.type === BLOCKY_LEGACY_ELSE) {
+                    throw new Error(
+                        "Bare Else is retired — use Else-if with an explicit complementary Compare."
+                    );
                 } else {
                     throw new Error("Unexpected block on control chain: " + cur.type);
                 }

@@ -52,10 +52,22 @@ SYSTEM_KEY_TO_NAME: Dict[str, str] = {k: n for k, _, n in _SYSTEM_SEED_ROWS}
 SYSTEM_UUID_TO_NAME: Dict[str, str] = {u: n for k, u, n in _SYSTEM_SEED_ROWS}
 
 # Seeded in YAML / GET /api/events, but excluded from Blockly trigger/fire pickers.
-# HUB_STATE_CHANGED is high-chatter hub telemetry — use device edges or specific events.
+# Telemetry / raw edges → device Compares; schedule feed → Morning/Evening/Shutters SEs.
 NON_PICKABLE_SYSTEM_UUIDS: frozenset[str] = frozenset(
     {
         SYSTEM_KEY_TO_UUID["HUB_STATE_CHANGED"],
+        SYSTEM_KEY_TO_UUID["DOOR_CHANGED"],
+        SYSTEM_KEY_TO_UUID["TEMP_UPDATED"],
+        SYSTEM_KEY_TO_UUID["HUMIDITY_UPDATED"],
+        SYSTEM_KEY_TO_UUID["POWER_UPDATED"],
+        SYSTEM_KEY_TO_UUID["SUNRISE_SUNSET_UPDATE"],
+        SYSTEM_KEY_TO_UUID["SAUNA_MODULATION_UPDATED"],
+        SYSTEM_KEY_TO_UUID["IR_MODULATION_UPDATED"],
+        SYSTEM_KEY_TO_UUID["SAUNA_SETPOINT_CHANGED"],
+        SYSTEM_KEY_TO_UUID["WATER_PULSE"],
+        SYSTEM_KEY_TO_UUID["KWH_PULSE"],
+        SYSTEM_KEY_TO_UUID["SENSOR_ERROR"],
+        SYSTEM_KEY_TO_UUID["SAUNA_HOLD"],
     }
 )
 

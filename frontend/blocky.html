@@ -409,7 +409,8 @@
                         <label class="label cursor-pointer gap-2">
                             <span class="label-text text-xs font-bold uppercase tracking-widest">Show hidden devices</span>
                             <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenEntities"
-                                   :disabled="uiLocked">
+                                   :disabled="uiLocked"
+                                   @change="typeof blockyRefreshToolbox === 'function' && blockyRefreshToolbox()">
                         </label>
                     </div>
                     <p class="text-[11px] text-warning/80 max-w-xl" x-show="ruleDisableBlocked">
@@ -683,7 +684,7 @@
     <form method="dialog" class="modal-backdrop"><button type="button" @click="loadTimingsModalOpen = false">close</button></form>
 </dialog>
 
-<script src="wanos-shell.js?v=14"></script>
-<script src="blocky.js?v=26"></script>
+<script src="wanos-shell.js?v=17"></script>
+<script src="blocky.js?v=29"></script>
 </body>
 </html>

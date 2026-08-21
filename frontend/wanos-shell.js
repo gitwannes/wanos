@@ -35,7 +35,7 @@
         explorer: 11,
         commander: 11,
         history: 11,
-        blocky: 20,
+        blocky: 23,
         hiddendevices: 7,
         lightingautooff: 7,
         zwave: 7

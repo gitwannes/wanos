@@ -24,7 +24,7 @@ auth:
 # 600xx : Sonos
 # 610xx : Onkyo
 # 7xxxx : Z-Wave - detail in config_zwave.auto.yaml
-# 900xxx : scene history synthetic keys (crc32 of event name)
+# 900xx : scene history synthetic keys (crc32 of event name)
 
 # ==============================================================================
 # 1. INTEGRATIONS & NETWORK LAYER
