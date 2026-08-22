@@ -8,7 +8,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 
 **DoD convention:** every open subphase ends with **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (see [`pipeline.md`](pipeline.md) § DoD / close-out).
 
-**Moved to Blocky (B10A/B10B/B10C):** events catalog / scenes, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (+ multi-flow → **B11**); soft-hide picker regression → **B10C** ✅.
+**Moved to Blocky (B10A/B10B/B10C):** events catalog / scenes, rule enable, Hue Blockly bugs, toolbar Delete, dirty leave (~~multi-flow → **B11**~~ **B11** cancelled **2026-08-22**); soft-hide picker regression → **B10C** ✅.
 
 ---
 

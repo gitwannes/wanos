@@ -585,6 +585,62 @@ class AutomationEngine:
         return None, ""
 
     @staticmethod
+    def _resolve_branch_executable_actions(
+        br: Any,
+        state: SystemState,
+        *,
+        event: Event,
+        bus_token: str,
+        event_name: str,
+        event_idx: Any,
+        new_state: Any,
+        is_transition: bool,
+        payload: dict,
+    ) -> List[Any]:
+        """
+        B22: flatten branch ``then`` nesting to leaf ``actions`` (first-match per level).
+        """
+        then = getattr(br, "then", None)
+        if then is not None:
+            resolved: List[Any] = []
+            for a in getattr(then, "leading_actions", None) or []:
+                resolved.append(a)
+            inner_branches = getattr(then, "branches", None) or []
+            from types import SimpleNamespace
+
+            if inner_branches:
+                inner_rule = SimpleNamespace(branches=inner_branches)
+                inner_br, _suffix = AutomationEngine._first_matching_branch(
+                    inner_rule,
+                    state,
+                    event=event,
+                    bus_token=bus_token,
+                    event_name=event_name,
+                    event_idx=event_idx,
+                    new_state=new_state,
+                    is_transition=is_transition,
+                    payload=payload,
+                )
+                if inner_br is not None:
+                    resolved.extend(
+                        AutomationEngine._resolve_branch_executable_actions(
+                            inner_br,
+                            state,
+                            event=event,
+                            bus_token=bus_token,
+                            event_name=event_name,
+                            event_idx=event_idx,
+                            new_state=new_state,
+                            is_transition=is_transition,
+                            payload=payload,
+                        )
+                    )
+            for a in getattr(then, "trailing_actions", None) or []:
+                resolved.append(a)
+            return resolved
+        return list(getattr(br, "actions", None) or [])
+
+    @staticmethod
     def _numeric_trigger_edge(
         *,
         op: Optional[str],
@@ -726,13 +782,30 @@ class AutomationEngine:
                     continue
                 from types import SimpleNamespace
                 base_id = getattr(rule, "id", None) or "-"
+                resolved_actions = AutomationEngine._resolve_branch_executable_actions(
+                    br,
+                    state,
+                    event=event,
+                    bus_token=bus_token,
+                    event_name=event_name,
+                    event_idx=event_idx,
+                    new_state=new_state,
+                    is_transition=is_transition,
+                    payload=payload,
+                )
+                if getattr(br, "then", None) is not None and not resolved_actions:
+                    automation_logger.debug(
+                        f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} branch {suffix} "
+                        f"then chain had no matching inner branch."
+                    )
+                    continue
                 rule = SimpleNamespace(
                     id=f"{base_id}#{suffix}",
                     name=getattr(rule, "name", None),
                     enabled=True,
                     trigger=None,
                     conditions=None,
-                    actions=list(getattr(br, "actions", None) or []),
+                    actions=resolved_actions,
                     scene=bool(getattr(rule, "scene", False)),
                     require_confirmation=bool(getattr(rule, "require_confirmation", False)),
                     branches=None,

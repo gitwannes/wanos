@@ -22,7 +22,7 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 ### Event-driven core
 - **Async architecture** — `asyncio` and FastAPI with a central event queue (no blocking request path for domain work).
 - **Live UI** — Alpine.js clients subscribe over Server-Sent Events (SSE); state updates are pushed, not polled.
-- **Declarative rules** — YAML **branch** schema (`If` / `Else-if` / `Else`) with Blockly authoring; conditions (device / event / time, including open-% / volume compares) and actions load into the automation engine.
+- **Declarative rules** — YAML **branch** schema (`If` / `Else-if`; bare `Else` retired) with Blockly authoring; flat **If/Do** or nested **If/Then** via branch `then:` (WanOS extension — Domoticz does not support nested If/Do); conditions (device / event / time / numeric) and actions load into the automation engine.
 
 ### Sauna and thermal control
 - **Safety gates** — start interlocks, door checks, grace periods, and long-run hardware cutoffs aligned with EN 60335-2-53 practice.

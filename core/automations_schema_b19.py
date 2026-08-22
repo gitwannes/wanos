@@ -65,7 +65,7 @@ def ordered_branch_dict(rule: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def _normalize_branch(branch: Any, *, index: int) -> Dict[str, Any]:
+def _normalize_branch(branch: Any, *, index: int, then_depth: int = 0) -> Dict[str, Any]:
     if not isinstance(branch, dict):
         raise ValueError(f"Branch {index}: must be a mapping.")
     when = str(branch.get("when") or "").strip()
@@ -74,14 +74,46 @@ def _normalize_branch(branch: Any, *, index: int) -> Dict[str, Any]:
     conds_in = branch.get("conditions") or []
     if not isinstance(conds_in, list):
         conds_in = []
+    then_in = branch.get("then")
     acts_in = branch.get("actions") or []
     if not isinstance(acts_in, list):
         acts_in = []
+    if then_in is not None and acts_in:
+        raise ValueError(f"Branch {index}: cannot have both then and actions.")
     out: Dict[str, Any] = {
         "when": when,
         "conditions": normalize_condition_list(conds_in),
-        "actions": [_copy_action(a) for a in acts_in],
     }
+    if then_in is not None:
+        if not isinstance(then_in, dict):
+            raise ValueError(f"Branch {index}: then must be a mapping.")
+        sub = then_in.get("branches") or []
+        if not isinstance(sub, list) or not sub:
+            raise ValueError(f"Branch {index}: then.branches must be a non-empty list.")
+        from core.automation_limits import MAX_NEST_DEPTH
+
+        if then_depth + 1 > MAX_NEST_DEPTH:
+            raise ValueError(
+                f"Branch {index}: then nesting exceeds MAX_NEST_DEPTH ({MAX_NEST_DEPTH})."
+            )
+        out["then"] = {
+            "branches": [
+                _normalize_branch(b, index=j, then_depth=then_depth + 1)
+                for j, b in enumerate(sub)
+            ],
+        }
+        lead = then_in.get("leading_actions") or []
+        trail = then_in.get("trailing_actions") or []
+        if lead:
+            if not isinstance(lead, list):
+                raise ValueError(f"Branch {index}: then.leading_actions must be a list.")
+            out["then"]["leading_actions"] = [_copy_action(a) for a in lead]
+        if trail:
+            if not isinstance(trail, list):
+                raise ValueError(f"Branch {index}: then.trailing_actions must be a list.")
+            out["then"]["trailing_actions"] = [_copy_action(a) for a in trail]
+    else:
+        out["actions"] = [_copy_action(a) for a in acts_in]
     label = branch.get("label")
     if label not in (None, ""):
         out["label"] = str(label)
@@ -119,13 +151,19 @@ def iter_branch_conditions(rule: Dict[str, Any]):
 
 
 def iter_branch_actions(rule: Dict[str, Any]):
-    """Yield action dicts from all branches."""
+    """Yield action dicts from all branches (including B22 then subtrees)."""
+    from core.automations_schema_b22 import iter_then_actions
+
     for br in rule.get("branches") or []:
         if not isinstance(br, dict):
             continue
-        for a in br.get("actions") or []:
-            if isinstance(a, dict):
-                yield a
+        then_block = br.get("then")
+        if then_block is not None:
+            yield from iter_then_actions(then_block)
+        else:
+            for a in br.get("actions") or []:
+                if isinstance(a, dict):
+                    yield a
 
 
 def derive_wake_entity_ids(rule: Dict[str, Any]) -> List[str]:
@@ -195,6 +233,18 @@ def validate_branch_rule_for_enable(rule: Dict[str, Any]) -> Optional[str]:
         err = validate_condition_list(conds)
         if err:
             return f"Branch {i} ({when}): {err}"
+        from core.automations_schema_b22 import validate_top_branch_b22
+
+        err = validate_top_branch_b22(br, index=i)
+        if err:
+            return err
+        then_block = br.get("then")
+        if then_block is not None:
+            for j, inner in enumerate(then_block.get("branches") or []):
+                iw = inner.get("when")
+                ic = inner.get("conditions") or []
+                if iw in (_WHEN_IF, _WHEN_ELIF) and count_leaf_compares(ic) < 1:
+                    return f"Branch {i} then[{j}] ({iw}): at least one Compare is required."
     return None
 
 
@@ -207,9 +257,14 @@ def validate_branch_entity_ids(rule: Dict[str, Any]) -> None:
     for br in rule.get("branches") or []:
         if not isinstance(br, dict):
             continue
+        from core.automations_schema_b22 import iter_then_actions
+
+        acts: List[Any] = list(br.get("actions") or [])
+        if br.get("then") is not None:
+            acts = list(iter_then_actions(br.get("then")))
         cases.append({
             "conditions": br.get("conditions") or [],
-            "actions": br.get("actions") or [],
+            "actions": acts,
         })
     validate_v2_entity_ids({
         "name": rule.get("name"),

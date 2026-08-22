@@ -158,35 +158,24 @@ automations:
         conditions:
           - type: event
             event: bd0413be-926a-45ef-bdb8-1adfe3b7e8ab
-          - type: device_state
-            entity_id: zwave.licht_living
-            is: "ON"
-        actions:
-          - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
-          - entity_id: zwave.tuin
-            state: "ON"
-          - entity_id: zwave.kerst_lichten_tuin
-            state: "ON"
-          - entity_id: rfx.kerst_lichten_voor
-            state: "ON"
-          - entity_id: rfx.kerstboom
-            state: "ON"
-      - when: else_if
-        conditions:
-          - type: event
-            event: bd0413be-926a-45ef-bdb8-1adfe3b7e8ab
-          - type: device_state
-            entity_id: zwave.licht_living
-            is: "OFF"
-        actions:
-          - entity_id: zwave.tuin
-            state: "ON"
-          - entity_id: zwave.kerst_lichten_tuin
-            state: "ON"
-          - entity_id: rfx.kerst_lichten_voor
-            state: "ON"
-          - entity_id: rfx.kerstboom
-            state: "ON"
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: zwave.licht_living
+                  is: "ON"
+              actions:
+                - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
+          leading_actions:
+            - entity_id: zwave.tuin
+              state: "ON"
+            - entity_id: zwave.kerst_lichten_tuin
+              state: "ON"
+            - entity_id: rfx.kerst_lichten_voor
+              state: "ON"
+            - entity_id: rfx.kerstboom
+              state: "ON"
     id: ea2ab903-fe8c-4375-a771-3bb47a7c9417
   - name: Evening lights off
     enabled: true
@@ -457,21 +446,22 @@ automations:
           - type: device_state
             entity_id: zwave.living_special
             is: ANY
-          - type: device_state
-            entity_id: hue.group.living_hue
-            is: "ON"
-        actions:
-          - event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
-      - when: else_if
-        conditions:
-          - type: device_state
-            entity_id: zwave.living_special
-            is: ANY
-          - type: device_state
-            entity_id: hue.group.living_hue
-            is: "ON"
-        actions:
-          - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: hue.group.living_hue
+                  is: "ON"
+              actions:
+                - event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
+            - when: else_if
+              conditions:
+                - type: device_state
+                  entity_id: hue.group.living_hue
+                  is: "OFF"
+              actions:
+                - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
     id: 839d64aa-6216-4405-9fee-b75287adb039
   - name: PC -> PC Monitors
     enabled: true
@@ -547,24 +537,25 @@ automations:
           - type: device_state
             entity_id: zwave.badk_1e_hue_physical
             is: ANY
-          - type: device_state
-            entity_id: hue.group.badk_1e_hue
-            is: "OFF"
-        actions:
-          - entity_id: hue.group.badk_1e_hue
-            state: "ON"
-            preset: badk_red
-      - when: else_if
-        conditions:
-          - type: device_state
-            entity_id: zwave.badk_1e_hue_physical
-            is: ANY
-          - type: device_state
-            entity_id: hue.group.badk_1e_hue
-            is: "ON"
-        actions:
-          - entity_id: hue.group.badk_1e_hue
-            state: "OFF"
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: hue.group.badk_1e_hue
+                  is: "OFF"
+              actions:
+                - entity_id: hue.group.badk_1e_hue
+                  state: "ON"
+                  preset: badk_red
+            - when: else_if
+              conditions:
+                - type: device_state
+                  entity_id: hue.group.badk_1e_hue
+                  is: "ON"
+              actions:
+                - entity_id: hue.group.badk_1e_hue
+                  state: "OFF"
     id: 9133d4f5-453d-464e-86df-e5f2bc61be8b
   - name: 'Badk 1e: Wastafel -> Hue'
     enabled: true
@@ -626,24 +617,25 @@ automations:
           - type: device_state
             entity_id: zwave.badk_2e_hue_physical
             is: ANY
-          - type: device_state
-            entity_id: hue.group.badk_2e_hue
-            is: "OFF"
-        actions:
-          - entity_id: hue.group.badk_2e_hue
-            state: "ON"
-            preset: relax_red
-      - when: else_if
-        conditions:
-          - type: device_state
-            entity_id: zwave.badk_2e_hue_physical
-            is: ANY
-          - type: device_state
-            entity_id: hue.group.badk_2e_hue
-            is: "ON"
-        actions:
-          - entity_id: hue.group.badk_2e_hue
-            state: "OFF"
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: hue.group.badk_2e_hue
+                  is: "OFF"
+              actions:
+                - entity_id: hue.group.badk_2e_hue
+                  state: "ON"
+                  preset: relax_red
+            - when: else_if
+              conditions:
+                - type: device_state
+                  entity_id: hue.group.badk_2e_hue
+                  is: "ON"
+              actions:
+                - entity_id: hue.group.badk_2e_hue
+                  state: "OFF"
     id: 618d15f6-c094-44c9-8fb5-13c44d80dee7
   - name: 'Badk 2e: Wastafel -> Hue'
     enabled: true
@@ -705,26 +697,27 @@ automations:
           - type: device_state
             entity_id: zwave.slpk_wannes_hue_physical
             is: ANY
-          - type: device_state
-            entity_id: hue.group.slpk_wannes_hue
-            is: "OFF"
-        actions:
-          - entity_id: hue.group.slpk_wannes_hue
-            state: "ON"
-            preset: relax_red
-      - when: else_if
-        conditions:
-          - type: device_state
-            entity_id: zwave.slpk_wannes_hue_physical
-            is: ANY
-          - type: device_state
-            entity_id: hue.group.slpk_wannes_hue
-            is: "ON"
-        actions:
-          - entity_id: hue.group.slpk_wannes_hue
-            state: "OFF"
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: hue.group.slpk_wannes_hue
+                  is: "OFF"
+              actions:
+                - entity_id: hue.group.slpk_wannes_hue
+                  state: "ON"
+                  preset: relax_red
+            - when: else_if
+              conditions:
+                - type: device_state
+                  entity_id: hue.group.slpk_wannes_hue
+                  is: "ON"
+              actions:
+                - entity_id: hue.group.slpk_wannes_hue
+                  state: "OFF"
     id: 4c96bf42-317d-4e79-a9bd-3b83edd7d668
-  - name: 'Sauna: Hue physcial switch'
+  - name: 'Sauna: Hue physical switch'
     enabled: true
     branches:
       - when: if
@@ -732,38 +725,58 @@ automations:
           - type: device_state
             entity_id: zwave.sauna_hue_physical
             is: ANY
-          - type: device_state
-            entity_id: hue.group.sauna_hue
-            is: "OFF"
-        actions:
-          - entity_id: hue.group.sauna_hue
-            state: "ON"
-            preset: relax_red
-          - entity_id: zwave.sauna_zoutlamp
-            state: "ON"
-      - when: else_if
-        conditions:
-          - op: and
-            children:
-              - type: device_state
-                entity_id: zwave.sauna_hue_physical
-                is: ANY
-              - type: device_state
-                entity_id: sensor.generic.sauna_status
-                is: "OFF"
-              - op: or
-                children:
-                  - type: device_state
-                    entity_id: hue.group.sauna_hue
-                    is: "ON"
-                  - type: device_state
-                    entity_id: zwave.sauna_zoutlamp
-                    is: "ON"
-        actions:
-          - entity_id: hue.group.sauna_hue
-            state: "OFF"
-          - entity_id: zwave.sauna_zoutlamp
-            state: "OFF"
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: sensor.generic.sauna_status
+                  is: "OFF"
+              then:
+                branches:
+                  - when: if
+                    conditions:
+                      - op: or
+                        children:
+                          - type: device_state
+                            entity_id: hue.group.sauna_hue
+                            is: "OFF"
+                          - type: device_state
+                            entity_id: zwave.sauna_zoutlamp
+                            is: "OFF"
+                    actions:
+                      - entity_id: hue.group.sauna_hue
+                        state: "ON"
+                        preset: relax_red
+                      - entity_id: zwave.sauna_zoutlamp
+                        state: "ON"
+                  - when: else_if
+                    conditions:
+                      - op: or
+                        children:
+                          - type: device_state
+                            entity_id: hue.group.sauna_hue
+                            is: "ON"
+                          - type: device_state
+                            entity_id: zwave.sauna_zoutlamp
+                            is: "ON"
+                    actions:
+                      - entity_id: hue.group.sauna_hue
+                        state: "OFF"
+                      - entity_id: zwave.sauna_zoutlamp
+                        state: "OFF"
+            - when: else_if
+              conditions:
+                - type: device_state
+                  entity_id: sensor.generic.sauna_status
+                  is: "ON"
+              actions:
+                - entity_id: hue.group.sauna_hue
+                  state: "ON"
+                  bri: 100
+                  xy:
+                    - 0.1746592499421236
+                    - 0.7448961933346044
     id: 8f3a2c1e-5b4d-4a9f-9e2d-1c7b6a8d0e3f
   - name: Sauna ON
     enabled: true
@@ -836,28 +849,27 @@ automations:
         conditions:
           - type: event
             event: 44667b31-c281-4487-9d05-9093ba111a86
-          - type: time_of_day
-            is: dark
-        actions:
-          - entity_id: zwave.cinema_licht
-            state: "ON"
-          - entity_id: switch.epson
-            state: "OFF"
-          - entity_id: hue.group.cinema_hue
-            state: "OFF"
-      - when: else_if
-        conditions:
-          - type: event
-            event: 44667b31-c281-4487-9d05-9093ba111a86
-          - type: time_of_day
-            is: light
-        actions:
-          - entity_id: blinds.cinema
-            state: '0'
-          - entity_id: switch.epson
-            state: "OFF"
-          - entity_id: hue.group.cinema_hue
-            state: "OFF"
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: time_of_day
+                  is: dark
+              actions:
+                - entity_id: zwave.cinema_licht
+                  state: "ON"
+            - when: else_if
+              conditions:
+                - type: time_of_day
+                  is: light
+              actions:
+                - entity_id: blinds.cinema
+                  state: '0'
+          leading_actions:
+            - entity_id: switch.epson
+              state: "OFF"
+            - entity_id: hue.group.cinema_hue
+              state: "OFF"
     id: 1cc80d94-969f-404c-8e0e-7195d86223cd
   - name: GoCosy gv
     enabled: true

@@ -13,6 +13,8 @@ from __future__ import annotations
 import copy
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
+from core.automation_limits import MAX_NEST_DEPTH
+
 _VALID_OPS = frozenset({"and", "or", "not"})
 _LEAF_TYPES = frozenset({"device_state", "time_of_day", "event"})
 
@@ -105,7 +107,9 @@ def validate_leaf_node(cond: Dict[str, Any], *, path: str) -> Optional[str]:
     return f"{path}: unknown Compare type {ctype!r}."
 
 
-def validate_group_node(cond: Dict[str, Any], *, path: str) -> Optional[str]:
+def validate_group_node(cond: Dict[str, Any], *, path: str, depth: int = 1) -> Optional[str]:
+    if depth > MAX_NEST_DEPTH:
+        return f"{path}: logic nesting exceeds MAX_NEST_DEPTH ({MAX_NEST_DEPTH})."
     op = str(cond.get("op") or "").strip().lower()
     if op not in _VALID_OPS:
         return f"{path}: op must be and|or|not (got {op!r})."
@@ -118,18 +122,18 @@ def validate_group_node(cond: Dict[str, Any], *, path: str) -> Optional[str]:
     elif len(children) < 1:
         return f"{path}: {op} must have at least one child."
     for i, child in enumerate(children):
-        err = validate_condition_node(child, path=f"{path}.children[{i}]")
+        err = validate_condition_node(child, path=f"{path}.children[{i}]", depth=depth + 1)
         if err:
             return err
     return None
 
 
-def validate_condition_node(cond: Any, *, path: str = "condition") -> Optional[str]:
+def validate_condition_node(cond: Any, *, path: str = "condition", depth: int = 0) -> Optional[str]:
     d = _cond_as_dict(cond)
     if not d:
         return f"{path}: must be a mapping."
     if is_group_node(d):
-        return validate_group_node(d, path=path)
+        return validate_group_node(d, path=path, depth=depth + 1)
     if is_leaf_node(d):
         return validate_leaf_node(d, path=path)
     if d.get("type"):
@@ -143,7 +147,7 @@ def validate_condition_list(conds: Any) -> Optional[str]:
     if not isinstance(conds, list):
         return "conditions must be a list."
     for i, c in enumerate(conds):
-        err = validate_condition_node(c, path=f"conditions[{i}]")
+        err = validate_condition_node(c, path=f"conditions[{i}]", depth=0)
         if err:
             return err
     return None

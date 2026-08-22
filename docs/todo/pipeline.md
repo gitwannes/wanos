@@ -68,9 +68,11 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **B5 / H12** | Bathroom If/Else-if edge-cross — Pi smoke **2026-08-17** |
 | **B9B** | H4+H12 done; H5 → **E** — close-out **2026-08-20** |
 | **B21** | Cancelled **2026-08-21** — bare Else retired; no If+Else wake engine fix |
+| **B11** | Cancelled **2026-08-22** — multi-flow not wanted; keep separate Library rows per rule |
 | **B23** | Automations page polish (scoped reload + UX) — Pi smoke **2026-08-22** |
 | **G15** | Evening twilight cross-day orphan ON (+ **C27** + Admin timeline UX in same ship) — Pi smoke **2026-08-22** |
 | **C27** | Sunrise/sunset Admin + Explorer chrome — shipped with **G15** — Pi smoke **2026-08-22** |
+| **B22** | Nested If/Do via branch `then:` (+ mixed leading/trailing Sets) — Pi smoke **2026-08-22** |
 
 ---
 
@@ -82,8 +84,8 @@ All open items. **Detail** = phase file section.
 #   Status Size Id           What                                               Detail
 ──  ────── ──── ──────────── ────────────────────────────────────────────────── ──────────────────────────
 1   open   high B7 / B14     timed Set, delay, cooldown + B5-deferred           phaseB § B14 / Ship B7
-2   open   mid  B8           B11 multi-flow + B12 folder/tag                    phaseB § B11 / B12
-3   open   mid  B22          nested If/Do (rescinds B19 no-nested lock)         phaseB § B22
+2   open   low  B12          rule-list folder/tag                               phaseB § B12
+3   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)        phaseB § B24
 4   open   low  B10I         used SE → Go to SR                                 phaseB § B10I
 5   open   low  B10J         bugfix: Event Received → catalog display name      phaseB § B10J
 6   open   low  B10L         NOT CONNECTED overlay + Re-connecting copy         phaseB § B10L
@@ -122,7 +124,7 @@ All open items. **Detail** = phase file section.
 39  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
 40  hold   high P            Other homes / portability (assess)                 phaseP
 ```
-Near-term: **B7 → B8 → B22**. **C26** after **C4** (HTML/JS rename, then split). **E** may run beside B7–B8. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**.
+Near-term: **Ship B7** → **B24** kickoff when ready. **B12** may run ∥ Ship B7. **C26** after **C4** (HTML/JS rename, then split). **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**.
 
 ---
 

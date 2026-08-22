@@ -285,12 +285,13 @@ class ActionConfig(BaseModel):
 
 
 class BranchConfig(BaseModel):
-    """B19 If / Else-if branch (first-match). Bare Else retired 2026-08-21."""
+    """B19 If / Else-if branch (first-match). B22: optional ``then`` xor ``actions``. Bare Else retired 2026-08-21."""
     model_config = ConfigDict(extra="forbid")
 
     when: str  # if | else_if
     conditions: Optional[List[ConditionNode]] = None
-    actions: List[ActionConfig] = Field(default_factory=list)
+    actions: Optional[List[ActionConfig]] = None
+    then: Optional["ThenBlockConfig"] = None
     label: Optional[str] = None
 
     @field_validator("when")
@@ -300,6 +301,29 @@ class BranchConfig(BaseModel):
         if w not in ("if", "else_if"):
             raise ValueError("Branch when must be if|else_if (bare else is retired).")
         return w
+
+    @model_validator(mode="after")
+    def _actions_xor_then(self) -> "BranchConfig":
+        has_then = self.then is not None
+        acts = self.actions or []
+        if has_then and acts:
+            raise ValueError("Branch cannot have both then and actions.")
+        if not has_then and self.actions is None:
+            object.__setattr__(self, "actions", [])
+        return self
+
+
+class ThenBlockConfig(BaseModel):
+    """B22 nested If/Do chain under top-level If/Then (+ optional leading/trailing actions)."""
+    model_config = ConfigDict(extra="forbid")
+
+    branches: List[BranchConfig] = Field(default_factory=list)
+    leading_actions: Optional[List[ActionConfig]] = None
+    trailing_actions: Optional[List[ActionConfig]] = None
+
+
+BranchConfig.model_rebuild()
+ThenBlockConfig.model_rebuild()
 
 
 class AutomationRuleConfig(BaseModel):

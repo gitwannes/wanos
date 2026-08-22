@@ -1,5 +1,6 @@
 // --- file: frontend/blocky.js ---
 // Phase B19: Domoticz If/Do + Else-if/Else (first-match); branches YAML; wake from Compares.
+// Phase B22: If/Then + nested If/Do/Else-if/Do via branch then: (actions xor then).
 // Phase B4/H4: nested AND/OR/NOT Logic groups in Compare; OR-list migrator; legacy When/OR blocks removed.
 // Discrete Compare labels: ordered AND — first wake (device or OR) → turns; later siblings → is.
 // Duplicate fix: reshape b_condition_device on BLOCK_CREATE (init shaped the dropdown-default entity).
@@ -57,6 +58,12 @@ const BLOCKY_EVENT_EDGES = new Set(["b_trig_event_edge", "b_trig_event_edge_sys"
 const BLOCKY_EVENT_ACTIONS = new Set(["b_action_event", "b_action_event_sys"]);
 /** B19 control branch chain. */
 const BLOCKY_CONTROL_BRANCH = new Set(["b_if_do", "b_else_if"]);
+/** B22: unified statement chain type for Sets + If/Else-if in Then bodies. */
+const BLOCKY_THEN_STMT = "ThenStmt";
+/** B22: single Then body socket on control blocks. */
+const BLOCKY_BODY_INPUT = "BODY";
+/** B22: max nested ``then:`` depth (matches core/automation_limits.py). */
+const BLOCKY_MAX_NEST_DEPTH = 3;
 /** Retired bare Else — kept only so old canvases dispose; not in toolbox. */
 const BLOCKY_LEGACY_ELSE = "b_else";
 /** Event Compare block types. */
@@ -125,6 +132,304 @@ const BLOCKY_TRIGGER_UI_KEYS = new Set([
     "entity_id", "state", "event", "op", "attribute"
 ]);
 const BLOCKY_SUPPORTED_CONDITION_TYPES = new Set(["device_state", "time_of_day", "event"]);
+
+/** First block connected to a control block's body (BODY, or legacy DO/THEN). */
+function blockyControlBodyFirst(block) {
+    if (!block) return null;
+    const bodyInp = block.getInput(BLOCKY_BODY_INPUT);
+    if (bodyInp) return block.getInputTargetBlock(BLOCKY_BODY_INPUT);
+    const thenInp = block.getInput("THEN");
+    if (thenInp) return block.getInputTargetBlock("THEN");
+    const doInp = block.getInput("DO");
+    if (doInp) return block.getInputTargetBlock("DO");
+    return null;
+}
+
+/** True for Set / fire-event blocks in a body chain. */
+function blockyIsActionBlock(block) {
+    if (!block) return false;
+    return block.type === "b_action_device" || BLOCKY_EVENT_ACTIONS.has(block.type);
+}
+
+/** First If/Else-if block in a body chain (skips leading actions). */
+function blockyControlBodyFirstControl(block) {
+    let cur = blockyControlBodyFirst(block);
+    while (cur) {
+        if (BLOCKY_CONTROL_BRANCH.has(cur.type)) return cur;
+        cur = cur.getNextBlock();
+    }
+    return null;
+}
+
+/** True when body contains at least one If/Else-if control block. */
+function blockyControlBodyHasControl(block) {
+    return blockyControlBodyFirstControl(block) != null;
+}
+
+/** ``empty`` | ``action`` | ``then`` — then = nested If/Do (+ optional actions) in body. */
+function blockyControlBodyMode(block) {
+    if (!blockyControlBodyFirst(block)) return "empty";
+    if (blockyControlBodyHasControl(block)) return "then";
+    return "action";
+}
+
+/** Always ``Then`` on control blocks — accepts Sets and nested If/Else-if. */
+function blockyControlBodyRefresh(block) {
+    if (!block || !BLOCKY_CONTROL_BRANCH.has(block.type)) return;
+    const inp = block.getInput(BLOCKY_BODY_INPUT);
+    if (!inp || !inp.connection) return;
+    const lbl = block.getField("BODY_LBL");
+    if (lbl) lbl.setValue("Then");
+    inp.connection.setCheck(BLOCKY_THEN_STMT);
+}
+
+/** Connect statement blocks; returns last block's nextConnection (or startConn). */
+function blockyConnectStatementChain(startConn, blocks) {
+    if (!startConn || !blocks || !blocks.length) return startConn;
+    let prev = startConn;
+    blocks.forEach((b) => {
+        if (!b || !b.previousConnection) return;
+        try {
+            prev.connect(b.previousConnection);
+            prev = b.nextConnection;
+        } catch (e) { /* skip */ }
+    });
+    return prev;
+}
+
+function blockyChainContainsBlock(head, target) {
+    if (!head || !target) return false;
+    let cur = head;
+    while (cur) {
+        if (cur.id === target.id) return true;
+        cur = cur.getNextBlock();
+    }
+    return false;
+}
+
+/** Nearest control branch whose body chain contains ``block``. */
+function blockyControlBranchParent(block) {
+    let p = block.getParent();
+    while (p) {
+        if (BLOCKY_CONTROL_BRANCH.has(p.type)) {
+            const bodyFirst = blockyControlBodyFirst(p);
+            if (bodyFirst && blockyChainContainsBlock(bodyFirst, block)) return p;
+        }
+        p = p.getParent();
+    }
+    return null;
+}
+
+/** True when a control block lives under another branch's Then (nested If/Do chain). */
+function blockyIsNestedInThenControlChain(controlBlock) {
+    if (!controlBlock || !BLOCKY_CONTROL_BRANCH.has(controlBlock.type)) return false;
+    const parent = blockyControlBranchParent(controlBlock);
+    if (!parent) return false;
+    return blockyControlBodyMode(parent) === "then";
+}
+
+/** Count of branch-mode body wrappers above ``block`` (each = one ``then:`` depth). */
+function blockyThenWrapperDepth(block) {
+    let depth = 0;
+    let node = block;
+    for (;;) {
+        const parent = blockyControlBranchParent(node);
+        if (!parent) break;
+        if (blockyControlBodyMode(parent) === "then") depth += 1;
+        node = parent;
+    }
+    return depth;
+}
+
+/** True when ``block`` is nested inside another block (statement / value socket). */
+function blockyHasEnclosingBlock(block) {
+    if (!block) return false;
+    if (typeof block.getParent === "function" && block.getParent()) return true;
+    if (typeof block.getSurroundParent === "function") {
+        const surround = block.getSurroundParent();
+        if (surround) return true;
+    }
+    const prev = block.previousConnection;
+    if (prev && prev.isConnected()) return true;
+    return false;
+}
+
+/** True for the single workspace If/Do root (not nested under another control block). */
+function blockyIsTopLevelControlRoot(block) {
+    if (!block || block.type !== "b_if_do") return false;
+    return !blockyHasEnclosingBlock(block);
+}
+
+/** Floating If/Do blocks with no parent (not nested in If/Else-if body). */
+function blockyOrphanIfDoRoots(ws) {
+    return ws.getAllBlocks(false).filter((b) => (
+        b.type === "b_if_do"
+        && !b.isInFlyout
+        && !b.isInsertionMarker
+        && !blockyHasEnclosingBlock(b)
+    ));
+}
+
+function blockyWorkspaceIsDragging(ws) {
+    if (!ws) return false;
+    if (typeof ws.isDragging === "function" && ws.isDragging()) return true;
+    if (typeof ws.isDragSurfaceActive === "function" && ws.isDragSurfaceActive()) return true;
+    return false;
+}
+
+/**
+ * At most one floating If/Do root. Nested If/Do (parent set / snapped into Then) is allowed.
+ * Skips while dragging or while a freshly created block is awaiting first connect.
+ */
+function blockyDedupeOrphanIfDoRoots(ws) {
+    if (blockyWorkspaceIsDragging(ws)) return false;
+    const orphans = blockyOrphanIfDoRoots(ws);
+    if (orphans.length <= 1) return false;
+
+    const pendingId = BlockyRT.pendingCreateRootId;
+    if (pendingId) {
+        const pending = ws.getBlockById(pendingId);
+        if (pending && orphans.some((b) => b.id === pendingId)) {
+            return false;
+        }
+    }
+
+    const keep = orphans[0];
+    let rejected = false;
+    orphans.forEach((b) => {
+        if (b.id === keep.id) return;
+        try { b.dispose(true); rejected = true; } catch (e) { /* ignore */ }
+    });
+    if (rejected && BlockyRT.app) {
+        BlockyRT.app.infoMessage =
+            "Only one If/Do per rule — use Else-if on the chain (gear-style next blocks).";
+    }
+    return rejected;
+}
+
+function blockyClearPendingCreateRootIfDone(ws) {
+    const pendingId = BlockyRT.pendingCreateRootId;
+    if (!pendingId) return;
+    const b = ws.getBlockById(pendingId);
+    if (!b) {
+        BlockyRT.pendingCreateRootId = null;
+        return;
+    }
+    if (blockyHasEnclosingBlock(b)) {
+        BlockyRT.pendingCreateRootId = null;
+    }
+}
+
+function blockyValidateControlBlockDepth(block, thenDepthBefore) {
+    const firstCtrl = blockyControlBodyFirstControl(block);
+    if (!firstCtrl) return null;
+    const d = thenDepthBefore + 1;
+    if (d > BLOCKY_MAX_NEST_DEPTH) {
+        return `Then nesting exceeds MAX_NEST_DEPTH (${BLOCKY_MAX_NEST_DEPTH}).`;
+    }
+    let cur = firstCtrl;
+    let i = 0;
+    while (cur && BLOCKY_CONTROL_BRANCH.has(cur.type)) {
+        if (i === 0 && cur.type !== "b_if_do") {
+            return "First If/Else-if under Then must be If (not Else-if).";
+        }
+        const err = blockyValidateControlBlockDepth(cur, d);
+        if (err) return err;
+        cur = cur.getNextBlock();
+        i += 1;
+    }
+    return null;
+}
+
+function blockyValidateWorkspaceB22(ws) {
+    const root = ws.getTopBlocks(true).find((b) => b.type === "b_if_do");
+    if (!root) return null;
+    let cur = root;
+    while (cur && BLOCKY_CONTROL_BRANCH.has(cur.type)) {
+        if (blockyControlBodyHasControl(cur)) {
+            const err = blockyValidateControlBlockDepth(cur, 0);
+            if (err) return err;
+            let body = blockyControlBodyFirst(cur);
+            let inCtrl = false;
+            let pastCtrl = false;
+            while (body) {
+                if (BLOCKY_CONTROL_BRANCH.has(body.type)) {
+                    if (pastCtrl) {
+                        return "Actions cannot appear between If/Else-if blocks in Then.";
+                    }
+                    inCtrl = true;
+                } else if (blockyIsActionBlock(body)) {
+                    if (inCtrl) pastCtrl = true;
+                } else {
+                    return "Then may contain Sets and If/Else-if blocks only.";
+                }
+                body = body.getNextBlock();
+            }
+        }
+        cur = cur.getNextBlock();
+    }
+    return null;
+}
+
+/** Sanitize body chains; enforce first control=If, depth cap; allow actions in Then. */
+function blockySanitizeControlBody(block) {
+    if (!block || !BLOCKY_CONTROL_BRANCH.has(block.type)) return false;
+    let changed = false;
+    const mode = blockyControlBodyMode(block);
+    if (mode === "then") {
+        if (blockyThenWrapperDepth(block) + 1 > BLOCKY_MAX_NEST_DEPTH) {
+            let cur = blockyControlBodyFirst(block);
+            while (cur) {
+                const next = cur.getNextBlock();
+                if (BLOCKY_CONTROL_BRANCH.has(cur.type)) {
+                    try { cur.dispose(true); changed = true; } catch (e) { /* ignore */ }
+                }
+                cur = next;
+            }
+            if (BlockyRT.app) {
+                BlockyRT.app.infoMessage =
+                    `Then nesting exceeds MAX_NEST_DEPTH (${BLOCKY_MAX_NEST_DEPTH}).`;
+            }
+            blockyControlBodyRefresh(block);
+            return changed;
+        }
+        const firstCtrl = blockyControlBodyFirstControl(block);
+        if (firstCtrl && firstCtrl.type === "b_else_if") {
+            try { firstCtrl.dispose(true); changed = true; } catch (e) { /* ignore */ }
+            if (BlockyRT.app) {
+                BlockyRT.app.infoMessage = "First If/Else-if under Then must be If — not Else-if.";
+            }
+        }
+        let cur = blockyControlBodyFirst(block);
+        while (cur) {
+            const next = cur.getNextBlock();
+            if (!blockyIsActionBlock(cur) && !BLOCKY_CONTROL_BRANCH.has(cur.type)) {
+                try { cur.dispose(true); changed = true; } catch (e) { /* ignore */ }
+            }
+            cur = next;
+        }
+    } else if (mode === "action") {
+        let cur = blockyControlBodyFirst(block);
+        while (cur) {
+            const next = cur.getNextBlock();
+            if (!blockyIsActionBlock(cur) && !BLOCKY_CONTROL_BRANCH.has(cur.type)) {
+                try { cur.dispose(true); changed = true; } catch (e) { /* ignore */ }
+            }
+            cur = next;
+        }
+    }
+    blockyControlBodyRefresh(block);
+    return changed;
+}
+
+function blockyEnforceB22ControlRules(ws) {
+    ws.getAllBlocks(false).forEach((b) => {
+        if (BLOCKY_CONTROL_BRANCH.has(b.type)) blockySanitizeControlBody(b);
+    });
+    ws.getAllBlocks(false).forEach((b) => {
+        if (BLOCKY_CONTROL_BRANCH.has(b.type)) blockyControlBodyRefresh(b);
+    });
+}
 
 /** Deep-enough copy for opaque bag values (scalars / small arrays / plain objects). */
 function blockyOpaqueClone(value) {
@@ -863,6 +1168,8 @@ function blockyConditionUsesLevelGateWording(block) {
     if (!block || block.isInFlyout || block.type !== "b_condition_device") return false;
     const root = blockyFindConditionBranchRoot(block);
     if (!root) return false;
+    // B22: all Compares inside Then are action-time level gates — never wake wording.
+    if (blockyIsNestedInThenControlChain(root)) return true;
     const ifStart = root.getInputTargetBlock("IF");
     if (blockyBranchHasFlatEventGate(ifStart)) return true;
     const andHead = blockyAndListHeadForBlock(block);
@@ -882,6 +1189,18 @@ function blockyRefreshAllConditionGateWording() {
         if (b.type !== "b_if_do" && b.type !== "b_else_if") return;
         blockyForEachConditionDeviceInTree(b.getInputTargetBlock("IF"), (d) => {
             blockyConditionUpdateShape(d);
+            blockyCoerceFieldToOptions(d, "STATE", blockyConditionStateOptions);
+            try {
+                const eid = d.getFieldValue("ENTITY");
+                const profile = blockyConditionCompareProfile(eid);
+                if (profile.kind === "level") {
+                    blockyCoerceFieldToOptions(
+                        d,
+                        "MODE",
+                        () => blockyConditionLevelModeOptions(d, profile)
+                    );
+                }
+            } catch (e) { /* ignore */ }
         });
     });
 }
@@ -905,19 +1224,18 @@ function blockyConditionStateOptions(block) {
     const type = blockyEntityTypeOf(block.getFieldValue("ENTITY"));
     const levelGate = blockyConditionUsesLevelGateWording(block);
     if (type === "blinds" || type === "shutter") {
-        // Level profile normally owns shutters; keep opens/closes + changes state if discrete shape used.
         return levelGate
-            ? [["is open", "0"], ["is closed", "100"], ["changes state", "ANY"]]
+            ? [["is open", "0"], ["is closed", "100"]]
             : [["opens", "0"], ["closes", "100"], ["changes state", "ANY"]];
     }
     if (type === "door") {
         return levelGate
-            ? [["is OPEN", "OPEN"], ["is CLOSED", "CLOSED"], ["changes state", "ANY"]]
+            ? [["is OPEN", "OPEN"], ["is CLOSED", "CLOSED"]]
             : [["opens", "OPEN"], ["closes", "CLOSED"], ["changes state", "ANY"]];
     }
     // Lights / switches / status.
     return levelGate
-        ? [["is ON", "ON"], ["is OFF", "OFF"], ["changes state", "ANY"]]
+        ? [["is ON", "ON"], ["is OFF", "OFF"]]
         : [["turns ON", "ON"], ["turns OFF", "OFF"], ["changes state", "ANY"]];
 }
 
@@ -929,8 +1247,12 @@ function blockyConditionStateOptions(block) {
  */
 function blockyConditionLevelModeOptions(block, profile) {
     const modes = (profile && profile.modes) || [];
-    if (!blockyConditionUsesLevelGateWording(block)) return modes.slice();
-    return modes.map((row) => {
+    const levelGate = blockyConditionUsesLevelGateWording(block);
+    const src = levelGate
+        ? modes.filter((row) => row[1] !== "ANY")
+        : modes.slice();
+    if (!levelGate) return src.slice();
+    return src.map((row) => {
         const label = row[0];
         const value = row[1];
         if (value === "ON") return ["is ON", value];
@@ -947,8 +1269,7 @@ const BLOCKY_COMPARE_OPS = [
 ];
 
 /**
- * Human-readable label for a numeric operator used in condition blocks.
- * Describes the crossing direction to the author.
+ * Human-readable label for a numeric operator — edge / wake wording.
  * @param {string} op
  * @returns {string}
  */
@@ -962,6 +1283,25 @@ function blockyOpCrossesLabel(op) {
         case "!=": return "is not";
         default:   return "crosses above";
     }
+}
+
+/** Level / gate wording for numeric compares (action-time and AND siblings after wake). */
+function blockyOpLevelLabel(op) {
+    switch (op) {
+        case ">":  return "is above";
+        case ">=": return "is at least";
+        case "<":  return "is below";
+        case "<=": return "is at most";
+        case "==": return "equals";
+        case "!=": return "is not";
+        default:   return "is above";
+    }
+}
+
+/** Numeric compare label for a device Compare block (wake vs gate context). */
+function blockyOpLabelForCondition(block, op) {
+    if (blockyConditionUsesLevelGateWording(block)) return blockyOpLevelLabel(op);
+    return blockyOpCrossesLabel(op);
 }
 
 /**
@@ -1127,11 +1467,11 @@ function blockyConditionUpdateShape(block, opts) {
         }
 
         if (profile.kind === "sensor") {
-            // Numeric sensor: show crossing direction label that updates with the op dropdown.
+            // Numeric sensor: crossing label when wake; level label when gate / inner Then.
             let op = opts.forceOp != null ? opts.forceOp : snap.OP;
             if (!BLOCKY_COMPARE_OPS.some((o) => o[1] === op)) op = "==";
             const input = block.appendDummyInput("COMPARE")
-                .appendField(blockyOpCrossesLabel(op), "CROSSES_LABEL");
+                .appendField(blockyOpLabelForCondition(block, op), "CROSSES_LABEL");
             let attr = null;
             if (profile.attrs) {
                 const labels = profile.attrLabels || profile.attrs.map((a) => [a, a]);
@@ -1157,9 +1497,10 @@ function blockyConditionUpdateShape(block, opts) {
             // level: MODE labels are turns/opens alone, or is ON / is open when event gate.
             // PCT mode: op dropdown (crosses via separate OP field).
             const input = block.appendDummyInput("COMPARE");
+            const modeOpts = blockyConditionLevelModeOptions(block, profile);
             let mode = opts.forceMode != null ? opts.forceMode : snap.MODE;
-            if (!profile.modes.some((m) => m[1] === mode)) {
-                mode = profile.modes[0][1];
+            if (!modeOpts.some((m) => m[1] === mode)) {
+                mode = modeOpts[0] ? modeOpts[0][1] : profile.modes[0][1];
             }
             input.appendField(
                 new Blockly.FieldDropdown(() => blockyConditionLevelModeOptions(block, profile)),
@@ -1169,6 +1510,7 @@ function blockyConditionUpdateShape(block, opts) {
             if (mode === "PCT") {
                 let op = opts.forceOp != null ? opts.forceOp : snap.OP;
                 if (!BLOCKY_COMPARE_OPS.some((o) => o[1] === op)) op = ">";
+                input.appendField(blockyOpLabelForCondition(block, op), "CROSSES_LABEL");
                 input.appendField(new Blockly.FieldDropdown(BLOCKY_COMPARE_OPS), "OP");
                 const maxV = blockyLevelValueMax(eid, profile);
                 const rawVal = opts.forceValue != null ? opts.forceValue : snap.VALUE;
@@ -2100,24 +2442,59 @@ function defineBlockyBlocks(Blockly, providers) {
     // --- B19 Domoticz If/Do + Else-if + Else (first-match; gear = next-chain) ---
     Blockly.Blocks.b_if_do = {
         init() {
-            // No title row — If / Do statement labels are enough.
             this.appendStatementInput("IF").setCheck("Condition").appendField("If");
-            this.appendStatementInput("DO").setCheck("Action").appendField("Do");
-            this.setNextStatement(true, "BranchCont");
+            this.appendStatementInput(BLOCKY_BODY_INPUT)
+                .setCheck(BLOCKY_THEN_STMT)
+                .appendField("Then", "BODY_LBL");
+            this.setPreviousStatement(true, BLOCKY_THEN_STMT);
+            this.setNextStatement(true, BLOCKY_THEN_STMT);
             this.setColour(120);
-            this.setTooltip("If/Do — first branch. Chain Else-if below. First match wins.");
+            this.setTooltip(
+                "Then — Sets / fire-event and/or nested If/Else-if (any order: actions, control, actions)."
+            );
+        },
+        onchange(ev) {
+            if (!this.workspace || this.isInFlyout || BlockyRT.loading) return;
+            if (!ev) return;
+            const t = ev.type;
+            const Events = Blockly.Events;
+            const isMove = t === Events.BLOCK_MOVE || t === "move";
+            const isCreate = t === Events.BLOCK_CREATE || t === "create";
+            const isDelete = t === Events.BLOCK_DELETE || t === "delete";
+            if (isMove || isCreate || isDelete) {
+                blockySanitizeControlBody(this);
+                blockyControlBodyRefresh(this);
+                blockyScheduleConditionGateWordingRefresh();
+            }
         }
     };
     Blockly.Blocks.b_else_if = {
         init() {
             this.appendDummyInput().appendField("Else-if");
-            // No second "If" label — Else-if title already names the branch.
             this.appendStatementInput("IF").setCheck("Condition");
-            this.appendStatementInput("DO").setCheck("Action").appendField("Do");
-            this.setPreviousStatement(true, "BranchCont");
-            this.setNextStatement(true, "BranchCont");
+            this.appendStatementInput(BLOCKY_BODY_INPUT)
+                .setCheck(BLOCKY_THEN_STMT)
+                .appendField("Then", "BODY_LBL");
+            this.setPreviousStatement(true, BLOCKY_THEN_STMT);
+            this.setNextStatement(true, BLOCKY_THEN_STMT);
             this.setColour(120);
-            this.setTooltip("Else-if branch (first match wins — complementary Compare required).");
+            this.setTooltip(
+                "Else-if branch (first match). Then — Sets and/or nested If/Else-if."
+            );
+        },
+        onchange(ev) {
+            if (!this.workspace || this.isInFlyout || BlockyRT.loading) return;
+            if (!ev) return;
+            const t = ev.type;
+            const Events = Blockly.Events;
+            const isMove = t === Events.BLOCK_MOVE || t === "move";
+            const isCreate = t === Events.BLOCK_CREATE || t === "create";
+            const isDelete = t === Events.BLOCK_DELETE || t === "delete";
+            if (isMove || isCreate || isDelete) {
+                blockySanitizeControlBody(this);
+                blockyControlBodyRefresh(this);
+                blockyScheduleConditionGateWordingRefresh();
+            }
         }
     };
     // Bare Else retired (2026-08-21): use Else-if with an explicit complementary Compare.
@@ -2125,8 +2502,8 @@ function defineBlockyBlocks(Blockly, providers) {
     Blockly.Blocks.b_else = {
         init() {
             this.appendDummyInput().appendField("Else (retired)");
-            this.appendStatementInput("DO").setCheck("Action").appendField("Do");
-            this.setPreviousStatement(true, "BranchCont");
+            this.appendStatementInput("DO").setCheck(BLOCKY_THEN_STMT).appendField("Do");
+            this.setPreviousStatement(true, BLOCKY_THEN_STMT);
             this.setColour(120);
             this.setTooltip("Retired — replace with Else-if + complementary Compare (no bare Else).");
         }
@@ -2258,8 +2635,8 @@ function defineBlockyBlocks(Blockly, providers) {
                         return newState;
                     }
                 ), "STATE");
-            this.setPreviousStatement(true, "Action");
-            this.setNextStatement(true, "Action");
+            this.setPreviousStatement(true, BLOCKY_THEN_STMT);
+            this.setNextStatement(true, BLOCKY_THEN_STMT);
             this.setColour(290);
             blockyActionUpdateRichShape(this);
             blockyApplyPreferredDeviceDefaults(this, "action");
@@ -2272,8 +2649,8 @@ function defineBlockyBlocks(Blockly, providers) {
             this.appendDummyInput()
                 .appendField("Fire user event")
                 .appendField(new Blockly.FieldDropdown(eventUserFireDd), "EVENT");
-            this.setPreviousStatement(true, "Action");
-            this.setNextStatement(true, "Action");
+            this.setPreviousStatement(true, BLOCKY_THEN_STMT);
+            this.setNextStatement(true, BLOCKY_THEN_STMT);
             this.setColour(290);
             this.setTooltip("Emit user catalog event UUID on the bus (no explorer confirm on fire-action).");
         }
@@ -2283,8 +2660,8 @@ function defineBlockyBlocks(Blockly, providers) {
             this.appendDummyInput()
                 .appendField("Fire system event")
                 .appendField(new Blockly.FieldDropdown(eventSysFireDd), "EVENT");
-            this.setPreviousStatement(true, "Action");
-            this.setNextStatement(true, "Action");
+            this.setPreviousStatement(true, BLOCKY_THEN_STMT);
+            this.setNextStatement(true, BLOCKY_THEN_STMT);
             this.setColour(290);
             this.setTooltip(
                 "Emit system catalog event. Unused system events are excluded except Sauna/IR ON/OFF."
@@ -2511,17 +2888,10 @@ function blockyFingerprint(block) {
         }
         if (t === "b_condition_time") return `cond:time:${block.getFieldValue("TOD")}`;
         if (t === "b_action_device") {
-            const eid = block.getFieldValue("ENTITY");
-            const type = blockyEntityTypeOf(eid);
-            if (type === "blinds" || type === "shutter") {
-                const ui = block.getFieldValue("STATE");
-                let pct = "";
-                try { pct = String(block.getFieldValue("OPEN_PCT") || ""); } catch (e) { /* ignore */ }
-                return `act:device:${eid}:${ui || "OPEN"}:${pct}`;
-            }
-            return `act:device:${eid}:${block.getFieldValue("STATE")}`;
+            // Do not dedupe — many Sets in one Then may share entity/state while authoring.
+            return "";
         }
-        if (BLOCKY_EVENT_ACTIONS.has(t)) return `act:event:${block.getFieldValue("EVENT")}`;
+        if (BLOCKY_EVENT_ACTIONS.has(t)) return "";
         // Cases and OR edges are allowed as multiples — no fingerprint
     } catch (e) { /* ignore */ }
     return "";
@@ -2601,24 +2971,10 @@ function blockyEnforceUniqueness(forceToolbox) {
                 }
             }
         }
-        // Only one If/Do root — keep the existing rule; reject extras.
-        const roots = ws.getTopBlocks(false).filter((b) => BLOCKY_ROOT_TRIGGERS.has(b.type));
-        if (roots.length > 1) {
-            const newId = BlockyRT.pendingCreateRootId;
-            let keep = roots.find((b) => !newId || b.id !== newId) || roots[0];
-            let rejected = false;
-            roots.forEach((b) => {
-                if (b.id === keep.id) return;
-                // healStack true — keep Else-if chain attached to the surviving If/Do.
-                try { b.dispose(true); changed = true; rejected = true; } catch (e) { /* ignore */ }
-            });
-            blockyRefreshCaseMatchLabels(keep.getNextBlock());
-            if (rejected && BlockyRT.app) {
-                BlockyRT.app.infoMessage =
-                    "Only one If/Do per rule — use Else-if on the chain (gear-style next blocks).";
-            }
-        }
-        BlockyRT.pendingCreateRootId = null;
+        // At most one floating If/Do — nested If/Do under Then (parent set) is allowed.
+        blockyDedupeOrphanIfDoRoots(ws);
+        blockyClearPendingCreateRootIfDone(ws);
+        blockyEnforceB22ControlRules(ws);
         const seen = new Map();
         const toDispose = [];
         ws.getAllBlocks(false).forEach((b) => {
@@ -2710,6 +3066,12 @@ function blockyOnChange(ev) {
     if (isDelete || isMoveRelink) {
         // Event Compare added/removed/moved → refresh turns ↔ is on sibling device Compares.
         blockyScheduleConditionGateWordingRefresh();
+        if (isMoveRelink && ev.blockId) {
+            const moved = blockyWs().getBlockById(ev.blockId);
+            if (moved && moved.type === "b_if_do") {
+                blockyClearPendingCreateRootIfDone(blockyWs());
+            }
+        }
     }
     let touchedActionId = null;
     if (isChange) {
@@ -2720,10 +3082,10 @@ function blockyOnChange(ev) {
             const blk = ws && ws.getBlockById(ev.blockId);
             if (blk && blk.type === "b_condition_device") {
                 const profile = blockyConditionCompareProfile(blk.getFieldValue("ENTITY"));
-                if (profile.kind === "sensor") {
+                if (profile.kind === "sensor" || (profile.kind === "level" && blk.getFieldValue("MODE") === "PCT")) {
                     try {
                         const lf = blk.getField("CROSSES_LABEL");
-                        if (lf) lf.setValue(blockyOpCrossesLabel(ev.newValue));
+                        if (lf) lf.setValue(blockyOpLabelForCondition(blk, ev.newValue));
                     } catch (e) { /* ignore */ }
                 }
             }
@@ -2899,6 +3261,26 @@ function blockyForEachConditionLeaf(conds, fn) {
             fn(c);
         }
     });
+}
+
+/** B22: walk flat actions and nested ``then:`` subtrees on a branch. */
+function blockyForEachBranchActions(branch, fn) {
+    if (!branch || typeof branch !== "object") return;
+    (branch.actions || []).forEach(fn);
+    const then = branch.then;
+    if (!then || typeof then !== "object") return;
+    (then.leading_actions || []).forEach(fn);
+    (then.trailing_actions || []).forEach(fn);
+    (then.branches || []).forEach((inner) => blockyForEachBranchActions(inner, fn));
+}
+
+/** B22: walk conditions on a branch and nested ``then:`` inner branches. */
+function blockyForEachBranchConditions(branch, fn) {
+    if (!branch || typeof branch !== "object") return;
+    blockyForEachConditionLeaf(branch.conditions, fn);
+    const then = branch.then;
+    if (!then || typeof then !== "object") return;
+    (then.branches || []).forEach((inner) => blockyForEachBranchConditions(inner, fn));
 }
 
 /** Count leaf Compare rows (ignores Logic group wrappers). */
@@ -3238,10 +3620,12 @@ function blockyApp() {
                     const rule = JSON.parse(this.editor.ruleJson || "{}");
                     if (Array.isArray(rule.branches)) {
                         rule.branches.forEach((br) => {
-                            blockyForEachConditionLeaf((br && br.conditions) || [], (c) => {
-                                if (c && c.type === "device_state" && c.entity_id) mark(c.entity_id, "condition");
+                            blockyForEachBranchConditions(br, (c) => {
+                                if (c && c.type === "device_state" && c.entity_id) {
+                                    mark(c.entity_id, "condition");
+                                }
                             });
-                            (br.actions || []).forEach((a) => {
+                            blockyForEachBranchActions(br, (a) => {
                                 if (a && a.entity_id) mark(a.entity_id, "action");
                             });
                         });
@@ -4417,13 +4801,13 @@ function blockyApp() {
                 rule.branches.forEach((br) => {
                     if (!br) return;
                     if (role === "condition") {
-                        blockyForEachConditionLeaf(br.conditions, (cond) => {
+                        blockyForEachBranchConditions(br, (cond) => {
                             if (cond && cond.type !== "event" && cond.type !== "time_of_day") {
                                 push(cond.entity_id);
                             }
                         });
                     } else if (role === "action") {
-                        (br.actions || []).forEach((a) => {
+                        blockyForEachBranchActions(br, (a) => {
                             if (a && a.entity_id) push(a.entity_id);
                         });
                     }
@@ -4495,11 +4879,11 @@ function blockyApp() {
                     rule.branches.forEach((br) => {
                         if (!br) return;
                         if (role === "trigger") {
-                            blockyForEachConditionLeaf(br.conditions, (c) => {
+                            blockyForEachBranchConditions(br, (c) => {
                                 if (c && c.type === "event" && c.event) addSticky(c.event);
                             });
                         } else {
-                            (br.actions || []).forEach((a) => {
+                            blockyForEachBranchActions(br, (a) => {
                                 if (a && a.event && !a.entity_id) addSticky(a.event);
                             });
                         }
@@ -4719,13 +5103,19 @@ function blockyApp() {
                     const type = when === "if" ? "b_if_do" : "b_else_if";
                     const blk = blockyMkBlock(type, null, bi === 0 ? 16 : undefined, bi === 0 ? 16 : undefined);
                     blockyConnectChain(blk, "IF", blockyConditionBlocksFromList(br.conditions || []));
-                    blockyConnectChain(blk, "DO", this._actionBlocks(br.actions || []));
+                    if (br.then) {
+                        this._connectMixedBody(blk, { then: br.then });
+                    } else {
+                        blockyConnectChain(blk, BLOCKY_BODY_INPUT, this._actionBlocks(br.actions || []));
+                        blockyControlBodyRefresh(blk);
+                    }
                     if (prev && prev.nextConnection && blk.previousConnection) {
                         try { prev.nextConnection.connect(blk.previousConnection); } catch (e) { /* ignore */ }
                     }
                     prev = blk;
                 });
 
+                blockyEnforceB22ControlRules(ws);
                 ws.getAllBlocks(false).forEach((b) => {
                     if (b.type === "b_action_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyActionStateOptions);
@@ -4743,22 +5133,7 @@ function blockyApp() {
                 let node = ws.getTopBlocks(true).find((b) => b.type === "b_if_do");
                 let bi = 0;
                 while (node && BLOCKY_CONTROL_BRANCH.has(node.type)) {
-                    const br = branches[bi] || {};
-                    const acts = br.actions || [];
-                    let ab = node.getInputTargetBlock("DO");
-                    let ai = 0;
-                    while (ab) {
-                        if (ab.type === "b_action_device") {
-                            if (acts[ai] && acts[ai].entity_id) {
-                                blockySafeSetField(ab, "ENTITY", acts[ai].entity_id);
-                                blockyApplyActionRich(ab, acts[ai]);
-                            }
-                            ai += 1;
-                        } else if (BLOCKY_EVENT_ACTIONS.has(ab.type)) {
-                            ai += 1;
-                        }
-                        ab = ab.getNextBlock();
-                    }
+                    this._applyBranchActionRich(node, branches[bi] || {});
                     bi += 1;
                     node = node.getNextBlock();
                 }
@@ -4860,16 +5235,276 @@ function blockyApp() {
             });
         },
 
+        /** B22: wake device entity_ids from a branch's top-level conditions (leaf device_state). */
+        _wakeDeviceEntityIds(conditions) {
+            const out = new Set();
+            const walk = (nodes) => {
+                (nodes || []).forEach((n) => {
+                    if (!n || typeof n !== "object") return;
+                    if (n.op && Array.isArray(n.children)) {
+                        walk(n.children);
+                        return;
+                    }
+                    if (n.type === "device_state" && n.entity_id) out.add(String(n.entity_id));
+                });
+            };
+            walk(conditions);
+            return out;
+        },
+
+        _serializeBodyPayload(bodyStart) {
+            if (!bodyStart) return { actions: [] };
+            let fc = bodyStart;
+            while (fc && !BLOCKY_CONTROL_BRANCH.has(fc.type)) fc = fc.getNextBlock();
+            if (!fc) {
+                return { actions: this._readActions(bodyStart) };
+            }
+            let cur = bodyStart;
+            let inCtrl = false;
+            let pastCtrl = false;
+            while (cur) {
+                if (BLOCKY_CONTROL_BRANCH.has(cur.type)) {
+                    if (pastCtrl) {
+                        throw new Error("Actions cannot appear between If/Else-if blocks in Then.");
+                    }
+                    inCtrl = true;
+                } else if (blockyIsActionBlock(cur)) {
+                    if (inCtrl) pastCtrl = true;
+                } else {
+                    throw new Error("Then may contain Sets and If/Else-if blocks only.");
+                }
+                cur = cur.getNextBlock();
+            }
+            const leading = [];
+            cur = bodyStart;
+            while (cur && blockyIsActionBlock(cur)) {
+                if (BLOCKY_EVENT_ACTIONS.has(cur.type)) {
+                    leading.push(blockyMergeOpaque({ event: cur.getFieldValue("EVENT") }, cur));
+                } else {
+                    leading.push(blockyReadActionRich(cur));
+                }
+                cur = cur.getNextBlock();
+            }
+            const branches = this._serializeBranchChainFromStatement(cur);
+            if (!branches.length) throw new Error("Then must contain at least one If/Else-if block.");
+            if (branches[0].when !== "if") {
+                throw new Error("First If/Else-if under Then must be If (not Else-if).");
+            }
+            while (cur && BLOCKY_CONTROL_BRANCH.has(cur.type)) cur = cur.getNextBlock();
+            const trailing = cur ? this._readActions(cur) : [];
+            const then = { branches };
+            if (leading.length) then.leading_actions = leading;
+            if (trailing.length) then.trailing_actions = trailing;
+            return { then };
+        },
+
+        _serializeControlBlock(cur) {
+            if (!BLOCKY_CONTROL_BRANCH.has(cur.type)) {
+                throw new Error("Unexpected block on control chain: " + cur.type);
+            }
+            const when = cur.type === "b_if_do" ? "if" : "else_if";
+            const conds = this._readConditions(cur.getInputTargetBlock("IF"));
+            const bodyStart = blockyControlBodyFirst(cur);
+            const mode = blockyControlBodyMode(cur);
+            if (mode === "then") {
+                const payload = this._serializeBodyPayload(bodyStart);
+                return { when, conditions: conds, then: payload.then };
+            }
+            return { when, conditions: conds, actions: this._readActions(bodyStart) };
+        },
+
+        _serializeBranchChainFromStatement(firstBlock) {
+            const branches = [];
+            let cur = firstBlock;
+            let i = 0;
+            while (cur && BLOCKY_CONTROL_BRANCH.has(cur.type)) {
+                branches.push(this._serializeControlBlock(cur));
+                cur = cur.getNextBlock();
+                i += 1;
+                if (i > 64) throw new Error("Branch chain too long.");
+            }
+            return branches;
+        },
+
+        /** Re-apply action rich fields after load (flat Do, Then leading/trailing, inner Do). */
+        _applyBranchActionRich(controlBlock, branchData) {
+            if (!controlBlock || !branchData) return;
+            const applyActs = (start, acts) => {
+                let ab = start;
+                let ai = 0;
+                const list = acts || [];
+                while (ab && ai < list.length) {
+                    if (ab.type === "b_action_device") {
+                        if (list[ai] && list[ai].entity_id) {
+                            blockySafeSetField(ab, "ENTITY", list[ai].entity_id);
+                            blockyApplyActionRich(ab, list[ai]);
+                        }
+                        ai += 1;
+                        ab = ab.getNextBlock();
+                    } else if (BLOCKY_EVENT_ACTIONS.has(ab.type)) {
+                        ai += 1;
+                        ab = ab.getNextBlock();
+                    } else if (BLOCKY_CONTROL_BRANCH.has(ab.type)) {
+                        break;
+                    } else {
+                        ab = ab.getNextBlock();
+                    }
+                }
+            };
+            if (branchData.then && typeof branchData.then === "object") {
+                const then = branchData.then;
+                const body = blockyControlBodyFirst(controlBlock);
+                if (body) applyActs(body, then.leading_actions);
+                let innerNode = blockyControlBodyFirstControl(controlBlock);
+                let idx = 0;
+                const innerBranches = then.branches || [];
+                while (innerNode && idx < innerBranches.length) {
+                    this._applyBranchActionRich(innerNode, innerBranches[idx]);
+                    innerNode = innerNode.getNextBlock();
+                    idx += 1;
+                }
+                if (innerNode) {
+                    applyActs(innerNode, then.trailing_actions);
+                }
+                blockyControlBodyRefresh(controlBlock);
+                return;
+            }
+            applyActs(blockyControlBodyFirst(controlBlock), branchData.actions || []);
+        },
+
+        _connectMixedBody(parentBlock, branchData) {
+            const inp = parentBlock.getInput(BLOCKY_BODY_INPUT);
+            if (!inp || !inp.connection) return;
+            if (branchData.actions) {
+                blockyConnectStatementChain(inp.connection, this._actionBlocks(branchData.actions || []));
+                blockyControlBodyRefresh(parentBlock);
+                return;
+            }
+            const then = branchData.then;
+            if (!then) return;
+            let tail = blockyConnectStatementChain(
+                inp.connection,
+                this._actionBlocks(then.leading_actions || [])
+            );
+            if (then.branches && then.branches.length) {
+                this._connectControlChain(parentBlock, then.branches, null, tail);
+            }
+            const firstCtrl = blockyControlBodyFirstControl(parentBlock);
+            if (firstCtrl && then.trailing_actions && then.trailing_actions.length) {
+                let last = firstCtrl;
+                while (last.getNextBlock() && BLOCKY_CONTROL_BRANCH.has(last.getNextBlock().type)) {
+                    last = last.getNextBlock();
+                }
+                blockyConnectStatementChain(last.nextConnection, this._actionBlocks(then.trailing_actions));
+            }
+            blockyControlBodyRefresh(parentBlock);
+        },
+
+        _connectControlChain(parentBlock, branches, inputName, startConnection) {
+            let prev = null;
+            branches.forEach((br, bi) => {
+                const when = br.when || (bi === 0 ? "if" : "else_if");
+                if (when === "else") {
+                    this._noteSilentLoss(`Branch #${bi + 1}: bare Else is retired — re-author as Else-if`);
+                    return;
+                }
+                const type = when === "if" ? "b_if_do" : "b_else_if";
+                const blk = blockyMkBlock(type, null, bi === 0 && !prev ? 16 : undefined, bi === 0 && !prev ? 16 : undefined);
+                blockyConnectChain(blk, "IF", blockyConditionBlocksFromList(br.conditions || []));
+                if (br.then) {
+                    this._connectMixedBody(blk, { then: br.then });
+                } else {
+                    blockyConnectChain(blk, BLOCKY_BODY_INPUT, this._actionBlocks(br.actions || []));
+                    blockyControlBodyRefresh(blk);
+                }
+                if (prev && prev.nextConnection && blk.previousConnection) {
+                    try { prev.nextConnection.connect(blk.previousConnection); } catch (e) { /* ignore */ }
+                } else if (startConnection && blk.previousConnection && bi === 0 && !prev) {
+                    try { startConnection.connect(blk.previousConnection); } catch (e) { /* ignore */ }
+                } else if (parentBlock && inputName) {
+                    const inp = parentBlock.getInput(inputName);
+                    if (inp && inp.connection && blk.previousConnection) {
+                        try { inp.connection.connect(blk.previousConnection); } catch (e) { /* ignore */ }
+                    }
+                }
+                prev = blk;
+            });
+            return prev;
+        },
+
+        _validateThenSubtree(thenBlock, wakeDevices, depth, path) {
+            if (depth > BLOCKY_MAX_NEST_DEPTH) {
+                return `${path}: then nesting exceeds MAX_NEST_DEPTH (${BLOCKY_MAX_NEST_DEPTH}).`;
+            }
+            if (!thenBlock || typeof thenBlock !== "object") return `${path}: then must be an object.`;
+            const branches = thenBlock.branches || [];
+            if (!branches.length) return `${path}: then.branches must be non-empty.`;
+            if (branches[0].when !== "if") return `${path}: first inner branch must be If.`;
+            for (let j = 0; j < branches.length; j += 1) {
+                const inner = branches[j];
+                const ip = `${path}[${j}]`;
+                if ((inner.when === "if" || inner.when === "else_if")
+                    && blockyCountLeafCompares(inner.conditions) < 1) {
+                    return `${ip}: each inner If/Else-if needs at least one Compare.`;
+                }
+                const leaves = [];
+                const walk = (nodes) => {
+                    (nodes || []).forEach((n) => {
+                        if (!n || typeof n !== "object") return;
+                        if (n.op && Array.isArray(n.children)) { walk(n.children); return; }
+                        leaves.push(n);
+                    });
+                };
+                walk(inner.conditions);
+                for (const leaf of leaves) {
+                    if (leaf.type === "event") {
+                        return `${ip}: event Compare not allowed inside Then (wake-only).`;
+                    }
+                    if (leaf.type === "device_state") {
+                        const eid = String(leaf.entity_id || "");
+                        if (eid && wakeDevices.has(eid)) {
+                            return `${ip}: device ${eid} is wake device — not allowed inside Then.`;
+                        }
+                        if (String(leaf.is || "").toUpperCase() === "ANY") {
+                            return `${ip}: changes state (ANY) not allowed inside Then.`;
+                        }
+                    }
+                }
+                const hasActs = Array.isArray(inner.actions) && inner.actions.length > 0;
+                const hasThen = inner.then && Array.isArray(inner.then.branches);
+                if (hasActs && hasThen) return `${ip}: cannot have both actions and then.`;
+                if (hasThen) {
+                    const err = this._validateThenSubtree(inner.then, wakeDevices, depth + 1, `${ip}.then`);
+                    if (err) return err;
+                }
+            }
+            return null;
+        },
+
+        _validateBranchB22(br, index) {
+            const hasActs = Array.isArray(br.actions) && br.actions.length > 0;
+            const hasThen = br.then && Array.isArray(br.then.branches);
+            if (hasActs && hasThen) return `Branch ${index}: cannot have both actions and then.`;
+            if (hasThen) {
+                const wakeDevices = this._wakeDeviceEntityIds(br.conditions);
+                return this._validateThenSubtree(br.then, wakeDevices, 1, `Branch ${index}.then`);
+            }
+            return null;
+        },
+
         applyBlocklyToV2() {
             this.ensureBlocklyReady();
             this.assertSilentLossClear();
             const ws = blockyWs();
             if (!ws) throw new Error("Blockly workspace not ready.");
             blockyAssertNoOrphans(ws);
+            const b22WsErr = blockyValidateWorkspaceB22(ws);
+            if (b22WsErr) throw new Error(b22WsErr);
             const tops = ws.getTopBlocks(true);
             const root = tops.find((b) => b.type === "b_if_do");
             if (!root) throw new Error("Blockly requires one If/Do block.");
-            if (tops.filter((b) => b.type === "b_if_do").length > 1) {
+            const orphanRoots = blockyOrphanIfDoRoots(ws);
+            if (orphanRoots.length > 1) {
                 throw new Error("Only one If/Do root allowed — use Else-if on the chain.");
             }
 
@@ -4877,21 +5512,15 @@ function blockyApp() {
             let cur = root;
             let i = 0;
             while (cur) {
-                if (cur.type === "b_if_do" || cur.type === "b_else_if") {
-                    const when = cur.type === "b_if_do" ? "if" : "else_if";
-                    const conds = this._readConditions(cur.getInputTargetBlock("IF"));
-                    const acts = this._readActions(cur.getInputTargetBlock("DO"));
-                    if (!conds.length) {
-                        // Invalid for enable — still allow serialize while disabled.
-                    }
-                    branches.push({ when, conditions: conds, actions: acts });
-                } else if (cur.type === BLOCKY_LEGACY_ELSE) {
+                if (cur.type === BLOCKY_LEGACY_ELSE) {
                     throw new Error(
                         "Bare Else is retired — use Else-if with an explicit complementary Compare."
                     );
-                } else {
+                }
+                if (!BLOCKY_CONTROL_BRANCH.has(cur.type)) {
                     throw new Error("Unexpected block on control chain: " + cur.type);
                 }
+                branches.push(this._serializeControlBlock(cur));
                 cur = cur.getNextBlock();
                 i += 1;
                 if (i > 64) throw new Error("Branch chain too long.");
@@ -4909,6 +5538,8 @@ function blockyApp() {
             this._bindSrNameToSeCatalog(payload);
             if (!payload.name) throw new Error("Rule name is required.");
             this.validateNoHardDeniedEntityIds(payload);
+            const b22Err = this._validateAllBranchesB22(payload.branches);
+            if (b22Err) throw new Error(b22Err);
             // B19 enable gate (mirrors backend).
             const enableErr = this._validateBranchesForEnable(payload);
             if (payload.enabled !== false && enableErr) {
@@ -4916,6 +5547,14 @@ function blockyApp() {
             }
             this.editor.ruleJson = JSON.stringify(payload, null, 2);
             return payload;
+        },
+
+        _validateAllBranchesB22(branches) {
+            for (let i = 0; i < (branches || []).length; i += 1) {
+                const err = this._validateBranchB22(branches[i], i);
+                if (err) return err;
+            }
+            return null;
         },
 
         _validateBranchesForEnable(payload) {

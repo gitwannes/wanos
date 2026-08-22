@@ -817,7 +817,7 @@ After midnight until OWM daily refresh (`sun_refresh_hour`, default **03:00** �
 | **6** | Rule-fired INFO audit | `logic/automation_rules.py` |
 | **7** | Z-Wave command origin in log line | `integrations/zwave.py` (and peers if same pattern) |
 
-**Not in G15:** G4 One Call; B15 demote schedule edges; B11 multi-flow merge.
+**Not in G15:** G4 One Call; B15 demote schedule edges; ~~B11 multi-flow merge~~ (**B11** cancelled **2026-08-22**).
 
 *(DoD + shipped summary — see § G15 Done above.)*
 

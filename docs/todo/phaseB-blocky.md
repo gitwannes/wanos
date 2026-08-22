@@ -1,6 +1,6 @@
 # ⚡ WanOS Phase B — Blocky
 
-This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **B9C** (Ship **B2**) ✅ **Done 2026-08-16**; **B19+B13** (Ship **B3**) ✅ **Done 2026-08-17**; **H4** (Ship **B4**) ✅ **Done 2026-08-17**; **H12 + bathroom** (Ship **B5**) ✅ **Done 2026-08-17**; **B9B** ✅ **Done 2026-08-20** (H5 deferred to **E**); **Blockly cluster next** = **B7 (B14) → B8** — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport + H5 Messages → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
+This document is the source of truth for (1) the **entity_id prerequisite** (done in code) and (2) the **Blocky** visual automation editor (Phases **B0–B8** + **B10A** + **B10C** **done**; **B10B+D+E** ✅ **complete 2026-08-10**; **B10F** ✅ **Done 2026-08-11**; **B9A** ✅ **Done 2026-08-12**; **B10G** / **B10H** ✅ **Done 2026-08-12**; **B9C** (Ship **B2**) ✅ **Done 2026-08-16**; **B19+B13** (Ship **B3**) ✅ **Done 2026-08-17**; **H4** (Ship **B4**) ✅ **Done 2026-08-17**; **H12 + bathroom** (Ship **B5**) ✅ **Done 2026-08-17**; **B9B** ✅ **Done 2026-08-20** (H5 deferred to **E**); **Blockly cluster next** = **Ship B7 (B14)** — see § **Domoticz goal** + [`pipeline.md`](pipeline.md) § Blockly ship groups). Operator shell → [`phaseC-shell.md`](phaseC-shell.md) (**C1/C2/C5** ✅; **C6–C9** ✅ **Done 2026-08-10**; **C10** ✅ **Done 2026-08-11**); device typing → [`phaseD-typing.md`](phaseD-typing.md) (**D** ✅ **Done 2026-08-11**); sequence → [`pipeline.md`](pipeline.md). Schedule admin model: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md). Gmail transport + H5 Messages → [`phaseE-gmail.md`](phaseE-gmail.md). API / events catalog → [`../reference.md`](../reference.md).
 
 **Historical:** `docs/todo/install_blocky.md` was an early Blocky install / phase pointer. It still described pre-**B10B** surface (E1 families, `SCHEDULE_WINDOW_EDGES`, `TWILIGHT_*`, old schedule labels, next = Phase 9A/9B). Retired to a stub at **B10B+D+E** close-out (**2026-08-10**); **deleted 2026-08-12** — this file is the only SoT. Bus pickers = `events:` UUIDs; schedule display = Morning/Evening **lights** on/off; sun refresh = `SUNRISE_SUNSET_UPDATE`; actuator ids `zwave.*` / `rfx.*` / `zwave.vent.*`; product light|switch via Timers & types.
 
@@ -101,7 +101,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-17**). **Ship B4 (H4) ✅ DONE** (**2026-08-17**). **Ship B5 (H12 + bathroom) ✅ DONE** (**2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN). **Phase B9B ✅ DONE** (**2026-08-20** — H5 deferred to **E**). **Next cluster:** **B7 (B14)** → **B8**. **B11–B18** / **B20** = lettered backlog.
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-17**). **Ship B4 (H4) ✅ DONE** (**2026-08-17**). **Ship B5 (H12 + bathroom) ✅ DONE** (**2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN). **Phase B9B ✅ DONE** (**2026-08-20** — H5 deferred to **E**). **Next cluster:** **Ship B7 (B14)**. **B12** / **B11–B18** / **B20** = lettered backlog (**B11** cancelled **2026-08-22**).
 
 **Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B:** **H4** ✅ **B4**; **H12 + bathroom** ✅ **B5**; **H5** notify → **E** (was Ship **B6** — cancelled **2026-08-20**).
 
@@ -366,7 +366,7 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 | **H5** | Notify / alert action | → **Phase E** — Blockly **Messages** block + `EMAIL_REQUESTED` (no bell/alert-only block; operator **2026-08-20**) |
 | **H12** | Dual-threshold humidity band | ✅ **Done (Ship B5 2026-08-17)** — If/Else-if **edge-cross** (no new block). Dedicated Schmitt / hygrostat / min-runtime → **B14**. |
 
-**Later lettered (not B9A/B9B):** H1–H3, H6–H10 → **B14** (Ship B7); H11 → **B13** (Ship **B3** with **B19**). Domoticz canvas → **B19** (Ship B3). Nested If/Do → **B22**. Time trigger → **B20** (after F). See § B11–B20 + **B22**.
+**Later lettered (not B9A/B9B):** H1–H3, H6–H10 → **B14** (Ship B7); H11 → **B13** (Ship **B3** with **B19**). Domoticz canvas → **B19** (Ship B3). Nested If/Do → **B22** ✅ **Done 2026-08-22**. Time trigger → **B20** (after F). See § B12–B20 + **B22** (**B11** cancelled **2026-08-22**).
 
 #### Facts
 
@@ -431,12 +431,12 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | **Canvas structure** | **If/Do** control block; **Compare** blocks plug into **If**; **Set** (and Messages) in **Do** — retire `When device` + `case MATCH` + flat `if device` chain as the primary authoring model (**B19**). |
 | **Device trigger** | Domoticz **Device** mode: device change wakes the rule; **all** discrimination lives in **Compare** inside **If** — not on case `when ON/OFF` or a threshold row on the trigger block. |
 | **Toolbox** | Device blocks **by class** (Switch, **Temperature**, **Humidity**, Blinds level, …) like Domoticz § Devices — not one generic `if device` row per entity. |
-| **Logic** | **Else-if** / **Else** on control block (**B13** — **Ship B3** with **B19** ✅); nested **AND/OR/NOT** inside Compare (**B9B H4** — **Ship B4** ✅). |
+| **Logic** | **Else-if** / **Else** on control block (**B13** — **Ship B3** with **B19** ✅); nested **AND/OR/NOT** inside Compare (**B9B H4** — **Ship B4** ✅). **Nested If/Do** via top **If/Then** (**B22** ✅ **2026-08-22**) — intentional **Domoticz divergence** (wiki: nested If/Do not supported). |
 | **Actions** | **Set** blocks in **Do** (incl. level / open % / volume / Hue); timed Set variants (**B14**). **Messages** notify → **Phase E** (H5). |
 | **Time trigger** | Domoticz **Time** trigger (evaluate every minute) — **out of Blockly cluster**; schedule **after F** (**B20**). Until then: system catalog events + `if time` / twilight conditions (B10B+E). |
 | **Explicitly out of scope** | **User variables**; **Debug/Log** Blockly block; Security panel trigger (unless product adds alarm). |
 
-**Sequence:** finish **B9A** → **B9C** ✅ → **Blockly cluster** Ships **B3–B5** + **B9B** ✅ → **B7–B8** (**B14** → B11+B12) → then shell (**C\***), integrations (**G\***), **E**, **F** → **B20** time trigger. Parallel options → [`pipeline.md`](pipeline.md) § Parallel tracks.
+**Sequence:** finish **B9A** → **B9C** ✅ → **Blockly cluster** Ships **B3–B5** + **B9B** ✅ → **Ship B7** (**B14**) → then shell (**C\***), integrations (**G\***), **E**, **F** → **B20** time trigger. **B12** ∥ Ship B7. Parallel options → [`pipeline.md`](pipeline.md) § Parallel tracks.
 
 ---
 
@@ -472,6 +472,8 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 #### Blockly ship groups — **one PR each**
 
+**Ship** ids are delivery batches — distinct from closed **Phase** ids **B7** (soft-hide) and **B8** (auto-off).
+
 | Ship | Phases | Size | Notes |
 |---|---|---|---|
 | **B1** | **B9A** closeout | low | Pi smoke + Debug GREEN + docs. **Alone.** |
@@ -479,13 +481,12 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | **B3** | **B19** + **B13** | **high** | ✅ **Done 2026-08-17** — If/Do + Else-if/Else, Compare, toolbox, Set, branch cutover; Pi smoke OK. |
 | **B4** | **B9B H4** only | high | ✅ **Done 2026-08-17** — nested AND/OR/NOT in Compare; OR-list migrator; `b_trig_or` removed; Debug GREEN. |
 | **B5** | **B9B H12** + bathroom | mid | ✅ **Done 2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN |
-| ~~**B6**~~ | ~~**B9B H5** notify~~ | — | **Cancelled** — H5 → **E** (operator **2026-08-20**) |
-| **B7** | **B14** (excl. time) | high | H1–H3 · H6–H10 subset + **B5-deferred** (min-runtime, level Compare, Auto switch, hygrostat, Schmitt block, sweeper replay). **No** Time trigger (→ **B20**). Pick subset at kickoff. |
-| **B8** | **B11** + **B12** | mid | Multi-flow (**all matching If/Do fire** — reunite CINEMA OFF / Evening lights on splits) + folder/tag — after B19 canvas stable. |
+| **B7** | **B14** (excl. time) | high | H1–H3 · H6–H10 subset + **B5-deferred** (min-runtime, level Compare, Auto switch, hygrostat, Schmitt block, sweeper replay). **No** Time trigger (→ **B20**). Pick subset at kickoff. **Not** Phase **B7** (soft-hide ✅). |
+| ~~**B6**~~ | ~~**B11** + **B12**~~ | — | **Cancelled** **2026-08-22** — B11 multi-flow dropped (operator); **B12** unbundled → standalone in Sequence. *(Slot: H5 notify → **E** **2026-08-20**.)* |
 
 **Not in Blockly cluster:** **B15** (schedule demotion), **B16** (internal bus UUID), **B17** (assess), **B18** (sauna clamp) — stay in general pipeline after **F** unless safety jumps **B18**.
 
-**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **C18** ✅ after **B10H**; **G5** ✅ **Done 2026-08-16** (legacy + **B9C**, not after B19); **E** (Gmail + H5 Messages) ∥ Ships **B7–B8**.
+**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **C18** ✅ after **B10H**; **G5** ✅ **Done 2026-08-16** (legacy + **B9C**, not after B19); **E** (Gmail + H5 Messages) ∥ Ship **B7**; **B12** ∥ Ship **B7**.
 
 **After F:** **B20** — Domoticz **Time** trigger + time-compare blocks (every-minute evaluation model).
 
@@ -522,7 +523,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 #### Shipped summary
 
-- Authoring: **If/Do** + **Else-if** / **Else** (first-match); no When/case; wake derived from device/event Compares; time Compare = gate only until B20. **No nested If/Do** at ship — use flat Else-if/Else chain; multi-root parallel fire → **B11** (Ship **B8**). **Nested If/Do queued → B22** (rescinds this lock when shipped).
+- Authoring: **If/Do** + **Else-if** / **Else** (first-match); no When/case; wake derived from device/event Compares; time Compare = gate only until B20. ~~**No nested If/Do** at ship~~ — **B22 ✅ (2026-08-22):** top **If/Then** + nested **If/Do/Else-if/Do** via branch `then:` (WanOS extension; Domoticz wiki does not support nested If/Do). Flat rules stay **If/Do**. ~~Multi-root parallel fire → **B11**~~ (**B11** cancelled **2026-08-22** — keep separate Library rows).
 - On-disk: `branches: [{ when, conditions, actions }]`; API hard-rejects legacy `trigger`+`cases` writes.
 - Toolbox: Control · Logic · Time · Events (legacy When/case removed).
 - UX polish: branch load from `branches` (not legacy trigger/cases); SE/event sticky from Compares; motion = fixed “motion” (`is: ON`); discrete **transitioned** (`is: ANY`); leaner block labels.
@@ -531,7 +532,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
   - `KeukenLivingEetk_EetkHue` — nested **OR** of three level `is: ON` Compares → Hue ON
   - Spare Button ×3 — `is: ANY` on `zwave.living_special` + Else-if gates (night rule keeps Hue ON → ALL OFF branch)
 - **Hotfix (2026-08-16):** `append_automation` / `update_automation` must persist `branches` (do not run B19 rules through `legacy_to_v2` — that rewrote Saves to trigger+cases).
-- Non-exclusive splits kept as separate rules (CINEMA OFF ×3, Evening lights on ×2) → reunite under **B11** (Ship **B8**). Optional operator hand-merge **Evening lights on** + `(2)` → one If/Else chain (living ON → GoCosy + lights; Else → lights only); delete duplicate Library row before save.
+- Non-exclusive splits kept as separate rules (CINEMA OFF ×3, Evening lights on ×2) — **B11** reunite cancelled **2026-08-22**; optional operator hand-merge **Evening lights on** + `(2)` → one If/Else chain (living ON → GoCosy + lights; Else → lights only); delete duplicate Library row before save.
 - Sync: `*.bak-*` mirror-exclude so Pi migrator backups are not deleted.
 - Cache at close: `blocky.js?v=26`.
 
@@ -545,7 +546,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | **Conditions** | Flat AND at branch top level; nested Logic groups (**B4** ✅). |
 | **Schema** | Hybrid branches; no authoring `trigger`. |
 | **OR-list** | Retired — migrated to nested Compare + branches (**B4** ✅). |
-| **Out of scope (B19)** | Messages (**E** / H5); Time trigger (**B20**); timed Set (**B14**); multi-root (**B11**); nested If/Do (**B22**). |
+| **Out of scope (B19)** | Messages (**E** / H5); Time trigger (**B20**); timed Set (**B14**); ~~multi-root (**B11**)~~; ~~nested If/Do (**B22**)~~ → **B22** ✅ **2026-08-22**. |
 
 #### DoD
 
@@ -793,13 +794,23 @@ Automations page Activate overlay uses **`automations`** row when `needs_automat
 
 ---
 
-### B22 — Nested If/Do (queued **2026-08-21**)
+### B22 — Nested If/Do ✅ DONE (2026-08-22)
 
-**Letter:** **B22**. **Sequence #4** (after **B8**). Status **open**.
+**Letter:** **B22**. **Size:** mid · **one PR**. Status **Done** — Pi smoke **2026-08-22** (operator).
 
-**Depends on:** **B19** ✅ (canvas). Distinct from **H4** (nested AND/OR in Compare — Done) and **B11** (sibling multi-flow If/Do roots — Ship **B8**).
+**Depends on:** **B19** ✅ (canvas). Distinct from **H4** (nested AND/OR in Compare — Done). ~~**B11** (sibling multi-flow If/Do roots)~~ — **B11 cancelled 2026-08-22**.
 
-#### Operator requests (verbatim)
+#### Shipped summary
+
+- **Schema / API:** branch **`actions` xor `then:`**; `ThenBlockConfig` with `branches` + optional **`leading_actions`** / **`trailing_actions`**; recursive `then` to **`MAX_NEST_DEPTH = 3`** (`core/automation_limits.py`, shared with H4 Logic depth).
+- **Engine:** outer first-match (B19); matched branch with **`then`** runs leading Sets → inner first-match @ action time → trailing Sets; wake = top-level `conditions` only.
+- **Blockly:** top **If → Then** (single **BODY** socket); nested **If/Do/Else-if/Do** under **Then**; flat rules stay **If → Do**; mixed **Set** + control chains via unified **`ThenStmt`** connection type; entity sticky walks full `then:` tree on load.
+- **Compare UX:** inside **`then:`** and AND gate rows — **is ON/OFF** (no **changes state**); numeric **is above/below/…** (not **crosses**); top-level wake row unchanged (**turns** / **crosses** / **changes state**).
+- **Validation:** no `is: ANY`, no wake-device reuse, no event Compare in `then`; time Compare OK @ action time.
+- **Repo YAML:** `Living special`, `Evening lights on`, `--- CINEMA OFF`, `Badk 1e: physical switch`, nested sauna physical switch, others — operator smoke OK.
+- **Cache at close:** `blocky.js?v=50`, `blocklySchemaVersion: 58`.
+
+#### Kickoff lock (archived)
 
 > triage: add the nested if to H4  
 > *(2026-08-21 — placement: not H4; new **B22**)*
@@ -807,19 +818,297 @@ Automations page Activate overlay uses **`automations`** row when `needs_automat
 > add B22 for nested if/do  
 > and restructure the pipeline.md — … go (locked is NOT a 3rd status)
 
-#### Intent (stub — lock at kickoff)
+**Kickoff Q&A locked 2026-08-22:**
 
-- Allow **nested If/Do** inside a Do (or equivalent control nesting) so authors can branch without only flat Else-if.
-- **Rescinds** B19 lock “No nested If/Do” when this ships (update B19 shipped summary + Domoticz goal notes).
-- **Not** nested Logic AND/OR (**H4** ✅).
-- **Not** multiple top-level If/Do roots (**B11** / Ship **B8**).
+| # | Decision |
+|---|---|
+| **1** | **Yes** — intentional **Domoticz divergence** (Domoticz wiki: nested If/Do not supported). Document in § Domoticz goal + B19 shipped summary when shipped. |
+| **2** | **Reference rule:** **`Living special: phyiscal switch`** — rewrite target (see § Example). |
+| **3** | **Wake vs level:** **Outer** (top-level branch) Compare = **edge / event** (e.g. `is: ANY` on switch — rule wake). **`then` subtree** Compares = action-time only — **do not** add wake sources. See row **12** for allowed inner operators. |
+| **4** | **First-match** inside each nested If/Else-if chain (same as B13/B19). |
+| **5** | **Else-if** inside nest: same complementary Compare rules as top level; **no bare Else** (B21). |
+| **6** | **`MAX_NEST_DEPTH = 3`** — single named constant in code, shared by **B22 Then nesting** and **H4 Logic group** depth. Enforce on Save + API PUT + registry check. **Live YAML audit 2026-08-22:** max Logic depth **2** (see § Depth audit); nothing **> 3**. |
+| **7** | **YAML shape:** § Proposal — branch `then:` (mutually exclusive with `actions:`). |
+| **8** | **Placement + labels:** § Scope — top **If → Then** (not Do); under **Then** a nested **If/Do/Else-if/Do** chain. Flat rules stay **If/Do**. |
+| **9** | **One PR, mid size** — confirmed. |
+
+**Kickoff close-out 2026-08-22:**
+
+| # | Decision |
+|---|---|
+| **10** | **Depth 2–3:** **B** — nested **`then:`** inside inner branches allowed (each `then:` = +1 toward `MAX_NEST_DEPTH`). |
+| **11** | **Top-level Else-if + `then:`** — **yes**; siblings may mix **`then:`** and **`actions:`** on one rule. |
+| **12** | **Inner Compares** (inside `then` subtree): **device level** (no `is: ANY`; no wake-device `entity_id` — see § Closed). **Time Compares:** **yes** @ action time. **Event Compares:** **not allowed** in `then` — events are **wake-only** (top-level `conditions`). |
+| **13** | **Smoke:** operator **manual** smokes post-ship; reports back. Code ships **`Living special`** rewrite in YAML; no agent Pi smoke gate. |
+| **14** | **Inner Compare types:** **time** — **yes** in `then` @ action time; **event** — **no** in `then` (wake-only, top-level). |
+
+#### Scope & labels (locked **2026-08-22** — operator refinement)
+
+**Two top-level shapes:**
+
+| Shape | Blockly | When |
+|---|---|---|
+| **Flat** (B19 unchanged) | **If** → **Do** (leaf Sets / fire-event) | No nested control |
+| **Nested** (B22) | **If** → **Then** → nested **If/Do/Else-if/Do** chain | Wake on outer **If**; split under **Then** @ action time |
+
+**Nested shape (operator lock — Living special):**
+
+```text
+If    living_special changed          ← edge wake (top If only)
+Then                                  ← replaces Do on this branch (not “If/Do” at top)
+  If    living_hue is ON              ← level @ action time (not living_special — wake device)
+    Do  fire scene A                  ← leaf only
+  Else-if  living_hue is OFF
+    Do  fire scene B
+```
+
+- **Top branch with nested control:** outer socket is **Then**, **not Do**.
+- **Under Then:** a full **If / Do / Else-if / Do** control chain (same blocks / first-match as B19) — **not** Then/Else-if labels at this inner level.
+- **Leaf:** **Do** holds Set / fire-event only (end of each inner path).
+- **Flat rules** (e.g. `PC -> PC Monitors`): remain **If / Do** — no **Then**.
+
+**Branch payload (mutually exclusive):**
+
+- **`actions:`** — flat leaf list (**If/Do** rule).
+- **`then:`** — `{ branches: [...] }` nested **If/Do/Else-if** chain (**If/Then**). Inner branch ends with leaf **`actions`** **or** nested **`then:`** (depth cap). **Not both** `actions` + `then` on one branch.
+- **Top-level Else-if** may use **`then:`** or **`actions:`** independently per sibling branch.
+
+| In scope | Out of scope |
+|---|---|
+| Top **If → Then →** nested If/Do/Else-if/Do; **`then:`** nested to depth **3** | Multiple top-level If roots (**B11** cancelled) |
+| Top-level **Else-if** with **`then:`** or flat **`actions:`** (mixed siblings OK) | Top **If → Do** wrapping nested control (use **Then**) |
+| Inner **time** Compare @ action time | **Event Compare in `then`** (wake-only) |
+| **`Living special`** YAML rewrite in ship | Domoticz nested If/Do parity |
+| Operator **manual** smoke post-ship | Agent Pi smoke gate |
+
+**Depth model (`MAX_NEST_DEPTH = 3`):**
+
+- Each branch **`then:`** key = **+1** (count nested wrappers; top-level branch **`then:`** = depth **1**).
+- Inner **`then.branches[]`**: leaf **`actions`** **or** nested **`then:`** (recursive, cap **3**).
+- **Logic (H4):** leaf Compare = **0**; each `op: and|or` = **+1** (max **3**).
+
+#### Depth audit — live `automations.auto.yaml` (**2026-08-22**)
+
+All `op: and|or` groups in repo YAML (7 group nodes across 4 rules):
+
+| Depth | Rules |
+|---|---|
+| **1** | `Keuken, Living & Eetk -> Eetk Hue` (flat `or`) |
+| **2** | `Sauna: physical switch` (`and` → `or`); `nested test` (both branches: `and` → `or`) |
+
+**Max depth = 2.** **Nothing > 3.** Live **`then:`** rules include **`Living special`**, **`Evening lights on`**, **`--- CINEMA OFF`**, bathroom physical switches, sauna nested switch (operator-authored).
+
+#### YAML proposal (locked)
+
+Top-level branch: **`actions`** **xor** **`then`**:
+
+```yaml
+branches:
+  - when: if
+    conditions:
+      - type: device_state
+        entity_id: zwave.living_special
+        is: ANY                 # outer If — edge wake only
+    then:
+      branches:
+        - when: if              # nested If (Blockly If/Do chain under Then)
+          conditions:
+            - type: device_state
+              entity_id: hue.group.living_hue
+              is: "ON"          # level @ action time — not ANY
+          actions:
+            - event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
+        - when: else_if
+          conditions:
+            - type: device_state
+              entity_id: hue.group.living_hue
+              is: "OFF"
+          actions:
+            - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
+```
+
+Flat branch (unchanged):
+
+```yaml
+  - when: if
+    conditions: [...]
+    actions:
+      - entity_id: zwave.pc_monitors
+        state: "ON"
+```
+
+**Schema notes:**
+
+- `BranchConfig`: optional `actions` **or** optional `then: { branches, leading_actions?, trailing_actions? }` — validator enforces XOR.
+- Inner `then.branches` use B19 `when / conditions / actions` **or** nested `then` on a branch (depth cap).
+- Inner device Compares: level / numeric / discrete — **reject** `is: ANY`; **reject** wake-device `entity_id` in `then`.
+- **Allow** `type: time_of_day` (and future time Compares) in `then` @ action time.
+- **Reject** `type: event` in `then` — event Compares are **wake-only** (top-level `conditions`).
+- **Reject** `actions` + `then` on the **same** branch.
+- **Reject** `then` nesting depth **> MAX_NEST_DEPTH**.
+- Wake derivation: **top-level** `branches[].conditions` only — do **not** walk `then` subtrees.
+
+#### Closed **2026-08-22** — inner Compare types (**was § Open A**)
+
+| Compare | In `then` subtree |
+|---|---|
+| **Device level** | **Yes** — not wake device; no `is: ANY` |
+| **Time** (`time_of_day`, twilight, …) | **Yes** @ action time |
+| **Event** | **No** — wake-only (top-level `conditions`) |
+
+#### Closed **2026-08-22** — inner `is: ANY` / wake device (**was § Open B**)
+
+| Rule | Detail |
+|---|---|
+| **`is: ANY` in `then`** | **Not allowed** — Blockly omit / Save reject. Inner = level checks only. |
+| **Wake device in `then`** | Device `entity_id`s used in **that branch’s** top-level `conditions` (leaf Compares) **must not** reappear in `then` subtree device Compares. Example: outer `living_special` `ANY` → inner may use `living_hue` ON/OFF only, **not** `living_special` again. |
+
+#### Example — `Living special: phyiscal switch` (rewrite target)
+
+**Today (flat Else-if — duplicates switch Compare on each branch):**
+
+```yaml
+branches:
+  - when: if
+    conditions:
+      - { type: device_state, entity_id: zwave.living_special, is: ANY }
+      - { type: device_state, entity_id: hue.group.living_hue, is: "ON" }
+    actions:
+      - { event: 9bb384f0-1787-44a8-aaa2-5fee007552d3 }
+  - when: else_if
+    conditions:
+      - { type: device_state, entity_id: zwave.living_special, is: ANY }
+      - { type: device_state, entity_id: hue.group.living_hue, is: "OFF" }
+    actions:
+      - { event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2 }
+```
+
+**Shipped (B22):**
+
+```yaml
+branches:
+  - when: if
+    conditions:
+      - type: device_state
+        entity_id: zwave.living_special
+        is: ANY
+    then:
+      branches:
+        - when: if
+          conditions:
+            - type: device_state
+              entity_id: hue.group.living_hue
+              is: "ON"
+          actions:
+            - event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
+        - when: else_if
+          conditions:
+            - type: device_state
+              entity_id: hue.group.living_hue
+              is: "OFF"
+          actions:
+            - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
+```
+
+**Blockly (locked labels):**
+
+```text
+If    living_special changed
+Then
+  If    living_hue is ON
+    Do  fire scene A
+  Else-if  living_hue is OFF
+    Do  fire scene B
+```
+
+**Not in scope:** second top-level If block; If/Do in Compare socket; top **If/Do** when branch uses **`then:`** (must be **If/Then**).
+
+#### Blockly (implement-time notes)
+
+- Top block: **If** + **Then** statement (replaces **Do** on that branch) containing nested **If/Do + Else-if** chain; flat branches keep **If/Do**.
+- Nested chain reuses B19 control blocks (`b_if_do`, `b_else_if`) inside the **Then** socket.
+- Serialize: branch `then.branches` ↔ nested workspace chain; flat `actions` unchanged.
+- Save errors: `actions` + `then` on same branch; depth > `MAX_NEST_DEPTH`.
+
+#### Engine (implement-time notes)
+
+- Outer first-match unchanged (B19). Matched branch with **`then`**: inner first-match on `then.branches` at action time (level Compares only; no `ANY`).
+- Inner branch leaf **`actions`**: run Sets/events. Inner branch **`then`**: recurse (depth cap).
+- Matched branch with flat **`actions`**: unchanged.
+
+#### DoD
+
+- [x] **`MAX_NEST_DEPTH = 3`** constant (shared module); enforced Save, API, registry check, Logic validator
+- [x] Schema + API: branch **`then`** xor **`actions`**; recursive `then`; top-level Else-if may use either; **`leading_actions`** / **`trailing_actions`**
+- [x] Blockly: top **If/Then** + nested **If/Do/Else-if/Do**; flat **If/Do** unchanged; mixed Sets + nested control; round-trip
+- [x] Engine: inner first-match @ action time; wake = top-level conditions only; leading → inner → trailing order
+- [x] Validation: depth cap; XOR `actions`/`then`; no `is: ANY` in `then`; no wake-device in `then`; **no event Compare in `then`**; time Compare OK in `then`
+- [x] Rewrite **`Living special: phyiscal switch`** + operator nested rules in repo YAML
+- [x] Flat Else-if rules unchanged (regression: `Badk 1e: physical switch`, `PC -> PC Monitors`) — operator smoke **2026-08-22**
+- [x] B19 + Domoticz goal docs: nested If/Do = **WanOS extension** (Domoticz wiki: not supported)
+- [x] Gate Compare labels in **`then:`** / gate rows (**is** / **is above**; no **changes state** in UI)
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-22**
+
+#### Operator feedback — shipped UX fixes (2026-08-22)
+
+- Single **BODY** socket on control blocks (label **Then**); nested If/Do allowed under **Then** without second-root error.
+- **`ThenStmt`** chain type — **Set** + nested If/Else-if snap in one **Then** body.
+- Entity picker sticky includes full **`then:`** subtree (load no longer snaps all actions to one device).
+- Gate wording refresh for inner **Then** and AND gate rows (see Shipped summary).
+
+---
+
+### B24 — Per-rule sweep reconcile 🔜 TODO
+
+**Letter:** **B24**. **Sequence #3** (after **B22** ✅; may run ∥ **B12**). **Size:** mid · **one PR**. Status **open** — triage **2026-08-22** (kickoff not started).
+
+**Depends on:** **B19** ✅ (branch rules + engine). Distinct from **B20** (Time trigger every minute). Supersedes / generalizes **B14** row 6 (humidity-only sweeper replay — dropped in **B5**).
+
+#### Operator requests (verbatim)
+
+> Q: the initial (or manually triggered) sweep: what does it check, only auto-off events? or could we also add a checkbox to certain automation rules that need to be checked at sweep-time - the "PC Monitors -> Buro Schemer & Sonos" rule, for example: when the PC monitors are ON at sweep, do that...
+
+> triage this into pipeline, no further actions today
+
+#### Problem (verified)
+
+`SYSTEM_SWEEP_REQUESTED` today:
+
+| Part | What |
+|---|---|
+| `system_handlers.py` | Env schedule recalc; **active** sweeps re-dispatch twilight/blinds catalog triggers |
+| `automation_rules.py` | **Auto-off timer recovery** only (managed ON devices missing a timer) |
+
+Library rules **do not** re-evaluate against live state at sweep. Edge-wake rules (e.g. **`PC Monitors -> Buro Schemer & Sonos`**) miss when the trigger device was **already ON** before WanOS booted / before the rule existed.
+
+#### Proposal (triage — not locked)
+
+- Per-rule opt-in: e.g. **`sweep_reconcile: true`** in YAML + Blockly checkbox (**Reconcile at sweep**).
+- On `SYSTEM_SWEEP_REQUESTED`: for flagged rules only — **skip derived wake**, run normal **first-match** against **live state**, execute leaf actions (incl. B22 `then:` inner chains).
+- **Reference rule:** `PC Monitors -> Buro Schemer & Sonos`.
+
+#### Open at kickoff
+
+| # | Question |
+|---|---|
+| **1** | Passive boot sweep vs manual Admin GO only vs both? |
+| **2** | Event-gated rules — reject checkbox on Save, or allow with policy? |
+| **3** | `is: ANY` / wake-only Compare rules — reject on opt-in? |
+| **4** | Idempotency — repeat Sonos/schemer ON every sweep OK? |
+| **5** | Interaction with **B22** nested `then:` — confirm outer If + inner level checks only. |
+
+#### Out of scope (triage)
+
+- Global replay of **all** rules at sweep
+- Domoticz parity
+- Replacing **B20** periodic evaluation
 
 #### DoD (stub)
 
-- [ ] Kickoff: nesting depth, wake/first-match vs nested chains, YAML shape
-- [ ] Blockly + schema + engine support nested If/Do
-- [ ] Pi smoke; no regression on flat Else-if chains
-- [ ] B19 docs: strike “no nested If/Do”
+- [ ] Schema + API field; Save / enable validation
+- [ ] Engine hook on `SYSTEM_SWEEP_REQUESTED` for flagged rules
+- [ ] Blockly checkbox + round-trip
+- [ ] Pi smoke: PC Monitors rule @ boot with monitors already ON
 - [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
@@ -1210,7 +1499,7 @@ Phase B5 does **not** require a rollback rehearsal that depends on hand-edit + A
 11. **Phase B10D:** unique rule names (case-insensitive; Blocky + API) — **ships inside B10B+D** (enforced in code; Pi smoke ✅ **2026-08-10**).
 12. **Phase B10E:** Automations **Library** (UE/UR/SE/SR/D + C), New user event form, When/Fire user vs system, schedule display names, wipe Sunset listeners — ✅ **DONE 2026-08-10**.
 13. **Phase B10F:** Automations UX polish (save chrome, connecting, library keys, schedule fire-time status) — ✅ **Done 2026-08-11**.
-14. **Phase B11–B18:** multi-flow; folder/tag; IF/ELSE; remaining HA; demote schedule; bus UUID; Sauna/IR assess; sauna session_end clamp — see § B11–B18.
+14. **Phase B12–B18:** folder/tag; IF/ELSE; remaining HA; demote schedule; bus UUID; Sauna/IR assess; sauna session_end clamp — see § B12–B18 (**B11** cancelled **2026-08-22**).
 
 ## ✅ Definition of Done (Option 2)
 
@@ -1660,7 +1949,7 @@ Run on **Pi** after deploying latest (`entity_registry_check` skip ≥900000, Bl
 
 #### After B10B+D (not DoD)
 
-Pointers only — detail under § B10F / § B11–B18:
+Pointers only — detail under § B10F / § B12–B18:
 
 * **B10F** — Automations UX polish — ✅ **Done 2026-08-11** (does not reopen B10E DoD).
 * **B10G** — ✅ **Done 2026-08-12** — load checklist + timings + NOT CONNECTED (SSE A+B+C) + admin **`vNN`** + hue preset scoped reload.
@@ -1676,7 +1965,7 @@ Pointers only — detail under § B10F / § B11–B18:
 * **C10** — Explorer/History polish — [`phaseC-shell.md`](phaseC-shell.md); ✅ **Done 2026-08-11**.
 * **G6** — Scoped `CONFIG_RELOAD` + Automations deferred Save config — [`phaseG-integrations.md`](phaseG-integrations.md); not a new B item.
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
-* **B11** — Multi-flow in one Blockly page.
+* ~~**B11** — Multi-flow in one Blockly page.~~ **Cancelled 2026-08-22.**
 * **B12** — Rule-list folder/tag.
 * **`EMAIL_REQUESTED`:** seed with phase **E** (not B10B).
 * **B15** — Demote schedule edges → user origin.
@@ -2011,7 +2300,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ### Phase B10I — Used SE → Go to SR 🔜 TODO
 
-**Origin:** operator inbox **2026-08-12**. **After B10F** ✅. Size **low**. **Parallel:** may run beside **B10H** and Ships **B2–B8** — no B19 dependency ([`pipeline.md`](pipeline.md) § Parallel tracks). **One SR per SE** (catalog invariant) — mirror of B10F item 6 (**unused SE → create SR**).
+**Origin:** operator inbox **2026-08-12**. **After B10F** ✅. Size **low**. **Parallel:** may run beside **B10H** and Ship **B2–B7**, **B12** — no B19 dependency ([`pipeline.md`](pipeline.md) § Parallel tracks). **One SR per SE** (catalog invariant) — mirror of B10F item 6 (**unused SE → create SR**).
 
 **Intent:** When viewing a **used** **SE** (listening SR exists), add **Go to SR** — selects/opens the companion **SR** in the Library (scroll + focus editor).
 
@@ -2023,7 +2312,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ### Phase B10J — Event Received log catalog name 🔜 TODO
 
-**Origin:** operator inbox **2026-08-12**. Backend logging — **not** Blockly UI. Size **low**. **After B10B** ✅ (catalog UUID bus). **Parallel:** may run beside **B10H** and Ships **B2–B8** ([`pipeline.md`](pipeline.md) § Parallel tracks).
+**Origin:** operator inbox **2026-08-12**. Backend logging — **not** Blockly UI. Size **low**. **After B10B** ✅ (catalog UUID bus). **Parallel:** may run beside **B10H** and Ship **B2–B7**, **B12** ([`pipeline.md`](pipeline.md) § Parallel tracks).
 
 **Operator request (verbatim):**
 > - log: "2026-08-12 12:06:26.315 | INFO     | Event Received [856d0f0d-1f6b-4a1a-ace8-a5856a5ee491]: {'origin': 'MANUAL'}" add proper name
@@ -2072,7 +2361,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ### Phase B10L — NOT CONNECTED overlay status 🔜 TODO
 
-**Origin:** operator inbox **2026-08-13** (screenshot 2). **Copy line 2026-08-15.** Shared shell overlay (`data-wanos-offline`) — **all SSE pages** that use it (Automations, Explorer, Admin, WISC, History, …). Size **low**. **Parallel:** beside **B2–B8**. Extends **B10G** overlay **1** (not overlay **2** yellow checklist).
+**Origin:** operator inbox **2026-08-13** (screenshot 2). **Copy line 2026-08-15.** Shared shell overlay (`data-wanos-offline`) — **all SSE pages** that use it (Automations, Explorer, Admin, WISC, History, …). Size **low**. **Parallel:** beside **B2–B7**, **B12**. Extends **B10G** overlay **1** (not overlay **2** yellow checklist).
 
 **Covering operator request (verbatim):**
 > - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
@@ -2100,7 +2389,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ### Phase B10M — Explorer Hue preset duplicate settings 🔜 TODO
 
-**Origin:** operator inbox **2026-08-15**. Explorer Hue preset CRUD (B9A / B10G Part D) — **not** Automations save (**G6**), **not** G2 color truth. Size **low**. **Parallel:** beside **B2–B8** (after **B10G** Part D ✅).
+**Origin:** operator inbox **2026-08-15**. Explorer Hue preset CRUD (B9A / B10G Part D) — **not** Automations save (**G6**), **not** G2 color truth. Size **low**. **Parallel:** beside **B2–B7**, **B12** (after **B10G** Part D ✅).
 
 **Operator request (verbatim):**
 > bugfix: cannot save another preset with the same settings as an already existing preset
@@ -2127,33 +2416,21 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ---
 
-### Phase B11 — Multi-flow one Blockly page (Ship B8) 🔜 TODO
+### Phase B11 — Multi-flow one Blockly page ❌ CANCELLED (2026-08-22)
 
-**Depends on:** **B19** (Ship **B3**) — gate before kickoff. N independent If/Do graphs under one Library entry — reassess tension with B6B **after** Domoticz canvas lands.
+**Origin (operator 2026-08-22):** multi-flow not wanted — keep separate Library rows per parallel case.
 
-**Ship with B12** — one PR.
+**Was (2026-08-16):** N independent If/Do graphs under one Library entry; on wake **every matching If/Do runs** (non-exclusive). Reunite migrator splits (CINEMA OFF ×3, Evening lights on ×2).
 
-**Operator request (2026-08-16, verbatim):**
-> this should be possible - put that in the pipeline where it fits
-
-**Intent (locked into B11 — not H4 / not soften B13 first-match):** After B19 migrator, rules with **non-exclusive parallel cases** (legacy “all matching cases run”) were split into multiple Library rows — e.g. **`--- CINEMA OFF`** + `(2)` + `(3)`, **Evening lights on** + `(2)`. Operator wants **one Library rule / one Blockly page** that can express that again.
-
-**Engine / authoring target (stub — lock at kickoff):**
-- Multiple **If/Do** roots on one page (multi-flow).
-- On wake: **every matching If/Do runs** (non-exclusive). Else-if / Else **within** one chain stays **first-match** (B13 / B19 — unchanged).
-- **Not** Ship **B4** (H4 = nested AND/OR in Compare only).
-- **Not** **B22** (nested If/Do inside a chain).
-- Cutover: hand-merge or helper to reunite migrator splits after B11 lands.
-
-**B11 DoD (stub):** multi-flow authoring + load/save + engine semantics locked (**all matching If/Do fire**); reunite smoke for CINEMA OFF-style + Evening lights on-style; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**Cancelled:** operator declined multi-flow. No code ship. Separate rules + optional hand-merge (If/Else-if chain) remain the model.
 
 ---
 
-### Phase B12 — Rule-list folder/tag (Ship B8) 🔜 TODO
+### Phase B12 — Rule-list folder/tag 🔜 TODO
 
-**Depends on:** **B19** (Ship **B3**) — gate before kickoff. Library organization via folder and/or tag.
+**Depends on:** **B19** (Ship **B3**) ✅ — gate before kickoff. Library organization via folder and/or tag on the Automations rule list.
 
-**Ship with B11** — one PR.
+**Unbundled from cancelled Ship B6 / B11 (2026-08-22).**
 
 **B12 DoD (stub):** folder/tag model + list UX + persistence; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -2190,7 +2467,7 @@ Pick subset + order at **B14 kickoff**. Not in Ship **B5**.
 | **3** | **Auto / Manual** override switch so a level (or hygrostat) rule does not kill Explorer ON | H7 presence/mode |
 | **4** | **Generic hygrostat** helper (sensor + switch + high/low or target+band) — not a Library If/Else-if | H6 helpers |
 | **5** | Dedicated **H12 Schmitt** Blockly block (latch on high, clear on low; act on latch edges) | original H12 block; B5 uses If/Else-if instead |
-| **6** | Boot / sweeper **replay** of current humidity so a missed crossing recovers without waiting for the next edge | sweeper; B5 drops Audit B |
+| **6** | Boot / sweeper **replay** of level-hold conditions — **generalized → B24** (per-rule opt-in; B5 dropped humidity-only Audit B) | sweeper; see § **B24** |
 
 **B14 DoD (stub):** pick subset + lock order at kickoff; Domoticz **Set for X minutes** / **Set after X seconds** where selected; include or explicitly skip the B5-deferred rows above. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
