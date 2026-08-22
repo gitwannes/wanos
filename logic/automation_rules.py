@@ -70,7 +70,11 @@ class AutomationEngine:
     @staticmethod
     def resolve_device_ref(obj: Any, state: SystemState) -> Optional[int]:
         """Resolve a trigger/condition/action device ref by entity_id only."""
-        eid = getattr(obj, "entity_id", None)
+        # Branch wake passes condition leaves as dicts (_cond_as_dict); getattr misses entity_id.
+        if isinstance(obj, dict):
+            eid = obj.get("entity_id")
+        else:
+            eid = getattr(obj, "entity_id", None)
         if not eid:
             return None
         idx = AutomationEngine.resolve_entity_id(state, eid)

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.models import Event, EventType, SystemState, format_device_ref
 from core.event_catalog import legacy_key_for_bus_token
-from core.command_commit import claim_and_finish, claim_payload
+from core.command_commit import claim_and_finish, claim_payload, is_outbound_hub_command
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
@@ -247,7 +247,8 @@ class NativeRFXCOMBridge(WanosComponent):
                 # 433MHz devices cannot acknowledge receipt.
                 # Outbound commands ALWAYS transmit over the air!
 
-                if is_init:
+                # Boot/inbound seed only — never suppress outbound operator/automation/timer TX.
+                if is_init and not is_outbound_hub_command(event.payload):
                     self._last_known_states[idx] = new_state
                     continue
 

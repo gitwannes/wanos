@@ -15,7 +15,7 @@ from .entity_registry import EntityRegistry
 from core.event_handlers.registry import EVENT_ROUTERS
 from core.nvm_manager import NVRAMManager
 from core.event_catalog import to_bus_token, legacy_key_for_bus_token
-from core.command_commit import CommandCommit
+from core.command_commit import CommandCommit, is_outbound_hub_command
 from core.auto_off_store import auto_off_timer_payload_from_config
 
 from logic.health_monitor import HealthMonitor
@@ -732,13 +732,16 @@ class StateManager:
                 pass
         if meta_idx is not None:
             if meta_idx not in self._initialized_idxs:
-                payload["is_initialization"] = True
                 self._initialized_idxs.add(meta_idx)
+                # First-seen idx: boot/init only for inbound/system — not outbound commands.
+                if not is_outbound_hub_command(payload):
+                    payload["is_initialization"] = True
             current_cached_val: Any = self._state.devices.get(meta_idx)
             if current_cached_val is None:
                 current_cached_val = self._state.devices.get(str(meta_idx))
             if current_cached_val is None or current_cached_val == "Sync...":
-                payload["is_initialization"] = True
+                if not is_outbound_hub_command(payload):
+                    payload["is_initialization"] = True
             elif not payload.get("is_initialization"):
                 # Only flag as transitioned if it's explicitly not an initialization phase
                 payload["transitioned"] = True
@@ -933,6 +936,7 @@ class StateManager:
                 # or transitions involving None / 'Sync...' as either the origin or destination.
                 is_init = payload.get("is_initialization", False)
                 suppress_log = payload.get("suppress_device_log", False)
+                is_force = payload.get("force", False)
                 is_valid_transition = (
                     old_bin != new_bin
                     and new_bin is not None
@@ -942,8 +946,17 @@ class StateManager:
                     and not is_init
                     and not suppress_log
                 )
+                # RFX forced re-apply: log even when RAM already matched (433 has no ack).
+                is_rfx_force_reapply = (
+                    is_force
+                    and not is_init
+                    and not suppress_log
+                    and str(meta.get("origin") or "").lower() == "rfxcom"
+                    and new_bin is not None
+                    and not is_valid_transition
+                )
                 # If the core binary state transitioned safely, write to the dedicated log
-                if is_valid_transition:
+                if is_valid_transition or is_rfx_force_reapply:
                     origin: str = meta.get("origin", "")
                     prefix: str = origin.upper() if origin in ["hue", "sonos", "onkyo"] else dev_type.upper()
 

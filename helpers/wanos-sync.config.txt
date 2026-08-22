@@ -58,6 +58,10 @@ wanos-sync.config.txt
 *.bat
 *.rcj
 *.ps1
+# Repo meta / dev-only (Pi runtime does not read these)
+LICENSE
+entity_id-list.txt
+*.md
 # Local tooling / secrets / junk
 .env*
 .gitignore
