@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). Queued: **C3 → C4 → C11 → C12 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). Queued: **C3 → C4 → C26 → C11 → C12 → C17 → C20 → C21 → C27 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** / **C27** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -31,6 +31,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C19 — History auto-refresh blank** | Auto-refresh black / title-only; keep settings + window — ✅ **Done 2026-08-16** | History charts · low |
 | **C20 — Bell Clear All** | Admin SYSTEM NOTIFICATIONS **Clear All** does nothing | Admin alerts · low |
 | **C21 — AUTO OFF while OFF** | Explorer countdown runs on a device that is already OFF | Explorer live · low |
+| **C27 — Sunrise/sunset chrome** | Admin General Diagnostics + Explorer title area | Admin + shell · low |
 | **C22 — Host “(no history)”** | Host CPU temp on history allowlist; load 5m/15m live-only — ✅ **Done 2026-08-16** | Host / History · low |
 | **C23 — SSE SseClient unhashable** | EventSource dies ~25 ms — ✅ **Done 2026-08-16** (with **C18**) | SSE hub · low |
 | **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only | History charts · mid |
@@ -39,9 +40,10 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C15 — Admin lab switch** | Move Enable lab controls → Debug Commands row; lab pane iff switch ON | Admin · low |
 | **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
-| **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`automations` | Shell entrypoints |
+| **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`blockly` | Shell entrypoints |
+| **C26 — Frontend JS modularization** | Split `app.js` + `blockly.js`; shared helpers; `login.js`; **`reference.md` JS catalog** | FE maintainability · mid · after **C4** |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C11** after **C4**. **C12** → **C17** → **C20** → **C21** → **C16** → **C24** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C26** after **C4**; **C11** after **C26**. **C12** → **C17** → **C20** → **C21** → **C27** → **C16** → **C24** → **C25** → **C15** → **C13**. **C20** / **C21** / **C27** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -183,6 +185,123 @@ The **Admin Force Sweep** bypasses idempotency checks and transmits physical OFF
 **to be checked:** All links, redirects, shell nav, kiosk, nginx/static routes, bookmarks, cache-bust `?v=` query params. Shell chrome — not editor semantics (**B19**).
 
 **C4 DoD:** New names live everywhere operators hit; no remaining `blocky` in paths/identifiers (except git history); no `automations.*` entrypoint names; old URLs redirect or 404 intentionally documented. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+**C26 follows C4:** split **`blockly.js`** (post-rename) into `blockly-*` siblings — no interim `blocky-*` pass.
+
+---
+
+## 📋 C26 — Frontend JS modularization 🔜 TODO
+
+**Letter:** **C26**. **Sequence #14**. **Depends on:** **C4** shipped (`blocky` → `blockly` rename live). **Cross-ref:** Automations Blockly scope → [`phaseB-blocky.md`](phaseB-blocky.md).
+
+**Problem (verified):** post-**C4** `frontend/blockly.js` (today `blocky.js`) ≈ **6000** lines; `frontend/app.js` ≈ **5200** lines. Not a runtime crisis (Pi static serve, no bundler); **maintainability + page-weight** cost (navigation, merge conflicts, duplicated helpers). `login.html` loads all of `app.js` but uses only `loginApp()`.
+
+#### Operator requests (verbatim)
+
+> blocky.js and app.js are both approx 6000 lines long - is that a problem? if it is, is there a way to split or shorten these? no code  
+> *(2026-08-22)*
+
+> triage into pipeline, I would go with your recommendations  
+> *(2026-08-22)*
+
+#### Locked approach (triage **2026-08-22** — operator confirmed recommendations)
+
+**Delivery style:** **Classic scripts** (not ES modules) — multi-`<script>` load order (same pattern as `wanos-shell.js`); shared helpers as **explicit globals** (`wanosGetAuthHeaders`, …). **No bundler** unless a later phase finds concrete need. ES modules deferred (Alpine `x-data="wanosApp()"` + inline HTML globals like `xyToHex` stay simpler on classic scripts).
+
+**Incremental ship order (one seam per patch; Pi smoke between steps where behaviour touches UI):**
+
+| Step | What | Notes |
+|---|---|---|
+| **1** | **`login.js`** | Peel `loginApp()` off `app.js`; `login.html` loads `login.js` only |
+| **2** | **`wanos-common.js`** | `wanosRedirectIfNarrow`, `WANOS_WIDE_MIN_PX`, `wanosGetAuthHeaders`, `wanosLogout` — dedupe **`app.js`**, **`blockly.js`**, **`hiddendevices.js`**, **`lightingautooff.js`**, **`zwave.js`** (Alpine apps may keep thin `this.getAuthHeaders()` → common) |
+| **3** | **`wanos-hue.js`** | Pure xy↔hex / preset wheel helpers (no DOM) — shared by app, blockly, commander inline |
+| **4** | **Split `blockly.js`** | See **Locked filenames** below |
+| **5** | **Split `app.js`** | See **Locked filenames** below |
+
+#### Locked filenames (kickoff **2026-08-22**)
+
+**Naming:** shared → `wanos-*.js`; Blockly siblings → **`blockly-*.js`** (post-**C4** names). Page Alpine apps stay single-file unless they grow.
+
+**Shared**
+
+| File | Role |
+|---|---|
+| `wanos-common.js` | Viewport redirect, auth headers, logout |
+| `wanos-hue.js` | Hue xy↔hex math (pure functions) |
+| `wanos-charts.js` | ECharts stale/dispose/resize (from `app.js` top) |
+| `login.js` | `loginApp()` only |
+
+**Blockly** (Automations page — load after `wanos-shell.js`, before Alpine binds):
+
+```text
+wanos-common.js → wanos-hue.js →
+blockly-constants.js → blockly-entity.js → blockly-condition.js → blockly-action.js →
+blockly-blocks.js → blockly-yaml.js → blockly-app.js
+```
+
+| File | Role |
+|---|---|
+| `blockly-constants.js` | Role sets, `BLOCKY_*` constants, opaque bag helpers |
+| `blockly-entity.js` | Entity meta, allowed-for-role, dropdown option builders |
+| `blockly-condition.js` | Condition/trigger shape, numeric compare, wake/gate wording |
+| `blockly-action.js` | Action rich fields, Hue modal, Sonos/blinds/volume |
+| `blockly-blocks.js` | `Blockly.Blocks.*`, toolbox, workspace resize/scroll |
+| `blockly-yaml.js` | Read/write YAML, legacy v2 projection, orphan assert |
+| `blockly-app.js` | `blockyApp()` Alpine only |
+
+No monolithic `blockly.js` stub — **HTML lists script order** (classic scripts cannot auto-chain).
+
+**Explorer shell** (per-page subset; full explorer/admin/history stack):
+
+```text
+wanos-common.js → wanos-hue.js → wanos-charts.js → wanos-sse.js →
+app-explorer.js → app-history.js → app-admin.js → app.js
+```
+
+| File | Role |
+|---|---|
+| `wanos-sse.js` | `connectSSE`, reconnect guards, snapshot freshness (B10G/H) |
+| `app-explorer.js` | List/filter/presets, control dispatch, device rows, Hue preset UI |
+| `app-history.js` | History charts, session history, dew/AH helpers |
+| `app-admin.js` | Admin toggles, alerts bell, lab, reboot (pathname-gated methods) |
+| `app.js` | Thin `wanosApp()` composer + `init*Page()` router |
+
+**Other page scripts** (unchanged names; load `wanos-common.js`):
+
+| File | Pages |
+|---|---|
+| `hiddendevices.js` | Hidden devices |
+| `lightingautooff.js` | Timers & types |
+| `zwave.js` | Z-Wave config |
+| `wanos-shell.js` | Shared shell (existing) |
+| `iro.min.js` | Third-party colour wheel (vendor; note in catalog, no split) |
+
+**Explicitly out of scope for C26:**
+
+* Big-bang rewrite or framework migration
+* Splitting into many tiny files without clear ownership seams
+* Changing Blockly/YAML semantics or Alpine/ECharts integration rules (ECharts instances stay **outside** Alpine reactive data — see `app.js` header comment)
+
+**HTML / cache-bust:** each new script gets a `?v=` bump on every page that loads it; update `PAGE_VERSIONS` in `wanos-shell.js` where applicable.
+
+#### Docs — `reference.md` frontend catalog (in scope)
+
+**Every WanOS-authored `frontend/*.js` file** must appear in [`docs/reference.md`](../reference.md) § **frontend/** when C26 ships — not only the new splits.
+
+For each file, document at minimum:
+
+| Field | Content |
+|---|---|
+| **Path** | `frontend/<name>.js` |
+| **One-line role** | What the file owns |
+| **Loaded by** | Which HTML entrypoint(s) and relative script order when non-obvious |
+| **Key globals** | Functions/objects other scripts or inline HTML depend on (e.g. `wanosApp`, `xyToHex`) |
+
+Include **`wanos-shell.js`**, all **`blockly-*` / `app-*` / `wanos-*`**, page apps (`hiddendevices.js`, …), and **`login.js`**. **`iro.min.js`**: vendor bundle — one line (third-party, not maintained in-repo). Remove or rewrite stale entries (today `reference.md` lists only `app.js` under frontend).
+
+Script load matrices may live in `reference.md` (preferred SoT for operators/devs) with a short pointer from this section.
+
+**C26 DoD:** Steps 1–5 shipped; no duplicate redirect/auth/Hue xy helpers across app + blockly + page scripts; login page no longer loads explorer/admin JS; all shell pages smoke OK; **`docs/reference.md` § frontend lists every shipped `frontend/*.js` file** per table above; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -709,6 +828,45 @@ Both 60s-path defects were patched (cause not isolated on Pi; combined fix smoke
 
 ---
 
+## 📋 C27 — Sunrise/sunset chrome 🔜 TODO
+
+**Origin:** operator inbox **2026-08-22**. Admin **General Diagnostics** + Explorer shell title — **not** Blocky, **not** new backend (data already in `/api/state`). Size **low**. Sequence: **∥ cluster** (with **C20** / **C21**); no deps on **B23**.
+
+**Operator request (verbatim):**
+> triage: add sunrise & -set to both sysadmin page (show as 1st item in general diagnostics pane) and explorer page as tooltip on the title "device explorer" (how is this tooltip visible on smartphones)?
+
+### Verified (code)
+
+* **`state.sensors.sunrise_unix`** / **`sunset_unix`** — already in `/api/state` (updated on schedule events).
+* **`app.js`** — `sunriseRelativeText` / `sunsetRelativeText` computed each tick via **`getRelativeTime`** → `(in HH:MM:SS)` / `(HH:MM:SS ago)`; **not displayed** on Admin or Explorer today.
+* **Admin** — `frontend/admin.html` **General Diagnostics** first rows today: OS Uptime, Engine Uptime (`~355`).
+* **Explorer title** — `frontend/wanos-shell.js` explorer branch: **`⚡ WanOS // Device Explorer`** span (`~155`); no sunrise/sunset yet.
+
+### Locked triage intent
+
+| Surface | Placement |
+|---|---|
+| **Admin (sysadmin)** | **First row** in **General Diagnostics** (above OS Uptime). Label + value consistent with existing mono/uppercase rows. |
+| **Explorer** | On **Device Explorer** title chrome only (not History mode title). Show sunrise + sunset in the same relative format as Admin. |
+
+**Mobile / tooltip (operator lock-in 2026-08-22):** Native HTML **`title`** tooltips **do not work reliably on touch** — there is no hover on phones; iOS may show `title` only after a **long-press** (inconsistent); many Android browsers never show it. **Do not ship Explorer as `title`-only.**
+
+**Explorer — locked:** Small **ℹ** control beside **Device Explorer** title; **tap** opens popover (or modal) with sunrise + sunset (same relative format as Admin). Optional **`title`** on desktop for hover is fine as secondary hint only.
+
+**Admin — locked:** Always-visible **first row** in General Diagnostics (no popover needed).
+
+**Format (kickoff Q):** Relative only (reuse **`getRelativeTime`**) vs also absolute local clock time (e.g. `06:42`).
+
+### Out of scope
+
+* Blockly / automation editor.
+* New OWM or schedule backend (unless kickoff finds missing `sunrise_unix` / `sunset_unix` on Pi — then bugfix elsewhere).
+* History mode title chrome (unless operator expands scope at kickoff).
+
+**C27 DoD:** Admin General Diagnostics shows sunrise + sunset as **first** item; Explorer Device Explorer title has **ℹ** → popover with both (works on phone tap); values track live state; Pi smoke Admin + Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
 ## 📋 C22 — Host gauges tagged “(no history)” ✅ DONE
 
 **Operator smoke / close:** ✅ **2026-08-16** — operator close-out after allowlist ship.
@@ -1144,6 +1302,7 @@ if CI > 100: CI = 100
 * **C18:** ✅ **Done 2026-08-16** — Explorer Control live rows; Q4/Q5; live SSE (**C23**); drain `create_task` I/O.
 * **C23:** ✅ **Done 2026-08-16** (closed **with C18**) — `SseClient` `eq=False` in the hub `set`; first ping; pure ASGI; no HTTP/2 `Connection` header. Explorer EventSource smoke; journal not a DoD.
 * **C21:** Explorer AUTO OFF countdown must not run when the device is already OFF.
+* **C27:** sunrise/sunset — Admin General Diagnostics **first** row; Explorer **ℹ tap → popover** on Device Explorer title (not `title`-only). Kickoff Q: relative vs absolute clock.
 * **C22:** ✅ **Done 2026-08-16** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m (`22007`/`22008`) live-only; not C11.
 * **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit. Blank auto-refresh → **C19** ✅. Fullscreen + extra climate lines → **C24**.
 * **C24:** temp/hum **day** overlay fills the **browser tab** (not F11) with **X** top-right; 24 h window (C16); CSV of full `hires_days`; 3rd y-axis AH (axes iff series checked); checkboxes only; month/year unchanged; **after C16**; not C12 #8 frost; do not reopen **C5**. Kickoff Q&A **locked 2026-08-16**. CI **2026-08-17:** Td base + T correction. Dew likelihood → **C25**.
@@ -1160,10 +1319,12 @@ if CI > 100: CI = 100
 * **C17:** **assess at kickoff** — persist while fault still true vs new occurrence; bell vs banner; store.
 * **C20:** kickoff + contract **locked** 2026-08-15 — implement when commanded.
 * **C21:** AUTO OFF countdown while toggle OFF.
+* **C27:** Explorer **ℹ popover** locked **2026-08-22**; relative-only vs +clock time — kickoff Q; History title out of scope unless expanded.
 * **C16:** locked — 24 h max viewport; pan over **`hires_days`**; water day chart **assess at kickoff**.
 * **C24:** kickoff Q&A **locked 2026-08-16** — overlay = full browser tab (not F11); **X** top-right; extra series overlay-only; month/year untouched; 24 h window + CSV of `hires_days`; 3rd y-axis AH (hide axis when series off); checkboxes only; CI piecewise color + tooltip. CI formula **locked 2026-08-17** (Td base + `TC = 0.8*(T-20)`). Implement when commanded. Dew likelihood → **C25**.
 * **C25:** **not locked** — persist OWM clouds/wind/rain; formula weights; 6th checkbox/CSV; axis. Placement: after **C24**, overlay-only, OWM/outside only.
 * **C15:** locked — switch in Debug Commands; **entire lab pane hidden when OFF**.
+* **C26:** kickoff **locked 2026-08-22** — after **C4**; classic scripts; `blockly-*` siblings; page-script dedupe; **`reference.md` § frontend catalogs all `frontend/*.js`**.
 * **C3 / C4** remain open as specified above (later in sequence).
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
 * NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**).

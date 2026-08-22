@@ -22,6 +22,16 @@ RELOAD_ALERT_COPY: Dict[str, Dict[str, str]] = {
         "complete": "🟢 Timers & types reloaded.",
         "failed_prefix": "ERROR: Timers & types reload failed: ",
     },
+    "automations": {
+        "in_progress": "🔄 Activating changed rules…",
+        "complete": "🟢 Changed rules active.",
+        "failed_prefix": "ERROR: Rule activation failed: ",
+    },
+    "events": {
+        "in_progress": "🔄 Reloading events catalog…",
+        "complete": "🟢 Events catalog reloaded.",
+        "failed_prefix": "ERROR: Events catalog reload failed: ",
+    },
 }
 
 
@@ -29,8 +39,19 @@ def resolve_reload_alert_scope(payload: Dict[str, Any] | None) -> str:
     """Map CONFIG_RELOAD payload to alert row (B10G Option A — unscoped API → full)."""
     payload = payload or {}
     scope = str(payload.get("scope") or "").strip().lower()
+    scopes_raw = payload.get("scopes")
+    if isinstance(scopes_raw, list) and scopes_raw:
+        normalized = {str(s or "").strip().lower() for s in scopes_raw if str(s or "").strip()}
+        if "automations" in normalized:
+            return "automations"
+        if "events" in normalized:
+            return "events"
     if scope == "hue_presets":
         return "hue_presets"
+    if scope == "automations":
+        return "automations"
+    if scope == "events":
+        return "events"
     if scope in ("timers_types", "auto_off_metadata", "product_types"):
         return "timers_types"
     return "full"

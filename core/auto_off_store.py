@@ -31,6 +31,32 @@ def read_auto_off_config() -> Dict[str, Any]:
     return block
 
 
+def auto_off_timer_payload_from_config(config: object) -> Dict[str, Any]:
+    """In-memory auto-off payload for GET /api/state (same shape as read_auto_off_config)."""
+    ao = getattr(config, "auto_off_devices", None)
+    pt = getattr(config, "device_product_types", None) or {}
+    if ao is None:
+        block = _empty_block()
+    else:
+        dump = ao.model_dump() if hasattr(ao, "model_dump") else ao.dict()
+        block = {
+            "managed_auto_off": sanitize_managed_list(dump.get("managed_auto_off")),
+            "default_auto_off_minutes": int(
+                dump.get("default_auto_off_minutes")
+                if dump.get("default_auto_off_minutes") is not None
+                else 300
+            ),
+            "default_pertype_auto_off_minutes": sanitize_pertype_map(
+                dump.get("default_pertype_auto_off_minutes")
+            ),
+            "auto_off_delays": sanitize_delay_map(dump.get("auto_off_delays")),
+        }
+    block["device_product_types"] = sanitize_product_type_overrides(
+        pt if isinstance(pt, dict) else {}
+    )
+    return block
+
+
 def _read_auto_off_block(root: object) -> Dict[str, Any]:
     """Return auto_off_devices block only (empty defaults if missing)."""
     if not isinstance(root, dict):

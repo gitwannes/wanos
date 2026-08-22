@@ -70,6 +70,7 @@ auto_off_devices:
     - hue.group.living_hue
     - hue.group.slpk_dries_hue
     - hue.group.slpk_wannes_hue
+    - media_player.slpk_wannes
     - rfx.buro_wannes_schemer
     - rfx.cinema_schemer
     - rfx.living_schemer
@@ -99,6 +100,7 @@ auto_off_devices:
     hue.group.badk_2e_hue: 60
     hue.group.slpk_dries_hue: 30
     hue.group.slpk_wannes_hue: 90
+    media_player.slpk_wannes: 30
     switch.vent.toilet_ventilatie: 5
     zwave.berging_2e: 1
     zwave.buro_licht: 120
@@ -336,33 +338,31 @@ automations:
           - event: afa69b69-ae2d-4549-99fa-7455cc8bf95c
           - event: daefdc0b-51b1-4afe-bcd0-7d334dff0d47
     id: c8519732-38d6-444b-937e-1bc588bd01ee
-  - name: Slpk_Dries
-    enabled: true
+  - name: Slpk Dries
+    enabled: false
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.slpk_dries
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: hue.group.slpk_dries_hue
-            state: 'ON'
+            state: "ON"
             bri: 100
             xy:
               - 0.1368974980240959
               - 0.04645321326991772
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.slpk_dries
-            is: 'OFF'
+            is: "OFF"
         actions:
           - entity_id: hue.group.slpk_dries_hue
-            state: 'OFF'
-        label: 'False'
+            state: "OFF"
     id: 70b7e4a3-b773-4bdd-83ea-4c18a9b1c61b
-  - name: KeukenLivingEetk_EetkHue
+  - name: Keuken, Living & Eetk -> Eetk Hue
     enabled: true
     branches:
       - when: if
@@ -383,19 +383,19 @@ automations:
             state: "ON"
             preset: relax_red
     id: 0db26b54-0576-4821-bc79-e35de11d640e
-  - name: BuroCinemaPC_cosy
+  - name: Buro & Cinema cosy
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.buro_licht
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: rfx.cinema_schemer
-            state: 'ON'
+            state: "ON"
           - entity_id: rfx.buro_wannes_schemer
-            state: 'ON'
+            state: "ON"
     id: a9491c48-f233-413e-86d4-2cdcf713ac63
   - name: garage_motion
     enabled: true
@@ -451,7 +451,7 @@ automations:
             state: 'OFF'
         label: 'False'
     id: 513ef949-cd33-4a7d-8417-4959c4c829d2
-  - name: 'Spare Button: Hue is ON -> Trigger ALL OFF'
+  - name: Living special phyiscal switch
     enabled: true
     branches:
       - when: if
@@ -461,118 +461,65 @@ automations:
             is: ANY
           - type: device_state
             entity_id: hue.group.living_hue
-            is: 'ON'
+            is: "ON"
         actions:
           - event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
-    id: 839d64aa-6216-4405-9fee-b75287adb039
-  - name: 'Spare Button: Hue OFF + Night -> Go Cosy'
-    enabled: true
-    branches:
-      - when: if
+      - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.living_special
             is: ANY
           - type: device_state
             entity_id: hue.group.living_hue
-            is: 'OFF'
-          - type: time_of_day
-            is: dark
+            is: "ON"
         actions:
           - event: 7c5f2d72-4774-445c-8874-6f5e6fbe13f2
-      - when: else_if
-        conditions:
-          - type: device_state
-            entity_id: zwave.living_special
-            is: ANY
-          - type: device_state
-            entity_id: hue.group.living_hue
-            is: 'ON'
-        actions:
-          - event: 9bb384f0-1787-44a8-aaa2-5fee007552d3
-    id: 364ac941-35c6-467d-9232-37b2b2b29568
-  - name: 'Spare Button: Hue OFF + Day -> Red Accent'
-    enabled: true
-    branches:
-      - when: if
-        conditions:
-          - type: device_state
-            entity_id: zwave.living_special
-            is: ANY
-          - type: device_state
-            entity_id: hue.group.living_hue
-            is: 'OFF'
-          - type: time_of_day
-            is: light
-        actions:
-          - entity_id: hue.group.living_hue
-            state: 'ON'
-            preset: relax_red
-          - entity_id: zwave.licht_living
-            state: 'OFF'
-    id: 48e294b0-8784-40b6-a9eb-cf6e5a991407
-  - name: PC ON/OFF -> PC Aux ON/OFF
+    id: 839d64aa-6216-4405-9fee-b75287adb039
+  - name: PC -> PC Monitors
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.pc
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: zwave.pc_monitors
-            state: 'ON'
-        label: 'True'
+            state: "ON"
       - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.pc
-            is: 'OFF'
+            is: "OFF"
         actions:
           - entity_id: zwave.pc_monitors
-            state: 'OFF'
-        label: 'False'
+            state: "OFF"
     id: 06b759d4-5636-4063-8657-ed72b5b5deb7
-  - name: PC OFF -> Buro Schemer FORCE OFF
+  - name: PC Monitors -> Buro Schemer & Sonos
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.pc_monitors
-            is: 'OFF'
+            is: "ON"
         actions:
           - entity_id: rfx.buro_wannes_schemer
-            state: 'OFF'
-        label: 'False'
-    id: 1a1bdfaa-1b8e-40aa-b20a-3002411ec7ac
-  - name: PC Aux ON -> Buro Schemer + Sonos ON
-    enabled: true
-    branches:
-      - when: if
-        conditions:
-          - type: device_state
-            entity_id: zwave.pc_monitors
-            is: 'ON'
-        actions:
-          - entity_id: rfx.buro_wannes_schemer
-            state: 'ON'
+            state: "ON"
           - entity_id: media_player.buro
-            state: 'ON'
+            state: "ON"
             volume: 6
             station: qmaxhits
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.pc_monitors
-            is: 'OFF'
+            is: "OFF"
         actions:
           - entity_id: rfx.buro_wannes_schemer
-            state: 'OFF'
+            state: "OFF"
           - entity_id: media_player.buro
-            state: 'OFF'
-        label: 'False'
+            state: "OFF"
     id: 1b8371ae-8846-42e0-9e40-7ce11b2669da
   - name: Toilet gv ventilatie
     enabled: true
@@ -594,292 +541,231 @@ automations:
           - entity_id: zwave.vent.toilet_motor
             state: "OFF"
     id: 7ffde6cb-61e2-4754-a392-47d136a0b0b4
-  - name: 'Badk 1e: Main Switch ON -> Hue Red'
+  - name: 'Badk 1e: Physical switch -> Hue'
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.badk_1e_hue_physical
-            is: 'ON'
+            is: ANY
           - type: device_state
             entity_id: hue.group.badk_1e_hue
-            is: 'OFF'
+            is: "OFF"
         actions:
           - entity_id: hue.group.badk_1e_hue
-            state: 'ON'
+            state: "ON"
             preset: badk_red
-          - entity_id: media_player.badk_1e
-            state: 'ON'
-            volume: 8
-            station: qmaxhits
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.badk_1e_hue_physical
-            is: 'OFF'
+            is: ANY
+          - type: device_state
+            entity_id: hue.group.badk_1e_hue
+            is: "ON"
         actions:
           - entity_id: hue.group.badk_1e_hue
-            state: 'OFF'
-          - entity_id: zwave.badk_1e_wastafel
-            state: 'OFF'
-          - entity_id: media_player.badk_1e
-            state: 'OFF'
-        label: 'False'
+            state: "OFF"
     id: 9133d4f5-453d-464e-86df-e5f2bc61be8b
-  - name: 'Badk 1e: Wastafel ON -> Hue White (If already in room)'
+  - name: 'Badk 1e: Wastafel -> Hue'
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.badk_1e_wastafel
-            is: 'ON'
+            is: "ON"
           - type: device_state
             entity_id: hue.group.badk_1e_hue
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: hue.group.badk_1e_hue
-            state: 'ON'
+            state: "ON"
             preset: my_white
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.badk_1e_wastafel
-            is: 'OFF'
+            is: "OFF"
           - type: device_state
             entity_id: hue.group.badk_1e_hue
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: hue.group.badk_1e_hue
-            state: 'ON'
+            state: "ON"
             preset: badk_red
-        label: 'False'
     id: 751cdc57-c079-488b-91ca-708246f15e3a
-  - name: 'Badk 1e: Hue App Syncs to Main Switch-ON'
+  - name: 'Badk 1e: Hue -> Sonos'
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: hue.group.badk_1e_hue
-            is: 'ON'
+            is: "ON"
         actions:
-          - entity_id: zwave.badk_1e_hue_physical
-            state: 'ON'
           - entity_id: media_player.badk_1e
-            state: 'ON'
+            state: "ON"
             volume: 8
             station: qmaxhits
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: hue.group.badk_1e_hue
-            is: 'OFF'
+            is: "OFF"
         actions:
-          - entity_id: zwave.badk_1e_hue_physical
-            state: 'OFF'
           - entity_id: media_player.badk_1e
-            state: 'OFF'
-        label: 'False'
+            state: "OFF"
+          - entity_id: zwave.badk_1e_wastafel
+            state: "OFF"
     id: caa74273-e140-4354-8021-741bf7c311ca
-  - name: 'Badk 2e: Main Switch ON -> Hue Red'
+  - name: 'Badk 2e: Physical switch -> Hue'
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.badk_2e_hue_physical
-            is: 'ON'
+            is: ANY
           - type: device_state
             entity_id: hue.group.badk_2e_hue
-            is: 'OFF'
+            is: "OFF"
         actions:
           - entity_id: hue.group.badk_2e_hue
-            state: 'ON'
+            state: "ON"
             preset: relax_red
-          - entity_id: media_player.badk_boven
-            state: 'ON'
-            volume: 10
-            station: qmaxhits
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.badk_2e_hue_physical
-            is: 'OFF'
+            is: ANY
+          - type: device_state
+            entity_id: hue.group.badk_2e_hue
+            is: "ON"
         actions:
           - entity_id: hue.group.badk_2e_hue
-            state: 'OFF'
-          - entity_id: zwave.badk_2e_wastafel
-            state: 'OFF'
-          - entity_id: media_player.badk_boven
-            state: 'OFF'
-        label: 'False'
+            state: "OFF"
     id: 618d15f6-c094-44c9-8fb5-13c44d80dee7
-  - name: 'Badk 2e: Wastafel ON -> Hue White (If already in room)'
+  - name: 'Badk 2e: Wastafel -> Hue'
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.badk_2e_wastafel
-            is: 'ON'
+            is: "ON"
           - type: device_state
             entity_id: hue.group.badk_2e_hue
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: hue.group.badk_2e_hue
-            state: 'ON'
+            state: "ON"
             preset: my_white
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.badk_2e_wastafel
-            is: 'OFF'
+            is: "OFF"
           - type: device_state
             entity_id: hue.group.badk_2e_hue
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: hue.group.badk_2e_hue
-            state: 'ON'
+            state: "ON"
             preset: relax_red
-        label: 'False'
     id: b1dc143b-bc38-4d44-a723-05b9fe0278be
-  - name: 'Badk 2e: Hue App Syncs to Main Switch-ON'
+  - name: 'Badk 2e: Hue -> Sonos'
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: hue.group.badk_2e_hue
-            is: 'ON'
+            is: "ON"
         actions:
-          - entity_id: zwave.badk_2e_hue_physical
-            state: 'ON'
           - entity_id: media_player.badk_boven
-            state: 'ON'
+            state: "ON"
             volume: 10
             station: qmaxhits
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: hue.group.badk_2e_hue
-            is: 'OFF'
+            is: "OFF"
         actions:
-          - entity_id: zwave.badk_2e_hue_physical
-            state: 'OFF'
           - entity_id: media_player.badk_boven
-            state: 'OFF'
-        label: 'False'
+            state: "OFF"
+          - entity_id: zwave.badk_2e_wastafel
+            state: "OFF"
     id: 90f7b517-3323-46af-abf7-11f98cdfb5e7
-  - name: 'Slpk Wannes: Switch ON -> Hue Red (If Room was Dark)'
+  - name: 'Slpk Wannes: Physcial switch -> Hue'
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.slpk_wannes_hue_physical
-            is: 'ON'
+            is: ANY
           - type: device_state
             entity_id: hue.group.slpk_wannes_hue
-            is: 'OFF'
+            is: "OFF"
         actions:
           - entity_id: hue.group.slpk_wannes_hue
-            state: 'ON'
+            state: "ON"
             preset: relax_red
-        label: 'True'
       - when: else_if
         conditions:
           - type: device_state
             entity_id: zwave.slpk_wannes_hue_physical
-            is: 'OFF'
+            is: ANY
+          - type: device_state
+            entity_id: hue.group.slpk_wannes_hue
+            is: "ON"
         actions:
           - entity_id: hue.group.slpk_wannes_hue
-            state: 'OFF'
-        label: 'False'
+            state: "OFF"
     id: 4c96bf42-317d-4e79-a9bd-3b83edd7d668
-  - name: 'Slpk Wannes: Hue App Syncs to Switch'
-    enabled: true
-    branches:
-      - when: if
-        conditions:
-          - type: device_state
-            entity_id: hue.group.slpk_wannes_hue
-            is: 'ON'
-        actions:
-          - entity_id: zwave.slpk_wannes_hue_physical
-            state: 'ON'
-        label: 'True'
-      - when: else_if
-        conditions:
-          - type: device_state
-            entity_id: hue.group.slpk_wannes_hue
-            is: 'OFF'
-        actions:
-          - entity_id: zwave.slpk_wannes_hue_physical
-            state: 'OFF'
-        label: 'False'
-    id: dc3edc7c-f4c5-4d7f-be9e-41f532c57486
-  - name: Sauna hue physical
+  - name: 'Sauna: Hue physcial switch'
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: zwave.sauna_hue_physical
-            is: 'ON'
-          - type: device_state
-            entity_id: sensor.generic.sauna_status
-            is: 'ON'
+            is: ANY
           - type: device_state
             entity_id: hue.group.sauna_hue
-            is: 'OFF'
+            is: "OFF"
         actions:
           - entity_id: hue.group.sauna_hue
-            state: 'OFF'
+            state: "ON"
+            preset: relax_red
           - entity_id: zwave.sauna_zoutlamp
-            state: 'OFF'
-        label: 'True'
+            state: "ON"
       - when: else_if
         conditions:
-          - type: device_state
-            entity_id: zwave.sauna_hue_physical
-            is: 'OFF'
-          - type: device_state
-            entity_id: sensor.generic.sauna_status
-            is: 'OFF'
-          - type: device_state
-            entity_id: hue.group.sauna_hue
-            is: 'ON'
+          - op: and
+            children:
+              - type: device_state
+                entity_id: zwave.sauna_hue_physical
+                is: ANY
+              - type: device_state
+                entity_id: sensor.generic.sauna_status
+                is: "OFF"
+              - op: or
+                children:
+                  - type: device_state
+                    entity_id: hue.group.sauna_hue
+                    is: "ON"
+                  - type: device_state
+                    entity_id: zwave.sauna_zoutlamp
+                    is: "ON"
         actions:
           - entity_id: hue.group.sauna_hue
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.sauna_zoutlamp
-            state: 'OFF'
-        label: 'False'
-      - when: else_if
-        conditions:
-          - type: device_state
-            entity_id: zwave.sauna_hue_physical
-            is: 'OFF'
-          - type: device_state
-            entity_id: sensor.generic.sauna_status
-            is: 'OFF'
-          - type: device_state
-            entity_id: hue.group.sauna_hue
-            is: 'OFF'
-        actions:
-          - entity_id: hue.group.sauna_hue
-            state: 'ON'
-          - entity_id: zwave.sauna_zoutlamp
-            state: 'ON'
-        label: 'False'
+            state: "OFF"
     id: 8f3a2c1e-5b4d-4a9f-9e2d-1c7b6a8d0e3f
   - name: Sauna ON
     enabled: true
@@ -1069,6 +955,63 @@ automations:
               - 0.18559991143671542
               - 0.7356269961081279
     id: e1025236-8ed1-470c-90da-b6d287a57c9d
+  - name: nested test
+    enabled: false
+    branches:
+      - when: if
+        conditions:
+          - op: and
+            children:
+              - op: or
+                children:
+                  - type: device_state
+                    entity_id: zwave.buro_licht
+                    is: "ON"
+                  - type: device_state
+                    entity_id: media_player.badk_boven
+                    is: "ON"
+              - type: device_state
+                entity_id: media_player.buro
+                is: "ON"
+        actions: []
+      - when: else_if
+        conditions:
+          - op: and
+            children:
+              - type: device_state
+                entity_id: zwave.buro_licht
+                is: "ON"
+              - type: device_state
+                entity_id: media_player.badk_boven
+                is: "ON"
+              - op: or
+                children:
+                  - type: device_state
+                    entity_id: zwave.sauna_zoutlamp
+                    is: "ON"
+                  - type: device_state
+                    entity_id: rfx.living_schemer
+                    is: "ON"
+        actions: []
+    id: c957ccb2-9ea9-454a-80ac-a977629673d9
+  - name: test 4
+    enabled: false
+    branches:
+      - when: if
+        conditions:
+          - type: event
+            event: 44667b31-c281-4487-9d05-9093ba111a86
+        actions: []
+    id: 49771987-c6de-453c-ac84-79a149e9e1d5
+  - name: test 5
+    enabled: false
+    branches:
+      - when: if
+        conditions:
+          - type: event
+            event: 44667b31-c281-4487-9d05-9093ba111a86
+        actions: []
+    id: 5eef3883-feef-45c6-a98f-89b0e0b2111c
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

@@ -28,8 +28,9 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G10 — HomeWizard** | Energy local API — **own ship** (3rd) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
+| **G15 — Evening twilight cross-day** | bugfix: orphan Evening lights ON after midnight — env scheduler + OWM sun refresh |
 
-Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G3** ✅ **Done 2026-08-15** (config-only; cold boot; one code run with **B10K**). **G5** ✅ **Done 2026-08-16** (manual cinema half). **G4** still owns the automatic hot-sun morning open.
+Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** may jump ahead of **G4** on production evening-lights pain (**kickoff 2026-08-22**). **G3** ✅ **Done 2026-08-15** (config-only; cold boot; one code run with **B10K**). **G5** ✅ **Done 2026-08-16** (manual cinema half). **G4** still owns the automatic hot-sun morning open.
 
 **G11 → G9 → G10 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. Operator reordered **G11 first** **2026-08-20**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
@@ -148,12 +149,12 @@ Only production outside source: OWM **`30001`** / `sensor.temp_hum.outside_temp_
 
 ---
 
-## 📋 G6 — Scoped `CONFIG_RELOAD` + Admin scoped-reload modal 🔜 TODO
+## 📋 G6 — Admin scoped `CONFIG_RELOAD` modal + API scopes 🔜 TODO
 
-**Origin:** triage **2026-08-11** (Pi log after Blocky automation rule save). **Expanded 2026-08-12** — Admin UX: keep **full** reload; add **scoped** reload with operator-selectable parts. **Expanded 2026-08-15** — Automations save: load-style step overlay + **defer** reload until Save config (dirty + leave modal). Not a separate phase.
+**Origin:** triage **2026-08-11** (Pi log after Blocky automation rule save). **Expanded 2026-08-12** — Admin UX: keep **full** reload; add **scoped** reload with operator-selectable parts. **Automations deferred activation → B23** ✅ **Done 2026-08-22** ([`phaseB-blocky.md`](phaseB-blocky.md) § B23). G6 = Admin modal + handler scopes for non-Automations writers.
 
-**Operator request (verbatim, triage 2026-08-15):**
-> when saving presets in the automation page : this takes long: add visibility: show steps to be taken, same timings as the one we use to load the automation page itself // maybe don't reload config on every rule change, but whenever a rule is changed, set the dirty mode for the reload config - a button "save config" then appears, or is enabled at least. when this reload config is not done while moving away from the page, show a modal similar to the modal which exists for the dirty-rule: with buttons "save config" "cancel" and "discard all rule changes"
+**Operator request (verbatim, triage 2026-08-15) — Automations slice moved to B23:**
+> when saving presets in the automation page : … maybe don't reload config on every rule change … **Save config** … *(Automations page: see **B23** § Activate changed rules)*
 
 **Problem:** Blocky / soft-hide / auto-off / events / hue-preset CRUD correctly dispatch `CONFIG_RELOAD_REQUESTED`, but `handle_config_reload_requested` almost always runs a **full** recycle: `load_config()` + full `rebuild_core_metadata()` + Hue stop/start + Onkyo TCP bounce + RFX/Sonos map refresh + Z-Wave remap + MQTT re-subscribe + NVRAM re-read + passive post-reload sweep (~2s). Z-Wave listens to **any** reload and forces `_is_mapped` / `_integration_enabled` reset.
 
@@ -189,7 +190,7 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 |---------|-----------|
 | **Full reload** (rename/clarify current **Reload Config** row) | Unchanged semantics — everything in table above. Use after multi-file edits, deploy, or “something feels stale”. |
 | **Scoped reload** (new row + modal) | **12** checkboxes (see catalog) — each with a one-line **summary** of what reloads + **when**; **Select all** / **Clear** only (no preset bundles). **Apply** → `{ mode: "scoped", scopes: [...] }`. |
-| Automations **Save config** (deferred reload) | Rule YAML may persist on rule Save; **`CONFIG_RELOAD` does not run on every rule change.** Rule change → reload **dirty**. **Save config** appears or enables; that click runs scoped `automations` reload (see mapping). Leave Automations while dirty → modal like dirty-rule: **Save config** / **Cancel** / **Discard all rule changes**. While that reload runs: **same step checklist + timings as B10G overlay 2** (Automations cold load) — reuse, do not invent a second overlay spec. |
+| Automations **Activate changed rules** | → **B23** ✅ **Done 2026-08-22** ([`phaseB-blocky.md`](phaseB-blocky.md) § B23). |
 | Other API auto-reload | Soft-hide / events / timers / etc. still auto-dispatch with **minimal** `scopes` (not Admin full) unless kickoff says otherwise. |
 
 **Admin UI home:** [`frontend/admin.html`](../frontend/admin.html) (shell) — detail cross-link → [`phaseC-shell.md`](phaseC-shell.md) when C docs mention Admin maintenance row.
@@ -272,8 +273,8 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 
 | Writer | Today | Target `scopes` |
 |--------|-------|-----------------|
-| `POST/PUT/DELETE /api/automations` | full (every rule save) | **Defer** reload until Automations **Save config**; then `automations` |
-| Events CRUD | full | `events` (+ `automations` if listener rules reference changed rules) |
+| `POST/PUT/DELETE /api/automations` | full (every rule save) | **B23** ✅ — defer until **Activate changed rules**; then `automations` |
+| Events CRUD | full | **B23** ✅ when from Automations page (pending batch); else G6 `events` |
 | `PUT /api/soft-hide` | full | `soft_hide` |
 | `PUT /api/auto-off-timer` | `timers_types` | `timers_types` *(keep)* |
 | Hue preset CRUD | ✅ B10G Part D | `hue_presets` only |
@@ -321,7 +322,7 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 * Explorer Hue preset duplicate-settings → **B10M**.
 * Replacing `wanos-sync` — sync remains file transport; reload applies RAM.
 
-**G6 DoD:** Admin shows **Full reload** (today’s behaviour, labelled) + **Scoped reload** modal with **12** checkboxes (summaries + when per row; no bundles). Automations: rule save does **not** full-recycle; **Save config** + dirty leave-modal; reload uses overlay-2-style steps/timings; scoped `automations` only (no Hue torn-down / Onkyo stopped / Z-Wave remap). Hue preset CRUD: scope 5 only (handler + alerts — ✅ **B10G Part D**). Soft-hide / timers saves: scopes 3 / 4 only. Full reload still remaps all integrations + remaining YAML. API callers migrated to minimal scopes **with matching scope-specific reload alerts** (see § Reload alerts — G6 follow-up). Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G6 DoD:** Admin shows **Full reload** (today’s behaviour, labelled) + **Scoped reload** modal with **12** checkboxes (summaries + when per row; no bundles). **Automations deferred activation → B23** ✅. Hue preset CRUD: scope 5 only (handler + alerts — ✅ **B10G Part D**). Soft-hide / timers saves: scopes 3 / 4 only. Full reload still remaps all integrations + remaining YAML. API callers migrated to minimal scopes **with matching scope-specific reload alerts** (see § Reload alerts — G6 follow-up). Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -648,4 +649,111 @@ Second call reveals capabilities (temperature, humidity, switch, thermostatMode,
 **Out of scope:** G8 boot delay; G6 Save config; persist enabled flags to NVM.
 
 **G14 DoD:** Assess (Sonos vs all) recorded; enabling → Live + ON bell as decided; Pi smoke manual enable after disable. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 G15 — Evening twilight cross-day orphan ON 🔜 TODO — kickoff **2026-08-22**
+
+**Letter:** **G15**. **Sequence #1**. Status **open** (kickoff locked). Size **mid**. **Depends on:** none (env scheduler + OWM sun refresh — existing stack). **Not G4** (One Call / hot-sun cinema).
+
+### Operator requests (verbatim)
+
+> Tuinlichten (idx **72005** / `zwave.tuin`) — wrong AUTOMATION ON times  
+> *(2026-08-22 — IWHW / Pi log investigation)*
+
+> Normal: ON ~sunset via **Evening lights on** (`SUNSET_TRIGGER`); OFF 23:00 via **Evening lights off**.  
+> Anomaly examples: 2026-08-18 04:29, 2026-08-20 00:29 ON + 00:48 OFF, 2026-08-21 06:47 ON, etc.
+
+> capture.log + capture2.log in docs — analyse further  
+> *(2026-08-22)*
+
+### Verified facts (Pi log — `docs/capture2.log`)
+
+**Grep:** `72005|zwave\.tuin|SUNSET|EVENING_OFF|env_twi|TIMER_|sweeper|Evening lights`
+
+| Pattern | Finding |
+|---|---|
+| Healthy sunset ON | `[SUNSET_TRIGGER]` → tuin ON within ~2 s (Aug 10–16, 19, 21) |
+| Healthy evening OFF | `[EVENING_OFF_TRIGGER]` 23:00:00 → tuin OFF within ~1 s (Aug 13, 18, 19) |
+| **Anomaly ON** (no SUNSET/EVENING_OFF in prior 60 s) | Aug 17 19:15, Aug 18 04:29, Aug 18 23:12, Aug 19 17:44, Aug 20 00:29, Aug 20 19:47, Aug 21 06:47 |
+| Sweeper | **Zero** lines at INFO (skip path is DEBUG only) |
+| `env_twi` TIMER_SCHEDULED | Many Aug 3–7; **none** Aug 19–21 (only `SUNRISE_SUNSET_UPDATE` at 03:00) |
+| Aug 17 | Same-day `"Evening lights on"` rule edits (12:23–12:31) before 19:15 ON |
+
+**Strong cross-day case — Aug 20 00:29:**
+
+```text
+Aug 19 20:57:16  SUNSET_TRIGGER  →  tuin ON (normal)
+Aug 19 23:00:01  EVENING_OFF     →  tuin OFF (normal)
+Aug 20 00:29:59  tuin ON         →  NO trigger in log
+Aug 20 03:00:01  SUNRISE_SUNSET_UPDATE (Aug 20 sun times)
+Aug 20 20:55:14  SUNSET_TRIGGER  →  tuin already ON since 19:47 — no second ON logged
+```
+
+Between 23:00 and 03:00, `sns.sunset_unix` still holds **Aug 19** sunset while `evening_off_time` resolves to **Aug 20** 23:00 → evening window spans midnight.
+
+**Aug 18 04:29:** orphan ON with no trigger. Aug 18 03:00 sun refresh **did** run — cross-day window with **fresh Aug 18** sunset (20:59) would **not** include 04:29. **Not fully explained** by cross-day math alone (see open questions).
+
+**Aug 18 23:12:** ON **12 min after** 23:00 EVENING_OFF — re-ON after scheduled off (manual / other rule / not env timer).
+
+**Aug 21 06:47 / 06:54:** 7-minute ON/OFF burst at sunrise — not sunset-related.
+
+### Root cause (code — verified)
+
+**Evening window assembly** — [`logic/environment_scheduler.py`](../logic/environment_scheduler.py):
+
+```python
+twi_eve_on = sns.sunset_unix                    # OWM unix — date of last refresh
+twi_eve_off = _get_unix_for_today("23:00")      # always TODAY's clock
+```
+
+After midnight until OWM daily refresh (`sun_refresh_hour`, default **03:00** — [`integrations/open_weather.py`](../integrations/open_weather.py)):
+
+- `sunset_unix` = **yesterday’s** sunset timestamp
+- `twi_eve_off` = **today’s** 23:00
+- Stored window `[yesterday sunset, today 23:00)` treats **00:00–~03:00** as “evening”
+
+**Sweeper alignment** — [`core/event_handlers/system_handlers.py`](../core/event_handlers/system_handlers.py) § `handle_system_sweep_requested`:
+
+- If `now` in evening window → dispatch `SUNSET_TRIGGER` (would log at INFO)
+- Skipped when uptime &lt; 180 s or passive sweep (`network_recovery`, `config_reload`)
+
+**Past-deadline timers** — [`logic/timers.py`](../logic/timers.py): `sleep_duration = max(0, deadline - now)` → immediate fire.
+
+**OWM sun refresh gate** — [`integrations/open_weather.py`](../integrations/open_weather.py): `need_sun = force_sun or (last_sun_refresh_date != today and hour >= sun_hour)` — **no refresh on calendar rollover before 03:00**.
+
+### Anomaly buckets (kickoff lock)
+
+| Bucket | Examples | Likely cause |
+|---|---|---|
+| **A — Cross-day window** | Aug 20 00:29 | Stale `sunset_unix` + today `23:00` → false “evening”; sweeper and/or in-window state |
+| **B — Orphan without SUNSET log** | Aug 20 00:29, Aug 18 04:29 | **Not proven** as live `SUNSET_TRIGGER` replay in capture2; may be manual, missing log lines, or trigger outside grep |
+| **C — Non-env** | Aug 17 19:15 (rule edits), Aug 18 23:12 (post-OFF re-ON), Aug 21 06:47 burst | Operator / Blocky / other rules — **out of G15 scope** unless linked in further capture |
+
+### Proposed fix (kickoff — confirm before implement)
+
+| # | Change | File(s) | Intent |
+|---|---|---|---|
+| **1** | **Same-day evening window** — `twi_eve_on` and `twi_eve_off` must share the **same local calendar date**; if `date(sunset_unix) != date(twi_eve_off)`, treat evening window as **inactive** (schedule neither edge) until today’s sun refresh | `environment_scheduler.py` | Closes midnight–03:00 false evening |
+| **2** | **OWM sun on date rollover** — `need_sun` when `last_sun_refresh_date != today` **regardless of hour** (keep `sun_refresh_hour` as preferred earliest, not exclusive gate) | `open_weather.py` | Refresh today’s sunset soon after midnight, not only ≥03:00 |
+| **3** | **Sweeper guard** — before dispatching `SUNSET_TRIGGER`, require `date(sunset_unix) == date(now)` | `system_handlers.py` | Belt-and-braces if window state still stale |
+| **4** | *(Optional)* Log sweeper skip/dispatch at INFO when twilight alignment runs | `system_handlers.py` | Easier Pi diagnosis — **ask operator** |
+
+**Not in G15:** G4 One Call; B15 demote schedule edges; merging Evening lights rules (**B11**).
+
+### Open questions (operator confirm)
+
+1. **Scope:** Fix **1+2 (+3?)** only, or also chase bucket **B** orphans (Aug 18 04:29) with wider Pi grep (`MANUAL`, Explorer, rule execution)?
+2. **Aug 18 23:12 / Aug 21 06:47** — treat as manual/known, or investigate in same ship?
+3. **Item 4** — add INFO sweeper twilight logs?
+
+### Pi smoke plan (draft DoD)
+
+- [ ] After local midnight (or simulated clock): no `SUNSET_TRIGGER` / tuin ON until today’s sun refresh + real sunset
+- [ ] Aug-20-style window: between 00:00 and 03:00, evening window inactive in `/api/state` env schedule fields
+- [ ] Normal sunset ON + 23:00 OFF unchanged on a clear evening
+- [ ] OWM refresh runs on calendar day change (not only ≥03:00)
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+**Evidence artifacts:** [`docs/capture.log`](../capture.log), [`docs/capture2.log`](../capture2.log) (operator Pi greps; may stay in repo until close-out or remove per operator).
 

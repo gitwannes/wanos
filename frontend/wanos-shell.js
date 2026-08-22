@@ -45,17 +45,23 @@
     const RELOAD_ALERT_IN_PROGRESS = [
         "Reloading all config…",
         "Reloading hue presets…",
-        "Reloading timers & types…"
+        "Reloading timers & types…",
+        "Activating changed rules…",
+        "Reloading events catalog…"
     ];
     const RELOAD_ALERT_COMPLETE = [
         "All config reloaded.",
         "Hue presets reloaded.",
-        "Timers & types reloaded."
+        "Timers & types reloaded.",
+        "Changed rules active.",
+        "Events catalog reloaded."
     ];
     const RELOAD_ALERT_FAILED_PREFIXES = [
         "All config reload failed:",
         "Hue presets reload failed:",
-        "Timers & types reload failed:"
+        "Timers & types reload failed:",
+        "Rule activation failed:",
+        "Events catalog reload failed:"
     ];
 
     function reloadAlertIsFailed(text) {

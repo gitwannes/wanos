@@ -134,6 +134,10 @@ class SystemAdminState(BaseModel):
     zwave_mapped: dict[int, str] = Field(default_factory=dict)  # ⚡ Existing config passed to UI to prevent overwrites
     zwave_inbox: dict[str, dict[str, Any]] = Field(default_factory=dict)  # ⚡ Transient inbox for unmapped devices
     zwave_usb_path: str = ""  # ⚡ Passed to UI for YAML generation
+    # B23: saved automation/event YAML not yet applied to the rules engine.
+    rules_activation_pending: dict[str, Any] = Field(default_factory=dict)
+    # Auto-off timers + product types (Automations device table; same shape as GET /api/auto-off-timer).
+    auto_off_timer: dict[str, Any] = Field(default_factory=dict)
 
 
 class Event(BaseModel):

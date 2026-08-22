@@ -511,69 +511,27 @@ class AutomationEngine:
         payload: Optional[dict] = None,
     ) -> Tuple[bool, str, Optional[str]]:
         """
-        B19 wake: any device/event Compare in any branch mentions this event.
+        B23: derived wake from If/Else-if branch condition trees.
         Returns (woke, reason, matched_event_uuid).
         """
-        from core.condition_tree import (
-            condition_node_may_wake_device,
-            condition_node_may_wake_event,
-            is_group_node,
-        )
-
         branches = getattr(rule, "branches", None) or []
         for br in branches:
-            for cond in getattr(br, "conditions", None) or []:
-                if isinstance(cond, dict) and is_group_node(cond):
-                    matched = condition_node_may_wake_event(
-                        cond, bus_token=bus_token, to_bus_token=to_bus_token
-                    )
-                    if matched:
-                        return True, f"Event [{matched}]", matched
-                    if condition_node_may_wake_device(
-                        cond,
-                        event_idx=event_idx,
-                        event_name=event_name,
-                        is_transition=is_transition,
-                        resolve_idx=lambda c: AutomationEngine.resolve_device_ref(c, state),
-                        payload=payload,
-                    ):
-                        return (
-                            True,
-                            f"{AutomationEngine.format_device_ref(state, event_idx)} (wake)",
-                            None,
-                        )
-                    continue
-                if getattr(cond, "type", None) == "event" or (
-                    isinstance(cond, dict) and cond.get("type") == "event"
-                ):
-                    want = getattr(cond, "event", None) or (
-                        cond.get("event") if isinstance(cond, dict) else None
-                    )
-                    if want and to_bus_token(bus_token) == to_bus_token(str(want)):
-                        return True, f"Event [{to_bus_token(str(want))}]", to_bus_token(str(want))
-                if getattr(cond, "type", None) == "device_state" or (
-                    isinstance(cond, dict) and cond.get("type") == "device_state"
-                ):
-                    cond_idx = AutomationEngine.resolve_device_ref(cond, state)
-                    if cond_idx is None or event_idx is None or cond_idx != event_idx:
-                        continue
-                    if event_name == "DOOR_CHANGED":
-                        return True, f"Door {AutomationEngine.format_device_ref(state, event_idx)}", None
-                    if event_name in (
-                        "HUB_STATE_CHANGED",
-                        "TEMP_UPDATED",
-                        "HUMIDITY_UPDATED",
-                        "POWER_UPDATED",
-                    ):
-                        if event_name == "HUB_STATE_CHANGED" and not AutomationEngine._hub_state_change_may_wake_compare(
-                            cond, is_transition=is_transition, payload=payload
-                        ):
-                            continue
-                        return (
-                            True,
-                            f"{AutomationEngine.format_device_ref(state, event_idx)} (wake)",
-                            None,
-                        )
+            conds = getattr(br, "conditions", None) or []
+            from core.condition_tree import branch_conditions_may_wake
+
+            woke, reason, matched = branch_conditions_may_wake(
+                conds,
+                state=state,
+                bus_token=bus_token,
+                event_idx=event_idx,
+                event_name=event_name,
+                is_transition=is_transition,
+                resolve_idx=lambda c: AutomationEngine.resolve_device_ref(c, state),
+                payload=payload,
+                to_bus_token=to_bus_token,
+            )
+            if woke:
+                return True, reason, matched
         return False, "", None
 
     @staticmethod

@@ -71,7 +71,13 @@ from core.hue_presets_store import (
     rename_preset,
     rule_names_using_preset,
 )
-from core.auto_off_store import read_auto_off_config, write_auto_off_config
+from core.rules_activation_pending import (
+    activation_scopes,
+    mark_event_pending_on_manager,
+    mark_rule_pending_on_manager,
+    pending_snapshot,
+    unmark_rule_pending_on_manager,
+)
 from core.auto_off_policy import (
     AUTO_OFF_ALLOWED_TYPES,
     is_auto_off_eligible,
@@ -760,9 +766,15 @@ async def create_automation(rule: dict[str, Any], req: Request) -> dict[str, Any
         return JSONResponse(status_code=409, content={"error": "Duplicate automation id."})
 
     append_automation(new_rule)
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    # B23: new disabled drafts are YAML-only until enabled — engine skips them; no activate queue.
+    if new_rule.get("enabled", True) is not False:
+        mark_rule_pending_on_manager(state_manager, str(new_rule.get("id") or ""))
     _log_library_crud(_rule_log_kind(new_rule), str(new_rule.get("name") or ""), "added")
-    return {"status": "Success", "automation": new_rule}
+    return {
+        "status": "Success",
+        "automation": new_rule,
+        "rules_activation_pending": pending_snapshot(state_manager._state.system),
+    }
 
 
 @app.put("/api/automations")
@@ -799,9 +811,18 @@ async def update_automation_api(rule: dict[str, Any], req: Request) -> dict[str,
     if not update_automation(dumped["id"], dumped):
         return JSONResponse(status_code=404, content={"error": f"Automation id '{dumped['id']}' not found."})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    # B23: disabled rules are YAML-only until enabled — no scoped reload required.
+    rid = str(dumped["id"])
+    if dumped.get("enabled", True) is False:
+        unmark_rule_pending_on_manager(state_manager, rid)
+    else:
+        mark_rule_pending_on_manager(state_manager, rid)
     _log_library_crud(_rule_log_kind(dumped), str(dumped.get("name") or ""), "changed")
-    return {"status": "Success", "automation": dumped}
+    return {
+        "status": "Success",
+        "automation": dumped,
+        "rules_activation_pending": pending_snapshot(state_manager._state.system),
+    }
 
 
 @app.delete("/api/automations")
@@ -820,7 +841,12 @@ async def delete_automation_api(req_body: AutomationsRuleIdRequest, req: Request
     if not delete_automation(req_body.id):
         return JSONResponse(status_code=404, content={"error": f"Automation id '{req_body.id}' not found."})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    # B23: disabled rules do not run — delete from YAML only; no scoped reload required.
+    rid = str(req_body.id)
+    if prior and prior.get("enabled", True) is False:
+        unmark_rule_pending_on_manager(state_manager, rid)
+    else:
+        mark_rule_pending_on_manager(state_manager, rid)
     if prior:
         try:
             _log_library_crud(
@@ -830,8 +856,37 @@ async def delete_automation_api(req_body: AutomationsRuleIdRequest, req: Request
             )
         except Exception:
             _log_library_crud("user rule", str(prior.get("name") or req_body.id), "deleted")
-    return {"status": "Success"}
+    return {
+        "status": "Success",
+        "rules_activation_pending": pending_snapshot(state_manager._state.system),
+    }
 
+
+@app.post("/api/automations/activate")
+async def activate_automation_changes(req: Request) -> dict[str, Any]:
+    """Admin: apply pending automation/event YAML writes via scoped engine reload (B23)."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+
+    scopes = activation_scopes(state_manager._state.system)
+    if not scopes:
+        return {
+            "status": "Success",
+            "message": "Nothing to activate",
+            "rules_activation_pending": pending_snapshot(state_manager._state.system),
+        }
+
+    state_manager.dispatch(
+        Event(
+            type=EventType.CONFIG_RELOAD_REQUESTED,
+            payload={"source": "api", "scopes": scopes},
+        )
+    )
+    return {
+        "status": "Success",
+        "scopes": scopes,
+        "rules_activation_pending": pending_snapshot(state_manager._state.system),
+    }
 
 class EventsIdRequest(BaseModel):
     """DELETE /api/events body — mirror AutomationsRuleIdRequest."""
@@ -870,9 +925,13 @@ async def create_event_api(body: dict[str, Any], req: Request) -> dict[str, Any]
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Invalid event payload: {e}"})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    mark_event_pending_on_manager(state_manager, str(row.get("id") or ""))
     _log_library_crud("user event", str(row.get("name") or ""), "added")
-    return {"status": "Success", "event": row}
+    return {
+        "status": "Success",
+        "event": row,
+        "rules_activation_pending": pending_snapshot(state_manager._state.system),
+    }
 
 
 @app.put("/api/events")
@@ -891,11 +950,15 @@ async def update_event_api(body: dict[str, Any], req: Request) -> dict[str, Any]
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Invalid event payload: {e}"})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    mark_event_pending_on_manager(state_manager, str(row.get("id") or ""))
     # System events are largely immutable; still log when a write succeeds.
     kind = "system event" if str(row.get("id") or "") in SYSTEM_UUID_TO_KEY else "user event"
     _log_library_crud(kind, str(row.get("name") or ""), "changed")
-    return {"status": "Success", "event": row}
+    return {
+        "status": "Success",
+        "event": row,
+        "rules_activation_pending": pending_snapshot(state_manager._state.system),
+    }
 
 
 @app.get("/api/events/{event_id}/usages")
@@ -941,9 +1004,12 @@ async def delete_event_api(req_body: EventsIdRequest, req: Request) -> dict[str,
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
-    state_manager.dispatch(Event(type=EventType.CONFIG_RELOAD_REQUESTED, payload={"source": "api"}))
+    mark_event_pending_on_manager(state_manager, str(req_body.id))
     _log_library_crud("user event", prior_name or str(req_body.id), "deleted")
-    return {"status": "Success"}
+    return {
+        "status": "Success",
+        "rules_activation_pending": pending_snapshot(state_manager._state.system),
+    }
 
 
 class SoftHidePutRequest(BaseModel):

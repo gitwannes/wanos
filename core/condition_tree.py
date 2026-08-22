@@ -341,3 +341,116 @@ def condition_node_may_wake_event(
     if want and to_bus_token(str(want)) == to_bus_token(bus_token):
         return to_bus_token(str(want))
     return None
+
+
+def branch_has_flat_event_gate(conds: Any) -> bool:
+    """
+    B23: top-level flat ``conditions`` list contains an event Compare and no Logic groups.
+    Such branches wake on event only; all device Compares are level gates.
+    """
+    if not isinstance(conds, list):
+        return False
+    for c in conds:
+        d = _cond_as_dict(c)
+        if is_group_node(d):
+            return False
+        if d.get("type") == "event":
+            return True
+    return False
+
+
+def _normalize_and_arm_children(arm: Any) -> List[Any]:
+    """One OR arm → child list for implicit/explicit AND."""
+    d = _cond_as_dict(arm)
+    if not d:
+        return []
+    if is_group_node(d) and str(d.get("op") or "").lower() == "and":
+        return list(d.get("children") or [])
+    return [arm]
+
+
+def wake_device_leaves_in_and_list(conds: Any) -> List[Dict[str, Any]]:
+    """
+    B23: device Compare leaves that may wake within one AND list (implicit or explicit).
+    Only the first device Compare slot in the list; each nested OR arm checked separately.
+    """
+    if not isinstance(conds, list):
+        return []
+    wakes: List[Dict[str, Any]] = []
+    seen_first_device = False
+    for c in conds:
+        d = _cond_as_dict(c)
+        if not d:
+            continue
+        ctype = d.get("type")
+        if ctype in ("event", "time_of_day"):
+            continue
+        if ctype == "device_state":
+            if not seen_first_device:
+                wakes.append(d)
+                seen_first_device = True
+            continue
+        if is_group_node(d):
+            op = str(d.get("op") or "").lower()
+            if op == "not":
+                continue
+            if op == "or":
+                for child in d.get("children") or []:
+                    arm_children = _normalize_and_arm_children(child)
+                    sub = wake_device_leaves_in_and_list(arm_children)
+                    wakes.extend(sub)
+            elif op == "and":
+                sub = wake_device_leaves_in_and_list(d.get("children") or [])
+                wakes.extend(sub)
+    return wakes
+
+
+def branch_conditions_may_wake(
+    conds: Any,
+    *,
+    state: Any,
+    bus_token: str,
+    event_idx: Any,
+    event_name: str,
+    is_transition: bool,
+    resolve_idx: Callable[[Any], Any],
+    payload: Optional[dict] = None,
+    to_bus_token: Optional[Callable[[str], str]] = None,
+) -> Tuple[bool, str, Optional[str]]:
+    """
+    B23: Domoticz-faithful derived wake for one If/Else-if branch condition list.
+    Returns (woke, reason, matched_event_uuid).
+    """
+    token_fn = to_bus_token or (lambda s: str(s))
+    if branch_has_flat_event_gate(conds):
+        if not isinstance(conds, list):
+            return False, "", None
+        for c in conds:
+            d = _cond_as_dict(c)
+            if d.get("type") != "event":
+                continue
+            want = d.get("event")
+            if want and token_fn(str(want)) == token_fn(bus_token):
+                matched = token_fn(str(want))
+                return True, f"Event [{matched}]", matched
+        return False, "", None
+
+    from logic.automation_rules import AutomationEngine
+
+    for leaf in wake_device_leaves_in_and_list(conds):
+        if condition_node_may_wake_device(
+            leaf,
+            event_idx=event_idx,
+            event_name=event_name,
+            is_transition=is_transition,
+            resolve_idx=resolve_idx,
+            payload=payload,
+        ):
+            cond_idx = resolve_idx(leaf)
+            if cond_idx is not None:
+                return (
+                    True,
+                    f"{AutomationEngine.format_device_ref(state, cond_idx)} (wake)",
+                    None,
+                )
+    return False, "", None

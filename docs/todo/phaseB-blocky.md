@@ -657,9 +657,145 @@ YAML wire values (`is: ON`, `is: ANY`, `op: >`, etc.) are unchanged — only dis
 
 ---
 
+### B23 — Automations page polish ✅ DONE (**2026-08-22**)
+
+**Letter:** **B23**. **Sequence** (was #1). Status **Done** — Pi smoke **2026-08-22** (operator manual checks incl. Slpk Wannes rule).
+
+**Split from G6:** Automations deferred activation + scoped `automations` reload + Automations-page UX. **G6** keeps Admin 12-checkbox scoped-reload modal + remaining API scope migrations only.
+
+**Related:** `blockly.js` modularization → **C26** (after **C4**) — [`phaseC-shell.md`](phaseC-shell.md) § C26.
+
+#### Operator requests (verbatim)
+
+> when saving an automation rule, don't reload ALL config but only the minimum needed for the rule changes  
+> *(2026-08-22 — pulled from G6 → **B23**)*
+
+> bugfix: when moving to the automation page, a green and red bar shortly flashes  
+> *(2026-08-22)*
+
+> below hidden devices, add a list/table of all devices in the current rule, with their auto-off timer, if configured, their type, other useful information  
+> *(2026-08-22)*
+
+> hidden devices: same font as rule enabled - rename to "Show hidden devices in picker": add discard button, with confirmation  
+> *(2026-08-22 — **discard dropped**: Reset blocks already covers discard; rename/font **optional polish** only)*
+
+> remove info icon and modal for "how blocky works"  
+> *(2026-08-22)*
+
+> in rules, all "ON", "OFF", "CLOSED", etc should be bold  
+> *(2026-08-22 — **dropped**)*
+
+> when several devices conditions are in IF (with AND, not with OR): only the 1st should be "turns ON", all others should be "is ON" (or OFF)  
+> *(2026-08-22)*
+
+> when an event is present, all device conditions should be IS  
+> *(2026-08-22 — kickoff lock; **backend wake fix required**, not UI-only)*
+
+> check wannes physical rule "Slpk Wannes: Physcial switch -> Hue" — operator manual check  
+> *(2026-08-22)*
+
+> B23 item 1 (kickoff **2026-08-22**): handler for scoped `automations` reload; button **Activate changed rules** (visible only when pending); leave Automations while pending → **Activate now** / **Continue editing** only — **no Discard** (YAML already persisted).
+
+#### Locked decisions (kickoff **2026-08-22**)
+
+| # | Topic | Lock |
+|---|---|---|
+| **1** | **Two layers** | `editorDirty` = canvas unsaved (existing unsaved_rule_modal: Save / Discard / Cancel). **Pending activation** = rule/event YAML written, engine not reloaded yet. |
+| **2** | **Save** | `POST/PUT/DELETE /api/automations` persist YAML; **no** full `CONFIG_RELOAD`. Set server pending flag. |
+| **3** | **Activate changed rules** | Shown only when `pending_count > 0`. **`POST /api/automations/activate`** (admin) — thin wrapper: reads `rules_activation_pending`, dispatches scoped `CONFIG_RELOAD` (`automations` + `events` when needed), clears pending on success. B10G overlay timings reused. |
+| **4** | **Leave while pending** | After unsaved modal (if any): modal **Activate now** / **Continue editing** only. Continue = stay on page; disk keeps YAML; engine stays stale until Activate. **No discard.** Activate failure: pending stays; `Activation failed: {reason}. Changes are still saved but not active. Try again.` |
+| **5** | **Pending visibility (caveat UX)** | Banner: `{N} rule(s) saved — not active until you Activate changed rules.` Button: `Activate changed rules (N)`. Library badge `pending` on affected rows. Post-save: `Rule saved. Activate changed rules to apply.` / UE: `Event saved. Activate changed rules to apply.` Leave modal title **Rules not active**; body `{N} saved change(s) are not active yet.` Success info: `Changed rules are now active.` |
+| **6** | **Pending persistence** | Server-side in `/api/state` → `system.rules_activation_pending`: `{ count, rule_ids[], event_ids[], needs_automations, needs_events }`. Set on automation + UE CRUD; clear on Activate success; false/empty on boot. |
+| **7** | **Pending count** | Automation rule POST/PUT/DELETE + user-event POST/PUT/DELETE each increment pending (dedupe by rule/event id). Delete before activate: engine still has rule until Activate (**confirmed**). |
+| **8** | **User events** | UE create/update/delete: **no** full reload; join same pending queue; Activate runs `events` scope (and `automations` if also dirty). |
+| **9** | **Hue preset CRUD** | Out of scope — not edited on Automations page during normal ops. |
+| **10** | **Handler** | New fast-path: scope `automations` — re-read `automations.auto.yaml`, clear `AutomationEngine` cache, **no** Hue/Z-Wave/Onkyo recycle. Scope `events` — re-read events catalog + metadata slice (no full reload). |
+| **11** | **Flash bugfix** | Set `connected = true` before clearing `editorLoading` on cold load (or equivalent) to stop NOT CONNECTED / alert bar flash. |
+| **12** | **Rule device table** | Read-only below hidden-devices toggle. Columns: name, role (condition/action/both), type, auto-off (managed + delay), origin, **hidden** (Yes/No from `device_metadata.hidden` — **always shown**, independent of “Show hidden devices in picker”). **One** `GET /api/auto-off-timer` per Automations page visit; cache for session. |
+| **13** | **Hidden toggle** | Rename **Show hidden devices in picker**; match **Rule enabled** label font. |
+| **14** | **Help modal** | Remove info icon + `blocky_help_modal`. |
+| **15** | **turns / is (UI + engine)** | Implicit AND = explicit AND. Per AND list: **first device Compare** only wakes. **OR:** each arm (explicit AND or single leaf) checked separately with its own wake index. **Event anywhere in branch (flat):** event-only wake; all devices level + **is** UI. **Event in one OR arm only:** **arm-scoped** — other arms remain device-wakeable (3C). **`is: ANY`:** wake only in **first** device slot of an AND list; slot 2+ ANY = level gate only (never wake). **`time_of_day`:** gate only — never wake. **NOT:** backend may still evaluate legacy `{op:not}` YAML; **no** live rules use it; Blockly cannot author NOT — **no B23 NOT work**. See § Wake examples. |
+| **16** | **Slpk Wannes** | Operator manual Pi check in test plan (not automated DoD gate). |
+
+#### Wake / gate examples (implement + Pi smoke)
+
+**OR + multiple AND arms (locked):**
+```yaml
+- op: or
+  children:
+    - op: and
+      children:
+        - { type: event, event: "<uuid-A>" }
+        - { type: device_state, entity_id: light.1, is: "ON" }
+    - op: and
+      children:
+        - { type: device_state, entity_id: switch.2, is: "ANY" }
+        - { type: device_state, entity_id: light.3, is: "OFF" }
+```
+| Bus event | Should wake? |
+|-----------|--------------|
+| Catalog event `<uuid-A>` | Yes (arm1) |
+| switch.2 transition | Yes (arm2) |
+| light.1 or light.3 transition alone | **No** |
+
+**Single leaf under OR** = one-condition AND arm; that device is the wake for that arm.
+
+**Event anywhere in branch (flat — locked):**
+```yaml
+- { type: event, event: "<uuid-B>" }
+- { type: device_state, entity_id: zwave.sauna_hue_physical, is: "ON" }
+- { type: device_state, entity_id: hue.group.sauna_hue, is: "OFF" }
+```
+Device transitions do **not** wake; only `<uuid-B>` fires the rule. **(3A — locked)**
+
+**Mixed OR event + device arms (3B + 3C — locked, arm-scoped):** see YAML above. switch.2 transition wakes arm2; light.3 alone does **not**. Event in arm1 does **not** suppress device wake in arm2.
+
+**Sauna implicit AND (locked):** first row turns/wake; rows 2–3 is/gate only.
+
+**`ANY` slot index (locked):** slot 1 `ANY` = wake on transition; slot 2+ `ANY` = gate only (never wake; not Save-invalid).
+
+#### Activate failure
+
+**Causes:** YAML read/parse error; handler exception; network/API error; backend down.
+
+**UX:** pending unchanged; `Activation failed: {reason}. Changes are still saved but not active. Try again.`; Activate button stays enabled.
+
+#### Reload alerts (B23 — ship with handler)
+
+| Scope | In progress | Complete | Failed prefix |
+|-------|-------------|----------|---------------|
+| `automations` | `🔄 Activating changed rules…` | `🟢 Changed rules active.` | `ERROR: Rule activation failed: ` |
+| `events` | `🔄 Reloading events catalog…` | `🟢 Events catalog reloaded.` | `ERROR: Events catalog reload failed: ` |
+
+Automations page Activate overlay uses **`automations`** row when `needs_automations`; UE-only pending uses **`events`** row. Both scopes in one Activate → **`automations`** row for overlay copy.
+
+#### Shipped summary (**2026-08-22**)
+
+- Scoped **`automations`** + **`events`** reload handler; **`POST /api/automations/activate`**; server **`rules_activation_pending`** in `/api/state`.
+- Automations page: **Activate changed rules (N)**, pending banner, library badges, leave-page modal (Activate now / Continue editing).
+- CRUD persists YAML without full `CONFIG_RELOAD`; disabled-rule PUT does not mark pending (same as POST disabled / DELETE disabled).
+- Cold-load flash fix; read-only rule device table; Blocky help modal removed; turns/is labels + engine wake fix (AND index, OR arms, event-only branch).
+- Reload alert strings for `automations` / `events` scopes.
+
+#### B23 DoD
+
+- [x] **`POST /api/automations/activate`** + scoped handler branches: `automations`, `events` (+ reload alert rows above)
+- [x] Automation + UE CRUD: no full reload; server pending flag in `/api/state`
+- [x] **Activate changed rules (N)** + pending banner + library badges
+- [x] Leave-page modal: Activate now / Continue editing (stacked after unsaved modal)
+- [x] Cold-load flash fix
+- [x] Read-only rule device table
+- [x] Remove Blocky help modal
+- [x] Engine wake fix + Blockly turns/is labels (AND index + event branch rule)
+- [x] Pi smoke: save rule → no Hue outage; Activate → rules live; pending survives refresh
+- [x] Operator manual: Slpk Wannes physical → Hue
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-08-22** (pipeline + phase docs; B23 scope only)
+
+---
+
 ### B22 — Nested If/Do (queued **2026-08-21**)
 
-**Letter:** **B22**. **Sequence #3** (after **B8**). Status **open**.
+**Letter:** **B22**. **Sequence #4** (after **B8**). Status **open**.
 
 **Depends on:** **B19** ✅ (canvas). Distinct from **H4** (nested AND/OR in Compare — Done) and **B11** (sibling multi-flow If/Do roots — Ship **B8**).
 

@@ -1,7 +1,7 @@
 // --- file: frontend/blocky.js ---
 // Phase B19: Domoticz If/Do + Else-if/Else (first-match); branches YAML; wake from Compares.
 // Phase B4/H4: nested AND/OR/NOT Logic groups in Compare; OR-list migrator; legacy When/OR blocks removed.
-// Discrete Compare labels: "turns ON" alone; "is ON" when the same If/Else-if also has an event Compare.
+// Discrete Compare labels: ordered AND — first wake (device or OR) → turns; later siblings → is.
 // Duplicate fix: reshape b_condition_device on BLOCK_CREATE (init shaped the dropdown-default entity).
 // Toolbox: Control · Logic (and/or) · Conditions · Actions; bare Else/NOT retired from toolbox.
 // Device defaults: Hidden OFF → zwave.buro_licht ON; Hidden ON → door sauna opens / zwave.vent.sauna ON.
@@ -589,17 +589,285 @@ function blockyForEachConditionDeviceInTree(start, fn) {
     }
 }
 
+function blockyResolveProductType(eid, origin, overrides) {
+    const ov = overrides && overrides[eid];
+    if (ov === "light" || ov === "switch") return ov;
+    if (String(origin || "").toLowerCase() === "hue") return "light";
+    return "switch";
+}
+
+/** Auto-off per-type tier key (mirrors lightingautooff.js). */
+function blockyAutoOffTypeKey(eid, origin, deviceType, overrides) {
+    const t = String(deviceType || "").toLowerCase();
+    if (t === "speaker" || t === "media_player") return "speaker";
+    if (t === "switch" || t === "light" || String(origin || "").toLowerCase() === "hue") {
+        return blockyResolveProductType(eid, origin, overrides);
+    }
+    return t || "unknown";
+}
+
+/** True when live device status is omitted from the rule device table (motion only). */
+function blockyDeviceTableSkipsStatus(meta) {
+    if (!meta || typeof meta !== "object") return true;
+    const type = String(meta.type || "").toLowerCase();
+    const idxNum = Number(meta.idx);
+    if (type === "motion" || (idxNum >= 75000 && idxNum < 76000)) return true;
+    const name = String(meta.name || meta.label || "").toLowerCase();
+    if (name.includes("motion") || name.includes("pir") || name.includes("beweging")) return true;
+    return false;
+}
+
+/** True for blinds/shutter device types (rule device table status wording). */
+function blockyIsShutterDeviceType(type) {
+    const t = String(type || "").toLowerCase();
+    return t === "blinds" || t === "shutter" || t === "shutters";
+}
+
+/** Format stored shutter closed-% / OPEN/CLOSED for the rule device table. */
+function blockyFormatShutterTableStatus(raw) {
+    const su = String(raw == null ? "" : raw).trim().toUpperCase();
+    if (su === "OPEN" || su === "ON") return "Open";
+    if (su === "CLOSED" || su === "OFF") return "Closed";
+    const closedPct = parseInt(raw, 10);
+    if (!Number.isFinite(closedPct)) return String(raw);
+    if (closedPct <= 0) return "Open";
+    if (closedPct >= 100) return "Closed";
+    const openPct = blockyOpenPctFromStored(closedPct);
+    return `${openPct} % Open`;
+}
+
+/** Format live hub state for the rule device table. */
+function blockyFormatDeviceTableStatus(raw, meta) {
+    if (raw === null || raw === undefined) return "SYNC…";
+    if (raw === "DEAD") return "DEAD";
+    const type = String((meta && meta.type) || "").toLowerCase();
+    if (type === "door") return String(raw);
+    if (blockyIsShutterDeviceType(type)) {
+        return blockyFormatShutterTableStatus(raw);
+    }
+    if (typeof raw === "object" && raw !== null) {
+        if (raw.temp !== undefined && raw.hum !== undefined) {
+            return `${parseFloat(raw.temp).toFixed(1)} °C / ${raw.hum}%`;
+        }
+        if (raw.temp !== undefined) return `${parseFloat(raw.temp).toFixed(1)} °C`;
+        if (raw.hum !== undefined) return `${raw.hum}%`;
+        if (type === "speaker" || type === "media_player") {
+            const st = raw.state != null ? String(raw.state) : "";
+            if (st === "OFF" || raw.volume === null) return st || "OFF";
+            if (raw.volume != null) return `${st || "ON"} · vol ${raw.volume}`;
+            return st || "ON";
+        }
+        if (raw.state != null) return String(raw.state);
+        const keys = Object.keys(raw);
+        if (keys.length === 1 && typeof raw[keys[0]] !== "object") {
+            return String(raw[keys[0]]);
+        }
+        return "—";
+    }
+    return String(raw);
+}
+
 /**
- * Device Compare is a level gate (wording "is ON") when the same If/Else-if also
- * has an event Compare. Alone → wake-edge wording ("turns ON").
+ * Flat sibling chain under one AND list (IF stack or Logic AND CHILDREN).
+ * @param {Blockly.Block|null|undefined} start
+ * @returns {Blockly.Block[]}
+ */
+function blockyFlatAndNodesFromStart(start) {
+    const out = [];
+    let b = start || null;
+    while (b) {
+        out.push(b);
+        b = typeof b.getNextBlock === "function" ? b.getNextBlock() : null;
+    }
+    return out;
+}
+
+/**
+ * B23: one OR arm → child list for implicit/explicit AND.
+ * @param {Blockly.Block|null|undefined} arm
+ * @returns {Blockly.Block[]}
+ */
+function blockyNormalizeAndArmChildren(arm) {
+    if (!arm) return [];
+    if (arm.type === "b_logic_and") {
+        return blockyFlatAndNodesFromStart(arm.getInputTargetBlock("CHILDREN"));
+    }
+    return [arm];
+}
+
+/**
+ * B23: top-level IF chain has an event Compare and no Logic groups (event-only wake branch).
+ * @param {Blockly.Block|null|undefined} start
+ * @returns {boolean}
+ */
+function blockyBranchHasFlatEventGate(start) {
+    let b = start || null;
+    while (b) {
+        if (b.type === "b_logic_and" || b.type === "b_logic_or" || b.type === "b_logic_not") {
+            return false;
+        }
+        if (BLOCKY_EVENT_COMPARES.has(b.type)) return true;
+        b = typeof b.getNextBlock === "function" ? b.getNextBlock() : null;
+    }
+    return false;
+}
+
+/**
+ * B23: device Compare blocks that may wake within one AND list (mirrors core/condition_tree.py).
+ * @param {Blockly.Block[]} nodes
+ * @returns {Blockly.Block[]}
+ */
+function blockyWakeDeviceBlocksInAndList(nodes) {
+    const wakes = [];
+    let seenFirstDevice = false;
+    for (const node of nodes || []) {
+        if (!node) continue;
+        const t = node.type;
+        if (BLOCKY_EVENT_COMPARES.has(t) || t === "b_condition_time") continue;
+        if (t === "b_condition_device") {
+            if (!seenFirstDevice) {
+                wakes.push(node);
+                seenFirstDevice = true;
+            }
+            continue;
+        }
+        if (t === "b_logic_not") continue;
+        if (t === "b_logic_or") {
+            let arm = node.getInputTargetBlock("CHILDREN");
+            while (arm) {
+                wakes.push(...blockyWakeDeviceBlocksInAndList(blockyNormalizeAndArmChildren(arm)));
+                arm = arm.getNextBlock();
+            }
+        } else if (t === "b_logic_and") {
+            wakes.push(...blockyWakeDeviceBlocksInAndList(blockyNormalizeAndArmChildren(node)));
+        }
+    }
+    return wakes;
+}
+
+/**
+ * B23: all device Compare blocks that may wake in one If/Else-if branch.
+ * @param {Blockly.Block|null|undefined} ifStart
+ * @returns {Blockly.Block[]}
+ */
+function blockyCollectWakeDeviceBlocks(ifStart) {
+    return blockyWakeDeviceBlocksInAndList(blockyFlatAndNodesFromStart(ifStart));
+}
+
+/**
+ * True when ``target`` is this node or nested under a Logic group.
+ * @param {Blockly.Block|null|undefined} node
+ * @param {Blockly.Block|null|undefined} targetBlock
+ * @returns {boolean}
+ */
+function blockyBlockContainsDeviceCompare(node, targetBlock) {
+    if (!node || !targetBlock) return false;
+    if (node.type === "b_condition_device") return node.id === targetBlock.id;
+    if (node.type === "b_logic_not") {
+        return blockyBlockContainsDeviceCompare(node.getInputTargetBlock("CHILD"), targetBlock);
+    }
+    if (node.type === "b_logic_or" || node.type === "b_logic_and") {
+        let arm = node.getInputTargetBlock("CHILDREN");
+        while (arm) {
+            if (arm.type === "b_logic_and") {
+                let c = arm.getInputTargetBlock("CHILDREN");
+                while (c) {
+                    if (blockyBlockContainsDeviceCompare(c, targetBlock)) return true;
+                    c = c.getNextBlock();
+                }
+            } else if (blockyBlockContainsDeviceCompare(arm, targetBlock)) {
+                return true;
+            }
+            arm = arm.getNextBlock();
+        }
+    }
+    return false;
+}
+
+/**
+ * AND sibling list that owns ``targetBlock`` (explicit AND CHILDREN or flat If chain).
+ * @param {Blockly.Block} targetBlock
+ * @returns {Blockly.Block|null|undefined}
+ */
+function blockyAndListHeadForBlock(targetBlock) {
+    let innermostAndChildren = null;
+    let p = targetBlock;
+    while (p) {
+        const parent = typeof p.getParent === "function" ? p.getParent() : null;
+        if (!parent) break;
+        if (parent.type === "b_logic_and") {
+            innermostAndChildren = parent.getInputTargetBlock("CHILDREN");
+        }
+        if (parent.type === "b_if_do" || parent.type === "b_else_if") {
+            if (innermostAndChildren) return innermostAndChildren;
+            return parent.getInputTargetBlock("IF");
+        }
+        p = parent;
+    }
+    return null;
+}
+
+/**
+ * Ordered AND gate wording: first wake segment → turns/opens; later siblings + nested OR → is/is open.
+ * @param {Blockly.Block|null|undefined} andListHead
+ * @param {Blockly.Block} targetBlock
+ * @returns {boolean}
+ */
+function blockyDeviceCompareIsLevelGateInAndList(andListHead, targetBlock) {
+    const nodes = blockyFlatAndNodesFromStart(andListHead);
+    let pastFirstWake = false;
+
+    for (const node of nodes) {
+        if (!node) continue;
+        if (BLOCKY_EVENT_COMPARES.has(node.type) || node.type === "b_condition_time") {
+            continue;
+        }
+
+        if (pastFirstWake) {
+            if (blockyBlockContainsDeviceCompare(node, targetBlock)) return true;
+            continue;
+        }
+
+        if (node.type === "b_condition_device") {
+            if (node.id === targetBlock.id) return false;
+            pastFirstWake = true;
+            continue;
+        }
+        if (node.type === "b_logic_or") {
+            if (blockyBlockContainsDeviceCompare(node, targetBlock)) return false;
+            pastFirstWake = true;
+            continue;
+        }
+        if (node.type === "b_logic_and") {
+            if (blockyBlockContainsDeviceCompare(node, targetBlock)) {
+                return blockyDeviceCompareIsLevelGateInAndList(
+                    node.getInputTargetBlock("CHILDREN"),
+                    targetBlock
+                );
+            }
+            pastFirstWake = true;
+            continue;
+        }
+    }
+    return false;
+}
+
+/**
+ * Device Compare uses level gate wording ("is ON") when it does not wake the branch.
+ * B23+: ordered AND — first device or first OR-of-wakes → turns; all later siblings → is.
+ * Flat event branches gate all devices; top-level OR-of-AND arms unchanged.
  * @param {Blockly.Block|null|undefined} block
  * @returns {boolean}
  */
 function blockyConditionUsesLevelGateWording(block) {
-    if (!block || block.isInFlyout) return false;
+    if (!block || block.isInFlyout || block.type !== "b_condition_device") return false;
     const root = blockyFindConditionBranchRoot(block);
     if (!root) return false;
-    return blockyConditionTreeHasEvent(root.getInputTargetBlock("IF"));
+    const ifStart = root.getInputTargetBlock("IF");
+    if (blockyBranchHasFlatEventGate(ifStart)) return true;
+    const andHead = blockyAndListHeadForBlock(block);
+    if (!andHead) return false;
+    return blockyDeviceCompareIsLevelGateInAndList(andHead, block);
 }
 
 /**
@@ -2850,7 +3118,25 @@ function blockyApp() {
         pendingNav: null,
         blocklyFullscreen: false,
         // Bump when block definitions change (B10E: user/system When+Fire twins).
-        blocklySchemaVersion: 57,
+        blocklySchemaVersion: 58,
+        /** B23: server pending activation queue from GET /api/state. */
+        rulesActivationPending: {
+            count: 0,
+            rule_ids: [],
+            event_ids: [],
+            needs_automations: false,
+            needs_events: false
+        },
+        activateBusy: false,
+        /** Session cache — auto-off from GET /api/state (fallback: GET /api/auto-off-timer). */
+        autoOffConfig: null,
+        _autoOffFetchInFlight: null,
+        /** Set after a failed fetch so the table stops spinning. */
+        _autoOffLoadFailed: false,
+        /** entity_id → display label; rebuilt when auto-off config loads. */
+        autoOffByEid: {},
+        /** Live device values keyed by registry idx (from GET /api/state). */
+        liveDevices: {},
         blocklyUiTick: 0,
         hardDenyEntityIds: ["switch.safety.safety_wisc_5v"],
         /**
@@ -2922,6 +3208,216 @@ function blockyApp() {
             );
         },
 
+        /** B23: pending activation count from server state. */
+        get rulesPendingCount() {
+            const p = this.rulesActivationPending || {};
+            return Number(p.count) || 0;
+        },
+
+        get rulesPendingBannerText() {
+            const n = this.rulesPendingCount;
+            const noun = n === 1 ? "rule" : "rules";
+            return `${n} ${noun} saved — not active until you Activate changed rules.`;
+        },
+
+        get showActivatePendingButton() {
+            return this.rulesPendingCount > 0 && this.isAdmin && !this.editorLoading;
+        },
+
+        /** Collect entity_ids used in the open rule for the read-only device table. */
+        _collectRuleDeviceRoles() {
+            const roles = new Map();
+            const mark = (eid, role) => {
+                if (!eid) return;
+                const k = String(eid);
+                if (!roles.has(k)) roles.set(k, { condition: false, action: false });
+                roles.get(k)[role] = true;
+            };
+            const fromRuleJson = () => {
+                try {
+                    const rule = JSON.parse(this.editor.ruleJson || "{}");
+                    if (Array.isArray(rule.branches)) {
+                        rule.branches.forEach((br) => {
+                            blockyForEachConditionLeaf((br && br.conditions) || [], (c) => {
+                                if (c && c.type === "device_state" && c.entity_id) mark(c.entity_id, "condition");
+                            });
+                            (br.actions || []).forEach((a) => {
+                                if (a && a.entity_id) mark(a.entity_id, "action");
+                            });
+                        });
+                    }
+                } catch (e) { /* ignore */ }
+            };
+            // Saved selection: ruleJson updates synchronously in _doSelectRule.
+            // Workspace lags until loadV2IntoBlockly (~seconds) — do not read stale blocks.
+            const ws = blockyWs();
+            if (this.editorDirty && ws && !BlockyRT.loading && this.showBlocklyWorkspace) {
+                ws.getAllBlocks(false).forEach((b) => {
+                    if (b.isInFlyout) return;
+                    if (b.type === "b_condition_device") mark(b.getFieldValue("ENTITY"), "condition");
+                    if (b.type === "b_action_device") mark(b.getFieldValue("ENTITY"), "action");
+                });
+            }
+            if (roles.size === 0) {
+                fromRuleJson();
+            } else if (!this.editorDirty) {
+                // Clean selection — ruleJson is authoritative even if workspace not cleared yet.
+                roles.clear();
+                fromRuleJson();
+            }
+            return roles;
+        },
+
+        _autoOffLabelForEid(eid, meta) {
+            if (!this.autoOffConfig) {
+                if (this._autoOffFetchInFlight) return "loading…";
+                if (!this._autoOffLoadFailed) {
+                    void this._kickAutoOffConfigLoad();
+                    return "loading…";
+                }
+                return "unavailable";
+            }
+            const key = String(eid || "");
+            if (this.autoOffByEid && Object.prototype.hasOwnProperty.call(this.autoOffByEid, key)) {
+                return this.autoOffByEid[key];
+            }
+            return this._computeAutoOffLabel(key, meta);
+        },
+
+        _applyAutoOffConfigPayload(raw) {
+            if (!raw || typeof raw !== "object") {
+                this.autoOffConfig = null;
+                return;
+            }
+            // Defensive: accept flat payload or legacy wrapper shape.
+            if (raw.auto_off_devices && typeof raw.auto_off_devices === "object") {
+                this.autoOffConfig = Object.assign({}, raw.auto_off_devices, {
+                    device_product_types: raw.device_product_types || raw.auto_off_devices.device_product_types || {}
+                });
+            } else {
+                this.autoOffConfig = raw;
+            }
+            this._autoOffLoadFailed = false;
+            this._rebuildAutoOffIndex();
+        },
+
+        /** B23: primary auto-off source — bundled in GET /api/state (no extra round-trip). */
+        _applyAutoOffFromState(system) {
+            const sys = system && typeof system === "object" ? system : {};
+            const raw = sys.auto_off_timer;
+            if (!raw || typeof raw !== "object" || !Object.keys(raw).length) return false;
+            this._applyAutoOffConfigPayload(raw);
+            return !!this.autoOffConfig;
+        },
+
+        _kickAutoOffConfigLoad() {
+            if (this.autoOffConfig || this._autoOffFetchInFlight) return this._autoOffFetchInFlight;
+            this._autoOffFetchInFlight = this.ensureAutoOffConfig()
+                .finally(() => {
+                    this._autoOffFetchInFlight = null;
+                    this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
+                });
+            return this._autoOffFetchInFlight;
+        },
+
+        _computeAutoOffLabel(eid, meta) {
+            const cfg = this.autoOffConfig;
+            if (!cfg) return "unavailable";
+            const managed = new Set((cfg.managed_auto_off || []).map(String));
+            if (!managed.has(String(eid))) return "-";
+            const delays = cfg.auto_off_delays || {};
+            const eidStr = String(eid);
+            if (delays[eidStr] != null && delays[eidStr] !== "") {
+                return `${Number(delays[eidStr])} min`;
+            }
+            const overrides = cfg.device_product_types || {};
+            const typeKey = blockyAutoOffTypeKey(
+                eidStr,
+                meta && meta.origin,
+                meta && meta.type,
+                overrides
+            );
+            const pt = cfg.default_pertype_auto_off_minutes || {};
+            if (typeKey && pt[typeKey] != null && pt[typeKey] !== "") {
+                return `${Number(pt[typeKey])} min (${typeKey})`;
+            }
+            const gen = Number(cfg.default_auto_off_minutes);
+            return Number.isFinite(gen) && gen > 0 ? `${gen} min (default)` : "managed";
+        },
+
+        _rebuildAutoOffIndex() {
+            const cfg = this.autoOffConfig;
+            const out = {};
+            if (!cfg) {
+                this.autoOffByEid = out;
+                return;
+            }
+            const managed = (cfg.managed_auto_off || []).map(String);
+            for (const eid of managed) {
+                const meta = (this.entityOptions || []).find((o) => o.eid === eid);
+                out[eid] = this._computeAutoOffLabel(eid, meta);
+            }
+            this.autoOffByEid = out;
+        },
+
+        _liveDeviceRaw(meta) {
+            if (!meta || meta.idx == null) return undefined;
+            const idx = meta.idx;
+            const live = this.liveDevices || {};
+            if (live[idx] !== undefined) return live[idx];
+            if (live[String(idx)] !== undefined) return live[String(idx)];
+            return undefined;
+        },
+
+        /** B23: read-only device summary for the open rule (below hidden-devices toggle). */
+        get ruleDeviceTableRows() {
+            if (!this.selectedRule || this.selectedRule.isEventRow || this.selectedRule.isSystemEventRow) {
+                return [];
+            }
+            // Reactive deps: auto-off cache + live device snapshot.
+            void this.autoOffConfig;
+            void this.autoOffByEid;
+            void this._autoOffLoadFailed;
+            void this.liveDevices;
+            void this.blocklyUiTick;
+            void (this.selectedRule && this.selectedRule.id);
+            void (this.editor && this.editor.ruleJson);
+            const roles = this._collectRuleDeviceRoles();
+            const rows = [];
+            for (const [eid, r] of roles.entries()) {
+                const meta = (this.entityOptions || []).find((o) => o.eid === eid);
+                let roleLabel = "action";
+                if (r.condition && r.action) roleLabel = "both";
+                else if (r.condition) roleLabel = "condition";
+                const raw = this._liveDeviceRaw(meta);
+                const status = meta && !blockyDeviceTableSkipsStatus(meta)
+                    ? blockyFormatDeviceTableStatus(raw, meta)
+                    : "—";
+                rows.push({
+                    eid,
+                    name: meta ? meta.name : eid,
+                    role: roleLabel,
+                    type: meta ? (meta.typeLabel || meta.type || "—") : "—",
+                    status,
+                    autoOff: this._autoOffLabelForEid(eid, meta),
+                    origin: meta && meta.origin ? meta.origin : "—",
+                    hidden: meta && meta.softHidden ? "Yes" : "No"
+                });
+            }
+            rows.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+            return rows;
+        },
+
+        libraryRowIsPending(row) {
+            if (!row) return false;
+            const p = this.rulesActivationPending || {};
+            const ruleIds = (p.rule_ids || []).map(String);
+            const eventIds = (p.event_ids || []).map(String);
+            if (row.isEventRow) return eventIds.includes(String(row.id || ""));
+            if (row.isSystemEventRow) return false;
+            return ruleIds.includes(String(row.id || ""));
+        },
+
         get showBlocklyWorkspace() {
             // UE / SE catalog rows have no Blockly canvas. B9A: Blockly is the only
             // rule editor, so any other selected rule always shows the canvas.
@@ -2931,9 +3427,9 @@ function blockyApp() {
             return !!this.selectedRule;
         },
 
-        /** B10F: all Automations UI locked during rule save, refresh, or until retry/dismiss. */
+        /** B10F: all Automations UI locked during rule save, refresh, activation, or until retry/dismiss. */
         get uiLocked() {
-            return !!(this.ruleSaveBusy || this.ruleSaveFailed || this.refreshBusy);
+            return !!(this.ruleSaveBusy || this.ruleSaveFailed || this.refreshBusy || this.activateBusy);
         },
 
         /** True when the editor row is a saved UR or SR (event-triggered rule). */
@@ -3443,12 +3939,23 @@ function blockyApp() {
 
         requestLeave(action) {
             if (!this.editorDirty) {
-                this.runLeaveAction(action);
+                this._finishLeave(action);
                 return;
             }
             this.pendingNav = action;
             const dlg = document.getElementById("unsaved_rule_modal");
             if (dlg) dlg.showModal();
+        },
+
+        _finishLeave(action) {
+            const leavingPage = !!(action && (action.type === "href" || action.type === "logout"));
+            if (leavingPage && this.rulesPendingCount > 0) {
+                this.pendingNav = action;
+                document.getElementById("pending_activation_modal")?.showModal();
+                return;
+            }
+            this.pendingNav = null;
+            this.runLeaveAction(action);
         },
 
         runLeaveAction(action) {
@@ -3473,21 +3980,204 @@ function blockyApp() {
             this.pendingNav = null;
             this.markEditorClean();
             document.getElementById("unsaved_rule_modal")?.close();
-            this.runLeaveAction(action);
+            this._finishLeave(action);
         },
 
         async saveUnsavedLeave() {
             await this.saveRule();
             if (this.errorMessage) return;
             const action = this.pendingNav;
-            this.pendingNav = null;
             document.getElementById("unsaved_rule_modal")?.close();
-            // saveRule already reselected the saved rule; still honor leave target.
+            this._finishLeave(action);
+        },
+
+        continueEditingLeave() {
+            this.pendingNav = null;
+            document.getElementById("pending_activation_modal")?.close();
+        },
+
+        async activateNowLeave() {
+            document.getElementById("pending_activation_modal")?.close();
+            const ok = await this.activatePendingRules();
+            if (!ok) return;
+            const action = this.pendingNav;
+            this.pendingNav = null;
             this.runLeaveAction(action);
         },
 
+        _applyRulesActivationPending(raw) {
+            const p = raw && typeof raw === "object" ? raw : {};
+            this.rulesActivationPending = {
+                count: Number(p.count) || 0,
+                rule_ids: Array.isArray(p.rule_ids) ? p.rule_ids.map(String) : [],
+                event_ids: Array.isArray(p.event_ids) ? p.event_ids.map(String) : [],
+                needs_automations: !!p.needs_automations,
+                needs_events: !!p.needs_events
+            };
+        },
+
+        async ensureAutoOffConfig() {
+            if (this.autoOffConfig) return this.autoOffConfig;
+            this._autoOffLoadFailed = false;
+            try {
+                const stateRes = await fetch("/api/state", { headers: this.getAuthHeaders() });
+                if (stateRes.ok) {
+                    const state = await stateRes.json();
+                    if (this._applyAutoOffFromState(state.system)) {
+                        return this.autoOffConfig;
+                    }
+                }
+                const res = await fetch("/api/auto-off-timer", { headers: this.getAuthHeaders() });
+                if (!res.ok) throw new Error(`Failed /api/auto-off-timer (${res.status})`);
+                this._applyAutoOffConfigPayload(await res.json());
+            } catch (e) {
+                this.autoOffConfig = null;
+                this.autoOffByEid = {};
+                this._autoOffLoadFailed = true;
+            }
+            return this.autoOffConfig;
+        },
+
+        _reloadAlertSaysActivationFailed(msgs) {
+            if (!Array.isArray(msgs)) return "";
+            for (const msg of msgs) {
+                const text = msg && msg.message ? String(msg.message) : "";
+                if (window.WanOSReloadAlerts && window.WanOSReloadAlerts.isFailed(text)) {
+                    if (text.startsWith("Rule activation failed:")) return text.replace(/^Rule activation failed:\s*/, "");
+                    if (text.startsWith("Events catalog reload failed:")) return text.replace(/^Events catalog reload failed:\s*/, "");
+                }
+            }
+            return "";
+        },
+
+        async _waitForPendingActivationClear() {
+            const deadline = Date.now() + 120000;
+            while (Date.now() < deadline) {
+                await new Promise((r) => setTimeout(r, 400));
+                try {
+                    const res = await fetch("/api/state", { headers: this.getAuthHeaders() });
+                    if (!res.ok) continue;
+                    const state = await res.json();
+                    const sys = (state && state.system) || {};
+                    this._applyRulesActivationPending(sys.rules_activation_pending);
+                    if (window.WanOSReloadAlerts) {
+                        this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(
+                            sys.system_alert_msgs || []
+                        );
+                    }
+                    const failReason = this._reloadAlertSaysActivationFailed(sys.system_alert_msgs);
+                    if (failReason) throw new Error(failReason);
+                    if (this.rulesPendingCount <= 0) return true;
+                } catch (e) {
+                    if (e && e.message) throw e;
+                }
+            }
+            throw new Error("Timed out waiting for activation");
+        },
+
+        async activatePendingRules() {
+            if (this.activateBusy || this.rulesPendingCount <= 0) return false;
+            this.activateBusy = true;
+            this.errorMessage = "";
+            try {
+                const res = await fetch("/api/automations/activate", {
+                    method: "POST",
+                    headers: this.getAuthHeaders()
+                });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(body.error || `Activate failed (${res.status})`);
+                if (body.rules_activation_pending) {
+                    this._applyRulesActivationPending(body.rules_activation_pending);
+                }
+                await this._waitForPendingActivationClear();
+                await this._refreshAfterActivation();
+                this.infoMessage = "Changed rules are now active.";
+                return true;
+            } catch (e) {
+                this.errorMessage = `Activation failed: ${e.message || e}. Changes are still saved but not active. Try again.`;
+                return false;
+            } finally {
+                this.activateBusy = false;
+            }
+        },
+
+        /** Patch lists after activation — no full cold refresh overlay. */
+        async _refreshAfterActivation() {
+            try {
+                const [stateRes, rulesRes, eventsRes] = await Promise.all([
+                    fetch("/api/state", { headers: this.getAuthHeaders() }),
+                    fetch("/api/automations", { headers: this.getAuthHeaders() }),
+                    fetch("/api/events", { headers: this.getAuthHeaders() })
+                ]);
+                if (stateRes.ok) {
+                    const state = await stateRes.json();
+                    this._applyRulesActivationPending((state.system || {}).rules_activation_pending);
+                    this.liveDevices = state.devices || {};
+                    this.rebuildEntityOptions(state.device_metadata || {}, this.automations);
+                }
+                if (rulesRes.ok) {
+                    const rulesPayload = await rulesRes.json();
+                    this.automations = (rulesPayload.automations || []).filter((r) => r && typeof r === "object");
+                }
+                if (eventsRes.ok) {
+                    const eventsPayload = await eventsRes.json();
+                    BlockyRT.catalogEvents = Array.isArray(eventsPayload.events) ? eventsPayload.events : [];
+                }
+                this.rebuildLibraryRows();
+                await this.fetchFireStatus();
+            } catch (e) { /* non-fatal */ }
+        },
+
+        /** Fast path after user-event save/delete. */
+        async _refreshAfterEventSave(savedEvent) {
+            if (savedEvent && savedEvent.id) {
+                const id = String(savedEvent.id);
+                const ix = (BlockyRT.catalogEvents || []).findIndex((r) => r && String(r.id) === id);
+                if (ix >= 0) BlockyRT.catalogEvents[ix] = savedEvent;
+                else BlockyRT.catalogEvents.push(savedEvent);
+            }
+            try {
+                const [stateRes, eventsRes] = await Promise.all([
+                    fetch("/api/state", { headers: this.getAuthHeaders() }),
+                    fetch("/api/events", { headers: this.getAuthHeaders() })
+                ]);
+                if (eventsRes.ok) {
+                    const eventsPayload = await eventsRes.json();
+                    BlockyRT.catalogEvents = Array.isArray(eventsPayload.events) ? eventsPayload.events : [];
+                }
+                if (stateRes.ok) {
+                    const state = await stateRes.json();
+                    this._applyRulesActivationPending((state.system || {}).rules_activation_pending);
+                    this.liveDevices = state.devices || {};
+                }
+                this.rebuildLibraryRows();
+            } catch (e) { /* ignore */ }
+        },
+
+        /** Fast path after rule save/delete — YAML written, engine not reloaded yet. */
+        async _refreshAfterRuleSave(savedRow) {
+            if (savedRow && savedRow.id) {
+                const id = String(savedRow.id);
+                const ix = this.automations.findIndex((r) => r && String(r.id) === id);
+                if (ix >= 0) this.automations[ix] = savedRow;
+                else this.automations.push(savedRow);
+            }
+            this.rebuildLibraryRows();
+            try {
+                const res = await fetch("/api/state", { headers: this.getAuthHeaders() });
+                if (!res.ok) return;
+                const state = await res.json();
+                this._applyRulesActivationPending((state.system || {}).rules_activation_pending);
+                this.liveDevices = state.devices || {};
+                this.rebuildEntityOptions(state.device_metadata || {}, this.automations);
+            } catch (e) { /* ignore */ }
+            if (this.autoOffConfig) {
+                this._rebuildAutoOffIndex();
+            }
+        },
+
         navAway(ev, url) {
-            if (!this.editorDirty) return;
+            if (!this.editorDirty && this.rulesPendingCount <= 0) return;
             ev.preventDefault();
             this.requestLeave({ type: "href", url });
         },
@@ -4505,6 +5195,9 @@ function blockyApp() {
             }
             this.refreshFireStatusLine();
             blockyCancelUniqueness();
+            void this.ensureAutoOffConfig().then(() => {
+                this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
+            });
             this.scheduleBlocklyLoad();
         },
 
@@ -4653,6 +5346,10 @@ function blockyApp() {
                 this.coldTimeToInteractiveMs = null;
                 this.coldLoadInitDelayMs = null;
                 this.coldLoadNavToInitMs = null;
+                this.infoMessage = "";
+                this.errorMessage = "";
+                this.registryCheckMessage = "";
+                this.registryCheckOk = null;
                 this._coldLoadFetchOffsets = {};
                 for (const row of this.loadChecklist) {
                     row.done = false;
@@ -4685,11 +5382,15 @@ function blockyApp() {
                 });
             };
             try {
-                const [stateRes, rulesRes, eventsRes] = await Promise.all([
+                const fetches = [
                     wrapFetch("state", fetch("/api/state", { headers: this.getAuthHeaders() })),
                     wrapFetch("automations", fetch("/api/automations", { headers: this.getAuthHeaders() })),
                     wrapFetch("events", fetch("/api/events", { headers: this.getAuthHeaders() }))
-                ]);
+                ];
+                const results = await Promise.all(fetches);
+                const stateRes = results[0];
+                const rulesRes = results[1];
+                const eventsRes = results[2];
                 if (!stateRes.ok) throw new Error(`Failed /api/state (${stateRes.status})`);
                 if (!rulesRes.ok) throw new Error(`Failed /api/automations (${rulesRes.status})`);
                 if (!eventsRes.ok) throw new Error(`Failed /api/events (${eventsRes.status})`);
@@ -4713,7 +5414,10 @@ function blockyApp() {
                 BlockyRT.catalogEvents = Array.isArray(eventsPayload.events) ? eventsPayload.events : [];
                 this.rebuildLibraryRows();
                 this.rebuildEntityOptions(state.device_metadata || {}, this.automations);
+                this.liveDevices = state.devices || {};
+                this._applyAutoOffFromState(state.system);
                 const sys = (state && state.system) || {};
+                this._applyRulesActivationPending(sys.rules_activation_pending);
                 this.huePresets = (sys.hue_presets && typeof sys.hue_presets === "object")
                     ? sys.hue_presets : {};
                 this.sonosStations = (sys.sonos_stations && typeof sys.sonos_stations === "object")
@@ -4746,12 +5450,15 @@ function blockyApp() {
                     this.scheduleBlocklyLoad();
                 }
                 if (coldLoad) {
+                    if (!this.autoOffConfig) {
+                        await this.ensureAutoOffConfig();
+                    }
                     this.coldTimeToInteractiveMs = Math.round(performance.now());
+                    this.connected = true;
                     this.editorLoading = false;
                     this._snapshotColdLoadTimings();
                     this._logColdLoadTimings();
                     this._deferColdFireStatus(coldLoadWallStart);
-                    this.connected = true;
                     return true;
                 }
                 const fireStart = performance.now();
@@ -5002,7 +5709,9 @@ function blockyApp() {
                         this.reloadSuppressOverlay = window.WanOSReloadAlerts.computeSuppressOverlay(
                             st.system.system_alert_msgs || []
                         );
+                        this._applyRulesActivationPending(st.system.rules_activation_pending);
                     }
+                    this.liveDevices = st.devices || {};
                     this.connected = true;
                 } catch (e) {
                     this.connected = false;
@@ -5170,9 +5879,9 @@ function blockyApp() {
                     const isDraft = !!this.selectedRule.isDraft || !this.editor.id;
                     if (isDraft) {
                         const created = await this.createUserEventFromEditor();
-                        this.infoMessage = "User event created (hot-reload queued).";
+                        this.infoMessage = "Event saved. Activate changed rules to apply.";
                         this.markEditorClean();
-                        await this.refreshAll();
+                        await this._refreshAfterEventSave(created);
                         if (created && created.id) {
                             const row = (this.libraryRows || []).find(
                                 (e) => e.isEventRow && String(e.id) === String(created.id)
@@ -5191,9 +5900,9 @@ function blockyApp() {
                             );
                         }
                         await this.persistUserEventFromEditor(this.editor.id, { name: this.editor.name });
-                        this.infoMessage = "Event updated (hot-reload queued).";
+                        this.infoMessage = "Event saved. Activate changed rules to apply.";
                         this.markEditorClean();
-                        await this.refreshAll();
+                        await this._refreshAfterEventSave({ id: this.editor.id, name: this.editor.name });
                     }
                 } catch (e) {
                     this.errorMessage = String(e);
@@ -5229,11 +5938,18 @@ function blockyApp() {
                 });
                 const body = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(body.error || `${method} failed (${res.status})`);
-                this.infoMessage = isUpdate
-                    ? "Automation updated (hot-reload queued)."
-                    : "Automation created (hot-reload queued).";
+                if (body.rules_activation_pending) {
+                    this._applyRulesActivationPending(body.rules_activation_pending);
+                }
+                const savedDisabled = payload.enabled === false;
+                this.infoMessage = savedDisabled
+                    ? "Rule saved."
+                    : (this.rulesPendingCount > 0
+                        ? "Rule saved. Activate changed rules to apply."
+                        : "Rule saved.");
                 this.markEditorClean();
-                await this.refreshAll();
+                this.ruleSaveBusy = false;
+                await this._refreshAfterRuleSave(body.automation || payload);
                 const savedId = (body.automation && body.automation.id) || payload.id;
                 if (savedId) {
                     const fresh = (this.libraryRows || []).find((r) =>
@@ -5241,12 +5957,11 @@ function blockyApp() {
                     ) || this.automations.find((r) => r.id === savedId);
                     if (fresh) this._doSelectRule(fresh);
                 }
-                await this.runPostWriteRegistryCheck({
+                void this.runPostWriteRegistryCheck({
                     okMsg: isUpdate ? "Rule updated" : "Rule created",
                     failMsg: "Saved, but registry check failed — open Admin → Debug.",
                     savedRuleName: (body.automation && body.automation.name) || payload.name || ""
                 });
-                this.ruleSaveBusy = false;
                 this.ruleSaveFailed = false;
             } catch (e) {
                 this.errorMessage = String(e);
@@ -5392,9 +6107,18 @@ function blockyApp() {
                 });
                 const body = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(body.error || `DELETE failed (${res.status})`);
-                this.infoMessage = "Automation deleted (hot-reload queued).";
+                if (body.rules_activation_pending) {
+                    this._applyRulesActivationPending(body.rules_activation_pending);
+                }
+                const wasDisabled = this.editor.enabled === false;
+                this.infoMessage = wasDisabled
+                    ? "Rule deleted."
+                    : (this.rulesPendingCount > 0
+                        ? "Rule deleted. Activate changed rules to apply."
+                        : "Rule deleted.");
                 this.markEditorClean();
-                await this.refreshAll();
+                this.automations = (this.automations || []).filter((r) => r && String(r.id) !== String(this.editor.id));
+                await this._refreshAfterRuleSave(null);
                 this._doNewRule();
                 await this.runPostWriteRegistryCheck({
                     okMsg: "Rule deleted",
@@ -5438,9 +6162,15 @@ function blockyApp() {
                     }
                     throw new Error(msg);
                 }
-                this.infoMessage = "Event deleted (hot-reload queued).";
+                if (body.rules_activation_pending) {
+                    this._applyRulesActivationPending(body.rules_activation_pending);
+                }
+                this.infoMessage = "Event deleted. Activate changed rules to apply.";
                 this.markEditorClean();
-                await this.refreshAll();
+                BlockyRT.catalogEvents = (BlockyRT.catalogEvents || []).filter(
+                    (r) => r && String(r.id) !== String(id)
+                );
+                await this._refreshAfterEventSave(null);
                 this.selectedRule = null;
                 this.editor = {
                     id: "",
@@ -5493,6 +6223,7 @@ function blockyApp() {
             this.editorLoading = true;
             const ok = await this.refreshAll();
             if (this.editorLoading) {
+                if (ok) this.connected = true;
                 this.editorLoading = false;
             }
             if (ok) {

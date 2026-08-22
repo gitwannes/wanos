@@ -413,8 +413,20 @@ class ZWaveJSUIBridge(WanosComponent):
                 if event.type == EventType.CONFIG_RELOAD_REQUESTED:
                     # Ignore preset-only reloads; they must not force Z-Wave re-mapping.
                     scope = str((event.payload or {}).get("scope") or "").strip().lower()
-                    if scope == "hue_presets":
+                    scopes_raw = (event.payload or {}).get("scopes")
+                    skip_scopes = frozenset(
+                        {"hue_presets", "automations", "events", "timers_types", "auto_off_metadata", "product_types"}
+                    )
+                    if scope in skip_scopes:
                         continue
+                    if isinstance(scopes_raw, list):
+                        normalized = {
+                            str(s or "").strip().lower()
+                            for s in scopes_raw
+                            if str(s or "").strip()
+                        }
+                        if normalized and normalized <= skip_scopes:
+                            continue
                     is_config_reload = True
                     break
 

@@ -83,6 +83,35 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
     changed_domains |= dom_start
 
     try:
+        scopes_raw = payload.get("scopes")
+        scope_set: Set[str] = set()
+        if isinstance(scopes_raw, list):
+            scope_set = {
+                str(s or "").strip().lower()
+                for s in scopes_raw
+                if str(s or "").strip()
+            }
+        if scope:
+            scope_set.add(scope)
+
+        # B23: automations / events — YAML-only reload (no integration recycle).
+        if scope_set and scope_set <= frozenset({"automations", "events"}):
+            from core.rules_activation_pending import clear_pending_on_manager
+            from core.scoped_config_reload import reload_automations_scope, reload_events_scope
+
+            if "automations" in scope_set:
+                reload_automations_scope(manager)
+            if "events" in scope_set:
+                reload_events_scope(manager)
+            clear_pending_on_manager(manager)
+            changed_domains.add("system")
+            ch_done, dom_done = AlertManager.process_alert(
+                manager._state, reload_alert_complete(alert_scope)
+            )
+            state_changed |= ch_done
+            changed_domains |= dom_done
+            return state_changed, changed_domains
+
         # B9A / B10G: Hue preset CRUD must be lightning fast.
         # Avoid full load_config() + rebuild_core_metadata() (which triggers NVRAM + all integration reloads).
         if scope == "hue_presets":

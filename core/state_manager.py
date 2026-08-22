@@ -16,6 +16,7 @@ from core.event_handlers.registry import EVENT_ROUTERS
 from core.nvm_manager import NVRAMManager
 from core.event_catalog import to_bus_token, legacy_key_for_bus_token
 from core.command_commit import CommandCommit
+from core.auto_off_store import auto_off_timer_payload_from_config
 
 from logic.health_monitor import HealthMonitor
 from logic.sauna_controller import SaunaController
@@ -303,6 +304,8 @@ class StateManager:
             self._state.system.sonos_stations = dict(self._config.sonos.stations)
         else:
             self._state.system.sonos_stations = {}
+
+        self._state.system.auto_off_timer = auto_off_timer_payload_from_config(self._config)
 
         nvram_data = self.nvm.load()
         for nv_idx, nv_val in nvram_data.items():
