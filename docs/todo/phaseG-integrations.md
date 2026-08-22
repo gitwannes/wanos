@@ -28,9 +28,9 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G10 — HomeWizard** | Energy local API — **own ship** (3rd) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
-| **G15 — Evening twilight cross-day** | bugfix: orphan Evening lights ON after midnight — env scheduler + OWM sun refresh |
+| **G15 — Evening twilight cross-day** | ✅ **Done 2026-08-22** — twilight guards + OWM rollover + sweeper/timer hardening; **C27** + Admin timeline in same ship |
 
-Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** may jump ahead of **G4** on production evening-lights pain (**kickoff 2026-08-22**). **G3** ✅ **Done 2026-08-15** (config-only; cold boot; one code run with **B10K**). **G5** ✅ **Done 2026-08-16** (manual cinema half). **G4** still owns the automatic hot-sun morning open.
+Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** ✅ **Done 2026-08-22** (Pi smoke **2026-08-22**). **G4** still owns the automatic hot-sun morning open.
 
 **G11 → G9 → G10 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. Operator reordered **G11 first** **2026-08-20**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
@@ -652,9 +652,68 @@ Second call reveals capabilities (temperature, humidity, switch, thermostatMode,
 
 ---
 
-## 📋 G15 — Evening twilight cross-day orphan ON 🔜 TODO — kickoff **2026-08-22**
+## ✅ G15 — Evening twilight cross-day orphan ON — **Done 2026-08-22**
 
-**Letter:** **G15**. **Sequence #1**. Status **open** (kickoff locked). Size **mid**. **Depends on:** none (env scheduler + OWM sun refresh — existing stack). **Not G4** (One Call / hot-sun cinema).
+**Letter:** **G15**. **Pipeline:** Done. Size **mid**. **Pi smoke:** ✅ **2026-08-22**.
+
+### Scope expansion (operator **2026-08-22** — one deploy)
+
+G15 letter = env scheduler + OWM + sweeper/timer hardening. **Same ship** also included:
+
+| Item | Letter | What |
+|---|---|---|
+| Sunrise/sunset chrome | **C27** | Admin General Diagnostics first row; Explorer **ℹ** popover (HH:MM + relative) |
+| Planned Automations timeline | *(Admin UX)* | Wider pane; **`Scene: {catalog name}`** rows; env timers store catalog names in `timer_handlers` |
+
+**C27** remains its own phase file for spec/DoD; closed **with** G15 Pi smoke, not a separate deploy.
+
+### Shipped (code)
+
+| # | Change | File(s) |
+|---|---|---|
+| **1** | Same-day evening window guard (`local_date(sunset) == today`) | `logic/environment_scheduler.py` |
+| **2** | OWM `need_sun` on calendar date rollover (any hour) | `integrations/open_weather.py` |
+| **3** | Sweeper sunset/sunrise date guard + **INFO** twilight/blinds logs | `core/event_handlers/system_handlers.py` |
+| **4** | Same-day morning window guard | `logic/environment_scheduler.py` |
+| **5** | Stale `env_*` timer skip + WARNING on fire | `logic/timers.py`, `core/state_manager.py`, `EnvironmentScheduler.env_timer_fire_stale` |
+| **6** | `[Automation] Rule "…" fired (trigger: …)` INFO | `logic/automation_rules.py` |
+| **7** | Z-Wave Command Sent includes payload `origin` | `integrations/zwave.py` |
+| **8** | Flat event-gate branch safety: skip fire when catalog event did not wake | `logic/automation_rules.py` |
+| **9** | Planned Automations: catalog scene names + timeline layout | `core/event_handlers/timer_handlers.py`, `frontend/app.js`, `frontend/admin.html` |
+| **10** | **C27** — sun cycle Admin + Explorer ℹ popover | `frontend/app.js`, `frontend/admin.html`, `frontend/wanos-shell.js` |
+
+Docs: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) (G15 guards + OWM rollover + sweeper/timer notes). **C27** → [`phaseC-shell.md`](phaseC-shell.md) § C27.
+
+### Retrospective classification (pre-ship Pi logs — unchanged)
+
+| When | Class | Cause |
+|---|---|---|
+| Aug 20 00:29 tuin ON | **Env bug (A)** | Cross-day evening window + automation path |
+| Aug 18 04:29 | **Unconfirmed** | Not explained by cross-day alone — monitor with new audit logs |
+| Aug 17 19:15, Aug 18 23:12, Aug 19 17:44/20:39, Aug 20 19:47/00:48, Aug 21 06:47/06:54 | **Manual / side-effect** | Living MANUAL/ZWAVE, MANUAL ALL OFF, or post-off re-ON — not G15 env timer |
+
+Re-grep on Pi after deploy:
+
+```bash
+grep -E "72005|zwave\.tuin|SUNSET|EVENING_OFF|SUNRISE|env_twi|\[Sweeper\]|\[Automation\]|\[ACTION\].*Evening|Command Sent.*tuin|\[Timer\] Skipping stale" /var/log/wanos/wanos.log
+```
+
+### G15 DoD
+
+- [x] Same-day evening + morning window guards; `/api/state` env schedule fields null/inactive across midnight until today’s sun known
+- [x] OWM sun refresh on date rollover (verify log line before 03:00 after midnight on Pi)
+- [x] Sweeper INFO logs + no `SUNSET_TRIGGER` when sunset date ≠ today
+- [x] Stale env timer skip + WARNING
+- [x] `[Automation] Rule … fired` + Z-Wave `origin` on Command Sent
+- [x] Pi smoke: normal sunset ON + 23:00 OFF unchanged; no tuin ON in 00:00–03:00 dead zone — **2026-08-22**
+- [x] Retrospective grep note in phase doc (table above)
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+**Evidence artifacts:** [`docs/capture.log`](../capture.log), [`docs/capture2.log`](../capture2.log) — optional remove from repo; offline archive OK.
+
+---
+
+## 📋 G15 — spec archive (kickoff **2026-08-22**)
 
 ### Operator requests (verbatim)
 
@@ -722,38 +781,43 @@ After midnight until OWM daily refresh (`sun_refresh_hour`, default **03:00** �
 
 **OWM sun refresh gate** — [`integrations/open_weather.py`](../integrations/open_weather.py): `need_sun = force_sun or (last_sun_refresh_date != today and hour >= sun_hour)` — **no refresh on calendar rollover before 03:00**.
 
-### Anomaly buckets (kickoff lock)
+### Anomaly buckets (kickoff lock **2026-08-22**)
 
-| Bucket | Examples | Likely cause |
+| Bucket | Examples | Assessment |
 |---|---|---|
-| **A — Cross-day window** | Aug 20 00:29 | Stale `sunset_unix` + today `23:00` → false “evening”; sweeper and/or in-window state |
-| **B — Orphan without SUNSET log** | Aug 20 00:29, Aug 18 04:29 | **Not proven** as live `SUNSET_TRIGGER` replay in capture2; may be manual, missing log lines, or trigger outside grep |
-| **C — Non-env** | Aug 17 19:15 (rule edits), Aug 18 23:12 (post-OFF re-ON), Aug 21 06:47 burst | Operator / Blocky / other rules — **out of G15 scope** unless linked in further capture |
+| **A — Cross-day window** | Aug 20 00:29 | **Confirmed.** Stale `sunset_unix` + today `23:00` → false evening 00:00–03:00. [`docs/capture.log`](../capture.log) shows full **Evening lights on** batch (tuin + kerst RFX) at 00:29:59 — automation path, not tuin-only manual. |
+| **B — Orphan without adjacent SUNSET line** | Aug 20 00:29, Aug 18 04:29 | **In scope — investigate.** Code: tuin ON is only in **Evening lights on** / **ALL OFF gv** (OFF only) in [`automations.auto.yaml`](../automations.auto.yaml). ON requires `SUNSET_TRIGGER` (UUID `bd0413be-…`). Missing `Event Received [SUNSET_TRIGGER]` in grep slice ≠ proof rule did not run (sweeper/timing/grep gap). **`[ACTION]` automation audit lines not in capture2 grep** — add logging + retrospective Pi grep. |
+| **C — Post-off / daytime / morning** | Aug 17 19:15, Aug 18 23:12, Aug 19 17:44/20:39, Aug 20 19:47/00:48, Aug 21 06:47/06:54 | **In scope — investigate** (operator **2026-08-22**). Aug 17 correlates with rule edits; Aug 18 23:12 = re-ON after EVENING_OFF; Aug 21 = 7 min ON/OFF burst ~sunrise. |
 
-### Proposed fix (kickoff — confirm before implement)
+**Code constraint (verified):** only **Evening lights on** can command tuin ON. Any tuin ON is either that rule (needs bus sunset event) or **direct** Explorer/API/`HUB_STATE_CHANGED` manual path (logs `[Z-Wave] Command Sent` only).
 
-| # | Change | File(s) | Intent |
-|---|---|---|---|
-| **1** | **Same-day evening window** — `twi_eve_on` and `twi_eve_off` must share the **same local calendar date**; if `date(sunset_unix) != date(twi_eve_off)`, treat evening window as **inactive** (schedule neither edge) until today’s sun refresh | `environment_scheduler.py` | Closes midnight–03:00 false evening |
-| **2** | **OWM sun on date rollover** — `need_sun` when `last_sun_refresh_date != today` **regardless of hour** (keep `sun_refresh_hour` as preferred earliest, not exclusive gate) | `open_weather.py` | Refresh today’s sunset soon after midnight, not only ≥03:00 |
-| **3** | **Sweeper guard** — before dispatching `SUNSET_TRIGGER`, require `date(sunset_unix) == date(now)` | `system_handlers.py` | Belt-and-braces if window state still stale |
-| **4** | *(Optional)* Log sweeper skip/dispatch at INFO when twilight alignment runs | `system_handlers.py` | Easier Pi diagnosis — **ask operator** |
+**capture2 grep caveat:** pattern includes `zwave.tuin` but **not** kerst RFX — Aug 20 00:29 full batch visible only in [`docs/capture.log`](../capture.log).
 
-**Not in G15:** G4 One Call; B15 demote schedule edges; merging Evening lights rules (**B11**).
+### Locked decisions (operator **2026-08-22**)
 
-### Open questions (operator confirm)
+| # | Topic | Lock |
+|---|---|---|
+| **1** | **Scope** | Ship fixes **1–4** **and** bucket **B** investigation (logging + retrospective grep + stale env-timer hardening). |
+| **2** | **Aug 18 23:12 / Aug 21 06:47** | **Investigate in G15** — not dismissed as manual; add audit trail to classify on next occurrence and re-grep Pi around those timestamps. |
+| **3** | **Sweeper logs** | **Yes** — INFO when twilight/blinds alignment runs, skips, or dispatches (`[Sweeper] …`). |
+| **4** | **Morning window** | Apply **same calendar-day guard** to morning twilight (`twi_morn_on` clock + `twi_morn_off` sunrise) — mirror evening fix. |
+| **5** | **Stale env timers** | On `env_twi_*` / `env_blinds_*` fire: if deadline local date ≠ today (or sunset date mismatch for eve_on), **skip fire** + WARNING log. |
+| **6** | **Automation audit** | INFO when a schedule-edge rule fires: `[Automation] Rule "{name}" fired (trigger: {legacy_name})` — before actions (uses `automation_logger`). |
+| **7** | **Z-Wave log origin** | Extend `[Z-Wave] Command Sent` line with payload `origin` when present (`AUTOMATION` / `MANUAL` / `TIMER` / …). |
 
-1. **Scope:** Fix **1+2 (+3?)** only, or also chase bucket **B** orphans (Aug 18 04:29) with wider Pi grep (`MANUAL`, Explorer, rule execution)?
-2. **Aug 18 23:12 / Aug 21 06:47** — treat as manual/known, or investigate in same ship?
-3. **Item 4** — add INFO sweeper twilight logs?
+### Proposed fix (locked for implement)
 
-### Pi smoke plan (draft DoD)
+| # | Change | File(s) |
+|---|---|---|
+| **1** | Same-day evening window guard | `environment_scheduler.py` |
+| **2** | OWM `need_sun` on calendar rollover (any hour) | `open_weather.py` |
+| **3** | Sweeper sunset date guard + **INFO** twilight/blinds alignment logs | `system_handlers.py` |
+| **4** | Same-day morning window guard | `environment_scheduler.py` |
+| **5** | Stale env timer skip on fire | `logic/timers.py` and/or timer dispatch path |
+| **6** | Rule-fired INFO audit | `logic/automation_rules.py` |
+| **7** | Z-Wave command origin in log line | `integrations/zwave.py` (and peers if same pattern) |
 
-- [ ] After local midnight (or simulated clock): no `SUNSET_TRIGGER` / tuin ON until today’s sun refresh + real sunset
-- [ ] Aug-20-style window: between 00:00 and 03:00, evening window inactive in `/api/state` env schedule fields
-- [ ] Normal sunset ON + 23:00 OFF unchanged on a clear evening
-- [ ] OWM refresh runs on calendar day change (not only ≥03:00)
-- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**Not in G15:** G4 One Call; B15 demote schedule edges; B11 multi-flow merge.
 
-**Evidence artifacts:** [`docs/capture.log`](../capture.log), [`docs/capture2.log`](../capture2.log) (operator Pi greps; may stay in repo until close-out or remove per operator).
+*(DoD + shipped summary — see § G15 Done above.)*
 

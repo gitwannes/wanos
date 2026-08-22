@@ -1,11 +1,15 @@
 # --- file: logic/environment_scheduler.py ---
 import time
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from core.models import SystemState, Event, EventType
 from core.config import AppConfig
+
+
+def _local_date(unix_ts: int) -> date:
+    return datetime.fromtimestamp(unix_ts).date()
 
 
 class EnvironmentScheduler:
@@ -48,26 +52,27 @@ class EnvironmentScheduler:
         blinds_close = max(sns.sunset_unix, ec_early)
         if ec_late > 0: blinds_close = min(blinds_close, ec_late)
 
-        # --- Phase 2: TWILIGHT LOGIC ---
-        twi_eve_on = sns.sunset_unix
-        twi_eve_off = _get_unix_for_today(cfg.twilight.evening_off_time)
+        # --- Phase 2: TWILIGHT LOGIC (G15: sun edges must be same local calendar day) ---
+        today = datetime.now().date()
         twi_morn_on = _get_unix_for_today(cfg.twilight.morning_on_time)
         twi_morn_off = sns.sunrise_unix
+        twi_eve_on = sns.sunset_unix
+        twi_eve_off = _get_unix_for_today(cfg.twilight.evening_off_time)
 
         # Store blinds clamps (always scheduled when sun is known).
         sns.env_schedule_blinds_open_unix = blinds_open
         sns.env_schedule_blinds_close_unix = blinds_close
 
-        # Morning lights: skip whole window if sunrise ≤ morning-on clock.
-        if twi_morn_off > twi_morn_on:
+        # Morning lights: same-day sunrise + sunrise still after on-clock.
+        if _local_date(twi_morn_off) == today and twi_morn_off > twi_morn_on:
             sns.env_schedule_twilight_morning_on_unix = twi_morn_on
             sns.env_schedule_twilight_morning_off_unix = twi_morn_off
         else:
             sns.env_schedule_twilight_morning_on_unix = None
             sns.env_schedule_twilight_morning_off_unix = None
 
-        # Evening lights (B10F): mirror morning — skip whole window if sunset ≥ evening-off.
-        if twi_eve_on < twi_eve_off:
+        # Evening lights (B10F + G15): same-day sunset + sunset still before off-clock.
+        if _local_date(twi_eve_on) == today and twi_eve_on < twi_eve_off:
             sns.env_schedule_twilight_evening_on_unix = twi_eve_on
             sns.env_schedule_twilight_evening_off_unix = twi_eve_off
         else:
@@ -150,3 +155,27 @@ class EnvironmentScheduler:
                 "event_type": "SUNRISE_TRIGGER",
                 "event_payload": {}
             }))
+
+    @staticmethod
+    def env_timer_fire_stale(timer_id: str, deadline: int, state: SystemState) -> Optional[str]:
+        """
+        G15: return a skip reason when an env schedule timer must not fire, else None.
+        """
+        if not timer_id or not str(timer_id).startswith("env_"):
+            return None
+        today = datetime.now().date()
+        try:
+            deadline_date = datetime.fromtimestamp(int(deadline)).date()
+        except (TypeError, ValueError, OSError):
+            return f"invalid deadline {deadline!r}"
+        if deadline_date != today:
+            return f"deadline date {deadline_date} ≠ today {today}"
+
+        sns = state.sensors
+        if timer_id == "env_twi_eve_on" and sns.sunset_unix:
+            if _local_date(sns.sunset_unix) != today:
+                return f"sunset date {_local_date(sns.sunset_unix)} ≠ today {today}"
+        if timer_id == "env_twi_morn_off" and sns.sunrise_unix:
+            if _local_date(sns.sunrise_unix) != today:
+                return f"sunrise date {_local_date(sns.sunrise_unix)} ≠ today {today}"
+        return None

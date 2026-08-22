@@ -1,5 +1,6 @@
 # --- file: core/event_handlers/system_handlers.py ---
 import time
+from datetime import datetime
 from typing import Any, Set, Tuple
 from loguru import logger
 from core.models import Event, EventType
@@ -249,25 +250,47 @@ async def handle_system_sweep_requested(event: Event, manager: Any) -> Tuple[boo
     uptime = int(time.time() - manager._start_time)
 
     if is_passive_sweep or uptime < 180:
-        logger.debug(
-            f"[Sweeper] Skipping time-series hardware alignment to respect passive baseline (Uptime: {uptime}s).")
+        logger.info(
+            f"[Sweeper] Skipping time-series alignment "
+            f"(reason={reason!r}, uptime={uptime}s, passive={is_passive_sweep})."
+        )
     else:
+        today = datetime.fromtimestamp(now).date()
+
         if sns.env_schedule_blinds_open_unix and sns.env_schedule_blinds_close_unix:
             if sns.env_schedule_blinds_open_unix <= now < sns.env_schedule_blinds_close_unix:
+                logger.info("[Sweeper] Blinds window active — dispatch BLINDS_OPEN_TRIGGER.")
                 manager.dispatch(Event(type=EventType.BLINDS_OPEN_TRIGGER))
             else:
+                logger.info("[Sweeper] Blinds window inactive — dispatch BLINDS_CLOSE_TRIGGER.")
                 manager.dispatch(Event(type=EventType.BLINDS_CLOSE_TRIGGER))
 
         if sns.env_schedule_twilight_morning_on_unix and sns.env_schedule_twilight_morning_off_unix:
-            if sns.env_schedule_twilight_morning_on_unix <= now < sns.env_schedule_twilight_morning_off_unix:
+            sunrise_today = (
+                sns.sunrise_unix
+                and datetime.fromtimestamp(sns.sunrise_unix).date() == today
+            )
+            if not sunrise_today:
+                logger.info("[Sweeper] Morning twilight skipped — sunrise date ≠ today.")
+            elif sns.env_schedule_twilight_morning_on_unix <= now < sns.env_schedule_twilight_morning_off_unix:
+                logger.info("[Sweeper] Morning twilight active — dispatch MORNING_ON_TRIGGER.")
                 manager.dispatch(Event(type=EventType.MORNING_ON_TRIGGER))
             else:
+                logger.info("[Sweeper] Morning twilight inactive — dispatch SUNRISE_TRIGGER.")
                 manager.dispatch(Event(type=EventType.SUNRISE_TRIGGER))
 
         if sns.env_schedule_twilight_evening_on_unix and sns.env_schedule_twilight_evening_off_unix:
-            if sns.env_schedule_twilight_evening_on_unix <= now < sns.env_schedule_twilight_evening_off_unix:
+            sunset_today = (
+                sns.sunset_unix
+                and datetime.fromtimestamp(sns.sunset_unix).date() == today
+            )
+            if not sunset_today:
+                logger.info("[Sweeper] Evening twilight skipped — sunset date ≠ today.")
+            elif sns.env_schedule_twilight_evening_on_unix <= now < sns.env_schedule_twilight_evening_off_unix:
+                logger.info("[Sweeper] Evening twilight active — dispatch SUNSET_TRIGGER.")
                 manager.dispatch(Event(type=EventType.SUNSET_TRIGGER))
             else:
+                logger.info("[Sweeper] Evening twilight inactive — dispatch EVENING_OFF_TRIGGER.")
                 manager.dispatch(Event(type=EventType.EVENING_OFF_TRIGGER))
 
     ch, dom = AlertManager.process_alert(manager._state,

@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). Queued: **C3 → C4 → C26 → C11 → C12 → C17 → C20 → C21 → C27 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** / **C27** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). Queued: **C3 → C4 → C26 → C11 → C12 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -31,7 +31,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C19 — History auto-refresh blank** | Auto-refresh black / title-only; keep settings + window — ✅ **Done 2026-08-16** | History charts · low |
 | **C20 — Bell Clear All** | Admin SYSTEM NOTIFICATIONS **Clear All** does nothing | Admin alerts · low |
 | **C21 — AUTO OFF while OFF** | Explorer countdown runs on a device that is already OFF | Explorer live · low |
-| **C27 — Sunrise/sunset chrome** | Admin General Diagnostics + Explorer title area | Admin + shell · low |
+| **C27 — Sunrise/sunset chrome** | ✅ **Done 2026-08-22** — Admin first row + Explorer ℹ popover; Pi smoke with **G15** |
 | **C22 — Host “(no history)”** | Host CPU temp on history allowlist; load 5m/15m live-only — ✅ **Done 2026-08-16** | Host / History · low |
 | **C23 — SSE SseClient unhashable** | EventSource dies ~25 ms — ✅ **Done 2026-08-16** (with **C18**) | SSE hub · low |
 | **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only | History charts · mid |
@@ -43,7 +43,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`blockly` | Shell entrypoints |
 | **C26 — Frontend JS modularization** | Split `app.js` + `blockly.js`; shared helpers; `login.js`; **`reference.md` JS catalog** | FE maintainability · mid · after **C4** |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C26** after **C4**; **C11** after **C26**. **C12** → **C17** → **C20** → **C21** → **C27** → **C16** → **C24** → **C25** → **C15** → **C13**. **C20** / **C21** / **C27** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C26** after **C4**; **C11** after **C26**. **C12** → **C17** → **C20** → **C21** → **C16** → **C24** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -75,8 +75,10 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 
 ### Planned Automations pane
 
-* No IDX; show **name + type** (today’s metadata types; Phase **D** later for light vs switch).
-* Keep action intent; **only remove the word “will”** → e.g. `CLOSE`, `turn ON`, `execute scene`.
+* No IDX; single-line rows: clock · countdown · label.
+* **Scene** timers: **`Scene: {name}`** (catalog / rule name — not “System Macro / execute scene”). **G15 ship** also widened pane + backend catalog names for env schedule timers.
+* Device timers: **`{name} → {state}`** (e.g. auto-off).
+* Keep relative countdown (`in N min` / `in Nh Nm`); drop past/done entries (**C10**).
 
 ### Critical alerts in bell
 
@@ -828,9 +830,38 @@ Both 60s-path defects were patched (cause not isolated on Pi; combined fix smoke
 
 ---
 
-## 📋 C27 — Sunrise/sunset chrome 🔜 TODO
+## ✅ C27 — Sunrise/sunset chrome — **Done 2026-08-22**
 
-**Origin:** operator inbox **2026-08-22**. Admin **General Diagnostics** + Explorer shell title — **not** Blocky, **not** new backend (data already in `/api/state`). Size **low**. Sequence: **∥ cluster** (with **C20** / **C21**); no deps on **B23**.
+**Origin:** operator inbox **2026-08-22**. Admin **General Diagnostics** + Explorer shell title. Size **low**. **Pi smoke:** ✅ **2026-08-22**. **Deploy:** same ship as **G15** (see [`phaseG-integrations.md`](phaseG-integrations.md) § G15 scope expansion).
+
+### Locked (kickoff **2026-08-22**)
+
+| Topic | Lock |
+|---|---|
+| **Format** | **Local HH:MM + relative** — e.g. `06:42 (2h ago)` / `21:30 (in 3h)` via `formatSunDiagnosticLine()` |
+| **Admin** | **First row** in General Diagnostics — always visible (↑ sunrise / ↓ sunset) |
+| **Explorer** | **ℹ** beside **Device Explorer** title only; **tap popover** (Alpine `@click.outside` wrapper; fixed panel on mobile); **History mode** excluded |
+| **Data** | Live `state.sensors.sunrise_unix` / `sunset_unix` from `/api/state` — no new backend |
+
+### Shipped (code)
+
+| File | Change |
+|---|---|
+| `frontend/app.js` | `sunriseDisplayText` / `sunsetDisplayText`; `formatSunDiagnosticLine()`; `sunCyclePopoverOpen` |
+| `frontend/admin.html` | Sun cycle first row in General Diagnostics |
+| `frontend/wanos-shell.js` | Explorer ℹ popover (right-aligned; mobile `fixed` below header) |
+
+### C27 DoD
+
+- [x] Admin General Diagnostics shows sunrise + sunset as **first** item
+- [x] Explorer Device Explorer title has **ℹ** → popover (tap; not History title)
+- [x] Values track live state (1 s tick via existing relative refresh)
+- [x] Pi smoke Admin + Explorer (phone tap on ℹ) — **2026-08-22**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 C27 — spec archive (kickoff **2026-08-22**)
 
 **Operator request (verbatim):**
 > triage: add sunrise & -set to both sysadmin page (show as 1st item in general diagnostics pane) and explorer page as tooltip on the title "device explorer" (how is this tooltip visible on smartphones)?
@@ -855,7 +886,7 @@ Both 60s-path defects were patched (cause not isolated on Pi; combined fix smoke
 
 **Admin — locked:** Always-visible **first row** in General Diagnostics (no popover needed).
 
-**Format (kickoff Q):** Relative only (reuse **`getRelativeTime`**) vs also absolute local clock time (e.g. `06:42`).
+**Format (locked kickoff 2026-08-22):** **Local HH:MM + relative** — reuse `getRelativeTime()` parenthetical after `formatUnixTime()` HH:MM slice.
 
 ### Out of scope
 
@@ -863,7 +894,7 @@ Both 60s-path defects were patched (cause not isolated on Pi; combined fix smoke
 * New OWM or schedule backend (unless kickoff finds missing `sunrise_unix` / `sunset_unix` on Pi — then bugfix elsewhere).
 * History mode title chrome (unless operator expands scope at kickoff).
 
-**C27 DoD:** Admin General Diagnostics shows sunrise + sunset as **first** item; Explorer Device Explorer title has **ℹ** → popover with both (works on phone tap); values track live state; Pi smoke Admin + Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C27 DoD:** *(see § C27 Done above.)*
 
 ---
 
@@ -1302,7 +1333,7 @@ if CI > 100: CI = 100
 * **C18:** ✅ **Done 2026-08-16** — Explorer Control live rows; Q4/Q5; live SSE (**C23**); drain `create_task` I/O.
 * **C23:** ✅ **Done 2026-08-16** (closed **with C18**) — `SseClient` `eq=False` in the hub `set`; first ping; pure ASGI; no HTTP/2 `Connection` header. Explorer EventSource smoke; journal not a DoD.
 * **C21:** Explorer AUTO OFF countdown must not run when the device is already OFF.
-* **C27:** sunrise/sunset — Admin General Diagnostics **first** row; Explorer **ℹ tap → popover** on Device Explorer title (not `title`-only). Kickoff Q: relative vs absolute clock.
+* **C27:** ✅ **Done 2026-08-22** — Admin General Diagnostics **first** row; Explorer **ℹ tap → popover** on Device Explorer title; format **HH:MM + relative**; History title out of scope; Pi smoke with **G15** deploy.
 * **C22:** ✅ **Done 2026-08-16** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m (`22007`/`22008`) live-only; not C11.
 * **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit. Blank auto-refresh → **C19** ✅. Fullscreen + extra climate lines → **C24**.
 * **C24:** temp/hum **day** overlay fills the **browser tab** (not F11) with **X** top-right; 24 h window (C16); CSV of full `hires_days`; 3rd y-axis AH (axes iff series checked); checkboxes only; month/year unchanged; **after C16**; not C12 #8 frost; do not reopen **C5**. Kickoff Q&A **locked 2026-08-16**. CI **2026-08-17:** Td base + T correction. Dew likelihood → **C25**.
@@ -1319,7 +1350,7 @@ if CI > 100: CI = 100
 * **C17:** **assess at kickoff** — persist while fault still true vs new occurrence; bell vs banner; store.
 * **C20:** kickoff + contract **locked** 2026-08-15 — implement when commanded.
 * **C21:** AUTO OFF countdown while toggle OFF.
-* **C27:** Explorer **ℹ popover** locked **2026-08-22**; relative-only vs +clock time — kickoff Q; History title out of scope unless expanded.
+* **C27:** ✅ **Done 2026-08-22** — format **HH:MM + relative** locked; Explorer ℹ popover; History title out of scope; closed with **G15** Pi smoke.
 * **C16:** locked — 24 h max viewport; pan over **`hires_days`**; water day chart **assess at kickoff**.
 * **C24:** kickoff Q&A **locked 2026-08-16** — overlay = full browser tab (not F11); **X** top-right; extra series overlay-only; month/year untouched; 24 h window + CSV of `hires_days`; 3rd y-axis AH (hide axis when series off); checkboxes only; CI piecewise color + tooltip. CI formula **locked 2026-08-17** (Td base + `TC = 0.8*(T-20)`). Implement when commanded. Dew likelihood → **C25**.
 * **C25:** **not locked** — persist OWM clouds/wind/rain; formula weights; 6th checkbox/CSV; axis. Placement: after **C24**, overlay-only, OWM/outside only.

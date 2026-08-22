@@ -91,19 +91,19 @@ blinds_close = max(sunset, evening_close_earliest)
 if evening_close_latest is set:
     blinds_close = min(blinds_close, evening_close_latest)
 
-# Morning lights — only if sunrise is still after the on-clock
-if sunrise > morning_on_time:
+# Morning lights — same local calendar day as sunrise + sunrise still after on-clock (G15)
+if local_date(sunrise) == today and sunrise > morning_on_time:
     Morning lights on  @ morning_on_time
     Morning lights off @ sunrise
 else:
-    schedule neither
+    schedule neither (null env_schedule_twilight_morning_*)
 
-# Evening lights — only if sunset is still before the off-clock (B10F)
-if sunset < evening_off_time:
+# Evening lights — same local calendar day as sunset + sunset still before off-clock (B10F + G15)
+if local_date(sunset) == today and sunset < evening_off_time:
     Evening lights on  @ sunset
     Evening lights off @ evening_off_time
 else:
-    schedule neither
+    schedule neither (null env_schedule_twilight_evening_*)
 ```
 
 **Shutters ≠ evening lights:** shutters use **clamped** sun; evening lights on uses **raw** sunset.
@@ -113,11 +113,18 @@ else:
 | Situation | Behaviour |
 |---|---|
 | Sunrise ≤ morning-on clock | Whole **morning lights** window skipped |
+| Sunrise date ≠ today (midnight–OWM refresh) | Morning window **inactive** until today’s sun times — **G15** |
 | Sunset &lt; evening-off (normal) | On at sunset → off at clock |
+| Sunset date ≠ today (midnight–OWM refresh) | Evening window **inactive** — no false “evening” 00:00–03:00 — **G15** |
 | Sunset ≥ evening-off | Whole **evening lights** window skipped (same pattern as morning; no inverted timers) — **B10F** |
+| Stale `env_twi_*` / `env_blinds_*` timer fires | Skipped + `[Timer] Skipping stale env timer` WARNING — **G15** |
 | Shutters open/close inverted by bad clamps | Scheduler does not skip; fix config |
 
-**Sweeper** (active sweeps only): re-dispatch current side of each window (not replay missed edges). Passive/boot sweeps skip time-series alignment.
+**OWM sun refresh (G15):** runs on **calendar date rollover** at any hour (not gated to `sun_refresh_hour` only). `sun_refresh_hour` (default 03:00) remains documented as typical catch-up time when refresh already ran today.
+
+**Sweeper boot / passive (G15):** alignment is **skipped** when uptime &lt; **180 s** or sweep reason is passive (`None`, `network_recovery`, `config_reload`) — logs `[Sweeper] Skipping time-series alignment …`. Schedule math still runs on **`SUNRISE_SUNSET_UPDATE`** (OWM); env timers arm from `EnvironmentScheduler.recalculate_schedule` without needing sweeper alignment. First **active** sweep after ~3 min uptime may dispatch twilight/blinds side triggers.
+
+**Sweeper** (active sweeps only): re-dispatch current side of each window (not replay missed edges). Passive/boot sweeps skip time-series alignment — both paths log at **INFO** (`[Sweeper] …`). Evening/morning alignment skips when sunset/sunrise date ≠ today.
 
 ---
 

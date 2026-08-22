@@ -148,11 +148,34 @@
         }
         if (page === "explorer") {
             return (
-                '<div class="flex flex-col min-w-0 justify-center">' +
-                '<div class="flex items-center gap-1 min-w-0">' +
+                '<div class="flex flex-col min-w-0 justify-center overflow-visible">' +
+                '<div class="flex items-center gap-1 min-w-0 overflow-visible">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider truncate" ' +
                 ':class="explorerMode === \'history\' ? \'text-accent\' : \'text-primary\'" ' +
                 'x-text="explorerMode === \'history\' ? \'⚡ WanOS // Explorer · History\' : \'⚡ WanOS // Device Explorer\'"></span>' +
+                // C27: tap-friendly sun cycle popover (Device Explorer title only — not History mode)
+                '<div class="relative shrink-0 overflow-visible" x-show="explorerMode !== \'history\'" x-cloak ' +
+                '@click.outside="sunCyclePopoverOpen = false">' +
+                '<button type="button" @click.stop="sunCyclePopoverOpen = !sunCyclePopoverOpen" ' +
+                'class="btn btn-ghost btn-xs btn-circle text-base-content/50 hover:text-primary min-h-0 h-6 w-6" ' +
+                ':class="sunCyclePopoverOpen ? \'text-primary bg-primary/10\' : \'\'" ' +
+                'title="Sunrise &amp; sunset (OWM schedule)" aria-label="Sunrise and sunset times" ' +
+                ':aria-expanded="sunCyclePopoverOpen">ℹ</button>' +
+                '<div x-show="sunCyclePopoverOpen" x-cloak ' +
+                'class="absolute right-0 top-full mt-1 z-[200] max-md:fixed max-md:inset-x-3 max-md:top-14 max-md:mt-0 max-md:right-auto ' +
+                'p-3 shadow-xl bg-base-200 rounded-box border border-base-300 text-xs font-mono ' +
+                'w-[19.5rem] max-w-[calc(100vw-1.25rem)] max-md:w-auto max-md:max-w-none">' +
+                '<div class="flex items-center justify-between gap-2 mb-2 border-b border-base-300 pb-1">' +
+                '<div class="text-[10px] uppercase text-base-400 tracking-widest">Sun cycle</div>' +
+                '<button type="button" class="btn btn-ghost btn-xs btn-circle min-h-0 h-5 w-5 text-base-content/40 hover:text-base-content" ' +
+                '@click.stop="sunCyclePopoverOpen = false" title="Close" aria-label="Close sun cycle panel">×</button>' +
+                '</div>' +
+                '<div class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 items-center">' +
+                '<span class="text-base-400 shrink-0 whitespace-nowrap">Sunrise</span>' +
+                '<span class="text-white font-bold text-right tabular-nums whitespace-nowrap" x-text="sunriseDisplayText || \'--\'"></span>' +
+                '<span class="text-base-400 shrink-0 whitespace-nowrap">Sunset</span>' +
+                '<span class="text-white font-bold text-right tabular-nums whitespace-nowrap" x-text="sunsetDisplayText || \'--\'"></span>' +
+                '</div></div></div>' +
                 pageVersionBadge("explorer") +
                 "</div>" +
                 '<span class="badge badge-neutral font-mono text-[9px] md:text-xs px-1.5 py-0 h-4 md:h-5 shrink-0 whitespace-nowrap" ' +
@@ -334,7 +357,7 @@
 
         return (
             '<header class="' + headerCls + '">' +
-            '<div class="flex-1 flex items-center gap-2 min-w-0">' + titleBlock(page) + "</div>" +
+            '<div class="flex-1 flex items-center gap-2 min-w-0 overflow-visible">' + titleBlock(page) + "</div>" +
             (join
                 ? '<div id="pc-nav-menu" class="justify-center flex-1 min-w-0">' + join + "</div>"
                 : "") +

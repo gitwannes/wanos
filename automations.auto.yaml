@@ -397,33 +397,31 @@ automations:
           - entity_id: rfx.buro_wannes_schemer
             state: "ON"
     id: a9491c48-f233-413e-86d4-2cdcf713ac63
-  - name: garage_motion
+  - name: Motion garage
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: sensor.generic.garage_motion
-            is: 'ON'
+            is: "ON"
           - type: time_of_day
             is: dark
         actions:
           - entity_id: zwave.licht_garage
-            state: 'ON'
-        label: 'True'
+            state: "ON"
     id: 30541a25-0d37-448b-b874-df8c0bf64aeb
-  - name: toilet_motion
+  - name: Motion toilet
     enabled: true
     branches:
       - when: if
         conditions:
           - type: device_state
             entity_id: sensor.generic.toilet_motion
-            is: 'ON'
+            is: "ON"
         actions:
           - entity_id: zwave.toilet
-            state: 'ON'
-        label: 'True'
+            state: "ON"
     id: 284fe67e-827e-4d38-a4b9-58a8b2ae67a5
   - name: Garage waskot OFF
     enabled: true
@@ -451,7 +449,7 @@ automations:
             state: 'OFF'
         label: 'False'
     id: 513ef949-cd33-4a7d-8417-4959c4c829d2
-  - name: Living special phyiscal switch
+  - name: 'Living special: phyiscal switch'
     enabled: true
     branches:
       - when: if
@@ -541,7 +539,7 @@ automations:
           - entity_id: zwave.vent.toilet_motor
             state: "OFF"
     id: 7ffde6cb-61e2-4754-a392-47d136a0b0b4
-  - name: 'Badk 1e: Physical switch -> Hue'
+  - name: 'Badk 1e: physical switch'
     enabled: true
     branches:
       - when: if
@@ -620,7 +618,7 @@ automations:
           - entity_id: zwave.badk_1e_wastafel
             state: "OFF"
     id: caa74273-e140-4354-8021-741bf7c311ca
-  - name: 'Badk 2e: Physical switch -> Hue'
+  - name: 'Badk 2e: physical switch'
     enabled: true
     branches:
       - when: if
@@ -699,7 +697,7 @@ automations:
           - entity_id: zwave.badk_2e_wastafel
             state: "OFF"
     id: 90f7b517-3323-46af-abf7-11f98cdfb5e7
-  - name: 'Slpk Wannes: Physcial switch -> Hue'
+  - name: 'Slpk Wannes: physcial switch'
     enabled: true
     branches:
       - when: if
@@ -935,7 +933,7 @@ automations:
             state: "ON"
     id: 41c05efd-5c5d-4281-82b3-87213bd8ad68
   - name: cinema too loud-test
-    enabled: true
+    enabled: false
     branches:
       - when: if
         conditions:
@@ -994,24 +992,15 @@ automations:
                     is: "ON"
         actions: []
     id: c957ccb2-9ea9-454a-80ac-a977629673d9
-  - name: test 4
+  - name: IR OFF
     enabled: false
     branches:
       - when: if
         conditions:
           - type: event
-            event: 44667b31-c281-4487-9d05-9093ba111a86
+            event: a97bba4d-78d3-4ce2-b134-fff36c2cd88c
         actions: []
-    id: 49771987-c6de-453c-ac84-79a149e9e1d5
-  - name: test 5
-    enabled: false
-    branches:
-      - when: if
-        conditions:
-          - type: event
-            event: 44667b31-c281-4487-9d05-9093ba111a86
-        actions: []
-    id: 5eef3883-feef-45c6-a98f-89b0e0b2111c
+    id: 98b26294-5fcb-46be-a6f0-53a38ca8543d
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

@@ -355,6 +355,15 @@
                                 <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">General Diagnostics</div>
 
                                 <div class="flex flex-col gap-2 w-full">
+                                    <div class="flex justify-between items-start gap-2">
+                                        <span class="text-base-400 uppercase text-[10px] shrink-0">Sun cycle:</span>
+                                        <div class="flex flex-col items-end text-right">
+                                            <span class="text-white opacity-90 font-bold"
+                                                  x-text="sunriseDisplayText ? ('↑ ' + sunriseDisplayText) : '↑ --'"></span>
+                                            <span class="text-white opacity-90 font-bold"
+                                                  x-text="sunsetDisplayText ? ('↓ ' + sunsetDisplayText) : '↓ --'"></span>
+                                        </div>
+                                    </div>
                                     <div class="flex justify-between items-center">
                                         <span class="text-base-400 uppercase text-[10px]">OS Uptime:</span>
                                         <div class="flex flex-col items-end">
@@ -435,25 +444,17 @@
                                 </div>
                             </div>
 
-                            <div class="col-span-1 p-4 bg-base-200 rounded-box border border-base-300 shadow-sm w-full flex flex-col justify-start lg:col-span-1">
+                            <div class="col-span-1 md:col-span-2 xl:col-span-2 p-4 bg-base-200 rounded-box border border-base-300 shadow-sm w-full flex flex-col justify-start min-w-0">
                                 <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-3 flex items-center justify-center gap-2">
                                     <span>⏱️ Planned Automations Timeline</span>
                                     <span class="badge badge-neutral text-[9px] font-mono px-1.5" x-text="chronologicalTimeline.length"></span>
                                 </div>
-                                <div class="flex flex-col gap-2 overflow-y-auto max-h-[400px] pr-1">
+                                <div class="flex flex-col gap-1.5 overflow-y-auto max-h-[400px] pr-1 min-w-0">
                                     <template x-for="item in chronologicalTimeline" :key="item.timer_id + '_' + item.name">
-                                        <div class="flex items-center justify-between bg-base-300/50 p-2 rounded border border-base-300/50">
-                                            <div class="flex items-center gap-3">
-                                                <span class="font-mono text-warning font-bold text-xs tabular-nums" x-text="item.absTime"></span>
-                                                <span class="badge badge-neutral text-[9px] font-mono px-1.5 tabular-nums min-w-[70px] justify-center" x-text="item.relTime"></span>
-                                                <div class="flex flex-col">
-                                                    <span class="font-bold text-xs text-white" x-text="item.name"></span>
-                                                    <span class="text-[10px] text-base-400 font-mono" x-show="item.type" x-text="item.type"></span>
-                                                </div>
-                                            </div>
-                                            <div class="text-right">
-                                                <span class="font-mono text-xs text-info font-bold" x-text="item.actionText"></span>
-                                            </div>
+                                        <div class="flex items-center gap-2 min-w-0 bg-base-300/50 px-2 py-1.5 rounded border border-base-300/50">
+                                            <span class="font-mono text-warning font-bold text-xs tabular-nums shrink-0 w-[2.85rem]" x-text="item.absTime"></span>
+                                            <span class="badge badge-neutral text-[9px] font-mono px-2 py-2 tabular-nums shrink-0 whitespace-nowrap" x-text="item.relTime"></span>
+                                            <span class="text-xs text-white font-bold min-w-0 truncate" x-text="item.displayLabel"></span>
                                         </div>
                                     </template>
                                     <div x-show="chronologicalTimeline.length === 0" class="text-center text-[10px] text-base-400 py-4 italic">

@@ -25,7 +25,7 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
 
     await state_manager.logger.success(
         f"[OWM] polling initialized for {config.location} "
-        f"(climate every {config.poll_interval_mins}m; sun daily ≥{sun_hour:02d}:00)."
+        f"(climate every {config.poll_interval_mins}m; sun daily on date rollover + ≥{sun_hour:02d}:00 catch-up)."
     )
 
     last_temp = None
@@ -61,9 +61,8 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
             now_mono = time.monotonic()
 
             need_climate = seconds_since_last_climate >= poll_seconds
-            need_sun = force_sun or (
-                last_sun_refresh_date != today and now_local.hour >= sun_hour
-            )
+            # G15: refresh sun on calendar rollover at any hour (sun_hour no longer blocks midnight–03:00).
+            need_sun = force_sun or last_sun_refresh_date != today
             if need_sun and now_mono < sun_backoff_until:
                 need_sun = False
 

@@ -637,9 +637,11 @@ class ZWaveJSUIBridge(WanosComponent):
                     f"{format_device_ref(self.state_manager._state, idx)} -> {new_state}"
                 )
             else:
+                origin = str((payload or {}).get("origin") or "").strip()
+                origin_suffix = f" origin={origin}" if origin else ""
                 await self.logger.info(
                     f"[Z-Wave] Command Sent: "
-                    f"{format_device_ref(self.state_manager._state, idx)} -> {new_state}"
+                    f"{format_device_ref(self.state_manager._state, idx)} -> {new_state}{origin_suffix}"
                 )
             claim_and_finish(self.state_manager, payload, True, "")
         else:

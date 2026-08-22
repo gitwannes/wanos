@@ -19,10 +19,14 @@ class TimerManager:
     def schedule(self, timer_id: str, deadline: int, event_type: str, payload: dict = None):
         """Schedules a new sleep task, cancelling any existing task with the same ID."""
         self.cancel(timer_id)
-        
+
+        fire_payload = dict(payload or {})
+        fire_payload["timer_id"] = timer_id
+        fire_payload["deadline"] = deadline
+
         # Spawn the background sleeper task
         task = asyncio.create_task(
-            self._sleep_and_fire(timer_id, deadline, event_type, payload or {})
+            self._sleep_and_fire(timer_id, deadline, event_type, fire_payload)
         )
         self._tasks[timer_id] = task
         logger.debug(f"Timer '{timer_id}' scheduled for deadline {deadline}.")

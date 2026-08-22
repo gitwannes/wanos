@@ -347,29 +347,61 @@ function wanosApp() {
                     else relTime = `in ${mins} min`;
                 }
 
-                let actionText = "trigger";
-                if (t.target_state) {
-                    if (t.type === "blinds") {
-                        if (t.target_state === "100") actionText = "CLOSE";
-                        else if (t.target_state === "0") actionText = "OPEN";
-                        else actionText = `change to ${t.target_state}%`;
-                    } else if (t.type === "switch" || t.type === "light") {
-                        actionText = `turn ${t.target_state}`;
-                    } else if (t.type === "scene") {
-                        // Scene intention without leading "will" (C2)
-                        actionText = `execute scene`;
-                    } else {
-                        actionText = `-> ${t.target_state}`;
-                    }
-                }
-
                 return {
                     ...t,
                     absTime: absTime,
                     relTime: relTime,
-                    actionText: actionText
+                    displayLabel: this.formatPlannedTimelineLabel(t),
                 };
             });
+        },
+
+        /** Admin Planned Automations row label (C2 / env schedule catalog names). */
+        formatPlannedTimelineLabel(t) {
+            const eventLabels = {
+                BLINDS_OPEN_TRIGGER: "Shutters open",
+                BLINDS_CLOSE_TRIGGER: "Shutters close",
+                MORNING_ON_TRIGGER: "Morning lights on",
+                SUNRISE_TRIGGER: "Morning lights off",
+                SUNSET_TRIGGER: "Evening lights on",
+                EVENING_OFF_TRIGGER: "Evening lights off",
+                SAUNA_ON: "Sauna ON",
+                SAUNA_OFF: "Sauna OFF",
+                IR_ON: "IR ON",
+                IR_OFF: "IR OFF",
+            };
+            const timerLabels = {
+                env_blinds_open: "Shutters open",
+                env_blinds_close: "Shutters close",
+                env_twi_morn_on: "Morning lights on",
+                env_twi_morn_off: "Morning lights off",
+                env_twi_eve_on: "Evening lights on",
+                env_twi_eve_off: "Evening lights off",
+            };
+
+            if (t.type === "scene") {
+                let name = String(t.name || "").trim();
+                if (!name || name === "System Macro") {
+                    name = eventLabels[t.event_type]
+                        || timerLabels[t.timer_id]
+                        || String(t.event_type || t.timer_id || "Unknown");
+                }
+                return `Scene: ${name}`;
+            }
+            if (t.type === "blinds") {
+                const dev = String(t.name || "Blinds").trim();
+                if (t.target_state === "100") return `${dev} → close`;
+                if (t.target_state === "0") return `${dev} → open`;
+                return `${dev} → ${t.target_state}%`;
+            }
+            if (t.type === "switch" || t.type === "light") {
+                const dev = String(t.name || "Device").trim();
+                return `${dev} → ${t.target_state || "?"}`;
+            }
+            if (t.target_state) {
+                return `${t.name || t.timer_id || "Timer"} → ${t.target_state}`;
+            }
+            return String(t.name || t.timer_id || "Scheduled");
         },
 
         // C2: independent dismiss per surface (banner vs bell); not synced to server removal
@@ -1118,6 +1150,10 @@ function wanosApp() {
 
         sunriseRelativeText: "",
         sunsetRelativeText: "",
+        sunriseDisplayText: "",
+        sunsetDisplayText: "",
+
+        sunCyclePopoverOpen: false,
 
         init() {
             console.log("🚀 WanOS Web Controller initializing...");
@@ -1643,17 +1679,25 @@ function wanosApp() {
                 this.doucheElapsedText = "00:00:00";
             }
 
-            // Sun Cycle Live Relative Trackers
+            // Sun Cycle Live Relative Trackers (C27: Admin + Explorer ℹ popover)
             if (this.state.sensors.sunrise_unix) {
                 this.sunriseRelativeText = this.getRelativeTime(this.state.sensors.sunrise_unix, now);
+                this.sunriseDisplayText = this.formatSunDiagnosticLine(
+                    this.state.sensors.sunrise_unix, now
+                );
             } else {
                 this.sunriseRelativeText = "";
+                this.sunriseDisplayText = "";
             }
 
             if (this.state.sensors.sunset_unix) {
                 this.sunsetRelativeText = this.getRelativeTime(this.state.sensors.sunset_unix, now);
+                this.sunsetDisplayText = this.formatSunDiagnosticLine(
+                    this.state.sensors.sunset_unix, now
+                );
             } else {
                 this.sunsetRelativeText = "";
+                this.sunsetDisplayText = "";
             }
         },
 
@@ -4771,6 +4815,13 @@ function wanosApp() {
             if (!unixTime) return "--:--:--";
             const date = new Date(unixTime * 1000);
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        },
+
+        /** C27: local HH:MM plus relative parenthetical for Admin / Explorer sun chrome. */
+        formatSunDiagnosticLine(targetUnix, nowUnix) {
+            if (!targetUnix) return "";
+            const hm = this.formatUnixTime(targetUnix).slice(0, 5);
+            return `${hm} ${this.getRelativeTime(targetUnix, nowUnix)}`;
         },
 
         // Calculates countdown/countup string relative to current time

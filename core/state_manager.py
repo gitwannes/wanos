@@ -588,6 +588,22 @@ class StateManager:
             self._queue.put_nowait(event)
 
     async def _dispatch_from_timer(self, event_type_str: str, payload: dict) -> None:
+        # G15: skip stale env schedule timers (cross-day / missed recalc).
+        timer_id = (payload or {}).get("timer_id")
+        deadline = (payload or {}).get("deadline")
+        if timer_id and deadline is not None:
+            from logic.environment_scheduler import EnvironmentScheduler
+
+            stale_reason = EnvironmentScheduler.env_timer_fire_stale(
+                str(timer_id), int(deadline), self._state
+            )
+            if stale_reason:
+                logger.warning(
+                    f"[Timer] Skipping stale env timer {timer_id!r} "
+                    f"(deadline={deadline}, event={event_type_str}): {stale_reason}"
+                )
+                return
+
         # Timers may store legacy keys or UUIDs; always normalize to bus token.
         bus = to_bus_token(event_type_str)
         try:

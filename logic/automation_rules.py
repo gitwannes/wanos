@@ -715,6 +715,15 @@ class AutomationEngine:
                         f"but no If/Else-if/Else matched."
                     )
                     continue
+                br_conds = getattr(br, "conditions", None) or []
+                from core.condition_tree import branch_has_flat_event_gate
+
+                if branch_has_flat_event_gate(br_conds) and matched_event_uuid is None:
+                    automation_logger.debug(
+                        f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} flat event-gate branch "
+                        f"woke ({trigger_reason}) without catalog event — skipped."
+                    )
+                    continue
                 from types import SimpleNamespace
                 base_id = getattr(rule, "id", None) or "-"
                 rule = SimpleNamespace(
@@ -874,8 +883,16 @@ class AutomationEngine:
 
                 # If all conditions pass, we calculate and dispatch the final actions
                 if conditions_met:
+                    trigger_label = trigger_reason
+                    if matched_event_uuid:
+                        trigger_label = legacy_key_for_bus_token(matched_event_uuid)
+                    automation_logger.info(
+                        f'[Automation] Rule "{AutomationEngine.format_rule_name(rule)}" '
+                        f"fired (trigger: {trigger_label})"
+                    )
                     automation_logger.debug(
-                        f"[X-RAY] -> Conditions MET for {AutomationEngine.format_rule_ref(rule)}. Parsing actions...")
+                        f"[X-RAY] -> Conditions MET for {AutomationEngine.format_rule_ref(rule)}. Parsing actions..."
+                    )
 
                     # B10B history: synthetic series keyed by event UUID when the trigger
                     # is a catalog event (no dependency on deprecated rule.scene).

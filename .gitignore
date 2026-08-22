@@ -27,6 +27,7 @@ recovery_state.json
 status.json
 *.log
 *.zip
+/docs/logs
 
 # 3. Virtual Environments
 # (Ignore your active python environments)
@@ -80,6 +81,3 @@ backup*/
 .DS_Store
 Thumbs.db
 *.pid
-
-# 7.
-code-import/
