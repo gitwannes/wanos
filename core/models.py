@@ -122,7 +122,7 @@ class SystemAdminState(BaseModel):
     app_boot_unix: Optional[int] = None
     automations_enabled: bool = False  # Master switch for the logic engine
     owm_integration_enabled: bool = False  # Default OFF, controls OpenWeatherMap polling
-    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # {id, level, message, timestamp, count}; level: critical|error|warning|success|info
+    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # {id, level, message, timestamp, produced_at, count}; level: critical|error|warning|success|info
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
     native_rfx_devices: list[dict] = Field(default_factory=list)  # Pushed dynamically to UI panel
     # B10B: Explorer dashboard buttons from events: catalog
@@ -138,6 +138,9 @@ class SystemAdminState(BaseModel):
     rules_activation_pending: dict[str, Any] = Field(default_factory=dict)
     # Auto-off timers + product types (Automations device table; same shape as GET /api/auto-off-timer).
     auto_off_timer: dict[str, Any] = Field(default_factory=dict)
+    # C12: blinds travel times for Explorer FE ui-lock (mirrors hub proportional debounce).
+    blinds_default_travel_time_secs: int = 35
+    blinds_travel_times: dict[str, int] = Field(default_factory=dict)
 
 
 class Event(BaseModel):

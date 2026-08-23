@@ -547,6 +547,195 @@ class DeviceHistoryManager:
             points.append({"t": t_ms + 1, "v": 0.0})
         return points
 
+    @staticmethod
+    def _level_is_on(level: Optional[float], state: Any, *, level_max: float = 100.0) -> bool:
+        """Binary ON when resolved level > 0 (OFF/OPEN → 0)."""
+        lv = level if level is not None else normalize_level(state, level_max=level_max)
+        if lv is None:
+            return False
+        return float(lv) > 0.0
+
+    def _on_intervals_clipped(
+        self,
+        events: List[Tuple[int, Any, Optional[float]]],
+        window_start: int,
+        window_end: int,
+        prev_on: bool,
+        *,
+        level_max: float = 100.0,
+    ) -> List[Tuple[int, int]]:
+        """
+        Build ON intervals [start, end) unix seconds inside [window_start, window_end].
+
+        C12: carry-in ON counts from window_start; open ON (no OFF) counts to window_end;
+        intervals that cross bucket edges are split by the caller via clip-to-bucket.
+        """
+        if window_end <= window_start:
+            return []
+
+        intervals: List[Tuple[int, int]] = []
+        on = bool(prev_on)
+        seg_start = window_start if on else None
+
+        for ts, state, level in events:
+            t = int(ts)
+            if t < window_start:
+                continue
+            if t > window_end:
+                break
+            now_on = self._level_is_on(level, state, level_max=level_max)
+            if now_on and not on:
+                on = True
+                seg_start = max(t, window_start)
+            elif not now_on and on:
+                if seg_start is not None and t > seg_start:
+                    intervals.append((seg_start, t))
+                on = False
+                seg_start = None
+
+        if on and seg_start is not None and window_end > seg_start:
+            intervals.append((seg_start, window_end))
+        return intervals
+
+    def _accumulate_on_duration_buckets(
+        self,
+        intervals: List[Tuple[int, int]],
+        bucket_starts: List[int],
+        bucket_ends: List[int],
+        *,
+        unit: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Clip ON intervals into calendar buckets.
+
+        unit ``minutes`` → integer minutes (round nearest).
+        unit ``hours`` → hours with 1 decimal.
+        """
+        n = len(bucket_starts)
+        secs = [0.0] * n
+        for seg_a, seg_b in intervals:
+            for i in range(n):
+                a = max(seg_a, bucket_starts[i])
+                b = min(seg_b, bucket_ends[i])
+                if b > a:
+                    secs[i] += float(b - a)
+
+        out: List[Dict[str, Any]] = []
+        for i in range(n):
+            if unit == "hours":
+                v: float = round(secs[i] / 3600.0, 1)
+            else:
+                v = float(int(round(secs[i] / 60.0)))
+            out.append({"t": int(bucket_starts[i]) * 1000, "v": v})
+        return out
+
+    def _on_duration_month_series(
+        self,
+        c: Any,
+        idx: int,
+        ceiling: float,
+        since_day: str,
+    ) -> List[Dict[str, Any]]:
+        """C12: per-day minutes_on for the month window (clip / carry-in / open ON)."""
+        now_dt = self._now_local()
+        window_end = int(now_dt.timestamp())
+        start_dt = datetime.strptime(since_day, "%Y-%m-%d").replace(tzinfo=self.tz)
+        window_start = int(start_dt.timestamp())
+
+        c.execute(
+            """SELECT state, level FROM device_events
+               WHERE idx = ? AND timestamp < ?
+               ORDER BY timestamp DESC LIMIT 1""",
+            (idx, window_start),
+        )
+        prev = c.fetchone()
+        prev_on = False
+        if prev:
+            prev_on = self._level_is_on(prev[1], prev[0], level_max=ceiling)
+
+        c.execute(
+            """SELECT timestamp, state, level FROM device_events
+               WHERE idx = ? AND timestamp >= ? AND timestamp <= ?
+               ORDER BY timestamp""",
+            (idx, window_start, window_end),
+        )
+        events = list(c.fetchall())
+        intervals = self._on_intervals_clipped(
+            events, window_start, window_end, prev_on, level_max=ceiling
+        )
+
+        bucket_starts: List[int] = []
+        bucket_ends: List[int] = []
+        day = start_dt
+        today = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        while day.date() <= today.date():
+            b0 = int(day.timestamp())
+            nxt = day + timedelta(days=1)
+            b1 = int(nxt.timestamp())
+            bucket_starts.append(b0)
+            bucket_ends.append(min(b1, window_end) if day.date() == today.date() else b1)
+            day = nxt
+
+        return self._accumulate_on_duration_buckets(
+            intervals, bucket_starts, bucket_ends, unit="minutes"
+        )
+
+    def _on_duration_year_series(
+        self,
+        c: Any,
+        idx: int,
+        ceiling: float,
+        since_day: str,
+    ) -> List[Dict[str, Any]]:
+        """C12: per-month hours_on (1 decimal) for the year window."""
+        now_dt = self._now_local()
+        window_end = int(now_dt.timestamp())
+        start_dt = datetime.strptime(since_day, "%Y-%m-%d").replace(tzinfo=self.tz)
+        # Align to first of that month for year buckets
+        start_month = start_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        window_start = int(start_month.timestamp())
+
+        c.execute(
+            """SELECT state, level FROM device_events
+               WHERE idx = ? AND timestamp < ?
+               ORDER BY timestamp DESC LIMIT 1""",
+            (idx, window_start),
+        )
+        prev = c.fetchone()
+        prev_on = False
+        if prev:
+            prev_on = self._level_is_on(prev[1], prev[0], level_max=ceiling)
+
+        c.execute(
+            """SELECT timestamp, state, level FROM device_events
+               WHERE idx = ? AND timestamp >= ? AND timestamp <= ?
+               ORDER BY timestamp""",
+            (idx, window_start, window_end),
+        )
+        events = list(c.fetchall())
+        intervals = self._on_intervals_clipped(
+            events, window_start, window_end, prev_on, level_max=ceiling
+        )
+
+        bucket_starts: List[int] = []
+        bucket_ends: List[int] = []
+        cur = start_month
+        end_month = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        while cur <= end_month:
+            b0 = int(cur.timestamp())
+            if cur.month == 12:
+                nxt = cur.replace(year=cur.year + 1, month=1)
+            else:
+                nxt = cur.replace(month=cur.month + 1)
+            b1 = int(nxt.timestamp())
+            bucket_starts.append(b0)
+            bucket_ends.append(min(b1, window_end) if cur == end_month else b1)
+            cur = nxt
+
+        return self._accumulate_on_duration_buckets(
+            intervals, bucket_starts, bucket_ends, unit="hours"
+        )
+
     def _step_level_series(
         self,
         events: List[Tuple[int, Any, Optional[float]]],
@@ -645,13 +834,23 @@ class DeviceHistoryManager:
                 counts.append({"t": ts_ms, "v": cnt})
                 mins.append({"t": ts_ms, "v": lmin})
                 maxs.append({"t": ts_ms, "v": lmax})
+            series: Dict[str, Any] = {
+                "event_count": counts,
+                "level_min": mins,
+                "level_max": maxs,
+            }
+            # C12: binary month duration ON (minutes, integer) — clip / carry-in / open ON
+            if not impulse:
+                minutes_on = self._on_duration_month_series(c, idx, ceiling, since_day)
+                if counts or any(float(p.get("v") or 0) > 0 for p in minutes_on):
+                    series["minutes_on"] = minutes_on
             conn.close()
             return {
                 "idx": idx,
                 "name": name,
                 "type": dtype,
                 "range": "month",
-                "series": {"event_count": counts, "level_min": mins, "level_max": maxs},
+                "series": series,
             }
 
         # year
@@ -669,11 +868,21 @@ class DeviceHistoryManager:
             counts.append({"t": ts_ms, "v": cnt})
             mins.append({"t": ts_ms, "v": lmin})
             maxs.append({"t": ts_ms, "v": lmax})
+        series = {
+            "event_count": counts,
+            "level_min": mins,
+            "level_max": maxs,
+        }
+        # C12: binary year duration ON (hours, 1 decimal)
+        if not impulse:
+            hours_on = self._on_duration_year_series(c, idx, ceiling, since_day)
+            if counts or any(float(p.get("v") or 0) > 0 for p in hours_on):
+                series["hours_on"] = hours_on
         conn.close()
         return {
             "idx": idx,
             "name": name,
             "type": dtype,
             "range": "year",
-            "series": {"event_count": counts, "level_min": mins, "level_max": maxs},
+            "series": series,
         }

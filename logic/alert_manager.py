@@ -62,7 +62,10 @@ class AlertManager:
 
             clean_msg = clean_msg.strip()
 
-            timestamp: str = datetime.now().strftime("%d %b %H:%M:%S")
+            now = datetime.now()
+            # UI bell short stamp; produced_at matches wanos.log line time (C12 follow-up)
+            timestamp: str = now.strftime("%d %b %H:%M:%S")
+            produced_at: str = now.strftime("%Y-%m-%d %H:%M:%S")
             msg_handled = False
 
             # Prevent spam & increment counter: Check if base message is already active
@@ -70,6 +73,7 @@ class AlertManager:
                 if existing.get("message") == clean_msg:
                     existing["count"] = existing.get("count", 1) + 1
                     existing["timestamp"] = timestamp  # Refresh UI time on re-occurrence
+                    existing["produced_at"] = produced_at
                     changed = True
                     domains.add(domain)
                     msg_handled = True
@@ -82,6 +86,7 @@ class AlertManager:
                     "level": level,
                     "message": clean_msg,
                     "timestamp": timestamp,
+                    "produced_at": produced_at,
                     "count": 1
                 })
                 changed = True

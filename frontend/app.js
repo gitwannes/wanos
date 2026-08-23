@@ -211,6 +211,8 @@ function wanosApp() {
         // Active blinds slider drag (Device Explorer). Keeps the row in ON/OFF mid-travel
         // filters until commit so @change is not lost when optimistic value hits 0/100.
         shutterDragIdx: null,
+        // C12: position at drag start for proportional ui-lock
+        shutterDragFrom: null,
 
         // ⚡ Light Control Modal State
         activeLightId: null,
@@ -754,11 +756,11 @@ function wanosApp() {
             // 2b. Favorites (shared localStorage with Sensor History)
             if (this.actuatorFavoritesOnly) {
                 list = list.filter(item => {
-                    if (this.actuatorFavorites.includes(Number(item.id))) return true;
+                    if (this.actuatorFavorites.includes(this._favoriteIdKey(item.id))) return true;
                     // Water pair: keep cold primary if either fluid is favorited
                     const cap = this.historyCapabilityByIdx[Number(item.id)];
                     if (cap && cap.kind === "water" && Array.isArray(cap.pairIdxs)) {
-                        return cap.pairIdxs.some(i => this.actuatorFavorites.includes(Number(i)));
+                        return cap.pairIdxs.some(i => this.actuatorFavorites.includes(this._favoriteIdKey(i)));
                     }
                     return false;
                 });
@@ -1173,10 +1175,13 @@ function wanosApp() {
                 console.warn("⚠️ Failed to parse view presets from localStorage. Reverting to default array.");
             }
 
-            // Shared favorites (Device Explorer + Sensor History)
+            // Shared favorites (Device Explorer + Sensor History).
+            // C12: keep scene UUID strings; numeric idxs as numbers (Number(uuid) was NaN → all scenes).
             try {
                 const fav = JSON.parse(localStorage.getItem("wanos_history_favorites") || "[]");
-                this.actuatorFavorites = Array.isArray(fav) ? fav.map(Number) : [];
+                this.actuatorFavorites = Array.isArray(fav)
+                    ? fav.map((x) => this._favoriteIdKey(x)).filter((x) => x != null)
+                    : [];
             } catch (e) {
                 this.actuatorFavorites = [];
             }
@@ -2091,8 +2096,8 @@ function wanosApp() {
         },
 
         /**
-         * C10: History actuator chart family for one idx.
-         * @returns {"hits"|"binary"|"level"}
+         * C10/C12: History actuator chart family for one idx.
+         * @returns {"hits"|"binary"|"audio"|"level"}
          */
         _actuatorChartKind(idx) {
             const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
@@ -2102,10 +2107,11 @@ function wanosApp() {
             // Motion = impulse hits (not ON/OFF, not continuous Level)
             if (type === "motion") return "hits";
 
-            // Non-binary continuous / rich level (locked C10 set for actuator charts)
-            if (origin === "hue") return "level";
+            // C12 follow-up: Hue + audio month/year = duration ON (no events, no level min/max)
+            if (origin === "hue") return "audio";
+            if (type === "speaker" || origin === "sonos" || origin === "onkyo") return "audio";
+            // Blinds keep Level min/max + Events on month/year
             if (type === "blinds") return "level";
-            if (type === "speaker" || origin === "sonos" || origin === "onkyo") return "level";
 
             // Binary ON/OFF: door, switch, non-Hue light, Epson, etc.
             return "binary";
@@ -2140,10 +2146,10 @@ function wanosApp() {
                 this.actuatorDayTitle = "Hits last 24 hours";
                 this.actuatorMonthTitle = "Hits last month";
                 this.actuatorYearTitle = "Hits last year";
-            } else if (kind === "binary") {
-                this.actuatorDayTitle = "ON / OFF last 24 hours";
-                this.actuatorMonthTitle = "Last month (counts + ON/OFF)";
-                this.actuatorYearTitle = "Last year (counts + ON/OFF)";
+            } else if (kind === "binary" || kind === "audio") {
+                this.actuatorDayTitle = kind === "binary" ? "ON / OFF last 24 hours" : "Level last 24 hours";
+                this.actuatorMonthTitle = "Last month (duration ON)";
+                this.actuatorYearTitle = "Last year (duration ON)";
             } else {
                 this.actuatorDayTitle = "Level last 24 hours";
                 this.actuatorMonthTitle = "Last month (counts + level)";
@@ -2298,7 +2304,7 @@ function wanosApp() {
                 return this.showHiddenNodes ? isHidden : !isHidden;
             });
             if (this.actuatorFavoritesOnly) {
-                list = list.filter(r => this.actuatorFavorites.includes(Number(r.idx)));
+                list = list.filter(r => this.actuatorFavorites.includes(this._favoriteIdKey(r.idx)));
             }
 
             // Shared type filter with Device Explorer
@@ -2493,13 +2499,27 @@ function wanosApp() {
             });
         },
 
+        /**
+         * C12: favorite key — numeric idx as Number; scene UUID (non-numeric) as string.
+         * @param {*} id
+         * @returns {number|string|null}
+         */
+        _favoriteIdKey(id) {
+            if (id == null || id === "") return null;
+            if (typeof id === "string" && !/^\d+$/.test(id.trim())) return id;
+            const n = Number(id);
+            if (Number.isFinite(n)) return n;
+            return String(id);
+        },
+
         isActuatorFavorite(idx) {
-            const id = Number(idx);
-            const cap = this.historyCapabilityByIdx[id];
+            const key = this._favoriteIdKey(idx);
+            if (key == null) return false;
+            const cap = this.historyCapabilityByIdx[Number(idx)];
             if (cap && cap.kind === "water" && Array.isArray(cap.pairIdxs)) {
-                return cap.pairIdxs.some(i => this.actuatorFavorites.includes(Number(i)));
+                return cap.pairIdxs.some(i => this.actuatorFavorites.includes(this._favoriteIdKey(i)));
             }
-            return this.actuatorFavorites.includes(id);
+            return this.actuatorFavorites.includes(key);
         },
 
         /** C1: enter/exit Edit favorites mode (Done = idle, no row checkboxes). */
@@ -2520,11 +2540,12 @@ function wanosApp() {
         toggleActuatorFavorite(idx) {
             const cap = this.historyCapabilityByIdx[Number(idx)];
             const ids = (cap && cap.kind === "water" && Array.isArray(cap.pairIdxs))
-                ? cap.pairIdxs.map(Number)
-                : [Number(idx)];
+                ? cap.pairIdxs.map((i) => this._favoriteIdKey(i)).filter((x) => x != null)
+                : [this._favoriteIdKey(idx)].filter((x) => x != null);
+            if (!ids.length) return;
             const on = ids.some(i => this.actuatorFavorites.includes(i));
             if (on) {
-                this.actuatorFavorites = this.actuatorFavorites.filter(x => !ids.includes(Number(x)));
+                this.actuatorFavorites = this.actuatorFavorites.filter(x => !ids.includes(x));
             } else {
                 this.actuatorFavorites = [...new Set([...this.actuatorFavorites, ...ids])];
             }
@@ -2652,7 +2673,7 @@ function wanosApp() {
          * setOption + optional resize. Soft refresh: merge (no wipe), no animation, no resize here.
          * Hard open/switch: notMerge wipe + resize (unchanged).
          */
-        _setHistoryChartOption(chart, opt, savedZoom, { soft = false } = {}) {
+        _setHistoryChartOption(chart, opt, savedZoom, { soft = false, replaceYAxis = false } = {}) {
             if (!chart || !opt) return;
             if (savedZoom) this._applySavedDataZoomToOpt(opt, savedZoom);
             if (soft) {
@@ -2665,7 +2686,11 @@ function wanosApp() {
                 if (!el || !el.isConnected) return;
                 // Cause 1: replace series + dataZoom together so a merged stale zoom cannot
                 // collapse the window to empty. Saved zoom is already copied onto `opt`.
-                chart.setOption(opt, { notMerge: false, replaceMerge: ["series", "dataZoom"] });
+                // C12 duration charts: also replace yAxis (tick interval must not stick from prior paint).
+                const replaceMerge = replaceYAxis
+                    ? ["series", "dataZoom", "yAxis"]
+                    : ["series", "dataZoom"];
+                chart.setOption(opt, { notMerge: false, replaceMerge });
                 if (this._historySoftOptionDroppedSeries(chart, opt)) {
                     chart.setOption(opt, true);
                 }
@@ -3065,6 +3090,46 @@ function wanosApp() {
             return out;
         },
 
+        /**
+         * C12: split day temp into warm vs frost (temp < dew) segments for dual line styling.
+         * Boundary points are duplicated so ECharts keeps continuous segments.
+         * @returns {{ warm: Array, frost: Array }}
+         */
+        _tempSeriesWithFrost(tempPoints, humPoints) {
+            const humByT = new Map();
+            for (const p of humPoints || []) {
+                const t = this._normalizeTsMs(p && p.t);
+                if (t == null || p.v == null) continue;
+                humByT.set(t, Number(p.v));
+            }
+            const warm = [];
+            const frost = [];
+            let prevFrost = null;
+            for (const p of tempPoints || []) {
+                const t = this._normalizeTsMs(p && p.t);
+                if (t == null || p.v == null) continue;
+                const v = Number(p.v);
+                if (!Number.isFinite(v)) continue;
+                const dp = this._dewPointC(v, humByT.get(t));
+                const isFrost = dp != null && v < dp;
+                if (prevFrost === true && !isFrost) {
+                    frost.push([t, v]);
+                    warm.push([t, v]);
+                } else if (prevFrost === false && isFrost) {
+                    warm.push([t, v]);
+                    frost.push([t, v]);
+                } else if (isFrost) {
+                    frost.push([t, v]);
+                    warm.push([t, null]);
+                } else {
+                    warm.push([t, v]);
+                    frost.push([t, null]);
+                }
+                prevFrost = isFrost;
+            }
+            return { warm, frost };
+        },
+
         _snapBounds(minV, maxV, step) {
             const s = Number(step) || 1;
             let lo = Math.floor(minV / s) * s;
@@ -3416,22 +3481,71 @@ function wanosApp() {
                 for (const p of points || []) {
                     const t = this._normalizeTsMs(p && p.t);
                     if (t == null) continue;
-                    if (!map.has(t)) map.set(t, { t, events: 0, lmin: null, lmax: null });
+                    if (!map.has(t)) map.set(t, { t, events: 0, lmin: null, lmax: null, duration: null });
                     const row = map.get(t);
                     if (field === "events") row.events = Number(p.v) || 0;
                     else if (field === "lmin") row.lmin = p.v == null ? null : Number(p.v);
                     else if (field === "lmax") row.lmax = p.v == null ? null : Number(p.v);
+                    else if (field === "duration") row.duration = p.v == null ? null : Number(p.v);
                 }
             };
             add(data?.series?.event_count, "events");
             add(data?.series?.level_min, "lmin");
             add(data?.series?.level_max, "lmax");
+            // C12: binary month minutes_on / year hours_on
+            add(data?.series?.minutes_on || data?.series?.hours_on, "duration");
             return [...map.values()].sort((a, b) => a.t - b.t);
         },
 
         /**
+         * C12: duration ON Y-axis for month/year (binary / Hue / audio).
+         * Bounds: month snap ±10 min; year snap ±1 h. Interval aims for ~5 ticks
+         * so labels stay readable (not every integer).
+         * @param {number[]} vals
+         * @param {"month"|"year"} range
+         * @returns {{ min: number, max: number, interval: number }}
+         */
+        _durationOnAxisBounds(vals, range) {
+            const nums = (vals || []).map(Number).filter((n) => Number.isFinite(n));
+            const emptyMax = range === "year" ? 1 : 10;
+            if (!nums.length) {
+                return { min: 0, max: emptyMax, interval: emptyMax };
+            }
+            const dataMin = Math.min(...nums);
+            const dataMax = Math.max(...nums);
+
+            if (range === "year") {
+                let min = Math.max(0, Math.floor(dataMin));
+                let max = Math.max(min + 1, Math.ceil(dataMax));
+                const span = max - min;
+                // Prefer ~5 ticks: 1, 2, 5, 10, 20…
+                let interval = 1;
+                if (span > 6) interval = 2;
+                if (span > 12) interval = 5;
+                if (span > 30) interval = 10;
+                if (span > 60) interval = 20;
+                if (span > 120) interval = Math.ceil(span / 5);
+                // Align max to interval so ticks land cleanly
+                max = min + Math.ceil((max - min) / interval) * interval;
+                return { min, max, interval };
+            }
+
+            // month — minutes, snap bounds to 10
+            let min = Math.max(0, Math.floor(dataMin / 10) * 10);
+            let max = Math.max(min + 10, Math.ceil(dataMax / 10) * 10);
+            const span = max - min;
+            let interval = 10;
+            if (span > 50) interval = 20;
+            if (span > 100) interval = 50;
+            if (span > 250) interval = 100;
+            if (span > 500) interval = Math.ceil(span / 5 / 10) * 10;
+            max = min + Math.ceil((max - min) / interval) * interval;
+            return { min, max, interval };
+        },
+
+        /**
          * Actuator month/year: category axis so event bars don't stretch across the window.
-         * C10: hits = # hits only; binary = counts + ON/OFF Y; level = prior Level min/max + Events.
+         * C10/C12: hits; binary+Hue+audio = duration ON; blinds level = min/max + Events.
          */
         _renderActuatorPeriodChart(chart, data, range, levelMax, { soft = false, savedZoom = null, chartKind = "level" } = {}) {
             if (!chart) return;
@@ -3466,7 +3580,7 @@ function wanosApp() {
                         min: 0,
                         minInterval: 1,
                         nameTextStyle: { color: "#9ca3af" },
-                        axisLabel: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af", hideOverlap: true },
                         splitLine: { lineStyle: { color: "#374151" } }
                     },
                     series: [{
@@ -3478,16 +3592,70 @@ function wanosApp() {
                     }]
                 };
                 if (peak > 0) opt.yAxis.max = Math.ceil(peak);
-                this._setHistoryChartOption(chart, opt, savedZoom, { soft });
+                this._setHistoryChartOption(chart, opt, savedZoom, { soft, replaceYAxis: true });
                 return;
             }
 
-            const stateYName = chartKind === "binary" ? "" : "Level";
-            const stateMinName = chartKind === "binary" ? "State min" : "Level min";
-            const stateMaxName = chartKind === "binary" ? "State max" : "Level max";
-            const stateAxisLabel = chartKind === "binary"
-                ? { color: "#9ca3af", formatter: this._binaryAxisLabelFormatter(levelMax) }
-                : { color: "#9ca3af" };
+            // C12: binary + Hue + audio month/year → duration ON (minutes / hours)
+            if (chartKind === "binary" || chartKind === "audio") {
+                const durVals = rows.map(r => (r.duration == null ? 0 : Number(r.duration)));
+                const yName = range === "year" ? "hours" : "minutes";
+                const bounds = this._durationOnAxisBounds(durVals, range);
+                const opt = {
+                    backgroundColor: "transparent",
+                    tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
+                    legend: { show: false },
+                    grid: { left: 56, right: 24, top: 24, bottom: labels.length > 8 ? 72 : 56 },
+                    xAxis: {
+                        type: "category",
+                        data: labels,
+                        axisLabel: {
+                            color: "#9ca3af",
+                            hideOverlap: true,
+                            rotate: labels.length > 6 ? 35 : 0,
+                            fontSize: 10
+                        },
+                        axisTick: { alignWithLabel: true },
+                        splitLine: { show: false }
+                    },
+                    yAxis: {
+                        type: "value",
+                        name: yName,
+                        min: bounds.min,
+                        max: bounds.max,
+                        interval: bounds.interval,
+                        minInterval: bounds.interval,
+                        splitNumber: Math.max(2, Math.round((bounds.max - bounds.min) / bounds.interval)),
+                        nameTextStyle: { color: "#9ca3af" },
+                        axisLabel: {
+                            color: "#9ca3af",
+                            hideOverlap: true,
+                            // Year can be integer hours; month whole minutes
+                            formatter: (v) => {
+                                const n = Number(v);
+                                if (!Number.isFinite(n)) return "";
+                                return range === "year" ? String(Math.round(n)) : String(Math.round(n));
+                            }
+                        },
+                        splitLine: { lineStyle: { color: "#374151" } }
+                    },
+                    series: [{
+                        name: "duration ON",
+                        type: "bar",
+                        barMaxWidth: 40,
+                        data: durVals,
+                        itemStyle: { color: "#2dd4bf" }
+                    }]
+                };
+                this._setHistoryChartOption(chart, opt, savedZoom, { soft, replaceYAxis: true });
+                return;
+            }
+
+            // Blinds / remaining level: Events + Level min/max
+            const stateYName = "Level";
+            const stateMinName = "Level min";
+            const stateMaxName = "Level max";
+            const stateAxisLabel = { color: "#9ca3af" };
 
             const opt = {
                 backgroundColor: "transparent",
@@ -3521,7 +3689,6 @@ function wanosApp() {
                         name: stateYName,
                         min: 0,
                         max: levelMax,
-                        interval: chartKind === "binary" ? levelMax : undefined,
                         nameTextStyle: { color: "#9ca3af" },
                         axisLabel: stateAxisLabel,
                         splitLine: { lineStyle: { color: "#374151" } }
@@ -3724,17 +3891,39 @@ function wanosApp() {
 
             if (dayChart) {
                 // C5: day climate — smooth curves (no step stairs)
-                const tempSeries = this._pointsToSeries(dayData?.series?.temp);
+                // C12: frost when temp < dew — red + thicker (width 4); RH/dew unchanged
+                const tempPts = dayData?.series?.temp;
+                const humPts = showHum ? dayData?.series?.hum : null;
+                const frostSplit = showHum
+                    ? this._tempSeriesWithFrost(tempPts, humPts)
+                    : { warm: this._pointsToSeries(tempPts), frost: [] };
+                const hasFrost = (frostSplit.frost || []).some(row => row && row[1] != null);
                 const series = [{
                     name: "Temperature",
                     type: "line",
                     smooth: true,
                     showSymbol: false,
                     yAxisIndex: 0,
-                    data: tempSeries,
+                    data: frostSplit.warm,
                     lineStyle: { color: "#eab308", width: 2 },
+                    itemStyle: { color: "#eab308" },
                     connectNulls: false
                 }];
+                if (hasFrost) {
+                    series.push({
+                        name: "Temperature",
+                        type: "line",
+                        smooth: true,
+                        showSymbol: false,
+                        yAxisIndex: 0,
+                        data: frostSplit.frost,
+                        lineStyle: { color: "#ef4444", width: 4 },
+                        itemStyle: { color: "#ef4444" },
+                        connectNulls: false,
+                        // Keep single Temperature legend entry (shared name)
+                        legendHoverLink: true
+                    });
+                }
                 if (showHum) {
                     series.push({
                         name: "Humidity",
@@ -3742,14 +3931,12 @@ function wanosApp() {
                         smooth: true,
                         showSymbol: false,
                         yAxisIndex: 1,
-                        data: this._pointsToSeries(dayData?.series?.hum),
+                        data: this._pointsToSeries(humPts),
                         lineStyle: { color: "#22c55e", width: 2 },
                         connectNulls: false
                     });
                     // C5: dew only when humidity present (Sonntag Magnus)
-                    const dew = this._dewSeriesFromTempHum(
-                        dayData?.series?.temp, dayData?.series?.hum
-                    );
+                    const dew = this._dewSeriesFromTempHum(tempPts, humPts);
                     if (dew.length) {
                         series.push({
                             name: "Dew point",
@@ -3766,6 +3953,15 @@ function wanosApp() {
                 const opt = this._climateDualAxisOption(series.length);
                 // C10: legend/tooltip color must match drawn line (not ECharts default palette)
                 opt.series = this._pinSeriesLegendColors(series);
+                // Dedupe Temperature in legend when frost segment is present
+                if (hasFrost) {
+                    const legendNames = [];
+                    for (const s of series) {
+                        if (s.name === "Temperature" && legendNames.includes("Temperature")) continue;
+                        legendNames.push(s.name);
+                    }
+                    opt.legend = Object.assign({}, opt.legend, { data: legendNames });
+                }
                 this._applyClimateTimeWindow(opt, 24 * 60 * 60 * 1000);
                 this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
                 this._bindHistoryYSnap(dayChart, climateSnap(showHum));
@@ -3817,36 +4013,7 @@ function wanosApp() {
                             connectNulls: false
                         }
                     );
-                    const dewMin = this._dewSeriesFromTempHum(
-                        monthData?.series?.temp_min, monthData?.series?.hum_min
-                    );
-                    const dewMax = this._dewSeriesFromTempHum(
-                        monthData?.series?.temp_max, monthData?.series?.hum_max
-                    );
-                    if (dewMin.length) {
-                        series.push({
-                            name: "Dew min",
-                            type: "line",
-                            smooth: true,
-                            showSymbol: false,
-                            yAxisIndex: 0,
-                            data: dewMin,
-                            lineStyle: { color: "#38bdf8", width: 1.5, type: "dashed" },
-                            connectNulls: false
-                        });
-                    }
-                    if (dewMax.length) {
-                        series.push({
-                            name: "Dew max",
-                            type: "line",
-                            smooth: true,
-                            showSymbol: false,
-                            yAxisIndex: 0,
-                            data: dewMax,
-                            lineStyle: { color: "#38bdf8", width: 2 },
-                            connectNulls: false
-                        });
-                    }
+                    // C12: no dew series on month charts (day only)
                 }
                 const opt = this._climateDualAxisOption(series.length);
                 opt.series = this._pinSeriesLegendColors(series);
@@ -3901,36 +4068,7 @@ function wanosApp() {
                             connectNulls: false
                         }
                     );
-                    const dewMin = this._dewSeriesFromTempHum(
-                        yearData?.series?.temp_min, yearData?.series?.hum_min
-                    );
-                    const dewMax = this._dewSeriesFromTempHum(
-                        yearData?.series?.temp_max, yearData?.series?.hum_max
-                    );
-                    if (dewMin.length) {
-                        series.push({
-                            name: "Dew min",
-                            type: "line",
-                            smooth: true,
-                            showSymbol: false,
-                            yAxisIndex: 0,
-                            data: dewMin,
-                            lineStyle: { color: "#38bdf8", width: 1.5, type: "dashed" },
-                            connectNulls: false
-                        });
-                    }
-                    if (dewMax.length) {
-                        series.push({
-                            name: "Dew max",
-                            type: "line",
-                            smooth: true,
-                            showSymbol: false,
-                            yAxisIndex: 0,
-                            data: dewMax,
-                            lineStyle: { color: "#38bdf8", width: 2 },
-                            connectNulls: false
-                        });
-                    }
+                    // C12: no dew series on year charts (day only)
                 }
                 const opt = this._climateDualAxisOption(series.length);
                 opt.series = this._pinSeriesLegendColors(series);
@@ -4020,10 +4158,15 @@ function wanosApp() {
             const msg = (this.state.system.system_alert_msgs || []).find(m => m.id === id);
             const level = (msg && msg.level) ? msg.level : "info";
             const text = (msg && msg.message) ? String(msg.message) : "";
+            // C12: prefer produced_at (YYYY-MM-DD HH:MM:SS, matches loguru); fallback UI timestamp
+            const producedAt = (msg && (msg.produced_at || msg.timestamp))
+                ? String(msg.produced_at || msg.timestamp)
+                : "";
             this.publishEvent("ALERT_UI_DISMISSED", {
                 surface: surface,
                 level: level,
                 message: text,
+                produced_at: producedAt,
             }).catch(() => { /* log failure must not undo UI dismiss */ });
         },
 
@@ -4298,11 +4441,20 @@ function wanosApp() {
         },
 
         // ⚡ Smart Protocol-Aware UI Lock TTL Calculator
-        getUiLockTime(deviceType, isDragging = false) {
+        // C12 blinds: proportional to travel Δ% × travel_time × 1.10 (mirrors hub_handlers).
+        getUiLockTime(deviceType, isDragging = false, opts = {}) {
             if (deviceType === 'blinds') {
-                // Mechanical mesh blinds take time to physically roll and report back
-                const lockTime = 7; // seconds
-                return (this.state.system.shutter_rubberbanding || lockTime) * 1000;
+                const fromPos = opts.fromPos;
+                const toPos = opts.toPos;
+                const base = this._blindsTravelSecs(opts.entityId);
+                if (fromPos != null && toPos != null
+                    && Number.isFinite(Number(fromPos)) && Number.isFinite(Number(toPos))) {
+                    const delta = Math.abs(Number(fromPos) - Number(toPos));
+                    const secs = Math.max(1, Math.round((delta / 100.0) * base * 1.10));
+                    return secs * 1000;
+                }
+                // Unknown span (e.g. mid-drag start): conservative full-travel lock
+                return Math.max(1, Math.round(base * 1.10)) * 1000;
             }
             if (deviceType === 'speaker') {
                 // Speakers run on instant local TCP/API.
@@ -4319,13 +4471,37 @@ function wanosApp() {
             return 1000;
         },
 
+        /** C12: per-blind travel seconds from system state (config.blinds). */
+        _blindsTravelSecs(entityId) {
+            const sys = this.state.system || {};
+            const map = sys.blinds_travel_times || {};
+            const defRaw = Number(sys.blinds_default_travel_time_secs);
+            const def = (Number.isFinite(defRaw) && defRaw > 0) ? defRaw : 35;
+            if (entityId != null && map[entityId] != null) {
+                const n = Number(map[entityId]);
+                if (Number.isFinite(n) && n > 0) return n;
+            }
+            return def;
+        },
+
         setShutterState(idx, targetState) {
             if (this.shutterDragIdx != null && Number(this.shutterDragIdx) === Number(idx)) {
                 this.shutterDragIdx = null;
             }
 
+            const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
+            const cur = this.state.devices[idx];
+            const fromPos = (this.shutterDragFrom != null)
+                ? this.shutterDragFrom
+                : (typeof cur === "number" ? cur : (cur != null ? Number(cur) : 0));
+            this.shutterDragFrom = null;
+
             // Set Optimistic UI Lock expiration to ignore incoming Z-Wave state updates
-            this.uiLocks[idx] = Date.now() + this.getUiLockTime('blinds', false);
+            this.uiLocks[idx] = Date.now() + this.getUiLockTime('blinds', false, {
+                fromPos,
+                toPos: targetState,
+                entityId: meta.entity_id,
+            });
 
             // ⚡ Instantly mutate local state so OPEN/CLOSED text clicks don't flicker
             this.state.devices[idx] = targetState;
@@ -4374,8 +4550,18 @@ function wanosApp() {
 
         updateShutterOptimistic(idx, val) {
             const numVal = parseInt(val, 10);
+            const meta = (this.state.device_metadata && this.state.device_metadata[idx]) || {};
+            // C12: remember drag start so lock Δ matches hub proportional debounce
+            if (this.shutterDragIdx == null || Number(this.shutterDragIdx) !== Number(idx)) {
+                const cur = this.state.devices[idx];
+                this.shutterDragFrom = typeof cur === "number" ? cur : (cur != null ? Number(cur) : 0);
+            }
             this.shutterDragIdx = parseInt(idx, 10);
-            this.uiLocks[idx] = Date.now() + this.getUiLockTime('blinds', true);
+            this.uiLocks[idx] = Date.now() + this.getUiLockTime('blinds', true, {
+                fromPos: this.shutterDragFrom,
+                toPos: numVal,
+                entityId: meta.entity_id,
+            });
 
             // ⚡ Immediately update the reactive dictionary so the slider and % text move live with the mouse pointer
             this.state.devices[idx] = numVal;
@@ -4413,8 +4599,9 @@ function wanosApp() {
             this.huePresetEditMode = false;
 
             // Load existing color from backend state, or default to Warm White
+            // C12: bri display/slider integer 1–100 (ON never 0)
             if (typeof item.raw_value === 'object' && item.raw_value !== null) {
-                this.activeLightBri = item.raw_value.bri !== undefined ? item.raw_value.bri : 100;
+                this.activeLightBri = this._clampHueBri(item.raw_value.bri);
                 this.activeLightHex = this.xyToWheelHex(
                     item.raw_value.xy ? item.raw_value.xy[0] : undefined,
                     item.raw_value.xy ? item.raw_value.xy[1] : undefined
@@ -4474,7 +4661,7 @@ function wanosApp() {
 
             this.activeHuePresetKey = key;
             this.huePresetDirtySinceSelect = false;
-            this.activeLightBri = preset.bri;
+            this.activeLightBri = this._clampHueBri(preset.bri);
             // For rgb-backed presets keep exact wheel color; fallback to xy.
             const nextHex = preset.rgb
                 ? String(preset.rgb)
@@ -4545,10 +4732,23 @@ function wanosApp() {
 
         onHueBrightnessInput() {
             if (this.huePresetEditMode) return;
+            // C12: keep display + outbound bri as integer 1–100
+            this.activeLightBri = this._clampHueBri(this.activeLightBri);
             if (!this._huePresetApplyGuard && this.activeHuePresetKey) {
                 this.huePresetDirtySinceSelect = true;
             }
             this.updateActiveLightState();
+        },
+
+        /**
+         * C12: Hue brightness for Explorer modal — integer only, range 1–100 (ON never 0).
+         * @param {*} raw
+         * @returns {number}
+         */
+        _clampHueBri(raw) {
+            const n = Math.round(Number(raw));
+            if (!Number.isFinite(n)) return 100;
+            return Math.max(1, Math.min(100, n));
         },
 
         openHuePresetSaveModal() {
@@ -4641,7 +4841,7 @@ function wanosApp() {
                     // Immediately treat the saved preset as "active" so Save-current disables.
                     this.activeHuePresetKey = data.key;
                     this.huePresetDirtySinceSelect = false;
-                    this.activeLightBri = data.preset.bri;
+                    this.activeLightBri = this._clampHueBri(data.preset.bri);
                     this.activeLightHex = data.preset.rgb
                         ? String(data.preset.rgb)
                         : this.xyToWheelHex(data.preset.xy[0], data.preset.xy[1]);
@@ -4707,13 +4907,15 @@ function wanosApp() {
         updateActiveLightState() {
             if (!this.activeLightId) return;
             const xy = this.hexToXY(this.activeLightHex);
+            const bri = this._clampHueBri(this.activeLightBri);
+            this.activeLightBri = bri;
 
             // Dispatch a rich dictionary. We pass force: true so the backend guarantees
             // transmission even if the bulb's power state is already "ON".
             this.publishEvent("HUB_STATE_CHANGED", {
                 idx: parseInt(this.activeLightId, 10),
                 state: "ON",
-                bri: parseInt(this.activeLightBri, 10),
+                bri: bri,
                 xy: xy,
                 force: true
             });
@@ -5053,8 +5255,13 @@ function wanosApp() {
         // Router for when a user clicks one of the 1-4 preset circles
         handlePresetClick(index) {
             if (this.presets[index] !== null) {
-                // APPLY PRESET: Slot is filled, instantly map the saved payload to the reactive filters
                 const p = this.presets[index];
+                // C12: non-admin cannot apply a Hidden view-preset
+                if (!this.isAdmin && p.showHiddenNodes === true) {
+                    this.showToast("Hidden preset is admin-only.");
+                    return;
+                }
+                // APPLY PRESET: Slot is filled, instantly map the saved payload to the reactive filters
                 this.searchQuery = p.searchQuery || "";
                 this.typeFilter = p.typeFilter || "ALL";
                 this.statusFilter = p.statusFilter || "ALL";

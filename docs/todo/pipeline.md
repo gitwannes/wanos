@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-08-22
+**Last updated:** 2026-08-23
 
 ---
 
@@ -73,6 +73,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **G15** | Evening twilight cross-day orphan ON (+ **C27** + Admin timeline UX in same ship) — Pi smoke **2026-08-22** |
 | **C27** | Sunrise/sunset Admin + Explorer chrome — shipped with **G15** — Pi smoke **2026-08-22** |
 | **B22** | Nested If/Do via branch `then:` (+ mixed leading/trailing Sets) — Pi smoke **2026-08-22** |
+| **C12** | Post-C10 polish (duration ON, frost/dew, Hidden preset, …) — Pi smoke **2026-08-23** |
 
 ---
 
@@ -85,19 +86,19 @@ All open items. **Detail** = phase file section.
 ──  ────── ──── ──────────── ────────────────────────────────────────────────── ──────────────────────────
 1   open   high B7 / B14     timed Set, delay, cooldown + B5-deferred           phaseB § B14 / Ship B7
 2   open   low  B12          rule-list folder/tag                               phaseB § B12
-3   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)        phaseB § B24
-4   open   low  B10I         used SE → Go to SR                                 phaseB § B10I
-5   open   low  B10J         bugfix: Event Received → catalog display name      phaseB § B10J
-6   open   low  B10L         NOT CONNECTED overlay + Re-connecting copy         phaseB § B10L
-7   open   low  B10M         bugfix: Explorer Hue preset duplicate settings     phaseB § B10M
-8   open   low  C20          bugfix: Admin Clear All no-op (kickoff locked)     phaseC § C20
-9   open   low  C21          bugfix: AUTO OFF countdown while already OFF       phaseC § C21
-10  open   high E            Gmail transport / outbox + Blockly Messages        phaseE
-11  open   mid  C3           Force ALL-OFF                                      phaseC § C3
-12  open   mid  C4           Rename HTML entrypoints (blocky→blockly)           phaseC § C4
-13  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
-14  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
-15  open   mid  C12          Post-C10 polish (+ Hidden preset admin-only)       phaseC § C12
+3   open   low  B25          rule-list complexity score + tier (sort/filter)     phaseB § B25
+4   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)        phaseB § B24
+5   open   low  B10I         used SE → Go to SR                                 phaseB § B10I
+6   open   low  B10J         bugfix: Event Received → catalog display name      phaseB § B10J
+7   open   low  B10L         NOT CONNECTED overlay + Re-connecting copy         phaseB § B10L
+8   open   low  B10M         bugfix: Explorer Hue preset duplicate settings     phaseB § B10M
+9   open   low  C20          bugfix: Admin Clear All no-op (kickoff locked)     phaseC § C20
+10  open   low  C21          bugfix: AUTO OFF countdown while already OFF       phaseC § C21
+11  open   high E            Gmail transport / outbox + Blockly Messages        phaseE
+12  open   mid  C3           Force ALL-OFF                                      phaseC § C3
+13  open   mid  C4           Rename HTML entrypoints (blocky→blockly)           phaseC § C4
+14  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
+15  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
 16  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
 17  open   mid  C16          Day chart sliding 24 h over hires_days             phaseC § C16
 18  open   mid  C24          Temp/hum day fullscreen + AH/CI + CSV              phaseC § C24
@@ -124,7 +125,7 @@ All open items. **Detail** = phase file section.
 39  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
 40  hold   high P            Other homes / portability (assess)                 phaseP
 ```
-Near-term: **Ship B7** → **B24** kickoff when ready. **B12** may run ∥ Ship B7. **C26** after **C4** (HTML/JS rename, then split). **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**.
+Near-term: **Ship B7** → **B24** kickoff when ready. **B12** / **B25** may run ∥ Ship B7. **C26** after **C4** (HTML/JS rename, then split). **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C16+C24** kickoff **locked 2026-08-23** (skip-ahead; combined ship; water B; inherit pan; subtitle; overlay frost; button label) — implement when commanded. **C25** after (no kickoff yet).
 
 ---
 

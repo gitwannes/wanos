@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). Queued: **C3 → C4 → C26 → C11 → C12 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). Queued: **C3 → C4 → C26 → C11 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. **C16+C24** kickoff **2026-08-23** — skip-ahead OK; combined ship; water day = **B** (`hires_days` hourly + pan); **C25** deferred (no kickoff). Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -25,7 +25,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C9 — Device-ref app logs** | All device-ref lines in `wanos.log` → `entity_id (name, idx N)` | Every integration · mid |
 | **C10 — Explorer / History polish** | Plural Nodes; Planned past gone; Hue hex text; chart colors; binary/hits charts; omit scenes; filter+blinds | FE · mid |
 | **C11 — Control vs History lists** | Re-assess Explorer Control vs History list membership (post–C10 scene omit) | Assess → decide · low |
-| **C12 — Post-C10 polish** | Hue bri int; binary duration; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter debounce; temp/hum frost line; Hidden preset admin-only | FE + log · mid |
+| **C12 — Post-C10 polish** | Hue bri int; binary/Hue/audio duration ON; alert `produced_at`; Z-Wave `-term`; scene favorites; shutter lock; frost/dew; Hidden preset — ✅ **Pi smoke 2026-08-23** | FE + log · mid |
 | **C17 — Alert dismiss persist** | Banner dismiss vs reload — **assess at kickoff** | Admin alerts · low |
 | **C18 — Sensor live lag** | Explorer Control live lag after toggle — ✅ **Done 2026-08-16** | SSE / Q4–Q5 · mid |
 | **C19 — History auto-refresh blank** | Auto-refresh black / title-only; keep settings + window — ✅ **Done 2026-08-16** | History charts · low |
@@ -43,7 +43,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`blockly` | Shell entrypoints |
 | **C26 — Frontend JS modularization** | Split `app.js` + `blockly.js`; shared helpers; `login.js`; **`reference.md` JS catalog** | FE maintainability · mid · after **C4** |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C26** after **C4**; **C11** after **C26**. **C12** → **C17** → **C20** → **C21** → **C16** → **C24** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C16** → **C24** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). **C16+C24** may **skip-ahead** (operator **2026-08-23**). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -525,73 +525,31 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 ---
 
-## 📋 C12 — Post-C10 polish 🔜 TODO
+## 📋 C12 — Post-C10 polish ✅ DONE
 
-**Origin:** operator inbox **2026-08-11**. Shell / History / Admin — **not** G2 bridge truth, **not** Blocky editor (**B10G** ✅ load checklist / timings / NOT CONNECTED / `vNN`; **B10H** ✅ cold-load shorten). **One ship** (default). Size **mid**. **Spec locked** (operator Q&A **2026-08-11**).
+**Origin:** operator inbox **2026-08-11**. **Kickoff locked 2026-08-23**. **Pi smoke:** ✅ **2026-08-23** (operator). **Last DoD docs audit:** ✅ **2026-08-23**.
 
-| # | Item |
+### Shipped summary
+
+| # | Shipped |
 |---|---|
-| 1 | **Hue Explorer brightness** — display + slider: **integer only** (no decimals). Round **nearest**; **ON never `0`** (`0` = OFF). Slider floor **`1`** when ON. Range **`1–100`**. *(Display/formatting only — not G2 bridge sync.)* |
-| 2 | **History binary (non-motion) month/year** — **total ON duration** aggregated from history intervals (ON→OFF). **Month:** `minutes_on` per bucket; **Year:** `hours_on` per bucket. **UI:** series/axis label **“duration ON”**; Y-axis **minutes** (month) / **hours** (year). **Day:** keep C10 binary ON/OFF chart (unchanged). |
-| 3 | **Motion** — keep C10 **hits** model (not duration). **Visibility locked:** keep as-is — **75xxx stays soft-hidden**; not in Explorer/History list unless operator toggles **Hidden devices**; backend history unchanged. Document in ops/docs only (no list UX change). |
-| 4 | **Alert dismiss log — `produced_at`** — extend **C8** line shape: add **when the alert was produced** (`produced_at` only — dismiss time stays implicit log timestamp). UX unchanged. |
-| 5 | **Z-Wave config search — negative filter** — mirror Explorer: **`-term`** excludes (same `_parseTextQuery` semantics). Fields: **name, path, idx** (today’s Z-Wave positive match set). |
-| 6 | **Scene favorites bug** — favoriting **one** dashboard scene must not favorite **all** scenes (likely UUID `id` vs numeric idx in `actuatorFavorites`). |
-| 7 | **Shutters debounce — assess** — FE `getUiLockTime('blinds')` uses fixed **7s**; backend `hub_handlers` uses proportional delay from `blinds.travel_times` / `default_travel_time_secs`. Confirm gap; align FE lock (and/or rubberband) with travel math if needed. |
-| 8 | **Temp/hum frost line** — see § item 8 below. |
-| 9 | **Manage Presets — Hidden row admin-only** — see § item 9 below. |
+| 1 | Hue Explorer bri: integer **1–100** (`_clampHueBri`); display + slider |
+| 2 | Binary month/year **duration ON** (`minutes_on` int / `hours_on` 1 decimal); clip; carry-in; open→now |
+| 2′ | **Hue + audio** month/year: duration ON only (no Events / Level min/max); day stays Level. **Blinds:** Events + Level min/max unchanged |
+| 2″ | Duration Y-axis: month snap ±10 min, year ±1 h; tick interval ~5 labels |
+| 3 | Motion **75xxx** soft-hidden — docs only (`sensor_history.md`); hits model unchanged |
+| 4 | Alert dismiss log: `produced_at=YYYY-MM-DD HH:MM:SS` (UI `timestamp` stays short) |
+| 5 | Z-Wave config search: AND + `-term` (name / path / idx) |
+| 6 | Scene favorites: UUID strings (not `Number(uuid)→NaN`) |
+| 7 | Blinds FE ui-lock = hub formula; `system.blinds_default_travel_time_secs` + `blinds_travel_times` |
+| 8 | Day frost (temp &lt; dew → red, width **4**); **dew off** month/year (RH stays) |
+| 9 | Manage Presets **Hidden** row + chip: admin-only |
 
-### Item 8 — temp/hum frost styling (extends C5 dew)
+**Out of scope (unchanged):** G2 bridge; C11; C16/C24/C25.
 
-* **Day chart:** where **temp < dew**, render that segment **red** and **thicker** (temp series only). Dew series stays on **day** temp/hum charts only.
-* **Month / year — locked:** **no dew series** (remove consolidated dew min/max lines shipped in C5). **No** frost styling on aggregated charts.
-* **Day point density (for kickoff):** rolling **`hires_days`** buffer once **C16** ships; until then API returns **24 h** only. Throttle: **≥0.5 °C** / **≥2 %RH** / **300 s** max interval. **~288 points/series/24 h** ceiling when flat; dew FE-paired on matching timestamps.
+**C12 DoD:** ✅ Items 1–9 + follow-ups on Pi; Last DoD docs audit **2026-08-23**.
 
-**Operator request (verbatim):**
-> - in temp/hum graphs: when temp goes below dew point: change that part of the line in red and make it thicker -- Q: is it usefull to have this in month/year graphs as well? I think not, but verify&confirm -- general: is it usefull to have the consolidated dew point graph in month/year charts? again, I think not, but verify&confirm
-
-**Operator lock-in (2026-08-12):** remove dew from **month & year**; keep dew (and frost styling) on **day** only.
-
-### Item 9 — Hidden view-preset admin-only (Explorer Manage Presets)
-
-**Covering operator request (verbatim):**
-> - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
-> - + 4 screenshots attached
-
-**Operator request (verbatim from screenshot):**
-> should not be visible when not logged in as admin
-
-**Locked:** In Explorer **Manage Presets**, the **Hidden** preset row (screenshot: `5 Hidden • Sort: Name`) is **admin-only**. Non-admin must not see it (and must not be able to apply/save it). Hidden-devices **filter toggle** in the presets pane stays as C1 (admin already required for that chrome — confirm at impl that non-admin cannot reach Hidden).
-
-### Item 2 — chart families (extends C10 item 5)
-
-**A — Binary day** — unchanged (ON/OFF on Y).
-
-**A′ — Binary month/year** — duration totals (not ON/OFF, not hit counts): sum ON segment lengths per bucket → **minutes** (month) / **hours** (year).
-
-**C — Motion** — unchanged: day = hit spikes; month/year = **# hits** (not duration, not ON/OFF).
-
-### Item 4 — locked log line shape (extends C8)
-
-```text
-Alert dismissed (banner): level=<level> produced_at=<iso-or-unix> "…message text…"
-Alert dismissed (bell): level=<level> produced_at=<iso-or-unix> "…message text…"
-```
-
-*`produced_at` format — pick at impl (ISO local vs unix s).*
-
-### Out of scope
-
-* G2 Hue bri/xy **bridge** truth.
-* B10G Automations load checklist / timings / NOT CONNECTED / `vNN` — ✅ **2026-08-12**; **B10H** cold-load shorten — ✅ **2026-08-12**.
-* C11 Control vs History membership model (item 3 does not reopen it).
-* Explorer **live** Control lag after B10H / optimistic UI → **C18** ✅.
-* History auto-refresh blank / lost window → **C19** ✅ (**2026-08-16**; see **C6**; did not reopen C6).
-* Temp/hum day fullscreen + AH/CI + checkboxes + CSV → **C24** (after **C16**; do not reopen **C5**). Overlay dew likelihood → **C25**.
-
-**C12 DoD:** Items 1–9 on Pi where relevant; binary month/year show duration ON with correct units; motion visibility documented (no UX change); alert dismiss lines include `produced_at`; Z-Wave `-term` works; scene favorites per-scene; shutter debounce assessed/fixed if confirmed; temp/hum day frost line; **dew removed from month/year**; Hidden preset admin-only in Manage Presets. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
-
-*(Former **C14** — NOT CONNECTED investigate + admin page **`vNN`** — folded into **B10G** ✅ **2026-08-12**; see [`phaseB-blocky.md`](phaseB-blocky.md) § B10G.)*
+*(Former **C14** folded into **B10G** ✅ **2026-08-12**.)*
 
 ---
 
@@ -968,11 +926,13 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ## 📋 C16 — Day chart sliding 24 h window 🔜 TODO
 
-**Origin:** operator inbox **2026-08-12**. Explorer → History day panels — extends **C5** / **C6** (not Blocky). Size **mid**. Sequence: **after C12** (same chart surface; pairs with item 8 frost line). **C24** follows this ship.
+**Origin:** operator inbox **2026-08-12**. Explorer → History day panels — extends **C5** / **C6** (not Blocky). Size **mid**. Sequence: **after C12** (same chart surface; pairs with item 8 frost line). **Combined ship with C24** (kickoff **2026-08-23**); **C25** after, separate.
 
 **Operator request (verbatim):**
 > - can we change the rolling hi-res window to 1 week? what would that mean for code, for DB size?
 > - on the daily chart: I want a windows of 24hrs (can be shortened to see more detail but not made bigger) - but I Want to slide this window up to the available hi-res data, so 1 week ago
+
+**Kickoff (2026-08-23):** skip-ahead past Sequence items before C16 — **yes**. Water day — **B** (below). Combined close-out with **C24** — **yes**. **C25** not in this ship.
 
 **Locked triage intent:**
 
@@ -984,18 +944,31 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **Frontend:** `xAxis` spans full buffer `[now − hires_days, now]`; ECharts `dataZoom` with **`maxValueSpan = 24 h`**, initial **`startValue` / `endValue`** = last 24 h (not `start:0 end:100` on a 24 h axis). Reuse/adapt `_applyTimeWindow` / `_applyClimateTimeWindow`.
 * **Soft refresh (C6):** preserve pan position on merge; if viewport was **live** (end ≈ now), keep pinned to now.
 * **Y-axis snap (C5):** unchanged — snap from values inside current dataZoom window.
-* **Copy:** panel title stays **24 hour window** (not “last 24 hours” when panned); optional subtitle with visible from/to when not live.
+* **Copy:** panel title stays **24 hour window** (not “last 24 hours” when panned); **ship** subtitle with visible from/to when viewport is not live (kickoff **2026-08-23**).
 * **DB size:** **unchanged** — hi-res already retained 7 days; cost is ~**7×** day-chart API payload + FE points (~2k/series ceiling at 300 s climate throttle).
-* **Water day chart — assess at kickoff:** today uses **`sensor_hourly`** (24 h bars), not hi-res — decide whether to expose **7×24 h** hourly bars with same pan UX or leave water on live 24 h only.
-* **Out of scope:** windowed API (`?end=`) per pan (unless Pi perf forces it); changing `hires_days` retention; month/year charts; `sensorhistory.html` utility page (unless explicitly included at kickoff); temp/hum fullscreen + extra series + CSV → **C24**.
+* **Water day chart — locked kickoff 2026-08-23 (option B):** load **`hires_days` × hourly** cold/hot bars from **`sensor_hourly`** (not hi-res samples); same **24 h max viewport + pan** UX as line day charts (default right-aligned to now; slide back to retention). Month/year water unchanged. Floor = one hour bar (native resolution).
+* **Out of scope:** windowed API (`?end=`) per pan (unless Pi perf forces it); changing `hires_days` retention; month/year charts; `sensorhistory.html` utility page; temp/hum fullscreen + extra series + CSV → **C24** (same combined ship, separate DoD surface).
 
-**C16 DoD:** Day hi-res charts (climate, power, host, actuators) load `hires_days` buffer; 24 h max viewport; pan to oldest hi-res; zoom-in only; soft refresh preserves pan/live pin; water decision recorded; Pi smoke pan + live refresh. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C16 DoD:** Day hi-res charts (climate, power, host, actuators) load `hires_days` buffer; water day loads `hires_days` hourly bars; 24 h max viewport; pan to oldest retained day data; zoom-in only (lines); soft refresh preserves pan/live pin; **from/to subtitle** when not live; Pi smoke pan + live refresh (incl. water). **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (Combined ship: close with **C24**.)
 
 ---
 
 ## 📋 C24 — Temp/hum day fullscreen + extra climate lines 🔜 TODO
 
-**Origin:** operator inbox **2026-08-16**. Explorer → History **temp/hum** charts — extends **C5** dew (Done) and **C16** day buffer; **not** C12 #8 frost styling; **not** C19 auto-refresh; **not** `sensorhistory.html`. Size **mid**. Sequence: **after C16** (CSV of `hires_days` buffer). Default **after Blockly cluster** (not ∥). Kickoff Q&A **locked 2026-08-16**.
+**Origin:** operator inbox **2026-08-16**. Explorer → History **temp/hum** charts — extends **C5** dew (Done) and **C16** day buffer; **not** C12 #8 frost styling; **not** C19 auto-refresh; **not** `sensorhistory.html`. Size **mid**. Sequence: **after C16** (CSV of `hires_days` buffer). **Combined ship with C16** (kickoff **2026-08-23**); **C25** deferred. Kickoff Q&A **locked 2026-08-16**; CI formula **locked 2026-08-17**.
+
+**Operator reconfirm (2026-08-23):**
+> keep the day graph as-is today, so with hum - clicking on a button opens the fullscreen with more graphs (potentially, via checkboxes)
+> fullscreen = 24hr hi-res only (7-day sliding), no month/year
+> other open Qs/items? no assumptions
+
+**Locked from that reconfirm:** Inline **day** temp/hum stays **today’s C5 chart** (T + humidity + dew; frost when C12 shipped). Button on **day only** opens tab overlay. Extra series (AH / CI) and the five checkboxes live **only** in that overlay. Overlay is **day / hi-res / C16 sliding window only** — **no** month or year inside fullscreen.
+
+**Residual Qs locked (2026-08-23):**
+1. Overlay open → **inherit** the inline day chart’s current pan/zoom (and keep it under C6 soft refresh).
+2. Day-chart **from/to subtitle** when viewport is not live → **ship**.
+3. **Frost** (C12 #8) on overlay temperature line → **yes**.
+4. Button label → **“Open detail in full screen”**.
 
 **Operator request (verbatim, 2026-08-16):**
 > - in alle grafieken die temperatuur EN vochtigheid combineren
@@ -1161,7 +1134,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 | Fullscreen | Fills the **entire browser tab** (page viewport). Browser chrome (tab strip, URL bar) **stays visible**. **Not** F11 / `requestFullscreen()` (that hides the browser UI). WanOS Explorer chrome (list, filters, nav) is covered by the overlay. |
 | Close | **X** in the **top-right** of the overlay. |
 | Missing dew / AH / CI | **Confirmed from shipped C5** (`frontend/app.js` `_dewPointC` / `_dewSeriesFromTempHum`). Dew is **never stored** — FE Sonntag Magnus from **T + RH at the same timestamp**. No dew when T is missing/invalid, RH is missing/invalid (`RH <= 0` or `RH > 100`), or T and RH do not share a timestamp. Overlay **reuses that same pairing**; no second Td formula. At those timestamps **Td, AH, and CI are omitted** (gaps; do not invent). AH needs T+Td; **CI needs T+Td** (formula **2026-08-17**). Td needs T+RH — so 4th and 5th cannot be calculated without dew. T and/or RH still plot if present. |
-| Overlay time window | **Same 24 h viewport as C16** (pan over `hires_days`). Export is the **full** `hires_days` buffer, not only the visible window. |
+| Overlay time window | **Same 24 h viewport as C16** (pan over `hires_days`). On open: **inherit** inline day pan/zoom. Export is the **full** `hires_days` buffer, not only the visible window. |
 | Export format | **CSV** (Excel-openable). No `.xls` / `.xlsx` library. Button/file: **Export CSV**. Empty cells where Td/AH/CI cannot be computed. Span = `history.retention.hires_days` (not a hardcoded 7). |
 | Axes | Left **°C** (T + Td). Right **%** (RH + CI). **Third** y-axis **g/m³** (AH). Each y-axis **shown only when at least one series on that axis is checked**. |
 | Toggles | Overlay **checkboxes only** (default all on). **No** ECharts legend in the overlay. |
@@ -1216,7 +1189,7 @@ if CI > 100: CI = 100
 > 3: 3rd Y is ok (show only when relevant graph lines are picked via checkboxes)
 > 4: ok
 
-**Impl defaults (standing):** English series names matching C5 (`Temperature`, `Humidity`, `Dew point`) plus `Absolute humidity` and `Apparent humidity`; overlay follows **C6** soft refresh (keep checkboxes + window); overlay inherits **C12 #8** frost on temp when C12 has shipped.
+**Impl defaults (standing):** English series names matching C5 (`Temperature`, `Humidity`, `Dew point`) plus `Absolute humidity` and `Apparent humidity`; overlay follows **C6** soft refresh (keep checkboxes + window); overlay **includes** **C12 #8** frost on temp (kickoff **2026-08-23**). Button label: **Open detail in full screen**.
 
 ### Comfort-line — bands (locked colors; width unused)
 
@@ -1246,7 +1219,7 @@ if CI > 100: CI = 100
 * Standalone `sensorhistory.html` unless kickoff includes it.
 * Overlay **dew likelihood %** / persist OWM clouds/wind → **C25**.
 
-**C24 DoD:** Kickoff Q&A **locked 2026-08-16**. CI formula **locked 2026-08-17** (`CI_base` from Td + `TC = 0.8*(T-20)`, clamp). Temp/hum **day** chart has “open detail in full screen”; overlay fills the browser tab with **X** top-right; 24 h viewport (C16 pan); five checkboxes default on, no overlay legend; third y-axis g/m³ for AH, axes hidden when their series are unchecked; CSV export of five columns for the full `hires_days` buffer; month/year unchanged; Td/AH/CI reuse C5 pairing; CI piecewise comfort colors (Td bands) + tooltip (new CI %), one width, no markers; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C24 DoD:** Kickoff Q&A **locked 2026-08-16**; residual Qs **locked 2026-08-23** (inherit pan; subtitle; overlay frost; button label). CI formula **locked 2026-08-17** (`CI_base` from Td + `TC = 0.8*(T-20)`, clamp). Temp/hum **day** chart has “Open detail in full screen”; overlay fills the browser tab with **X** top-right; 24 h viewport (C16 pan, inherit on open); five checkboxes default on, no overlay legend; third y-axis g/m³ for AH, axes hidden when their series are unchecked; CSV export of five columns for the full `hires_days` buffer; month/year unchanged (no overlay); Td/AH/CI reuse C5 pairing; CI piecewise comfort colors (Td bands) + tooltip (new CI %), one width, no markers; frost on overlay temp; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (Combined ship: close with **C16**.)
 
 ---
 
@@ -1327,7 +1300,7 @@ if CI > 100: CI = 100
 * **C9:** All device-ref lines in `wanos.log`, every integration → `entity_id (name, idx N)` (automation-log parity / `format_device_ref`).
 * **C10:** Plural Nodes; Planned past/done **removed** from list (not relabeled); Hue COLOR OUTPUT text-only remove; climate legend/line parity; binary ON/OFF vs non-binary set vs motion hits (day Y + month/year counts); History omit **all** `type === "scene"`; filter+blinds drag stable. ✅ **Done 2026-08-11**.
 * **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
-* **C12:** item **8** — day frost line; dew removed from month/year; item **9** Hidden preset admin-only. Extra climate lines / fullscreen / CSV → **C24**.
+* **C12:** ✅ **Pi smoke 2026-08-23** — Hue bri int; binary/Hue/audio month/year duration ON (+ Y snap); alert `produced_at` log stamp; Z-Wave `-term`; scene favorites UUID; blinds proportional ui-lock; day frost + dew off month/year; Hidden preset admin-only; motion 75xxx docs.
 * **C17:** banner dismiss vs reload — **assess at kickoff** (not locked).
 * **C20:** kickoff **locked** 2026-08-15 — **Clear All** dismisses every visible bell row (same as each X); C8 per row; button iff list non-empty; reload same as X (**C17**). Implement when commanded.
 * **C18:** ✅ **Done 2026-08-16** — Explorer Control live rows; Q4/Q5; live SSE (**C23**); drain `create_task` I/O.
@@ -1335,9 +1308,9 @@ if CI > 100: CI = 100
 * **C21:** Explorer AUTO OFF countdown must not run when the device is already OFF.
 * **C27:** ✅ **Done 2026-08-22** — Admin General Diagnostics **first** row; Explorer **ℹ tap → popover** on Device Explorer title; format **HH:MM + relative**; History title out of scope; Pi smoke with **G15** deploy.
 * **C22:** ✅ **Done 2026-08-16** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m (`22007`/`22008`) live-only; not C11.
-* **C16:** sliding 24 h viewport over `hires_days` hi-res; zoom-in only; pan back to retention limit. Blank auto-refresh → **C19** ✅. Fullscreen + extra climate lines → **C24**.
-* **C24:** temp/hum **day** overlay fills the **browser tab** (not F11) with **X** top-right; 24 h window (C16); CSV of full `hires_days`; 3rd y-axis AH (axes iff series checked); checkboxes only; month/year unchanged; **after C16**; not C12 #8 frost; do not reopen **C5**. Kickoff Q&A **locked 2026-08-16**. CI **2026-08-17:** Td base + T correction. Dew likelihood → **C25**.
-* **C25:** overlay **Dew likelihood %** (heuristic); OWM 2.5 clouds/wind; rain→0; **after C24**; do not reopen C24. Storage/weights/checkbox/CSV/axis → kickoff.
+* **C16:** sliding 24 h viewport over `hires_days` hi-res; water day = **`hires_days` hourly + pan** (kickoff **2026-08-23** B); **ship** from/to subtitle when not live; zoom-in only; pan back to retention. Blank auto-refresh → **C19** ✅. Combined ship with **C24**; skip-ahead OK. Dew likelihood → **C25** (later).
+* **C24:** temp/hum **day** overlay fills the **browser tab** (not F11) with **X** top-right; inherit inline pan; frost on overlay; CSV of full `hires_days`; 3rd y-axis AH (axes iff series checked); checkboxes only; month/year unchanged; **combined with C16**; do not reopen **C5**. Kickoff **locked** (**2026-08-16** + **2026-08-23**). CI **2026-08-17:** Td base + T correction. Dew likelihood → **C25** (no kickoff yet).
+* **C25:** overlay **Dew likelihood %** (heuristic); OWM 2.5 clouds/wind; rain→0; **after C16+C24 ship**; do not reopen C24. Storage/weights/checkbox/CSV/axis → kickoff (not started).
 * **C15:** lab switch in Debug Commands; entire lab pane hidden when OFF.
 * **C13:** Merge hide into Timers & types …
 * **C4:** **`blocky`→`blockly`** — **`blockly.html` / `blockly.js`**; shell label **Blockly**; **not** `automations.*`.
@@ -1346,14 +1319,18 @@ if CI > 100: CI = 100
 
 * *(none for **C1 / C2 / C5 / C6 / C7 / C8 / C9 / C10 / C18 / C19 / C22 / C23** — **C18**/**C23**/**C19** Pi smoke **2026-08-16**; **C22** closed **2026-08-16**.)*
 * **C11** assess open until kickoff (queued).
-* **C12:** item **8** locked — day frost line; **dew removed from month/year** (day only). Item **9** — Hidden Manage Presets row **admin-only**. Extra climate lines / fullscreen / CSV → **C24**.
+* **C12:** ✅ **Pi smoke 2026-08-23** — full items 1–9 + follow-ups (Hue/audio duration ON; Y-axis ticks). Extra climate lines / fullscreen / CSV → **C24**.
 * **C17:** **assess at kickoff** — persist while fault still true vs new occurrence; bell vs banner; store.
 * **C20:** kickoff + contract **locked** 2026-08-15 — implement when commanded.
 * **C21:** AUTO OFF countdown while toggle OFF.
 * **C27:** ✅ **Done 2026-08-22** — format **HH:MM + relative** locked; Explorer ℹ popover; History title out of scope; closed with **G15** Pi smoke.
-* **C16:** locked — 24 h max viewport; pan over **`hires_days`**; water day chart **assess at kickoff**.
-* **C24:** kickoff Q&A **locked 2026-08-16** — overlay = full browser tab (not F11); **X** top-right; extra series overlay-only; month/year untouched; 24 h window + CSV of `hires_days`; 3rd y-axis AH (hide axis when series off); checkboxes only; CI piecewise color + tooltip. CI formula **locked 2026-08-17** (Td base + `TC = 0.8*(T-20)`). Implement when commanded. Dew likelihood → **C25**.
-* **C25:** **not locked** — persist OWM clouds/wind/rain; formula weights; 6th checkbox/CSV; axis. Placement: after **C24**, overlay-only, OWM/outside only.
+* **C16:** kickoff **2026-08-23** — 24 h max viewport; pan over **`hires_days`**; water day **B**; **ship** from/to subtitle when not live; skip-ahead + combined **C24** ship. Ready to implement when commanded.
+* **C24:** kickoff **locked** (**2026-08-16** + residuals **2026-08-23**) — inline day as-is; button **“Open detail in full screen”**; overlay inherit pan; frost on overlay; CSV / 5 checkboxes / AH+CI / 3rd axis as before. Combined with **C16**. Ready to implement when commanded. **C25** later.
+* **C25:** **not locked** — no kickoff yet; after C16+C24. Persist OWM clouds/wind/rain; formula weights; 6th checkbox/CSV; axis.
+
+### C16+C24 residual open Qs
+
+*(none — closed **2026-08-23**: inherit pan; ship subtitle; overlay frost; button label.)*
 * **C15:** locked — switch in Debug Commands; **entire lab pane hidden when OFF**.
 * **C26:** kickoff **locked 2026-08-22** — after **C4**; classic scripts; `blockly-*` siblings; page-script dedupe; **`reference.md` § frontend catalogs all `frontend/*.js`**.
 * **C3 / C4** remain open as specified above (later in sequence).

@@ -220,11 +220,21 @@ function zwaveApp() {
                 // User Filters
                 if (this.typeFilter !== "ALL" && item.type !== this.typeFilter) return false;
                 if (this.searchQuery.trim() !== "") {
-                    const q = this.searchQuery.toLowerCase();
-                    // Track matches on the absolute index string representation if populated
-                    const matchesIdx = item.idx !== null && String(item.idx).includes(q);
-
-                    if (!item.name.toLowerCase().includes(q) && !item.path.toLowerCase().includes(q) && !matchesIdx) return false;
+                    // C12: mirror Explorer `_parseTextQuery` — AND includes, `-term` excludes
+                    const parsed = this._parseTextQuery(this.searchQuery);
+                    if (parsed) {
+                        const hay = [
+                            String(item.name || ""),
+                            String(item.path || ""),
+                            item.idx != null ? String(item.idx) : "",
+                        ].join(" ").toLowerCase();
+                        for (const t of parsed.include) {
+                            if (!hay.includes(t)) return false;
+                        }
+                        for (const t of parsed.exclude) {
+                            if (hay.includes(t)) return false;
+                        }
+                    }
                 }
 
                 return true;
@@ -365,6 +375,27 @@ function zwaveApp() {
                 return JSON.stringify(val);
             }
             return val;
+        },
+
+        /**
+         * C12: same semantics as Explorer app.js `_parseTextQuery`.
+         * Multi-term AND includes; `-token` excludes (dash + letter/digit).
+         */
+        _parseTextQuery(query) {
+            const raw = String(query || "").trim();
+            if (!raw) return null;
+            const include = [];
+            const exclude = [];
+            for (const tok of raw.split(/\s+/)) {
+                if (!tok) continue;
+                if (/^-[a-zA-Z0-9]/.test(tok)) {
+                    exclude.push(tok.slice(1).toLowerCase());
+                } else {
+                    include.push(tok.toLowerCase());
+                }
+            }
+            if (!include.length && !exclude.length) return null;
+            return { include, exclude };
         },
 
         processBackendState(fullState) {

@@ -289,10 +289,12 @@ Every state/level change counts toward today / month averages.
 - List: Control inventory shared with History mode; **C10:** omit all `type === "scene"` catalog-event rows (logging still writes synthetic idxs; Control dashboard buttons unchanged).
 - Detail charts for **selected** actuator:
   - **Day (C16 🔜):** same families as today; hi-res buffer = **`hires_days`**; **24 h max viewport**, pannable, zoom-in only
-  - **Binary** (switch / non-Hue light / door / …): day ON/OFF Y; month/year event counts + state min/max with ON/OFF labels
-  - **Level** (Hue / Sonos / Onkyo / blinds): day Level step; month/year event counts + Level min/max
-  - **Motion hits:** day impulse spikes with blank/`hit` Y labels; month/year **# hits** only
+  - **Binary** (switch / non-Hue light / door / …): day ON/OFF Y; month/year **duration ON** (**C12** ✅) — integer **minutes** / **hours** (1 decimal); clip; carry-in; open→now; Y snap ±10 min / ±1 h with ~5 tick labels
+  - **Hue** + **Audio** (Sonos / Onkyo): day Level; month/year **duration ON** only (no Events, no Level min/max); same Y snap — **C12** ✅
+  - **Level** (blinds): day Level step; month/year event counts + Level min/max
+  - **Motion hits:** day impulse spikes with blank/`hit` Y labels; month/year **# hits** only (not duration)
 - Climate legend/tooltip colors pinned to series line colors (**C10**)
+- **C12 climate ✅:** day temp frost (temp &lt; dew → red, thicker); **no dew** on month/year (RH stays)
 
 ### API
 - `GET /api/history/actuators`
@@ -334,7 +336,7 @@ IDX **20101** registered as `sauna temp` (`type: temp_hum`, origin `system`).
 | Motion `75xxx` | Rising edge only (`ON`); day chart = impulse spike with **hit** Y labels (**C10**); month/year = **# hits**; insights = today / avg/day |
 | Dashboard / user events (`events:` catalog) | Log on every fire (manual + automation). Synthetic series keyed by **event UUID** (`900000 + (crc32(uuid) & 0xFFFF)`). Pre-B10B used `scene: true` / `SCENE_*` name strings; migrator remapped idxs at cutover (script since removed). **C10:** Explorer History **list** omits all `type === "scene"` rows (UE + SE); Control `dashboard_events` unchanged. List membership model → **C11**. |
 
-Same retention as actuators. Motion stays default-hidden (`75xxx`); use Hidden toggle / favorites.
+Same retention as actuators. Motion `75xxx` stays **soft-hidden** by default (Z-Wave maps idxs 75000–75999 into `hidden_explorer_idxs` / `deviceexplorer_hide`); not in Explorer Control or History list unless the operator enables **Hidden devices** (admin). Backend hit logging unchanged (**C12** item 3 — docs only, no list UX change).
 
 ---
 

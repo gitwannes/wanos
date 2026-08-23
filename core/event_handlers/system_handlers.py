@@ -42,7 +42,14 @@ async def handle_alert_ui_dismissed(event: Event, manager: Any) -> Tuple[bool, S
         surface = "unknown"
     level = str(payload.get("level") or "info").strip() or "info"
     text = str(payload.get("message") or "").strip()
-    logger.info(f'Alert dismissed ({surface}): level={level} "{text}"')
+    # C12: human-readable produced_at for dismiss logs — YYYY-MM-DD HH:MM:SS (matches loguru line)
+    produced_at = str(payload.get("produced_at") or "").strip()
+    if produced_at:
+        logger.info(
+            f'Alert dismissed ({surface}): level={level} produced_at={produced_at} "{text}"'
+        )
+    else:
+        logger.info(f'Alert dismissed ({surface}): level={level} "{text}"')
     return False, set()
 
 

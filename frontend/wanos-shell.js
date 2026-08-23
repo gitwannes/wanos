@@ -376,8 +376,8 @@
             "<div>" +
             '<div class="flex justify-between text-xs font-mono font-bold text-base-400 mb-2 uppercase tracking-wider">' +
             "<span>Brightness</span>" +
-            '<span class="text-warning" x-text="(activeLightBri ?? 100) + \'%\'"></span></div>' +
-            '<input type="range" min="1" max="100" class="range range-warning shadow-inner disabled:opacity-40 disabled:cursor-not-allowed" ' +
+            '<span class="text-warning" x-text="_clampHueBri(activeLightBri) + \'%\'"></span></div>' +
+            '<input type="range" min="1" max="100" step="1" class="range range-warning shadow-inner disabled:opacity-40 disabled:cursor-not-allowed" ' +
             ':disabled="huePresetEditMode" ' +
             ':class="huePresetEditMode ? \'opacity-40 cursor-not-allowed pointer-events-none\' : \'\'" ' +
             'x-model="activeLightBri" @input.debounce.100ms="onHueBrightnessInput()" />' +

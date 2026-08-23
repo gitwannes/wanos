@@ -1060,7 +1060,7 @@ Then
 
 ### B24 — Per-rule sweep reconcile 🔜 TODO
 
-**Letter:** **B24**. **Sequence #3** (after **B22** ✅; may run ∥ **B12**). **Size:** mid · **one PR**. Status **open** — triage **2026-08-22** (kickoff not started).
+**Letter:** **B24**. **Sequence #4** (after **B22** ✅; may run ∥ **B12** / **B25**). **Size:** mid · **one PR**. Status **open** — triage **2026-08-22** (kickoff not started).
 
 **Depends on:** **B19** ✅ (branch rules + engine). Distinct from **B20** (Time trigger every minute). Supersedes / generalizes **B14** row 6 (humidity-only sweeper replay — dropped in **B5**).
 
@@ -1967,6 +1967,7 @@ Pointers only — detail under § B10F / § B12–B18:
 * **G7** — Integration log prefixes (`[Onkyo]` parity) — [`phaseG-integrations.md`](phaseG-integrations.md); not B10F.
 * ~~**B11** — Multi-flow in one Blockly page.~~ **Cancelled 2026-08-22.**
 * **B12** — Rule-list folder/tag.
+* **B25** — Rule-list complexity score + tier (sort/filter).
 * **`EMAIL_REQUESTED`:** seed with phase **E** (not B10B).
 * **B15** — Demote schedule edges → user origin.
 * **B16** — Full-bus UUID for internal `EventType`s.
@@ -2432,7 +2433,48 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 **Unbundled from cancelled Ship B6 / B11 (2026-08-22).**
 
+**Adjacent (not the same):** **B25** — derived complexity score + tier for Library sort/filter (no folder/tag persistence).
+
 **B12 DoD (stub):** folder/tag model + list UX + persistence; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B25 — Rule-list complexity score + tier 🔜 TODO
+
+**Letter:** **B25**. **Sequence #3** (after **B12**; may run ∥ **B12** / Ship B7). **Size:** low · **one PR**. Status **open** — triage **2026-08-23** (kickoff not started).
+
+**Depends on:** Automations Library list (**B10E** ✅). Adjacent to **B12** (folder/tag) — separate item; no merge unless operator says so.
+
+#### Operator requests (verbatim)
+
+> *(2026-08-23)*
+> automation rules: is there a way to have a number for "complexity" of the rule - give options that best give value to that
+
+> *(2026-08-23)*
+> take A+B
+> number/tier to drive: 1
+> put in triage
+
+#### Locked at triage (not kickoff)
+
+| # | Topic | Lock |
+|---|---|---|
+| **1** | Model | **A+B:** derived **structural score** + **cognitive tier** (e.g. S/M/C) |
+| **2** | Persistence | **No** YAML `complexity` field — compute on read (API and/or FE) |
+| **3** | Product use | Automations **Library list sort / filter only** (not editor warnings, not engine, not runtime cost) |
+| **4** | Out of scope (this item) | Wake/runtime cost badge; blast-radius badge; manual operator weight |
+
+#### Proposal (triage — thresholds at kickoff)
+
+Score inputs (reuse existing helpers where possible): condition leaves (`count_leaf_compares`), top-level branch count, max Logic nest depth, B22 `then` nest depth, action count (incl. nested `then`). Map score → tier for list badge; expose number for sort/hover.
+
+#### DoD (stub)
+
+- [ ] Derived score + tier on Library list rows
+- [ ] Sort and/or filter by complexity (tier and/or score)
+- [ ] No on-disk complexity field
+- [ ] Pi smoke: sort/filter on a few simple vs nested rules
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

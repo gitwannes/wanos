@@ -307,6 +307,20 @@ class StateManager:
 
         self._state.system.auto_off_timer = auto_off_timer_payload_from_config(self._config)
 
+        # C12: expose blinds travel config for Explorer ui-lock (same formula as hub_handlers).
+        blinds_cfg = getattr(self._config, "blinds", None)
+        if blinds_cfg is not None:
+            self._state.system.blinds_default_travel_time_secs = int(
+                getattr(blinds_cfg, "default_travel_time_secs", 35) or 35
+            )
+            travel = getattr(blinds_cfg, "travel_times", None) or {}
+            self._state.system.blinds_travel_times = {
+                str(k): int(v) for k, v in dict(travel).items()
+            }
+        else:
+            self._state.system.blinds_default_travel_time_secs = 35
+            self._state.system.blinds_travel_times = {}
+
         nvram_data = self.nvm.load()
         for nv_idx, nv_val in nvram_data.items():
             self._state.devices[nv_idx] = nv_val
