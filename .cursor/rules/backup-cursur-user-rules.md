@@ -1,4 +1,4 @@
-# Cursor User Rules backup — 2026-08-15
+# Cursor User Rules backup — 2026-08-15 (refreshed 2026-08-23)
 
 Snapshot of Cursor Settings → User Rules (this Cursor account, cloud-synced). Backup only. This is a `.md` file so Cursor does **not** load it as a project rule.
 
@@ -161,8 +161,8 @@ If this repo has no `docs/todo/` yet: stop and say the pipeline files are missin
 
 ## Steps
 
-1. Read `docs/todo/pipeline.md` and the lettered `docs/todo/phaseX-*.md` files.
-2. For **each** new item: existing vs new; letter (B/C/D/E/F/G/P vs Ops/Manual); which (sub)phase; sequence vs parallel vs Inbox.
+1. Read `docs/todo/pipeline.md` and the lettered `docs/todo/phaseX-*.md` files (or whatever phase detail files **this repo** defines).
+2. For **each** new item: existing vs new; which **letter / track** and detail file from **this repo’s** pipeline map (affinity table / Detail column) — **not** a fixed cross-repo alphabet; **Ops / Manual** (or this repo’s equivalent) for non-lettered leftovers; which (sub)phase; sequence vs parallel vs Inbox. If placement or letters are unclear — **ask**.
 3. Ask **only** questions needed to **place** the item. If placement is already clear, edit the markdown in that turn.
 4. Update `pipeline.md` **and** the matching phase detail file.
 5. On every new phase/item, paste the user’s **original request verbatim** (do not paraphrase). Date it.
@@ -174,6 +174,7 @@ If this repo has no `docs/todo/` yet: stop and say the pipeline files are missin
 - Code, patches, scaffolds, root-cause deep-dives, or DoD novels
 - Invent phase letters, ids, or schedule without asking
 - Treat placement as locked if the user has not confirmed a question you asked
+- Assume another repo’s letter map (e.g. a past project’s B/C/D…) applies here
 
 ---
 
@@ -239,4 +240,53 @@ Before calling a phase/ship done:
 ## Pointers
 
 - Pipeline / phase sequence: `docs/todo/pipeline.md` (move Done vs Sequence; link detail files).
-- Detail DoD and locked decisions live in the phase files under `docs/todo/` — keep those accurate, then sync the rest of `docs/` and the root readme.
+- **Delivery** DoD / status / kickoff record: phase files under `docs/todo/` — keep accurate.
+- **Product reference** for shipped behaviour: `docs/` **outside** `todo/` — move canonical formulas/contracts there on close-out (User Rule “Documentation as-is vs pipeline”); phase sections keep short pointers, not a second full copy.
+
+---
+
+## Documentation as-is vs pipeline
+
+- Id: `17560700`
+- Created: 2026-08-23T11:09:59.667Z
+
+# Documentation as-is vs pipeline
+
+Applies in every repo that uses (or may use) the `docs/todo/` convention.
+
+## Two trees
+
+| Path | Role |
+|---|---|
+| **`docs/**/*.md` outside `docs/todo/`** (+ root README) | **Documentation as-is** — product truth for shipped / running behaviour, APIs, formulas, config, operator guides. |
+| **`docs/todo/`** (`pipeline.md`, `phaseX-*.md`, …) | **Coding / delivery** — backlog, kickoff, DoD, sequence, verbatim inbox. Working material — **not** the long-term home for product reference. |
+
+If this repo has no `docs/todo/`: product docs still apply; skip todo-only steps (same gate as triage / kickoff / close-out).
+
+## Pre-ship vs post-ship
+
+- **Kickoff / before code:** locks and formulas may live in the phase file (kickoff: phase markdown required before code).
+- **Implement / ship / close-out:** if that material describes **running** behaviour, **move** the canonical body into the right product doc under `docs/` (not under `todo/`). Leave in the phase section only a **short pointer** (link + one-line summary) plus status / DoD / verbatim / out-of-scope. Do **not** keep a second full copy in todo as the lookup place.
+
+Prefer **one** product home per topic. If the target path is unclear — **ask** (no assumptions).
+
+## What stays in `docs/todo/`
+
+Sequence, status, DoD checklists, verbatim operator requests, kickoff Q&A history, out-of-scope, archive summaries, and **delivery** lock tables that point at product docs.
+
+## Relation to other rules
+
+| User Rule | How this fits |
+|---|---|
+| **Phase / ship docs close-out** | Still audit **all** `docs/**/*.md`. “Do not stop at todo” means product docs must match shipped code. This rule defines *what* belongs where: close-out **moves** shipped reference into product docs, then trims the phase body to pointers + Done summary. |
+| **Kickoff** | Unchanged: locks go into the phase file before code. Move to product docs when shipping / closing, not during kickoff Q&A unless the operator asks. |
+| **Triage** | Unchanged: placement + verbatim stay in `docs/todo/`. |
+| **Collaboration** | Unchanged: no silent pipeline edits; no inventing doc homes. |
+
+**Refines** close-out “locked decisions live in phase files”: phase files remain authoritative for **delivery** (what was locked, DoD, status). **Product reference** for how the shipped product works lives in **`docs/` outside `todo/`**.
+
+## Agent behaviour
+
+- “How does the shipped product work?” → product `docs/**` outside `todo/`.
+- “What are we building / locking / closing?” → `docs/todo/`.
+- On ship/close-out Last DoD: ensure shipped behaviour is documented in product docs; strip duplicated implementation detail from the finished phase section in favour of pointers.

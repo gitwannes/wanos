@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-08-23
+**Last updated:** 2026-08-23 (C16+C24 Pi smoke close)
 
 ---
 
@@ -74,6 +74,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **C27** | Sunrise/sunset Admin + Explorer chrome — shipped with **G15** — Pi smoke **2026-08-22** |
 | **B22** | Nested If/Do via branch `then:` (+ mixed leading/trailing Sets) — Pi smoke **2026-08-22** |
 | **C12** | Post-C10 polish (duration ON, frost/dew, Hidden preset, …) — Pi smoke **2026-08-23** |
+| **C16 + C24** | Day sliding 24 h over `hires_days` + temp/hum fullscreen AH/CI/CSV — **Pi smoke 2026-08-23** |
 
 ---
 
@@ -100,32 +101,30 @@ All open items. **Detail** = phase file section.
 14  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
 15  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
 16  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
-17  open   mid  C16          Day chart sliding 24 h over hires_days             phaseC § C16
-18  open   mid  C24          Temp/hum day fullscreen + AH/CI + CSV              phaseC § C24
-19  open   mid  C25          Overlay dew-likelihood % (after C24)               phaseC § C25
-20  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
-21  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
-22  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
-23  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
-24  open   low  G7           Integration log tags                               phaseG § G7
-25  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
-26  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
-27  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
-28  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
-29  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
-30  open   high G9           Honeywell / Evohome                                phaseG § G9
-31  open   high G10          HomeWizard energy                                  phaseG § G10
-32  open   high G12          SMA solar                                          phaseG § G12
-33  open   high G13          HomeConnect BSH                                    phaseG § G13
-34  open   high F            Security bridge (F1→F7)                            phaseF
-35  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
-36  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-37  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-38  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-39  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-40  hold   high P            Other homes / portability (assess)                 phaseP
+17  open   mid  C25          Overlay dew-likelihood % + compare temp(/hum)      phaseC § C25
+18  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
+19  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
+20  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
+21  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
+22  open   low  G7           Integration log tags                               phaseG § G7
+23  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
+24  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
+25  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
+26  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
+27  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
+28  open   high G9           Honeywell / Evohome                                phaseG § G9
+29  open   high G10          HomeWizard energy                                  phaseG § G10
+30  open   high G12          SMA solar                                          phaseG § G12
+31  open   high G13          HomeConnect BSH                                    phaseG § G13
+32  open   high F            Security bridge (F1→F7)                            phaseF
+33  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
+34  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+35  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+36  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+37  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+38  hold   high P            Other homes / portability (assess)                 phaseP
 ```
-Near-term: **Ship B7** → **B24** kickoff when ready. **B12** / **B25** may run ∥ Ship B7. **C26** after **C4** (HTML/JS rename, then split). **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C16+C24** kickoff **locked 2026-08-23** (skip-ahead; combined ship; water B; inherit pan; subtitle; overlay frost; button label) — implement when commanded. **C25** after (no kickoff yet).
+Near-term: **Ship B7** → **B24** kickoff when ready. **B12** / **B25** may run ∥ Ship B7. **C26** after **C4** (HTML/JS rename, then split). **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C25** kickoff **locked** — implement when commanded (gate cleared).
 
 ---
 

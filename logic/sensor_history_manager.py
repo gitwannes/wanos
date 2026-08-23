@@ -847,6 +847,41 @@ class SensorHistoryManager:
     def _is_water_idx(self, idx: int) -> bool:
         return int(idx) in WATER_PAIR_IDXS
 
+    def _day_since_ts(self) -> int:
+        """C16: day API buffer = hi-res retention (`hires_days`), not a hard 24 h."""
+        return int(time.time()) - self.hires_days * 86400
+
+    def _climate_sample_interval_secs(self, idx: Optional[int] = None) -> float:
+        """
+        Expected hi-res climate cadence for this IDX (used by FE gap-break = 3×).
+
+        Local SHT11 / virtual climate: history max-interval (default 300 s).
+        OWM outside: weather.poll_interval_mins (default 10 → 600 s) — not the
+        300 s climate_max_interval, or every normal poll looks like an outage.
+        """
+        if idx is not None:
+            weather = getattr(getattr(self.sm, "_config", None), "weather", None)
+            owm_idx = getattr(weather, "idx", None) if weather is not None else None
+            try:
+                if owm_idx is not None and int(idx) == int(owm_idx):
+                    mins = float(getattr(weather, "poll_interval_mins", 10) or 10)
+                    if mins > 0:
+                        return mins * 60.0
+            except (TypeError, ValueError):
+                pass
+        return float(self.climate_max_interval)
+
+    def _day_range_meta(self, idx: Optional[int] = None) -> Dict[str, Any]:
+        """Optional FE hints for sliding day viewport + climate gap breaks."""
+        return {
+            "retention_days": self.hires_days,
+            "default_window_hours": 24,
+            # History deadband max-interval (config); kept for reference
+            "climate_max_interval_secs": float(self.climate_max_interval),
+            # FE: break day climate lines when Δt > 3× this (more than 2 missed samples)
+            "climate_sample_interval_secs": self._climate_sample_interval_secs(idx),
+        }
+
     def get_series(self, idx: int, range_name: str) -> Dict[str, Any]:
         meta = SENSOR_META.get(idx)
         if meta is None and (idx in self._climate_idxs or idx in self._discover_climate_idxs()):
@@ -869,7 +904,7 @@ class SensorHistoryManager:
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         if range_name == "day":
-            since = int(time.time()) - 86400
+            since = self._day_since_ts()
             c.execute(
                 "SELECT ts, value FROM sensor_samples WHERE idx = ? AND ts >= ? ORDER BY ts",
                 (idx, since),
@@ -881,6 +916,7 @@ class SensorHistoryManager:
                 "range": "day",
                 "kind": "host",
                 "series": {"usage": points},
+                **self._day_range_meta(),
                 **meta,
             }
 
@@ -931,7 +967,7 @@ class SensorHistoryManager:
         label = meta.get("label") or self._climate_label(idx)
 
         if range_name == "day":
-            since = int(time.time()) - 86400
+            since = self._day_since_ts()
             c.execute(
                 "SELECT ts, value FROM sensor_samples WHERE idx = ? AND unit = 'C' AND ts >= ? ORDER BY ts",
                 (idx, since),
@@ -950,6 +986,7 @@ class SensorHistoryManager:
                 "label": label,
                 "has_humidity": bool(hums),
                 "series": {"temp": temps, "hum": hums},
+                **self._day_range_meta(idx),
             }
 
         if range_name == "month":
@@ -1083,14 +1120,21 @@ class SensorHistoryManager:
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         if range_name == "day":
-            since = int(time.time()) - 86400
+            since = self._day_since_ts()
             c.execute(
                 "SELECT ts, value FROM sensor_samples WHERE idx = ? AND unit = 'W' AND ts >= ? ORDER BY ts",
                 (idx, since),
             )
             points = [{"t": r[0] * 1000, "v": r[1]} for r in c.fetchall()]
             conn.close()
-            return {"idx": idx, "range": "day", "kind": meta["kind"], "series": {"usage": points}, **meta}
+            return {
+                "idx": idx,
+                "range": "day",
+                "kind": meta["kind"],
+                "series": {"usage": points},
+                **self._day_range_meta(),
+                **meta,
+            }
 
         if range_name == "month":
             since_day = (self._now_local() - timedelta(days=31)).strftime("%Y-%m-%d")
@@ -1147,7 +1191,8 @@ class SensorHistoryManager:
         c = conn.cursor()
         bars: List[Dict[str, Any]] = []
         if range_name == "day":
-            since_hour = (self._now_local() - timedelta(hours=24)).strftime("%Y-%m-%dT%H")
+            # C16: water day = hourly bars over hires_days (same pan window as hi-res day charts)
+            since_hour = (self._now_local() - timedelta(days=self.hires_days)).strftime("%Y-%m-%dT%H")
             c.execute(
                 "SELECT hour_key, consumption FROM sensor_hourly WHERE idx = ? AND hour_key >= ? ORDER BY hour_key",
                 (idx, since_hour),
@@ -1200,7 +1245,7 @@ class SensorHistoryManager:
         cold_raw = self._water_bars_for_idx(WATER_COLD_IDX, range_name)
         hot_raw = self._water_bars_for_idx(WATER_HOT_IDX, range_name)
         cold, hot = self._align_water_pair(cold_raw, hot_raw)
-        return {
+        out: Dict[str, Any] = {
             "idx": WATER_COLD_IDX,
             "range": range_name,
             "kind": "water",
@@ -1210,6 +1255,9 @@ class SensorHistoryManager:
             "hot_idx": WATER_HOT_IDX,
             "series": {"cold": cold, "hot": hot},
         }
+        if range_name == "day":
+            out.update(self._day_range_meta())
+        return out
 
     def _water_period_consumption(self, idx: int) -> Dict[str, Optional[float]]:
         """today / month / year / total(lifetime counter) for one fluid IDX."""

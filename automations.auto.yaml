@@ -491,13 +491,23 @@ automations:
           - type: device_state
             entity_id: zwave.pc_monitors
             is: "ON"
-        actions:
-          - entity_id: rfx.buro_wannes_schemer
-            state: "ON"
-          - entity_id: media_player.buro
-            state: "ON"
-            volume: 6
-            station: qmaxhits
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: zwave.pc
+                  is: "OFF"
+              actions:
+                - entity_id: zwave.pc
+                  state: "ON"
+          trailing_actions:
+            - entity_id: rfx.buro_wannes_schemer
+              state: "ON"
+            - entity_id: media_player.buro
+              state: "ON"
+              volume: 6
+              station: qmaxhits
       - when: else_if
         conditions:
           - type: device_state
@@ -1013,6 +1023,41 @@ automations:
             event: a97bba4d-78d3-4ce2-b134-fff36c2cd88c
         actions: []
     id: 98b26294-5fcb-46be-a6f0-53a38ca8543d
+  - name: Audio gv
+    enabled: true
+    branches:
+      - when: if
+        conditions:
+          - type: device_state
+            entity_id: media_player.living_2
+            is: "ON"
+          - type: device_state
+            entity_id: media_player.living
+            is: "ON"
+        actions:
+          - entity_id: media_player.living
+            state: "OFF"
+    id: 15bb1ce7-ee1b-4cf4-8af0-b1b69f39e096
+  - name: Audio 1e
+    enabled: true
+    branches:
+      - when: if
+        conditions:
+          - op: or
+            children:
+              - type: device_state
+                entity_id: media_player.badk_1e
+                is: "ON"
+              - type: device_state
+                entity_id: media_player.cinema
+                is: "ON"
+          - type: device_state
+            entity_id: media_player.buro
+            is: "ON"
+        actions:
+          - entity_id: media_player.buro
+            state: "OFF"
+    id: 9726daca-95bb-47ef-847e-116e3898f14c
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

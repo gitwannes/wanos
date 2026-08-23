@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). Queued: **C3 → C4 → C26 → C11 → C17 → C20 → C21 → C16 → C24 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. **C16+C24** kickoff **2026-08-23** — skip-ahead OK; combined ship; water day = **B** (`hires_days` hourly + pan); **C25** deferred (no kickoff). Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). Queued: **C3 → C4 → C26 → C11 → C17 → C20 → C21 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -34,16 +34,16 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C27 — Sunrise/sunset chrome** | ✅ **Done 2026-08-22** — Admin first row + Explorer ℹ popover; Pi smoke with **G15** |
 | **C22 — Host “(no history)”** | Host CPU temp on history allowlist; load 5m/15m live-only — ✅ **Done 2026-08-16** | Host / History · low |
 | **C23 — SSE SseClient unhashable** | EventSource dies ~25 ms — ✅ **Done 2026-08-16** (with **C18**) | SSE hub · low |
-| **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only | History charts · mid |
-| **C24 — Temp/hum day fullscreen** | Tab overlay; AH + CI overlay-only; 5 checkboxes; 3rd y-axis; CSV | History charts · mid |
-| **C25 — Overlay dew likelihood** | OWM 2.5 clouds/wind; heuristic **dew likelihood %** in C24 overlay | History charts · mid |
+| **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only — ✅ **Pi smoke 2026-08-23** | History charts · mid |
+| **C24 — Temp/hum day fullscreen** | Tab overlay; AH + Feels-like; 5 checkboxes; 3rd y-axis; CSV — ✅ **Pi smoke 2026-08-23** | History charts · mid |
+| **C25 — Overlay dew likelihood + compare** | OWM dew-likelihood %; compare two temp(/hum) series in overlay | History charts · mid |
 | **C15 — Admin lab switch** | Move Enable lab controls → Debug Commands row; lab pane iff switch ON | Admin · low |
 | **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
 | **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`blockly` | Shell entrypoints |
 | **C26 — Frontend JS modularization** | Split `app.js` + `blockly.js`; shared helpers; `login.js`; **`reference.md` JS catalog** | FE maintainability · mid · after **C4** |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C16** → **C24** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). **C16+C24** may **skip-ahead** (operator **2026-08-23**). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -722,7 +722,7 @@ Example bell: `ERROR: Command failed: hue.group.badk_1e_hue (badk 1e Hue, idx 51
 
 ### Shipped (2026-08-16)
 
-Explorer History 60s auto-refresh (`refreshExplorerHistory` → soft `reloadSelectedSensorDetail`) keeps series in the chart box (no title + dark-empty plot). Settings + titled windows (last 24h / month / year) and zoom/selection kept. Hard open/switch unchanged. **C16** (when it ships) must keep this no-wipe refresh.
+Explorer History 60s auto-refresh (`refreshExplorerHistory` → soft `reloadSelectedSensorDetail`) keeps series in the chart box (no title + dark-empty plot). Settings + titled windows (last 24h / month / year) and zoom/selection kept. Hard open/switch unchanged. **C16** keeps this no-wipe refresh.
 
 Both 60s-path defects were patched (cause not isolated on Pi; combined fix smoked OK):
 
@@ -924,327 +924,94 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ---
 
-## 📋 C16 — Day chart sliding 24 h window 🔜 TODO
+## 📋 C16 — Day chart sliding 24 h window ✅ DONE
 
-**Origin:** operator inbox **2026-08-12**. Explorer → History day panels — extends **C5** / **C6** (not Blocky). Size **mid**. Sequence: **after C12** (same chart surface; pairs with item 8 frost line). **Combined ship with C24** (kickoff **2026-08-23**); **C25** after, separate.
+**Origin:** operator inbox **2026-08-12**. Explorer History day panels. Size **mid**. **Combined ship with C24**.
 
 **Operator request (verbatim):**
 > - can we change the rolling hi-res window to 1 week? what would that mean for code, for DB size?
 > - on the daily chart: I want a windows of 24hrs (can be shortened to see more detail but not made bigger) - but I Want to slide this window up to the available hi-res data, so 1 week ago
 
-**Kickoff (2026-08-23):** skip-ahead past Sequence items before C16 — **yes**. Water day — **B** (below). Combined close-out with **C24** — **yes**. **C25** not in this ship.
+**Shipped summary:** Day `range=day` returns **`hires_days`** buffer; FE default **24 h** viewport (zoom-out to full retention, zoom-in ~1 h); pan; soft-refresh pan/live pin; from/to subtitle when not live; water day = hourly bars over `hires_days` + same pan UX.
 
-**Locked triage intent:**
+**Product reference:** [`docs/sensor_history.md`](../sensor_history.md) §§ day charts / retention / gap-break.
 
-* **Viewport:** fixed **maximum 24 h** wide; **zoom-in** allowed (keep today’s ~**1 h** floor via `minValueSpan`); **cannot zoom out** past 24 h (`maxValueSpan`).
-* **Data buffer:** load full hi-res retention — **`history.retention.hires_days`** (default **7**) — not a wider chart axis. **Do not** extend DB retention for this item.
-* **Default view:** viewport **right-aligned to now** (most recent 24 h).
-* **Pan:** user slides the 24 h window back across stored hi-res (up to **`hires_days` ago**) via inside-drag + bottom slider.
-* **Backend (`range=day`):** return hi-res samples for **`now − hires_days × 86400`** (climate / power / host `sensor_samples`; actuator `device_events`) — replace hardcoded **`86400`** query window only. Optional response metadata: `retention_days`, `default_window_hours: 24`.
-* **Frontend:** `xAxis` spans full buffer `[now − hires_days, now]`; ECharts `dataZoom` with **`maxValueSpan = 24 h`**, initial **`startValue` / `endValue`** = last 24 h (not `start:0 end:100` on a 24 h axis). Reuse/adapt `_applyTimeWindow` / `_applyClimateTimeWindow`.
-* **Soft refresh (C6):** preserve pan position on merge; if viewport was **live** (end ≈ now), keep pinned to now.
-* **Y-axis snap (C5):** unchanged — snap from values inside current dataZoom window.
-* **Copy:** panel title stays **24 hour window** (not “last 24 hours” when panned); **ship** subtitle with visible from/to when viewport is not live (kickoff **2026-08-23**).
-* **DB size:** **unchanged** — hi-res already retained 7 days; cost is ~**7×** day-chart API payload + FE points (~2k/series ceiling at 300 s climate throttle).
-* **Water day chart — locked kickoff 2026-08-23 (option B):** load **`hires_days` × hourly** cold/hot bars from **`sensor_hourly`** (not hi-res samples); same **24 h max viewport + pan** UX as line day charts (default right-aligned to now; slide back to retention). Month/year water unchanged. Floor = one hour bar (native resolution).
-* **Out of scope:** windowed API (`?end=`) per pan (unless Pi perf forces it); changing `hires_days` retention; month/year charts; `sensorhistory.html` utility page; temp/hum fullscreen + extra series + CSV → **C24** (same combined ship, separate DoD surface).
+**Out of scope:** windowed API per pan; changing retention; month/year; `sensorhistory.html`; overlay extras → **C24**.
 
-**C16 DoD:** Day hi-res charts (climate, power, host, actuators) load `hires_days` buffer; water day loads `hires_days` hourly bars; 24 h max viewport; pan to oldest retained day data; zoom-in only (lines); soft refresh preserves pan/live pin; **from/to subtitle** when not live; Pi smoke pan + live refresh (incl. water). **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (Combined ship: close with **C24**.)
+**C16 DoD:** ✅ **2026-08-23** — code + docs + **Pi smoke** (operator). Closed with **C24**. **Last DoD docs audit** this close-out.
 
 ---
 
-## 📋 C24 — Temp/hum day fullscreen + extra climate lines 🔜 TODO
+## 📋 C24 — Temp/hum day fullscreen + extra climate lines ✅ DONE
 
-**Origin:** operator inbox **2026-08-16**. Explorer → History **temp/hum** charts — extends **C5** dew (Done) and **C16** day buffer; **not** C12 #8 frost styling; **not** C19 auto-refresh; **not** `sensorhistory.html`. Size **mid**. Sequence: **after C16** (CSV of `hires_days` buffer). **Combined ship with C16** (kickoff **2026-08-23**); **C25** deferred. Kickoff Q&A **locked 2026-08-16**; CI formula **locked 2026-08-17**.
+**Origin:** operator inbox **2026-08-16**. Explorer History temp/hum. Size **mid**. **Combined ship with C16**. Kickoff locks **2026-08-16** / CI formula **2026-08-17**; residual locks **2026-08-23**.
 
-**Operator reconfirm (2026-08-23):**
+**Operator reconfirm (verbatim, 2026-08-23):**
 > keep the day graph as-is today, so with hum - clicking on a button opens the fullscreen with more graphs (potentially, via checkboxes)
 > fullscreen = 24hr hi-res only (7-day sliding), no month/year
 > other open Qs/items? no assumptions
 
-**Locked from that reconfirm:** Inline **day** temp/hum stays **today’s C5 chart** (T + humidity + dew; frost when C12 shipped). Button on **day only** opens tab overlay. Extra series (AH / CI) and the five checkboxes live **only** in that overlay. Overlay is **day / hi-res / C16 sliding window only** — **no** month or year inside fullscreen.
+**Shipped summary:** Button **Open detail in full screen** → tab overlay (not F11); AH + **Feels-like humidity**; 5 checkboxes; 3rd y-axis g/m³; CSV full `hires_days`; inherit inline pan; overlay frost; mobile chrome.
 
-**Residual Qs locked (2026-08-23):**
-1. Overlay open → **inherit** the inline day chart’s current pan/zoom (and keep it under C6 soft refresh).
-2. Day-chart **from/to subtitle** when viewport is not live → **ship**.
-3. **Frost** (C12 #8) on overlay temperature line → **yes**.
-4. Button label → **“Open detail in full screen”**.
+**Product reference (formulas + axes):** [`docs/sensor_history.md`](../sensor_history.md) § Day overlay (C24).
 
-**Operator request (verbatim, 2026-08-16):**
-> - in alle grafieken die temperatuur EN vochtigheid combineren
-> - in de DAG grafiek: voeg een button toe "open detail in full screen"
-> - wanneer klik: de dag-grafiek opent in full-screen (nog steeds in de browser, die nog steeds zichtbaar is)
-> - zelfde grafiek, maar bijkomende knoppen/mogelijkheden:
-> - 2 bijkomende grafieklijnen, zie hierbeneden
-> - 5 checkboxes voor de 5 grafiek-lijnen: default staan ze allemaal aan
-> - knop export naar xls van alle gegevens (5 waarden per tijdstip) van de volledige set (7 dagen)
->
-> # Weerdata Berekeningen voor 5 Grafieklijnen
-> Temperatuur · Relatieve luchtvochtigheid · Dauwpunt · Absolute luchtvochtigheid · Gevoelsvochtigheid
->
-> Dit document beschrijft alle formules en berekeningsstappen die nodig zijn om uit ruwe weerdata automatisch vijf grafieklijnen te genereren.
->
-> ---
->
-> ## 1. Inputdata per tijdstip
-> Voor elk tijdstip moeten minstens deze waarden beschikbaar zijn:
->
-> - Temperatuur T (°C)
-> - Relatieve luchtvochtigheid RH (%)
-> - Dauwpunt Td (°C)
->
-> ---
->
-> ## 3. Berekening van absolute luchtvochtigheid (g/m³)
-> Absolute luchtvochtigheid wordt berekend via de waterdampdruk bij het dauwpunt.
->
-> ### Stap 1 — Dampdruk uit dauwpunt
->
-> e = 6.112 * exp((17.67 * Td) / (Td + 243.5))
->
-> ### Stap 2 — Absolute luchtvochtigheid
->
-> AH = (216.7 * e) / (T + 273.15)
->
-> ---
->
-> ## 4. Berekening van gevoelsvochtigheid (comfort-index)
-> Gevoelsvochtigheid is gebaseerd op het dauwpunt, omdat dat bepaalt hoe moeilijk zweet verdampt.
->
-> ### Aanbevolen vloeiende schaal (0–100%)
->
-> CI = 4.5 * Td - 30
->
-> ### Grenzen toepassen
->
-> if CI < 0: CI = 0
-> if CI > 100: CI = 100
->
-> ---
->
-> ## 6. Grafiekopbouw (5 lijnen)
-> Plot de volgende lijnen:
->
-> 1. Temperatuur (°C)
-> 2. Relatieve luchtvochtigheid (%)
-> 3. Dauwpunt (°C)
-> 4. Absolute luchtvochtigheid (g/m³)
-> 5. Gevoelsvochtigheid (%)
->
-> ### Aanbevolen assen
->
-> - Linker y-as: temperatuur, dauwpunt
-> - Rechter y-as: relatieve luchtvochtigheid, absolute luchtvochtigheid, gevoelsvochtigheid
->
-> ---
->
-> ## 7. Berekeningspipeline (samenvatting)
->
-> Input: T, RH, Td(optional)
->
-> If Td missing:
->     compute Td
->
-> Compute e (dampdruk)
-> Compute AH (absolute luchtvochtigheid)
-> Compute CI (gevoelsvochtigheid)
->
-> Output: T, RH, Td, AH, CI
->
-> ---
->
-> ## 9. Visuele aanpassing van de gevoelsvochtigheid-lijn (comfortlijn)
->
-> De gevoelsvochtigheid (CI) wordt bepaald op basis van het dauwpunt.
-> Om de grafiek intuïtiever te maken voor menselijke interpretatie, kan de comfortlijn visueel aangepast worden afhankelijk van de comfortcategorie.
->
-> Gebruik de volgende tabel als referentie:
->
-> | Dauwpunt (°C) | Comfortcategorie | CI (%) | Aanbevolen visuele stijl |
-> |---------------|------------------|--------|---------------------------|
-> | < 10          | Droog            | 0–20   | Dunne lijn, koele kleur (lichtblauw) |
-> | 10–15         | Comfortabel      | 20–40  | Normale dikte, groene kleur |
-> | 15–18         | Matig vochtig    | 40–60  | Iets dikkere lijn, geelgroen |
-> | 18–21         | Vochtig          | 60–75  | Dikkere lijn, oranje |
-> | 21–24         | Zeer vochtig     | 75–90  | Dikke lijn, rood |
-> | > 24          | Tropisch vochtig | 90–100 | Zeer dikke lijn, donkerrood |
->
-> ### Implementatie-aanwijzingen
->
-> Voor elk datapunt:
->
-> 1. Bepaal de comfortcategorie op basis van het dauwpunt.
-> 2. Pas de stijl van de comfortlijn aan:
->    - **Kleur** volgens de tabel hierboven.
->    - **Lijndikte** volgens de tabel hierboven.
-> 3. Indien de grafiekbibliotheek het ondersteunt:
->    - Gebruik **gradientkleur** wanneer de lijn door meerdere comfortzones loopt.
->    - Gebruik **markers** (bijv. cirkels) die dezelfde kleur krijgen als de comfortcategorie.
->    - Optioneel: toon een **tooltip** met tekst zoals “Vochtig – 68% CI”.
->
-> ### Voorbeeld pseudocode
->
-> ```
-> if Td < 10:
->     color = "lightblue"
->     width = 1
-> elif Td < 15:
->     color = "green"
->     width = 2
-> elif Td < 18:
->     color = "yellowgreen"
->     width = 3
-> elif Td < 21:
->     color = "orange"
->     width = 4
-> elif Td < 24:
->     color = "red"
->     width = 5
-> else:
->     color = "darkred"
->     width = 6
-> ```
->
-> ### Doel
->
-> Door de comfortlijn visueel te koppelen aan hoe mensen vochtigheid ervaren, wordt de grafiek:
->
-> - intuïtiever,
-> - direct leesbaar,
-> - en bruikbaar voor comfortanalyse.
+**Out of scope:** inline extras; month/year overlay; F11; xlsx; dew likelihood / compare → **C25**.
 
-**Triage placement:**
-
-* **New C24** — not merged into **C12 #8** (frost when temp < dew) or **C16** (sliding 24 h window). Same day temp/hum surface; different work.
-* **C5 already ships** temp, RH, dew on the **inline** temp/hum day chart. The two extra lines are **AH** (g/m³) and **CI** (gevoelsvochtigheid %). Five checkboxes in fullscreen: T / RH / Td / AH / CI. Do **not** reopen C5 DoD.
-* **After C16** because export is “de volledige set (7 dagen)” and C16 loads the `hires_days` day buffer.
-
-**Operator lock-in (2026-08-16):**
-> extra series only in the fullscreen mode
-> month/year graphs not affected
-> fullscreen -> meaning: the full chrome tab
->
-> close overlay: there will be an "X" in the right top corner
-> missing dew: this is handled in the original code already - confiurm - if there is missing dew info, that means that either temp or hum is not available - we will not be able to calculate the 4th and 5th graph item - confirm
-
-| Topic | Locked |
-|---|---|
-| Extra series / 5 checkboxes / CSV / comfort-line styling | **Fullscreen only.** Inline day chart stays C5 (T, RH, dew) + **C12 #8** frost when that ships. |
-| Month / year | **Not affected.** No button, no AH/CI, no overlay. Matches **C12 #8** (dew already off month/year). |
-| Fullscreen | Fills the **entire browser tab** (page viewport). Browser chrome (tab strip, URL bar) **stays visible**. **Not** F11 / `requestFullscreen()` (that hides the browser UI). WanOS Explorer chrome (list, filters, nav) is covered by the overlay. |
-| Close | **X** in the **top-right** of the overlay. |
-| Missing dew / AH / CI | **Confirmed from shipped C5** (`frontend/app.js` `_dewPointC` / `_dewSeriesFromTempHum`). Dew is **never stored** — FE Sonntag Magnus from **T + RH at the same timestamp**. No dew when T is missing/invalid, RH is missing/invalid (`RH <= 0` or `RH > 100`), or T and RH do not share a timestamp. Overlay **reuses that same pairing**; no second Td formula. At those timestamps **Td, AH, and CI are omitted** (gaps; do not invent). AH needs T+Td; **CI needs T+Td** (formula **2026-08-17**). Td needs T+RH — so 4th and 5th cannot be calculated without dew. T and/or RH still plot if present. |
-| Overlay time window | **Same 24 h viewport as C16** (pan over `hires_days`). On open: **inherit** inline day pan/zoom. Export is the **full** `hires_days` buffer, not only the visible window. |
-| Export format | **CSV** (Excel-openable). No `.xls` / `.xlsx` library. Button/file: **Export CSV**. Empty cells where Td/AH/CI cannot be computed. Span = `history.retention.hires_days` (not a hardcoded 7). |
-| Axes | Left **°C** (T + Td). Right **%** (RH + CI). **Third** y-axis **g/m³** (AH). Each y-axis **shown only when at least one series on that axis is checked**. |
-| Toggles | Overlay **checkboxes only** (default all on). **No** ECharts legend in the overlay. |
-
-**Comfort-line (§9) — locked 2026-08-16 (operator accept):**
-
-1. Color the CI line by comfort band (piecewise, table colors) — one CI series, one checkbox.
-2. Tooltip on CI hover: category + CI% (e.g. `Vochtig – 68%`).
-3. One line width for CI (same as humidity, width **2**).
-4. No point markers.
-5. No smooth gradient; no per-band width.
-
-**CI formula — locked 2026-08-17** (replaces the simpler Td-only line in the 2026-08-16 inbox). Band **colors** stay Td table (§9). Plotted **CI %** uses T + Td:
-
-```
-CI_base = 4.5 * Td - 30
-if CI_base < 0: CI_base = 0
-if CI_base > 100: CI_base = 100
-TC = 0.8 * (T - 20)
-CI = CI_base + TC
-if CI < 0: CI = 0
-if CI > 100: CI = 100
-```
-
-**Superseded (inbox 2026-08-16, simpler):** `CI = 4.5 * Td - 30` then clamp 0–100 — no temperature correction.
-
-**Operator request (verbatim, screenshot 2026-08-17):**
-> 4. In plain tekst (klaar voor code)
->
-> Input:
-> - T (°C) = luchttemperatuur
-> - Td (°C) = dauwpunt
->
-> Stap 1 – Basis op dauwpunt
-> CI_base = 4.5 * Td - 30
-> if CI_base < 0: CI_base = 0
-> if CI_base > 100: CI_base = 100
->
-> Stap 2 – Temperatuurcorrectie
-> TC = 0.8 * (T - 20)
->
-> Stap 3 – Totale comfortindex
-> CI = CI_base + TC
-> if CI < 0: CI = 0
-> if CI > 100: CI = 100
-
-**Operator (2026-08-16):**
-> accept - any other open items?
->
-> 1: keep 24h window in fullscreen graph - 7d (or whatever is in config) export to xls
-> 2: CSV is ok
-> 3: 3rd Y is ok (show only when relevant graph lines are picked via checkboxes)
-> 4: ok
-
-**Impl defaults (standing):** English series names matching C5 (`Temperature`, `Humidity`, `Dew point`) plus `Absolute humidity` and `Apparent humidity`; overlay follows **C6** soft refresh (keep checkboxes + window); overlay **includes** **C12 #8** frost on temp (kickoff **2026-08-23**). Button label: **Open detail in full screen**.
-
-### Comfort-line — bands (locked colors; width unused)
-
-| Band (Td °C) | Category | CI % | Doc style |
-|---|---|---|---|
-| < 10 | Droog | 0–20 | thin, lightblue |
-| 10–15 | Comfortabel | 20–40 | normal, green |
-| 15–18 | Matig vochtig | 40–60 | slightly thicker, yellowgreen |
-| 18–21 | Vochtig | 60–75 | thicker, orange |
-| 21–24 | Zeer vochtig | 75–90 | thick, red |
-| > 24 | Tropisch vochtig | 90–100 | very thick, darkred |
-
-**Constraint (verified):** ECharts `lineStyle.width` is **per series**, not per point. Overlay uses **one** CI width and piecewise **color** only.
-
-**Rejected 2026-08-16:** six CI series for variable width; always-on circles; F11 fullscreen; smooth gradient; Excel `.xls`/`.xlsx` dependency.
-
-**Out of scope**
-
-* Extra series on the **inline** day chart.
-* Month / year temp/hum charts.
-* **C12 #8** frost styling of the temperature line.
-* **C16** viewport / pan / `maxValueSpan`.
-* **C19** auto-refresh blank — ✅ **2026-08-16**.
-* Reopening **C5**.
-* F11 / Fullscreen API.
-* `.xls` / `.xlsx` library.
-* Standalone `sensorhistory.html` unless kickoff includes it.
-* Overlay **dew likelihood %** / persist OWM clouds/wind → **C25**.
-
-**C24 DoD:** Kickoff Q&A **locked 2026-08-16**; residual Qs **locked 2026-08-23** (inherit pan; subtitle; overlay frost; button label). CI formula **locked 2026-08-17** (`CI_base` from Td + `TC = 0.8*(T-20)`, clamp). Temp/hum **day** chart has “Open detail in full screen”; overlay fills the browser tab with **X** top-right; 24 h viewport (C16 pan, inherit on open); five checkboxes default on, no overlay legend; third y-axis g/m³ for AH, axes hidden when their series are unchecked; CSV export of five columns for the full `hires_days` buffer; month/year unchanged (no overlay); Td/AH/CI reuse C5 pairing; CI piecewise comfort colors (Td bands) + tooltip (new CI %), one width, no markers; frost on overlay temp; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (Combined ship: close with **C16**.)
+**C24 DoD:** ✅ **2026-08-23** — code + docs + **Pi smoke** (operator). Closed with **C16**. **Last DoD docs audit** this close-out.
 
 ---
 
-## 📋 C25 — Overlay dew likelihood % 🔜 TODO
+## 📋 C25 — Overlay dew likelihood % + compare 🔜 TODO
 
-**Origin:** operator inbox **2026-08-16**. Explorer History **C24 fullscreen day overlay** only — **not** inline day, **not** month/year, **not** C24 five-series lock. Size **mid**. Sequence: **after C24**. Default **after Blockly cluster** (not ∥).
+**Origin:** operator inbox **2026-08-16**. Explorer History **C24 fullscreen day overlay** only — **not** inline day, **not** month/year, **not** C24 five-series lock. Size **mid**. Sequence: **after C24**. **Kickoff locked 2026-08-23**. **C16+C24** closed (**Pi smoke 2026-08-23**) — coding gate **cleared**; implement when commanded.
 
 **Operator request (verbatim, 2026-08-16):**
 > triage as new item: additional graph in the fullscreen day view -- get additional info from that 2.5 json (clouds/wind) and with your list (which i accept): plot another line "dew likelihood %"
 
-**Accepted heuristic (operator 2026-08-16 — dew, not rain):**
-
-* **Night** (after sunset, before sunrise) — otherwise ~0
-* **T − Td** small → higher
-* **Low cloud** → higher
-* **Light wind** → higher
-* **Rain / drizzle now** → **0**
+**Operator request (verbatim, 2026-08-23):**
+> add to C25 pipeline: compare 1 temp/hum graph with another one (also only temp sensors are permitted for this)
 
 **Triage placement:**
 
-* **New C25** — do **not** reopen **C24** (five series / three axes / CSV-of-five stay C24 DoD).
+* **New C25** — do **not** reopen **C24** (five series / three axes / CSV-of-five stay C24 DoD; C25 **adds** sixth series + compare).
 * Overlay-only extra line, series name **`Dew likelihood %`**. Honest **heuristic index 0–100**, not a calibrated meteorological probability.
-* **OWM Current 2.5** (`integrations/open_weather.py` today uses `main.temp` / `main.humidity` only). Persist **clouds** + **wind** from that JSON (and enough **weather/rain** to zero the score). Indoor temp/hum has no 2.5 payload → **no** dew-likelihood series there.
-* Night gate can use existing OWM sunrise/sunset already stored for schedule (`SUNRISE_SUNSET_UPDATE`).
-* History line over `hires_days` needs those extra fields **stored** (today they are discarded). How (units on `sensor_samples` vs other) → **kickoff**. Numeric weights for T−Td / cloud / wind → **kickoff**. Sixth checkbox + CSV column + which y-axis (right **%** vs own) → **kickoff**.
+* **OWM Current 2.5** — at each climate poll, read clouds / wind / weather from JSON, compute score, **store score only** (storage **B**). Indoor temp/hum → **no** dew-likelihood series.
+* Night gate: OWM sunrise/sunset from schedule (`SUNRISE_SUNSET_UPDATE`). Formula + explanation → [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) § Dew likelihood.
+
+### Kickoff locks (2026-08-23)
+
+| Topic | Locked |
+|---|---|
+| Coding gate | **Cleared** — **C16+C24** Pi smoke **2026-08-23**. Implement when commanded. |
+| Schedule | Kickoff complete; skip-ahead OK at implement command. |
+| Storage | **B** — persist **computed** dew-likelihood **0–100** only (unit e.g. `dew%` on OWM climate idx in `sensor_samples`). Do **not** retain raw clouds/wind/rain history. Score computed at poll time from Current 2.5 + stored T/RH + night gate. |
+| Formula | Locked below; also documented in [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) § Dew likelihood. |
+| Dew line — checkbox | **6th** checkbox **`Dew likelihood %`**, **default ON** (OWM/outside overlay only; absent indoors). |
+| Dew line — CSV | **Yes** — include column in Export CSV (empty when N/A). |
+| Dew line — axis | Re-use right **%** axis (with RH / CI). |
+| Compare — entry | Button **Compare with** → dropdown of **all other** temp-only **and** temp/hum sensors. Any climate fullscreen overlay. |
+| Compare — series set | On peer select: **uncheck specials** on primary (**AH**, **CI**, **Dew likelihood %**). Keep **Temperature / Humidity / Dew point** only (temp-only primary → **Temperature** only). Peer row: **same** — T/RH/Td if hum exists, else **T** only. No AH/CI/dew-likelihood on the peer row. |
+| Compare — sync | **Synced** pan/zoom (one C16 window). |
+| Compare — toggles | Peer checkboxes in a **second row**. |
+| Clear compare | Leave primary checkboxes **as they are** (specials stay unchecked unless the operator re-checked them). Do **not** restore pre-compare state. Remove peer row / peer series. |
+
+**Formula (locked 2026-08-23):**
+
+```
+# Inputs at poll: T °C, Td °C (Sonntag from T+RH), clouds 0–100,
+# wind_ms (OWM wind.speed), raining (weather/rain now), is_night (after sunset, before sunrise)
+
+if raining or not is_night:
+    score = 0
+else:
+    dT = max(0, T - Td)
+    sat   = clamp(1 - dT / 4, 0, 1)       # full at dT=0; 0 at dT ≥ 4 °C
+    clear = clamp(1 - clouds / 100, 0, 1)  # clear sky → 1
+    calm  = clamp(1 - wind_ms / 5, 0, 1)   # calm → 1; ≥ 5 m/s → 0
+    score = round(100 * (0.50 * sat + 0.30 * clear + 0.20 * calm))
+```
+
+**Still open (kickoff):** *(none — closed 2026-08-23.)*
 
 **Out of scope**
 
@@ -1253,8 +1020,9 @@ if CI > 100: CI = 100
 * Leaf-wetness / IR grass sensor.
 * G4 One Call (this is Current 2.5).
 * Calling the line a true probability.
+* Persisting raw OWM clouds/wind/rain time series (storage A rejected).
 
-**C25 DoD:** Kickoff locks storage, formula weights, checkbox/CSV/axis. C24 overlay shows **Dew likelihood %** on OWM/outside temp/hum using persisted 2.5 clouds/wind and the accepted heuristic (night, T−Td, cloud, wind, rain→0); indoor climate unchanged; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C25 DoD:** Overlay shows **Dew likelihood %** on OWM/outside from stored `dew%` samples + locked formula; indoor unchanged; Compare with climate peer as locked; Pi smoke; formula doc in env-schedule. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -1308,9 +1076,9 @@ if CI > 100: CI = 100
 * **C21:** Explorer AUTO OFF countdown must not run when the device is already OFF.
 * **C27:** ✅ **Done 2026-08-22** — Admin General Diagnostics **first** row; Explorer **ℹ tap → popover** on Device Explorer title; format **HH:MM + relative**; History title out of scope; Pi smoke with **G15** deploy.
 * **C22:** ✅ **Done 2026-08-16** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m (`22007`/`22008`) live-only; not C11.
-* **C16:** sliding 24 h viewport over `hires_days` hi-res; water day = **`hires_days` hourly + pan** (kickoff **2026-08-23** B); **ship** from/to subtitle when not live; zoom-in only; pan back to retention. Blank auto-refresh → **C19** ✅. Combined ship with **C24**; skip-ahead OK. Dew likelihood → **C25** (later).
-* **C24:** temp/hum **day** overlay fills the **browser tab** (not F11) with **X** top-right; inherit inline pan; frost on overlay; CSV of full `hires_days`; 3rd y-axis AH (axes iff series checked); checkboxes only; month/year unchanged; **combined with C16**; do not reopen **C5**. Kickoff **locked** (**2026-08-16** + **2026-08-23**). CI **2026-08-17:** Td base + T correction. Dew likelihood → **C25** (no kickoff yet).
-* **C25:** overlay **Dew likelihood %** (heuristic); OWM 2.5 clouds/wind; rain→0; **after C16+C24 ship**; do not reopen C24. Storage/weights/checkbox/CSV/axis → kickoff (not started).
+* **C16:** ✅ **Pi smoke 2026-08-23** — sliding 24 h over `hires_days`; water hourly×retention + pan; subtitle; combined with **C24**. Product: [`sensor_history.md`](../sensor_history.md).
+* **C24:** ✅ **Pi smoke 2026-08-23** — tab overlay; AH / Feels-like; CSV; inherit pan; frost. Product: [`sensor_history.md`](../sensor_history.md) § Day overlay. Dew likelihood → **C25**.
+* **C25:** kickoff **locked 2026-08-23** — storage **B**; formula in env-schedule §9; compare unchecks specials → T/RH/Td; clear compare leaves primary checkboxes as-is. Coding gate **cleared** (implement when commanded).
 * **C15:** lab switch in Debug Commands; entire lab pane hidden when OFF.
 * **C13:** Merge hide into Timers & types …
 * **C4:** **`blocky`→`blockly`** — **`blockly.html` / `blockly.js`**; shell label **Blockly**; **not** `automations.*`.
@@ -1324,13 +1092,12 @@ if CI > 100: CI = 100
 * **C20:** kickoff + contract **locked** 2026-08-15 — implement when commanded.
 * **C21:** AUTO OFF countdown while toggle OFF.
 * **C27:** ✅ **Done 2026-08-22** — format **HH:MM + relative** locked; Explorer ℹ popover; History title out of scope; closed with **G15** Pi smoke.
-* **C16:** kickoff **2026-08-23** — 24 h max viewport; pan over **`hires_days`**; water day **B**; **ship** from/to subtitle when not live; skip-ahead + combined **C24** ship. Ready to implement when commanded.
-* **C24:** kickoff **locked** (**2026-08-16** + residuals **2026-08-23**) — inline day as-is; button **“Open detail in full screen”**; overlay inherit pan; frost on overlay; CSV / 5 checkboxes / AH+CI / 3rd axis as before. Combined with **C16**. Ready to implement when commanded. **C25** later.
-* **C25:** **not locked** — no kickoff yet; after C16+C24. Persist OWM clouds/wind/rain; formula weights; 6th checkbox/CSV; axis.
+* **C16 / C24:** ✅ **Pi smoke 2026-08-23** — closed. Sections archived in this file (pointers to product docs).
+* **C25:** kickoff **locked 2026-08-23** — see § C25; no open Qs. Coding gate **cleared**.
 
 ### C16+C24 residual open Qs
 
-*(none — closed **2026-08-23**: inherit pan; ship subtitle; overlay frost; button label.)*
+*(none — closed **2026-08-23** incl. Pi smoke.)*
 * **C15:** locked — switch in Debug Commands; **entire lab pane hidden when OFF**.
 * **C26:** kickoff **locked 2026-08-22** — after **C4**; classic scripts; `blockly-*` siblings; page-script dedupe; **`reference.md` § frontend catalogs all `frontend/*.js`**.
 * **C3 / C4** remain open as specified above (later in sequence).

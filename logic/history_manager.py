@@ -787,7 +787,7 @@ class DeviceHistoryManager:
 
         if range_name == "day":
             until_ts = int(time.time())
-            since = until_ts - 86400
+            since = until_ts - self.hires_days * 86400
             c.execute(
                 "SELECT timestamp, state, level FROM device_events WHERE idx = ? AND timestamp >= ? ORDER BY timestamp",
                 (idx, since),
@@ -819,6 +819,8 @@ class DeviceHistoryManager:
                 "type": dtype,
                 "range": "day",
                 "series": {"level": level_pts},
+                "retention_days": self.hires_days,
+                "default_window_hours": 24,
             }
 
         if range_name == "month":

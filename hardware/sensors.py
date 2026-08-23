@@ -90,15 +90,22 @@ class HardwareSensors:
                         if state.hardware.sht11_enabled:
                             final_temp = round(temp * 2) / 2 if (0 <= temp < 99) else round(temp)
                             final_hum = round(humidity)
+                            reading = (final_temp, final_hum)
 
-                            if last_readings.get(node.idx) != (final_temp, final_hum):
-                                last_readings[node.idx] = (final_temp, final_hum)
+                            if last_readings.get(node.idx) != reading:
+                                last_readings[node.idx] = reading
 
                                 self.state_manager.dispatch(
                                     Event(type=EventType.TEMP_UPDATED,
                                           payload={"idx": node.idx, "value": final_temp}))
                                 self.state_manager.dispatch(Event(type=EventType.HUMIDITY_UPDATED,
                                                                   payload={"idx": node.idx, "value": final_hum}))
+                            elif hasattr(self.state_manager, "sensor_history"):
+                                # Stable T/RH: still feed history so max-interval heartbeats
+                                # land in DB (day charts stay continuous; automations unchanged).
+                                hist = self.state_manager.sensor_history
+                                hist.note_climate_temp(node.idx, final_temp)
+                                hist.note_climate_hum(node.idx, final_hum)
 
                     except Exception as e:
                         # ⚡ STATE-CHANGE LOGGING: Only log on initial boot or failure transition

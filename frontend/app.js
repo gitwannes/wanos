@@ -6,6 +6,8 @@
 // ("Cannot read properties of undefined"), silently aborting the rest of the render.
 const wanosHistoryCharts = { day: null, month: null, year: null };
 const wanosActuatorCharts = { day: null, month: null, year: null };
+/** C24: temp/hum day fullscreen overlay chart (outside Alpine reactive data). */
+let wanosClimateFsChart = null;
 
 /**
  * C19: stored ECharts instance is unusable for `el` (missing, disposed, or bound
@@ -263,7 +265,8 @@ function wanosApp() {
         selectedSensorName: "",
         historySummary: null,
         historyLoading: false,
-        historyDayTitle: "Usage last 24 hours",
+        historyDayTitle: "Usage day window",
+        historyDaySubtitle: "",
         historyMonthTitle: "Usage last month",
         historyYearTitle: "Usage last year",
         _historyRefreshTimer: null,
@@ -276,10 +279,18 @@ function wanosApp() {
         actuatorHasMonth: false,
         actuatorHasYear: false,
         // C10: actuator History chart section titles (binary / hits / level)
-        actuatorDayTitle: "Level last 24 hours",
+        actuatorDayTitle: "Level day window",
+        actuatorDaySubtitle: "",
         actuatorMonthTitle: "Last month (counts + level)",
         actuatorYearTitle: "Last year (counts + level)",
         actuatorChartHasData: { day: false, month: false, year: false },
+        // C16: last day payload retention (from API) for sliding window
+        historyDayRetentionDays: 7,
+        // C24: temp/hum day fullscreen overlay
+        climateFsOpen: false,
+        climateFsShow: { temp: true, hum: true, dew: true, ah: true, ci: true },
+        climateFsCiHelpOpen: false,
+        historyDayClimateData: null,
         actuatorList: [],
         actuatorFavorites: [],
         actuatorFavoritesOnly: false,
@@ -2142,19 +2153,92 @@ function wanosApp() {
         },
 
         _syncActuatorChartTitles(kind) {
+            // C16: day title — default viewport 24 h; zoom-out up to hires_days buffer
             if (kind === "hits") {
-                this.actuatorDayTitle = "Hits last 24 hours";
+                this.actuatorDayTitle = "Hits day window";
                 this.actuatorMonthTitle = "Hits last month";
                 this.actuatorYearTitle = "Hits last year";
             } else if (kind === "binary" || kind === "audio") {
-                this.actuatorDayTitle = kind === "binary" ? "ON / OFF last 24 hours" : "Level last 24 hours";
+                this.actuatorDayTitle = kind === "binary" ? "ON / OFF day window" : "Level day window";
                 this.actuatorMonthTitle = "Last month (duration ON)";
                 this.actuatorYearTitle = "Last year (duration ON)";
             } else {
-                this.actuatorDayTitle = "Level last 24 hours";
+                this.actuatorDayTitle = "Level day window";
                 this.actuatorMonthTitle = "Last month (counts + level)";
                 this.actuatorYearTitle = "Last year (counts + level)";
             }
+        },
+
+        /** C24: fixed line colors for fullscreen overlay series (each distinct). */
+        _climateFsSeriesColor(key) {
+            const map = {
+                temp: "#eab308",
+                hum: "#22c55e",
+                dew: "#38bdf8",
+                ah: "#a855f7",
+                ci: "#f472b6",
+            };
+            return map[key] || "#9ca3af";
+        },
+
+        /** Plain-language help for apparent humidity (comfort index). */
+        get climateFsCiHelpText() {
+            return "Feels-like humidity is a comfort index (0–100%). It combines dew point and air temperature "
+                + "to show how humid the air feels — not a separate sensor reading. "
+                + "Higher values mean sweat evaporates less easily and the air feels stickier. "
+                + "Tooltip on the chart also shows the comfort band (dry → tropical).";
+        },
+
+        /** Display name for CI series (checkbox, chart, tooltip, CSV). */
+        get climateFsCiSeriesName() {
+            return "Feels-like humidity";
+        },
+
+        /** True when the overlay viewport is phone-narrow (portrait or small width). */
+        _climateFsIsCompactWidth() {
+            try {
+                return window.matchMedia("(max-width: 640px)").matches;
+            } catch (e) {
+                return false;
+            }
+        },
+
+        /** Short landscape (phone rotated) — chrome must stay compact so the chart fits. */
+        _climateFsIsShortLandscape() {
+            try {
+                return window.matchMedia("(max-height: 480px)").matches;
+            } catch (e) {
+                return false;
+            }
+        },
+
+        _bindClimateFsResize() {
+            if (this._climateFsResizeBound) return;
+            this._climateFsOnResize = () => {
+                if (!this.climateFsOpen) return;
+                if (wanosClimateFsChart) {
+                    try { wanosClimateFsChart.resize(); } catch (e) { /* ignore */ }
+                }
+                this._renderClimateFullscreenChart({ soft: true });
+            };
+            window.addEventListener("resize", this._climateFsOnResize);
+            window.addEventListener("orientationchange", this._climateFsOnResize);
+            this._climateFsResizeBound = true;
+        },
+
+        _unbindClimateFsResize() {
+            if (!this._climateFsResizeBound) return;
+            window.removeEventListener("resize", this._climateFsOnResize);
+            window.removeEventListener("orientationchange", this._climateFsOnResize);
+            this._climateFsOnResize = null;
+            this._climateFsResizeBound = false;
+        },
+
+        /** Fullscreen overlay title including max retention days from API. */
+        get climateFsOverlayTitle() {
+            const name = this.selectedSensorName || "Climate";
+            const days = this.historyDayRetentionDays || 7;
+            return `${name} — day window (up to ${days} d)`;
         },
 
         /** Hardware / configured level ceiling (Sonos + Onkyo: meta.max_volume). */
@@ -2473,6 +2557,7 @@ function wanosApp() {
 
         closeHistoryDetail() {
             this._historySelectGen = (this._historySelectGen || 0) + 1;
+            this.closeClimateFullscreen();
             this._disposeHistoryCharts();
             this._disposeActuatorCharts();
             this.selectedSensorIdx = null;
@@ -2482,6 +2567,9 @@ function wanosApp() {
             this.selectedActuatorIdx = null;
             this.selectedActuatorName = "";
             this.historySummary = null;
+            this.historyDayClimateData = null;
+            this.historyDaySubtitle = "";
+            this.actuatorDaySubtitle = "";
             this.historyChartHasData.day = false;
             this.historyChartHasData.month = false;
             this.historyChartHasData.year = false;
@@ -2615,15 +2703,232 @@ function wanosApp() {
                 const opt = chart.getOption();
                 const list = opt && opt.dataZoom;
                 if (!Array.isArray(list) || !list.length) return null;
-                const dz = list.find((z) => z && (z.start != null || z.end != null)) || list[0];
+                const dz = list.find((z) => z && (z.start != null || z.end != null
+                    || z.startValue != null || z.endValue != null)) || list[0];
                 if (!dz) return null;
                 return {
                     start: dz.start != null ? Number(dz.start) : 0,
                     end: dz.end != null ? Number(dz.end) : 100,
+                    startValue: dz.startValue != null ? Number(dz.startValue) : null,
+                    endValue: dz.endValue != null ? Number(dz.endValue) : null,
                 };
             } catch (e) {
                 return null;
             }
+        },
+
+        /**
+         * C16: capture day sliding window for soft refresh (absolute ms + live pin).
+         * @param {Object|null} chart
+         * @returns {{ startValue: number, endValue: number, span: number, live: boolean }|null}
+         */
+        _captureSlidingDayZoom(chart) {
+            const raw = this._captureChartDataZoom(chart);
+            if (!raw) return null;
+            const now = Date.now();
+            let startValue = raw.startValue;
+            let endValue = raw.endValue;
+            // Percent-only fallback against current axis extent
+            if ((startValue == null || endValue == null) && chart) {
+                try {
+                    const opt = chart.getOption();
+                    const xa = Array.isArray(opt.xAxis) ? opt.xAxis[0] : opt.xAxis;
+                    const amin = xa && xa.min != null ? Number(xa.min) : null;
+                    const amax = xa && xa.max != null ? Number(xa.max) : null;
+                    if (amin != null && amax != null && Number.isFinite(raw.start) && Number.isFinite(raw.end)) {
+                        const span = amax - amin;
+                        startValue = amin + (span * raw.start) / 100;
+                        endValue = amin + (span * raw.end) / 100;
+                    }
+                } catch (e) { /* ignore */ }
+            }
+            if (startValue == null || endValue == null) return null;
+            if (!Number.isFinite(startValue) || !Number.isFinite(endValue) || endValue <= startValue) return null;
+            const liveSlackMs = 3 * 60 * 1000;
+            const live = (now - endValue) <= liveSlackMs;
+            return {
+                startValue,
+                endValue,
+                span: endValue - startValue,
+                live,
+            };
+        },
+
+        /** C16: retention days from day API payload (default 7). */
+        _retentionDaysFromPayload(data) {
+            const n = data && data.retention_days != null ? Number(data.retention_days) : NaN;
+            return Number.isFinite(n) && n > 0 ? n : 7;
+        },
+
+        /**
+         * C16: format from/to subtitle when day viewport is not live-pinned to now.
+         * @param {number} startMs
+         * @param {number} endMs
+         * @param {boolean} live
+         * @returns {string}
+         */
+        _formatDayWindowSubtitle(startMs, endMs, live) {
+            if (live) return "";
+            const tz = "Europe/Brussels";
+            const fmt = (ms) => {
+                const d = new Date(ms);
+                return d.toLocaleString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: tz,
+                });
+            };
+            return `${fmt(startMs)} → ${fmt(endMs)}`;
+        },
+
+        /**
+         * C16: keep historyDaySubtitle / actuatorDaySubtitle in sync with dataZoom.
+         * @param {Object} chart
+         * @param {"historyDaySubtitle"|"actuatorDaySubtitle"} prop
+         */
+        _bindDayWindowSubtitle(chart, prop) {
+            if (!chart || !prop) return;
+            const key = "_wanosDaySubtitleHandler";
+            if (chart[key]) {
+                try { chart.off("datazoom", chart[key]); } catch (e) { /* ignore */ }
+            }
+            const handler = () => {
+                const cap = this._captureSlidingDayZoom(chart);
+                if (!cap) {
+                    this[prop] = "";
+                    return;
+                }
+                this[prop] = this._formatDayWindowSubtitle(cap.startValue, cap.endValue, cap.live);
+            };
+            chart[key] = handler;
+            chart.on("datazoom", handler);
+            handler();
+        },
+
+        /**
+         * C16: x-axis = full hires buffer; default viewport 24 h; zoom-out to full retention; zoom-in to ~1 h.
+         * @param {Object} opt
+         * @param {number} retentionDays
+         * @param {{ startValue?: number, endValue?: number, span?: number, live?: boolean }|null} saved
+         * @param {{ sliderBottom?: number }=} ui
+         */
+        _applySlidingDayTimeWindow(opt, retentionDays, saved, ui = {}) {
+            if (!opt || !opt.xAxis) return;
+            const defaultSpanMs = 24 * 60 * 60 * 1000;
+            const minSpanMs = 60 * 60 * 1000;
+            const days = Number.isFinite(retentionDays) && retentionDays > 0 ? retentionDays : 7;
+            const maxSpanMs = days * 86400 * 1000;
+            const end = Date.now();
+            const start = end - maxSpanMs;
+            opt.xAxis.min = start;
+            opt.xAxis.max = end;
+            opt.xAxis.scale = true;
+
+            let viewStart = end - defaultSpanMs;
+            let viewEnd = end;
+            if (saved && Number.isFinite(saved.span) && saved.span > 0) {
+                const span = Math.min(maxSpanMs, Math.max(minSpanMs, saved.span));
+                if (saved.live) {
+                    viewEnd = end;
+                    viewStart = viewEnd - span;
+                } else if (Number.isFinite(saved.startValue) && Number.isFinite(saved.endValue)) {
+                    viewStart = saved.startValue;
+                    viewEnd = saved.endValue;
+                    const curSpan = viewEnd - viewStart;
+                    if (curSpan > maxSpanMs) {
+                        viewStart = viewEnd - maxSpanMs;
+                    } else if (curSpan < minSpanMs) {
+                        viewStart = viewEnd - minSpanMs;
+                    }
+                }
+            }
+            if (viewStart < start) {
+                const shift = start - viewStart;
+                viewStart += shift;
+                viewEnd += shift;
+            }
+            if (viewEnd > end) {
+                const shift = viewEnd - end;
+                viewStart -= shift;
+                viewEnd -= shift;
+            }
+            if (viewStart < start) viewStart = start;
+            if (viewEnd > end) viewEnd = end;
+
+            const sliderBottom = ui.sliderBottom != null ? ui.sliderBottom : 28;
+            opt.dataZoom = [
+                {
+                    type: "inside",
+                    startValue: viewStart,
+                    endValue: viewEnd,
+                    filterMode: "none",
+                    minValueSpan: minSpanMs,
+                    maxValueSpan: maxSpanMs,
+                },
+                {
+                    type: "slider",
+                    height: ui.sliderHeight != null ? ui.sliderHeight : 18,
+                    bottom: sliderBottom,
+                    startValue: viewStart,
+                    endValue: viewEnd,
+                    filterMode: "none",
+                    minValueSpan: minSpanMs,
+                    maxValueSpan: maxSpanMs,
+                },
+            ];
+        },
+
+        /**
+         * C16 water day: category bars over hires_days hours; default last 24 h; zoom-out to full buffer.
+         * @param {Object} opt
+         * @param {number} categoryCount
+         * @param {{ start?: number, end?: number, live?: boolean }|null} saved
+         */
+        _applyWaterDaySlidingZoom(opt, categoryCount, saved) {
+            if (!opt || categoryCount <= 0) return;
+            const defaultVisible = Math.min(24, categoryCount);
+            const minSpan = 1;
+            const maxSpan = categoryCount;
+            const n = categoryCount;
+            let startIdx = Math.max(0, n - defaultVisible);
+            let endIdx = n - 1;
+            if (saved && Number.isFinite(saved.start) && Number.isFinite(saved.end) && n > 0) {
+                startIdx = Math.round((saved.start / 100) * (n - 1));
+                endIdx = Math.round((saved.end / 100) * (n - 1));
+                if (saved.live) {
+                    endIdx = n - 1;
+                    const visible = Math.max(minSpan, endIdx - startIdx + 1);
+                    startIdx = Math.max(0, endIdx - visible + 1);
+                }
+            }
+            if (endIdx - startIdx + 1 > maxSpan) startIdx = endIdx - maxSpan + 1;
+            if (endIdx - startIdx + 1 < minSpan) startIdx = Math.max(0, endIdx - minSpan + 1);
+            if (startIdx < 0) startIdx = 0;
+            if (endIdx > n - 1) endIdx = n - 1;
+            const startPct = n <= 1 ? 0 : (startIdx / (n - 1)) * 100;
+            const endPct = n <= 1 ? 100 : (endIdx / (n - 1)) * 100;
+            opt.dataZoom = [
+                {
+                    type: "inside",
+                    start: startPct,
+                    end: endPct,
+                    filterMode: "none",
+                    minValueSpan: minSpan,
+                    maxValueSpan: maxSpan,
+                },
+                {
+                    type: "slider",
+                    height: 18,
+                    bottom: 28,
+                    start: startPct,
+                    end: endPct,
+                    filterMode: "none",
+                    minValueSpan: minSpan,
+                    maxValueSpan: maxSpan,
+                },
+            ];
         },
 
         /** Re-apply saved percent zoom onto a freshly built option (soft refresh). */
@@ -2707,11 +3012,14 @@ function wanosApp() {
 
             const zoomByKey = soft
                 ? {
-                    day: this._captureChartDataZoom(wanosActuatorCharts.day),
+                    day: this._captureSlidingDayZoom(wanosActuatorCharts.day),
                     month: this._captureChartDataZoom(wanosActuatorCharts.month),
                     year: this._captureChartDataZoom(wanosActuatorCharts.year),
                 }
                 : {};
+            if (!soft) {
+                this.actuatorDaySubtitle = "";
+            }
 
             if (!soft) {
                 this.actuatorChartHasData.day = false;
@@ -2724,6 +3032,7 @@ function wanosApp() {
             const idx = dayData?.idx ?? monthData?.idx ?? yearData?.idx ?? this.selectedActuatorIdx;
             const chartKind = this._actuatorChartKind(idx);
             this._syncActuatorChartTitles(chartKind);
+            const dayRetention = this._retentionDaysFromPayload(dayData);
             const dayLevelMax = this._actuatorLevelAxisMax(idx, dayData?.series?.level);
             const monthLevelMax = this._actuatorLevelAxisMax(
                 idx, monthData?.series?.level_min, monthData?.series?.level_max
@@ -2782,8 +3091,9 @@ function wanosApp() {
                             lineStyle: { color: "#2dd4bf", width: 2 },
                             connectNulls: false
                         }];
-                        this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
-                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
+                        this._applySlidingDayTimeWindow(opt, dayRetention, zoomByKey.day);
+                        this._setHistoryChartOption(dayChart, opt, null, { soft });
+                        this._bindDayWindowSubtitle(dayChart, "actuatorDaySubtitle");
                     } else if (chartKind === "binary") {
                         // C10 binary day: ON/OFF Y labels (not numeric Level)
                         const opt = this._baseChartOption("");
@@ -2808,8 +3118,9 @@ function wanosApp() {
                             lineStyle: { color: "#2dd4bf", width: 2 },
                             connectNulls: false
                         }];
-                        this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
-                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
+                        this._applySlidingDayTimeWindow(opt, dayRetention, zoomByKey.day);
+                        this._setHistoryChartOption(dayChart, opt, null, { soft });
+                        this._bindDayWindowSubtitle(dayChart, "actuatorDaySubtitle");
                     } else {
                         const opt = this._baseChartOption("Level");
                         opt.yAxis.min = 0;
@@ -2825,8 +3136,9 @@ function wanosApp() {
                             lineStyle: { color: "#2dd4bf", width: 2 },
                             connectNulls: false
                         }];
-                        this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
-                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
+                        this._applySlidingDayTimeWindow(opt, dayRetention, zoomByKey.day);
+                        this._setHistoryChartOption(dayChart, opt, null, { soft });
+                        this._bindDayWindowSubtitle(dayChart, "actuatorDaySubtitle");
                         this._bindHistoryYSnap(dayChart, [{ axisIndex: 0, step: 10 }]);
                     }
                 }
@@ -2962,6 +3274,58 @@ function wanosApp() {
             }).filter(row => row[0] != null);
         },
 
+        /**
+         * Gap break threshold (ms): 3 × expected sample cadence from day API.
+         * Prefer climate_sample_interval_secs (OWM poll vs SHT11 max-interval);
+         * fall back to climate_max_interval_secs (default 300 s → 15 min break).
+         * Intent: keep the line across 1–2 missed samples; break only when more
+         * than two expected samples are missing (Δt > 3× period).
+         * @param {Object|null|undefined} dayData
+         * @returns {number}
+         */
+        _climateSampleGapBreakMs(dayData) {
+            let secs = null;
+            if (dayData && dayData.climate_sample_interval_secs != null) {
+                secs = Number(dayData.climate_sample_interval_secs);
+            } else if (dayData && dayData.climate_max_interval_secs != null) {
+                secs = Number(dayData.climate_max_interval_secs);
+            }
+            const base = Number.isFinite(secs) && secs > 0 ? secs : 300;
+            return base * 3 * 1000;
+        },
+
+        /**
+         * Insert a null point between consecutive valued samples when Δt > gapBreakMs.
+         * ECharts connectNulls:false then leaves a visible gap (no implied readings).
+         * @param {Array} series  rows [t, v, ...extra]
+         * @param {number} gapBreakMs
+         * @returns {Array}
+         */
+        _breakLineOnSampleGap(series, gapBreakMs) {
+            if (!Array.isArray(series) || !series.length) return series || [];
+            const maxGap = Number(gapBreakMs);
+            if (!Number.isFinite(maxGap) || maxGap <= 0) return series;
+            const out = [];
+            let prevValuedT = null;
+            for (const row of series) {
+                if (!row || row[0] == null) continue;
+                const t = Number(row[0]);
+                if (!Number.isFinite(t)) continue;
+                const v = row[1];
+                const hasVal = v != null && Number.isFinite(Number(v));
+                if (hasVal && prevValuedT != null && (t - prevValuedT) > maxGap) {
+                    // Null sentinel just after last valued sample — breaks the polyline
+                    const nullRow = row.slice();
+                    nullRow[0] = prevValuedT + 1;
+                    for (let i = 1; i < nullRow.length; i++) nullRow[i] = null;
+                    out.push(nullRow);
+                }
+                out.push(row);
+                if (hasVal) prevValuedT = t;
+            }
+            return out;
+        },
+
         _seriesHasPoints(points) {
             return (points || []).some(p => p != null && p.v != null && !Number.isNaN(Number(p.v)));
         },
@@ -2999,10 +3363,11 @@ function wanosApp() {
         },
 
         /**
-         * Force the titled window (last 24h / month / year). Sparse event series otherwise
+         * Force the titled window (month / year). Sparse event series otherwise
          * collapse the time axis; reused chart instances also keep a tiny dataZoom from before.
          * Use percent zoom (0–100) against explicit axis min/max — more reliable than startValue
          * when series only cover a thin slice of the window.
+         * C16 day charts use `_applySlidingDayTimeWindow` instead.
          */
         _applyTimeWindow(opt, windowMs) {
             if (!opt || !opt.xAxis || !windowMs) return;
@@ -3088,6 +3453,473 @@ function wanosApp() {
                 out.push([t, dp]);
             }
             return out;
+        },
+
+        // ---------------------------------------------------------------------
+        // C24 — temp/hum day fullscreen overlay (AH / CI / CSV)
+        // ---------------------------------------------------------------------
+
+        /**
+         * Absolute humidity g/m³ from T (°C) and Td (°C). Null when inputs invalid.
+         * @param {number} tempC
+         * @param {number} dewC
+         * @returns {number|null}
+         */
+        _absoluteHumidityGm3(tempC, dewC) {
+            const T = Number(tempC);
+            const Td = Number(dewC);
+            if (!Number.isFinite(T) || !Number.isFinite(Td)) return null;
+            const e = 6.112 * Math.exp((17.67 * Td) / (Td + 243.5));
+            if (!Number.isFinite(e)) return null;
+            const ah = (216.7 * e) / (T + 273.15);
+            if (!Number.isFinite(ah)) return null;
+            return Math.round(ah * 100) / 100;
+        },
+
+        /**
+         * Feels-like humidity / comfort index % (C24 lock 2026-08-17).
+         * @param {number} tempC
+         * @param {number} dewC
+         * @returns {number|null}
+         */
+        _apparentHumidityPct(tempC, dewC) {
+            const T = Number(tempC);
+            const Td = Number(dewC);
+            if (!Number.isFinite(T) || !Number.isFinite(Td)) return null;
+            let ciBase = 4.5 * Td - 30;
+            if (ciBase < 0) ciBase = 0;
+            if (ciBase > 100) ciBase = 100;
+            const tc = 0.8 * (T - 20);
+            let ci = ciBase + tc;
+            if (ci < 0) ci = 0;
+            if (ci > 100) ci = 100;
+            return Math.round(ci * 10) / 10;
+        },
+
+        /** Comfort category label from dew point (°C) — English (UI / tooltip). */
+        _comfortCategoryFromTd(dewC) {
+            const Td = Number(dewC);
+            if (!Number.isFinite(Td)) return "";
+            if (Td < 10) return "Dry";
+            if (Td < 15) return "Comfortable";
+            if (Td < 18) return "Moderately humid";
+            if (Td < 21) return "Humid";
+            if (Td < 24) return "Very humid";
+            return "Tropically humid";
+        },
+
+        /** CI line color from Td band (C24 comfort table). */
+        _comfortColorFromTd(dewC) {
+            const Td = Number(dewC);
+            if (!Number.isFinite(Td)) return "#22c55e";
+            if (Td < 10) return "#7dd3fc";
+            if (Td < 15) return "#22c55e";
+            if (Td < 18) return "#a3e635";
+            if (Td < 21) return "#fb923c";
+            if (Td < 24) return "#ef4444";
+            return "#991b1b";
+        },
+
+        /** True when day climate chart has humidity (fullscreen button gate). */
+        get climateFullscreenAvailable() {
+            if (this.selectedSensorKind !== "climate" || !this.historyHasDay) return false;
+            const d = this.historyDayClimateData;
+            if (!d) return false;
+            return d.has_humidity !== false && this._seriesDrawable(d.series && d.series.hum);
+        },
+
+        openClimateFullscreen() {
+            if (!this.climateFullscreenAvailable) return;
+            this.climateFsOpen = true;
+            this._bindClimateFsResize();
+            this.$nextTick(() => {
+                requestAnimationFrame(() => this._renderClimateFullscreenChart({ soft: false }));
+            });
+        },
+
+        closeClimateFullscreen() {
+            this.climateFsOpen = false;
+            this.climateFsCiHelpOpen = false;
+            this._unbindClimateFsResize();
+            if (wanosClimateFsChart) {
+                try { wanosClimateFsChart.dispose(); } catch (e) { /* ignore */ }
+                wanosClimateFsChart = null;
+            }
+        },
+
+        /**
+         * C24: series checkbox change — keep at least one series on.
+         * @param {"temp"|"hum"|"dew"|"ah"|"ci"} key
+         */
+        onClimateFsToggle(key) {
+            const show = this.climateFsShow;
+            if (!show) return;
+            const keys = ["temp", "hum", "dew", "ah", "ci"];
+            const active = keys.filter((k) => !!show[k]);
+            // Last checkbox cannot be turned off
+            if (active.length === 0 && key && keys.includes(key)) {
+                show[key] = true;
+                return;
+            }
+            if (!this.climateFsOpen) return;
+            this.$nextTick(() => this._renderClimateFullscreenChart({ soft: true }));
+        },
+
+        /**
+         * Build aligned T/RH/Td/AH/CI rows for overlay + CSV.
+         * @param {Object} dayData
+         * @returns {Array<{ t: number, temp: number|null, hum: number|null, dew: number|null, ah: number|null, ci: number|null }>}
+         */
+        _climateDayDerivedRows(dayData) {
+            const tempPts = (dayData && dayData.series && dayData.series.temp) || [];
+            const humPts = (dayData && dayData.series && dayData.series.hum) || [];
+            const humByT = new Map();
+            for (const p of humPts) {
+                const t = this._normalizeTsMs(p && p.t);
+                if (t == null || p.v == null) continue;
+                humByT.set(t, Number(p.v));
+            }
+            const rows = [];
+            for (const p of tempPts) {
+                const t = this._normalizeTsMs(p && p.t);
+                if (t == null) continue;
+                const temp = p.v == null ? null : Number(p.v);
+                const hum = humByT.has(t) ? humByT.get(t) : null;
+                let dew = null;
+                let ah = null;
+                let ci = null;
+                if (temp != null && Number.isFinite(temp) && hum != null) {
+                    dew = this._dewPointC(temp, hum);
+                    if (dew != null) {
+                        ah = this._absoluteHumidityGm3(temp, dew);
+                        ci = this._apparentHumidityPct(temp, dew);
+                    }
+                }
+                rows.push({ t, temp: Number.isFinite(temp) ? temp : null, hum, dew, ah, ci });
+            }
+            // Humidity-only timestamps (rare): still plot RH
+            for (const p of humPts) {
+                const t = this._normalizeTsMs(p && p.t);
+                if (t == null || p.v == null) continue;
+                if (rows.some((r) => r.t === t)) continue;
+                rows.push({
+                    t,
+                    temp: null,
+                    hum: Number(p.v),
+                    dew: null,
+                    ah: null,
+                    ci: null,
+                });
+            }
+            rows.sort((a, b) => a.t - b.t);
+            return rows;
+        },
+
+        _ensureClimateFsChart() {
+            if (typeof echarts === "undefined") return null;
+            const el = document.getElementById("chart-climate-fs");
+            if (!el) return null;
+            if (wanosClimateFsChart) {
+                try {
+                    if (wanosClimateFsChart.getDom() === el && !wanosClimateFsChart.isDisposed()) {
+                        return wanosClimateFsChart;
+                    }
+                    wanosClimateFsChart.dispose();
+                } catch (e) { /* ignore */ }
+                wanosClimateFsChart = null;
+            }
+            wanosClimateFsChart = echarts.init(el, "dark");
+            return wanosClimateFsChart;
+        },
+
+        /**
+         * C24 overlay chart: five optional series, three y-axes, inherit day pan.
+         * @param {{ soft?: boolean }=} opts
+         */
+        _renderClimateFullscreenChart(opts = {}) {
+            const soft = !!opts.soft;
+            const dayData = this.historyDayClimateData;
+            const chart = this._ensureClimateFsChart();
+            if (!chart || !dayData) return;
+
+            const show = this.climateFsShow || {};
+            const rows = this._climateDayDerivedRows(dayData);
+            const tempPts = dayData.series && dayData.series.temp;
+            const humPts = dayData.series && dayData.series.hum;
+            const gapMs = this._climateSampleGapBreakMs(dayData);
+
+            const series = [];
+            if (show.temp) {
+                const frostSplit = this._tempSeriesWithFrost(tempPts, humPts);
+                const warmData = this._breakLineOnSampleGap(frostSplit.warm, gapMs);
+                const frostData = this._breakLineOnSampleGap(frostSplit.frost, gapMs);
+                const hasFrost = (frostData || []).some((row) => row && row[1] != null);
+                series.push({
+                    id: "fs-temp-warm",
+                    name: "Temperature",
+                    type: "line",
+                    smooth: true,
+                    showSymbol: false,
+                    yAxisIndex: 0,
+                    data: warmData,
+                    lineStyle: { color: "#eab308", width: 2 },
+                    itemStyle: { color: "#eab308" },
+                    connectNulls: false,
+                });
+                if (hasFrost) {
+                    series.push({
+                        id: "fs-temp-frost",
+                        name: "Temperature",
+                        type: "line",
+                        smooth: true,
+                        showSymbol: false,
+                        yAxisIndex: 0,
+                        data: frostData,
+                        lineStyle: { color: "#ef4444", width: 4 },
+                        itemStyle: { color: "#ef4444" },
+                        connectNulls: false,
+                    });
+                }
+            }
+            if (show.hum) {
+                const humColor = this._climateFsSeriesColor("hum");
+                series.push({
+                    id: "fs-hum",
+                    name: "Humidity",
+                    type: "line",
+                    smooth: true,
+                    showSymbol: false,
+                    yAxisIndex: 1,
+                    data: this._breakLineOnSampleGap(this._pointsToSeries(humPts), gapMs),
+                    lineStyle: { color: humColor, width: 2 },
+                    itemStyle: { color: humColor },
+                    connectNulls: false,
+                });
+            }
+            if (show.dew) {
+                const dew = this._breakLineOnSampleGap(
+                    this._dewSeriesFromTempHum(tempPts, humPts), gapMs
+                );
+                if (dew.length) {
+                    const dewColor = this._climateFsSeriesColor("dew");
+                    series.push({
+                        id: "fs-dew",
+                        name: "Dew point",
+                        type: "line",
+                        smooth: true,
+                        showSymbol: false,
+                        yAxisIndex: 0,
+                        data: dew,
+                        lineStyle: { color: dewColor, width: 1.5, type: "dashed" },
+                        itemStyle: { color: dewColor },
+                        connectNulls: false,
+                    });
+                }
+            }
+            if (show.ah) {
+                const ahColor = this._climateFsSeriesColor("ah");
+                // Omit unpaired / missing AH (same as dew / Feels-like) — do not insert nulls
+                // that only fragment this series while T/RH still plot.
+                const ahData = this._breakLineOnSampleGap(
+                    rows.filter((r) => r.ah != null).map((r) => [r.t, r.ah]),
+                    gapMs
+                );
+                series.push({
+                    id: "fs-ah",
+                    name: "Absolute humidity",
+                    type: "line",
+                    smooth: true,
+                    showSymbol: false,
+                    yAxisIndex: 2,
+                    data: ahData,
+                    lineStyle: { color: ahColor, width: 2 },
+                    itemStyle: { color: ahColor },
+                    connectNulls: false,
+                });
+            }
+            if (show.ci) {
+                const ciColor = this._climateFsSeriesColor("ci");
+                const ciName = this.climateFsCiSeriesName;
+                const ciData = this._breakLineOnSampleGap(
+                    rows
+                        .filter((r) => r.ci != null && r.dew != null)
+                        .map((r) => [r.t, r.ci, r.dew]),
+                    gapMs
+                );
+                series.push({
+                    id: "fs-ci",
+                    name: ciName,
+                    type: "line",
+                    smooth: true,
+                    showSymbol: false,
+                    yAxisIndex: 1,
+                    data: ciData,
+                    lineStyle: { color: ciColor, width: 2 },
+                    itemStyle: { color: ciColor },
+                    connectNulls: false,
+                });
+            }
+
+            const showLeft = !!(show.temp || show.dew);
+            const showRight = !!(show.hum || show.ci);
+            const showAh = !!show.ah;
+            const compact = this._climateFsIsCompactWidth();
+            const shortLand = this._climateFsIsShortLandscape();
+            const labelFs = compact || shortLand ? 9 : 11;
+            // Units live on legend checkboxes; hide axis name titles on narrow phones to reclaim width
+            const showAxisNames = !compact;
+            const rightAxes = (showRight ? 1 : 0) + (showAh ? 1 : 0);
+            const leftGrid = compact ? (showLeft ? 32 : 12) : (showLeft ? 48 : 24);
+            const rightPerAxis = compact ? 28 : 40;
+            const rightGrid = rightAxes > 0 ? rightAxes * rightPerAxis + (compact ? 4 : 8) : (compact ? 12 : 24);
+            const bottomGrid = shortLand ? 48 : (compact ? 56 : 72);
+            const topGrid = shortLand ? 8 : 16;
+            const ciName = this.climateFsCiSeriesName;
+
+            const opt = {
+                backgroundColor: "transparent",
+                animation: soft ? false : true,
+                legend: { show: false },
+                tooltip: {
+                    trigger: "axis",
+                    formatter: (params) => {
+                        if (!Array.isArray(params) || !params.length) return "";
+                        const t = params[0].axisValue;
+                        const head = new Date(t).toLocaleString("en-GB", {
+                            timeZone: "Europe/Brussels",
+                        });
+                        const lines = [head];
+                        for (const p of params) {
+                            if (p == null || p.data == null) continue;
+                            const val = Array.isArray(p.data) ? p.data[1] : p.value;
+                            if (val == null || !Number.isFinite(Number(val))) continue;
+                            if (p.seriesName === ciName && Array.isArray(p.data) && p.data[2] != null) {
+                                const cat = this._comfortCategoryFromTd(p.data[2]);
+                                const pct = Math.round(Number(val));
+                                lines.push(`${p.marker}${p.seriesName}: ${cat} — ${pct}%`);
+                            } else {
+                                const unit = p.seriesName === "Absolute humidity" ? " g/m³"
+                                    : (p.seriesName === "Humidity" || p.seriesName === ciName) ? " %"
+                                        : " °C";
+                                const n = Number(val);
+                                const shown = p.seriesName === ciName
+                                    ? String(Math.round(n))
+                                    : String(n);
+                                lines.push(`${p.marker}${p.seriesName}: ${shown}${unit}`);
+                            }
+                        }
+                        return lines.join("<br/>");
+                    },
+                },
+                grid: { left: leftGrid, right: rightGrid, top: topGrid, bottom: bottomGrid },
+                xAxis: {
+                    type: "time",
+                    axisLabel: { color: "#9ca3af", hideOverlap: true, fontSize: labelFs },
+                    splitLine: { show: false },
+                },
+                yAxis: [
+                    {
+                        type: "value",
+                        name: showAxisNames && showLeft ? "°C" : "",
+                        show: showLeft,
+                        nameTextStyle: { color: "#eab308", fontSize: labelFs },
+                        axisLabel: { color: "#eab308", fontSize: labelFs, margin: compact ? 4 : 8 },
+                        splitLine: { lineStyle: { color: "#374151" } },
+                    },
+                    {
+                        type: "value",
+                        name: showAxisNames && showRight ? "%" : "",
+                        show: showRight,
+                        position: "right",
+                        offset: 0,
+                        nameTextStyle: { color: "#9ca3af", fontSize: labelFs },
+                        axisLabel: { color: "#9ca3af", fontSize: labelFs, margin: compact ? 4 : 8 },
+                        splitLine: { show: false },
+                    },
+                    {
+                        type: "value",
+                        name: showAxisNames && showAh ? "g/m³" : "",
+                        show: showAh,
+                        position: "right",
+                        offset: showRight ? (compact ? 28 : 44) : 0,
+                        nameTextStyle: { color: this._climateFsSeriesColor("ah"), fontSize: labelFs },
+                        axisLabel: {
+                            color: this._climateFsSeriesColor("ah"),
+                            fontSize: labelFs,
+                            margin: compact ? 4 : 8,
+                        },
+                        splitLine: { show: false },
+                    },
+                ],
+                series,
+            };
+
+            // Inherit inline day pan when hard-open; soft refresh keeps overlay zoom / live pin
+            let saved = null;
+            if (soft && wanosClimateFsChart) {
+                saved = this._captureSlidingDayZoom(chart);
+            } else {
+                saved = this._captureSlidingDayZoom(wanosHistoryCharts.day);
+            }
+            this._applySlidingDayTimeWindow(
+                opt,
+                this._retentionDaysFromPayload(dayData),
+                saved,
+                { sliderBottom: shortLand ? 4 : 28, sliderHeight: shortLand ? 14 : 18 }
+            );
+
+            this._pinSoftSeriesIds(opt);
+            if (soft) {
+                chart.setOption(opt, { notMerge: false, replaceMerge: ["series", "dataZoom", "yAxis"] });
+            } else {
+                chart.setOption(opt, true);
+                chart.resize();
+            }
+            this._bindHistoryYSnap(chart, [
+                { axisIndex: 0, step: 5 },
+                { axisIndex: 1, step: 10 },
+                { axisIndex: 2, step: 1 },
+            ].filter((a) => {
+                if (a.axisIndex === 0) return showLeft;
+                if (a.axisIndex === 1) return showRight;
+                return showAh;
+            }));
+            this._bindDayWindowSubtitle(chart, "historyDaySubtitle");
+        },
+
+        /** C24: CSV export of full hires_days buffer (five columns). */
+        exportClimateFullscreenCsv() {
+            const dayData = this.historyDayClimateData;
+            if (!dayData) return;
+            const rows = this._climateDayDerivedRows(dayData);
+            const esc = (v) => {
+                if (v == null || v === "") return "";
+                const s = String(v);
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+            };
+            const lines = ["timestamp_iso,temperature_c,humidity_pct,dew_point_c,absolute_humidity_gm3,feels_like_humidity_pct"];
+            for (const r of rows) {
+                const iso = new Date(r.t).toISOString();
+                lines.push([
+                    esc(iso),
+                    esc(r.temp),
+                    esc(r.hum),
+                    esc(r.dew),
+                    esc(r.ah),
+                    esc(r.ci != null ? Math.round(Number(r.ci)) : ""),
+                ].join(","));
+            }
+            const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            const days = this._retentionDaysFromPayload(dayData);
+            const idx = dayData.idx != null ? dayData.idx : "climate";
+            a.href = url;
+            a.download = `wanos-climate-${idx}-${days}d.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         },
 
         /**
@@ -3265,9 +4097,9 @@ function wanosApp() {
             const hostUnit = dayData?.unit || monthData?.unit || "";
 
             this.historyDayTitle = isClimate
-                ? "Temperature / humidity last 24 hours"
-                : (isHost ? `Value last 24 hours (${hostUnit})`
-                    : (isWater ? "Cold / hot water last 24 hours" : "Usage last 24 hours"));
+                ? "Temperature / humidity day window"
+                : (isHost ? `Value day window (${hostUnit})`
+                    : (isWater ? "Cold / hot water day window" : "Usage day window"));
             this.historyMonthTitle = isClimate
                 ? "Temperature / humidity last month"
                 : (isHost ? `Min / max last month (${hostUnit})`
@@ -3277,13 +4109,23 @@ function wanosApp() {
                 : (isHost ? `Min / max last year (${hostUnit})`
                     : (isWater ? "Cold / hot water last year" : "Usage last year"));
 
+            this.historyDayRetentionDays = this._retentionDaysFromPayload(dayData);
+            if (isClimate) {
+                this.historyDayClimateData = dayData;
+            }
+
             const zoomByKey = soft
                 ? {
-                    day: this._captureChartDataZoom(wanosHistoryCharts.day),
+                    day: isWater
+                        ? this._captureChartDataZoom(wanosHistoryCharts.day)
+                        : this._captureSlidingDayZoom(wanosHistoryCharts.day),
                     month: this._captureChartDataZoom(wanosHistoryCharts.month),
                     year: this._captureChartDataZoom(wanosHistoryCharts.year),
                 }
                 : {};
+            if (!soft) {
+                this.historyDaySubtitle = "";
+            }
 
             // Hard open/switch: unmount so empty titles cannot linger.
             // Soft auto-refresh: keep DOM + ECharts instances (avoids flicker).
@@ -3350,6 +4192,9 @@ function wanosApp() {
                         this.historyChartHasData.year = false;
                     }
                     this._syncHistoryHasFlags();
+                    if (this.climateFsOpen) {
+                        this._renderClimateFullscreenChart({ soft: true });
+                    }
                     return;
                 }
 
@@ -3359,7 +4204,10 @@ function wanosApp() {
 
                 if (dayChart && this.historyChartHasData.day) {
                     if (isWater) {
-                        this._renderWaterChart(dayChart, dayData, "day", { soft });
+                        this._renderWaterChart(dayChart, dayData, "day", {
+                            soft,
+                            savedZoom: zoomByKey.day,
+                        });
                     } else {
                         const opt = this._baseChartOption(yLabel);
                         opt.series = [{
@@ -3371,8 +4219,11 @@ function wanosApp() {
                             areaStyle: { color: "rgba(45,212,191,0.08)" },
                             connectNulls: false
                         }];
-                        this._applyTimeWindow(opt, 24 * 60 * 60 * 1000);
-                        this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
+                        this._applySlidingDayTimeWindow(
+                            opt, this.historyDayRetentionDays, zoomByKey.day
+                        );
+                        this._setHistoryChartOption(dayChart, opt, null, { soft });
+                        this._bindDayWindowSubtitle(dayChart, "historyDaySubtitle");
                         const step = this._ySnapStepForUnit(snapUnit, "day");
                         if (step) this._bindHistoryYSnap(dayChart, [{ axisIndex: 0, step }]);
                     }
@@ -3467,7 +4318,14 @@ function wanosApp() {
             const d = new Date(t);
             const tz = "Europe/Brussels";
             if (range === "day") {
-                return d.toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit", timeZone: tz });
+                // C16: water day buffer spans hires_days — include day when not today
+                return d.toLocaleString("nl-BE", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: tz,
+                });
             }
             if (range === "month") {
                 return d.toLocaleDateString("nl-BE", { day: "numeric", month: "short", timeZone: tz });
@@ -3763,8 +4621,9 @@ function wanosApp() {
         /**
          * Water consumption: category axis (one slot per hour/day/month bucket).
          * Time axis + bar charts mis-render sparse buckets as solid slabs.
+         * C16 day: pan over hires_days hours with max 24 h viewport.
          */
-        _renderWaterChart(chart, data, range, { soft = false } = {}) {
+        _renderWaterChart(chart, data, range, { soft = false, savedZoom = null } = {}) {
             if (!chart) return;
             const { labels, coldVals, hotVals } = this._buildWaterChartPayload(data, range);
             if (!labels.length) return;
@@ -3820,7 +4679,16 @@ function wanosApp() {
                     }
                 ]
             };
-            // C5: snap liters axis (no time dataZoom on category water charts)
+            if (range === "day") {
+                // Soft refresh: treat end≈100% as live pin to newest hours
+                let waterSaved = savedZoom;
+                if (waterSaved && waterSaved.end != null && Number(waterSaved.end) >= 98) {
+                    waterSaved = Object.assign({}, waterSaved, { live: true });
+                }
+                this._applyWaterDaySlidingZoom(opt, labels.length, waterSaved);
+                opt.grid = { left: 48, right: 24, top: 24, bottom: 72 };
+            }
+            // C5: snap liters axis
             const step = this._ySnapStepForUnit("L", range);
             if (step) {
                 const peak = Math.max(0, ...coldVals.map(Number), ...hotVals.map(Number));
@@ -3829,6 +4697,44 @@ function wanosApp() {
                 opt.yAxis.interval = step;
             }
             this._setHistoryChartOption(chart, opt, null, { soft });
+            if (range === "day") {
+                this._bindWaterDaySubtitle(chart, labels);
+                if (step) this._bindHistoryYSnap(chart, [{ axisIndex: 0, step }]);
+            }
+        },
+
+        /**
+         * C16: from/to subtitle for water day category zoom (hour labels).
+         * @param {Object} chart
+         * @param {string[]} labels
+         */
+        _bindWaterDaySubtitle(chart, labels) {
+            if (!chart || !labels || !labels.length) return;
+            const key = "_wanosWaterSubtitleHandler";
+            if (chart[key]) {
+                try { chart.off("datazoom", chart[key]); } catch (e) { /* ignore */ }
+            }
+            const handler = () => {
+                const raw = this._captureChartDataZoom(chart);
+                if (!raw || labels.length <= 0) {
+                    this.historyDaySubtitle = "";
+                    return;
+                }
+                const n = labels.length;
+                const startIdx = Math.round((Number(raw.start) / 100) * (n - 1));
+                const endIdx = Math.round((Number(raw.end) / 100) * (n - 1));
+                const live = Number(raw.end) >= 98;
+                if (live) {
+                    this.historyDaySubtitle = "";
+                    return;
+                }
+                const a = labels[Math.max(0, Math.min(n - 1, startIdx))] || "";
+                const b = labels[Math.max(0, Math.min(n - 1, endIdx))] || "";
+                this.historyDaySubtitle = a && b ? `${a} → ${b}` : "";
+            };
+            chart[key] = handler;
+            chart.on("datazoom", handler);
+            handler();
         },
 
         _climateDualAxisOption(seriesCount) {
@@ -3892,19 +4798,23 @@ function wanosApp() {
             if (dayChart) {
                 // C5: day climate — smooth curves (no step stairs)
                 // C12: frost when temp < dew — red + thicker (width 4); RH/dew unchanged
+                // Gap break: only when >3× sample interval (more than 2 missed samples)
+                const gapMs = this._climateSampleGapBreakMs(dayData);
                 const tempPts = dayData?.series?.temp;
                 const humPts = showHum ? dayData?.series?.hum : null;
                 const frostSplit = showHum
                     ? this._tempSeriesWithFrost(tempPts, humPts)
                     : { warm: this._pointsToSeries(tempPts), frost: [] };
-                const hasFrost = (frostSplit.frost || []).some(row => row && row[1] != null);
+                const warmData = this._breakLineOnSampleGap(frostSplit.warm, gapMs);
+                const frostData = this._breakLineOnSampleGap(frostSplit.frost, gapMs);
+                const hasFrost = (frostData || []).some(row => row && row[1] != null);
                 const series = [{
                     name: "Temperature",
                     type: "line",
                     smooth: true,
                     showSymbol: false,
                     yAxisIndex: 0,
-                    data: frostSplit.warm,
+                    data: warmData,
                     lineStyle: { color: "#eab308", width: 2 },
                     itemStyle: { color: "#eab308" },
                     connectNulls: false
@@ -3916,7 +4826,7 @@ function wanosApp() {
                         smooth: true,
                         showSymbol: false,
                         yAxisIndex: 0,
-                        data: frostSplit.frost,
+                        data: frostData,
                         lineStyle: { color: "#ef4444", width: 4 },
                         itemStyle: { color: "#ef4444" },
                         connectNulls: false,
@@ -3931,12 +4841,14 @@ function wanosApp() {
                         smooth: true,
                         showSymbol: false,
                         yAxisIndex: 1,
-                        data: this._pointsToSeries(humPts),
+                        data: this._breakLineOnSampleGap(this._pointsToSeries(humPts), gapMs),
                         lineStyle: { color: "#22c55e", width: 2 },
                         connectNulls: false
                     });
                     // C5: dew only when humidity present (Sonntag Magnus)
-                    const dew = this._dewSeriesFromTempHum(tempPts, humPts);
+                    const dew = this._breakLineOnSampleGap(
+                        this._dewSeriesFromTempHum(tempPts, humPts), gapMs
+                    );
                     if (dew.length) {
                         series.push({
                             name: "Dew point",
@@ -3962,8 +4874,15 @@ function wanosApp() {
                     }
                     opt.legend = Object.assign({}, opt.legend, { data: legendNames });
                 }
-                this._applyClimateTimeWindow(opt, 24 * 60 * 60 * 1000);
-                this._setHistoryChartOption(dayChart, opt, zoomByKey.day, { soft });
+                const many = (opt.series || []).length > 2;
+                this._applySlidingDayTimeWindow(
+                    opt,
+                    this._retentionDaysFromPayload(dayData),
+                    zoomByKey.day,
+                    { sliderBottom: many ? 6 : 22, sliderHeight: 14 }
+                );
+                this._setHistoryChartOption(dayChart, opt, null, { soft });
+                this._bindDayWindowSubtitle(dayChart, "historyDaySubtitle");
                 this._bindHistoryYSnap(dayChart, climateSnap(showHum));
             }
 

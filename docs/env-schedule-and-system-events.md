@@ -193,3 +193,62 @@ Restore any user scene incorrectly retargeted onto Sunset (e.g. **GoCosy** must 
 - [x] Evening skip: sunset ≥ evening-off → schedule **neither** evening edge (mirror morning) — **B10F** ✅ with fire-status API
 
 Shipped in **B10E** with B10B+D. Detail DoD: [`phaseB-blocky.md`](todo/phaseB-blocky.md) § B10E. Evening skip + Automations fire-status + SR name bind → § **B10F** ✅.
+
+---
+
+## 9. Dew likelihood % (C25 — locked; not shipped until C25)
+
+Explorer History **fullscreen day overlay** only (OWM / outside climate). Honest **heuristic index 0–100**, not a meteorological probability. Indoor sensors: no series.
+
+**Why it lives here:** the **night gate** uses the same OWM **sunrise / sunset** as the environmental schedule (`SUNRISE_SUNSET_UPDATE`). Daytime → score **0**.
+
+### Qualitative intent (operator 2026-08-16)
+
+| Factor | Effect |
+|---|---|
+| Night (after sunset, before sunrise) | Required; else ~0 |
+| Small **T − Td** (air near saturation) | Higher |
+| Low cloud cover | Higher (stronger radiative cooling) |
+| Light wind | Higher (less mixing) |
+| Rain / drizzle **now** | Force **0** (wet from rain, not dew) |
+
+### Numeric formula (locked 2026-08-23)
+
+Computed at each OWM **Current 2.5** climate poll. **Storage B:** only the resulting **score** is written to `sensor_samples` (unit e.g. `dew%` on the OWM climate idx). Raw clouds / wind / rain are **not** retained in history.
+
+**Inputs**
+
+| Symbol | Source |
+|---|---|
+| `T` | OWM `main.temp` (°C), same as stored climate temp |
+| `RH` | OWM `main.humidity` (%) |
+| `Td` | Sonntag Magnus dew point from **T + RH** (same as Explorer C5 / C24) |
+| `clouds` | OWM `clouds.all` (0–100) |
+| `wind_ms` | OWM `wind.speed` (m/s) |
+| `raining` | True if current weather indicates rain/drizzle (OWM `weather` / `rain`) |
+| `is_night` | Local time after **sunset** and before **sunrise** (last `SUNRISE_SUNSET_UPDATE`) |
+
+**Algorithm**
+
+```
+clamp(x, lo, hi) = min(hi, max(lo, x))
+
+if raining or not is_night:
+    score = 0
+else:
+    dT = max(0, T - Td)                    # dew-point depression °C
+    sat   = clamp(1 - dT / 4, 0, 1)         # 1 at dT=0; 0 at dT ≥ 4 °C
+    clear = clamp(1 - clouds / 100, 0, 1)   # 1 at clear; 0 at overcast
+    calm  = clamp(1 - wind_ms / 5, 0, 1)    # 1 at calm; 0 at ≥ 5 m/s
+    score = round(100 * (0.50 * sat + 0.30 * clear + 0.20 * calm))
+```
+
+**Weights / scales (why)**
+
+* **50% saturation (`sat`):** primary signal — air already close to condensation.
+* **30% clear sky (`clear`):** cloud blocks long-wave cooling of grass/cars.
+* **20% calm (`calm`):** wind mixes warmer air onto the surface.
+* **4 °C** depression span and **5 m/s** wind span: simple linear falloffs; not calibrated to this site.
+* **Rain → 0:** separates dew from precipitation wetness.
+
+**UI (C25):** sixth overlay checkbox **Dew likelihood %** (default on), right **%** axis, CSV column. Compare mode unchecks specials (AH / CI / dew likelihood); clear compare leaves primary checkboxes unchanged. Detail: [`phaseC-shell.md`](todo/phaseC-shell.md) § C25.

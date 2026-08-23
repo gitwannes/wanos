@@ -80,7 +80,7 @@ Industry-aligned rollup: high-resolution samples → hourly → daily → derive
 
 | Tier | Table (proposed) | Contents | Retention | Primary UI use |
 |------|------------------|----------|------------|----------------|
-| **Hi-res** | `sensor_samples` | `(idx, ts, value, unit)` — W for power; L step markers optional for water | **7 days**, then cull | Day chart buffer: full **`hires_days`** hi-res; **24 h viewport** pannable (**C16** 🔜). Today: API returns last 24 h only. |
+| **Hi-res** | `sensor_samples` | `(idx, ts, value, unit)` — W for power; L step markers optional for water | **7 days**, then cull | Day chart buffer: full **`hires_days`** hi-res; **24 h viewport** pannable (**C16 ✅**). |
 | **Hourly** | `sensor_hourly` | Per IDX/hour: `w_min`, `w_max`, `w_avg`, `wh` or `liters`, `incomplete` flag | **31 days**, then cull | Drill-down; backup if hi-res thin |
 | **Daily** | `sensor_daily` | Per IDX/local-date: min/max/avg W (power); `wh` or `liters` consumed; counter snapshots; `incomplete` | **1 year**, then cull | Month chart (min/max W); consumption bars |
 | **Month / year / total** | *(derived)* | Month/year = aggregate of daily; total = NVRAM counter (cross-check vs sum of daily when complete) | N/A | Year chart; summary tiles |
@@ -157,8 +157,7 @@ When WanOS was offline (or samples missing) but counters advanced:
 Device selector, then three stacked panels:
 
 1. **Day — 24 hour window (pannable over hi-res retention)**  
-   **Shipped today:** series from last 24 h only; axis fixed to that window.  
-   **C16 (planned):** API returns all hi-res samples within **`history.retention.hires_days`** (default 7). Chart shows a **fixed max 24 h viewport** (zoom-in allowed, not wider); user **pans** the window back to oldest retained hi-res. Default viewport = most recent 24 h. Applies to climate / power / host hi-res and actuator `device_events` day charts. Water day (hourly bars) — assess at **C16** kickoff.
+   **C16 ✅:** API returns all hi-res samples within **`history.retention.hires_days`** (default 7), plus optional `retention_days` / `default_window_hours`. Chart **defaults** to the most recent **24 h**; user may **zoom out** to the full retention window or **pan** across the buffer. Soft refresh preserves pan or live-pins to now. Applies to climate / power / host hi-res and actuator `device_events` day charts. **Water day:** hourly bars over **`hires_days`** with the same 24 h pan UX.
 
 2. **Month — “Usage last month”**  
    Series: **Usage min** and **Usage max** (Watt) per day from `sensor_daily`.
@@ -188,7 +187,7 @@ All routes require admin authentication.
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/history/sensors` | List trackable IDXs, labels, series kinds |
-| `GET` | `/api/history/{idx}?range=day\|month\|year` | Chart series for selected range. **`range=day` today:** last 24 h hi-res. **C16:** `range=day` returns full **`hires_days`** buffer (FE applies 24 h viewport). |
+| `GET` | `/api/history/{idx}?range=day\|month\|year` | Chart series for selected range. **`range=day` (C16 ✅):** full **`hires_days`** buffer (FE applies 24 h viewport). Day responses may include `retention_days` / `default_window_hours` / `climate_max_interval_secs` / **`climate_sample_interval_secs`** (FE gap-break = **3 × sample interval** — break only when more than 2 samples are missing; OWM = poll interval, else history max-interval). |
 | `GET` | `/api/history/{idx}/summary` | today / month / year / total |
 | `GET` | `/api/history/sessions?type=sauna\|ir&limit=&offset=` | Paginated session history |
 
@@ -288,7 +287,7 @@ Every state/level change counts toward today / month averages.
 ### UI (Explorer → History on `deviceexplorer.html`)
 - List: Control inventory shared with History mode; **C10:** omit all `type === "scene"` catalog-event rows (logging still writes synthetic idxs; Control dashboard buttons unchanged).
 - Detail charts for **selected** actuator:
-  - **Day (C16 🔜):** same families as today; hi-res buffer = **`hires_days`**; **24 h max viewport**, pannable, zoom-in only
+  - **Day (C16 ✅):** same families as today; hi-res buffer = **`hires_days`**; **24 h max viewport**, pannable, zoom-in only; from/to subtitle when not live
   - **Binary** (switch / non-Hue light / door / …): day ON/OFF Y; month/year **duration ON** (**C12** ✅) — integer **minutes** / **hours** (1 decimal); clip; carry-in; open→now; Y snap ±10 min / ±1 h with ~5 tick labels
   - **Hue** + **Audio** (Sonos / Onkyo): day Level; month/year **duration ON** only (no Events, no Level min/max); same Y snap — **C12** ✅
   - **Level** (blinds): day Level step; month/year event counts + Level min/max
@@ -313,16 +312,47 @@ All `temp_hum` / `temp` sensors plus virtual **`20101` sauna temp** (0.7×20001 
 | Humidity deadband | 2 %RH |
 | Max interval | 300 s |
 
-Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate_daily` rollups. Outside (`30001` / OWM) samples arrive on `weather.poll_interval_mins` (**10** after **G3**; cold boot), then these deadband / max-interval rules.
+Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate_daily` rollups. Ingest runs on every successful poll/read; `note_climate_*` applies deadband + max-interval. When T/RH is unchanged, SHT11 and OWM still call history on each poll so **max-interval heartbeats** continue (stable rooms stay on the day chart; state/automation events remain change-only).
+Outside (`weather.idx` / OWM) polls on `weather.poll_interval_mins` (**10** after **G3**; cold boot). Day API sets **`climate_sample_interval_secs`** to that poll period for OWM (else `climate_max_interval_secs`) so FE gap-break matches source cadence.
 
 ### Charts (ECharts, Sensors list)
 | Range | Series |
 |-------|--------|
-| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16:** load **`hires_days`** hi-res; **24 h viewport**, pan/zoom-in. **C19 ✅:** 60s auto-refresh must not blank the plot. **C24 (queued, after C16):** temp/hum day **tab overlay** — AH + CI, 5 checkboxes, 3rd y-axis g/m³, **CSV** of full `hires_days` (not `.xls`). **C25 (queued, after C24):** overlay **Dew likelihood %** (OWM 2.5 clouds/wind heuristic; dew not rain). Month/year unchanged. |
+| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16 ✅:** load **`hires_days`** hi-res; default 24 h viewport, zoom-out to full retention; from/to subtitle when not live. **Gap break ✅:** day climate lines (inline + fullscreen) break when Δt &gt; **3 × `climate_sample_interval_secs`** (more than **2** missed samples: SHT11 default **15 min**; **OWM outside** default **30 min**) so empty time is not drawn as a value. **C19 ✅:** 60s auto-refresh must not blank the plot. **C24 ✅:** temp/hum day **tab overlay** — AH + **Feels-like humidity**, 5 checkboxes (+units), 3rd y-axis g/m³, frost on overlay temp, **CSV** of full `hires_days`; inherits inline pan; mobile compact chrome. **C25 (queued):** overlay **Dew likelihood %** + compare another temp(/hum). Month/year unchanged. |
 | Month | Daily **min/max** temp (+ hum when present); **no dew** (**C12**). |
 | Year | **Weekly** min/max (ISO week); **no dew** (**C12**). |
 
 Temp-only devices: humidity series hidden.
+
+### Day overlay (C24 ✅) — Absolute humidity + Feels-like humidity
+
+Button **Open detail in full screen** (temp/hum **day** only) opens a **tab overlay** (not F11). Inline day chart stays T + RH + dew (+ frost). Overlay-only: five checkboxes with units; inherit inline pan/zoom; CSV = full `hires_days` buffer; soft refresh keeps checkboxes + window.
+
+| Series | Axis | Notes |
+|--------|------|--------|
+| Temperature (°C) | left °C | Frost styling when temp &lt; dew (**C12**) |
+| Humidity (%) | right % | |
+| Dew point (°C) | left °C | FE Sonntag Magnus from paired T+RH (same as C5); never stored |
+| Absolute humidity (g/m³) | 3rd axis g/m³ | From T + Td; omit when Td missing |
+| Feels-like humidity (%) | right % | Comfort index from T + Td (below); tooltip band + integer % |
+
+**Absolute humidity (g/m³)** — from dew point `Td` and air temp `T` (shipped FE constants):
+
+```
+e = 6.112 * exp((17.67 * Td) / (Td + 243.5))
+AH = (216.7 * e) / (T + 273.15)
+```
+
+**Feels-like humidity (%)** (comfort index / CI):
+
+```
+CI_base = clamp(4.5 * Td - 30, 0, 100)
+CI = clamp(CI_base + 0.8 * (T - 20), 0, 100)
+```
+
+Band labels (by Td °C): &lt;10 Dry · 10–15 Comfortable · 15–18 Moderately humid · 18–21 Humid · 21–24 Very humid · &gt;24 Tropically humid. One CI line width; piecewise color by band.
+
+Omit Td / AH / Feels-like when T+RH are unpaired or invalid (same pairing rules as dew). Month/year: no overlay.
 
 ### Device Explorer
 IDX **20101** registered as `sauna temp` (`type: temp_hum`, origin `system`).
