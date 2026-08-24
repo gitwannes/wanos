@@ -584,6 +584,62 @@ class SensorHistoryManager:
         rt.last_seen_ts = now
         self._clear_boot_gap_flag_if_needed()
 
+    def note_climate_reading(
+        self, idx: int, temp: float, hum: Optional[float] = None
+    ) -> None:
+        """
+        Log paired T/RH when either series is due — always same timestamp.
+
+        Keeps dew / AH / Feels-like pairing honest (FE matches on ts).
+        Temp-only devices: pass hum=None → note_climate_temp only.
+        """
+        if idx is None:
+            return
+        try:
+            temp_f = float(temp)
+        except (TypeError, ValueError):
+            return
+        if hum is None:
+            self.note_climate_temp(idx, temp_f)
+            return
+        try:
+            hum_f = float(hum)
+        except (TypeError, ValueError):
+            self.note_climate_temp(idx, temp_f)
+            return
+
+        self._climate_idxs.add(int(idx))
+        now = time.time()
+        rt = self._climate_rt(idx)
+        temp_due = (
+            rt.last_climate_temp is None
+            or abs(temp_f - rt.last_climate_temp) >= self.climate_temp_deadband
+            or (now - rt.last_climate_temp_ts) >= self.climate_max_interval
+        )
+        hum_due = (
+            rt.last_climate_hum is None
+            or abs(hum_f - rt.last_climate_hum) >= self.climate_hum_deadband
+            or (now - rt.last_climate_hum_ts) >= self.climate_max_interval
+        )
+        if not temp_due and not hum_due:
+            return
+
+        ts = int(now)
+        self._enqueue_sample(idx, ts, temp_f, "C")
+        self._enqueue_sample(idx, ts, hum_f, "%")
+        ch = self._get_climate_hour(idx)
+        cd = self._get_climate_day(idx)
+        ch.note_temp(temp_f)
+        cd.note_temp(temp_f)
+        ch.note_hum(hum_f)
+        cd.note_hum(hum_f)
+        rt.last_climate_temp = temp_f
+        rt.last_climate_temp_ts = now
+        rt.last_climate_hum = hum_f
+        rt.last_climate_hum_ts = now
+        rt.last_seen_ts = now
+        self._clear_boot_gap_flag_if_needed()
+
     def _enqueue_sample(self, idx: int, ts: int, value: float, unit: str) -> None:
         self._sample_queue.append((idx, ts, float(value), unit))
         if len(self._sample_queue) >= self.MAX_QUEUE_SIZE:

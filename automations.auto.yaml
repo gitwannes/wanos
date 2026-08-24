@@ -939,7 +939,7 @@ automations:
           - entity_id: zwave.vent.badk_1e
             state: 'OFF'
     id: a7c4e8f2-3b6d-4e91-9c0a-5f1d8e2b4c73
-  - name: cinema-warm
+  - name: Cinema warm -> rolluik half
     enabled: true
     branches:
       - when: if

@@ -5,7 +5,7 @@ from typing import List, Optional, Any, Tuple
 
 from core.models import Event, EventType, SystemState, device_name, device_entity_id, format_device_ref as core_format_device_ref
 from core.config import load_config
-from core.logger import automation_logger  # explicitly isolated logger for logic rules
+from core.logger import automation_logger, iwhw_logger  # isolated automation + IWHW ledger loggers
 from core.event_catalog import to_bus_token, legacy_key_for_bus_token
 from core.auto_off_policy import resolve_auto_off_minutes
 from core.well_known_entities import (
@@ -967,6 +967,9 @@ class AutomationEngine:
                         f'[Automation] Rule "{AutomationEngine.format_rule_name(rule)}" '
                         f"fired (trigger: {trigger_label})"
                     )
+                    # IWHW ledger: one run line per fired YAML rule (name only; timestamp from sink).
+                    rule_name: str = getattr(rule, "name", None) or "?"
+                    iwhw_logger.info(f"AUTOMATION RUN | {rule_name}")
                     automation_logger.debug(
                         f"[X-RAY] -> Conditions MET for {AutomationEngine.format_rule_ref(rule)}. Parsing actions..."
                     )

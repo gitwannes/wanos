@@ -124,7 +124,7 @@ def setup_wanos_logging() -> None:
         filter=lambda record: record["extra"].get("is_automation", False)
     )
 
-    # 5. Sink 4: IWHW (Ik Wil Het Weten) Ledger (State Transition Log)
+    # 5. Sink 4: IWHW (Ik Wil Het Weten) Ledger (state transitions + automation-run lines)
     # The format string relies purely on the message payload to guarantee bulletproof column rendering.
     sys_logger.add(
         f"{log_dir}/wanos_iwhw.log",

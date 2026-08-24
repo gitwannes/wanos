@@ -1107,9 +1107,12 @@ class StateManager:
                         new_20101["hum"] = prev_20101["hum"]
                     self._state.devices[SAUNA_CALC_IDX] = new_20101
                     if hasattr(self, "sensor_history"):
-                        self.sensor_history.note_climate_temp(SAUNA_CALC_IDX, calc_t)
                         if calc_h is not None:
-                            self.sensor_history.note_climate_hum(SAUNA_CALC_IDX, float(calc_h))
+                            self.sensor_history.note_climate_reading(
+                                SAUNA_CALC_IDX, calc_t, float(calc_h)
+                            )
+                        else:
+                            self.sensor_history.note_climate_temp(SAUNA_CALC_IDX, calc_t)
 
                     state_changed = True
                     changed_domains.add("sensors")

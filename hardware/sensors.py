@@ -3,6 +3,7 @@ import asyncio
 from typing import Dict, Any
 from core.models import Event, EventType, format_device_ref
 from core.state_manager import StateManager
+from logic.history_ids import SAUNA_CALC_IDX
 
 try:
     import RPi.GPIO as GPIO
@@ -101,11 +102,33 @@ class HardwareSensors:
                                 self.state_manager.dispatch(Event(type=EventType.HUMIDITY_UPDATED,
                                                                   payload={"idx": node.idx, "value": final_hum}))
                             elif hasattr(self.state_manager, "sensor_history"):
-                                # Stable T/RH: still feed history so max-interval heartbeats
-                                # land in DB (day charts stay continuous; automations unchanged).
-                                hist = self.state_manager.sensor_history
-                                hist.note_climate_temp(node.idx, final_temp)
-                                hist.note_climate_hum(node.idx, final_hum)
+                                # Stable T/RH: paired heartbeat (same ts for dew pairing).
+                                self.state_manager.sensor_history.note_climate_reading(
+                                    node.idx, final_temp, final_hum
+                                )
+
+                                # Reconcile sauna composite history (virtual idx 20101).
+                                # The composite is normally updated only when TEMP/HUMIDITY events are dispatched,
+                                # but stable heartbeat reads bypass those events.
+                                if node.idx in [20001, 20002]:
+                                    high = last_readings.get(20001)
+                                    low = last_readings.get(20002)
+                                    if (
+                                        isinstance(high, tuple)
+                                        and isinstance(low, tuple)
+                                        and len(high) == 2
+                                        and len(low) == 2
+                                    ):
+                                        t_high, h_high = high
+                                        t_low, _h_low = low
+                                        try:
+                                            calc_t = round((float(t_high) * 0.7) + (float(t_low) * 0.3), 1)
+                                            calc_h = int(float(h_high))
+                                            self.state_manager.sensor_history.note_climate_reading(
+                                                SAUNA_CALC_IDX, calc_t, float(calc_h)
+                                            )
+                                        except (TypeError, ValueError):
+                                            pass
 
                     except Exception as e:
                         # ⚡ STATE-CHANGE LOGGING: Only log on initial boot or failure transition

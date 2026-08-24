@@ -288,7 +288,7 @@ function wanosApp() {
         historyDayRetentionDays: 7,
         // C24: temp/hum day fullscreen overlay
         climateFsOpen: false,
-        climateFsShow: { temp: true, hum: true, dew: true, ah: true, ci: true },
+        climateFsShow: { temp: true, hum: true, dew: true, ah: false, ci: true },
         climateFsCiHelpOpen: false,
         historyDayClimateData: null,
         actuatorList: [],

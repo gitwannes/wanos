@@ -283,7 +283,9 @@ async def handle_temp_updated(event: Event, manager: Any) -> Tuple[bool, Set[str
             changed_domains.add("devices")
 
     if hasattr(manager, "sensor_history") and idx is not None:
-        manager.sensor_history.note_climate_temp(idx, float(val))
+        meta = (manager._state.device_metadata or {}).get(idx) or {}
+        if meta.get("type") != "temp_hum":
+            manager.sensor_history.note_climate_temp(idx, float(val))
 
     return state_changed, changed_domains
 
@@ -325,7 +327,14 @@ async def handle_humidity_updated(event: Event, manager: Any) -> Tuple[bool, Set
             changed_domains.add("devices")
 
     if hasattr(manager, "sensor_history") and idx is not None:
-        manager.sensor_history.note_climate_hum(idx, float(val))
+        dev = manager._state.devices.get(idx)
+        temp = dev.get("temp") if isinstance(dev, dict) else None
+        if temp is not None:
+            manager.sensor_history.note_climate_reading(
+                idx, float(temp), float(val)
+            )
+        else:
+            manager.sensor_history.note_climate_hum(idx, float(val))
 
     return state_changed, changed_domains
 

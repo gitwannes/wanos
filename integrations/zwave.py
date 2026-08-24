@@ -29,6 +29,10 @@ class ZWaveJSUIBridge(WanosComponent):
         # Debounce Tracker for MQTT Heartbeats
         self._last_heartbeat_processed: float = 0.0
 
+        # Stable temperature/history heartbeat for Z-Wave temp probes.
+        # Without this, day charts show islands whenever the Z-Wave JS UI only reports on-change.
+        self._temp_heartbeat_task: asyncio.Task | None = None
+
     @property
     def mqtt_prefix(self) -> str:
         """Dynamically pulls the MQTT prefix from config (defaults to 'zwave')"""
@@ -46,6 +50,9 @@ class ZWaveJSUIBridge(WanosComponent):
 
         # Listen to internal state changes to detect when the USB stick is plugged in
         self.state_manager.register_listener(self._on_state_changed)
+
+        # Background loop: mimic SHT11 stable read cadence (60s normally, 10s while sauna is active).
+        self._temp_heartbeat_task = asyncio.create_task(self._zwave_temp_heartbeat_loop())
 
         await self.logger.info(
             f"[Z-Wave] Bridge in Silent Standby. Prefix '{self.mqtt_prefix}'. Waiting for hardware detection.")
@@ -79,6 +86,68 @@ class ZWaveJSUIBridge(WanosComponent):
 
     async def stop(self) -> None:
         await self.logger.warning("[Z-Wave] Z-Wave Bridge stopped.")
+        if self._temp_heartbeat_task:
+            self._temp_heartbeat_task.cancel()
+            try:
+                await self._temp_heartbeat_task
+            except asyncio.CancelledError:
+                pass
+            self._temp_heartbeat_task = None
+
+    async def _zwave_temp_heartbeat_loop(self) -> None:
+        """
+        Z-Wave JS UI often emits temperature only on-change (not on a fixed interval).
+        To keep WanOS climate day charts continuous, we write history on a stable cadence
+        using the *last known* sensor values from RAM, as long as the node is not marked DEAD.
+        """
+        try:
+            while True:
+                sm = self.state_manager
+                sys = sm._state.system
+
+                # Mimic SHT11: poll faster while sauna is active.
+                sleep_cadence: float = 10.0 if sys.sauna.active else 60.0
+                await asyncio.sleep(sleep_cadence)
+
+                # Skip when Z-Wave data plane is frozen/offline.
+                if not getattr(sys, "zwave_data_alive", False) or not getattr(sys, "zwave_integration_enabled", False):
+                    continue
+                if not hasattr(sm, "sensor_history"):
+                    continue
+
+                # Temperature probes are mapped into 76xxx as temp_hum nodes.
+                for idx, meta in (sm._state.device_metadata or {}).items():
+                    try:
+                        idx_int = int(idx)
+                    except (TypeError, ValueError):
+                        continue
+                    if meta.get("origin") != "zwave":
+                        continue
+                    if not (76000 <= idx_int < 77000):
+                        continue
+
+                    dev = sm._state.devices.get(idx_int)
+                    if dev == "DEAD":
+                        continue
+                    if not isinstance(dev, dict):
+                        continue
+
+                    temp = dev.get("temp")
+                    if temp is None:
+                        continue
+
+                    # If humidity exists, heartbeat as a paired reading to keep dew/AH alignment honest.
+                    hum = dev.get("hum")
+                    try:
+                        if hum is None:
+                            sm.sensor_history.note_climate_temp(idx_int, float(temp))
+                        else:
+                            sm.sensor_history.note_climate_reading(idx_int, float(temp), float(hum))
+                    except (TypeError, ValueError):
+                        continue
+
+        except asyncio.CancelledError:
+            return
 
     async def _parse_inbound(self, topic: str, payload: str) -> None:
         """Parses physical sensor updates coming from the Z-Wave JS UI MQTT Broker"""

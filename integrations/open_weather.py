@@ -92,9 +92,9 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
                                 f"[OWM] Climate ignored (duplicate: already {temp}°C, {hum}%)"
                             )
                             if hasattr(state_manager, "sensor_history"):
-                                hist = state_manager.sensor_history
-                                hist.note_climate_temp(climate_idx, temp)
-                                hist.note_climate_hum(climate_idx, hum)
+                                state_manager.sensor_history.note_climate_reading(
+                                    climate_idx, temp, hum
+                                )
                         else:
                             last_temp = temp
                             last_hum = hum

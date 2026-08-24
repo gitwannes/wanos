@@ -312,7 +312,7 @@ All `temp_hum` / `temp` sensors plus virtual **`20101` sauna temp** (0.7×20001 
 | Humidity deadband | 2 %RH |
 | Max interval | 300 s |
 
-Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate_daily` rollups. Ingest runs on every successful poll/read; `note_climate_*` applies deadband + max-interval. When T/RH is unchanged, SHT11 and OWM still call history on each poll so **max-interval heartbeats** continue (stable rooms stay on the day chart; state/automation events remain change-only).
+Stored in `sensor_samples` (`unit` = `C` / `%`) with `climate_hourly` / `climate_daily` rollups. Ingest runs on every successful poll/read; `note_climate_*` applies deadband + max-interval. **`note_climate_reading`** (temp+hum devices): when **either** series is due, **both** are written at the **same timestamp** so dew / AH / Feels-like can pair on `ts`. When T/RH is unchanged, SHT11 and OWM still call history on each poll so **max-interval heartbeats** continue (stable rooms stay on the day chart; state/automation events remain change-only).
 Outside (`weather.idx` / OWM) polls on `weather.poll_interval_mins` (**10** after **G3**; cold boot). Day API sets **`climate_sample_interval_secs`** to that poll period for OWM (else `climate_max_interval_secs`) so FE gap-break matches source cadence.
 
 ### Charts (ECharts, Sensors list)
@@ -326,14 +326,14 @@ Temp-only devices: humidity series hidden.
 
 ### Day overlay (C24 ✅) — Absolute humidity + Feels-like humidity
 
-Button **Open detail in full screen** (temp/hum **day** only) opens a **tab overlay** (not F11). Inline day chart stays T + RH + dew (+ frost). Overlay-only: five checkboxes with units; inherit inline pan/zoom; CSV = full `hires_days` buffer; soft refresh keeps checkboxes + window.
+Button **Open detail in full screen** (temp/hum **day** only) opens a **tab overlay** (not F11). Inline day chart stays T + RH + dew (+ frost). Overlay-only: five checkboxes with units; inherit inline pan/zoom; CSV = full `hires_days` buffer; soft refresh keeps checkboxes + window. **Default on:** Temperature, Humidity, Dew point, Feels-like humidity. **Default off:** Absolute humidity (operator can still enable).
 
 | Series | Axis | Notes |
 |--------|------|--------|
 | Temperature (°C) | left °C | Frost styling when temp &lt; dew (**C12**) |
 | Humidity (%) | right % | |
 | Dew point (°C) | left °C | FE Sonntag Magnus from paired T+RH (same as C5); never stored |
-| Absolute humidity (g/m³) | 3rd axis g/m³ | From T + Td; omit when Td missing |
+| Absolute humidity (g/m³) | 3rd axis g/m³ | From T + Td; omit when Td missing; **checkbox default off** |
 | Feels-like humidity (%) | right % | Comfort index from T + Td (below); tooltip band + integer % |
 
 **Absolute humidity (g/m³)** — from dew point `Td` and air temp `T` (shipped FE constants):
