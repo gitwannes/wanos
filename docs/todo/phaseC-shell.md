@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). Queued: **C3 → C4 → C26 → C11 → C17 → C20 → C21 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C20 → C21 → C25 → C15 → C13**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -40,10 +40,11 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C15 — Admin lab switch** | Move Enable lab controls → Debug Commands row; lab pane iff switch ON | Admin · low |
 | **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
-| **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`blockly` | Shell entrypoints |
+| **C4 — HTML renames** | `commander`→`wisc`; `blocky`→`blockly`; login / post-auth links | Shell entrypoints |
+| **C28 — LG TV skins** | `deviceexplorer-tv` + `wisc-tv`; UA gate from login; no admin; no History graphs | Shell · TV · mid · after **C4** |
 | **C26 — Frontend JS modularization** | Split `app.js` + `blockly.js`; shared helpers; `login.js`; **`reference.md` JS catalog** | FE maintainability · mid · after **C4** |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C25** → **C15** → **C13**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -184,11 +185,65 @@ The **Admin Force Sweep** bypasses idempotency checks and transmits physical OFF
 * `commander.html` → `wisc.html`
 * **`blocky` → `blockly` everywhere** — **locked 2026-08-12:** identifiers, text, **`blocky.html` → `blockly.html`**, **`blocky.js` → `blockly.js`**, nav/data attrs (`data-wanos-nav`, routes), shell label **Blockly**. **Do not** rename to **`automations.html`** / **`automations.js`** (prior C4 draft **withdrawn**).
 
-**to be checked:** All links, redirects, shell nav, kiosk, nginx/static routes, bookmarks, cache-bust `?v=` query params. Shell chrome — not editor semantics (**B19**).
+#### Operator requests (verbatim)
 
-**C4 DoD:** New names live everywhere operators hit; no remaining `blocky` in paths/identifiers (except git history); no `automations.*` entrypoint names; old URLs redirect or 404 intentionally documented. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+> rename commander.html to wisc.html and check/change links
+> login page as well - this is the landing
+> put in triage
+> *(2026-08-24)*
 
-**C26 follows C4:** split **`blockly.js`** (post-rename) into `blockly-*` siblings — no interim `blocky-*` pass.
+**to be checked:** All links, redirects, shell nav, **login** (`login.html` + `/api/auth/login` `redirect`), kiosk, nginx/static routes, bookmarks, cache-bust `?v=` query params. Shell chrome — not editor semantics (**B19**). Old `commander.html` → redirect or intentional 404 (document).
+
+**Open (lock at kickoff):** Today post-auth landing for `admin`/`user` is `/deviceexplorer.html`. Operator called login “the landing” — confirm whether **`redirect` becomes `/wisc.html`**, stays Explorer, or only link text/paths update while default stay Explorer.
+
+**C4 DoD:** `wisc.html` + `blockly` names live everywhere operators hit; login + auth redirect paths updated as locked; no remaining `commander` / `blocky` entrypoint paths (except git history / intentional redirect); no `automations.*` entrypoint names; old URLs redirect or 404 intentionally documented. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+**C26 follows C4:** split **`blockly.js`** (post-rename) into `blockly-*` siblings — no interim `blocky-*` pass. **C28** after **C4** (`wisc` filename).
+
+---
+
+## 📋 C28 — LG webOS TV skins (Explorer + WISC) 🔜 TODO
+
+**Letter:** **C28**. **Depends on:** **C4** (`commander` → `wisc` live). **Affinity:** Operator shell (not Admin).
+
+#### Operator requests (verbatim)
+
+> when I open wanos on the browser of my LG TV, I see this - why?
+> *(2026-08-24 — photos: WISC + Device Explorer on LG TV; narrow/broken DaisyUI layout)*
+
+> is it possible to detect wether it is the lgos and then forward to a specific *-tv.html page?
+> if yes: I would like to duplicate explorer & wisc, make it simpeler and skin for tv only
+> *(2026-08-24)*
+
+> not commander, i don't want any admin-only pages here, only explorer and wisc
+> no history graphs
+> *(2026-08-24)*
+
+> rename commander.html to wisc.html and check/change links
+> login page as well - this is the landing
+> put in triage
+> *(2026-08-24 — rename → **C4**; TV skin → this section)*
+
+#### Placement (triage 2026-08-24)
+
+* **In:** simplified **Device Explorer** + **WISC** TV pages; LG webOS (heuristic) detect → `*-tv.html`; **login as primary landing/gate**.
+* **Out:** Admin / Blocky / Session History / Z-Wave / Hidden / Timers / kiosk rewrite; Explorer **History** mode and **graphs**; filename `commander-tv` (use **`wisc-tv.html`**).
+
+#### Tentative shape (not locked — kickoff)
+
+| File | Role |
+|---|---|
+| `tv-gate.js` | UA heuristic (`Web0S` / `webOS` / `SmartTV` / …) + `?tv=1` / `?desktop=1` overrides |
+| `wanos-tv.css` | Full-bleed, large targets, **hex** colors (avoid DaisyUI `oklch` breakage) |
+| `deviceexplorer-tv.html` | Control-style list only — no History tab / charts |
+| `wisc-tv.html` | Simplified sauna/IR — reuse `app.js` bindings where stable |
+| Gate hooks | **`login.html` (landing)**; optional one-liners on desktop Explorer/WISC |
+
+Reuse `app.js` / SSE; do **not** fork admin pages. Keep PC `deviceexplorer.html` / `wisc.html` as-is aside from gate script.
+
+**Open (lock at kickoff):** UA-only vs UA+query; post-login TV path (`wisc-tv` vs Explorer-TV first); how thin Explorer-TV (full control list vs favorites/scenes only).
+
+**C28 DoD:** LG (or override) reaches TV Explorer + TV WISC only; no History graphs; no admin TV surfaces; PC UIs unchanged in behaviour; Pi/TV smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

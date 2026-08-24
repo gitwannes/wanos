@@ -13,6 +13,7 @@ from typing import Optional
 
 # Sauna / IR / safety
 ENTITY_SAUNA_DOOR = "sensor.door.sauna_deur"
+ENTITY_BATHROOM_DOOR = "sensor.door.badkamer_deur"
 ENTITY_SAUNA_HIGH = "sensor.temp_hum.sauna_high"
 ENTITY_SAUNA_LOW = "sensor.temp_hum.sauna_low"
 ENTITY_SAUNA_STATUS = "sensor.generic.sauna_status"

@@ -205,7 +205,10 @@ class SaunaState(BaseModel):
     ventilation_state: str = "OFF"
     ventilation_deadline: Optional[int] = None
     light_color: str = "#FFD180"  # Warm White Baseline
-    lcd_text: str = ""
+    # Screen1 mirror (same compose as MQTT wanos/lcd/screen1). Blank → WISC shows standby.
+    lcd_line1: str = ""
+    lcd_line2: str = ""
+    lcd_text: str = ""  # Legacy one-liner; unused by WISC LCD preview (kept for older clients)
     is_paused: bool = False  # Track safety cutout state independently from manual overrides
     last_light_temp: Optional[float] = None  # Enforces a 1.0°C quantization throttle to prevent Zigbee mesh DDoS storms
     absolute_cutoff_unix: Optional[int] = None  # ⚡ EN 60335-2-53 hard 6-hour limit epoch wall
@@ -334,6 +337,18 @@ class SystemState(BaseModel):
 
     # The generic "Peripheral Catch-all" dictionary for the Sorting Office
     devices: Dict[int, Any] = Field(default_factory=dict)
+
+    # ---------------------------------------------------------------------
+    # LCD-specific door duration tracking (WISC parity)
+    # ---------------------------------------------------------------------
+    # Tracks open/close durations for the configured door sensors so the
+    # LCD Pi can render the "plz close sdoor dd:hh:mm:ss" warnings.
+    #
+    # Updated on DOOR_CHANGED events in core/event_handlers/hub_handlers.py.
+    door_sauna_open_since_unix: Optional[int] = None
+    door_bathroom_open_since_unix: Optional[int] = None
+    door_sauna_closed_since_unix: Optional[int] = None
+    door_bathroom_closed_since_unix: Optional[int] = None
 
     # The dynamic device registry. Maps IDXs to a dictionary containing
     # {name: str, type: str, origin: str, entity_id: str, ...}

@@ -12,9 +12,12 @@ import math
 import psutil
 from typing import Optional, Set, Any, TYPE_CHECKING
 
+from logic.lcd_screen1 import compose_lcd_screen1, fit_to_16_cells, center_cells
+
 if TYPE_CHECKING:
     from .mqtt_transport import MqttClientManager
     from .models import SystemState
+    from .state_manager import StateManager
 
 # How often to send the heartbear (seconds)
 HEARTBEAT_INTERVAL = 60
@@ -28,6 +31,7 @@ class MqttPublisher:
 
     def __init__(self, mqtt_client: "MqttClientManager") -> None:
         self._client = mqtt_client
+        self._sm: Optional["StateManager"] = None
 
         # Application Boot Timestamp for wanos/system
         self._app_boot_unix = int(time.time())
@@ -49,14 +53,39 @@ class MqttPublisher:
 
         self._heartbeat_task: Optional[asyncio.Task] = None
 
+        # -----------------------------------------------------------------
+        # Remote WISC-compatible LCD (two I2C HD44780 screens via LCD Pi)
+        # -----------------------------------------------------------------
+        self._lcd_refresh_task: Optional[asyncio.Task] = None
+        self._lcd_last_screen1: tuple[str, str] = ("", "")
+        self._lcd_last_screen2: tuple[str, str] = ("", "")
+        self._lcd_last_snapshot: Optional["SystemState"] = None
+
+        self._lcd_screen2_init_sent: bool = False
+        self._sauna_hue_entity_idx: Optional[int] = None
+        # Admin/debug force text: do not let idle blank compose wipe it until live content returns.
+        self._lcd_screen1_manual_hold: bool = False
+
+        # Render cadence:
+        # - keep LCD1 door timers fresh (WISC shows duration continuously)
+        # - avoid hammering broker when everything is blank
+        self._LCD_REFRESH_INTERVAL_SECS: float = 1.0
+
+    def bind_state_manager(self, state_manager: "StateManager") -> None:
+        """Inject StateManager so screen1 MQTT payloads mirror into WISC UI state."""
+        self._sm = state_manager
+
     def start(self) -> None:
         """Spawns the background 60-second WanOS heartbeat task."""
         self._heartbeat_task = asyncio.create_task(self._wanos_heartbeat_loop())
+        self._lcd_refresh_task = asyncio.create_task(self._lcd_refresh_loop())
 
     def stop(self) -> None:
         """Cancels the background heartbeat loop on shutdown."""
         if self._heartbeat_task:
             self._heartbeat_task.cancel()
+        if self._lcd_refresh_task:
+            self._lcd_refresh_task.cancel()
 
     def accumulate_water(self, fluid: str, count: int) -> None:
         """
@@ -102,6 +131,42 @@ class MqttPublisher:
         if "sauna" in changed_domains:
             await self._publish_sauna(snapshot)
 
+        # Keep last snapshot for periodic LCD refresh cadence.
+        # We update even when domains don't match so the refresh loop can
+        # safely compute mm:ss / door durations from current epochs.
+        self._lcd_last_snapshot = snapshot
+
+        # Immediate screen1 publish only when LCD content can change.
+        # Do NOT republish on every "system"/metrics tick — that wiped Admin
+        # debug test text within a few seconds (compose blank while Hue/sauna idle).
+        lcd1_domains = {"sauna", "ir", "devices", "sensors"}
+        if changed_domains & lcd1_domains:
+            try:
+                line1, line2 = self._compose_lcd_screen1(snapshot)
+                # Idle blank must not erase Admin debug / other force publishes.
+                held_blank = (line1, line2) == ("", "") and self._lcd_screen1_manual_hold
+                if not held_blank:
+                    if line1 or line2:
+                        self._lcd_screen1_manual_hold = False
+                    if (line1, line2) != self._lcd_last_screen1:
+                        self._lcd_last_screen1 = (line1, line2)
+                        await self._client.publish(
+                            "wanos/lcd/screen1",
+                            {"line1": line1, "line2": line2},
+                        )
+                        await self._mirror_lcd_screen1_to_state(line1, line2)
+            except Exception as e:
+                print(f"⚠️ LCD screen1 immediate publish failed: {e}")
+
+    async def _mirror_lcd_screen1_to_state(self, line1: str, line2: str) -> None:
+        """Keep WISC sauna.lcd_line* aligned with the last MQTT screen1 payload."""
+        if self._sm is None:
+            return
+        try:
+            await self._sm.set_lcd_screen1_preview(line1, line2)
+        except Exception as e:
+            print(f"⚠️ LCD screen1 UI mirror failed: {e}")
+
     async def _wanos_heartbeat_loop(self) -> None:
         """Fires the WanOS broker 'alive' heartbeat every 60 seconds."""
         while True:
@@ -113,6 +178,87 @@ class MqttPublisher:
             except Exception as e:
                 print(f"⚠️ Heartbeat error: {e}")
 
+    async def _lcd_refresh_loop(self) -> None:
+        """Periodically renders/publishes LCD screen1 while sessions are active."""
+        while True:
+            try:
+                await asyncio.sleep(self._LCD_REFRESH_INTERVAL_SECS)
+
+                snap = self._lcd_last_snapshot
+                if snap is None:
+                    continue
+
+                # Only refresh at a high cadence when something on LCD1 can change.
+                lcd1_should_render = (
+                    bool(snap.sauna.active) or bool(snap.ir.active)
+                )
+                if not lcd1_should_render:
+                    continue
+
+                line1, line2 = self._compose_lcd_screen1(snap)
+                if (line1, line2) == ("", "") and self._lcd_screen1_manual_hold:
+                    continue
+                if line1 or line2:
+                    self._lcd_screen1_manual_hold = False
+                if (line1, line2) != self._lcd_last_screen1:
+                    self._lcd_last_screen1 = (line1, line2)
+                    await self._client.publish(
+                        "wanos/lcd/screen1",
+                        {"line1": line1, "line2": line2},
+                    )
+                    await self._mirror_lcd_screen1_to_state(line1, line2)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                # Keep this loop resilient; do not kill MQTT publisher on LCD render bugs.
+                print(f"⚠️ LCD refresh error: {e}")
+
+    def _ensure_sauna_hue_idx(self, snapshot: "SystemState") -> None:
+        """Cache IDX for hue.group.sauna_hue using device metadata entity_id."""
+        if self._sauna_hue_entity_idx is not None:
+            return
+        for idx, meta in (snapshot.device_metadata or {}).items():
+            if not isinstance(meta, dict):
+                continue
+            if meta.get("entity_id") == "hue.group.sauna_hue":
+                try:
+                    self._sauna_hue_entity_idx = int(idx)
+                    return
+                except (TypeError, ValueError):
+                    continue
+
+    def _compose_lcd_screen1(self, snapshot: "SystemState") -> tuple[str, str]:
+        """Delegate to shared composer (MQTT + WISC UI must stay identical)."""
+        self._ensure_sauna_hue_idx(snapshot)
+        return compose_lcd_screen1(
+            snapshot,
+            sauna_hue_entity_idx=self._sauna_hue_entity_idx,
+        )
+
+    async def publish_lcd_screen1(self, line1: str, line2: str, *, force: bool = False) -> None:
+        """Publishes screen 1 lines to the LCD Pi."""
+        line1 = fit_to_16_cells(line1)
+        line2 = fit_to_16_cells(line2)
+        if not force and (line1, line2) == self._lcd_last_screen1:
+            return
+        self._lcd_last_screen1 = (line1, line2)
+        # force=True (Admin debug): pin until compose has live sauna/IR/hue content.
+        if force and (line1.strip() or line2.strip()):
+            self._lcd_screen1_manual_hold = True
+        elif not line1.strip() and not line2.strip():
+            self._lcd_screen1_manual_hold = False
+        await self._client.publish("wanos/lcd/screen1", {"line1": line1, "line2": line2})
+        await self._mirror_lcd_screen1_to_state(line1, line2)
+
+    async def publish_lcd_screen2(self, line1: str, line2: str, *, force: bool = False) -> None:
+        """Publishes screen 2 lines to the LCD Pi (and wakes it from screensaver)."""
+        line1 = fit_to_16_cells(line1)
+        line2 = fit_to_16_cells(line2)
+        if not force and (line1, line2) == self._lcd_last_screen2:
+            return
+        self._lcd_last_screen2 = (line1, line2)
+        await self._client.publish("wanos/lcd/screen2", {"line1": line1, "line2": line2})
+
     async def _publish_telemetry(self, snapshot: "SystemState") -> None:
         """Publishes boot UNIX stamps once on wanos/system."""
         if not self._system_boot_sent and snapshot.system.ip_address != "0.0.0.0":
@@ -122,6 +268,19 @@ class MqttPublisher:
                 "ip_address": snapshot.system.ip_address
             })
             self._system_boot_sent = True
+
+            # LCD Pi: initial control-kast screen status (WISC-style).
+            if not self._lcd_screen2_init_sent:
+                try:
+                    now = int(time.time())
+                    dt = time.localtime(now)
+                    ts = time.strftime("%y%m%d %H:%M:%S", dt)
+                    line1 = center_cells("EL init  §0§1")
+                    line2 = ts.center(16)
+                    await self.publish_lcd_screen2(line1, line2)
+                    self._lcd_screen2_init_sent = True
+                except Exception as e:
+                    print(f"⚠️ LCD screen2 init failed: {e}")
 
     async def _publish_sauna(self, snapshot: "SystemState") -> None:
         """

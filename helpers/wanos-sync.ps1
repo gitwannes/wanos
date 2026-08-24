@@ -8,23 +8,30 @@ can inject smart-quotes that break parsing.
 
 Three jobs (rsync over SSH -- no Samba/Z:):
 
-1) MIRROR JOB  - Local repo  -->  Pi WanOS root (rsync --delete + excludes)
-2) STATS / PULL JOB  - Pi  -->  Local (repo YAML Pi-wins; telemetry to StatsDest)
-3) LOG PULL JOB  - Pi /var/log/wanos  -->  StatsDest (or StatsDest\<LocalLogSubdir>)
+1) MIRROR JOB  - Local repo (or \_lcd-agent)  -->  Pi WanOS root (rsync --delete + excludes)
+2) STATS / PULL JOB  - Pi  -->  Local (repo YAML Pi-wins; telemetry to StatsDest) [main Pi only]
+3) LOG PULL JOB  - Pi /var/log/wanos*  -->  StatsDest (or StatsDest\<LocalLogSubdir>)
+
+Optional:
+   -Lcd       Mirror/pull for LCD Pi only (skip stats; source = \_lcd-agent)
+   -LogCopy   After log pull, also copy wanos* into git docs\logs (or \_lcd-agent\docs\logs)
 
 Includes / excludes: helpers/wanos-sync.config.txt
-Paths (repo, StatsDest): in this .ps1. Remote host/paths: [PiSsh] in config.
+Paths (repo, StatsDest): in this .ps1. Remote host/paths: [PiSsh] / [LcdPiSsh] in config.
 
 Modes:
    test | run | codeimport
 
 Switches:
    -VerboseSync              Extra diagnostics
+   -Lcd                      LCD Pi target
+   -LogCopy                  Extra git log mirror
    -CodeImportPath <folder>  Required for mode codeimport
 
 Usage:
    powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode test
    powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode run -VerboseSync
+   powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode run -Lcd -LogCopy
    powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode codeimport -CodeImportPath C:\data\git\wanos\code-import
 ================================================================================
 #>
@@ -37,7 +44,11 @@ param(
     [string]$CodeImportPath = "",
 
     # Named VerboseSync (not -Verbose) to avoid clashing with PS common parameters.
-    [switch]$VerboseSync
+    [switch]$VerboseSync,
+
+    [switch]$Lcd,
+
+    [switch]$LogCopy
 )
 
 $ErrorActionPreference = "Stop"
@@ -109,8 +120,16 @@ function Read-WanosSyncConfig {
         Host           = "10.32.251.30"
         User           = "wannes"
         RemoteRoot     = "/home/wannes/wanos"
-        RemoteLogDir   = "/var/log/wanos"
+        RemoteLogDir   = "/var/log"
         LocalLogSubdir = ""
+        RemoteGlob     = "wanos*"
+    }
+    $lcdPiSsh = @{
+        Host           = "10.32.251.51"
+        User           = "wannes"
+        RemoteRoot     = "/home/wannes/wanos"
+        RemoteLogDir   = "/var/log"
+        LocalLogSubdir = "lcd-agent"
         RemoteGlob     = "wanos*"
     }
     $current = $null
@@ -124,8 +143,8 @@ function Read-WanosSyncConfig {
 
         if ($line -match '^\[([A-Za-z0-9_]+)\]$') {
             $name = $Matches[1]
-            if ($name -eq "PiSsh") {
-                $current = "PiSsh"
+            if ($name -eq "PiSsh" -or $name -eq "LcdPiSsh") {
+                $current = $name
                 continue
             }
             if (-not $sectionLists.ContainsKey($name)) {
@@ -144,16 +163,17 @@ function Read-WanosSyncConfig {
             if ($line.Length -eq 0) { continue }
         }
 
-        if ($current -eq "PiSsh") {
+        if ($current -eq "PiSsh" -or $current -eq "LcdPiSsh") {
             if ($line -notmatch '^([A-Za-z0-9_]+)=(.*)$') {
-                throw "PiSsh expects key=value at line $lineNo in $Path : $line"
+                throw "$current expects key=value at line $lineNo in $Path : $line"
             }
             $key = $Matches[1]
             $val = $Matches[2].Trim()
-            if (-not $piSsh.ContainsKey($key)) {
-                throw "Unknown PiSsh key '$key' at line $lineNo in $Path"
+            $target = if ($current -eq "PiSsh") { $piSsh } else { $lcdPiSsh }
+            if (-not $target.ContainsKey($key)) {
+                throw "Unknown $current key '$key' at line $lineNo in $Path"
             }
-            $piSsh[$key] = $val
+            $target[$key] = $val
             continue
         }
 
@@ -169,6 +189,9 @@ function Read-WanosSyncConfig {
     if ([string]::IsNullOrWhiteSpace($piSsh.RemoteRoot)) {
         throw "PiSsh RemoteRoot is required in $Path"
     }
+    if ([string]::IsNullOrWhiteSpace($lcdPiSsh.RemoteRoot)) {
+        throw "LcdPiSsh RemoteRoot is required in $Path"
+    }
 
     return @{
         MirrorBootstrapFiles = @($sectionLists["MirrorBootstrapFiles"])
@@ -177,6 +200,7 @@ function Read-WanosSyncConfig {
         StatsInclude       = @($sectionLists["StatsInclude"])
         StatsRepoPull      = @($sectionLists["StatsRepoPull"])
         PiSsh              = $piSsh
+        LcdPiSsh           = $lcdPiSsh
     }
 }
 
@@ -188,12 +212,32 @@ $MirrorExcludeFiles = $SyncConfig.MirrorExcludeFiles
 $StatsInclude       = $SyncConfig.StatsInclude
 $StatsRepoPull      = $SyncConfig.StatsRepoPull
 $PiSsh              = $SyncConfig.PiSsh
+$LcdPiSsh           = $SyncConfig.LcdPiSsh
+
+# LCD mirror excludes (do NOT reuse backend bootstrap/docs excludes that would skip helpers/bootstrap).
+$LcdMirrorExcludeDirs = @(
+    "wanos_venv",
+    "__pycache__",
+    "docs",
+    ".git"
+)
+$LcdMirrorExcludeFiles = @(
+    ".env*",
+    "*.pyc"
+)
+
+$LcdMirrorSource = Join-Path $MirrorSource "_lcd-agent"
+$GitLogCopyDestMain = Join-Path $MirrorSource "docs\logs"
+$GitLogCopyDestLcd  = Join-Path $LcdMirrorSource "docs\logs"
+
 Write-SyncVerbose ("  MirrorBootstrapFiles: {0}" -f $MirrorBootstrapFiles.Count)
 Write-SyncVerbose ("  MirrorExcludeDirs : {0}" -f $MirrorExcludeDirs.Count)
 Write-SyncVerbose ("  MirrorExcludeFiles: {0}" -f $MirrorExcludeFiles.Count)
 Write-SyncVerbose ("  StatsInclude      : {0}" -f $StatsInclude.Count)
 Write-SyncVerbose ("  StatsRepoPull     : {0}" -f $StatsRepoPull.Count)
 Write-SyncVerbose ("  PiSsh             : {0}@{1}:{2}" -f $PiSsh.User, $PiSsh.Host, $PiSsh.RemoteRoot)
+Write-SyncVerbose ("  LcdPiSsh          : {0}@{1}:{2}" -f $LcdPiSsh.User, $LcdPiSsh.Host, $LcdPiSsh.RemoteRoot)
+Write-SyncVerbose ("  Lcd / LogCopy     : {0} / {1}" -f [bool]$Lcd, [bool]$LogCopy)
 Write-SyncVerbose ""
 
 # =============================================================================
@@ -437,7 +481,10 @@ function Invoke-Rsync {
 # =============================================================================
 
 function Normalize-ShFiles {
-    param([string[]]$Dirs)
+    param(
+        [string[]]$Dirs,
+        [switch]$Recurse
+    )
 
     Write-Host "=== NORMALIZE .sh (CRLF --> LF) ===" -ForegroundColor White
 
@@ -447,7 +494,15 @@ function Normalize-ShFiles {
             continue
         }
 
-        Get-ChildItem -LiteralPath $dir -Filter *.sh -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $childArgs = @{
+            LiteralPath = $dir
+            Filter      = "*.sh"
+            File        = $true
+            ErrorAction = "SilentlyContinue"
+        }
+        if ($Recurse) { $childArgs["Recurse"] = $true }
+
+        Get-ChildItem @childArgs | ForEach-Object {
             $path = $_.FullName
             $bytes = [System.IO.File]::ReadAllBytes($path)
 
@@ -751,7 +806,7 @@ function Invoke-WanosRsyncStatsJob {
 }
 
 # =============================================================================
-# JOB 3 - LOG PULL (Pi /var/log/wanos --> StatsDest via rsync)
+# JOB 3 - LOG PULL (Pi /var/log/wanos* --> StatsDest via rsync)
 # =============================================================================
 
 function Invoke-WanosRsyncLogPullJob {
@@ -761,7 +816,7 @@ function Invoke-WanosRsyncLogPullJob {
         [switch]$DryRun
     )
 
-    Write-SyncJobHeader "=== LOG PULL JOB (Pi /var/log/wanos --> Local via rsync/SSH) ==="
+    Write-SyncJobHeader "=== LOG PULL JOB (Pi /var/log/wanos* --> Local via rsync/SSH) ==="
 
     $subdir = if ($null -eq $Ssh.LocalLogSubdir) { "" } else { [string]$Ssh.LocalLogSubdir }
     $subdir = $subdir.Trim().Trim('\', '/')
@@ -792,6 +847,53 @@ function Invoke-WanosRsyncLogPullJob {
     Write-SyncSection ("** rsync logs: {0} --> {1}" -f $remoteSpec, $localDir)
     Invoke-Rsync -RsyncArgs @($args) -FailMessage "Log pull failed"
     Write-SyncDone ("* LOG: done --> {0}" -f $localDir)
+
+    # Expose last local log dir for optional logcopy
+    $script:LastLogPullDir = $localDir
+}
+
+# =============================================================================
+# OPTIONAL LOGCOPY (OneDrive pull dir --> git docs\logs)
+# =============================================================================
+
+function Copy-WanosLogSnapshot {
+    param(
+        [string]$SourceDir,
+        [string]$DestDir,
+        [string]$NameGlob = "wanos*",
+        [switch]$DryRun
+    )
+
+    Write-SyncJobHeader ("=== LOGCOPY ({0} --> {1}) ===" -f $SourceDir, $DestDir)
+
+    if (-not (Test-Path -LiteralPath $SourceDir)) {
+        Write-Host ("LOGCOPY skip (source missing): {0}" -f $SourceDir) -ForegroundColor DarkYellow
+        return
+    }
+
+    Ensure-Directory -Path $DestDir -DryRun:$DryRun
+    if ($DryRun -and -not (Test-Path -LiteralPath $DestDir)) {
+        Write-Host "[DRY] Dest missing - listing would-copy only" -ForegroundColor DarkYellow
+    }
+
+    $files = @(Get-ChildItem -LiteralPath $SourceDir -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like $NameGlob })
+
+    if ($files.Count -eq 0) {
+        Write-Host ("LOGCOPY: no files matching {0} in {1}" -f $NameGlob, $SourceDir) -ForegroundColor DarkYellow
+        return
+    }
+
+    foreach ($f in $files) {
+        $destPath = Join-Path $DestDir $f.Name
+        if ($DryRun) {
+            Write-SyncFileLine -Line ("[DRY] LogCopy: {0}" -f $f.Name)
+        } else {
+            Copy-Item -LiteralPath $f.FullName -Destination $destPath -Force
+            Write-SyncFileLine -Line ("LogCopy: {0}" -f $f.Name)
+        }
+    }
+    Write-SyncDone ("* LOGCOPY: done --> {0}" -f $DestDir)
 }
 
 # =============================================================================
@@ -803,7 +905,16 @@ Write-SyncVerbose "Mode: $Mode"
 Write-SyncVerbose "Timestamp: $(Get-Date)"
 Write-SyncVerbose ""
 
+if ($Lcd -and $Mode -eq "codeimport") {
+    Write-Error "Switches -Lcd and mode codeimport cannot be combined."
+    exit 14
+}
+
 Assert-PathExists -Path $MirrorSource -Description "Mirror source (repo)" -ExitCode 11
+
+if ($Lcd) {
+    Assert-PathExists -Path $LcdMirrorSource -Description "LCD mirror source (_lcd-agent)" -ExitCode 12
+}
 
 if ($Mode -eq "codeimport") {
     if ([string]::IsNullOrWhiteSpace($CodeImportPath)) {
@@ -819,6 +930,7 @@ foreach ($dir in $SourceDirs) {
 
 $script:DryRun = ($Mode -eq "test")
 $DryRun = $script:DryRun
+$script:LastLogPullDir = $null
 
 if ($Mode -ne "codeimport") {
     Assert-RsyncAvailable
@@ -827,7 +939,11 @@ if ($Mode -ne "codeimport") {
 
 # Normalize on real writes (run + codeimport)
 if ($Mode -eq "run" -or $Mode -eq "codeimport") {
-    Normalize-ShFiles -Dirs $SourceDirs
+    if ($Lcd) {
+        Normalize-ShFiles -Dirs @($LcdMirrorSource) -Recurse
+    } else {
+        Normalize-ShFiles -Dirs $SourceDirs
+    }
 }
 
 if ($Mode -eq "codeimport") {
@@ -837,8 +953,34 @@ if ($Mode -eq "codeimport") {
         -ExcludeDirs $MirrorExcludeDirs `
         -ExcludeFiles $MirrorExcludeFiles `
         -DryRun:$false
+} elseif ($Lcd) {
+    # LCD Pi: mirror _lcd-agent contents + log pull (no stats / no hue bootstrap)
+    Write-Host ""
+    Invoke-WanosRsyncMirrorJob `
+        -Source $LcdMirrorSource `
+        -Ssh $LcdPiSsh `
+        -ExcludeDirs $LcdMirrorExcludeDirs `
+        -ExcludeFiles $LcdMirrorExcludeFiles `
+        -DryRun:$DryRun
+
+    Write-Host ""
+    Invoke-WanosRsyncLogPullJob `
+        -Ssh $LcdPiSsh `
+        -StatsDest $StatsDest `
+        -DryRun:$DryRun
+
+    if ($LogCopy) {
+        Write-Host ""
+        $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else {
+            Join-Path $StatsDest ([string]$LcdPiSsh.LocalLogSubdir)
+        }
+        Copy-WanosLogSnapshot `
+            -SourceDir $logSrc `
+            -DestDir $GitLogCopyDestLcd `
+            -DryRun:$DryRun
+    }
 } else {
-    # test / run --> Pi via rsync
+    # WanOS main Pi: bootstrap + mirror + stats + log pull
     Invoke-WanosBootstrapPushJob `
         -Source $MirrorSource `
         -Ssh $PiSsh `
@@ -868,6 +1010,15 @@ if ($Mode -eq "codeimport") {
         -Ssh $PiSsh `
         -StatsDest $StatsDest `
         -DryRun:$DryRun
+
+    if ($LogCopy) {
+        Write-Host ""
+        $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else { $StatsDest }
+        Copy-WanosLogSnapshot `
+            -SourceDir $logSrc `
+            -DestDir $GitLogCopyDestMain `
+            -DryRun:$DryRun
+    }
 }
 
 Write-Host ""

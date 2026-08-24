@@ -1,0 +1,24 @@
+## /etc/systemd/system/wanos-lcd-agent.service
+
+[Unit]
+Description=WanOS LCD Pi Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=wannes
+Group=wannes
+# Secrets + LCD MQTT keys — same path convention as WanOS main (.env, never git)
+EnvironmentFile=/home/wannes/wanos/.env
+WorkingDirectory=/home/wannes/wanos
+# Unbuffered Python so Journald gets stdout/stderr immediately (parity with wanos.service)
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/wannes/wanos/wanos_venv/bin/python /home/wannes/wanos/lcd_pi_agent.py
+Restart=always
+RestartSec=5
+# Graceful SIGTERM, then SIGKILL if still hanging (parity with wanos.service)
+TimeoutStopSec=10
+# Journal = console (wanoslog choice 1). App file log = /var/log/wanos/wanos.log (choice 2 / sync).
+
+[Install]
+WantedBy=multi-user.target

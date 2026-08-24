@@ -16,8 +16,11 @@
 #   StatsRepoPull = subset that always overwrites into the git repo (Pi wins)
 #                   everything else in StatsInclude goes to StatsDest (update/newer)
 #
-# Job 3 LOG PULL (Pi /var/log/wanos --> StatsDest via rsync/SSH): [PiSsh]
+# Job 3 LOG PULL (Pi /var/log/wanos* --> StatsDest via rsync/SSH): [PiSsh] or [LcdPiSsh]
+#   RemoteLogDir + RemoteGlob compose /var/log/wanos* (NOT /var/log/wanos/wanos*)
 #   Empty LocalLogSubdir = land flat next to DBs; otherwise StatsDest\<LocalLogSubdir>\
+# LCD mode: helpers\wanos-sync.bat test|run lcd  (source = repo\_lcd-agent\ --> LcdPiSsh)
+# logcopy: after log pull, also copy wanos* into git docs\logs (or \_lcd-agent\docs\logs)
 # =============================================================================
 
 [MirrorBootstrapFiles]
@@ -36,6 +39,8 @@ bootstrap
 backup*
 logs
 temp
+# LCD agent tree — deploy only via "lcd" mode to the LCD Pi
+_lcd-agent
 # Pi-only trees (never delete/touch under mirror delete)
 wanos_venv
 migration_venv
@@ -91,12 +96,22 @@ automations.auto.yaml
 config_hue_presets.auto.yaml
 
 [PiSsh]
-# SSH + rsync for all jobs. Key auth BatchMode=yes. No Samba/Z: required.
+# SSH + rsync for WanOS main Pi. Key auth BatchMode=yes. No Samba/Z: required.
 Host=10.32.251.30
 User=wannes
 RemoteRoot=/home/wannes/wanos
-RemoteLogDir=/var/log/wanos
+# Compose remote spec /var/log/wanos* (same as LCD Pi; not /var/log/wanos/wanos*)
+RemoteLogDir=/var/log
 # Land flat under StatsDest (same folder as sensor_history.db). Set a name to use a subdir.
 LocalLogSubdir=
 # Remote name glob for log pull
+RemoteGlob=wanos*
+
+[LcdPiSsh]
+# LCD Pi (same SSH key as PiSsh). Mirror source = repo\_lcd-agent\ contents.
+Host=10.32.251.51
+User=wannes
+RemoteRoot=/home/wannes/wanos
+RemoteLogDir=/var/log
+LocalLogSubdir=lcd-agent
 RemoteGlob=wanos*

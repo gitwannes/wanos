@@ -22,7 +22,8 @@
 
     <title>WanOS / WISC</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <link rel="stylesheet" href="/wanos.css?v=1" />
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/wanos.css?v=3" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="iro.min.js"></script>
@@ -45,9 +46,10 @@
                             <span x-text="state.devices[10001] === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
                         </span>
                     </div>
-                    <div class="bg-black border-4 border-gray-800 p-4 rounded-box flex items-center justify-start mb-3 h-16 shadow-inner">
-                        <div class="font-mono text-green-500 text-sm md:text-md tracking-widest uppercase truncate" x-text="state.sauna.lcd_text || 'WanOS WISC standby'"></div>
-                    </div>
+                    <!-- 16x2 HD44780-style preview: fixed 16 cells; spaces preserved for centering. -->
+                    <pre class="wanos-lcd-screen"
+                         :class="lcdScreen1HasContent() ? '' : 'is-standby'"
+                         x-text="lcdScreen1Display()"></pre>
 
                     <div class="grid grid-cols-2 gap-2 mb-2 w-full">
                         <button :class="state.sauna.active ? 'btn btn-error shadow-lg' : 'btn btn-outline'"

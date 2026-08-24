@@ -967,12 +967,12 @@ class AutomationEngine:
                         f'[Automation] Rule "{AutomationEngine.format_rule_name(rule)}" '
                         f"fired (trigger: {trigger_label})"
                     )
-                    # IWHW ledger: one run line per fired YAML rule (name only; timestamp from sink).
-                    rule_name: str = getattr(rule, "name", None) or "?"
-                    iwhw_logger.info(f"AUTOMATION RUN | {rule_name}")
                     automation_logger.debug(
                         f"[X-RAY] -> Conditions MET for {AutomationEngine.format_rule_ref(rule)}. Parsing actions..."
                     )
+                    # Count follow-ups this rule actually queues — IWHW RUN only if work was done
+                    # (conditions met alone is not enough when every action is an idempotent skip).
+                    follow_ups_before: int = len(follow_up_events)
 
                     # B10B history: synthetic series keyed by event UUID when the trigger
                     # is a catalog event (no dependency on deprecated rule.scene).
@@ -1218,6 +1218,11 @@ class AutomationEngine:
                             automation_logger.info(
                                 f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "
                                 f"Dispatched Internal Event [{evt_type}]{payload_str}")
+
+                    # IWHW: only when conditions met AND at least one action was queued.
+                    if len(follow_up_events) > follow_ups_before:
+                        rule_name: str = getattr(rule, "name", None) or "?"
+                        iwhw_logger.info(f"AUTOMATION RUN | {rule_name}")
 
         # =========================================================================
         # 2. SYSTEM SWEEPER: Time & Environment Audit (Option B Enforcer)

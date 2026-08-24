@@ -90,7 +90,8 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 **logic/** (Pure Business Rules & Background Services)
 * `alert_manager.py`: Centralized UI notification engine (timestamping, dedup, severity). Levels: `critical` (red banner + bell), `error` / `warning` / `success` / `info` (bell only). Integration **connection transitions** (health telemetry up/down) use `error`/`success` + `wanos.log` ERROR/INFO — not the banner.
 * `automation_rules.py`: Dynamically evaluates declarative YAML rules.
-* `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) and structures active serial LCD display text steps.
+* `auxiliary_controller.py`: Computes dynamic thermal color gradients (Blue -> Red) for sauna Hue simulation. LCD screen1 text is composed in `logic/lcd_screen1.py` (MQTT + WISC mirror).
+* `lcd_screen1.py`: Shared 16×2 WISC-compatible composer for sauna LCD screen1 (`wanos/lcd/screen1` + `sauna.lcd_line1/2`).
 * `environment_scheduler.py`: Daily shutters + morning/evening **lights** windows (clamped shutters vs raw sunset for evening-lights on). **G15:** twilight windows require sunset/sunrise on **today’s local calendar date**; stale `env_*` timers skipped on fire. Catalog / UI labels: Shutters open/close, Morning lights on/off, Evening lights on/off. Admin model + math: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md). Code keys remain `BLINDS_*` / `MORNING_ON` / `SUNRISE` / `SUNSET` / `EVENING_OFF` until a later key rename.
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`. Connection up/down flags ride `SYSTEM_METRICS_UPDATED` (event log silenced); transition UI/log side-effects live in `telemetry_handlers`.
 * `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, **event-UUID** synthetic history `900000+`, `HOST_HISTORY_IDXS` host/mains gauges incl. `22001` CPU temp, `22009` DB size helper; load 5m/15m **not** recorded) and helpers for event-history hashing / numeric state parsing.
@@ -119,6 +120,8 @@ Summary Outgoing topics:
 `wanos/system`                   Boot variables upon startup & heartbeat
 `wanos`                          Sauna baseline snapshot upon start, then deltas
 `wanos/metrics/pulses`           Cold & hot water: liters & energy: 0.1 kWh
+`wanos/lcd/screen1`              Sauna 16×2 LCD lines `{line1,line2}` (LCD Pi + WISC mirror)
+`wanos/lcd/screen2`              Control-kast 16×2 LCD lines `{line1,line2}`
 `wanos/console/status`           Standard operational engine execution logs
 `wanos/console/debug`            High-frequency developmental logging chatter
 A dedicated `mqtt_publisher.py`  layer owns all topic routing logic.

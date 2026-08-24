@@ -79,6 +79,9 @@ class StateManager:
         self._api_state_cache: Optional[Dict[str, Any]] = None
         self._api_state_cache_lock = threading.Lock()
 
+        # Cached IDX for hue.group.sauna_hue (LCD screen1 blank/shue branch).
+        self._sauna_hue_entity_idx: Optional[int] = None
+
         self._start_time = time.time()
 
         # Generate immutable build timestamp string once at process boot
@@ -629,6 +632,66 @@ class StateManager:
     def get_state_snapshot(self) -> SystemState:
         return self._state.model_copy(deep=True)
 
+    def _ensure_sauna_hue_idx(self) -> None:
+        """Cache IDX for hue.group.sauna_hue using device metadata entity_id."""
+        if self._sauna_hue_entity_idx is not None:
+            return
+        for idx, meta in (self._state.device_metadata or {}).items():
+            if not isinstance(meta, dict):
+                continue
+            if meta.get("entity_id") == "hue.group.sauna_hue":
+                try:
+                    self._sauna_hue_entity_idx = int(idx)
+                    return
+                except (TypeError, ValueError):
+                    continue
+
+    def _refresh_lcd_screen1_preview(self) -> bool:
+        """
+        Compose screen1 into sauna.lcd_line1/2 (same rules as MQTT).
+        Returns True when either line changed.
+        Respects mqtt_publisher manual hold (Admin debug) so idle blank does not wipe it.
+        """
+        from logic.lcd_screen1 import compose_lcd_screen1
+
+        self._ensure_sauna_hue_idx()
+        line1, line2 = compose_lcd_screen1(
+            self._state,
+            sauna_hue_entity_idx=self._sauna_hue_entity_idx,
+        )
+        mqtt_pub = self.mqtt_publisher
+        if (
+            not line1
+            and not line2
+            and mqtt_pub is not None
+            and getattr(mqtt_pub, "_lcd_screen1_manual_hold", False)
+        ):
+            return False
+        sauna = self._state.sauna
+        if sauna.lcd_line1 == line1 and sauna.lcd_line2 == line2:
+            return False
+        sauna.lcd_line1 = line1
+        sauna.lcd_line2 = line2
+        return True
+
+    async def set_lcd_screen1_preview(self, line1: str, line2: str) -> None:
+        """
+        Apply screen1 lines from MQTT publisher (1 Hz refresh / debug force).
+        Soft-updates REST cache and SSE when content changes.
+        """
+        sauna = self._state.sauna
+        if sauna.lcd_line1 == line1 and sauna.lcd_line2 == line2:
+            return
+        sauna.lcd_line1 = line1
+        sauna.lcd_line2 = line2
+        snapshot = self.get_state_snapshot()
+        self._update_api_state_cache_from_snapshot(snapshot)
+        if self._sse_hub is not None:
+            try:
+                await self._sse_hub.broadcast(snapshot, {"sauna"})
+            except Exception as e:
+                await self.logger.error(f"Error in LCD preview SSE broadcast: {e}")
+
     def warm_api_state_cache(self) -> None:
         """Populate REST cache from live state (sync — call via to_thread at boot)."""
         self._update_api_state_cache_from_snapshot(self.get_state_snapshot())
@@ -684,6 +747,10 @@ class StateManager:
                 self.flush_entity_registry()
 
                 if pending_broadcast:
+                    # Keep WISC LCD mirror in lockstep with MQTT screen1 compose.
+                    if self._refresh_lcd_screen1_preview():
+                        changed_domains.add("sauna")
+
                     # Snapshot holds C18 in-flight idxs at old_val (Q4/Q5). Listeners
                     # only send hardware — I/O is create_task, not awaited here.
                     snapshot_obj: SystemState = await asyncio.to_thread(
@@ -1181,7 +1248,6 @@ class StateManager:
         from logic.auxiliary_controller import AuxiliaryController
         from logic.automation_rules import AutomationEngine
 
-        old_lcd_text: str = self._state.sauna.lcd_text
         old_light_color: str = self._state.sauna.light_color
         old_fireorder: str = self._state.sauna.fireorder
 
@@ -1193,8 +1259,7 @@ class StateManager:
             raw_order = self.sauna_logic.get_current_order_string()
             self._state.sauna.fireorder = raw_order.replace(" -> ", "")
 
-        if (self._state.sauna.lcd_text != old_lcd_text or
-                self._state.sauna.light_color != old_light_color or
+        if (self._state.sauna.light_color != old_light_color or
                 self._state.sauna.fireorder != old_fireorder):
             state_changed = True
             changed_domains.add("sauna")

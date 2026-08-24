@@ -6,12 +6,15 @@ REM WANOS Sync Wrapper (Batch)
 REM ----------------------------------------------------------------------------
 REM Thin launcher for helpers\wanos-sync.ps1
 REM
-REM Modes (must match ValidateSet in the .ps1):
+REM Modes (must match ValidateSet in the .ps1; pick exactly one):
 REM   test         Dry-run rsync Local<->Pi + log pull preview (SSH, no Z:)
 REM   run          Normalize --> rsync mirror --> stats pull --> log pull
 REM   codeimport   Mirror only to a local Windows folder (required path arg)
+REM Combining two modes (e.g. "test run") is an error.
 REM
-REM Optional trailing:
+REM Optional trailing (any order after mode):
+REM   lcd       Target LCD Pi (\_lcd-agent --> 10.32.251.51:/home/wannes/wanos)
+REM   logcopy   Also copy pulled wanos* logs into git docs\logs (or \_lcd-agent\docs\logs)
 REM   verbose   Pass -VerboseSync to the .ps1
 REM
 REM Includes/excludes: wanos-sync.config.txt  |  engine: wanos-sync.ps1
@@ -22,7 +25,11 @@ set "PS_SCRIPT=%~dp0wanos-sync.ps1"
 set "MODE="
 set "CODEIMPORT_PATH="
 set "VERBOSE=0"
+set "LCD=0"
+set "LOGCOPY=0"
 set "PS_VERBOSE_ARG="
+set "PS_LCD_ARG="
+set "PS_LOGCOPY_ARG="
 set "PS_CODEIMPORT_ARG="
 
 echo.
@@ -43,7 +50,8 @@ if "%~1"=="" goto :show_help
 
 set "MODE=%~1"
 
-REM Parse remaining args: optional path for codeimport, optional verbose
+REM Parse remaining args: optional path for codeimport, optional switches.
+REM Modes are mutually exclusive — a second mode word must error (e.g. "test run").
 shift
 :parse_args
 if "%~1"=="" goto :args_done
@@ -51,7 +59,21 @@ if /I "%~1"=="verbose"  set "VERBOSE=1" & shift & goto :parse_args
 if /I "%~1"=="-verbose" set "VERBOSE=1" & shift & goto :parse_args
 if /I "%~1"=="--verbose" set "VERBOSE=1" & shift & goto :parse_args
 if /I "%~1"=="/verbose" set "VERBOSE=1" & shift & goto :parse_args
-REM First non-verbose arg after mode is CodeImportPath (for codeimport)
+if /I "%~1"=="lcd"      set "LCD=1" & shift & goto :parse_args
+if /I "%~1"=="-lcd"     set "LCD=1" & shift & goto :parse_args
+if /I "%~1"=="logcopy"  set "LOGCOPY=1" & shift & goto :parse_args
+if /I "%~1"=="-logcopy" set "LOGCOPY=1" & shift & goto :parse_args
+REM Reject a second mode keyword (test|run|codeimport) after the first mode.
+if /I "%~1"=="test" goto :err_two_modes
+if /I "%~1"=="run" goto :err_two_modes
+if /I "%~1"=="codeimport" goto :err_two_modes
+REM Free-form path only valid for codeimport; anything else is unexpected.
+if /I not "%MODE%"=="codeimport" (
+    echo ERROR: Unexpected argument "%~1" after mode "%MODE%".
+    echo Modes test / run / codeimport are mutually exclusive; use one mode only.
+    echo.
+    goto :show_help
+)
 if not defined CODEIMPORT_PATH (
     set "CODEIMPORT_PATH=%~1"
     shift
@@ -61,8 +83,16 @@ echo ERROR: Unexpected argument "%~1"
 echo.
 goto :show_help
 
+:err_two_modes
+echo ERROR: Cannot combine modes "%MODE%" and "%~1".
+echo Use exactly one of: test ^| run ^| codeimport
+echo.
+goto :show_help
+
 :args_done
 if "!VERBOSE!"=="1" set "PS_VERBOSE_ARG=-VerboseSync"
+if "!LCD!"=="1" set "PS_LCD_ARG=-Lcd"
+if "!LOGCOPY!"=="1" set "PS_LOGCOPY_ARG=-LogCopy"
 
 if /I "%MODE%"=="test"       goto :mode_test
 if /I "%MODE%"=="run"        goto :mode_run
@@ -74,11 +104,13 @@ goto :show_help
 
 :show_help
 echo Usage:
-echo     wanos-sync.bat test [verbose]
+echo     wanos-sync.bat test [lcd] [logcopy] [verbose]
 echo         Dry-run rsync push/pull/logs. Needs SSH key auth.
 echo.
-echo     wanos-sync.bat run [verbose]
+echo     wanos-sync.bat run [lcd] [logcopy] [verbose]
 echo         Full sync: normalize, rsync mirror, stats pull, log pull.
+echo         lcd     = LCD Pi only (_lcd-agent --^> .51:/home/wannes/wanos; no stats)
+echo         logcopy = also copy wanos* into git docs\logs (or _lcd-agent\docs\logs)
 echo.
 echo     wanos-sync.bat codeimport ^<windows-folder^> [verbose]
 echo         Local mirror only into the given folder. Path is required.
@@ -91,11 +123,11 @@ exit /b 1
 
 :invoke_ps1
 if "!VERBOSE!"=="1" (
-    echo Invoking: powershell -File "%PS_SCRIPT%" -Mode %MODE% !PS_CODEIMPORT_ARG! !PS_VERBOSE_ARG!
+    echo Invoking: powershell -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_VERBOSE_ARG!
     echo Script: %PS_SCRIPT%
     echo.
 )
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Mode %MODE% !PS_CODEIMPORT_ARG! !PS_VERBOSE_ARG!
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_VERBOSE_ARG!
 set "RC=!ERRORLEVEL!"
 if not "!RC!"=="0" (
     echo.
@@ -105,16 +137,31 @@ if not "!RC!"=="0" (
 exit /b 0
 
 :mode_test
-echo Mode: test  ^(dry-run, rsync/SSH^)
+if "!LCD!"=="1" (
+    echo Mode: test lcd  ^(dry-run LCD Pi^)
+) else (
+    echo Mode: test  ^(dry-run, rsync/SSH^)
+)
+if "!LOGCOPY!"=="1" echo Option: logcopy
 call :invoke_ps1
 exit /b %ERRORLEVEL%
 
 :mode_run
-echo Mode: run  ^(rsync/SSH^)
+if "!LCD!"=="1" (
+    echo Mode: run lcd  ^(rsync/SSH LCD Pi^)
+) else (
+    echo Mode: run  ^(rsync/SSH^)
+)
+if "!LOGCOPY!"=="1" echo Option: logcopy
 call :invoke_ps1
 exit /b %ERRORLEVEL%
 
 :mode_codeimport
+if "!LCD!"=="1" (
+    echo ERROR: lcd cannot be combined with codeimport.
+    echo.
+    exit /b 1
+)
 if "!CODEIMPORT_PATH!"=="" (
     echo ERROR: Mode codeimport requires a Windows folder path.
     echo Example: wanos-sync.bat codeimport C:\data\git\wanos\code-import

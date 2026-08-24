@@ -3,7 +3,7 @@ import time
 import asyncio
 from typing import Any, Set, Tuple, Optional
 from core.models import Event, EventType
-from core.well_known_entities import ENTITY_SAUNA_DOOR
+from core.well_known_entities import ENTITY_SAUNA_DOOR, ENTITY_BATHROOM_DOOR
 from logic.alert_manager import AlertManager
 from logic.history_manager import normalize_level, level_max_for_idx
 from core.command_commit import is_outbound_hub_command, claim_payload
@@ -47,6 +47,22 @@ async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str
         manager._state.devices[idx] = new_state
         state_changed = True
         changed_domains.add("devices")
+
+        # LCD parity: track door open/close durations for *all* known doors.
+        # These timestamps are later formatted on the remote LCD Pi.
+        now_unix = int(time.time())
+        sauna_door_idx = manager.resolve_entity_id(ENTITY_SAUNA_DOOR)
+        if sauna_door_idx is not None and idx == sauna_door_idx:
+            manager._state.door_sauna_open_since_unix = now_unix if is_open else None
+            manager._state.door_sauna_closed_since_unix = None if is_open else now_unix
+            # Ensure LCD refresh cadence hooks off door transitions
+            changed_domains.add("sauna")
+
+        bathroom_door_idx = manager.resolve_entity_id(ENTITY_BATHROOM_DOOR)
+        if bathroom_door_idx is not None and idx == bathroom_door_idx:
+            manager._state.door_bathroom_open_since_unix = now_unix if is_open else None
+            manager._state.door_bathroom_closed_since_unix = None if is_open else now_unix
+            changed_domains.add("devices")
 
         if hasattr(manager, "history_manager"):
             _log_actuator(manager, idx, new_state)

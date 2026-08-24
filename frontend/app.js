@@ -142,6 +142,8 @@ function wanosApp() {
                 ventilation_state: "OFF",
                 ventilation_deadline: null,
                 light_color: "#FFD180",
+                lcd_line1: "",
+                lcd_line2: "",
                 lcd_text: ""
             },
             ir: {
@@ -1722,6 +1724,55 @@ function wanosApp() {
             const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             const s = (Math.floor(totalSeconds) % 60).toString().padStart(2, '0');
             return `${h}:${m}:${s}`;
+        },
+
+        /** True when MQTT/WISC screen1 has any non-blank line (else show standby). */
+        lcdScreen1HasContent() {
+            const l1 = (this.state.sauna && this.state.sauna.lcd_line1) ? String(this.state.sauna.lcd_line1) : '';
+            const l2 = (this.state.sauna && this.state.sauna.lcd_line2) ? String(this.state.sauna.lcd_line2) : '';
+            return l1.trim().length > 0 || l2.trim().length > 0;
+        },
+
+        /**
+         * Map one MQTT LCD line to display glyphs, cell-by-cell (§X = 1 cell).
+         * Must NOT trim — leading/trailing spaces are how the composer centers text.
+         */
+        lcdPrettyLine(raw) {
+            const s = String(raw == null ? '' : raw);
+            let out = '';
+            for (let i = 0; i < s.length; ) {
+                if (s[i] === '§' && i + 1 < s.length && s[i + 1] >= '0' && s[i + 1] <= '9') {
+                    const slot = s[i + 1];
+                    if (slot === '0') out += '♥';
+                    else if (slot === '1') out += '°';
+                    // other custom slots: omit glyph but still consume one cell via skip
+                    i += 2;
+                    continue;
+                }
+                out += s[i];
+                i += 1;
+            }
+            return out;
+        },
+
+        /**
+         * Exact 16x2 LCD text for the WISC panel (single pre; spaces preserved).
+         * Pads/truncates each row to 16 cells so centered lines match the physical LCD.
+         */
+        lcdScreen1Display() {
+            if (!this.lcdScreen1HasContent()) {
+                return 'WanOS Wisc standby';
+            }
+            const l1 = this.lcdPad16(this.lcdPrettyLine(this.state.sauna.lcd_line1));
+            const l2 = this.lcdPad16(this.lcdPrettyLine(this.state.sauna.lcd_line2));
+            return l1 + '\n' + l2;
+        },
+
+        /** Force exactly 16 display columns (never trim — pad/slice only). */
+        lcdPad16(s) {
+            const t = String(s == null ? '' : s);
+            if (t.length >= 16) return t.slice(0, 16);
+            return t + ' '.repeat(16 - t.length);
         },
 
         formatExtendedUptime(bootUnix, now) {

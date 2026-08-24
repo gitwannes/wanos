@@ -28,6 +28,8 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 - **Safety gates** — start interlocks, door checks, grace periods, and long-run hardware cutoffs aligned with EN 60335-2-53 practice.
 - **PID control** — proportional–integral–derivative control of thermal mass, with phase-waterfall distribution across U / V / W elements.
 - **Disaggregation** — line voltage and kWh pulse metering used to infer active element behaviour and degradation.
+- **Remote LCD status** — dual 16×2 I2C screens on a dedicated Pi (`_lcd-agent/`), driven over MQTT (`wanos/lcd/screen1|2`); see [`docs/sauna-ir.md`](docs/sauna-ir.md) § 3.7.
+- **Remote LCDs** — WISC-compatible 16×2 screens on a dedicated Pi (`wanos/lcd/screen1|2`); WISC mirrors screen1. See [`docs/sauna-ir.md`](docs/sauna-ir.md) § 3.7.
 
 ---
 
@@ -68,12 +70,13 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 
 ```text
 wanos/
+├── _lcd-agent/     # LCD Pi agent tree (sync with wanos-sync lcd)
 ├── core/           # Event routing, state, models, SSE hub
 ├── frontend/       # Alpine.js UI assets
 ├── hardware/       # GPIO actuators, sensors, simulator
 ├── helpers/        # Ops / discovery / sync utilities
 ├── integrations/   # Protocol bridges (Z-Wave, Hue, Onkyo, …)
-├── logic/          # PID, automations, analytics, timers
+├── logic/          # PID, automations, analytics, timers, LCD composer
 └── main.py         # FastAPI entrypoint
 ```
 

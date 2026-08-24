@@ -32,6 +32,7 @@ from .system_handlers import (
     handle_alert_injected, handle_config_reload_requested, handle_system_sweep_requested,
     handle_zwave_discovery
 )
+from .lcd_handlers import handle_lcd_easteregg_show, handle_lcd_debug_test
 
 # Registry dictionary mapping event string identifiers to their asynchronous handler functions.
 EVENT_ROUTERS = {
@@ -93,7 +94,11 @@ EVENT_ROUTERS = {
     "ALERT_INJECTED": handle_alert_injected,
     "CONFIG_RELOAD_REQUESTED": handle_config_reload_requested,
     "SYSTEM_SWEEP_REQUESTED": handle_system_sweep_requested,
-    "ZWAVE_DISCOVERY": handle_zwave_discovery
+    "ZWAVE_DISCOVERY": handle_zwave_discovery,
+
+    # LCD Pi control channel (admin / UI initiated)
+    "LCD_EASTER_EGG_SHOW": handle_lcd_easteregg_show,
+    "LCD_DEBUG_TEST": handle_lcd_debug_test,
 }
 
 # B10B: catalog system events also arrive as fixed UUIDs on the bus.

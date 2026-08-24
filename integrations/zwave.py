@@ -1,7 +1,7 @@
 # --- file: integrations/zwave.py ---
 import json
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 from core.models import Event, EventType, SystemState, device_name, format_device_ref
 from core.event_catalog import legacy_key_for_bus_token
 from core.command_commit import claim_and_finish, claim_payload
@@ -31,7 +31,7 @@ class ZWaveJSUIBridge(WanosComponent):
 
         # Stable temperature/history heartbeat for Z-Wave temp probes.
         # Without this, day charts show islands whenever the Z-Wave JS UI only reports on-change.
-        self._temp_heartbeat_task: asyncio.Task | None = None
+        self._temp_heartbeat_task: Optional[asyncio.Task] = None
 
     @property
     def mqtt_prefix(self) -> str:
@@ -94,6 +94,48 @@ class ZWaveJSUIBridge(WanosComponent):
                 pass
             self._temp_heartbeat_task = None
 
+    @staticmethod
+    def _climate_values_from_device(dev: Any) -> Tuple[Optional[float], Optional[float]]:
+        """
+        Resolve last known T/RH from RAM.
+
+        Z-Wave temp probes dual-dispatch TEMP_UPDATED (dict) then HUB_STATE_CHANGED
+        with a display string like "21.4 °C", which overwrites the dict. Heartbeats
+        must accept both shapes. Returns (temp, hum); either may be None.
+        """
+        if dev is None or dev == "DEAD" or dev == "Sync...":
+            return None, None
+        if isinstance(dev, dict):
+            temp = dev.get("temp")
+            hum = dev.get("hum")
+            try:
+                temp_f: Optional[float] = float(temp) if temp is not None else None
+            except (TypeError, ValueError):
+                temp_f = None
+            try:
+                hum_f: Optional[float] = float(hum) if hum is not None else None
+            except (TypeError, ValueError):
+                hum_f = None
+            return temp_f, hum_f
+        if isinstance(dev, (int, float)):
+            return float(dev), None
+        if isinstance(dev, str):
+            s = dev.strip()
+            if s.upper() in ("DEAD", "SYNC..."):
+                return None, None
+            # "21.4 °C" / "21.4" — take leading float
+            num = ""
+            for ch in s.replace(",", "."):
+                if ch.isdigit() or ch in ".-":
+                    num += ch
+                elif num:
+                    break
+            try:
+                return float(num), None
+            except (TypeError, ValueError):
+                return None, None
+        return None, None
+
     async def _zwave_temp_heartbeat_loop(self) -> None:
         """
         Z-Wave JS UI often emits temperature only on-change (not on a fixed interval).
@@ -103,48 +145,56 @@ class ZWaveJSUIBridge(WanosComponent):
         try:
             while True:
                 sm = self.state_manager
-                sys = sm._state.system
+                admin = sm._state.system
 
                 # Mimic SHT11: poll faster while sauna is active.
-                sleep_cadence: float = 10.0 if sys.sauna.active else 60.0
+                # Sauna lives on root SystemState, not SystemAdminState.
+                try:
+                    sauna_active = bool(sm._state.sauna.active)
+                except Exception:
+                    sauna_active = False
+                sleep_cadence: float = 10.0 if sauna_active else 60.0
                 await asyncio.sleep(sleep_cadence)
 
-                # Skip when Z-Wave data plane is frozen/offline.
-                if not getattr(sys, "zwave_data_alive", False) or not getattr(sys, "zwave_integration_enabled", False):
+                try:
+                    # Skip when Z-Wave data plane is frozen/offline.
+                    if not getattr(admin, "zwave_data_alive", False) or not getattr(
+                        admin, "zwave_integration_enabled", False
+                    ):
+                        continue
+                    if not hasattr(sm, "sensor_history"):
+                        continue
+
+                    # Temperature probes are mapped into 76xxx as temp_hum nodes.
+                    for idx, meta in list((sm._state.device_metadata or {}).items()):
+                        try:
+                            if not isinstance(meta, dict):
+                                continue
+                            idx_int = int(idx)
+                            if meta.get("origin") != "zwave":
+                                continue
+                            if not (76000 <= idx_int < 77000):
+                                continue
+
+                            temp, hum = self._climate_values_from_device(
+                                sm._state.devices.get(idx_int)
+                            )
+                            if temp is None:
+                                continue
+
+                            # Paired when RH exists; else temp-only (garage/toilet).
+                            if hum is None:
+                                sm.sensor_history.note_climate_temp(idx_int, temp)
+                            else:
+                                sm.sensor_history.note_climate_reading(
+                                    idx_int, temp, hum
+                                )
+                        except Exception:
+                            # One bad idx must not kill the heartbeat task.
+                            continue
+                except Exception:
+                    # Keep looping even if a tick fails (e.g. transient state race).
                     continue
-                if not hasattr(sm, "sensor_history"):
-                    continue
-
-                # Temperature probes are mapped into 76xxx as temp_hum nodes.
-                for idx, meta in (sm._state.device_metadata or {}).items():
-                    try:
-                        idx_int = int(idx)
-                    except (TypeError, ValueError):
-                        continue
-                    if meta.get("origin") != "zwave":
-                        continue
-                    if not (76000 <= idx_int < 77000):
-                        continue
-
-                    dev = sm._state.devices.get(idx_int)
-                    if dev == "DEAD":
-                        continue
-                    if not isinstance(dev, dict):
-                        continue
-
-                    temp = dev.get("temp")
-                    if temp is None:
-                        continue
-
-                    # If humidity exists, heartbeat as a paired reading to keep dew/AH alignment honest.
-                    hum = dev.get("hum")
-                    try:
-                        if hum is None:
-                            sm.sensor_history.note_climate_temp(idx_int, float(temp))
-                        else:
-                            sm.sensor_history.note_climate_reading(idx_int, float(temp), float(hum))
-                    except (TypeError, ValueError):
-                        continue
 
         except asyncio.CancelledError:
             return

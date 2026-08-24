@@ -17,9 +17,10 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 
 | Job | Direction | Behaviour |
 |-----|-----------|-----------|
-| Mirror | Local → Pi | `rsync --delete` + excludes from config |
-| Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) |
-| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (flat; same folder as DBs) |
+| Mirror | Local → Pi | `rsync --delete` + excludes from config (main) or `_lcd-agent` excludes (`lcd`) |
+| Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
+| Log pull | Pi → Local | `/var/log/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`) |
+| Logcopy (optional) | Local → git | Same `wanos*` files into `docs\logs` or `_lcd-agent\docs\logs` |
 
 ### Split Hue config (maps vs presets)
 
@@ -37,16 +38,20 @@ Also: LF-normalize `*.sh` on `run` / `codeimport`.
 ### Modes
 
 ```text
-helpers\wanos-sync.bat test [verbose]
-helpers\wanos-sync.bat run [verbose]
+helpers\wanos-sync.bat test [lcd] [logcopy] [verbose]
+helpers\wanos-sync.bat run [lcd] [logcopy] [verbose]
 helpers\wanos-sync.bat codeimport <windows-folder> [verbose]
 ```
 
-| Mode | Behaviour |
-|------|-----------|
-| `test` | Dry-run only (`rsync -n`) |
-| `run` | Normalize + mirror + pulls |
-| `codeimport <path>` | Local mirror into folder only (path required; no SSH) |
+| Mode / flags | Behaviour |
+|--------------|-----------|
+| `test` | Dry-run only (`rsync -n`) against main Pi |
+| `run` | Normalize + mirror + stats pull + log pull (main Pi) |
+| `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull) |
+| `… logcopy` | After log pull, also copy `wanos*` into git `docs\logs` (main) or `_lcd-agent\docs\logs` (lcd) — both gitignored |
+| `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd`) |
+
+Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `codeimport`) exits with an error — do not combine them.
 
 `verbose` → config counts and full rsync command lines.
 
@@ -56,10 +61,12 @@ helpers\wanos-sync.bat codeimport <windows-folder> [verbose]
 |------|--------|--------|
 | Repo | `C:\data\git\wanos` | `.ps1` |
 | Stats / logs | `C:\data\OneDrive\data\professional\wanos\logs` | `.ps1` |
-| Pi host / user / root | `wannes@10.32.251.30:/home/wannes/wanos` | `[PiSsh]` in config |
-| App logs remote | `/var/log/wanos` | `[PiSsh] RemoteLogDir` |
+| Main Pi | `wannes@10.32.251.30:/home/wannes/wanos` | `[PiSsh]` |
+| LCD Pi | `wannes@10.32.251.51:/home/wannes/wanos` | `[LcdPiSsh]` |
+| LCD log pull local | `…\wanos\logs\lcd-agent` | `[LcdPiSsh] LocalLogSubdir` |
+| App logs remote | `/var/log/wanos*` (`RemoteLogDir=/var/log` + `RemoteGlob=wanos*`; not journalctl) | both SSH sections |
 
-Edit `[PiSsh]` Host/User/RemoteRoot if your Pi differs. Secrets never go in the config — only SSH keys.
+Edit `[PiSsh]` / `[LcdPiSsh]` Host/User/RemoteRoot if your Pis differ. Secrets never go in the config — only SSH keys. Reuse the same `id_ed25519` for both Pis (install pubkey on `.51` once — see `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`).
 
 **SSH binary:** `helpers/wanos-sync.ps1` calls `%USERPROFILE%\scoop\apps\git\current\usr\bin\ssh.exe` (full path, and that dir prepended on PATH). MSYS `rsync` plus `C:\Windows\System32\OpenSSH\ssh.exe` resets the protocol stream (`safe_read` 4 bytes / `Connection reset` / `0 bytes received`). Both binaries read the same `%USERPROFILE%\.ssh\` keys. Windows OpenSSH is still fine for one-time `ssh-keygen` and pubkey install from a normal prompt.
 
@@ -141,12 +148,13 @@ helpers\wanos-sync.bat run
 
 `helpers/wanos-sync.config.txt`:
 
-- `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`). Path segment **`bootstrap`** is excluded, so `helpers/bootstrap/**` is not mirrored. Rsyslog logcap lives in **`helpers/`** (`wanos_rsyslog_logcap.sh`, `wanos-syslog-truncate.sh`, `logrotate.rsyslog`) so it **does** sync. File excludes include `*.bak` and `*.bak-*` (migrator stamps like `automations.auto.yaml.bak-YYYYMMDD-HHMMSS`). Repo meta not deployed: `readme.md`, `LICENSE`, `entity_id-list.txt`, and any other `*.md` outside excluded dirs (e.g. `core/logger.md`).
+- `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`). Path segment **`bootstrap`** is excluded, so `helpers/bootstrap/**` is not mirrored to the **main** Pi. Path **`_lcd-agent`** is excluded from the main mirror (LCD deploy uses `lcd` mode only). Rsyslog logcap lives in **`helpers/`** (`wanos_rsyslog_logcap.sh`, `wanos-syslog-truncate.sh`, `logrotate.rsyslog`) so it **does** sync to the main Pi. File excludes include `*.bak` and `*.bak-*` (migrator stamps like `automations.auto.yaml.bak-YYYYMMDD-HHMMSS`). Repo meta not deployed: `readme.md`, `LICENSE`, `entity_id-list.txt`, and any other `*.md` outside excluded dirs (e.g. `core/logger.md`).
 - **`.cursor`** — IDE rules (`.cursor/rules/`) and other Cursor project files; PC-only, not deployed to the Pi
 - `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite; missing remote file skipped with warning)
 - `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob
+- `[LcdPiSsh]` — LCD Pi (same keys); `LocalLogSubdir=lcd-agent` lands pulls under OneDrive `logs\lcd-agent`
 
-Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine.
+Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine. First LCD deploy: `test lcd` then `run lcd` (install: `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`).
 
 ---
 

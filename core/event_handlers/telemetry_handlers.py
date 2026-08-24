@@ -284,7 +284,12 @@ async def handle_temp_updated(event: Event, manager: Any) -> Tuple[bool, Set[str
 
     if hasattr(manager, "sensor_history") and idx is not None:
         meta = (manager._state.device_metadata or {}).get(idx) or {}
+        # temp_hum with RH: history is written on HUMIDITY_UPDATED (paired same ts).
+        # Temp-only temp_hum (e.g. Z-Wave air-temperature probes with no %RH):
+        # write °C here — otherwise paired-write skip leaves an empty day chart.
         if meta.get("type") != "temp_hum":
+            manager.sensor_history.note_climate_temp(idx, float(val))
+        elif current.get("hum") is None:
             manager.sensor_history.note_climate_temp(idx, float(val))
 
     return state_changed, changed_domains

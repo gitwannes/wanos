@@ -245,6 +245,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await state_manager.start()
 
         state_manager.mqtt_publisher = mqtt_publisher
+        mqtt_publisher.bind_state_manager(state_manager)
         mqtt_publisher.start()
 
         # Start external bridges

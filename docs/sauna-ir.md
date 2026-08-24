@@ -91,6 +91,64 @@ To eliminate the threat of a "Split-Brain" ghost runtime—where physical relays
 Before registering any listener hooks, the actuator controller claims exclusive control of physical GPIO handles, forcefully clamps all solid-state relay phase lines ($U, V, W$) and the IR channel to a 0% PWM duty cycle, drives digital pins to 0V (`LOW`), and drops the primary physical safety contactor relay. 
 Because Pydantic definitions default `gpio_output_enabled` to `False` on launch, the hardware layer ignores incoming control states until an administrator inputs a valid session PIN.
 
+### 3.7 Remote LCD Status Screens (WISC-Compatible)
+WanOS keeps the two character LCDs on a dedicated Wi-Fi Pi (`10.32.251.51`) and treats that node as a render target only. The LCD Pi runs a small Python agent that subscribes to WanOS MQTT topics (`wanos/lcd/screen1`, `wanos/lcd/screen2`) and writes lines to the physical I2C displays.
+
+**Deploy / install (L1 shipped 2026-08-24):**
+* Repo tree: [`_lcd-agent/`](../_lcd-agent/) (agent + `helpers/bootstrap/`).
+* Pi path: `/home/wannes/wanos` (venv `wanos_venv`). Sync: `helpers\wanos-sync.bat test|run lcd` — see [`wanos-sync.md`](wanos-sync.md). Modes `test` / `run` / `codeimport` are mutually exclusive.
+* Secrets: `/home/wannes/wanos/.env` (`WANOS_LCD_*`; never git). Unit `wanos-lcd-agent.service` loads that file via `EnvironmentFile`.
+* Boot I2C: `dtparam=i2c_arm=on` in `/boot/firmware/config.txt` **or** legacy `/boot/config.txt`.
+* Install guide: [`_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`](../_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md).
+* Delivery track: [`todo/phaseL-lcd.md`](todo/phaseL-lcd.md) (**L1** Done; **L2** = screens on WanOS Pi + `.env` → `config_hardware.yaml`, queued).
+
+**I2C addresses on LCD Pi (confirmed):**
+* `0x27` = Screen 1 (sauna status)
+* `0x26` = Screen 2 (control/status)
+
+#### 3.7.1 Door Duration Tracking Contract
+WanOS tracks open/close timing for all configured doors (currently two):
+* Sauna door: entity `sensor.door.sauna_deur` (state + `door_sauna_open_since_unix` / `door_sauna_closed_since_unix`)
+* Bathroom door: entity `sensor.door.badkamer_deur` (state + `door_bathroom_open_since_unix` / `door_bathroom_closed_since_unix`)
+
+Duration format is canonical:
+* `[dd:][hh:]mm:ss`
+* show `dd:` only when `dd > 0`
+* show `hh:` only when `hh > 0` (or when `dd > 0`)
+
+These door durations are tracked in core state and are available to UI/LCD logic. The full open/closed duration string is not required on the 16x2 LCD itself.
+
+#### 3.7.2 Screen 1 (`0x27`) Display Rules
+Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../logic/lcd_screen1.py)), not legacy one-line `AuxiliaryController` text. The same lines are mirrored into `sauna.lcd_line1` / `sauna.lcd_line2` for the WISC sauna panel: amber VT323 16×2 preview (`.wanos-lcd-screen`), spaces preserved so centered rows match the physical LCD. When both lines are blank, WISC shows `WanOS Wisc standby`.
+
+Priority:
+1. **Sauna active**
+   * Line 1 starts with `SAUNA mm:ss` (remaining session time).
+   * Append modulation only when `0 < MOD < 100` as `x%`.
+   * If `MOD == 0`, append `HOLD` on line 1.
+   * No sunset countdown.
+   * Line 2 default = temp/hum status.
+   * If sauna door is open, line 2 becomes `plz close sdoor mm:ss` (left-aligned, warning timer suffix).
+2. **IR active** (when sauna is not active): keep WISC-style IR timer text and temp/hum line.
+3. **Sauna Hue ON only** (when sauna+IR inactive): use date/outside-info fallback text (`shue` equivalent = `hue.group.sauna_hue` ON).
+4. **Blank screen 1** when sauna inactive, IR inactive, and sauna Hue is OFF.
+
+#### 3.7.3 Screen 2 (`0x26`) Display Rules
+Screen 2 is status-only (no live sauna/IR timer view):
+* Init/boot/status/easter-egg messages
+* Screen saver timeout blanks screen 2
+
+#### 3.7.4 `lcdpower` Support
+Legacy WISC code includes `lcdpower` handling in the LCD receiver.
+In WanOS, blanking can be fully implemented via explicit blank-screen commands (clear + backlight off). `lcdpower` remains optional as a future manual override primitive (backlight control decoupled from content).
+
+#### 3.7.5 Easter Egg (Admin)
+An Admin page "System Commands" action can send a Screen 2 easter-egg status message. No additional role-gate is needed in the frontend because `admin.html` is already admin-only.
+Secret variant should be retained in WISC-compatible formatting.
+
+#### 3.7.6 Debug LCD test (Admin)
+Admin → **Debug Commands** → **Test LCD screens** publishes the same payload to `wanos/lcd/screen1` and `wanos/lcd/screen2`: line 1 = local `YYYY-MM-DD HH:MM` (16 cells); line 2 = `operator debug` (≤16). Used to verify MQTT → LCD Pi path without a sauna session. Empty both-lines MQTT payloads blank the physical screen (`clear` + backlight off). Forced debug text is **held** until live screen1 content exists (sauna / IR / sauna Hue) — idle blank compose must not wipe it on the next door/sensor tick.
+
 ---
 
 ## 4. Mathematical Formulations & Power Analytics Engine
