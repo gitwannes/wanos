@@ -120,7 +120,10 @@ weather:
   name: "Outside temp & hum"
   location: "Borsbeek,BE"
   poll_interval_mins: 10
-  sun_refresh_hour: 3  # once-daily sunrise/sunset + env schedule (≥ this local hour)
+  # Once-daily sunrise/sunset + env schedule: first OWM tick at/after this local time
+  # (not at midnight — OWM 2.5 can still return yesterday's sun just after date rollover).
+  sun_refresh_hour: 3
+  sun_refresh_minute: 30
 
 hardware_links:
   # Maps actuator entity_ids to linked power meter entity_ids.

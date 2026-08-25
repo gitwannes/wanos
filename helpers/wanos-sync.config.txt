@@ -16,11 +16,12 @@
 #   StatsRepoPull = subset that always overwrites into the git repo (Pi wins)
 #                   everything else in StatsInclude goes to StatsDest (update/newer)
 #
-# Job 3 LOG PULL (Pi /var/log/wanos* --> StatsDest via rsync/SSH): [PiSsh] or [LcdPiSsh]
-#   RemoteLogDir + RemoteGlob compose /var/log/wanos* (NOT /var/log/wanos/wanos*)
-#   Empty LocalLogSubdir = land flat next to DBs; otherwise StatsDest\<LocalLogSubdir>\
+# Job 3 LOG PULL (Pi /var/log/wanos/wanos* --> StatsDest via rsync/SSH): [PiSsh] or [LcdPiSsh]
+#   RemoteLogDir + RemoteGlob compose /var/log/wanos/wanos* (app files inside the dir — NOT /var/log/wanos*)
+#   Empty LocalLogSubdir = land flat under StatsDest; otherwise StatsDest\<LocalLogSubdir>\
+#   Main: StatsDest\  |  LCD: StatsDest\lcd-agent\  (never StatsDest\wanos\ or …\lcd-agent\wanos\)
 # LCD mode: helpers\wanos-sync.bat test|run lcd  (source = repo\_lcd-agent\ --> LcdPiSsh)
-# logcopy: after log pull, also copy wanos* into git docs\logs (or \_lcd-agent\docs\logs)
+# logcopy: after log pull, copy wanos* files from that same local dir into git docs\logs
 # =============================================================================
 
 [MirrorBootstrapFiles]
@@ -100,11 +101,11 @@ config_hue_presets.auto.yaml
 Host=10.32.251.30
 User=wannes
 RemoteRoot=/home/wannes/wanos
-# Compose remote spec /var/log/wanos* (same as LCD Pi; not /var/log/wanos/wanos*)
-RemoteLogDir=/var/log
+# Compose remote spec /var/log/wanos/wanos* (files inside Pi log dir)
+RemoteLogDir=/var/log/wanos
 # Land flat under StatsDest (same folder as sensor_history.db). Set a name to use a subdir.
 LocalLogSubdir=
-# Remote name glob for log pull
+# Remote name glob for log pull (matched under RemoteLogDir)
 RemoteGlob=wanos*
 
 [LcdPiSsh]
@@ -112,6 +113,7 @@ RemoteGlob=wanos*
 Host=10.32.251.51
 User=wannes
 RemoteRoot=/home/wannes/wanos
-RemoteLogDir=/var/log
+# Same remote log tree as main Pi; local files land under StatsDest\lcd-agent\
+RemoteLogDir=/var/log/wanos
 LocalLogSubdir=lcd-agent
 RemoteGlob=wanos*

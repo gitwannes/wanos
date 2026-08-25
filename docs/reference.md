@@ -102,7 +102,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)
-* `open_weather.py`: OWM loop — climate (temp/humidity) on `weather.poll_interval_mins` (**10** after **G3**; takes effect on cold boot); sunrise/sunset once daily at `sun_refresh_hour` (plus boot/enable). Climate no longer emits sun events. Tripwires off on HTTP failure.
+* `open_weather.py`: OWM loop — climate (temp/humidity) on `weather.poll_interval_mins` (**10** after **G3**; takes effect on cold boot); sunrise/sunset once daily at/after `sun_refresh_hour`:`sun_refresh_minute` (default **≥ 03:30**; plus boot/enable — not at midnight). Climate no longer emits sun events. Tripwires off on HTTP failure.
 * `onkyo.py`: Persistent asynchronous bridge maintaining zero-latency TCP sockets with Onkyo/Pioneer AV receivers, handling legacy hardware protocol variations.
 * `rfxcom.py`: Direct asyncio serial protocol driving the 433MHz antenna transceiver, utilizing custom packet generation blocks to protect against library crashes.
 * `sonos.py`: Asynchronous network integration tracking UPnP/HTTP topologies for Sonos speakers.
@@ -246,7 +246,7 @@ To communicate with the system, payloads must align with the exact structural da
   ```json
   { "type": "HUB_STATE_CHANGED", "payload": { "idx": 51005, "state": "ON", "bri": 254, "xy": [0.6915, 0.3083], "force": true } }
   ```
-* **Sun cycle / env schedule refresh** (daily ≥ `sun_refresh_hour`, and on OWM enable/boot — not on climate polls). Bus type **`SUNRISE_SUNSET_UPDATE`** (legacy alias `EXTERNAL_WEATHER_UPDATED` still accepted by the handler until emitters soak; same catalog UUID; display **Sunrise/sunset update**). Schedule windows: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md).
+* **Sun cycle / env schedule refresh** (daily ≥ `sun_refresh_hour`:`sun_refresh_minute`, default **03:30**, and on OWM enable/boot — not on climate polls, not at midnight). Bus type **`SUNRISE_SUNSET_UPDATE`** (legacy alias `EXTERNAL_WEATHER_UPDATED` still accepted by the handler until emitters soak; same catalog UUID; display **Sunrise/sunset update**). Schedule windows: [`docs/env-schedule-and-system-events.md`](env-schedule-and-system-events.md).
   ```json
   { "type": "SUNRISE_SUNSET_UPDATE", "payload": { "sunrise": 1782201000, "sunset": 1782256000 } }
   ```

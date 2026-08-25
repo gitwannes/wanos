@@ -10,7 +10,7 @@ Three jobs (rsync over SSH -- no Samba/Z:):
 
 1) MIRROR JOB  - Local repo (or \_lcd-agent)  -->  Pi WanOS root (rsync --delete + excludes)
 2) STATS / PULL JOB  - Pi  -->  Local (repo YAML Pi-wins; telemetry to StatsDest) [main Pi only]
-3) LOG PULL JOB  - Pi /var/log/wanos*  -->  StatsDest (or StatsDest\<LocalLogSubdir>)
+3) LOG PULL JOB  - Pi /var/log/wanos/wanos*  -->  StatsDest (or StatsDest\<LocalLogSubdir>)
 
 Optional:
    -Lcd       Mirror/pull for LCD Pi only (skip stats; source = \_lcd-agent)
@@ -120,7 +120,7 @@ function Read-WanosSyncConfig {
         Host           = "10.32.251.30"
         User           = "wannes"
         RemoteRoot     = "/home/wannes/wanos"
-        RemoteLogDir   = "/var/log"
+        RemoteLogDir   = "/var/log/wanos"
         LocalLogSubdir = ""
         RemoteGlob     = "wanos*"
     }
@@ -128,7 +128,7 @@ function Read-WanosSyncConfig {
         Host           = "10.32.251.51"
         User           = "wannes"
         RemoteRoot     = "/home/wannes/wanos"
-        RemoteLogDir   = "/var/log"
+        RemoteLogDir   = "/var/log/wanos"
         LocalLogSubdir = "lcd-agent"
         RemoteGlob     = "wanos*"
     }
@@ -806,7 +806,7 @@ function Invoke-WanosRsyncStatsJob {
 }
 
 # =============================================================================
-# JOB 3 - LOG PULL (Pi /var/log/wanos* --> StatsDest via rsync)
+# JOB 3 - LOG PULL (Pi /var/log/wanos/wanos* --> StatsDest via rsync)
 # =============================================================================
 
 function Invoke-WanosRsyncLogPullJob {
@@ -816,7 +816,7 @@ function Invoke-WanosRsyncLogPullJob {
         [switch]$DryRun
     )
 
-    Write-SyncJobHeader "=== LOG PULL JOB (Pi /var/log/wanos* --> Local via rsync/SSH) ==="
+    Write-SyncJobHeader "=== LOG PULL JOB (Pi /var/log/wanos/wanos* --> Local via rsync/SSH) ==="
 
     $subdir = if ($null -eq $Ssh.LocalLogSubdir) { "" } else { [string]$Ssh.LocalLogSubdir }
     $subdir = $subdir.Trim().Trim('\', '/')

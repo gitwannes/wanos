@@ -188,11 +188,17 @@ class TwoScreenRenderer:
     def __init__(self, *, bus_no: int, addr_screen1: int, addr_screen2: int) -> None:
         self.screen1 = Hd44780I2c(bus_no=bus_no, i2c_addr=addr_screen1)
         self.screen2 = Hd44780I2c(bus_no=bus_no, i2c_addr=addr_screen2)
+        # Local blank flags — avoid re-clear / backlight churn / DEBUG spam when
+        # screensaver (or MQTT blank) fires again while already blank.
+        self._blank: dict[int, bool] = {1: False, 2: False}
 
     def blank_screen(self, screen: int) -> None:
+        if self._blank.get(screen):
+            return
         lcd = self.screen1 if screen == 1 else self.screen2
         lcd.clear()
         lcd.backlight(False)
+        self._blank[screen] = True
         LOG.debug("LCD screen%d blank", screen)
 
     def print_screen(self, *, screen: int, line1: str, line2: str) -> None:
@@ -203,6 +209,7 @@ class TwoScreenRenderer:
             lcd.backlight(False)
         lcd.write_string(1, line1 or "")
         lcd.write_string(2, line2 or "")
+        self._blank[screen] = False
         LOG.debug(
             "LCD screen%d | L1=%r | L2=%r",
             screen,

@@ -19,8 +19,8 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 |-----|-----------|-----------|
 | Mirror | Local → Pi | `rsync --delete` + excludes from config (main) or `_lcd-agent` excludes (`lcd`) |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
-| Log pull | Pi → Local | `/var/log/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`) |
-| Logcopy (optional) | Local → git | Same `wanos*` files into `docs\logs` or `_lcd-agent\docs\logs` |
+| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`) |
+| Logcopy (optional) | Local → git | Same `wanos*` files from that pull dir into `docs\logs` or `_lcd-agent\docs\logs` |
 
 ### Split Hue config (maps vs presets)
 
@@ -64,7 +64,7 @@ Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test
 | Main Pi | `wannes@10.32.251.30:/home/wannes/wanos` | `[PiSsh]` |
 | LCD Pi | `wannes@10.32.251.51:/home/wannes/wanos` | `[LcdPiSsh]` |
 | LCD log pull local | `…\wanos\logs\lcd-agent` | `[LcdPiSsh] LocalLogSubdir` |
-| App logs remote | `/var/log/wanos*` (`RemoteLogDir=/var/log` + `RemoteGlob=wanos*`; not journalctl) | both SSH sections |
+| App logs remote | `/var/log/wanos/wanos*` (`RemoteLogDir=/var/log/wanos` + `RemoteGlob=wanos*`; not journalctl) | both SSH sections |
 
 Edit `[PiSsh]` / `[LcdPiSsh]` Host/User/RemoteRoot if your Pis differ. Secrets never go in the config — only SSH keys. Reuse the same `id_ed25519` for both Pis (install pubkey on `.51` once — see `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`).
 

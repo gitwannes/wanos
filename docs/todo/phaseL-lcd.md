@@ -23,7 +23,7 @@ Dedicated 16x2 HD44780 screens (WISC-compatible text). **L1** = agent on a secon
 
 **Shipped (pointer):** Dedicated LCD Pi (`.51`) renders MQTT `wanos/lcd/screen1|2` from `_lcd-agent/`. WanOS composes screen1 in `logic/lcd_screen1.py` (also `sauna.lcd_line1/2` WISC preview). Sync `test|run [lcd] [logcopy]`; secrets in Pi `/home/wannes/wanos/.env`. Canonical product text: [`sauna-ir.md`](../sauna-ir.md) § 3.7. Deploy: [`wanos-sync.md`](../wanos-sync.md) + install md above.
 
-**Delivery locks (archive):** `_lcd-agent/` contents → `/home/wannes/wanos` (not nested `_lcd-agent`); main mirror excludes `_lcd-agent`; same SSH key as WanOS Pi; log pull `/var/log/wanos*` (not journalctl); I2C `0x27` / `0x26`; `wanos_venv`; unit `wanos-lcd-agent.service`.
+**Delivery locks (archive):** `_lcd-agent/` contents → `/home/wannes/wanos` (not nested `_lcd-agent`); main mirror excludes `_lcd-agent`; same SSH key as WanOS Pi; log pull `/var/log/wanos/wanos*` (not journalctl); I2C `0x27` / `0x26`; `wanos_venv`; unit `wanos-lcd-agent.service`.
 
 **DoD:** Agent + MQTT + sync lcd/logcopy ✅ Pi smoke. Last DoD docs audit ✅ **2026-08-24**.
 

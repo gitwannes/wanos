@@ -1,3 +1,4 @@
+# --- file: integrations/open_weather.py ---
 from __future__ import annotations
 
 import asyncio
@@ -11,7 +12,7 @@ from core.state_manager import StateManager
 
 
 async def weather_polling_loop(state_manager: StateManager) -> None:
-    """OWM loop: climate on poll_interval; sun cycle once daily (+ boot/enable)."""
+    """OWM loop: climate on poll_interval; sun cycle once daily after local gate (+ boot/enable)."""
     config = state_manager._config.weather
 
     if not config.api_key:
@@ -20,12 +21,20 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
 
     url = f"https://api.openweathermap.org/data/2.5/weather?q={config.location}&appid={config.api_key}&units=metric"
     poll_seconds = config.poll_interval_mins * 60
-    sun_hour = int(getattr(config, "sun_refresh_hour", 3) or 3)
+    # Daily sun gate: wait until ≥ HH:MM local so OWM returns today's sunrise/sunset
+    # (midnight rollover can still hand back yesterday's unix times).
+    sun_hour = int(config.sun_refresh_hour)
+    sun_minute = int(config.sun_refresh_minute)
+    if sun_minute < 0:
+        sun_minute = 0
+    if sun_minute > 59:
+        sun_minute = 59
     climate_idx = int(getattr(config, "idx", None) or 30001)
 
     await state_manager.logger.success(
         f"[OWM] polling initialized for {config.location} "
-        f"(climate every {config.poll_interval_mins}m; sun daily on date rollover + ≥{sun_hour:02d}:00 catch-up)."
+        f"(climate every {config.poll_interval_mins}m; "
+        f"sun daily ≥{sun_hour:02d}:{sun_minute:02d} local + boot/enable)."
     )
 
     last_temp = None
@@ -61,8 +70,10 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
             now_mono = time.monotonic()
 
             need_climate = seconds_since_last_climate >= poll_seconds
-            # G15: refresh sun on calendar rollover at any hour (sun_hour no longer blocks midnight–03:00).
-            need_sun = force_sun or last_sun_refresh_date != today
+            # Once per local calendar day, but only after the configured gate (default ≥ 03:30).
+            # force_sun (boot / UI enable) bypasses the clock gate.
+            past_sun_gate = (now_local.hour, now_local.minute) >= (sun_hour, sun_minute)
+            need_sun = force_sun or (last_sun_refresh_date != today and past_sun_gate)
             if need_sun and now_mono < sun_backoff_until:
                 need_sun = False
 

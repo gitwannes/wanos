@@ -120,7 +120,7 @@ else:
 | Stale `env_twi_*` / `env_blinds_*` timer fires | Skipped + `[Timer] Skipping stale env timer` WARNING — **G15** |
 | Shutters open/close inverted by bad clamps | Scheduler does not skip; fix config |
 
-**OWM sun refresh (G15):** runs on **calendar date rollover** at any hour (not gated to `sun_refresh_hour` only). `sun_refresh_hour` (default 03:00) remains documented as typical catch-up time when refresh already ran today.
+**OWM sun refresh:** once per local calendar day at/after `weather.sun_refresh_hour`:`sun_refresh_minute` (default **≥ 03:30**), plus boot/OWM-enable. **Not** at midnight — OWM 2.5 can still return yesterday’s sunrise/sunset just after date rollover, which would keep `time is dark` true all day. Twilight schedule same-day guards (G15) still apply between midnight and that gate.
 
 **Sweeper boot / passive (G15):** alignment is **skipped** when uptime &lt; **180 s** or sweep reason is passive (`None`, `network_recovery`, `config_reload`) — logs `[Sweeper] Skipping time-series alignment …`. Schedule math still runs on **`SUNRISE_SUNSET_UPDATE`** (OWM); env timers arm from `EnvironmentScheduler.recalculate_schedule` without needing sweeper alignment. First **active** sweep after ~3 min uptime may dispatch twilight/blinds side triggers.
 

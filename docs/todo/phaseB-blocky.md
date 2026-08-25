@@ -101,7 +101,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-17**). **Ship B4 (H4) ✅ DONE** (**2026-08-17**). **Ship B5 (H12 + bathroom) ✅ DONE** (**2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN). **Phase B9B ✅ DONE** (**2026-08-20** — H5 deferred to **E**). **Next cluster:** **Ship B7 (B14)**. **B12** / **B11–B18** / **B20** = lettered backlog (**B11** cancelled **2026-08-22**).
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-17**). **Ship B4 (H4) ✅ DONE** (**2026-08-17**). **Ship B5 (H12 + bathroom) ✅ DONE** (**2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN). **Phase B9B ✅ DONE** (**2026-08-20** — H5 deferred to **E**). **Next cluster:** **Ship B7 (B14)**. **B12** / **B25** / **B26** / **B24** / **B11–B18** / **B20** = lettered backlog (**B11** cancelled **2026-08-22**; **B26** triaged **2026-08-25**).
 
 **Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B:** **H4** ✅ **B4**; **H12 + bathroom** ✅ **B5**; **H5** notify → **E** (was Ship **B6** — cancelled **2026-08-20**).
 
@@ -1058,11 +1058,67 @@ Then
 
 ---
 
+### B26 — Independent If sequence under Then 🔜 TODO
+
+**Letter:** **B26**. **Sequence #4** (after **B22** ✅ / **B25**; before **B24**). **Size:** mid · **one PR**. Status **open** — triage **2026-08-25** (kickoff not started).
+
+**Depends on:** **B22** ✅ (nested `then:`). **Not** a reopen of cancelled **B11** (multi-root Library graphs) — scope is **inside one Then body** only. Top-level If/Else-if stays exclusive.
+
+#### Operator requests (verbatim)
+
+> *(2026-08-25)*
+> not good - I want to do this: when I turn on PC monitors then 3 actions:
+> 1/ if PC is off -> turn it ON
+> 2/ if time is light -> turn sonos on
+> 3/ run buro scehemer ON
+> so... how to do this? which changes are needed?
+
+> *(2026-08-25)*
+> put into triage
+
+#### Problem (verified)
+
+B22 `then.branches` is an exclusive **If → Else-if** chain (`_first_matching_branch`). Schema rejects a second inner `when: if` (`only first inner branch may be when: if`). Operator wants **independent** gates under one wake (all that match run) plus unconditional Sets (already covered by leading/trailing).
+
+**Reference rule:** `PC Monitors -> Buro Schemer & Sonos` (same family as **B24**).
+
+#### Proposal (triage — not locked)
+
+- Under **Then**: allow a **sequence of independent Ifs** — evaluate **every** matching `when: if`; collect actions from all matches.
+- **Else-if** remains exclusive continuation of the **preceding** If group (not a second independent If).
+- Trailing/leading Sets unchanged (e.g. schemer ON always).
+- Touch: `automations_schema_b22.py`, FE validate in `blocky.js`, `_resolve_branch_executable_actions`, docs/`reference.md`.
+
+#### Open at kickoff
+
+| # | Question |
+|---|---|
+| **1** | Exact mix rules: consecutive `If` = all-match; `Else-if` only after an `If` — confirm Blockly snap + Save errors. |
+| **2** | Nested `then:` deeper than depth 1 — same all-match rule at every Then level? |
+| **3** | X-ray / fire-status suffix when multiple inner Ifs fire (one rule id vs `#if` / multi)? |
+| **4** | Existing live YAML with only If+Else-if under Then — must keep identical behaviour (regression). |
+
+#### Out of scope (triage)
+
+- Reopening **B11** (N independent roots on one Library page)
+- Changing **top-level** branch exclusivity
+- Conditional Sets without an If wrapper
+
+#### DoD (stub)
+
+- [ ] Schema + API: multiple inner `when: if` under `then.branches` valid; Else-if mix rules locked
+- [ ] Engine: all-matching independent Ifs; Else-if exclusive within group; leading/trailing unchanged
+- [ ] Blockly: author PC-monitors shape; round-trip; clear Save errors
+- [ ] Pi smoke: monitors ON → PC gate + light/Sonos gate + schemer trailing (independent)
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
 ### B24 — Per-rule sweep reconcile 🔜 TODO
 
-**Letter:** **B24**. **Sequence #4** (after **B22** ✅; may run ∥ **B12** / **B25**). **Size:** mid · **one PR**. Status **open** — triage **2026-08-22** (kickoff not started).
+**Letter:** **B24**. **Sequence #5** (after **B26**; may run ∥ **B12** / **B25**). **Size:** mid · **one PR**. Status **open** — triage **2026-08-22** (kickoff not started).
 
-**Depends on:** **B19** ✅ (branch rules + engine). Distinct from **B20** (Time trigger every minute). Supersedes / generalizes **B14** row 6 (humidity-only sweeper replay — dropped in **B5**).
+**Depends on:** **B19** ✅ (branch rules + engine). Prefer **B26** first so sweep reconcile inherits Then all-match semantics. Distinct from **B20** (Time trigger every minute). Supersedes / generalizes **B14** row 6 (humidity-only sweeper replay — dropped in **B5**).
 
 #### Operator requests (verbatim)
 
@@ -1095,7 +1151,7 @@ Library rules **do not** re-evaluate against live state at sweep. Edge-wake rule
 | **2** | Event-gated rules — reject checkbox on Save, or allow with policy? |
 | **3** | `is: ANY` / wake-only Compare rules — reject on opt-in? |
 | **4** | Idempotency — repeat Sonos/schemer ON every sweep OK? |
-| **5** | Interaction with **B22** nested `then:` — confirm outer If + inner level checks only. |
+| **5** | Interaction with **B22** / **B26** nested `then:` — outer If + inner level checks; all-match independent Ifs if **B26** shipped. |
 
 #### Out of scope (triage)
 
@@ -1968,6 +2024,7 @@ Pointers only — detail under § B10F / § B12–B18:
 * ~~**B11** — Multi-flow in one Blockly page.~~ **Cancelled 2026-08-22.**
 * **B12** — Rule-list folder/tag.
 * **B25** — Rule-list complexity score + tier (sort/filter).
+* **B26** — Independent If sequence under Then (all-match); not B11.
 * **`EMAIL_REQUESTED`:** seed with phase **E** (not B10B).
 * **B15** — Demote schedule edges → user origin.
 * **B16** — Full-bus UUID for internal `EventType`s.
@@ -2433,7 +2490,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 **Unbundled from cancelled Ship B6 / B11 (2026-08-22).**
 
-**Adjacent (not the same):** **B25** — derived complexity score + tier for Library sort/filter (no folder/tag persistence).
+**Adjacent (not the same):** **B25** — derived complexity score + tier for Library sort/filter (no folder/tag persistence). **B26** — independent Ifs under Then (extends **B22**).
 
 **B12 DoD (stub):** folder/tag model + list UX + persistence; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 

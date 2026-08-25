@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-08-24 (**L1** Done — LCD Pi smoke; **L2** queued)
+**Last updated:** 2026-08-25 (**B26** triaged — independent Ifs under Then)
 
 ---
 
@@ -90,45 +90,46 @@ All open items. **Detail** = phase file section.
 1   open   high B7 / B14     timed Set, delay, cooldown + B5-deferred           phaseB § B14 / Ship B7
 2   open   low  B12          rule-list folder/tag                               phaseB § B12
 3   open   low  B25          rule-list complexity score + tier (sort/filter)     phaseB § B25
-4   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)        phaseB § B24
-5   open   low  B10I         used SE → Go to SR                                 phaseB § B10I
-6   open   low  B10J         bugfix: Event Received → catalog display name      phaseB § B10J
-7   open   low  B10L         NOT CONNECTED overlay + Re-connecting copy         phaseB § B10L
-8   open   low  B10M         bugfix: Explorer Hue preset duplicate settings     phaseB § B10M
-9   open   low  C20          bugfix: Admin Clear All no-op (kickoff locked)     phaseC § C20
-10  open   low  C21          bugfix: AUTO OFF countdown while already OFF       phaseC § C21
-11  open   high E            Gmail transport / outbox + Blockly Messages        phaseE
-12  open   mid  C3           Force ALL-OFF                                      phaseC § C3
-13  open   mid  C4           Rename HTML entrypoints (commander→wisc, blocky→blockly; login landing)  phaseC § C4
-14  open   mid  C28          LG TV skins (explorer-tv + wisc-tv; gate from login) phaseC § C28
-15  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
-16  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
-17  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
-18  open   mid  C25          Overlay dew-likelihood % + compare temp(/hum)      phaseC § C25
-19  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
-20  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
-21  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
-22  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
-23  open   low  G7           Integration log tags                               phaseG § G7
-24  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
-25  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
-26  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
-27  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
-28  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
-29  open   high G9           Honeywell / Evohome                                phaseG § G9
-30  open   high G10          HomeWizard energy                                  phaseG § G10
-31  open   high G12          SMA solar                                          phaseG § G12
-32  open   high G13          HomeConnect BSH                                    phaseG § G13
-33  open   high F            Security bridge (F1→F7)                            phaseF
-34  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
-35  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-36  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-37  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-38  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-39  hold   high P            Other homes / portability (assess)                 phaseP
-40  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
+4   open   mid  B26          independent If sequence under Then (all-match)     phaseB § B26
+5   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)        phaseB § B24
+6   open   low  B10I         used SE → Go to SR                                 phaseB § B10I
+7   open   low  B10J         bugfix: Event Received → catalog display name      phaseB § B10J
+8   open   low  B10L         NOT CONNECTED overlay + Re-connecting copy         phaseB § B10L
+9   open   low  B10M         bugfix: Explorer Hue preset duplicate settings     phaseB § B10M
+10  open   low  C20          bugfix: Admin Clear All no-op (kickoff locked)     phaseC § C20
+11  open   low  C21          bugfix: AUTO OFF countdown while already OFF       phaseC § C21
+12  open   high E            Gmail transport / outbox + Blockly Messages        phaseE
+13  open   mid  C3           Force ALL-OFF                                      phaseC § C3
+14  open   mid  C4           Rename HTML entrypoints (commander→wisc, blocky→blockly; login landing)  phaseC § C4
+15  open   mid  C28          LG TV skins (explorer-tv + wisc-tv; gate from login) phaseC § C28
+16  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
+17  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
+18  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
+19  open   mid  C25          Overlay dew-likelihood % + compare temp(/hum)      phaseC § C25
+20  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
+21  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
+22  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
+23  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
+24  open   low  G7           Integration log tags                               phaseG § G7
+25  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
+26  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
+27  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
+28  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
+29  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
+30  open   high G9           Honeywell / Evohome                                phaseG § G9
+31  open   high G10          HomeWizard energy                                  phaseG § G10
+32  open   high G12          SMA solar                                          phaseG § G12
+33  open   high G13          HomeConnect BSH                                    phaseG § G13
+34  open   high F            Security bridge (F1→F7)                            phaseF
+35  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
+36  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+37  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+38  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+39  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+40  hold   high P            Other homes / portability (assess)                 phaseP
+41  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
 ```
-Near-term: **L2** after kickoff when ready. **Ship B7** → **B24** kickoff when ready. **B12** / **B25** may run ∥ Ship B7. **C28** after **C4**; **C26** after **C4** (HTML/JS rename, then split). **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **L1** ✅ **Pi smoke 2026-08-24**. **C25** kickoff **locked** — implement when commanded (gate cleared).
+Near-term: **L2** after kickoff when ready. **Ship B7** → **B26** (Then all-match Ifs) → **B24** when ready. **B12** / **B25** may run ∥ Ship B7. **C28** after **C4**; **C26** after **C4** (HTML/JS rename, then split). **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **L1** ✅ **Pi smoke 2026-08-24**. **C25** kickoff **locked** — implement when commanded (gate cleared).
 
 ---
 

@@ -6,3 +6,11 @@ hue:
     relax_red: {name: "relax", rgb: "#FF8C00", bri: 100}
     my_white: {name: "helder", xy: [0.2901, 0.2479], bri: 100}
     badk_red: {name: "badk", xy: [0.6750, 0.3220], bri: 100}
+    eetkamer:
+      name: eetkamer
+      bri: 100
+      rgb: '#FFAE00'
+    badk_real:
+      name: badk-real
+      bri: 100
+      rgb: '#FF1100'

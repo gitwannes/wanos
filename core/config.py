@@ -11,8 +11,10 @@ class WeatherConfig(BaseModel):
     name: str
     location: str
     poll_interval_mins: int
-    # Local wall-clock hour for the once-daily sun/schedule refresh (default 03:00).
+    # Local wall-clock gate for the once-daily sun/schedule refresh (default ≥ 03:30).
+    # Daily refresh waits until this time after midnight so OWM returns today's sunrise/sunset.
     sun_refresh_hour: int = 3
+    sun_refresh_minute: int = 30
     api_key: Optional[str] = None
 
 
