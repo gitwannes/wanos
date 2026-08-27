@@ -59,6 +59,7 @@ class EventType(str, Enum):
     ZWAVE_TOGGLED = "ZWAVE_TOGGLED"  # Z-Wave integration toggle
     HUE_TOGGLED = "HUE_TOGGLED"  # Listen to local Hue Bridge messages
     EPSON_TOGGLED = "EPSON_TOGGLED"  # Block/allow Epson projector network commands
+    LG_TOGGLED = "LG_TOGGLED"  # Block/allow LG webOS TV bridge (G16)
     SONOS_TOGGLED = "SONOS_TOGGLED"  # Block/allow local Sonos API control
     ONKYO_TOGGLED = "ONKYO_TOGGLED"  # Block/allow Onkyo TCP streaming
 
@@ -114,6 +115,8 @@ class SystemAdminState(BaseModel):
     hue_integration_enabled: bool = False  # Switch to block/allow Hue API v2 bidirectional commands
     epson_connected: bool = False  # Tracks physical TCP availability of the Epson Projector
     epson_integration_enabled: bool = False  # Master UI switch to block/allow Epson commands
+    lg_connected: bool = False  # LG bridge healthy (independent of TV power ON/OFF)
+    lg_integration_enabled: bool = False  # Master UI switch for LG webOS commands (G16)
     sonos_integration_enabled: bool = False  # Master UI switch to block/allow Sonos commands
     onkyo_connected: bool = False  # Tracks physical TCP availability of Onkyo Receivers
     onkyo_integration_enabled: bool = False  # Master UI switch to block/allow Onkyo Receivers
@@ -131,6 +134,7 @@ class SystemAdminState(BaseModel):
     hidden_explorer_idxs: list[int] = Field(default_factory=list)  # Devices explicitly hidden from Device Explorer
     hue_presets: dict[str, Any] = Field(default_factory=dict)  # UI Button Configurations pushed from YAML
     sonos_stations: dict[str, str] = Field(default_factory=dict)  # TuneIn station key → URI (Blocky / Explorer)
+    lg_apps: dict[str, str] = Field(default_factory=dict)  # G16 Blockly catalog key → display label
     zwave_mapped: dict[int, str] = Field(default_factory=dict)  # ⚡ Existing config passed to UI to prevent overwrites
     zwave_inbox: dict[str, dict[str, Any]] = Field(default_factory=dict)  # ⚡ Transient inbox for unmapped devices
     zwave_usb_path: str = ""  # ⚡ Passed to UI for YAML generation

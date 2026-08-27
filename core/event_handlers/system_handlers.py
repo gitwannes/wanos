@@ -164,6 +164,34 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
                 await manager.logger.error(f"Fast hue_presets reload failed; falling back to full reload: {e}")
                 alert_scope = "full"
 
+        # G16: scoped `lg` — refresh LG maps/apps without Hue/Onkyo/Z-Wave recycle
+        if scope == "lg":
+            try:
+                new_config = load_config()
+                manager._config.lg = getattr(new_config, "lg", None)
+                if getattr(manager, "lg_bridge", None):
+                    await manager.lg_bridge.reload_config(new_config)
+                # UI catalog for Blockly
+                lg_cfg = getattr(manager._config, "lg", None)
+                if lg_cfg and getattr(lg_cfg, "apps", None):
+                    manager._state.system.lg_apps = {
+                        str(k): (getattr(v, "label", None) or str(k))
+                        for k, v in lg_cfg.apps.items()
+                    }
+                else:
+                    manager._state.system.lg_apps = {}
+                manager.rebuild_core_metadata()
+                ch_done, dom_done = AlertManager.process_alert(
+                    manager._state, reload_alert_complete(alert_scope)
+                )
+                state_changed |= ch_done
+                changed_domains |= dom_done
+                changed_domains.update({"system", "devices", "device_metadata"})
+                return state_changed, changed_domains
+            except Exception as e:
+                await manager.logger.error(f"Fast lg reload failed; falling back to full reload: {e}")
+                alert_scope = "full"
+
         from logic.automation_rules import AutomationEngine
         new_config = load_config()
         manager._config = new_config
@@ -173,7 +201,7 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         manager.rebuild_core_metadata()
 
         # D1: scoped reload — skip bridge recycle for Timers & types saves.
-        full_recycle = scope not in ("auto_off_metadata", "timers_types", "product_types", "hue_presets")
+        full_recycle = scope not in ("auto_off_metadata", "timers_types", "product_types", "hue_presets", "lg")
         if full_recycle:
             # RECYCLE HUE INTEGRATION MAPPINGS & CONNECTIONS
             if manager.hue_bridge:
@@ -217,6 +245,10 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
                 )
                 if was_running and manager._state.system.onkyo_integration_enabled:
                     await manager.onkyo_bridge.start()
+
+            # Refresh LG maps / host (G16); keep poll running
+            if getattr(manager, "lg_bridge", None):
+                await manager.lg_bridge.reload_config(new_config)
 
         state_changed = True
         changed_domains.update({"system", "devices", "device_metadata"})

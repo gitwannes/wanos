@@ -23,7 +23,7 @@ from logic.alert_manager import AlertManager
 COMMIT_HOLD_SECS: float = 0.5
 
 # Inbound echoes must not open a commit hold (would delay live telemetry).
-_INBOUND_ORIGINS = frozenset({"hue", "zwave", "sonos", "onkyo"})
+_INBOUND_ORIGINS = frozenset({"hue", "zwave", "sonos", "onkyo", "lg"})
 
 
 def is_outbound_hub_command(payload: Optional[dict]) -> bool:

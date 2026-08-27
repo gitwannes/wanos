@@ -32,6 +32,11 @@ RELOAD_ALERT_COPY: Dict[str, Dict[str, str]] = {
         "complete": "🟢 Events catalog reloaded.",
         "failed_prefix": "ERROR: Events catalog reload failed: ",
     },
+    "lg": {
+        "in_progress": "🔄 Reloading LG TV…",
+        "complete": "🟢 LG TV config reloaded.",
+        "failed_prefix": "ERROR: LG TV reload failed: ",
+    },
 }
 
 
@@ -52,6 +57,8 @@ def resolve_reload_alert_scope(payload: Dict[str, Any] | None) -> str:
         return "automations"
     if scope == "events":
         return "events"
+    if scope == "lg":
+        return "lg"
     if scope in ("timers_types", "auto_off_metadata", "product_types"):
         return "timers_types"
     return "full"

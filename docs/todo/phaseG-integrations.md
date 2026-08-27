@@ -2,9 +2,9 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9–G13** five new vendor bridges (sequential own ships) — inbox **2026-08-14**.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9–G13** five new vendor bridges (sequential own ships) — inbox **2026-08-14**.
 
-**Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges).
+**Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
 **DoD convention:** every G subphase ends with **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -28,11 +28,12 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G10 — HomeWizard** | Energy local API — **own ship** (3rd) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
+| **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
 | **G15 — Evening twilight cross-day** | ✅ **Done 2026-08-22** — twilight guards + OWM rollover + sweeper/timer hardening; **C27** + Admin timeline in same ship |
 
-Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** ✅ **Done 2026-08-22** (Pi smoke **2026-08-22**). **G4** still owns the automatic hot-sun morning open.
+Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** ✅ **Done 2026-08-22** (Pi smoke **2026-08-22**). **G16** ✅ **Done 2026-08-27** (Pi smoke **2026-08-27**). **G4** still owns the automatic hot-sun morning open.
 
-**G11 → G9 → G10 → G12 → G13:** five **new** bridges — **one integration per code run**, this order, **never combined**. Operator reordered **G11 first** **2026-08-20**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
+**G11 → G9 → G10 → G12 → G13:** remaining vendor bridges — **one integration per code run**, this order, **never combined**. Operator reordered **G11 first** **2026-08-20**; **G16** ✅ shipped **2026-08-27**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
 ---
 
@@ -629,6 +630,45 @@ Second call reveals capabilities (temperature, humidity, switch, thermostatMode,
 **Library:** `homeconnect` | `aiohomeconnect` — **in-scope of G13 kickoff** (not now).
 
 **G13 DoD:** HomeConnect appliances in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## ✅ G16 — LG webOS TV power / remote — **Done 2026-08-27**
+
+**Letter:** **G16**. **Pipeline:** Done. Size **high**. **Pi smoke:** ✅ **2026-08-27**. **Not C28** (TV browser skins).
+
+**Product reference:** [`docs/integration_lg.md`](../integration_lg.md) — config, C18, adaptive poll, Blockly catalog, key path, G6 scope `lg`.
+
+**Operator request (verbatim):**
+> I have an LG TV - can I integrate this? I want to see when its on and off and turn it on and off remotely - which other options are there? what are the best libraries for this, if needed? triage as G16
+
+### Shipped summary
+
+| Piece | Where |
+|---|---|
+| Bridge | `integrations/lg.py` — WOL ON, SSAP OFF, app launch, adaptive poll, C18 listener |
+| Config / entity | `config.yaml` `lg:`; idx **62001** / `switch.lg_tv` / band **620xx** |
+| UI | Admin enable-at-boot; Explorer power only; Blockly ON + `app` (no FORCE_*) |
+| Scout | `helpers/lg_webos_power.py`; key `~/.config/wanos/lg_webos_client_keys.json` |
+| Deps | `pywebostv`, `wakeonlan` |
+| G6 | scope id **`lg`** (handler + alerts); full reload also refreshes |
+
+### Locked (delivery record)
+
+| Topic | Lock |
+|---|---|
+| **Library** | `pywebostv` + WOL (Pi **3.9**) |
+| **Health vs power** | `lg_connected` ≠ TV ON/OFF |
+| **App while OFF** | ON+app → WOL then launch; app-only while OFF → fail |
+| **App history** | No |
+| **Log tag** | `[LG]` |
+
+**Out of scope (unchanged):** **C28**; Explorer app picker; volume/inputs; other brands; HDMI-CEC.
+
+### G16 DoD
+
+- [x] Pi smoke: Admin enable-at-boot + disableable; adaptive poll; remote on/off; Blockly app launch; no app history; `[LG]` logs; C18 as locked
+- [x] Last DoD: product docs + playbook/reference/README audited against shipped behavior
 
 ---
 

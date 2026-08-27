@@ -93,6 +93,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     rfx_conn = payload.get("rfxcom_connected", False)
     hue_conn = payload.get("hue_connected", False)
     epson_conn = payload.get("epson_connected", False)
+    lg_conn = payload.get("lg_connected", False)
     onkyo_conn = payload.get("onkyo_connected", False)
     zwave_hardware_conn = payload.get("zwave_hardware_connected", False)
     zwave_web_alive = payload.get("zwave_web_alive", False)
@@ -104,6 +105,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     prev_rfx = manager._state.system.rfxcom_connected
     prev_hue = manager._state.system.hue_connected
     prev_epson = manager._state.system.epson_connected
+    prev_lg = manager._state.system.lg_connected
     prev_onkyo = manager._state.system.onkyo_connected
     prev_zwave_hw = manager._state.system.zwave_hardware_connected
     prev_zwave_web = manager._state.system.zwave_web_alive
@@ -159,6 +161,19 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         changed_domains |= dom
         if not manager._state.system.epson_integration_enabled:
             manager.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
+
+    if prev_lg and not lg_conn:
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="LG webOS bridge unavailable")
+        state_changed |= ch
+        changed_domains |= dom
+    elif not prev_lg and lg_conn and manager._state.system.app_boot_unix is not None:
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="LG webOS bridge online")
+        state_changed |= ch
+        changed_domains |= dom
+        if not manager._state.system.lg_integration_enabled:
+            manager.dispatch(Event(type=EventType.LG_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_onkyo and not onkyo_conn:
         ch, dom = await _emit_connection_transition(
@@ -217,6 +232,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             prev_rfx != rfx_conn or
             prev_hue != hue_conn or
             prev_epson != epson_conn or
+            prev_lg != lg_conn or
             prev_onkyo != onkyo_conn or
             prev_zwave_hw != zwave_hardware_conn or
             prev_zwave_web != zwave_web_alive or
@@ -227,6 +243,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         manager._state.system.rfxcom_connected = rfx_conn
         manager._state.system.hue_connected = hue_conn
         manager._state.system.epson_connected = epson_conn
+        manager._state.system.lg_connected = lg_conn
         manager._state.system.onkyo_connected = onkyo_conn
         manager._state.system.zwave_hardware_connected = zwave_hardware_conn
         manager._state.system.zwave_web_alive = zwave_web_alive

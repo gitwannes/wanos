@@ -20,6 +20,7 @@
 # 1. Secrets & Environment Variables
 # (CRITICAL: Never commit the actual .env file containing the MQTT password or PIN)
 .env
+helpers/lg_webos_client_keys.json
 
 # 2. Dynamic State & Logs
 # (These change constantly during runtime and shouldn't be version controlled)
@@ -73,6 +74,7 @@ coverage.xml
 *.swn
 .pytest_cache/
 backup*/
+_oldwisccode
 
 # 6. OS & IDE Clutter
 # (Prevents your editor settings from bleeding into the repo)

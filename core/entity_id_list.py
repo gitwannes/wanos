@@ -135,6 +135,8 @@ def origin_from_idx(idx: int) -> str:
         return "sonos"
     if 61000 <= idx <= 61999:
         return "onkyo"
+    if 62000 <= idx <= 62999:
+        return "lg"
     if 70000 <= idx <= 79999:
         return "zwave"
     if idx == 80001:
@@ -230,6 +232,11 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
         for idx, node in onkyo.items():
             name = node.get("name") if isinstance(node, dict) else None
             put(idx, name=name, dtype="speaker", origin="onkyo")
+    lg = (cfg.get("lg") or {}).get("device_map") or {}
+    if isinstance(lg, dict):
+        for idx, node in lg.items():
+            name = node.get("name") if isinstance(node, dict) else None
+            put(idx, name=name or "LG TV", dtype="switch", origin="lg")
     if cfg.get("epson"):
         put(80001, name="cinema projector", dtype="switch", origin="epson")
     for eid in auto_cfg.get("deviceexplorer_hide") or cfg.get("deviceexplorer_hide") or []:

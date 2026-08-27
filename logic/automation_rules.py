@@ -1073,10 +1073,13 @@ class AutomationEngine:
                             # Extract Sonos rich parameters if provided in the YAML rule
                             volume = getattr(action, "volume", None)
                             station = getattr(action, "station", None)
+                            # G16 LG catalog key (Blockly app field)
+                            app = getattr(action, "app", None)
 
                             is_rich_action = (
                                 bri is not None or xy is not None
                                 or volume is not None or station is not None
+                                or app is not None
                             )
 
                             # Rich idempotency: only FORCE when power differs OR bri/xy/volume
@@ -1085,11 +1088,14 @@ class AutomationEngine:
                             # sync rule → Sonos forced again while already playing).
                             # `station` is not stored on device state; Sonos bridge already
                             # no-ops identical streams — do not force solely for station.
+                            # LG `app` launch is intentional each time the rule fires.
                             power_differs = (
                                 current_target_state is None
                                 or str(current_target_state).upper() != target_u
                             )
                             rich_differs = False
+                            if app is not None:
+                                rich_differs = True
                             if is_rich_action:
                                 if isinstance(raw_target_state, dict):
                                     if volume is not None:
@@ -1138,6 +1144,8 @@ class AutomationEngine:
                                     action_payload["volume"] = volume
                                 if station is not None:
                                     action_payload["station"] = station
+                                if app is not None:
+                                    action_payload["app"] = app
 
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,

@@ -41,6 +41,7 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 | **Z-Wave** | Z-Wave JS UI MQTT data plane |
 | **Philips Hue** | Local API v2 (HTTP/2 SSE) |
 | **Sonos & Onkyo** | TCP control (`soco`, eISCP) |
+| **LG webOS TV** | WOL + SSAP (`pywebostv`); power + Blockly app catalog |
 | **RFXCOM** | 433 MHz via `serial_asyncio` |
 | **OpenWeatherMap** | Environment / twilight for scheduling |
 | **GPIO** | `lgpio` outputs and interrupt edges |
@@ -51,7 +52,6 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 - Honeywell Home (central heating)
 - SMA (PV inverter)
 - HomeWizard (P1 / PV)
-- LG webOS TV
 - EZVIZ doorbell
 
 ---

@@ -152,6 +152,41 @@ async def handle_epson_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     return state_changed, changed_domains
 
 
+async def handle_lg_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Admin / boot enable for LG webOS TV bridge (G16)."""
+    payload = event.payload or {}
+    state_changed = False
+    changed_domains = set()
+    is_enabled = payload.get("enabled", False)
+
+    if is_enabled and not manager._state.system.lg_connected:
+        await manager.logger.warning("🟡 [LG] Command rejected: LG bridge is offline.")
+        ch, dom = AlertManager.process_alert(manager._state, "🟡 Command rejected: LG bridge is offline.")
+        state_changed |= ch
+        changed_domains |= dom
+    else:
+        state_str = "ON" if is_enabled else "OFF"
+        manager._state.system.lg_integration_enabled = is_enabled
+        state_changed = True
+        changed_domains.add("system")
+
+        color = "🟢" if is_enabled else "⚪"
+        raw_error = payload.get("error_msg")
+        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+        ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} LG Integration turned {state_str}")
+        state_changed |= ch
+        changed_domains |= dom
+
+        if is_enabled and payload.get("is_auto_recovery", False):
+            deadline = int(time.time()) + 10
+            manager._timer_manager.schedule(
+                "post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"}
+            )
+            logger.info("LG Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+
+    return state_changed, changed_domains
+
+
 async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
     state_changed = False

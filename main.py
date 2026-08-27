@@ -78,6 +78,7 @@ from core.rules_activation_pending import (
     pending_snapshot,
     unmark_rule_pending_on_manager,
 )
+from core.auto_off_store import read_auto_off_config, write_auto_off_config
 from core.auto_off_policy import (
     AUTO_OFF_ALLOWED_TYPES,
     is_auto_off_eligible,
@@ -86,6 +87,7 @@ from core.auto_off_policy import (
     sanitize_managed_list,
     sanitize_pertype_map,
 )
+from core.well_known_entities import is_hard_deny_entity_id
 from core.product_type_policy import (
     PRODUCT_TYPES,
     is_product_type_editable,
@@ -203,6 +205,17 @@ if getattr(config, "epson", None) and getattr(config.epson, "ip_address", None):
     except Exception as e:
         logger.exception(f"CRITICAL: Crash loading EpsonProjector: {e}")
 
+# 8b. Bind LG webOS TV bridge (G16)
+lg_bridge = None
+if getattr(config, "lg", None) and getattr(config.lg, "host", None):
+    try:
+        from integrations.lg import LgWebOsBridge
+        lg_bridge = LgWebOsBridge(state_manager=state_manager, config=config)
+        state_manager.lg_bridge = lg_bridge
+        logger.info(f"LG webOS Bridge initialized at {config.lg.host}")
+    except Exception as e:
+        logger.exception(f"CRITICAL: Crash loading LgWebOsBridge: {e}")
+
 # 9. Bind the Physical Hardware Layer
 hw_inputs = HardwareInputs(state_manager=state_manager)
 hw_sensors = HardwareSensors(state_manager=state_manager)
@@ -271,6 +284,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 import traceback
                 traceback.print_exc()
 
+        if lg_bridge:
+            try:
+                await lg_bridge.start()
+                # Kickoff: enable LG in the same boot run when bridge is healthy
+                state_manager.dispatch(Event(type=EventType.LG_TOGGLED, payload={"enabled": True}))
+            except Exception as e:
+                logger.exception(f"[LG] Bridge start failed: {e}")
+
         # Start Physical Hardware Layer
         logger.info("Initializing Raspberry Pi Hardware Layer...")
         await hw_inputs.start()
@@ -297,6 +318,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 # Phase 3: Enable Sonos & Onkyo
                 state_manager.dispatch(Event(type=EventType.SONOS_TOGGLED, payload={"enabled": True}))
                 state_manager.dispatch(Event(type=EventType.ONKYO_TOGGLED, payload={"enabled": True}))
+                # Phase 3b: LG (also enabled immediately after lg_bridge.start; keep for autostart parity)
+                state_manager.dispatch(Event(type=EventType.LG_TOGGLED, payload={"enabled": True}))
                 # Phase 4: Enable Z-Wave (may defer silently until MQTT data plane is alive;
                 # telemetry auto-recovery arms it when ready — no false "frozen" reject alert).
                 state_manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True}))
@@ -344,8 +367,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if native_rfx_bridge:
         await native_rfx_bridge.stop()
-    if hue_bridge:
+    if (hue_bridge):
         await hue_bridge.stop()
+    if lg_bridge:
+        await lg_bridge.stop()
     await zwave_bridge.stop()
 
     await state_manager.stop()

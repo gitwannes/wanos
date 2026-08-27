@@ -27,6 +27,7 @@ Stable automation identifiers. Pattern is `prefix.<slug>` or `prefix.<kind>.<slu
 | `rfx.<slug>` | RFX actuators | `rfx.cinema_schemer` |
 | `switch.vent.<slug>` | Wall switch controlling a vent motor | `switch.vent.toilet_ventilatie` |
 | `switch.epson` | Epson projector (was `switch.cinema_projector`) | `switch.epson` |
+| `switch.lg_tv` | LG webOS TV (G16; idx **62001**) | `switch.lg_tv` |
 | `switch.ssr.<slug>` | SSR class | `switch.ssr.sauna` |
 | `switch.safety.<slug>` | Safety / critical power class | `switch.safety.wisc` |
 | `blinds.<slug>` | Roller shutters / rolluik (display: **shutter**) | `blinds.cinema` |
@@ -109,6 +110,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `zwave.py`: MQTT bridge to Z-Wave JS UI for mesh switch/sensor/power telemetry and command routing.
 * `hue.py`: Local Philips Hue Bridge API v2 SSE/HTTP client.
 * `epson.py`: TCP control for Epson projectors.
+* `lg.py`: LG webOS TV (**G16** ✅) — WOL + SSAP power poll + fixed app catalog launch. Product: [`docs/integration_lg.md`](integration_lg.md).
 
 ---
 

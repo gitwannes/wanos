@@ -34,7 +34,7 @@ class HealthMonitor:
         # Dedicated Strike Counters for Auto-Kill thresholds
         # Network integrations get 3 strikes (6 seconds) to survive minor TCP blips.
         # USB hardware gets 1 strike (2 seconds) because a missing /dev/tty is immediately fatal.
-        self.strikes = {"hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0, "sonos": 0}
+        self.strikes = {"hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0, "sonos": 0, "lg": 0}
 
         # ⚡ Stateful Hysteresis Tracker for System Telemetry
         # Debounces alerts so the UI isn't spammed every 60 seconds during a persistent load spike.
@@ -160,6 +160,9 @@ class HealthMonitor:
                 epson_conn = await self._ping_epson()
                 onkyo_conn = await self._ping_onkyo()
                 sonos_conn = await self._ping_sonos()
+                # LG: bridge health only (TV power OFF must not look like "offline")
+                lg_bridge = getattr(sm, "lg_bridge", None)
+                lg_conn = bool(lg_bridge and getattr(lg_bridge, "is_connected", False))
 
                 # Z-Wave health is a multi-tiered verification matrix:
                 # 1. Physical USB stick presence (Tier 1 - Physical)
@@ -191,6 +194,8 @@ class HealthMonitor:
                 self.strikes["onkyo"] = 0 if onkyo_conn else self.strikes["onkyo"] + 1
                 self.strikes["sonos"] = 0 if sonos_conn else self.strikes["sonos"] + 1
                 self.strikes["rfxcom"] = 0 if rfx_conn else self.strikes["rfxcom"] + 1
+                # Do not strike LG on TV-off; only if bridge itself is down while configured
+                self.strikes["lg"] = 0 if lg_conn or lg_bridge is None else self.strikes["lg"] + 1
 
                 # Z-Wave USB drop is fatal immediately (1 strike). Web/Data drops get 3 strikes (network blips).
                 self.strikes["zwave"] = 0 if zwave_conn else self.strikes["zwave"] + 1
@@ -215,6 +220,12 @@ class HealthMonitor:
                     sm.dispatch(Event(type=EventType.SONOS_TOGGLED, payload={
                         "enabled": False,
                         "error_msg": "🔌 Sonos connection lost after 3 retries. Integration disabled."}))
+
+                # LG bridge process health only (not TV power) — rare; still auto-disable if bridge dies
+                if self.strikes["lg"] >= 3 and sys_state.system.lg_integration_enabled:
+                    sm.dispatch(Event(type=EventType.LG_TOGGLED, payload={
+                        "enabled": False,
+                        "error_msg": "🔌 LG bridge unavailable after 3 retries. Integration disabled."}))
 
                 if self.strikes["rfxcom"] >= 1 and sys_state.system.rfxcom_integration_enabled:
                     sm.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={
@@ -282,6 +293,7 @@ class HealthMonitor:
                     "rfxcom_connected": rfx_conn,
                     "hue_connected": hue_conn,
                     "epson_connected": epson_conn,
+                    "lg_connected": lg_conn,
                     "onkyo_connected": onkyo_conn,
                     "sonos_connected": sonos_conn,
                     "zwave_hardware_connected": zwave_physical,

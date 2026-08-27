@@ -113,11 +113,11 @@ const BLOCKY_HOST_GAUGE_LABELS = {
  * structure sets reasons that block Save (B).
  */
 const BLOCKY_ACTION_LEGAL_KEYS = new Set([
-    "entity_id", "state", "event", "target", "scene", "preset", "bri", "xy", "volume", "station"
+    "entity_id", "state", "event", "target", "scene", "preset", "bri", "xy", "volume", "station", "app"
 ]);
 /** Keys Blockly authoring currently re-emits for actions (rest → opaque). */
 const BLOCKY_ACTION_UI_KEYS = new Set([
-    "entity_id", "state", "event", "preset", "bri", "xy", "volume", "station"
+    "entity_id", "state", "event", "preset", "bri", "xy", "volume", "station", "app"
 ]);
 const BLOCKY_CONDITION_LEGAL_KEYS = new Set([
     "type", "entity_id", "event", "is", "op", "attribute"
@@ -801,7 +801,7 @@ function blockyEdgeStateOptions(block) {
 
 /**
  * Action state entries by device type / origin.
- * RFX / Sonos / Onkyo / Epson: no FORCE_* (engine always-forces RFX; OFF-only for the AV trio).
+ * RFX / Sonos / Onkyo / Epson / LG: no FORCE_* (engine always-forces RFX; OFF-only for the AV trio; LG omits FORCE).
  * Shutters: OPEN/CLOSED (+ open % row when OPEN — B9C restores B6C).
  */
 function blockyActionStateOptions(block) {
@@ -821,8 +821,8 @@ function blockyActionStateOptions(block) {
     if (type === "speaker" || type === "media_player") {
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
-    // Epson: always-forced at engine — no FORCE_* in the menu (RFX handled above).
-    if (origin === "epson") {
+    // Epson / LG: no FORCE_* in the menu.
+    if (origin === "epson" || origin === "lg") {
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
     // Z-Wave / generic switches — explicit FORCE remains available.
@@ -1752,6 +1752,35 @@ function blockySonosStationsMap() {
     return {};
 }
 
+/** G16: catalog key → display label from system.lg_apps. */
+function blockyLgAppsMap() {
+    const app = BlockyRT.app;
+    if (app && app.lgApps && typeof app.lgApps === "object") return app.lgApps;
+    if (app && app.state && app.state.system && app.state.system.lg_apps) {
+        return app.state.system.lg_apps;
+    }
+    return {};
+}
+
+function blockyLgAppOptions(stickyKey) {
+    const apps = blockyLgAppsMap();
+    const known = Object.keys(apps);
+    const opts = [["(none)", ""]];
+    const seen = new Set([""]);
+    known.forEach((k) => {
+        const label = apps[k] ? String(apps[k]) : k;
+        opts.push([label, k]);
+        seen.add(k);
+    });
+    blockyStickyRichKeys("app", stickyKey).forEach((k) => {
+        if (!seen.has(k)) {
+            opts.push([`${k} · (missing)`, k]);
+            seen.add(k);
+        }
+    });
+    return opts;
+}
+
 function blockyHuePresetOptions(stickyKey) {
     const presets = blockyHuePresetsMap();
     const keys = Object.keys(presets);
@@ -1808,12 +1837,13 @@ function blockyStickyRichKeys(kind, stickyKey) {
             (c.actions || []).forEach((a) => {
                 if (kind === "station" && a.station) out.add(String(a.station));
                 if (kind === "preset" && a.preset) out.add(String(a.preset));
+                if (kind === "app" && a.app) out.add(String(a.app));
             });
         });
     } catch (e) { /* ignore */ }
     try {
         const ws = blockyWs();
-        const field = kind === "station" ? "STATION" : "PRESET";
+        const field = kind === "station" ? "STATION" : (kind === "app" ? "APP" : "PRESET");
         if (ws) {
             ws.getAllBlocks(false).forEach((b) => {
                 if (b.type !== "b_action_device" || !b.getField(field)) return;
@@ -2087,7 +2117,7 @@ function blockyActionUpdateRichShape(block, opts) {
         );
 
         const snap = {};
-        ["OPEN_PCT", "HUE_MODE", "PRESET", "VOLUME", "STATION"].forEach((n) => {
+        ["OPEN_PCT", "HUE_MODE", "PRESET", "VOLUME", "STATION", "APP"].forEach((n) => {
             try {
                 const f = block.getField(n);
                 if (f) snap[n] = f.getValue();
@@ -2097,6 +2127,8 @@ function blockyActionUpdateRichShape(block, opts) {
         const wantBlinds = type === "blinds" || type === "shutter";
         const wantHue = (type === "light" || type === "hue") && origin !== "rfxcom" && state === "ON";
         const wantAudio = (type === "speaker" || type === "media_player") && state === "ON";
+        // G16: app catalog only when LG Set is ON (not combinable with OFF)
+        const wantLgApp = origin === "lg" && state === "ON";
 
         if (!wantBlinds) blockyRemoveInput(block, "RICH_BLINDS");
         if (!wantHue) {
@@ -2105,6 +2137,7 @@ function blockyActionUpdateRichShape(block, opts) {
             blockyRemoveInput(block, "RICH_HUE_CUSTOM");
         }
         if (!wantAudio) blockyRemoveInput(block, "RICH_AUDIO");
+        if (!wantLgApp) blockyRemoveInput(block, "RICH_LG_APP");
 
         if (wantBlinds) {
             let st = state;
@@ -2222,6 +2255,21 @@ function blockyActionUpdateRichShape(block, opts) {
                 blockySafeSetField(block, "VOLUME", snap.VOLUME);
             }
         }
+
+        if (wantLgApp) {
+            const stickyApp = snap.APP || block._pendingApp || "";
+            if (!block.getInput("RICH_LG_APP")) {
+                block.appendDummyInput("RICH_LG_APP")
+                    .appendField("app")
+                    .appendField(new Blockly.FieldDropdown(
+                        () => blockyLgAppOptions(
+                            block.getFieldValue("APP") || block._pendingApp || stickyApp
+                        )
+                    ), "APP");
+            }
+            if (stickyApp) blockySafeSetField(block, "APP", stickyApp);
+            else if (snap.APP) blockySafeSetField(block, "APP", snap.APP);
+        }
     } finally {
         Events.enable();
         block._richUpdating = false;
@@ -2247,6 +2295,7 @@ function blockyApplyActionRich(block, action) {
     // Seed sticky keys before shape build so FieldDropdown accepts setValue.
     if (action.station) block._pendingStation = String(action.station);
     if (action.preset) block._pendingPreset = String(action.preset);
+    if (action.app) block._pendingApp = String(action.app);
 
     if (type === "blinds" || type === "shutter") {
         const stored = action.state;
@@ -2292,9 +2341,17 @@ function blockyApplyActionRich(block, action) {
         return;
     }
 
+    if (origin === "lg" && String(action.state || "").toUpperCase() === "ON") {
+        blockyActionUpdateRichShape(block);
+        if (action.app) blockySafeSetField(block, "APP", action.app);
+        delete block._pendingApp;
+        return;
+    }
+
     blockyActionUpdateRichShape(block);
     delete block._pendingStation;
     delete block._pendingPreset;
+    delete block._pendingApp;
 }
 
 function blockyReadActionRich(block) {
@@ -2342,6 +2399,13 @@ function blockyReadActionRich(block) {
             const station = block.getFieldValue("STATION");
             if (station) out.station = station;
         }
+        return blockyMergeOpaque(out, block);
+    }
+
+    // G16: LG TV is a switch — optional app catalog key on ON
+    if (origin === "lg" && out.state === "ON") {
+        const appKey = block.getFieldValue("APP");
+        if (appKey) out.app = appKey;
         return blockyMergeOpaque(out, block);
     }
 
@@ -3491,6 +3555,7 @@ function blockyApp() {
         entityOptions: [],
         huePresets: {},
         sonosStations: {},
+        lgApps: {},
         blockyColorTargetId: null,
         blockyColorBri: 100,
         blockyColorHex: "#FFD180",
@@ -6061,6 +6126,8 @@ function blockyApp() {
                     ? sys.hue_presets : {};
                 this.sonosStations = (sys.sonos_stations && typeof sys.sonos_stations === "object")
                     ? sys.sonos_stations : {};
+                this.lgApps = (sys.lg_apps && typeof sys.lg_apps === "object")
+                    ? sys.lg_apps : {};
                 if (coldLoad) this._markLoadChecklistDone("library", libStart);
                 if (this.selectedRule && !this.editorDirty) {
                     if (this.selectedRule.isEventRow) {

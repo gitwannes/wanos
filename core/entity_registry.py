@@ -306,6 +306,23 @@ class EntityRegistry:
             logger.info(f"Entity birth: idx {idx} → {eid}")
             return eid
 
+        if origin_l == "lg":
+            from core.well_known_entities import ENTITY_LG_TV
+
+            eid = ENTITY_LG_TV
+            if eid in self._entity_to_idx and self._entity_to_idx[eid] != idx:
+                eid = self._allocate_unique("switch", "lg_tv")
+            self._by_idx[idx] = {
+                "entity_id": eid,
+                "status": "active",
+                "name_at_birth": meta.get("name"),
+            }
+            self._entity_to_idx[eid] = idx
+            meta["entity_id"] = eid
+            self._dirty = True
+            logger.info(f"Entity birth: idx {idx} → {eid}")
+            return eid
+
         prefix = classify_entity_prefix(
             device_type=meta.get("type"),
             name=meta.get("name"),

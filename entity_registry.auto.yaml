@@ -183,6 +183,10 @@ entities:
     entity_id: media_player.living_2
     status: active
     name_at_birth: living
+  62001:
+    entity_id: switch.lg_tv
+    status: active
+    name_at_birth: LG TV
   71001:
     entity_id: zwave.buro_licht
     status: active

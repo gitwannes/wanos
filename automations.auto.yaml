@@ -2,6 +2,8 @@ deviceexplorer_hide:
   - hue.group.verd_0_hue
   - hue.group.verd_1_hue
   - hue.group.verd_2_hue
+  - rfx.kerst_lichten_voor
+  - rfx.kerstboom
   - sensor.door.badkamer_deur
   - sensor.door.sauna_deur
   - sensor.energy.kwh_meter
@@ -23,21 +25,19 @@ deviceexplorer_hide:
   - sensor.temp_hum.host_cpu_temperature
   - sensor.temp_hum.sauna_high
   - sensor.temp_hum.sauna_low
+  - switch.epson
+  - switch.ssr.safety_ssr_12v
+  - switch.vent.toilet_ventilatie
   - zwave.53
   - zwave.badk_1e_hue_physical
   - zwave.badk_2e_binnen_unused
   - zwave.badk_2e_hue_physical
-  - switch.epson
   - zwave.kerst_lichten_tuin
-  - rfx.kerst_lichten_voor
-  - rfx.kerstboom
   - zwave.living_special
   - zwave.pc
   - zwave.sauna_hue_physical
   - zwave.slpk_wannes_hue_physical
-  - switch.ssr.safety_ssr_12v
   - zwave.vent.sauna
-  - zwave.vent.toilet_motor
 device_product_types:
   rfx.buro_wannes_schemer: light
   rfx.cinema_schemer: light
@@ -74,7 +74,6 @@ auto_off_devices:
     - rfx.buro_wannes_schemer
     - rfx.cinema_schemer
     - rfx.living_schemer
-    - switch.vent.toilet_ventilatie
     - zwave.berging_2e
     - zwave.buro_licht
     - zwave.cinema_licht
@@ -89,6 +88,7 @@ auto_off_devices:
     - zwave.slpk_wannes
     - zwave.toilet
     - zwave.vent.badk_2e
+    - zwave.vent.toilet_motor
     - zwave.voorraad_gv
     - zwave.waskot
   default_auto_off_minutes: 300
@@ -101,7 +101,6 @@ auto_off_devices:
     hue.group.slpk_dries_hue: 30
     hue.group.slpk_wannes_hue: 90
     media_player.slpk_wannes: 30
-    switch.vent.toilet_ventilatie: 5
     zwave.berging_2e: 1
     zwave.buro_licht: 120
     zwave.cinema_licht: 120
@@ -114,6 +113,7 @@ auto_off_devices:
     zwave.slpk_wannes: 30
     zwave.toilet: 10
     zwave.vent.badk_2e: 30
+    zwave.vent.toilet_motor: 5
     zwave.voorraad_gv: 1
     zwave.waskot: 5
 automations:
@@ -526,18 +526,25 @@ automations:
         conditions:
           - type: device_state
             entity_id: switch.vent.toilet_ventilatie
-            is: "ON"
-        actions:
-          - entity_id: zwave.vent.toilet_motor
-            state: "ON"
-      - when: else_if
-        conditions:
-          - type: device_state
-            entity_id: switch.vent.toilet_ventilatie
-            is: "OFF"
-        actions:
-          - entity_id: zwave.vent.toilet_motor
-            state: "OFF"
+            is: ANY
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: zwave.vent.toilet_motor
+                  is: "ON"
+              actions:
+                - entity_id: zwave.vent.toilet_motor
+                  state: "OFF"
+            - when: else_if
+              conditions:
+                - type: device_state
+                  entity_id: zwave.vent.toilet_motor
+                  is: "OFF"
+              actions:
+                - entity_id: zwave.vent.toilet_motor
+                  state: "ON"
     id: 7ffde6cb-61e2-4754-a392-47d136a0b0b4
   - name: 'Badk 1e: physical switch'
     enabled: true
@@ -1058,6 +1065,22 @@ automations:
           - entity_id: media_player.buro
             state: "OFF"
     id: 9726daca-95bb-47ef-847e-116e3898f14c
+  - name: TV ON
+    enabled: false
+    branches:
+      - when: if
+        conditions:
+          - type: device_state
+            entity_id: switch.lg_tv
+            is: "ON"
+        actions:
+          - entity_id: media_player.living_2
+            state: "ON"
+            volume: 35
+          - entity_id: hue.group.living_hue
+            state: "ON"
+            preset: relax_red
+    id: 73062081-8633-4783-9907-e63e8a796dfb
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

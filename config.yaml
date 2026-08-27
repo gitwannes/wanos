@@ -23,6 +23,7 @@ auth:
 # 500xx : Hue (config_hue.taml)
 # 600xx : Sonos
 # 610xx : Onkyo
+# 620xx : LG
 # 7xxxx : Z-Wave - detail in config_zwave.auto.yaml
 # 900xx : scene history synthetic keys (crc32 of event name)
 
@@ -38,6 +39,46 @@ wanos:
 
 epson:
   ip_address: "10.32.251.75"
+
+# LG webOS TV (G16) — pairing key lives in ~/.config/wanos/ (not synced); scout: helpers/lg_webos_power.py
+lg:
+  host: "10.32.251.39"
+  mac: "20:17:42:f7:d9:4b"  # WOL for cold ON
+  wol_wait_secs: 8
+  poll_secs: 10
+  poll_fast_secs: 2.5
+  poll_fast_window_secs: 30
+  device_map:
+    62001:
+      name: "LG TV"
+  apps:
+    vrt_max:
+      label: "VRT MAX"
+      id: "be.vrt.vrtmax"
+    vtm_go:
+      label: "VTM GO"
+      id: "be.vtmgo.app"
+    disney_plus:
+      label: "Disney+"
+      id: "com.disney.disneyplus-prod"
+    pac_maze:
+      label: "Pac-Maze"
+      id: "com.kbl.pacman"
+    wannecast:
+      label: "Wannecast"
+      id: "com.webos.app.hdmi1"
+    home:
+      label: "Home"
+      id: "com.webos.app.fullhome"
+    netflix:
+      label: "Netflix"
+      id: "netflix"
+    jellyfin:
+      label: "Jellyfin"
+      id: "org.jellyfin.webos"
+    youtube:
+      label: "YouTube"
+      id: "youtube.leanback.v4"
 
 sonos:
   max_volume: 70

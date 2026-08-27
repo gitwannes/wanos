@@ -1,7 +1,8 @@
 # --- file: core/event_handlers/registry.py ---
 from .integration_handlers import (
     handle_automations_toggled, handle_rfxcom_toggled,
-    handle_owm_toggled, handle_hue_toggled, handle_epson_toggled, handle_zwave_toggled,
+    handle_owm_toggled, handle_hue_toggled, handle_epson_toggled, handle_lg_toggled,
+    handle_zwave_toggled,
     handle_simulations_toggled, handle_sonos_toggled, handle_sonos_command,
     handle_onkyo_toggled
 )
@@ -41,6 +42,7 @@ EVENT_ROUTERS = {
     "OWM_TOGGLED": handle_owm_toggled,
     "HUE_TOGGLED": handle_hue_toggled,
     "EPSON_TOGGLED": handle_epson_toggled,
+    "LG_TOGGLED": handle_lg_toggled,
     "ZWAVE_TOGGLED": handle_zwave_toggled,
     "SONOS_TOGGLED": handle_sonos_toggled,
     "SONOS_COMMAND": handle_sonos_command,

@@ -274,6 +274,7 @@ class ActionConfig(BaseModel):
     xy: Optional[List[float]] = None
     volume: Optional[int] = None  # Sonos
     station: Optional[str] = None  # Sonos
+    app: Optional[str] = None  # LG webOS catalog key (G16)
 
     @field_validator("state", mode="before")
     @classmethod
@@ -470,6 +471,31 @@ class EpsonConfig(BaseModel):
     ip_address: str
 
 
+class LgDeviceNode(BaseModel):
+    """One LG TV entry in device_map (idx → name)."""
+    name: str = "LG TV"
+
+
+class LgAppNode(BaseModel):
+    """Fixed app catalog entry: Blockly key → webOS launcher id."""
+    label: str
+    id: str  # webOS application id
+
+
+class LgConfig(BaseModel):
+    """LG webOS TV bridge (G16) — host/MAC/apps in home pack; key file outside repo."""
+    host: str
+    mac: str = ""  # Wake-on-LAN; required for cold ON
+    # Optional override; default ~/.config/wanos/lg_webos_client_keys.json
+    client_key_file: Optional[str] = None
+    wol_wait_secs: float = 8.0
+    poll_secs: float = 10.0
+    poll_fast_secs: float = 2.5
+    poll_fast_window_secs: float = 30.0
+    device_map: Dict[int, LgDeviceNode] = Field(default_factory=dict)
+    apps: Dict[str, LgAppNode] = Field(default_factory=dict)
+
+
 class SonosDeviceNode(BaseModel):
     ip: str
     name: str
@@ -559,6 +585,7 @@ class AppConfig(BaseModel):
     rfxcom: Optional[RFXComSettings] = None
     hue: Optional[HueConfig] = None
     epson: Optional[EpsonConfig] = None
+    lg: Optional[LgConfig] = None
     sonos: Optional[SonosConfig] = None
     onkyo: Optional[OnkyoConfig] = None
     zwave: Optional[ZwaveConfig] = None
@@ -696,6 +723,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "rfxcom": runtime_data.get("rfxcom"),  # Load native RFX USB settings
         "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
         "epson": runtime_data.get("epson"),
+        "lg": runtime_data.get("lg"),
         "sonos": runtime_data.get("sonos"),
         "onkyo": runtime_data.get("onkyo"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile

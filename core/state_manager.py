@@ -245,6 +245,19 @@ class StateManager:
             if 80001 not in self._state.devices:
                 self._state.devices[80001] = "OFF"
 
+        if getattr(self._config, "lg", None) and getattr(self._config.lg, "device_map", None):
+            for idx, node in self._config.lg.device_map.items():
+                idx_i = int(idx)
+                name = getattr(node, "name", None) or "LG TV"
+                self._state.device_metadata[idx_i] = {
+                    "name": name,
+                    "type": "switch",
+                    "origin": "lg",
+                }
+                yaml_idxs.add(idx_i)
+                if idx_i not in self._state.devices:
+                    self._state.devices[idx_i] = "OFF"
+
         if getattr(self._config, "sonos", None):
             max_vol = getattr(self._config.sonos, "max_volume", 70)
             for idx, node in self._config.sonos.device_map.items():
@@ -307,6 +320,14 @@ class StateManager:
             self._state.system.sonos_stations = dict(self._config.sonos.stations)
         else:
             self._state.system.sonos_stations = {}
+
+        if getattr(self._config, "lg", None) and getattr(self._config.lg, "apps", None):
+            self._state.system.lg_apps = {
+                k: (v.label if hasattr(v, "label") else str(v.get("label", k)))
+                for k, v in self._config.lg.apps.items()
+            }
+        else:
+            self._state.system.lg_apps = {}
 
         self._state.system.auto_off_timer = auto_off_timer_payload_from_config(self._config)
 

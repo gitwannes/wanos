@@ -63,7 +63,7 @@ def _copy_action(action: Any) -> Dict[str, Any]:
         return {}
     out = copy.deepcopy(action)
     # Drop empty optional rich fields for cleaner YAML (keep explicit 0).
-    for k in ("preset", "station", "target", "scene", "event"):
+    for k in ("preset", "station", "app", "target", "scene", "event"):
         if out.get(k) in ("", None):
             out.pop(k, None)
     for k in ("bri", "volume"):

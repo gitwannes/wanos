@@ -111,6 +111,8 @@ function wanosApp() {
                 zwave_integration_enabled: false, // ⚡ Switch to block/allow Z-Wave processing
                 epson_connected: false, // ⚡ Tracks physical TCP availability of the Epson Projector
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
+                lg_connected: false, // ⚡ LG bridge healthy (not TV power) — G16
+                lg_integration_enabled: false, // ⚡ Master UI switch for LG webOS — G16
                 sonos_connected: false, // ⚡ Tracks physical availability of Sonos network
                 sonos_integration_enabled: false, // ⚡ Master UI switch to block/allow Sonos commands
                 onkyo_connected: false, // ⚡ Tracks physical TCP availability of Onkyo Receivers
@@ -119,7 +121,8 @@ function wanosApp() {
                 dashboard_events: [], // ⚡ B10B: Explorer buttons from events: catalog ({id, name, require_confirmation})
                 hidden_explorer_idxs: [], // ⚡ Devices to hide from the Device Explorer
                 hue_presets: {}, // From config_hue_presets.auto.yaml (Pi) via load_config / SSE
-                sonos_stations: {} // ⚡ TuneIn station key → URI from config.yaml (Blocky 6C)
+                sonos_stations: {}, // ⚡ TuneIn station key → URI from config.yaml (Blocky 6C)
+                lg_apps: {} // ⚡ G16 Blockly catalog key → label
             },
             sensors: {
                 sunrise_unix: null,
@@ -511,6 +514,7 @@ function wanosApp() {
             if (!this.state.system.automations_enabled) disabled.push("Automation");
             if (!this.state.system.hue_integration_enabled) disabled.push("Hue");
             if (!this.state.system.epson_integration_enabled) disabled.push("Epson projector");
+            if (!this.state.system.lg_integration_enabled) disabled.push("LG TV");
             if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
             if (!this.state.system.zwave_integration_enabled) disabled.push("Z-Wave");
             if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
@@ -541,6 +545,8 @@ function wanosApp() {
                 if (meta.origin === 'zwave' && !this.state.system.zwave_integration_enabled) continue;
                 if (meta.origin === 'sonos' && !this.state.system.sonos_integration_enabled) continue;
                 if (meta.origin === 'onkyo' && !this.state.system.onkyo_integration_enabled) continue;
+                if (meta.origin === 'epson' && !this.state.system.epson_integration_enabled) continue;
+                if (meta.origin === 'lg' && !this.state.system.lg_integration_enabled) continue;
 
                 // Native Physical & Cloud Integrations
                 if (meta.origin === 'gpio_input' && !this.state.hardware.gpio_input_enabled) continue;
@@ -1120,6 +1126,7 @@ function wanosApp() {
             if (meta.origin === 'zwave') return this.state.system.zwave_integration_enabled;
             if (meta.origin === 'hue') return this.state.system.hue_integration_enabled;
             if (meta.origin === 'epson') return this.state.system.epson_integration_enabled;
+            if (meta.origin === 'lg') return this.state.system.lg_integration_enabled;
             if (meta.origin === 'sonos') return this.state.system.sonos_integration_enabled;
             if (meta.origin === 'onkyo') return this.state.system.onkyo_integration_enabled;
             if (meta.origin === 'gpio_input') return this.state.hardware.gpio_input_enabled;
@@ -5291,6 +5298,11 @@ function wanosApp() {
         toggleEpson() {
             const nextState = !this.state.system.epson_integration_enabled;
             this.publishEvent("EPSON_TOGGLED", { enabled: nextState });
+        },
+
+        toggleLg() {
+            const nextState = !this.state.system.lg_integration_enabled;
+            this.publishEvent("LG_TOGGLED", { enabled: nextState });
         },
 
         toggleSonos() {

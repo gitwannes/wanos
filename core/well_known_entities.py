@@ -42,6 +42,9 @@ ENTITY_OUTSIDE = "sensor.temp_hum.outside_temp_hum"
 # Epson projector (D2 rename from switch.cinema_projector)
 ENTITY_EPSON = "switch.epson"
 
+# LG webOS TV (G16)
+ENTITY_LG_TV = "switch.lg_tv"
+
 # Host gauges / mains
 ENTITY_HOST_CPU_TEMP = "sensor.temp_hum.host_cpu_temperature"
 ENTITY_HOST_CPU_USAGE = "sensor.generic.host_cpu_usage"

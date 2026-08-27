@@ -1,9 +1,9 @@
 <!-- --- file: docs/integration-playbook.md --- -->
 # WanOS new-integration playbook
 
-Reusable checklist for adding a vendor bridge (G9–G13 and any later letter). Drawn from shipped Hue / Z-Wave / RFX / Sonos / Onkyo / Epson / OWM plus the locked **C18** command-commit contract.
+Reusable checklist for adding a vendor bridge (G9–G13 and any later letter). Drawn from shipped Hue / Z-Wave / RFX / Sonos / Onkyo / Epson / LG / OWM plus the locked **C18** command-commit contract.
 
-This playbook is **not** a kickoff and does **not** pick libraries, IDX bands, or Admin / Blockly / G6 rows. Those stay **per-ship kickoff**. Ship-specific stubs: [`docs/todo/phaseG-integrations.md`](todo/phaseG-integrations.md) § G9–G13.
+This playbook is **not** a kickoff and does **not** pick libraries, IDX bands, or Admin / Blockly / G6 rows. Those stay **per-ship kickoff**. Ship-specific stubs: [`docs/todo/phaseG-integrations.md`](todo/phaseG-integrations.md) § G9–G13. **Shipped LG example:** [`docs/integration_lg.md`](integration_lg.md) (**G16** ✅).
 
 ---
 
@@ -22,7 +22,7 @@ This playbook is **not** a kickoff and does **not** pick libraries, IDX bands, o
 | Kind | Examples | C18 outbound? | Typical events |
 |---|---|---|---|
 | **Telemetry-only** | OWM; likely G10 P1/kWh, G12 SMA | No | `TEMP_UPDATED` / `HUMIDITY_UPDATED` / `POWER_UPDATED` / `KWH_PULSE` / custom poll |
-| **Commandable** | Hue, Z-Wave binary, RFX, Epson, Sonos, Onkyo; likely G9 HVAC fire, G11 power/setpoint | **Yes** | Outbound `HUB_STATE_CHANGED` + inbound echo with `origin: "<vendor>"` |
+| **Commandable** | Hue, Z-Wave binary, RFX, Epson, Sonos, Onkyo, LG; likely G9 HVAC fire, G11 power/setpoint | **Yes** | Outbound `HUB_STATE_CHANGED` + inbound echo with `origin: "<vendor>"` |
 | **Mixed** | Hue (command + SSE); likely G13 cycle state + start/stop; G10 Energy Socket if it switches | C18 **only** on commandable idxs | Both |
 
 C18 does **not** apply to GPIO PWM, OWM, or any poll that is not a WanOS-originated device command.
@@ -76,11 +76,12 @@ If an edit would *move* an existing hardcode into config: **propose, ask, do not
 | `500xx` | Hue |
 | `600xx` | Sonos |
 | `610xx` | Onkyo |
+| `620xx` | LG webOS TV |
 | `7xxxx` | Z-Wave (sub-bands in `config_zwave.auto.yaml`) |
 | `80001` | Epson |
 | `900xxx` | Scene-history synthetic |
 
-**Free (examples, not locked):** `31xxx–39xxx`, `62xxx–69xxx`, `81xxx–89xxx`. Pick **one unused band per vendor** at that ship’s kickoff. Do not invent a scheme in code before it is confirmed.
+**Free (examples, not locked):** `31xxx–39xxx`, `63xxx–69xxx`, `81xxx–89xxx`. Pick **one unused band per vendor** at that ship’s kickoff. Do not invent a scheme in code before it is confirmed.
 
 ### What to do with the chosen band
 
@@ -131,7 +132,7 @@ Every new bridge touches some of these. Skip rows that do not apply (e.g. teleme
 | Bridge `_on_state_changed` | `claim_payload` then `asyncio.create_task(...)` — **never `await` I/O on the drain** |
 | Same | `claim_and_finish(..., ok, "[Vendor] reason")` — silent skip = fail |
 
-Prefer the **Hue / Z-Wave / RFX listener** pattern. Avoid adding another origin interceptor in `hub_handlers.py` (Epson / Sonos / Onkyo are the old special cases). C18 contract: [`docs/todo/phaseC-shell.md`](todo/phaseC-shell.md) § C18.
+Prefer the **Hue / Z-Wave / RFX / LG listener** pattern. Avoid adding another origin interceptor in `hub_handlers.py` (Epson / Sonos / Onkyo are the old special cases). C18 contract: [`docs/todo/phaseC-shell.md`](todo/phaseC-shell.md) § C18.
 
 ### If it has a config map that must hot-reload
 
@@ -222,6 +223,7 @@ Existing locked table (pattern to extend at each kickoff):
 | Sonos | OFF: pause returns; ON: `_start_playback` is **true** | Exception; ON and playback did not start |
 | Onkyo | `write` + `drain` complete | Exception; no TCP writer |
 | Epson | `power()` **True** (today’s read-timeout → True) | `power()` **False** |
+| LG | ON: WOL (if cold) + SSAP ports open within wait; OFF: `power_off` OK (idempotent if already OFF); app: catalog launch OK | Exception; SSAP still closed after WOL; app-only while OFF; unknown catalog key |
 | RFX | `transport.write` completed | Port dead; parse/protocol error; write exception |
 
 For G9–G13, **fill this row at kickoff** from the chosen library (e.g. Honeywell: HTTPS 200 vs 401; SMA: Modbus exception vs poll). Do not leave it implicit.
@@ -253,7 +255,7 @@ Example:
 
 Every operational line from the bridge uses a bracket tag:
 
-`[Hue]` `[Z-Wave]` `[Sonos]` `[Onkyo]` `[Epson]` `[Native RFX]` `[OWM]`
+`[Hue]` `[Z-Wave]` `[Sonos]` `[Onkyo]` `[Epson]` `[LG]` `[Native RFX]` `[OWM]`
 
 New: `[Honeywell]`, `[HomeWizard]`, `[Samsung]`, `[SMA]`, `[HomeConnect]` (or whatever kickoff locks).
 

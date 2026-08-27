@@ -41,6 +41,10 @@ pyserial-asyncio==0.6
 # Cryptographic Authentication
 PyJWT==2.8.0
 
+# LG webOS TV (G16)
+pywebostv==0.8.9
+wakeonlan==3.1.0
+
 # I2C devices (LCD screens)
 # smbus2==0.4.3
 

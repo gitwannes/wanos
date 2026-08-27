@@ -79,6 +79,8 @@ dhcpcd.conf
 # Migrator cutover backups on Pi: <file>.bak-YYYYMMDD-HHMMSS (not covered by *.bak)
 *.bak-*
 *.tmp
+# LG integration registration file/key
+lg_webos_client_keys.json
 
 [StatsInclude]
 # Repo pull (also listed under StatsRepoPull) - Pi is source of truth

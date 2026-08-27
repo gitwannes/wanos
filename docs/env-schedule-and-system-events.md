@@ -212,9 +212,9 @@ Explorer History **fullscreen day overlay** only (OWM / outside climate). Honest
 | Light wind | Higher (less mixing) |
 | Rain / drizzle **now** | Force **0** (wet from rain, not dew) |
 
-### Numeric formula (locked 2026-08-23)
+### Numeric formula (locked 2026-08-23; rain/unit/cadence **2026-08-27**)
 
-Computed at each OWM **Current 2.5** climate poll. **Storage B:** only the resulting **score** is written to `sensor_samples` (unit e.g. `dew%` on the OWM climate idx). Raw clouds / wind / rain are **not** retained in history.
+Computed on **every** successful OWM **Current 2.5** climate poll (even when T/RH are unchanged and TEMP/HUM events are skipped). **Storage B:** only the resulting **score** is written to `sensor_samples` (unit literal **`dew%`** on the OWM climate idx). Raw clouds / wind / rain are **not** retained in history. Last-poll inputs + score are kept in RAM for Admin (`/api/state`).
 
 **Inputs**
 
@@ -225,7 +225,7 @@ Computed at each OWM **Current 2.5** climate poll. **Storage B:** only the resul
 | `Td` | Sonntag Magnus dew point from **T + RH** (same as Explorer C5 / C24) |
 | `clouds` | OWM `clouds.all` (0–100) |
 | `wind_ms` | OWM `wind.speed` (m/s) |
-| `raining` | True if current weather indicates rain/drizzle (OWM `weather` / `rain`) |
+| `raining` | True if any `weather[].id` in **200–599**, or `rain.1h` / `rain.3h` &gt; 0. Snow (**6xx**) does **not** force 0. |
 | `is_night` | Local time after **sunset** and before **sunrise** (last `SUNRISE_SUNSET_UPDATE`) |
 
 **Algorithm**
@@ -251,4 +251,4 @@ else:
 * **4 °C** depression span and **5 m/s** wind span: simple linear falloffs; not calibrated to this site.
 * **Rain → 0:** separates dew from precipitation wetness.
 
-**UI (C25):** sixth overlay checkbox **Dew likelihood %** (default on), right **%** axis, CSV column. Compare mode unchecks specials (AH / CI / dew likelihood); clear compare leaves primary checkboxes unchanged. Detail: [`phaseC-shell.md`](todo/phaseC-shell.md) § C25.
+**UI (C25):** sixth overlay checkbox **Dew likelihood %** (default on), right **%** axis, CSV column. Compare mode unchecks specials (AH / CI / dew likelihood); clear compare leaves primary checkboxes unchanged. Admin **Outside weather** panel (under General Diagnostics): live T/RH/Td/clouds/wind/weather/raining/score/sun/last poll; sun cycle **moved** here from General Diagnostics (Explorer ℹ unchanged). Detail: [`phaseC-shell.md`](todo/phaseC-shell.md) § C25.
