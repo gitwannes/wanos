@@ -74,6 +74,7 @@ auto_off_devices:
     - rfx.buro_wannes_schemer
     - rfx.cinema_schemer
     - rfx.living_schemer
+    - switch.lg_tv
     - zwave.berging_2e
     - zwave.buro_licht
     - zwave.cinema_licht
@@ -229,33 +230,35 @@ automations:
             event: f5542238-ccf1-4116-88f9-963c03d7c7c3
         actions:
           - entity_id: zwave.voorraad_gv
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.eetkamer
-            state: 'OFF'
+            state: "OFF"
           - entity_id: hue.group.eetkamer_hue
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.licht_keuken
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.licht_living
-            state: 'OFF'
+            state: "OFF"
           - entity_id: hue.group.living_hue
-            state: 'OFF'
+            state: "OFF"
           - entity_id: rfx.living_schemer
-            state: 'OFF'
+            state: "OFF"
           - entity_id: media_player.living
-            state: 'OFF'
+            state: "OFF"
+          - entity_id: switch.lg_tv
+            state: "OFF"
           - entity_id: media_player.living_2
-            state: 'OFF'
+            state: "OFF"
           - entity_id: rfx.kerstboom
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.gang_beneden
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.toilet
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.licht_garage
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.tuin
-            state: 'OFF'
+            state: "OFF"
     id: be05646d-d637-41f4-93b6-980366e6af44
   - name: ALL OFF 1eV
     enabled: true
@@ -266,25 +269,25 @@ automations:
             event: afa69b69-ae2d-4549-99fa-7455cc8bf95c
         actions:
           - entity_id: zwave.cinema_licht
-            state: 'OFF'
+            state: "OFF"
           - entity_id: rfx.cinema_schemer
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.buro_licht
-            state: 'OFF'
+            state: "OFF"
           - entity_id: rfx.buro_wannes_schemer
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.pc_monitors
-            state: 'OFF'
-          - entity_id: zwave.badk_1e_hue_physical
-            state: 'OFF'
+            state: "OFF"
+          - entity_id: zwave.badk_1e_wastafel
+            state: "OFF"
           - entity_id: zwave.gang_boven
-            state: 'OFF'
+            state: "OFF"
           - entity_id: hue.group.verd_1_hue
-            state: 'OFF'
+            state: "OFF"
           - entity_id: media_player.badk_1e
-            state: 'OFF'
+            state: "OFF"
           - entity_id: media_player.buro
-            state: 'OFF'
+            state: "OFF"
     id: 419e34c2-dfdf-4eab-ba6c-77852e965a6d
   - name: ALL OFF 2eV
     enabled: true
@@ -295,25 +298,25 @@ automations:
             event: daefdc0b-51b1-4afe-bcd0-7d334dff0d47
         actions:
           - entity_id: zwave.gang_boven
-            state: 'OFF'
-          - entity_id: zwave.badk_2e_hue_physical
-            state: 'OFF'
+            state: "OFF"
+          - entity_id: zwave.badk_2e_wastafel
+            state: "OFF"
           - entity_id: zwave.slpk_dries
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.slpk_liene
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.berging_2e
-            state: 'OFF'
+            state: "OFF"
           - entity_id: zwave.slpk_wannes
-            state: 'OFF'
+            state: "OFF"
           - entity_id: hue.group.verd_2_hue
-            state: 'OFF'
+            state: "OFF"
           - entity_id: media_player.badk_boven
-            state: 'OFF'
+            state: "OFF"
           - entity_id: media_player.slpk_wannes
-            state: 'OFF'
+            state: "OFF"
           - entity_id: media_player.slpk_dries
-            state: 'OFF'
+            state: "OFF"
     id: 938b6b82-746f-4761-a080-32abe7658a98
   - name: ALL OFF overal
     enabled: true
@@ -613,7 +616,7 @@ automations:
         actions:
           - entity_id: media_player.badk_1e
             state: "ON"
-            volume: 8
+            volume: 6
             station: qmaxhits
       - when: else_if
         conditions:
@@ -1066,7 +1069,7 @@ automations:
             state: "OFF"
     id: 9726daca-95bb-47ef-847e-116e3898f14c
   - name: TV ON
-    enabled: false
+    enabled: true
     branches:
       - when: if
         conditions:
@@ -1077,6 +1080,8 @@ automations:
           - entity_id: media_player.living_2
             state: "ON"
             volume: 35
+          - entity_id: media_player.living
+            state: "OFF"
           - entity_id: hue.group.living_hue
             state: "ON"
             preset: relax_red

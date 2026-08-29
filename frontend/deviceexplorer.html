@@ -745,15 +745,62 @@
                             aria-label="What is feels-like humidity?"
                             @click.stop="climateFsCiHelpOpen = !climateFsCiHelpOpen">ℹ</button>
                 </span>
+                <label class="flex items-center gap-1.5 cursor-pointer shrink-0" x-show="climateFsHasDewLikelihood">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="climateFsShow.dewLikelihood" @change="onClimateFsToggle('dewLikelihood')">
+                    <span class="inline-block w-3 h-0.5 shrink-0 rounded" style="background:#c026d3"></span>
+                    Dew likelihood %
+                </label>
+                <div class="flex items-center gap-3 shrink-0 ml-auto">
+                    <label class="flex items-center gap-1.5 cursor-pointer shrink-0">
+                        <span class="text-[10px] uppercase tracking-wider text-base-content/50">Smooth</span>
+                        <input type="checkbox"
+                               class="toggle toggle-xs"
+                               x-model="climateFsSmooth"
+                               @change="onClimateFsSmoothChange()">
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer shrink-0">
+                        <span class="text-[10px] uppercase tracking-wider text-base-content/50">Compare with</span>
+                        <select class="select select-xs select-bordered font-mono max-w-[10rem]"
+                                x-model="climateFsCompareIdx"
+                                @change="onClimateFsCompareChange($event)">
+                            <option value="">(none)</option>
+                            <template x-for="p in climateFsComparePeers" :key="'cmp-' + p.idx">
+                                <option :value="String(p.idx)" x-text="p.name"></option>
+                            </template>
+                        </select>
+                    </label>
+                </div>
                 <button type="button" class="btn btn-outline btn-xs climate-fs-export-legend shrink-0"
                         @click="exportClimateFullscreenCsv()">
                     Export CSV
                 </button>
             </div>
+            <!-- C25: peer checkbox row (only when comparing) -->
+            <div class="climate-fs-legend border-b border-base-content/10 shrink-0 font-mono"
+                 x-show="climateFsPeerDayData">
+                <span class="text-[10px] uppercase tracking-wider text-base-content/50 shrink-0"
+                      x-text="(climateFsPeerName || 'Peer') + ':'"></span>
+                <label class="flex items-center gap-1.5 cursor-pointer shrink-0">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="climateFsPeerShow.temp" @change="onClimateFsToggle('temp', 'peer')">
+                    <span class="inline-block w-3 h-0.5 shrink-0 rounded border border-dashed" style="background:#f97316;border-color:#f97316"></span>
+                    Temperature (°C)
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer shrink-0"
+                       x-show="climateFsPeerDayData && climateFsPeerDayData.has_humidity !== false">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="climateFsPeerShow.hum" @change="onClimateFsToggle('hum', 'peer')">
+                    <span class="inline-block w-3 h-0.5 shrink-0 rounded border border-dashed" style="background:#4ade80;border-color:#4ade80"></span>
+                    Humidity (%)
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer shrink-0"
+                       x-show="climateFsPeerDayData && climateFsPeerDayData.has_humidity !== false">
+                    <input type="checkbox" class="checkbox checkbox-xs" x-model="climateFsPeerShow.dew" @change="onClimateFsToggle('dew', 'peer')">
+                    <span class="inline-block w-3 h-0.5 shrink-0 rounded border border-dashed" style="background:#67e8f9;border-color:#67e8f9"></span>
+                    Dew point (°C)
+                </label>
+            </div>
             <p class="climate-fs-help px-3 py-1.5 text-xs text-base-content/70 border-b border-base-content/10 shrink-0 leading-relaxed"
                x-show="climateFsCiHelpOpen"
-               x-text="climateFsCiHelpText"></p>
-            <div class="climate-fs-chart-wrap">
+               x-text="climateFsCiHelpText"></p>            <div class="climate-fs-chart-wrap">
                 <div id="chart-climate-fs" class="w-full h-full min-h-0 bg-base-100 rounded-box border border-base-300"></div>
             </div>
         </div>
@@ -837,6 +884,6 @@
 
     </main>
     <script src="wanos-shell.js?v=15"></script>
-    <script src="app.js?v=3.46"></script>
+    <script src="app.js?v=3.48"></script>
 </body>
 </html>

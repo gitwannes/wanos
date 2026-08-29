@@ -39,6 +39,7 @@ class PowerAnalytics:
         self._session_mod_u_history: List[float] = []
         self._session_mod_v_history: List[float] = []
         self._session_mod_w_history: List[float] = []
+        self._session_mod_ir_history: List[float] = []
 
         # Deduplication tracker to prevent identical consecutive log lines
         self._last_log_content: str = ""
@@ -47,10 +48,33 @@ class PowerAnalytics:
         self._temp_outside_start: Optional[float] = None
 
         self._init_sqlite()
+        w_u, w_v, w_w = self._sauna_effective_watts()
+        self._p_u_extracted = w_u
+        self._p_v_extracted = w_v
+        self._p_w_extracted = w_w
 
-    def note_session_start(self) -> None:
-        """Capture outdoor temperature when a sauna/IR session begins."""
+    def _sauna_effective_watts(self) -> tuple[float, float, float]:
+        """Per-phase model baselines for Calc integration (from config)."""
+        cfg = self.sm._config.sauna
+        return (float(cfg.effective_watts_u), float(cfg.effective_watts_v), float(cfg.effective_watts_w))
+
+    def _ir_effective_watts(self) -> float:
+        """IR model baseline at 100% modulation (from config)."""
+        return float(self.sm._config.ir.effective_watts)
+
+    def note_session_start(self, session_type: str) -> None:
+        """Capture outdoor temperature and reset ephemeral session counters."""
         self._temp_outside_start = self.sm._state.sensors.outside_temp
+        self.sm._state.metrics.running_energy_real_wh = 0.0
+        self.sm._state.metrics.running_energy_calc_wh = 0.0
+        self._session_temp_history.clear()
+        self._session_hum_history.clear()
+        if session_type == "sauna":
+            self._session_mod_u_history.clear()
+            self._session_mod_v_history.clear()
+            self._session_mod_w_history.clear()
+        elif session_type == "ir":
+            self._session_mod_ir_history.clear()
 
     def _init_sqlite(self) -> None:
         """Constructs tracking schema tables synchronously on boot if they do not exist."""
@@ -132,13 +156,11 @@ class PowerAnalytics:
 
             c.execute("SELECT * FROM sauna_sessions ORDER BY session_id DESC LIMIT 1")
             s_row = c.fetchone()
-            if s_row:
-                self.sm._state.metrics.last_sauna_session = dict(s_row)
+            self.sm._state.metrics.last_sauna_session = dict(s_row) if s_row else None
 
             c.execute("SELECT * FROM ir_sessions ORDER BY session_id DESC LIMIT 1")
             i_row = c.fetchone()
-            if i_row:
-                self.sm._state.metrics.last_ir_session = dict(i_row)
+            self.sm._state.metrics.last_ir_session = dict(i_row) if i_row else None
 
             conn.close()
         except Exception as e:
@@ -205,15 +227,25 @@ class PowerAnalytics:
 
                 mains_idx = self.sm.resolve_entity_id(ENTITY_MAINS_VOLTAGE)
                 v_raw = state.devices.get(mains_idx) if mains_idx is not None else None
+                v_live: Optional[float] = None
                 if v_raw is not None and str(v_raw).replace(" V", "").strip().replace('.', '', 1).isdigit():
                     v_live = float(str(v_raw).replace(" V", "").strip())
-                    mod_u = state.sauna.phases_pwm.get("U", 0) / 100.0
-                    mod_v = state.sauna.phases_pwm.get("V", 0) / 100.0
-                    mod_w = state.sauna.phases_pwm.get("W", 0) / 100.0
 
-                    calc_load = ((v_live / 230.0) ** 2) * ((mod_u * 3500) + (mod_v * 3500) + (mod_w * 2000))
-                    step_calc_wh = calc_load * (delta_t / 3600.0)
-                    self.sm._state.metrics.running_energy_calc_wh += step_calc_wh
+                w_u, w_v, w_w = self._sauna_effective_watts()
+                mod_u = state.sauna.phases_pwm.get("U", 0) / 100.0
+                mod_v = state.sauna.phases_pwm.get("V", 0) / 100.0
+                mod_w = state.sauna.phases_pwm.get("W", 0) / 100.0
+                voltage_scaler = ((v_live / 230.0) ** 2) if v_live is not None else 1.0
+
+                calc_load = voltage_scaler * (
+                    (mod_u * w_u) + (mod_v * w_v) + (mod_w * w_w)
+                )
+                if state.ir.active:
+                    ir_mod = state.ir.modulation_pwm / 100.0
+                    calc_load += self._ir_effective_watts() * ir_mod * voltage_scaler
+
+                step_calc_wh = calc_load * (delta_t / 3600.0)
+                self.sm._state.metrics.running_energy_calc_wh += step_calc_wh
 
                 # Capture dynamic moving averages per tick during sessions
                 if state.sensors.sauna_calc_temp is not None:
@@ -221,9 +253,12 @@ class PowerAnalytics:
                 if state.sensors.sauna_calc_hum is not None:
                     self._session_hum_history.append(float(state.sensors.sauna_calc_hum))
 
-                self._session_mod_u_history.append(float(state.sauna.phases_pwm.get("U", 0)))
-                self._session_mod_v_history.append(float(state.sauna.phases_pwm.get("V", 0)))
-                self._session_mod_w_history.append(float(state.sauna.phases_pwm.get("W", 0)))
+                if state.sauna.active:
+                    self._session_mod_u_history.append(float(state.sauna.phases_pwm.get("U", 0)))
+                    self._session_mod_v_history.append(float(state.sauna.phases_pwm.get("V", 0)))
+                    self._session_mod_w_history.append(float(state.sauna.phases_pwm.get("W", 0)))
+                if state.ir.active:
+                    self._session_mod_ir_history.append(float(state.ir.modulation_pwm))
 
         self._last_pulse_ts = now
 
@@ -297,9 +332,9 @@ class PowerAnalytics:
                     temp_outside_start=self._temp_outside_start,
                     hum_start=int(self._session_hum_history[0]) if self._session_hum_history else 0,
                     hum_end=int(self._session_hum_history[-1]) if self._session_hum_history else 0,
-                    mod_min=_safe_min(self._session_mod_u_history),
-                    mod_max=_safe_max(self._session_mod_u_history),
-                    mod_avg=_safe_avg(self._session_mod_u_history),
+                    mod_min=_safe_min(self._session_mod_ir_history),
+                    mod_max=_safe_max(self._session_mod_ir_history),
+                    mod_avg=_safe_avg(self._session_mod_ir_history),
                     energy_real_wh=round(state.metrics.running_energy_real_wh, 2),
                     energy_calc_wh=round(state.metrics.running_energy_calc_wh, 2)
                 )
@@ -316,6 +351,7 @@ class PowerAnalytics:
         self._session_mod_u_history.clear()
         self._session_mod_v_history.clear()
         self._session_mod_w_history.clear()
+        self._session_mod_ir_history.clear()
         self._temp_outside_start = None
 
     def _commit_sauna_record(self, record: SaunaSessionRecord) -> None:
@@ -392,16 +428,15 @@ class PowerAnalytics:
                     mod_v = state.sauna.phases_pwm.get("V", 0) / 100.0
                     mod_w = state.sauna.phases_pwm.get("W", 0) / 100.0
 
-                    # ⚡ MOCK RLS MATRIX SOLVER
-                    # Placeholder for complex NumPy matrices: Maps direct power if 100% load is detected to update capacities
-                    if real_power > 0 and mod_u == 1.0 and mod_v == 1.0 and mod_w == 1.0:
+                    w_u, w_v, w_w = self._sauna_effective_watts()
+                    total_nameplate = w_u + w_v + w_w
+                    if real_power > 0 and mod_u == 1.0 and mod_v == 1.0 and mod_w == 1.0 and total_nameplate > 0:
                         voltage_scaler = (v_live / 230.0) ** 2
                         if voltage_scaler > 0:
                             total_nominal = real_power / voltage_scaler
-                            # Proportionally distribute the observed wattage array updates
-                            self._p_u_extracted = total_nominal * (3500 / 9000)
-                            self._p_v_extracted = total_nominal * (3500 / 9000)
-                            self._p_w_extracted = total_nominal * (2000 / 9000)
+                            self._p_u_extracted = total_nominal * (w_u / total_nameplate)
+                            self._p_v_extracted = total_nominal * (w_v / total_nameplate)
+                            self._p_w_extracted = total_nominal * (w_w / total_nameplate)
                 else:
                     v_live = "AWAITING"
 

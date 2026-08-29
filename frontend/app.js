@@ -117,6 +117,7 @@ function wanosApp() {
                 sonos_integration_enabled: false, // ⚡ Master UI switch to block/allow Sonos commands
                 onkyo_connected: false, // ⚡ Tracks physical TCP availability of Onkyo Receivers
                 onkyo_integration_enabled: false, // ⚡ Master UI switch to block/allow Onkyo Receivers
+                lcd_integration_enabled: false, // ⚡ Master UI switch to block/allow LCD MQTT publishes
                 native_rfx_devices: [], // ⚡ Enables reactivity for the dynamic panel
                 dashboard_events: [], // ⚡ B10B: Explorer buttons from events: catalog ({id, name, require_confirmation})
                 hidden_explorer_idxs: [], // ⚡ Devices to hide from the Device Explorer
@@ -291,10 +292,16 @@ function wanosApp() {
         actuatorChartHasData: { day: false, month: false, year: false },
         // C16: last day payload retention (from API) for sliding window
         historyDayRetentionDays: 7,
-        // C24: temp/hum day fullscreen overlay
+        // C24/C25: temp/hum day fullscreen overlay
         climateFsOpen: false,
-        climateFsShow: { temp: true, hum: true, dew: true, ah: false, ci: true },
+        climateFsShow: { temp: true, hum: true, dew: true, ah: false, ci: true, dewLikelihood: true },
         climateFsCiHelpOpen: false,
+        // C25: Compare with peer climate (null / "" = none)
+        climateFsCompareIdx: "",
+        climateFsPeerShow: { temp: true, hum: true, dew: true },
+        climateFsPeerDayData: null,
+        climateFsPeerName: "",
+        climateFsSmooth: true,
         historyDayClimateData: null,
         actuatorList: [],
         actuatorFavorites: [],
@@ -309,6 +316,8 @@ function wanosApp() {
         sessionHistoryRows: [],
         sessionHistoryTotal: 0,
         sessionHistoryOffset: 0,
+        effectiveWattsForm: { ir: 525, u: 3500, v: 3500, w: 2000 },
+        effectiveWattsSaving: false,
         toastTimeout: null,
 
         // ⚡ Reactive Time Heartbeat
@@ -520,6 +529,7 @@ function wanosApp() {
             if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
             if (!this.state.system.sonos_integration_enabled) disabled.push("Sonos");
             if (!this.state.system.onkyo_integration_enabled) disabled.push("Onkyo");
+            if (!this.state.system.lcd_integration_enabled) disabled.push("LCD screens");
             if (!this.state.hardware.gpio_input_enabled) disabled.push("GPIO inputs");
             if (!this.state.hardware.gpio_output_enabled) disabled.push("GPIO outputs");
             if (!this.state.hardware.sht11_enabled) disabled.push("temp/hum sensors");
@@ -1279,6 +1289,10 @@ function wanosApp() {
 
             this.connectSSE();
             setInterval(this.ticker.bind(this), 1000);
+
+            if (this.isAdmin && window.location.pathname.includes("admin.html")) {
+                this.loadEffectiveWatts();
+            }
         },
 
         // Helper to push current layout filters to sessionStorage
@@ -1733,8 +1747,16 @@ function wanosApp() {
             return `${h}:${m}:${s}`;
         },
 
+        /** LCD integration master switch (Admin); gates MQTT to LCD Pi agent. */
+        lcdIntegrationEnabled() {
+            return Boolean(this.state.system && this.state.system.lcd_integration_enabled);
+        },
+
         /** True when MQTT/WISC screen1 has any non-blank line (else show standby). */
         lcdScreen1HasContent() {
+            if (!this.lcdIntegrationEnabled()) {
+                return false;
+            }
             const l1 = (this.state.sauna && this.state.sauna.lcd_line1) ? String(this.state.sauna.lcd_line1) : '';
             const l2 = (this.state.sauna && this.state.sauna.lcd_line2) ? String(this.state.sauna.lcd_line2) : '';
             return l1.trim().length > 0 || l2.trim().length > 0;
@@ -1767,6 +1789,9 @@ function wanosApp() {
          * Pads/truncates each row to 16 cells so centered lines match the physical LCD.
          */
         lcdScreen1Display() {
+            if (!this.lcdIntegrationEnabled()) {
+                return 'no LCD text:\nintegration off';
+            }
             if (!this.lcdScreen1HasContent()) {
                 return 'WanOS Wisc standby';
             }
@@ -2227,7 +2252,7 @@ function wanosApp() {
             }
         },
 
-        /** C24: fixed line colors for fullscreen overlay series (each distinct). */
+        /** C24/C25: fixed line colors for fullscreen overlay series (each distinct). */
         _climateFsSeriesColor(key) {
             const map = {
                 temp: "#eab308",
@@ -2235,8 +2260,42 @@ function wanosApp() {
                 dew: "#38bdf8",
                 ah: "#a855f7",
                 ci: "#f472b6",
+                dewLikelihood: "#c026d3",
+                peerTemp: "#f97316",
+                peerHum: "#4ade80",
+                peerDew: "#67e8f9",
             };
             return map[key] || "#9ca3af";
+        },
+
+        /** C25: day payload carries OWM dew-likelihood history. */
+        get climateFsHasDewLikelihood() {
+            const d = this.historyDayClimateData;
+            if (!d) return false;
+            if (d.has_dew_likelihood === true) return true;
+            return this._seriesDrawable(d.series && d.series.dew_likelihood);
+        },
+
+        /** C25: other temp / temp_hum climate sensors for Compare with (full catalog, not Explorer filters). */
+        _climateComparePeerCatalog() {
+            const cur = Number(this.selectedSensorIdx);
+            const out = [];
+            for (const s of (this.historySensors || [])) {
+                if (s.kind !== "climate") continue;
+                const idx = Number(s.idx);
+                if (!Number.isFinite(idx) || idx === cur) continue;
+                out.push({
+                    idx,
+                    name: s.label || `IDX ${idx}`,
+                    has_humidity: s.has_humidity !== false,
+                });
+            }
+            out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            return out;
+        },
+
+        get climateFsComparePeers() {
+            return this._climateComparePeerCatalog();
         },
 
         /** Plain-language help for apparent humidity (comfort index). */
@@ -3301,6 +3360,107 @@ function wanosApp() {
             return m + "m " + s + "s";
         },
 
+        /** Session list: single value when start/end differ insignificantly (IR temp/hum). */
+        formatSessionClimateRange(start, end, unit = "°C") {
+            if (start == null && end == null) return "—";
+            const s = start != null ? Number(start) : null;
+            const e = end != null ? Number(end) : null;
+            const isTemp = unit === "°C";
+            const threshold = isTemp ? 0.2 : 2;
+            const decimals = isTemp ? 1 : 0;
+            const suffix = isTemp ? "°C" : "%";
+            if (s == null && e != null) return e.toFixed(decimals) + suffix;
+            if (s != null && e == null) return s.toFixed(decimals) + suffix;
+            if (s == null || e == null) return "—";
+            if (Math.abs(e - s) <= threshold) return s.toFixed(decimals) + suffix;
+            return s.toFixed(decimals) + " → " + e.toFixed(decimals) + suffix;
+        },
+
+        /** Session list: average real power from stored energy and runtime (display-time). */
+        formatSessionAvgRealW(energyWh, runtimeSecs) {
+            if (energyWh == null || runtimeSecs == null) return "—";
+            const wh = Number(energyWh);
+            const secs = Number(runtimeSecs);
+            if (!Number.isFinite(wh) || !Number.isFinite(secs) || secs <= 0) return "—";
+            const watts = (wh * 3600) / secs;
+            return watts.toFixed(0) + " W";
+        },
+
+        async loadEffectiveWatts() {
+            try {
+                const res = await fetch("/api/admin/analytics/effective-watts", {
+                    headers: this.getAuthHeaders(),
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                this.effectiveWattsForm = {
+                    ir: Number(data.ir_effective_watts) || 525,
+                    u: Number(data.sauna_effective_watts_u) || 3500,
+                    v: Number(data.sauna_effective_watts_v) || 3500,
+                    w: Number(data.sauna_effective_watts_w) || 2000,
+                };
+            } catch (e) {
+                console.error("Failed to load effective watts", e);
+            }
+        },
+
+        async saveEffectiveWatts() {
+            if (this.effectiveWattsSaving) return;
+            this.effectiveWattsSaving = true;
+            try {
+                const body = {
+                    ir_effective_watts: Number(this.effectiveWattsForm.ir),
+                    sauna_effective_watts_u: Number(this.effectiveWattsForm.u),
+                    sauna_effective_watts_v: Number(this.effectiveWattsForm.v),
+                    sauna_effective_watts_w: Number(this.effectiveWattsForm.w),
+                };
+                const res = await fetch("/api/admin/analytics/effective-watts", {
+                    method: "PUT",
+                    headers: { ...this.getAuthHeaders(), "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    this.showToast(data.error || "Save failed");
+                    return;
+                }
+                this.effectiveWattsForm = {
+                    ir: Number(data.ir_effective_watts),
+                    u: Number(data.sauna_effective_watts_u),
+                    v: Number(data.sauna_effective_watts_v),
+                    w: Number(data.sauna_effective_watts_w),
+                };
+                this.showToast("Calc baselines saved");
+            } catch (e) {
+                console.error("Failed to save effective watts", e);
+                this.showToast("Save failed");
+            } finally {
+                this.effectiveWattsSaving = false;
+            }
+        },
+
+        async deleteSessionRow(sessionId) {
+            const label = this.sessionHistoryType === "ir" ? "IR" : "Sauna";
+            if (!window.confirm(`Delete ${label} session #${sessionId}? This cannot be undone.`)) {
+                return;
+            }
+            try {
+                const res = await fetch(
+                    `/api/history/sessions/${this.sessionHistoryType}/${sessionId}`,
+                    { method: "DELETE", headers: this.getAuthHeaders() }
+                );
+                const data = await res.json();
+                if (!res.ok) {
+                    this.showToast(data.error || "Delete failed");
+                    return;
+                }
+                await this.loadSessionHistory();
+            } catch (e) {
+                console.error("Failed to delete session", e);
+                this.showToast("Delete failed");
+            }
+        },
+
         _ensureHistoryChart(key, elId, { soft = false } = {}) {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById(elId);
@@ -3382,6 +3542,66 @@ function wanosApp() {
                 if (hasVal) prevValuedT = t;
             }
             return out;
+        },
+
+        /**
+         * Drop max-interval heartbeats that repeat the same value (climate deadband hold).
+         * Keeps change points and extends the last plateau timestamp so ECharts smooth
+         * curves between real changes instead of stair-stepping on duplicate samples.
+         * @param {Array} series  rows [t, v, ...extra]
+         * @param {number=} epsilon
+         * @returns {Array}
+         */
+        _thinClimatePlateauSamples(series, epsilon = 0.001) {
+            if (!Array.isArray(series) || !series.length) return series || [];
+            const out = [];
+            for (let i = 0; i < series.length; i++) {
+                const row = series[i];
+                if (!row || row[0] == null) continue;
+                const v = row[1];
+                const hasVal = v != null && Number.isFinite(Number(v));
+                if (!hasVal) {
+                    out.push(row);
+                    continue;
+                }
+                const n = Number(v);
+                const isLast = i === series.length - 1;
+                if (!out.length) {
+                    out.push(row.slice());
+                    continue;
+                }
+                const last = out[out.length - 1];
+                const lastV = last[1];
+                const lastN = lastV != null && Number.isFinite(Number(lastV)) ? Number(lastV) : null;
+                const same = lastN != null && Math.abs(lastN - n) <= epsilon;
+                if (!same) {
+                    out.push(row.slice());
+                } else if (isLast) {
+                    last[0] = row[0];
+                }
+            }
+            return out.length ? out : (series || []);
+        },
+
+        /** Day climate line: gap-break then thin duplicate hold samples. */
+        _climateDayLineRows(rows, gapMs) {
+            return this._thinClimatePlateauSamples(this._breakLineOnSampleGap(rows, gapMs));
+        },
+
+        /** Day climate line from API points. */
+        _climateDayLineData(points, gapMs) {
+            return this._climateDayLineRows(this._pointsToSeries(points), gapMs);
+        },
+
+        /** Fullscreen day line — gap-break; optional plateau thin per climateFsSmooth. */
+        _climateFsLineRows(rows, gapMs) {
+            const base = this._breakLineOnSampleGap(rows, gapMs);
+            return this.climateFsSmooth ? this._thinClimatePlateauSamples(base) : base;
+        },
+
+        /** Fullscreen day line from API points. */
+        _climateFsLineData(points, gapMs) {
+            return this._climateFsLineRows(this._pointsToSeries(points), gapMs);
         },
 
         _seriesHasPoints(points) {
@@ -3590,6 +3810,10 @@ function wanosApp() {
             if (!this.climateFullscreenAvailable) return;
             this.climateFsOpen = true;
             this._bindClimateFsResize();
+            // Compare dropdown uses historySensors, not the filtered Explorer list.
+            if (!(this.historySensors || []).some((s) => s.kind === "climate")) {
+                void this.loadHistorySensors();
+            }
             this.$nextTick(() => {
                 requestAnimationFrame(() => this._renderClimateFullscreenChart({ soft: false }));
             });
@@ -3598,6 +3822,9 @@ function wanosApp() {
         closeClimateFullscreen() {
             this.climateFsOpen = false;
             this.climateFsCiHelpOpen = false;
+            this.climateFsCompareIdx = "";
+            this.climateFsPeerDayData = null;
+            this.climateFsPeerName = "";
             this._unbindClimateFsResize();
             if (wanosClimateFsChart) {
                 try { wanosClimateFsChart.dispose(); } catch (e) { /* ignore */ }
@@ -3606,15 +3833,18 @@ function wanosApp() {
         },
 
         /**
-         * C24: series checkbox change — keep at least one series on.
-         * @param {"temp"|"hum"|"dew"|"ah"|"ci"} key
+         * C24/C25: series checkbox change — keep at least one series on (primary + peer rows).
+         * @param {string} key
+         * @param {"primary"|"peer"=} row
          */
-        onClimateFsToggle(key) {
-            const show = this.climateFsShow;
+        onClimateFsToggle(key, row) {
+            const which = row === "peer" ? "peer" : "primary";
+            const show = which === "peer" ? this.climateFsPeerShow : this.climateFsShow;
             if (!show) return;
-            const keys = ["temp", "hum", "dew", "ah", "ci"];
+            const keys = which === "peer"
+                ? ["temp", "hum", "dew"]
+                : ["temp", "hum", "dew", "ah", "ci", "dewLikelihood"];
             const active = keys.filter((k) => !!show[k]);
-            // Last checkbox cannot be turned off
             if (active.length === 0 && key && keys.includes(key)) {
                 show[key] = true;
                 return;
@@ -3623,24 +3853,92 @@ function wanosApp() {
             this.$nextTick(() => this._renderClimateFullscreenChart({ soft: true }));
         },
 
+        /** Fullscreen overlay — smooth lines toggle (plateau thin + ECharts curve). */
+        onClimateFsSmoothChange() {
+            if (!this.climateFsOpen) return;
+            this.$nextTick(() => this._renderClimateFullscreenChart({ soft: true }));
+        },
+
         /**
-         * Build aligned T/RH/Td/AH/CI rows for overlay + CSV.
+         * C25: Compare with dropdown — (none) clears peer; peer select unchecks specials.
+         * @param {string|number|Event=} rawOrEvent — option value, or change event from select
+         */
+        async onClimateFsCompareChange(rawOrEvent) {
+            let raw = this.climateFsCompareIdx;
+            if (rawOrEvent != null && typeof rawOrEvent === "object" && rawOrEvent.target) {
+                raw = rawOrEvent.target.value;
+            } else if (rawOrEvent !== undefined && rawOrEvent !== null) {
+                raw = rawOrEvent;
+            }
+            if (raw === "" || raw == null) {
+                this.climateFsPeerDayData = null;
+                this.climateFsPeerName = "";
+                if (this.climateFsOpen) {
+                    this.$nextTick(() => this._renderClimateFullscreenChart({ soft: true }));
+                }
+                return;
+            }
+            const idx = Number(raw);
+            if (!Number.isFinite(idx)) return;
+            const peerMeta = this._climateComparePeerCatalog().find((p) => Number(p.idx) === idx);
+            this.climateFsPeerName = peerMeta ? peerMeta.name : `IDX ${idx}`;
+            // Uncheck specials on primary (leave as-is if operator re-checks later)
+            if (this.climateFsShow) {
+                this.climateFsShow.ah = false;
+                this.climateFsShow.ci = false;
+                this.climateFsShow.dewLikelihood = false;
+            }
+            const hasHum = peerMeta ? peerMeta.has_humidity !== false : true;
+            this.climateFsPeerShow = {
+                temp: true,
+                hum: !!hasHum,
+                dew: !!hasHum,
+            };
+            try {
+                const headers = this.getAuthHeaders();
+                const res = await fetch(`/api/history/${idx}?range=day`, { headers });
+                if (res.status === 401 || res.status === 403) {
+                    window.location.href = "/deviceexplorer.html";
+                    return;
+                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                this.climateFsPeerDayData = await res.json();
+            } catch (e) {
+                console.error("[C25] compare peer history failed", e);
+                this.climateFsPeerDayData = null;
+            }
+            if (this.climateFsOpen) {
+                this.$nextTick(() => this._renderClimateFullscreenChart({ soft: true }));
+            }
+        },
+
+        /**
+         * Build aligned T/RH/Td/AH/CI/dewLikelihood rows for overlay + CSV.
          * @param {Object} dayData
-         * @returns {Array<{ t: number, temp: number|null, hum: number|null, dew: number|null, ah: number|null, ci: number|null }>}
+         * @returns {Array<{ t: number, temp: number|null, hum: number|null, dew: number|null, ah: number|null, ci: number|null, dewLikelihood: number|null }>}
          */
         _climateDayDerivedRows(dayData) {
             const tempPts = (dayData && dayData.series && dayData.series.temp) || [];
             const humPts = (dayData && dayData.series && dayData.series.hum) || [];
+            const dewLikPts = (dayData && dayData.series && dayData.series.dew_likelihood) || [];
             const humByT = new Map();
             for (const p of humPts) {
                 const t = this._normalizeTsMs(p && p.t);
                 if (t == null || p.v == null) continue;
                 humByT.set(t, Number(p.v));
             }
+            const dewLikByT = new Map();
+            for (const p of dewLikPts) {
+                const t = this._normalizeTsMs(p && p.t);
+                if (t == null || p.v == null) continue;
+                dewLikByT.set(t, Number(p.v));
+            }
             const rows = [];
+            const seen = new Set();
             for (const p of tempPts) {
                 const t = this._normalizeTsMs(p && p.t);
                 if (t == null) continue;
+                seen.add(t);
                 const temp = p.v == null ? null : Number(p.v);
                 const hum = humByT.has(t) ? humByT.get(t) : null;
                 let dew = null;
@@ -3653,13 +3951,23 @@ function wanosApp() {
                         ci = this._apparentHumidityPct(temp, dew);
                     }
                 }
-                rows.push({ t, temp: Number.isFinite(temp) ? temp : null, hum, dew, ah, ci });
+                const dewLikelihood = dewLikByT.has(t) ? dewLikByT.get(t) : null;
+                rows.push({
+                    t,
+                    temp: Number.isFinite(temp) ? temp : null,
+                    hum,
+                    dew,
+                    ah,
+                    ci,
+                    dewLikelihood: Number.isFinite(dewLikelihood) ? dewLikelihood : null,
+                });
             }
             // Humidity-only timestamps (rare): still plot RH
             for (const p of humPts) {
                 const t = this._normalizeTsMs(p && p.t);
                 if (t == null || p.v == null) continue;
-                if (rows.some((r) => r.t === t)) continue;
+                if (seen.has(t)) continue;
+                seen.add(t);
                 rows.push({
                     t,
                     temp: null,
@@ -3667,12 +3975,27 @@ function wanosApp() {
                     dew: null,
                     ah: null,
                     ci: null,
+                    dewLikelihood: dewLikByT.has(t) ? dewLikByT.get(t) : null,
+                });
+            }
+            // Dew-likelihood-only samples (every OWM poll even when T/RH skipped)
+            for (const p of dewLikPts) {
+                const t = this._normalizeTsMs(p && p.t);
+                if (t == null || p.v == null) continue;
+                if (seen.has(t)) continue;
+                rows.push({
+                    t,
+                    temp: null,
+                    hum: null,
+                    dew: null,
+                    ah: null,
+                    ci: null,
+                    dewLikelihood: Number(p.v),
                 });
             }
             rows.sort((a, b) => a.t - b.t);
             return rows;
         },
-
         _ensureClimateFsChart() {
             if (typeof echarts === "undefined") return null;
             const el = document.getElementById("chart-climate-fs");
@@ -3705,18 +4028,19 @@ function wanosApp() {
             const tempPts = dayData.series && dayData.series.temp;
             const humPts = dayData.series && dayData.series.hum;
             const gapMs = this._climateSampleGapBreakMs(dayData);
+            const lineSmooth = !!this.climateFsSmooth;
 
             const series = [];
             if (show.temp) {
                 const frostSplit = this._tempSeriesWithFrost(tempPts, humPts);
-                const warmData = this._breakLineOnSampleGap(frostSplit.warm, gapMs);
-                const frostData = this._breakLineOnSampleGap(frostSplit.frost, gapMs);
+                const warmData = this._climateFsLineRows(frostSplit.warm, gapMs);
+                const frostData = this._climateFsLineRows(frostSplit.frost, gapMs);
                 const hasFrost = (frostData || []).some((row) => row && row[1] != null);
                 series.push({
                     id: "fs-temp-warm",
                     name: "Temperature",
                     type: "line",
-                    smooth: true,
+                    smooth: lineSmooth,
                     showSymbol: false,
                     yAxisIndex: 0,
                     data: warmData,
@@ -3729,7 +4053,7 @@ function wanosApp() {
                         id: "fs-temp-frost",
                         name: "Temperature",
                         type: "line",
-                        smooth: true,
+                        smooth: lineSmooth,
                         showSymbol: false,
                         yAxisIndex: 0,
                         data: frostData,
@@ -3745,17 +4069,17 @@ function wanosApp() {
                     id: "fs-hum",
                     name: "Humidity",
                     type: "line",
-                    smooth: true,
+                    smooth: lineSmooth,
                     showSymbol: false,
                     yAxisIndex: 1,
-                    data: this._breakLineOnSampleGap(this._pointsToSeries(humPts), gapMs),
+                    data: this._climateFsLineData(humPts, gapMs),
                     lineStyle: { color: humColor, width: 2 },
                     itemStyle: { color: humColor },
                     connectNulls: false,
                 });
             }
             if (show.dew) {
-                const dew = this._breakLineOnSampleGap(
+                const dew = this._climateFsLineRows(
                     this._dewSeriesFromTempHum(tempPts, humPts), gapMs
                 );
                 if (dew.length) {
@@ -3764,7 +4088,7 @@ function wanosApp() {
                         id: "fs-dew",
                         name: "Dew point",
                         type: "line",
-                        smooth: true,
+                        smooth: lineSmooth,
                         showSymbol: false,
                         yAxisIndex: 0,
                         data: dew,
@@ -3778,7 +4102,7 @@ function wanosApp() {
                 const ahColor = this._climateFsSeriesColor("ah");
                 // Omit unpaired / missing AH (same as dew / Feels-like) — do not insert nulls
                 // that only fragment this series while T/RH still plot.
-                const ahData = this._breakLineOnSampleGap(
+                const ahData = this._climateFsLineRows(
                     rows.filter((r) => r.ah != null).map((r) => [r.t, r.ah]),
                     gapMs
                 );
@@ -3786,7 +4110,7 @@ function wanosApp() {
                     id: "fs-ah",
                     name: "Absolute humidity",
                     type: "line",
-                    smooth: true,
+                    smooth: lineSmooth,
                     showSymbol: false,
                     yAxisIndex: 2,
                     data: ahData,
@@ -3798,7 +4122,7 @@ function wanosApp() {
             if (show.ci) {
                 const ciColor = this._climateFsSeriesColor("ci");
                 const ciName = this.climateFsCiSeriesName;
-                const ciData = this._breakLineOnSampleGap(
+                const ciData = this._climateFsLineRows(
                     rows
                         .filter((r) => r.ci != null && r.dew != null)
                         .map((r) => [r.t, r.ci, r.dew]),
@@ -3808,7 +4132,7 @@ function wanosApp() {
                     id: "fs-ci",
                     name: ciName,
                     type: "line",
-                    smooth: true,
+                    smooth: lineSmooth,
                     showSymbol: false,
                     yAxisIndex: 1,
                     data: ciData,
@@ -3817,9 +4141,93 @@ function wanosApp() {
                     connectNulls: false,
                 });
             }
+            // C25: Dew likelihood % (OWM outside only — series present on day payload)
+            if (show.dewLikelihood && this.climateFsHasDewLikelihood) {
+                const dlColor = this._climateFsSeriesColor("dewLikelihood");
+                const dlData = this._climateFsLineRows(
+                    rows
+                        .filter((r) => r.dewLikelihood != null)
+                        .map((r) => [r.t, r.dewLikelihood]),
+                    gapMs
+                );
+                series.push({
+                    id: "fs-dew-likelihood",
+                    name: "Dew likelihood %",
+                    type: "line",
+                    smooth: lineSmooth,
+                    showSymbol: false,
+                    yAxisIndex: 1,
+                    data: dlData,
+                    lineStyle: { color: dlColor, width: 2 },
+                    itemStyle: { color: dlColor },
+                    connectNulls: false,
+                });
+            }
 
-            const showLeft = !!(show.temp || show.dew);
-            const showRight = !!(show.hum || show.ci);
+            // C25: peer climate series (synced window)
+            const peer = this.climateFsPeerDayData;
+            const peerShow = this.climateFsPeerShow || {};
+            const peerLabel = this.climateFsPeerName || "Peer";
+            if (peer && peer.series) {
+                const pTemp = peer.series.temp;
+                const pHum = peer.series.hum;
+                const pGap = this._climateSampleGapBreakMs(peer);
+                if (peerShow.temp && this._seriesDrawable(pTemp)) {
+                    const c = this._climateFsSeriesColor("peerTemp");
+                    series.push({
+                        id: "fs-peer-temp",
+                        name: `${peerLabel} Temperature`,
+                        type: "line",
+                        smooth: lineSmooth,
+                        showSymbol: false,
+                        yAxisIndex: 0,
+                        data: this._climateFsLineData(pTemp, pGap),
+                        lineStyle: { color: c, width: 2, type: "dashed" },
+                        itemStyle: { color: c },
+                        connectNulls: false,
+                    });
+                }
+                if (peerShow.hum && this._seriesDrawable(pHum)) {
+                    const c = this._climateFsSeriesColor("peerHum");
+                    series.push({
+                        id: "fs-peer-hum",
+                        name: `${peerLabel} Humidity`,
+                        type: "line",
+                        smooth: lineSmooth,
+                        showSymbol: false,
+                        yAxisIndex: 1,
+                        data: this._climateFsLineData(pHum, pGap),
+                        lineStyle: { color: c, width: 2, type: "dashed" },
+                        itemStyle: { color: c },
+                        connectNulls: false,
+                    });
+                }
+                if (peerShow.dew && this._seriesDrawable(pTemp) && this._seriesDrawable(pHum)) {
+                    const dew = this._climateFsLineRows(
+                        this._dewSeriesFromTempHum(pTemp, pHum), pGap
+                    );
+                    if (dew.length) {
+                        const c = this._climateFsSeriesColor("peerDew");
+                        series.push({
+                            id: "fs-peer-dew",
+                            name: `${peerLabel} Dew point`,
+                            type: "line",
+                            smooth: lineSmooth,
+                            showSymbol: false,
+                            yAxisIndex: 0,
+                            data: dew,
+                            lineStyle: { color: c, width: 1.5, type: "dashed" },
+                            itemStyle: { color: c },
+                            connectNulls: false,
+                        });
+                    }
+                }
+            }
+
+            const showLeft = !!(show.temp || show.dew
+                || (peer && peerShow.temp) || (peer && peerShow.dew));
+            const showRight = !!(show.hum || show.ci || show.dewLikelihood
+                || (peer && peerShow.hum));
             const showAh = !!show.ah;
             const compact = this._climateFsIsCompactWidth();
             const shortLand = this._climateFsIsShortLandscape();
@@ -3857,10 +4265,13 @@ function wanosApp() {
                                 lines.push(`${p.marker}${p.seriesName}: ${cat} — ${pct}%`);
                             } else {
                                 const unit = p.seriesName === "Absolute humidity" ? " g/m³"
-                                    : (p.seriesName === "Humidity" || p.seriesName === ciName) ? " %"
+                                    : (p.seriesName === "Humidity"
+                                        || p.seriesName === ciName
+                                        || p.seriesName === "Dew likelihood %"
+                                        || String(p.seriesName || "").endsWith(" Humidity")) ? " %"
                                         : " °C";
                                 const n = Number(val);
-                                const shown = p.seriesName === ciName
+                                const shown = (p.seriesName === ciName || p.seriesName === "Dew likelihood %")
                                     ? String(Math.round(n))
                                     : String(n);
                                 lines.push(`${p.marker}${p.seriesName}: ${shown}${unit}`);
@@ -3945,27 +4356,66 @@ function wanosApp() {
             this._bindDayWindowSubtitle(chart, "historyDaySubtitle");
         },
 
-        /** C24: CSV export of full hires_days buffer (five columns). */
+        /** C24/C25: CSV export of full hires_days buffer (+ peer columns when comparing). */
         exportClimateFullscreenCsv() {
             const dayData = this.historyDayClimateData;
             if (!dayData) return;
             const rows = this._climateDayDerivedRows(dayData);
+            const peer = this.climateFsPeerDayData;
+            const peerLabel = this.climateFsPeerName || "peer";
+            const peerRows = peer ? this._climateDayDerivedRows(peer) : [];
+            const peerByT = new Map();
+            for (const r of peerRows) peerByT.set(r.t, r);
             const esc = (v) => {
                 if (v == null || v === "") return "";
                 const s = String(v);
                 return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
             };
-            const lines = ["timestamp_iso,temperature_c,humidity_pct,dew_point_c,absolute_humidity_gm3,feels_like_humidity_pct"];
-            for (const r of rows) {
-                const iso = new Date(r.t).toISOString();
-                lines.push([
+            const headers = [
+                "timestamp_iso",
+                "temperature_c",
+                "humidity_pct",
+                "dew_point_c",
+                "absolute_humidity_gm3",
+                "feels_like_humidity_pct",
+                "dew_likelihood_pct",
+            ];
+            if (peer) {
+                const slug = String(peerLabel).replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+                headers.push(
+                    `${slug}_temperature_c`,
+                    `${slug}_humidity_pct`,
+                    `${slug}_dew_point_c`,
+                );
+            }
+            const lines = [headers.join(",")];
+            const allTs = new Set(rows.map((r) => r.t));
+            for (const r of peerRows) allTs.add(r.t);
+            const sortedTs = Array.from(allTs).sort((a, b) => a - b);
+            const primaryByT = new Map(rows.map((r) => [r.t, r]));
+            for (const t of sortedTs) {
+                const r = primaryByT.get(t) || {
+                    temp: null, hum: null, dew: null, ah: null, ci: null, dewLikelihood: null,
+                };
+                const pr = peerByT.get(t);
+                const iso = new Date(t).toISOString();
+                const cols = [
                     esc(iso),
                     esc(r.temp),
                     esc(r.hum),
                     esc(r.dew),
                     esc(r.ah),
                     esc(r.ci != null ? Math.round(Number(r.ci)) : ""),
-                ].join(","));
+                    esc(r.dewLikelihood != null ? Math.round(Number(r.dewLikelihood)) : ""),
+                ];
+                if (peer) {
+                    cols.push(
+                        esc(pr ? pr.temp : ""),
+                        esc(pr ? pr.hum : ""),
+                        esc(pr ? pr.dew : ""),
+                    );
+                }
+                lines.push(cols.join(","));
             }
             const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
             const url = URL.createObjectURL(blob);
@@ -3979,7 +4429,6 @@ function wanosApp() {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         },
-
         /**
          * C12: split day temp into warm vs frost (temp < dew) segments for dual line styling.
          * Boundary points are duplicated so ECharts keeps continuous segments.
@@ -4251,7 +4700,30 @@ function wanosApp() {
                     }
                     this._syncHistoryHasFlags();
                     if (this.climateFsOpen) {
-                        this._renderClimateFullscreenChart({ soft: true });
+                        // Soft-refresh peer day buffer when comparing (keep checkbox state).
+                        // renderHistoryCharts is sync — use then/finally, not await.
+                        const redrawFs = () => this._renderClimateFullscreenChart({ soft: true });
+                        if (this.climateFsCompareIdx !== "" && this.climateFsCompareIdx != null) {
+                            const pIdx = Number(this.climateFsCompareIdx);
+                            if (Number.isFinite(pIdx)) {
+                                const headers = this.getAuthHeaders();
+                                fetch(`/api/history/${pIdx}?range=day`, { headers })
+                                    .then((pr) => {
+                                        if (pr.status === 401 || pr.status === 403) {
+                                            window.location.href = "/deviceexplorer.html";
+                                            return null;
+                                        }
+                                        return pr.ok ? pr.json() : null;
+                                    })
+                                    .then((data) => {
+                                        if (data) this.climateFsPeerDayData = data;
+                                    })
+                                    .catch(() => { /* keep last peer buffer */ })
+                                    .finally(redrawFs);
+                                return;
+                            }
+                        }
+                        redrawFs();
                     }
                     return;
                 }
@@ -4847,6 +5319,7 @@ function wanosApp() {
         },
 
         _renderClimateCharts(dayChart, monthChart, yearChart, dayData, monthData, yearData, showHum, zoomByKey = {}, { soft = false } = {}) {
+            const lineSmooth = true;
             const climateSnap = (hasHum) => {
                 const axes = [{ axisIndex: 0, step: 5 }];
                 if (hasHum) axes.push({ axisIndex: 1, step: 10 });
@@ -4863,13 +5336,13 @@ function wanosApp() {
                 const frostSplit = showHum
                     ? this._tempSeriesWithFrost(tempPts, humPts)
                     : { warm: this._pointsToSeries(tempPts), frost: [] };
-                const warmData = this._breakLineOnSampleGap(frostSplit.warm, gapMs);
-                const frostData = this._breakLineOnSampleGap(frostSplit.frost, gapMs);
+                const warmData = this._climateDayLineRows(frostSplit.warm, gapMs);
+                const frostData = this._climateDayLineRows(frostSplit.frost, gapMs);
                 const hasFrost = (frostData || []).some(row => row && row[1] != null);
                 const series = [{
                     name: "Temperature",
                     type: "line",
-                    smooth: true,
+                    smooth: lineSmooth,
                     showSymbol: false,
                     yAxisIndex: 0,
                     data: warmData,
@@ -4881,7 +5354,7 @@ function wanosApp() {
                     series.push({
                         name: "Temperature",
                         type: "line",
-                        smooth: true,
+                        smooth: lineSmooth,
                         showSymbol: false,
                         yAxisIndex: 0,
                         data: frostData,
@@ -4896,22 +5369,22 @@ function wanosApp() {
                     series.push({
                         name: "Humidity",
                         type: "line",
-                        smooth: true,
+                        smooth: lineSmooth,
                         showSymbol: false,
                         yAxisIndex: 1,
-                        data: this._breakLineOnSampleGap(this._pointsToSeries(humPts), gapMs),
+                        data: this._climateDayLineData(humPts, gapMs),
                         lineStyle: { color: "#22c55e", width: 2 },
                         connectNulls: false
                     });
                     // C5: dew only when humidity present (Sonntag Magnus)
-                    const dew = this._breakLineOnSampleGap(
+                    const dew = this._climateDayLineRows(
                         this._dewSeriesFromTempHum(tempPts, humPts), gapMs
                     );
                     if (dew.length) {
                         series.push({
                             name: "Dew point",
                             type: "line",
-                            smooth: true,
+                            smooth: lineSmooth,
                             showSymbol: false,
                             yAxisIndex: 0,
                             data: dew,
@@ -4949,7 +5422,7 @@ function wanosApp() {
                     {
                         name: "Temp min",
                         type: "line",
-                        smooth: true,
+                        smooth: lineSmooth,
                         showSymbol: false,
                         yAxisIndex: 0,
                         data: this._pointsToSeries(monthData?.series?.temp_min),
@@ -4959,7 +5432,7 @@ function wanosApp() {
                     {
                         name: "Temp max",
                         type: "line",
-                        smooth: true,
+                        smooth: lineSmooth,
                         showSymbol: false,
                         yAxisIndex: 0,
                         data: this._pointsToSeries(monthData?.series?.temp_max),
@@ -4972,7 +5445,7 @@ function wanosApp() {
                         {
                             name: "Hum min",
                             type: "line",
-                            smooth: true,
+                            smooth: lineSmooth,
                             showSymbol: false,
                             yAxisIndex: 1,
                             data: this._pointsToSeries(monthData?.series?.hum_min),
@@ -4982,7 +5455,7 @@ function wanosApp() {
                         {
                             name: "Hum max",
                             type: "line",
-                            smooth: true,
+                            smooth: lineSmooth,
                             showSymbol: false,
                             yAxisIndex: 1,
                             data: this._pointsToSeries(monthData?.series?.hum_max),
@@ -5004,7 +5477,7 @@ function wanosApp() {
                     {
                         name: "Temp min",
                         type: "line",
-                        smooth: true,
+                        smooth: lineSmooth,
                         showSymbol: false,
                         yAxisIndex: 0,
                         data: this._pointsToSeries(yearData?.series?.temp_min),
@@ -5014,7 +5487,7 @@ function wanosApp() {
                     {
                         name: "Temp max",
                         type: "line",
-                        smooth: true,
+                        smooth: lineSmooth,
                         showSymbol: false,
                         yAxisIndex: 0,
                         data: this._pointsToSeries(yearData?.series?.temp_max),
@@ -5027,7 +5500,7 @@ function wanosApp() {
                         {
                             name: "Hum min",
                             type: "line",
-                            smooth: true,
+                            smooth: lineSmooth,
                             showSymbol: false,
                             yAxisIndex: 1,
                             data: this._pointsToSeries(yearData?.series?.hum_min),
@@ -5037,7 +5510,7 @@ function wanosApp() {
                         {
                             name: "Hum max",
                             type: "line",
-                            smooth: true,
+                            smooth: lineSmooth,
                             showSymbol: false,
                             yAxisIndex: 1,
                             data: this._pointsToSeries(yearData?.series?.hum_max),
@@ -5313,6 +5786,11 @@ function wanosApp() {
         toggleOnkyo() {
             const nextState = !this.state.system.onkyo_integration_enabled;
             this.publishEvent("ONKYO_TOGGLED", { enabled: nextState });
+        },
+
+        toggleLcd() {
+            const nextState = !this.state.system.lcd_integration_enabled;
+            this.publishEvent("LCD_TOGGLED", { enabled: nextState });
         },
 
         toggleSimulations() {
@@ -6006,6 +6484,21 @@ function wanosApp() {
             if (!targetUnix) return "";
             const hm = this.formatUnixTime(targetUnix).slice(0, 5);
             return `${hm} ${this.getRelativeTime(targetUnix, nowUnix)}`;
+        },
+
+        /** C25 Admin Outside weather: Td from live outside T/RH. */
+        get owmAdminDewPointC() {
+            const t = this.state.sensors && this.state.sensors.outside_temp;
+            const h = this.state.sensors && this.state.sensors.outside_hum;
+            return this._dewPointC(t, h);
+        },
+
+        /** C25 Admin: last OWM climate poll as HH:MM + relative. */
+        get owmLastPollDisplayText() {
+            const ts = this.state.sensors && this.state.sensors.owm_last_poll_unix;
+            if (!ts) return "";
+            const now = Math.floor(Date.now() / 1000);
+            return this.formatSunDiagnosticLine(ts, now);
         },
 
         // Calculates countdown/countup string relative to current time

@@ -71,6 +71,15 @@ class MqttPublisher:
         # - avoid hammering broker when everything is blank
         self._LCD_REFRESH_INTERVAL_SECS: float = 1.0
 
+    def _lcd_integration_enabled(self, snapshot: Optional["SystemState"] = None) -> bool:
+        """LCD master switch — when off, no wanos/lcd/* MQTT payloads are sent."""
+        snap = snapshot
+        if snap is None and self._sm is not None:
+            snap = self._sm.get_state_snapshot()
+        if snap is None:
+            return False
+        return bool(getattr(snap.system, "lcd_integration_enabled", False))
+
     def bind_state_manager(self, state_manager: "StateManager") -> None:
         """Inject StateManager so screen1 MQTT payloads mirror into WISC UI state."""
         self._sm = state_manager
@@ -140,7 +149,7 @@ class MqttPublisher:
         # Do NOT republish on every "system"/metrics tick — that wiped Admin
         # debug test text within a few seconds (compose blank while Hue/sauna idle).
         lcd1_domains = {"sauna", "ir", "devices", "sensors"}
-        if changed_domains & lcd1_domains:
+        if changed_domains & lcd1_domains and self._lcd_integration_enabled(snapshot):
             try:
                 line1, line2 = self._compose_lcd_screen1(snapshot)
                 # Idle blank must not erase Admin debug / other force publishes.
@@ -185,7 +194,7 @@ class MqttPublisher:
                 await asyncio.sleep(self._LCD_REFRESH_INTERVAL_SECS)
 
                 snap = self._lcd_last_snapshot
-                if snap is None:
+                if snap is None or not self._lcd_integration_enabled(snap):
                     continue
 
                 # Only refresh at a high cadence when something on LCD1 can change.
@@ -237,6 +246,8 @@ class MqttPublisher:
 
     async def publish_lcd_screen1(self, line1: str, line2: str, *, force: bool = False) -> None:
         """Publishes screen 1 lines to the LCD Pi."""
+        if not self._lcd_integration_enabled():
+            return
         line1 = fit_to_16_cells(line1)
         line2 = fit_to_16_cells(line2)
         if not force and (line1, line2) == self._lcd_last_screen1:
@@ -252,6 +263,8 @@ class MqttPublisher:
 
     async def publish_lcd_screen2(self, line1: str, line2: str, *, force: bool = False) -> None:
         """Publishes screen 2 lines to the LCD Pi (and wakes it from screensaver)."""
+        if not self._lcd_integration_enabled():
+            return
         line1 = fit_to_16_cells(line1)
         line2 = fit_to_16_cells(line2)
         if not force and (line1, line2) == self._lcd_last_screen2:
@@ -270,7 +283,7 @@ class MqttPublisher:
             self._system_boot_sent = True
 
             # LCD Pi: initial control-kast screen status (WISC-style).
-            if not self._lcd_screen2_init_sent:
+            if not self._lcd_screen2_init_sent and self._lcd_integration_enabled(snapshot):
                 try:
                     now = int(time.time())
                     dt = time.localtime(now)

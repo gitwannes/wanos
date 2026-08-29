@@ -62,6 +62,7 @@ class EventType(str, Enum):
     LG_TOGGLED = "LG_TOGGLED"  # Block/allow LG webOS TV bridge (G16)
     SONOS_TOGGLED = "SONOS_TOGGLED"  # Block/allow local Sonos API control
     ONKYO_TOGGLED = "ONKYO_TOGGLED"  # Block/allow Onkyo TCP streaming
+    LCD_TOGGLED = "LCD_TOGGLED"  # Block/allow MQTT LCD screen payloads
 
     # Integration Specific Commands
     SONOS_COMMAND = "SONOS_COMMAND"  # Rich payloads for automations (volume, station uri)
@@ -81,6 +82,8 @@ class EventType(str, Enum):
     SUNRISE_SUNSET_UPDATE = "SUNRISE_SUNSET_UPDATE"
     # Legacy bus token — same handler as SUNRISE_SUNSET_UPDATE until emitters soak
     EXTERNAL_WEATHER_UPDATED = "EXTERNAL_WEATHER_UPDATED"
+    # C25: last OWM climate poll snapshot (clouds/wind/score) for Admin + RAM
+    OWM_CLIMATE_SNAPSHOT = "OWM_CLIMATE_SNAPSHOT"
 
     # Environment Schedule Events
     # Blinds: clamped daylight window (≠ raw sunrise/sunset — see logic/environment_scheduler.py).
@@ -125,6 +128,7 @@ class SystemAdminState(BaseModel):
     app_boot_unix: Optional[int] = None
     automations_enabled: bool = False  # Master switch for the logic engine
     owm_integration_enabled: bool = False  # Default OFF, controls OpenWeatherMap polling
+    lcd_integration_enabled: bool = False  # Master UI switch to block/allow LCD MQTT publishes
     system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # {id, level, message, timestamp, produced_at, count}; level: critical|error|warning|success|info
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
     native_rfx_devices: list[dict] = Field(default_factory=list)  # Pushed dynamically to UI panel
@@ -174,6 +178,14 @@ class SensorsState(BaseModel):
     outside_hum: Optional[int] = None
     sunrise_unix: Optional[int] = None
     sunset_unix: Optional[int] = None
+
+    # C25: last OWM Current 2.5 climate-poll snapshot (Admin Outside weather)
+    owm_clouds: Optional[float] = None
+    owm_wind_ms: Optional[float] = None
+    owm_weather_summary: Optional[str] = None
+    owm_raining: Optional[bool] = None
+    owm_dew_likelihood: Optional[int] = None
+    owm_last_poll_unix: Optional[int] = None
 
     env_schedule_blinds_open_unix: Optional[int] = None
     env_schedule_blinds_close_unix: Optional[int] = None

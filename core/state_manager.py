@@ -976,6 +976,11 @@ class StateManager:
             # Rule 4: Physical Door (Sauna Only)
             if event_name == "SAUNA_ON" and self._state.devices.get(10001) == "OPEN":
                 reasons.append("Door open")
+            # Rule 5: Sauna / IR mutual exclusion
+            if event_name == "SAUNA_ON" and self._state.ir.active:
+                reasons.append("IR active")
+            if event_name == "IR_ON" and self._state.sauna.active:
+                reasons.append("Sauna active")
 
             if reasons:
                 sys_name = "Sauna" if event_name == "SAUNA_ON" else "IR"

@@ -20,8 +20,9 @@
 #   RemoteLogDir + RemoteGlob compose /var/log/wanos/wanos* (app files inside the dir — NOT /var/log/wanos*)
 #   Empty LocalLogSubdir = land flat under StatsDest; otherwise StatsDest\<LocalLogSubdir>\
 #   Main: StatsDest\  |  LCD: StatsDest\lcd-agent\  (never StatsDest\wanos\ or …\lcd-agent\wanos\)
-# LCD mode: helpers\wanos-sync.bat test|run lcd  (source = repo\_lcd-agent\ --> LcdPiSsh)
-# logcopy: after log pull, copy wanos* files from that same local dir into git docs\logs
+# LCD mode: helpers\wanos-sync.bat test|run|logcopy lcd  (source = repo\_lcd-agent\ --> LcdPiSsh)
+# logcopy: always after run; also mode "logcopy" alone (pull + copy into git docs\logs)
+#          test logcopy = dry-run preview of that copy
 # =============================================================================
 
 [MirrorBootstrapFiles]

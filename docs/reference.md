@@ -103,7 +103,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 
 **integrations/** (Network Hub Gateways)
-* `open_weather.py`: OWM loop — climate (temp/humidity) on `weather.poll_interval_mins` (**10** after **G3**; takes effect on cold boot); sunrise/sunset once daily at/after `sun_refresh_hour`:`sun_refresh_minute` (default **≥ 03:30**; plus boot/enable — not at midnight). Climate no longer emits sun events. Tripwires off on HTTP failure.
+* `open_weather.py`: OWM loop — climate (temp/humidity) on `weather.poll_interval_mins` (**10** after **G3**; takes effect on cold boot); sunrise/sunset once daily at/after `sun_refresh_hour`:`sun_refresh_minute` (default **≥ 03:30**; plus boot/enable — not at midnight). Climate no longer emits sun events. **C25:** each climate poll also computes **dew likelihood %**, stores `dew%` samples, and broadcasts **`OWM_CLIMATE_SNAPSHOT`** (clouds/wind/weather/score/last poll) for Admin Outside weather. Tripwires off on HTTP failure.
 * `onkyo.py`: Persistent asynchronous bridge maintaining zero-latency TCP sockets with Onkyo/Pioneer AV receivers, handling legacy hardware protocol variations.
 * `rfxcom.py`: Direct asyncio serial protocol driving the 433MHz antenna transceiver, utilizing custom packet generation blocks to protect against library crashes.
 * `sonos.py`: Asynchronous network integration tracking UPnP/HTTP topologies for Sonos speakers.

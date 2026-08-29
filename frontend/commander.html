@@ -48,7 +48,7 @@
                     </div>
                     <!-- 16x2 HD44780-style preview: fixed 16 cells; spaces preserved for centering. -->
                     <pre class="wanos-lcd-screen"
-                         :class="lcdScreen1HasContent() ? '' : 'is-standby'"
+                         :class="(lcdIntegrationEnabled() && lcdScreen1HasContent()) ? '' : 'is-standby'"
                          x-text="lcdScreen1Display()"></pre>
 
                     <div class="grid grid-cols-2 gap-2 mb-2 w-full">
@@ -80,8 +80,16 @@
                               Cannot start, temperature sensors offline
                         </span>
                         <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
-                              x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.sauna.active && state.devices[10001] === 'OPEN'" x-cloak>
+                              x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.sauna.active && !state.ir.active && state.devices[10001] === 'OPEN'" x-cloak>
                               Cannot start sauna, please close door
+                        </span>
+                        <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
+                              x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.sauna.active && state.ir.active" x-cloak>
+                              Cannot start sauna while IR is running
+                        </span>
+                        <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
+                              x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.ir.active && state.sauna.active" x-cloak>
+                              Cannot start IR while sauna is running
                         </span>
                     </div>
 
@@ -183,7 +191,7 @@
                         <div>
                             <div class="flex justify-between items-center mb-2">
                                 <span class="text-sm font-semibold tracking-wide">IR Modulation</span>
-                                <div class="flex gap-2 items-center">
+                                <div class="flex gap-2 items-center ml-auto pl-6">
                                     <span class="badge badge-error font-mono text-md font-bold p-3" x-text="state.ir.modulation_pwm + '%'"></span>
                                 </div>
                             </div>
@@ -416,6 +424,6 @@
         <div data-wanos-light-modal></div>
     </main>
     <script src="wanos-shell.js?v=14"></script>
-    <script src="app.js?v=3.41"></script>
+    <script src="app.js?v=3.48"></script>
 </body>
 </html>

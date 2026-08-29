@@ -177,6 +177,9 @@ For `11001` / `11002` / `11003`:
 
 ### 8.5 Sauna / IR section
 * Table of historical sessions (all retained rows), including `temp_outside_start`.
+* **Both tabs:** Start, Runtime, Energy (kWh), **Avg W** (derived from `energy_real_wh` and runtime), Temp, Outside.
+* **IR tab only:** Hum, Mod (avg %). Temp/hum show a single value when start/end differ by ≤ 0.2 °C / 2 %.
+* **Admin:** per-row **Del** with confirm; `DELETE /api/history/sessions/{sauna|ir}/{session_id}`.
 
 ---
 
@@ -190,6 +193,7 @@ All routes require admin authentication.
 | `GET` | `/api/history/{idx}?range=day\|month\|year` | Chart series for selected range. **`range=day` (C16 ✅):** full **`hires_days`** buffer (FE applies 24 h viewport). Day responses may include `retention_days` / `default_window_hours` / `climate_max_interval_secs` / **`climate_sample_interval_secs`** (FE gap-break = **3 × sample interval** — break only when more than 2 samples are missing; OWM = poll interval, else history max-interval). |
 | `GET` | `/api/history/{idx}/summary` | today / month / year / total |
 | `GET` | `/api/history/sessions?type=sauna\|ir&limit=&offset=` | Paginated session history |
+| `DELETE` | `/api/history/sessions/{sauna\|ir}/{session_id}` | Admin: delete one session row |
 
 Static HTML under `/sensorhistory.html` is served like other frontend pages.
 
@@ -318,7 +322,7 @@ Outside (`weather.idx` / OWM) polls on `weather.poll_interval_mins` (**10** afte
 ### Charts (ECharts, Sensors list)
 | Range | Series |
 |-------|--------|
-| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16 ✅:** load **`hires_days`** hi-res; default 24 h viewport, zoom-out to full retention; from/to subtitle when not live. **Gap break ✅:** day climate lines (inline + fullscreen) break when Δt &gt; **3 × `climate_sample_interval_secs`** (more than **2** missed samples: SHT11 default **15 min**; **OWM outside** default **30 min**) so empty time is not drawn as a value. **C19 ✅:** 60s auto-refresh must not blank the plot. **C24 ✅:** temp/hum day **tab overlay** — AH + **Feels-like humidity**, 5 checkboxes (+units), 3rd y-axis g/m³, frost on overlay temp, **CSV** of full `hires_days`; inherits inline pan; mobile compact chrome. **C25 (queued):** overlay **Dew likelihood %** + compare another temp(/hum). Month/year unchanged. |
+| Day | Temp (°C) + humidity (%) + dew (day only, **C12**); smooth lines (**C5**). **C16 ✅:** load **`hires_days`** hi-res; default 24 h viewport, zoom-out to full retention; from/to subtitle when not live. **Gap break ✅:** day climate lines (inline + fullscreen) break when Δt &gt; **3 × `climate_sample_interval_secs`** (more than **2** missed samples: SHT11 default **15 min**; **OWM outside** default **30 min**) so empty time is not drawn as a value. **C19 ✅:** 60s auto-refresh must not blank the plot. **C24 ✅:** temp/hum day **tab overlay** — AH + **Feels-like humidity**, checkboxes, 3rd y-axis g/m³, frost, CSV. **C25 ✅:** overlay **Dew likelihood %** (OWM `dew%` samples) + **Compare with** peer climate; Admin **Outside weather**. Month/year unchanged. |
 | Month | Daily **min/max** temp (+ hum when present); **no dew** (**C12**). |
 | Year | **Weekly** min/max (ISO week); **no dew** (**C12**). |
 
@@ -353,6 +357,12 @@ CI = clamp(CI_base + 0.8 * (T - 20), 0, 100)
 Band labels (by Td °C): &lt;10 Dry · 10–15 Comfortable · 15–18 Moderately humid · 18–21 Humid · 21–24 Very humid · &gt;24 Tropically humid. One CI line width; piecewise color by band.
 
 Omit Td / AH / Feels-like when T+RH are unpaired or invalid (same pairing rules as dew). Month/year: no overlay.
+
+### Day overlay extras (C25 ✅) — Dew likelihood % + compare
+
+- **Dew likelihood %** (OWM / outside only): stored in `sensor_samples` as unit **`dew%`** on the OWM climate idx (every climate poll). Day API: `series.dew_likelihood`. Overlay 6th checkbox (default on), right **%** axis, CSV column. Formula: [`env-schedule-and-system-events.md`](env-schedule-and-system-events.md) §9.
+- **Compare with:** dropdown of other temp / temp_hum climate sensors; peer row T/RH/Td (synced pan); specials (AH / Feels-like / dew%) unchecked on compare; clear `(none)` leaves primary checkboxes as-is.
+- **Admin Outside weather:** last-poll T/RH/Td/clouds/wind/weather/raining/dew%/sun/last poll under General Diagnostics (sun moved from GD; Explorer ℹ unchanged).
 
 ### Device Explorer
 IDX **20101** registered as `sauna temp` (`type: temp_hum`, origin `system`).

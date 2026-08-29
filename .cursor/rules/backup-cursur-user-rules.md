@@ -43,11 +43,13 @@ This intake applies in every repo. Pipeline files (`docs/todo/*`) are the intend
 - Do **not** start code on a **queued** (sub)phase until `kickoff` has finished and that phase’s markdown is updated.
 - If this repo has no `docs/todo/` yet: still ask implement vs triage. Do **not** create pipeline files, phase letters, or invent a schedule unless the user commands that setup.
 
-## Code generation
+## Code generation (implement gate — hard rule)
 
-- Do **not** generate or edit code until the user **gives the command** to code (e.g. implement, ship, patch).
-- A locked spec, finished Q&A, or “scope is clear” is **not** that command — **wait**.
+- Do **not** generate or edit **product** code (Python, JS, HTML, YAML config, etc.) until the operator **explicitly** says **`implement`**, **`ship`**, or **`patch`** in that conversation turn (or an earlier turn they have not cancelled).
+- **Does not count as implement:** locked kickoff answers, “this is fine”, config shape agreement, “roll X into phase Y”, “in this code run”, scope lists, **`no code`**, analysis, re-assess, triage, kickoff, or docs-only Q&A.
+- A locked spec, finished Q&A, or “scope is clear” is **not** permission to code — **wait** for **implement** / **ship** / **patch**.
 - Do not volunteer patches, scaffolds, or "temporary" measures.
+- **Exception:** editing `docs/todo/*` during **triage** or **kickoff** only (no product code). Project rule `implement-gate.mdc` mirrors this gate for WanOS.
 
 ## Analysis & feedback
 

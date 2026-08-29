@@ -20,7 +20,7 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 | Mirror | Local → Pi | `rsync --delete` + excludes from config (main) or `_lcd-agent` excludes (`lcd`) |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
 | Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`) |
-| Logcopy (optional) | Local → git | Same `wanos*` files from that pull dir into `docs\logs` or `_lcd-agent\docs\logs` |
+| Logcopy | Local → git | Same `wanos*` files from that pull dir into `docs\logs` or `_lcd-agent\docs\logs` — **always** after `run`; also mode `logcopy` alone |
 
 ### Split Hue config (maps vs presets)
 
@@ -37,21 +37,53 @@ Also: LF-normalize `*.sh` on `run` / `codeimport`.
 
 ### Modes
 
+**WanOS (main Pi `.30`)**
+
 ```text
-helpers\wanos-sync.bat test [lcd] [logcopy] [verbose]
-helpers\wanos-sync.bat run [lcd] [logcopy] [verbose]
-helpers\wanos-sync.bat codeimport <windows-folder> [verbose]
+helpers\wanos-sync.bat test
+helpers\wanos-sync.bat test verbose
+helpers\wanos-sync.bat test logcopy
+helpers\wanos-sync.bat test logcopy verbose
+
+helpers\wanos-sync.bat run
+helpers\wanos-sync.bat run verbose
+
+helpers\wanos-sync.bat logcopy
+helpers\wanos-sync.bat logcopy verbose
+```
+
+**LCD (LCD Pi `.51`; `_lcd-agent` → `/home/wannes/wanos`)**
+
+```text
+helpers\wanos-sync.bat test lcd
+helpers\wanos-sync.bat test lcd verbose
+helpers\wanos-sync.bat test lcd logcopy
+helpers\wanos-sync.bat test lcd logcopy verbose
+
+helpers\wanos-sync.bat run lcd
+helpers\wanos-sync.bat run lcd verbose
+
+helpers\wanos-sync.bat logcopy lcd
+helpers\wanos-sync.bat logcopy lcd verbose
+```
+
+**codeimport (local mirror only; no SSH)**
+
+```text
+helpers\wanos-sync.bat codeimport <windows-folder>
+helpers\wanos-sync.bat codeimport <windows-folder> verbose
 ```
 
 | Mode / flags | Behaviour |
 |--------------|-----------|
 | `test` | Dry-run only (`rsync -n`) against main Pi |
-| `run` | Normalize + mirror + stats pull + log pull (main Pi) |
-| `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull) |
-| `… logcopy` | After log pull, also copy `wanos*` into git `docs\logs` (main) or `_lcd-agent\docs\logs` (lcd) — both gitignored |
-| `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd`) |
+| `run` | Normalize + mirror + stats pull + log pull + **logcopy** (main Pi) |
+| `logcopy` | Log pull + copy `wanos*` into git `docs\logs` only (no mirror / stats / normalize) |
+| `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull); logcopy → `_lcd-agent\docs\logs` |
+| `test … logcopy` | Dry-run also previews the git `docs\logs` copy |
+| `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd` / `logcopy`) |
 
-Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `codeimport`) exits with an error — do not combine them.
+Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `logcopy` / `codeimport`) exits with an error — do not combine them. Do not pass trailing `logcopy` with `run` — it is always included.
 
 `verbose` → config counts and full rsync command lines.
 

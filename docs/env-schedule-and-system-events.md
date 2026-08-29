@@ -196,9 +196,9 @@ Shipped in **B10E** with B10B+D. Detail DoD: [`phaseB-blocky.md`](todo/phaseB-bl
 
 ---
 
-## 9. Dew likelihood % (C25 — locked; not shipped until C25)
+## 9. Dew likelihood % (C25 ✅ shipped — Pi smoke pending)
 
-Explorer History **fullscreen day overlay** only (OWM / outside climate). Honest **heuristic index 0–100**, not a meteorological probability. Indoor sensors: no series.
+Explorer History **fullscreen day overlay** only (OWM / outside climate). Honest **heuristic index 0–100**, not a meteorological probability. Indoor sensors: no series. Admin **Outside weather** shows the live last-poll inputs + score.
 
 **Why it lives here:** the **night gate** uses the same OWM **sunrise / sunset** as the environmental schedule (`SUNRISE_SUNSET_UPDATE`). Daytime → score **0**.
 

@@ -78,6 +78,7 @@ from core.rules_activation_pending import (
     pending_snapshot,
     unmark_rule_pending_on_manager,
 )
+from core.analytics_config_store import read_effective_watts, write_effective_watts
 from core.auto_off_store import read_auto_off_config, write_auto_off_config
 from core.auto_off_policy import (
     AUTO_OFF_ALLOWED_TYPES,
@@ -325,6 +326,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 state_manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True}))
                 # Phase 5: The OWM Cloud
                 state_manager.dispatch(Event(type=EventType.OWM_TOGGLED, payload={"enabled": True}))
+                # Phase 5b: LCD screens (MQTT to LCD Pi agent)
+                state_manager.dispatch(Event(type=EventType.LCD_TOGGLED, payload={"enabled": True}))
                 # Phase 6: Arm Hardware Inputs
                 state_manager.dispatch(Event(type=EventType.GPIO_INPUT_TOGGLED, payload={"enabled": True}))
                 state_manager.dispatch(Event(type=EventType.SHT11_TOGGLED, payload={"enabled": True}))
@@ -1191,6 +1194,13 @@ class AutoOffPutRequest(BaseModel):
     device_product_types: dict[str, str] = {}
 
 
+class EffectiveWattsPutRequest(BaseModel):
+    ir_effective_watts: float
+    sauna_effective_watts_u: float
+    sauna_effective_watts_v: float
+    sauna_effective_watts_w: float
+
+
 def _live_meta_for_eid(eid: str) -> dict[str, Any]:
     idx = state_manager.resolve_entity_id(eid)
     if idx is None:
@@ -1484,6 +1494,60 @@ async def history_sessions(
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
     return state_manager.sensor_history.get_sessions(session_type, limit=limit, offset=offset)
+
+
+@app.delete("/api/history/sessions/{session_type}/{session_id}")
+async def history_delete_session(session_type: str, session_id: int, req: Request):
+    """Admin: delete one sauna or IR session row."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    if session_type not in ("sauna", "ir"):
+        return JSONResponse(status_code=400, content={"error": "Invalid session type"})
+    if session_id <= 0:
+        return JSONResponse(status_code=400, content={"error": "Invalid session_id"})
+    result = state_manager.sensor_history.delete_session(session_type, session_id)
+    if not result.get("deleted"):
+        status = 404 if not result.get("error") else 500
+        return JSONResponse(status_code=status, content=result)
+    return result
+
+
+@app.get("/api/admin/analytics/effective-watts")
+async def get_effective_watts(req: Request) -> dict[str, Any]:
+    """Admin: read calc-model baseline watts from config.yaml."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    try:
+        return read_effective_watts()
+    except Exception as e:
+        logger.error(f"effective-watts read failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to read effective watts."})
+
+
+@app.put("/api/admin/analytics/effective-watts")
+async def put_effective_watts(body: EffectiveWattsPutRequest, req: Request) -> dict[str, Any]:
+    """Admin: persist calc-model baseline watts to config.yaml."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    try:
+        written = write_effective_watts(
+            ir_effective_watts=body.ir_effective_watts,
+            sauna_effective_watts_u=body.sauna_effective_watts_u,
+            sauna_effective_watts_v=body.sauna_effective_watts_v,
+            sauna_effective_watts_w=body.sauna_effective_watts_w,
+        )
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        logger.error(f"effective-watts write failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to write effective watts."})
+
+    cfg = state_manager._config
+    cfg.ir.effective_watts = written["ir_effective_watts"]
+    cfg.sauna.effective_watts_u = written["sauna_effective_watts_u"]
+    cfg.sauna.effective_watts_v = written["sauna_effective_watts_v"]
+    cfg.sauna.effective_watts_w = written["sauna_effective_watts_w"]
+    return {"status": "Success", **written}
 
 
 @app.get("/api/history/{idx}/summary")

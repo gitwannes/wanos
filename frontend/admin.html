@@ -324,6 +324,18 @@
                                 </div>
 
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
+                                    <span class="text-base-400 uppercase font-bold text-[10px] truncate">LCD screens</span>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <span class="font-bold text-[10px]" :class="state.system.wanos_mqtt_connected ? (state.system.lcd_integration_enabled ? 'text-success' : 'text-warning') : 'text-gray-500'" x-text="!state.system.wanos_mqtt_connected ? 'OFFLINE' : (state.system.lcd_integration_enabled ? 'LIVE' : 'DISABLED')"></span>
+                                        <input type="checkbox" class="toggle toggle-success toggle-sm shadow" autocomplete="off"
+                                               :disabled="!state.system.wanos_mqtt_connected"
+                                               :class="!state.system.wanos_mqtt_connected ? 'opacity-50 cursor-not-allowed' : ''"
+                                               :checked="state.system.wanos_mqtt_connected && state.system.lcd_integration_enabled"
+                                               @change="toggleLcd()" />
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2 min-w-0">
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">GPIO inputs</span>
                                     <div class="flex items-center gap-2 shrink-0">
                                         <span class="font-bold text-[10px]"
@@ -363,19 +375,11 @@
                                 </div>
                             </div>
 
-                            <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-start lg:col-span-1">
+                            <div class="flex flex-col gap-3 w-full lg:col-span-1">
+                            <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-start">
                                 <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">General Diagnostics</div>
 
                                 <div class="flex flex-col gap-2 w-full">
-                                    <div class="flex justify-between items-start gap-2">
-                                        <span class="text-base-400 uppercase text-[10px] shrink-0">Sun cycle:</span>
-                                        <div class="flex flex-col items-end text-right">
-                                            <span class="text-white opacity-90 font-bold"
-                                                  x-text="sunriseDisplayText ? ('↑ ' + sunriseDisplayText) : '↑ --'"></span>
-                                            <span class="text-white opacity-90 font-bold"
-                                                  x-text="sunsetDisplayText ? ('↓ ' + sunsetDisplayText) : '↓ --'"></span>
-                                        </div>
-                                    </div>
                                     <div class="flex justify-between items-center">
                                         <span class="text-base-400 uppercase text-[10px]">OS Uptime:</span>
                                         <div class="flex flex-col items-end">
@@ -454,6 +458,68 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- C25: Outside weather (OWM last poll + sun cycle moved from General Diagnostics) -->
+                            <div class="p-4 bg-base-200 rounded-box border border-base-300 space-y-3 text-xs font-mono shadow-sm w-full flex flex-col justify-start">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Outside weather</div>
+                                <div class="flex flex-col gap-2 w-full">
+                                    <div class="flex justify-between items-center gap-2">
+                                        <span class="text-base-400 uppercase text-[10px]">Temperature:</span>
+                                        <span class="text-white font-bold"
+                                              x-text="state.sensors.outside_temp != null ? (Number(state.sensors.outside_temp).toFixed(1) + ' °C') : '--'"></span>
+                                    </div>
+                                    <div class="flex justify-between items-center gap-2">
+                                        <span class="text-base-400 uppercase text-[10px]">Humidity:</span>
+                                        <span class="text-white font-bold"
+                                              x-text="state.sensors.outside_hum != null ? (state.sensors.outside_hum + ' %') : '--'"></span>
+                                    </div>
+                                    <div class="flex justify-between items-center gap-2">
+                                        <span class="text-base-400 uppercase text-[10px]">Dew point:</span>
+                                        <span class="text-white font-bold"
+                                              x-text="owmAdminDewPointC != null ? (Number(owmAdminDewPointC).toFixed(1) + ' °C') : '--'"></span>
+                                    </div>
+                                    <div class="flex justify-between items-center gap-2">
+                                        <span class="text-base-400 uppercase text-[10px]">Clouds:</span>
+                                        <span class="text-white font-bold"
+                                              x-text="state.sensors.owm_clouds != null ? (Number(state.sensors.owm_clouds).toFixed(0) + ' %') : '--'"></span>
+                                    </div>
+                                    <div class="flex justify-between items-center gap-2">
+                                        <span class="text-base-400 uppercase text-[10px]">Wind:</span>
+                                        <span class="text-white font-bold"
+                                              x-text="state.sensors.owm_wind_ms != null ? (Number(state.sensors.owm_wind_ms).toFixed(1) + ' m/s') : '--'"></span>
+                                    </div>
+                                    <div class="flex justify-between items-start gap-2">
+                                        <span class="text-base-400 uppercase text-[10px] shrink-0">Weather:</span>
+                                        <span class="text-white font-bold text-right break-words"
+                                              x-text="state.sensors.owm_weather_summary || '--'"></span>
+                                    </div>
+                                    <div class="flex justify-between items-center gap-2">
+                                        <span class="text-base-400 uppercase text-[10px]">Raining:</span>
+                                        <span class="text-white font-bold"
+                                              x-text="state.sensors.owm_raining == null ? '--' : (state.sensors.owm_raining ? 'yes' : 'no')"></span>
+                                    </div>
+                                    <div class="flex justify-between items-center gap-2">
+                                        <span class="text-base-400 uppercase text-[10px]">Dew likelihood:</span>
+                                        <span class="text-white font-bold"
+                                              x-text="state.sensors.owm_dew_likelihood != null ? (state.sensors.owm_dew_likelihood + ' %') : '--'"></span>
+                                    </div>
+                                    <div class="flex justify-between items-start gap-2 border-t border-base-300/50 pt-2 mt-1">
+                                        <span class="text-base-400 uppercase text-[10px] shrink-0">Sun cycle:</span>
+                                        <div class="flex flex-col items-end text-right">
+                                            <span class="text-white opacity-90 font-bold"
+                                                  x-text="sunriseDisplayText ? ('↑ ' + sunriseDisplayText) : '↑ --'"></span>
+                                            <span class="text-white opacity-90 font-bold"
+                                                  x-text="sunsetDisplayText ? ('↓ ' + sunsetDisplayText) : '↓ --'"></span>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between items-center gap-2">
+                                        <span class="text-base-400 uppercase text-[10px]">Last poll:</span>
+                                        <span class="text-white font-bold text-right"
+                                              x-text="owmLastPollDisplayText || '--'"></span>
+                                    </div>
+                                </div>
+                            </div>
                             </div>
 
                             <div class="col-span-1 md:col-span-2 xl:col-span-2 p-4 bg-base-200 rounded-box border border-base-300 shadow-sm w-full flex flex-col justify-start min-w-0">
@@ -630,7 +696,7 @@
 
                                 <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
                                     <span class="text-base-400 uppercase font-bold text-[10px]">Thermal Index (R_th)</span>
-                                    <span class="font-bold text-[11px] text-purple-400" x-text="state.metrics.r_th_insulation_coefficient !== null ? state.metrics.r_th_insulation_coefficient.toExponential(3) : 'CALCULATING...'"></span>
+                                    <span class="font-bold text-[11px] text-purple-400" x-text="state.metrics.r_th_insulation_coefficient !== null ? state.metrics.r_th_insulation_coefficient.toExponential(3) : 'N/A'"></span>
                                 </div>
 
                                 <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-1 cursor-help group relative">
@@ -646,6 +712,42 @@
                                     <template x-if="!state.metrics.last_sauna_session">
                                         <span class="text-[10px] italic text-base-content/50 text-center py-2">No data available</span>
                                     </template>
+                                </div>
+                            </div>
+
+                            <div class="col-span-full border-t border-base-300 pt-4 mt-2 w-full">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest mb-3">Calc Model Baselines (W)</div>
+                                <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 items-end font-mono text-xs">
+                                    <label class="form-control">
+                                        <span class="label-text text-[10px] uppercase text-base-400 font-bold">IR @ 100% mod</span>
+                                        <input type="number" min="1" max="50000" step="1"
+                                               class="input input-bordered input-sm font-mono"
+                                               x-model.number="effectiveWattsForm.ir" />
+                                    </label>
+                                    <label class="form-control">
+                                        <span class="label-text text-[10px] uppercase text-base-400 font-bold">Sauna phase U</span>
+                                        <input type="number" min="1" max="50000" step="1"
+                                               class="input input-bordered input-sm font-mono"
+                                               x-model.number="effectiveWattsForm.u" />
+                                    </label>
+                                    <label class="form-control">
+                                        <span class="label-text text-[10px] uppercase text-base-400 font-bold">Sauna phase V</span>
+                                        <input type="number" min="1" max="50000" step="1"
+                                               class="input input-bordered input-sm font-mono"
+                                               x-model.number="effectiveWattsForm.v" />
+                                    </label>
+                                    <label class="form-control">
+                                        <span class="label-text text-[10px] uppercase text-base-400 font-bold">Sauna phase W</span>
+                                        <input type="number" min="1" max="50000" step="1"
+                                               class="input input-bordered input-sm font-mono"
+                                               x-model.number="effectiveWattsForm.w" />
+                                    </label>
+                                    <button class="btn btn-sm btn-accent font-mono uppercase tracking-widest"
+                                            :disabled="effectiveWattsSaving"
+                                            @click="saveEffectiveWatts()">
+                                        <span x-show="!effectiveWattsSaving">Save</span>
+                                        <span x-show="effectiveWattsSaving">Saving...</span>
+                                    </button>
                                 </div>
                             </div>
 
@@ -876,4 +978,4 @@
         </dialog>
     </main>
     <script src="wanos-shell.js?v=14"></script>
-    <script src="app.js?v=3.41"></script>
+    <script src="app.js?v=3.48"></script>

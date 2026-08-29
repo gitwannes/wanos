@@ -59,6 +59,36 @@ async def handle_external_weather_updated(event: Event, manager: Any) -> Tuple[b
     return True, {"sensors"}
 
 
+async def handle_owm_climate_snapshot(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """C25: persist last OWM climate-poll fields for Admin Outside weather + /api/state."""
+    payload = event.payload or {}
+    sns = manager._state.sensors
+    if "clouds" in payload:
+        sns.owm_clouds = payload.get("clouds")
+    if "wind_ms" in payload:
+        sns.owm_wind_ms = payload.get("wind_ms")
+    if "weather_summary" in payload:
+        sns.owm_weather_summary = payload.get("weather_summary")
+    if "raining" in payload:
+        sns.owm_raining = payload.get("raining")
+    if "dew_likelihood" in payload:
+        sns.owm_dew_likelihood = payload.get("dew_likelihood")
+    if "last_poll_unix" in payload:
+        sns.owm_last_poll_unix = payload.get("last_poll_unix")
+    # Keep outside T/RH mirrors in sync when snapshot carries them (poll path).
+    if payload.get("temp") is not None:
+        try:
+            sns.outside_temp = float(payload["temp"])
+        except (TypeError, ValueError):
+            pass
+    if payload.get("hum") is not None:
+        try:
+            sns.outside_hum = int(payload["hum"])
+        except (TypeError, ValueError):
+            pass
+    return True, {"sensors"}
+
+
 async def _emit_connection_transition(
     manager: Any,
     *,

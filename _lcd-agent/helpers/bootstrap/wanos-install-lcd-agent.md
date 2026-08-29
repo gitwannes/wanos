@@ -135,10 +135,10 @@ Pull logs to OneDrive `logs\lcd-agent`:
 
 ```text
 helpers\wanos-sync.bat run lcd
-helpers\wanos-sync.bat run lcd logcopy
+helpers\wanos-sync.bat logcopy lcd
 ```
 
-(`logcopy` also mirrors those files into `C:\data\git\wanos\_lcd-agent\docs\logs` — gitignored.)
+(`run` always logcopies into `C:\data\git\wanos\_lcd-agent\docs\logs` — gitignored. Mode `logcopy` does log pull + that copy only, no mirror.)
 
 ---
 

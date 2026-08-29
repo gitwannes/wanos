@@ -9,6 +9,13 @@ import aiohttp
 
 from core.models import Event, EventType
 from core.state_manager import StateManager
+from logic.climate_math import (
+    dew_likelihood_pct,
+    dew_point_c,
+    is_night_local,
+    is_raining_from_owm,
+    weather_summary_from_owm,
+)
 
 
 async def weather_polling_loop(state_manager: StateManager) -> None:
@@ -97,10 +104,55 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
                     if need_climate:
                         temp = round(float(data["main"]["temp"]) * 2) / 2
                         hum = int(data["main"]["humidity"])
+                        clouds_raw = (data.get("clouds") or {}).get("all")
+                        try:
+                            clouds = float(clouds_raw) if clouds_raw is not None else 0.0
+                        except (TypeError, ValueError):
+                            clouds = 0.0
+                        wind_raw = (data.get("wind") or {}).get("speed")
+                        try:
+                            wind_ms = float(wind_raw) if wind_raw is not None else 0.0
+                        except (TypeError, ValueError):
+                            wind_ms = 0.0
+                        weather_list = data.get("weather") or []
+                        rain_obj = data.get("rain")
+                        raining = is_raining_from_owm(weather_list, rain_obj)
+                        summary = weather_summary_from_owm(weather_list)
+                        now_unix = int(time.time())
+                        sns = state_manager._state.sensors
+                        night = is_night_local(now_unix, sns.sunrise_unix, sns.sunset_unix)
+                        score = dew_likelihood_pct(
+                            temp_c=temp,
+                            rh_pct=float(hum),
+                            clouds=clouds,
+                            wind_ms=wind_ms,
+                            raining=raining,
+                            is_night=night,
+                        )
+                        td = dew_point_c(temp, float(hum))
+
+                        if hasattr(state_manager, "sensor_history"):
+                            state_manager.sensor_history.note_dew_likelihood(climate_idx, score)
+
+                        state_manager.dispatch(Event(
+                            type=EventType.OWM_CLIMATE_SNAPSHOT,
+                            payload={
+                                "temp": temp,
+                                "hum": hum,
+                                "dew_point": td,
+                                "clouds": clouds,
+                                "wind_ms": wind_ms,
+                                "weather_summary": summary,
+                                "raining": raining,
+                                "dew_likelihood": score,
+                                "last_poll_unix": now_unix,
+                            },
+                        ))
 
                         if temp == last_temp and hum == last_hum:
                             await state_manager.logger.debug(
-                                f"[OWM] Climate ignored (duplicate: already {temp}°C, {hum}%)"
+                                f"[OWM] Climate T/RH duplicate ({temp}°C, {hum}%); "
+                                f"dew%={score} clouds={clouds} wind={wind_ms}"
                             )
                             if hasattr(state_manager, "sensor_history"):
                                 state_manager.sensor_history.note_climate_reading(
@@ -118,7 +170,8 @@ async def weather_polling_loop(state_manager: StateManager) -> None:
                                 payload={"idx": climate_idx, "value": hum}
                             ))
                             await state_manager.logger.debug(
-                                f"[OWM] Climate updated: {temp}°C, {hum}%"
+                                f"[OWM] Climate updated: {temp}°C, {hum}% "
+                                f"(dew%={score}, clouds={clouds}, wind={wind_ms})"
                             )
 
                     if need_sun:

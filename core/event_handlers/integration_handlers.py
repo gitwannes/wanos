@@ -322,6 +322,45 @@ async def handle_onkyo_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     return state_changed, changed_domains
 
 
+async def handle_lcd_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Master UI switch to block/allow MQTT payloads to the LCD Pi agent."""
+    payload = event.payload or {}
+    state_changed = False
+    changed_domains = set()
+    is_enabled = payload.get("enabled", False)
+
+    if is_enabled and not manager._state.system.wanos_mqtt_connected:
+        await manager.logger.warning("🟡 [LCD] Command rejected: Local WanOS broker is offline.")
+        ch, dom = AlertManager.process_alert(
+            manager._state, "🟡 Command rejected: WanOS Broker is offline."
+        )
+        state_changed |= ch
+        changed_domains |= dom
+    else:
+        state_str = "ON" if is_enabled else "OFF"
+        manager._state.system.lcd_integration_enabled = is_enabled
+        state_changed = True
+        changed_domains.add("system")
+
+        color = "🟢" if is_enabled else "⚪"
+        raw_error = payload.get("error_msg")
+        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+        ch, dom = AlertManager.process_alert(
+            manager._state, error_alert, f"{color} LCD Integration turned {state_str}"
+        )
+        state_changed |= ch
+        changed_domains |= dom
+
+        if is_enabled:
+            mqtt_pub = getattr(manager, "mqtt_publisher", None)
+            if mqtt_pub is not None:
+                snap = manager.get_state_snapshot()
+                line1, line2 = mqtt_pub._compose_lcd_screen1(snap)
+                await mqtt_pub.publish_lcd_screen1(line1, line2)
+
+    return state_changed, changed_domains
+
+
 async def handle_sonos_command(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     """Routes rich automation payloads (volume, radio station URI) to the Sonos bridge."""
     import asyncio

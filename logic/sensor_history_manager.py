@@ -532,6 +532,27 @@ class SensorHistoryManager:
             self._climate_day[key] = b
         return self._climate_day[key]
 
+    def note_dew_likelihood(self, idx: int, score: float) -> None:
+        """
+        C25: enqueue dew-likelihood % (unit dew%) with no deadband skip.
+        Called on every successful OWM climate poll.
+        """
+        if idx is None:
+            return
+        try:
+            value = float(score)
+        except (TypeError, ValueError):
+            return
+        if value < 0:
+            value = 0.0
+        if value > 100:
+            value = 100.0
+        self._climate_idxs.add(int(idx))
+        now = int(time.time())
+        self._enqueue_sample(int(idx), now, value, "dew%")
+        rt = self._climate_rt(idx)
+        rt.last_seen_ts = float(now)
+
     def note_climate_temp(self, idx: int, temp: float) -> None:
         """Log °C with deadband + max-interval throttle (any climate IDX)."""
         if idx is None:
@@ -1034,6 +1055,11 @@ class SensorHistoryManager:
                 (idx, since),
             )
             hums = [{"t": r[0] * 1000, "v": r[1]} for r in c.fetchall()]
+            c.execute(
+                "SELECT ts, value FROM sensor_samples WHERE idx = ? AND unit = 'dew%' AND ts >= ? ORDER BY ts",
+                (idx, since),
+            )
+            dew_likelihood = [{"t": r[0] * 1000, "v": r[1]} for r in c.fetchall()]
             conn.close()
             return {
                 "idx": idx,
@@ -1041,7 +1067,12 @@ class SensorHistoryManager:
                 "kind": "climate",
                 "label": label,
                 "has_humidity": bool(hums),
-                "series": {"temp": temps, "hum": hums},
+                "has_dew_likelihood": bool(dew_likelihood),
+                "series": {
+                    "temp": temps,
+                    "hum": hums,
+                    "dew_likelihood": dew_likelihood,
+                },
                 **self._day_range_meta(idx),
             }
 
@@ -1498,3 +1529,23 @@ class SensorHistoryManager:
         except Exception as e:
             logger.error(f"Failed to read {table}: {e}")
             return {"type": session_type, "total": 0, "limit": limit, "offset": offset, "sessions": [], "error": str(e)}
+
+    def delete_session(self, session_type: str, session_id: int) -> Dict[str, Any]:
+        """Delete one sauna or IR session row; refresh last-session cache when removed."""
+        if session_type not in ("sauna", "ir"):
+            return {"deleted": False, "error": "Invalid session type"}
+        table = "sauna_sessions" if session_type == "sauna" else "ir_sessions"
+        db_path = getattr(self.sm._power_analytics, "_db_path", "sauna_sessions.db")
+        try:
+            conn = sqlite3.connect(db_path)
+            c = conn.cursor()
+            c.execute(f"DELETE FROM {table} WHERE session_id = ?", (int(session_id),))
+            deleted = c.rowcount > 0
+            conn.commit()
+            conn.close()
+            if deleted and getattr(self.sm, "_power_analytics", None):
+                self.sm._power_analytics._fetch_last_sessions()
+            return {"deleted": deleted, "session_id": int(session_id), "type": session_type}
+        except Exception as e:
+            logger.error(f"Failed to delete from {table} id={session_id}: {e}")
+            return {"deleted": False, "session_id": int(session_id), "type": session_type, "error": str(e)}

@@ -4,14 +4,15 @@ from .integration_handlers import (
     handle_owm_toggled, handle_hue_toggled, handle_epson_toggled, handle_lg_toggled,
     handle_zwave_toggled,
     handle_simulations_toggled, handle_sonos_toggled, handle_sonos_command,
-    handle_onkyo_toggled
+    handle_onkyo_toggled, handle_lcd_toggled
 )
 from .hardware_handlers import (
     handle_hardware_bus_health_updated, handle_sht11_toggled, handle_gpio_input_toggled,
     handle_gpio_output_toggled, handle_sensor_error
 )
 from .telemetry_handlers import (
-    handle_power_updated, handle_external_weather_updated, handle_system_metrics_updated,
+    handle_power_updated, handle_external_weather_updated, handle_owm_climate_snapshot,
+    handle_system_metrics_updated,
     handle_temp_updated, handle_humidity_updated, handle_water_pulse, handle_kwh_pulse,
     handle_nvram_flush_trigger
 )
@@ -47,6 +48,7 @@ EVENT_ROUTERS = {
     "SONOS_TOGGLED": handle_sonos_toggled,
     "SONOS_COMMAND": handle_sonos_command,
     "ONKYO_TOGGLED": handle_onkyo_toggled,
+    "LCD_TOGGLED": handle_lcd_toggled,
     "SIMULATIONS_TOGGLED": handle_simulations_toggled,
 
     "HARDWARE_BUS_HEALTH_UPDATED": handle_hardware_bus_health_updated,
@@ -60,6 +62,7 @@ EVENT_ROUTERS = {
     "SUNRISE_SUNSET_UPDATE": handle_external_weather_updated,
     # Legacy alias until all emitters use SUNRISE_SUNSET_UPDATE
     "EXTERNAL_WEATHER_UPDATED": handle_external_weather_updated,
+    "OWM_CLIMATE_SNAPSHOT": handle_owm_climate_snapshot,
     "SYSTEM_METRICS_UPDATED": handle_system_metrics_updated,
     "TEMP_UPDATED": handle_temp_updated,
     "HUMIDITY_UPDATED": handle_humidity_updated,

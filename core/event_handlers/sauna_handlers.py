@@ -14,6 +14,9 @@ from core.well_known_entities import (
 
 
 async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    if manager._state.ir.active:
+        await manager.logger.warning("🌡️ Bouncer rejected SAUNA_ON: IR session is active.")
+        return False, set()
     door_idx = manager.resolve_entity_id(ENTITY_SAUNA_DOOR)
     door_sauna_open = (
         door_idx is not None and manager._state.devices.get(door_idx) == "OPEN"
@@ -47,7 +50,7 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
         manager._state.devices[status_idx] = "ON"
 
     if hasattr(manager, "_power_analytics"):
-        manager._power_analytics.note_session_start()
+        manager._power_analytics.note_session_start("sauna")
 
     return True, {"sauna", "devices"}
 
@@ -133,6 +136,9 @@ async def handle_sauna_modulation_updated(event: Event, manager: Any) -> Tuple[b
 
 
 async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    if manager._state.sauna.active:
+        await manager.logger.warning("🌡️ Bouncer rejected IR_ON: Sauna session is active.")
+        return False, set()
     if manager._state.sensors.sauna_calc_temp is None:
         await manager.logger.warning("🌡️ Bouncer rejected IR_ON: Temperature data is currently missing (NULL).")
         return False, set()
@@ -150,7 +156,7 @@ async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
         manager._state.devices[ir_status_idx] = "ON"
 
     if hasattr(manager, "_power_analytics"):
-        manager._power_analytics.note_session_start()
+        manager._power_analytics.note_session_start("ir")
 
     return True, {"ir", "devices"}
 

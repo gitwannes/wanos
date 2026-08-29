@@ -14,31 +14,34 @@ Three jobs (rsync over SSH -- no Samba/Z:):
 
 Optional:
    -Lcd       Mirror/pull for LCD Pi only (skip stats; source = \_lcd-agent)
-   -LogCopy   After log pull, also copy wanos* into git docs\logs (or \_lcd-agent\docs\logs)
+   -LogCopy   After log pull, copy wanos* into git docs\logs (or \_lcd-agent\docs\logs)
+              Always on for mode run and mode logcopy; optional dry-run preview with test
 
 Includes / excludes: helpers/wanos-sync.config.txt
 Paths (repo, StatsDest): in this .ps1. Remote host/paths: [PiSsh] / [LcdPiSsh] in config.
 
 Modes:
-   test | run | codeimport
+   test | run | logcopy | codeimport
 
 Switches:
    -VerboseSync              Extra diagnostics
    -Lcd                      LCD Pi target
-   -LogCopy                  Extra git log mirror
+   -LogCopy                  Git log mirror (forced on for run / logcopy)
    -CodeImportPath <folder>  Required for mode codeimport
 
-Usage:
-   powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode test
-   powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode run -VerboseSync
-   powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode run -Lcd -LogCopy
-   powershell -NoProfile -ExecutionPolicy Bypass -File helpers\wanos-sync.ps1 -Mode codeimport -CodeImportPath C:\data\git\wanos\code-import
+Usage (prefer helpers\wanos-sync.bat — lists all combinations):
+   powershell ... -File helpers\wanos-sync.ps1 -Mode test
+   powershell ... -File helpers\wanos-sync.ps1 -Mode run -LogCopy
+   powershell ... -File helpers\wanos-sync.ps1 -Mode run -Lcd -LogCopy
+   powershell ... -File helpers\wanos-sync.ps1 -Mode logcopy
+   powershell ... -File helpers\wanos-sync.ps1 -Mode logcopy -Lcd
+   powershell ... -File helpers\wanos-sync.ps1 -Mode codeimport -CodeImportPath C:\data\git\wanos\code-import
 ================================================================================
 #>
 
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("test", "run", "codeimport")]
+    [ValidateSet("test", "run", "logcopy", "codeimport")]
     [string]$Mode,
 
     [string]$CodeImportPath = "",
@@ -50,6 +53,11 @@ param(
 
     [switch]$LogCopy
 )
+
+# run and logcopy always include the git docs\logs copy after log pull
+if ($Mode -eq "run" -or $Mode -eq "logcopy") {
+    $LogCopy = $true
+}
 
 $ErrorActionPreference = "Stop"
 $script:VerboseSync = [bool]$VerboseSync
@@ -853,7 +861,8 @@ function Invoke-WanosRsyncLogPullJob {
 }
 
 # =============================================================================
-# OPTIONAL LOGCOPY (OneDrive pull dir --> git docs\logs)
+# LOGCOPY (OneDrive pull dir --> git docs\logs)
+# Always after log pull for mode run / mode logcopy; optional dry-run with test -LogCopy
 # =============================================================================
 
 function Copy-WanosLogSnapshot {
@@ -910,6 +919,11 @@ if ($Lcd -and $Mode -eq "codeimport") {
     exit 14
 }
 
+if ($LogCopy -and $Mode -eq "codeimport") {
+    Write-Error "Switch -LogCopy and mode codeimport cannot be combined."
+    exit 14
+}
+
 Assert-PathExists -Path $MirrorSource -Description "Mirror source (repo)" -ExitCode 11
 
 if ($Lcd) {
@@ -924,8 +938,11 @@ if ($Mode -eq "codeimport") {
     Ensure-Directory -Path $CodeImportPath -DryRun:($false)
 }
 
-foreach ($dir in $SourceDirs) {
-    Assert-PathExists -Path $dir -Description "Normalization source directory" -ExitCode 15
+# Normalization sources only needed when we rewrite *.sh (run / codeimport)
+if ($Mode -eq "run" -or $Mode -eq "codeimport") {
+    foreach ($dir in $SourceDirs) {
+        Assert-PathExists -Path $dir -Description "Normalization source directory" -ExitCode 15
+    }
 }
 
 $script:DryRun = ($Mode -eq "test")
@@ -937,7 +954,7 @@ if ($Mode -ne "codeimport") {
     Ensure-Directory -Path $StatsDest -DryRun:$DryRun
 }
 
-# Normalize on real writes (run + codeimport)
+# Normalize on real writes (run + codeimport); logcopy skips normalize
 if ($Mode -eq "run" -or $Mode -eq "codeimport") {
     if ($Lcd) {
         Normalize-ShFiles -Dirs @($LcdMirrorSource) -Recurse
@@ -953,6 +970,34 @@ if ($Mode -eq "codeimport") {
         -ExcludeDirs $MirrorExcludeDirs `
         -ExcludeFiles $MirrorExcludeFiles `
         -DryRun:$false
+} elseif ($Mode -eq "logcopy") {
+    # Log pull + git docs\logs only (no mirror / stats / normalize)
+    Write-Host ""
+    if ($Lcd) {
+        Invoke-WanosRsyncLogPullJob `
+            -Ssh $LcdPiSsh `
+            -StatsDest $StatsDest `
+            -DryRun:$false
+        Write-Host ""
+        $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else {
+            Join-Path $StatsDest ([string]$LcdPiSsh.LocalLogSubdir)
+        }
+        Copy-WanosLogSnapshot `
+            -SourceDir $logSrc `
+            -DestDir $GitLogCopyDestLcd `
+            -DryRun:$false
+    } else {
+        Invoke-WanosRsyncLogPullJob `
+            -Ssh $PiSsh `
+            -StatsDest $StatsDest `
+            -DryRun:$false
+        Write-Host ""
+        $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else { $StatsDest }
+        Copy-WanosLogSnapshot `
+            -SourceDir $logSrc `
+            -DestDir $GitLogCopyDestMain `
+            -DryRun:$false
+    }
 } elseif ($Lcd) {
     # LCD Pi: mirror _lcd-agent contents + log pull (no stats / no hue bootstrap)
     Write-Host ""
@@ -980,7 +1025,7 @@ if ($Mode -eq "codeimport") {
             -DryRun:$DryRun
     }
 } else {
-    # WanOS main Pi: bootstrap + mirror + stats + log pull
+    # WanOS main Pi: bootstrap + mirror + stats + log pull (+ logcopy when -LogCopy / run)
     Invoke-WanosBootstrapPushJob `
         -Source $MirrorSource `
         -Ssh $PiSsh `

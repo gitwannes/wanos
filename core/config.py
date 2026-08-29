@@ -64,12 +64,18 @@ class SaunaRuntimeConfig(BaseModel):
     vent_delay_mins: int
     vent_run_mins: int
     timer_offset_temp: float
+    # Model baseline for Session Energy (Calc) per phase — WISC nameplate defaults
+    effective_watts_u: float = 3500.0
+    effective_watts_v: float = 3500.0
+    effective_watts_w: float = 2000.0
 
 
 class IRRuntimeConfig(BaseModel):
     min_time_mins: int
     max_time_mins: int
     default_ir_modulation: int
+    # Model baseline for Session Energy (Calc) at 100% mod — WISC: 750 x 0.70
+    effective_watts: float = 525.0
 
 
 class BathroomConfig(BaseModel):

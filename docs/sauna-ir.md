@@ -96,7 +96,7 @@ WanOS keeps the two character LCDs on a dedicated Wi-Fi Pi (`10.32.251.51`) and 
 
 **Deploy / install (L1 shipped 2026-08-24):**
 * Repo tree: [`_lcd-agent/`](../_lcd-agent/) (agent + `helpers/bootstrap/`).
-* Pi path: `/home/wannes/wanos` (venv `wanos_venv`). Sync: `helpers\wanos-sync.bat test|run lcd` — see [`wanos-sync.md`](wanos-sync.md). Modes `test` / `run` / `codeimport` are mutually exclusive.
+* Pi path: `/home/wannes/wanos` (venv `wanos_venv`). Sync: `helpers\wanos-sync.bat test|run|logcopy lcd` — see [`wanos-sync.md`](wanos-sync.md). Modes `test` / `run` / `logcopy` / `codeimport` are mutually exclusive.
 * Secrets: `/home/wannes/wanos/.env` (`WANOS_LCD_*`; never git). Unit `wanos-lcd-agent.service` loads that file via `EnvironmentFile`.
 * Boot I2C: `dtparam=i2c_arm=on` in `/boot/firmware/config.txt` **or** legacy `/boot/config.txt`.
 * Install guide: [`_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`](../_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md).
@@ -119,7 +119,9 @@ Duration format is canonical:
 These door durations are tracked in core state and are available to UI/LCD logic. The full open/closed duration string is not required on the 16x2 LCD itself.
 
 #### 3.7.2 Screen 1 (`0x27`) Display Rules
-Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../logic/lcd_screen1.py)), not legacy one-line `AuxiliaryController` text. The same lines are mirrored into `sauna.lcd_line1` / `sauna.lcd_line2` for the WISC sauna panel: amber VT323 16×2 preview (`.wanos-lcd-screen`), spaces preserved so centered rows match the physical LCD. When both lines are blank, WISC shows `WanOS Wisc standby`.
+Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../logic/lcd_screen1.py)), not legacy one-line `AuxiliaryController` text. The same lines are mirrored into `sauna.lcd_line1` / `sauna.lcd_line2` for the WISC sauna panel: green VT323 16×2 preview (`.wanos-lcd-screen`), spaces preserved so centered rows match the physical LCD. When both lines are blank, WISC shows `WanOS Wisc standby`. When Admin **LCD screens** integration is off, WISC shows `no LCD text:` / `integration off` and WanOS does not publish `wanos/lcd/*` (compose still runs internally until a future phase).
+
+**Integration master switch (Admin):** `system.lcd_integration_enabled` — `LCD_TOGGLED`. Requires local WanOS MQTT broker online to enable (same gate as OpenWeather). When off: no MQTT to the LCD Pi; debug/easter-egg Admin actions are also blocked at the publisher.
 
 Priority:
 1. **Sauna active**
@@ -174,6 +176,21 @@ $$P_{elements\_real} = P_{measured} - P_{leak}$$
 Because the `StateManager` drives the physical heating elements using an asymmetric PWM strategy across phases U, V, and W via the PID controller, duty ratios drift continuously. The relationship between real power, live voltage sags, and heating element capacity is modeled linearly as:
 
 $$P_{elements\_real} = \left(\frac{V_{live}}{230}\right)^2 \times ((D_U \cdot P_U) + (D_V \cdot P_V) + (D_W \cdot P_W))$$
+
+**Session Energy (Calc)** integrates a software model over time (Admin blue bar, `energy_calc_wh` in SQLite). Baselines come from `config.yaml` (not hardcoded):
+
+| Key | Default | Role |
+|-----|---------|------|
+| `sauna.effective_watts_u` / `_v` / `_w` | 3500 / 3500 / 2000 | Sauna calc per phase at 100% mod |
+| `ir.effective_watts` | 525 (750 × 0.70) | IR calc at 100% mod |
+
+Sauna calc: $\sum (D_{phase} \times P_{effective,phase}) \times (V/230)^2$. IR-only sessions add $(IR\_mod/100) \times ir.effective\_watts \times (V/230)^2$. **Real** session energy always comes from the pulse meter minus locked leak.
+
+**Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle.
+
+**Admin — calc baselines:** Power & Thermal Analytics panel exposes live edit of `ir.effective_watts` and `sauna.effective_watts_u/v/w`. Saves rewrite `config.yaml` and update in-memory config immediately (no full bridge recycle). API: `GET`/`PUT` `/api/admin/analytics/effective-watts` (admin-only).
+
+**Session History UI:** both Sauna and IR tabs show **Avg W** (display-time: `energy_real_wh × 3600 / total_runtime_secs`). IR tab adds temp/hum (single value when change ≤ 0.2 °C / 2 %), mod_avg, and outdoor temp. Admin may delete individual session rows (`DELETE /api/history/sessions/{sauna|ir}/{session_id}`) with browser confirm; `last_*_session` cache refreshes when the deleted row was most recent.
 
 Where:
 * $V_{live}$ = Current line voltage read from Z-Wave Node 50 (IDX `71046`).

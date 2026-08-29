@@ -21,7 +21,7 @@
 [x-cloak] { display: none !important; }
 
 /* -------------------------------------------------------------------------
-   WISC sauna panel — 16x2 character LCD preview (HD44780 / amber backlight)
+   WISC sauna panel — 16x2 character LCD preview (HD44780 / green backlight)
    ------------------------------------------------------------------------- */
 .wanos-lcd-screen {
     /* content-box: 16ch is glyph area only — padding/border must not steal columns */
@@ -34,10 +34,10 @@
     max-width: 100%;
     overflow: visible;
     white-space: pre;
-    border: 1px solid #4a2810;
+    border: 1px solid #0a4a0a;
     border-radius: 3px;
-    background: #120500;
-    color: #ff9a1a;
+    background: #001200;
+    color: #00dd00;
     /* VT323: chunky pixel caps similar to 5x8 LCD matrix */
     font-family: "VT323", "Courier New", ui-monospace, monospace;
     font-size: 1.75rem;
@@ -46,8 +46,8 @@
     letter-spacing: 0;
     tab-size: 1;
     text-shadow:
-        0 0 1px rgba(255, 154, 26, 0.95),
-        0 0 5px rgba(255, 120, 0, 0.45);
+        0 0 1px rgba(0, 221, 0, 0.95),
+        0 0 5px rgba(0, 180, 0, 0.45);
     box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.7);
 }
 

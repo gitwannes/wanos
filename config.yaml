@@ -209,11 +209,15 @@ sauna:
   vent_delay_mins: 1             # Cooldown wait time before starting the extraction fan
   vent_run_mins: 160             # Duration the extraction fan runs
   timer_offset_temp: 7.0         # Frozen countdown: triggers when temp >= (Setpoint - Offset)
+  effective_watts_u: 3500        # Calc model baseline phase U (W)
+  effective_watts_v: 3500        # Calc model baseline phase V (W)
+  effective_watts_w: 2000        # Calc model baseline phase W (W)
 
 ir:
   default_ir_modulation: 75      # Default IR power modulation (75%)
   min_time_mins: 5
   max_time_mins: 20
+  effective_watts: 525           # Calc model baseline at 100% mod (750 x 0.70)
 
 bathroom1:
   vent_min_runtime_mins: 5       # Shower vent lock duration (hub 90001); humidity band → Library rule Badk 1e ventilatie

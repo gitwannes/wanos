@@ -1,0 +1,37 @@
+---
+description: No product code or config edits unless the operator explicitly commands implement/ship/patch
+alwaysApply: true
+---
+
+# Implement gate (hard rule)
+
+**Do not edit product code, config, or markup** (Python, JS, HTML, YAML runtime config, SQL schema, etc.) unless the operator **explicitly** commands implementation in that turn or a prior turn they have not revoked.
+
+## Commands that authorize code
+
+Only these (or clear equivalents in the same message):
+
+- `implement`
+- `ship`
+- `patch`
+- `fix` / `bugfix` when clearly directed at code (e.g. "patch the door banner")
+
+## Does NOT authorize code
+
+- `triage`, `kickoff`, analysis, Q&A, "re-assess", "no code"
+- Locked spec, kickoff answers, "this is fine", config shape agreement
+- Phrases like "in this code run", "when you build C31", "roll X into C31" (scope only — wait for **implement**)
+- Pipeline / phase markdown updates during triage or kickoff (those flows have their own rules)
+
+## Pipeline docs
+
+- **triage** / **kickoff**: may edit `docs/todo/*` only — no product code.
+- **implement** / **ship** / **patch**: product code allowed; pipeline close-out when ship/DoD says so.
+
+## When unsure
+
+Stop and ask: **triage**, **kickoff**, or **implement**? Do not "helpfully" start coding.
+
+## Conflicts
+
+User Rule **Collaboration standards** wins. This rule makes the implement gate explicit for WanOS.

@@ -153,7 +153,7 @@
                             <span class="text-2xl font-black tracking-widest uppercase">Sauna <span x-text="state.sauna.active ? 'ON' : 'OFF'"></span></span>
                             <span class="text-[11px] font-mono mt-1 font-bold text-center px-2"
                                   :class="state.sauna.active ? 'text-orange-100' : 'text-stone-400'"
-                                  x-html="state.sauna.active ? 'ACTIVE ELEMENT LOAD' : (!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON') ? '<span class=\'text-red-500\'>NOT ARMED, CONTACT ADMIN</span>' : (state.sensors.sauna_calc_temp == null ? '<span class=\'text-red-500\'>SENSORS OFFLINE</span>' : (state.devices[10001] === 'OPEN' ? '<span class=\'text-orange-500\'>PLEASE CLOSE DOOR</span>' : 'TAP TO SWITCH')))">
+                                  x-html="state.sauna.active ? 'ACTIVE ELEMENT LOAD' : (!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON') ? '<span class=\'text-red-500\'>NOT ARMED, CONTACT ADMIN</span>' : (state.sensors.sauna_calc_temp == null ? '<span class=\'text-red-500\'>SENSORS OFFLINE</span>' : (state.ir.active ? '<span class=\'text-orange-500\'>IR RUNNING</span>' : (state.devices[10001] === 'OPEN' ? '<span class=\'text-orange-500\'>PLEASE CLOSE DOOR</span>' : 'TAP TO SWITCH'))))">
                             </span>
                         </button>
 
@@ -185,7 +185,7 @@
                             <span class="text-2xl font-black tracking-widest uppercase">IR <span x-text="state.ir.active ? 'ON' : 'OFF'"></span></span>
                             <span class="text-[11px] font-mono mt-1 font-bold text-center px-2"
                                   :class="state.ir.active ? 'text-emerald-100' : 'text-stone-400'"
-                                  x-html="state.ir.active ? 'GRID MODULATION' : (!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON') ? '<span class=\'text-red-500\'>NOT ARMED, CONTACT ADMIN</span>' : (state.sensors.sauna_calc_temp == null ? '<span class=\'text-red-500\'>SENSORS OFFLINE</span>' : 'TAP TO SWITCH'))">
+                                  x-html="state.ir.active ? 'GRID MODULATION' : (!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON') ? '<span class=\'text-red-500\'>NOT ARMED, CONTACT ADMIN</span>' : (state.sensors.sauna_calc_temp == null ? '<span class=\'text-red-500\'>SENSORS OFFLINE</span>' : (state.sauna.active ? '<span class=\'text-orange-500\'>SAUNA RUNNING</span>' : 'TAP TO SWITCH')))">
                             </span>
                         </button>
 
@@ -305,6 +305,6 @@
         </main>
     </div>
 
-    <script src="app.js?v=3.41"></script>
+    <script src="app.js?v=3.48"></script>
 </body>
 </html>

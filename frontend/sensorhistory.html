@@ -54,8 +54,12 @@
                                 <th>Start</th>
                                 <th>Runtime</th>
                                 <th>Energy</th>
+                                <th>Avg W</th>
                                 <th>Temp</th>
+                                <th x-show="sessionHistoryType === 'ir'">Hum</th>
+                                <th x-show="sessionHistoryType === 'ir'">Mod</th>
                                 <th>Outside</th>
+                                <th x-show="isAdmin" class="w-16"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -65,12 +69,23 @@
                                     <td x-text="formatSessionTs(s.start_timestamp)"></td>
                                     <td x-text="formatSessionRuntime(s.total_runtime_secs)"></td>
                                     <td x-text="(s.energy_real_wh != null ? (s.energy_real_wh / 1000).toFixed(2) + ' kWh' : '—')"></td>
-                                    <td x-text="(s.temp_start != null ? Number(s.temp_start).toFixed(1) : '—') + ' → ' + (s.temp_end != null ? Number(s.temp_end).toFixed(1) : '—') + '°C'"></td>
+                                    <td x-text="formatSessionAvgRealW(s.energy_real_wh, s.total_runtime_secs)"></td>
+                                    <td x-text="sessionHistoryType === 'ir'
+                                        ? formatSessionClimateRange(s.temp_start, s.temp_end, '°C')
+                                        : ((s.temp_start != null ? Number(s.temp_start).toFixed(1) : '—') + ' → ' + (s.temp_end != null ? Number(s.temp_end).toFixed(1) : '—') + '°C')"></td>
+                                    <td x-show="sessionHistoryType === 'ir'"
+                                        x-text="formatSessionClimateRange(s.hum_start, s.hum_end, '%')"></td>
+                                    <td x-show="sessionHistoryType === 'ir'"
+                                        x-text="s.mod_avg != null ? Number(s.mod_avg).toFixed(0) + '%' : '—'"></td>
                                     <td x-text="s.temp_outside_start != null ? Number(s.temp_outside_start).toFixed(1) + '°C' : '—'"></td>
+                                    <td x-show="isAdmin">
+                                        <button class="btn btn-xs btn-error btn-outline font-mono"
+                                                @click="deleteSessionRow(s.session_id)">Del</button>
+                                    </td>
                                 </tr>
                             </template>
                             <tr x-show="!sessionHistoryRows.length">
-                                <td colspan="6" class="text-base-content/40 italic">No sessions recorded yet.</td>
+                                <td :colspan="sessionHistoryType === 'ir' ? (isAdmin ? 10 : 9) : (isAdmin ? 8 : 7)" class="text-base-content/40 italic">No sessions recorded yet.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -94,6 +109,6 @@
         </div>
     </main>
     <script src="wanos-shell.js?v=14"></script>
-    <script src="app.js?v=3.41"></script>
+    <script src="app.js?v=3.48"></script>
 </body>
 </html>
