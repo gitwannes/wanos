@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-08-29 (**C31** triaged + kickoff — Sauna/IR analytics & WISC polish)
+**Last updated:** 2026-08-30 (**C31 + C32** combined ship — Pi smoke done)
 
 ---
 
@@ -79,6 +79,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **L1** | LCD Pi agent (`_lcd-agent`) + sync `lcd`/`logcopy` + WISC screen1 mirror — **Pi smoke 2026-08-24** |
 | **C29** | Timers/Hidden NameError missing imports — **Pi smoke 2026-08-27** |
 | **G16** | LG webOS TV power + Blockly apps — **Pi smoke 2026-08-27** |
+| **C31 + C32** | Sauna/IR analytics + power model DB + Admin/WISC UX + IR PWM — **Pi smoke 2026-08-30** (combined ship) |
 
 ---
 
@@ -111,30 +112,29 @@ All open items. **Detail** = phase file section.
 20  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
 21  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
 22  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
-23  open   mid  C31          Sauna/IR analytics + WISC commander polish         phaseC § C31
-24  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
-25  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
-26  open   low  G7           Integration log tags                               phaseG § G7
-27  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
-28  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
-29  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
-30  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
-31  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
-32  open   high G9           Honeywell / Evohome                                phaseG § G9
-33  open   high G10          HomeWizard energy                                  phaseG § G10
-34  open   high G12          SMA solar                                          phaseG § G12
-35  open   high G13          HomeConnect BSH                                    phaseG § G13
-36  open   high F            Security bridge (F1→F7)                            phaseF
-37  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
-38  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-39  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-40  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-41  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-42  hold   high P            Other homes / portability (assess)                 phaseP
-43  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
-44  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
+23  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
+24  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
+25  open   low  G7           Integration log tags                               phaseG § G7
+26  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
+27  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
+28  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
+29  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
+30  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
+31  open   high G9           Honeywell / Evohome                                phaseG § G9
+32  open   high G10          HomeWizard energy                                  phaseG § G10
+33  open   high G12          SMA solar                                          phaseG § G12
+34  open   high G13          HomeConnect BSH                                    phaseG § G13
+35  open   high F            Security bridge (F1→F7)                            phaseF
+36  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
+37  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+38  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+39  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+40  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+41  hold   high P            Other homes / portability (assess)                 phaseP
+42  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
+43  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
 ```
-Near-term: **L2** after kickoff when ready. **Ship B7** → **B26** (Then all-match Ifs) → **B24** when ready. **B12** / **B25** may run ∥ Ship B7. **C28** after **C4**; **C26** after **C4** (HTML/JS rename, then split). **C30** = WISC douche live + last summary (old WISC session gates; gas = €/min proxy, no P1 m³). **C31** = Sauna/IR analytics gaps + commander mutual-exclusion UX (kickoff **2026-08-29**). **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **L1** ✅ **Pi smoke 2026-08-24**. **C29** ✅ **Pi smoke 2026-08-27**. **G16** ✅ **Pi smoke 2026-08-27**. **C25** code+docs **2026-08-27** (Pi smoke pending). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **L2** after kickoff when ready. **Ship B7** → **B26** (Then all-match Ifs) → **B24** when ready. **B12** / **B25** may run ∥ Ship B7. **C28** after **C4**; **C26** after **C4** (HTML/JS rename, then split). **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **L1** ✅ **Pi smoke 2026-08-24**. **C29** ✅ **Pi smoke 2026-08-27**. **G16** ✅ **Pi smoke 2026-08-27**. **C25** code+docs **2026-08-27** (Pi smoke pending). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 

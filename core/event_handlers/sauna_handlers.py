@@ -135,6 +135,29 @@ async def handle_sauna_modulation_updated(event: Event, manager: Any) -> Tuple[b
     return True, {"sauna"}
 
 
+async def handle_ir_timer_adjusted(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    payload = event.payload or {}
+    minutes_to_add = int(payload.get("minutes", 0))
+
+    if not manager._state.ir.active:
+        return False, set()
+
+    now = int(time.time())
+    cfg = manager._config.ir
+    start_ts = manager._state.ir.session_start_time or now
+    cur_end = manager._state.ir.session_end_time or now
+    new_end = cur_end + (minutes_to_add * 60)
+    min_end = start_ts + (int(cfg.min_time_mins) * 60)
+    max_end = start_ts + (int(cfg.max_time_mins) * 60)
+    manager._state.ir.session_end_time = max(min_end, min(max_end, new_end))
+
+    manager._timer_manager.cancel("ir_main")
+    manager._timer_manager.schedule(
+        "ir_main", manager._state.ir.session_end_time, "IR_TIMER_EXPIRED"
+    )
+    return True, {"ir"}
+
+
 async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     if manager._state.sauna.active:
         await manager.logger.warning("🌡️ Bouncer rejected IR_ON: Sauna session is active.")
@@ -146,7 +169,8 @@ async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.ir.active = True
     now = int(time.time())
     manager._state.ir.session_start_time = now
-    manager._state.ir.session_end_time = now + (manager._config.ir.max_time_mins * 60)
+    default_mins = getattr(manager._config.ir, "default_time_mins", 7)
+    manager._state.ir.session_end_time = now + (int(default_mins) * 60)
 
     manager._timer_manager.schedule("ir_main", manager._state.ir.session_end_time, "IR_TIMER_EXPIRED")
 

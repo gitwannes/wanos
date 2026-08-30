@@ -70,6 +70,10 @@ Z-Wave power IDXs (`74001`, `74003`) include **integrated kWh** in summary tiles
 
 **Lifetime totals (not time-series):** cumulative counters in NVRAM (`wanos-nvram.json`) for IDX `11001`–`11003` remain the source of truth for **total** Wh / L.
 
+**Admin Site health "Total kWh":** derived display only — `config.yaml` `energy.meter_baseline_kwh` + `(devices[11001] − energy.meter_pulse_wh_at_baseline) / 1000`. Canonical store is still NVRAM IDX `11001` (1 pulse = 1 Wh). Do **not** persist a second cumulative kWh counter. Set `meter_pulse_wh_at_baseline` to the current `11001` Wh reading when locking a new physical-meter baseline.
+
+**Leak W:** `p_leak_baseline_watts` is also stored in `wanos-nvram.json` (non-IDX meta key, same atomic file). Restored on boot; rewritten on the 5-minute NVRAM flush and on graceful shutdown. Live idle pulses keep updating RAM; disk catches up on flush.
+
 **Sauna / IR:** session rows in `sauna_sessions.db` (see §6 and [sauna-ir.md](sauna-ir.md) §5), retention **forever**.
 
 ---
@@ -177,7 +181,8 @@ For `11001` / `11002` / `11003`:
 
 ### 8.5 Sauna / IR section
 * Table of historical sessions (all retained rows), including `temp_outside_start`.
-* **Both tabs:** Start, Runtime, Energy (kWh), **Avg W** (derived from `energy_real_wh` and runtime), Temp, Outside.
+* **Sauna tab:** Energy in **kWh**; **IR tab:** Energy in **Wh**.
+* **Both tabs:** Start, Runtime, **Avg W** (derived), Temp, Outside; **i** popover with W @100% audit triple (baseline / measured / new per element).
 * **IR tab only:** Hum, Mod (avg %). Temp/hum show a single value when start/end differ by ≤ 0.2 °C / 2 %.
 * **Admin:** per-row **Del** with confirm; `DELETE /api/history/sessions/{sauna|ir}/{session_id}`.
 

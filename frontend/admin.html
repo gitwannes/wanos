@@ -627,128 +627,53 @@
                             <span>⚡ Power & Thermal Analytics</span>
                         </h2>
 
-                        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 w-full items-start">
+                        <div class="flex flex-col gap-6 w-full font-mono text-xs">
 
-                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
-                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Grid Health & Baseline</div>
-
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Mains Voltage</span>
-                                    <span class="font-bold text-[11px]" :class="state.devices[71046] ? 'text-info' : 'text-error animate-pulse'" x-text="state.devices[71046] ? state.devices[71046] : 'AWAITING VOLTAGE'"></span>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                                <div class="flex flex-col gap-2 p-3 bg-base-200 border border-base-300 rounded-box">
+                                    <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2">Site health</div>
+                                    <div class="flex justify-between"><span class="text-base-400">Mains V</span><span class="font-bold text-info" x-text="state.devices[71046] || 'AWAITING'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Leak W</span><span class="font-bold" x-text="(state.metrics.p_leak_baseline_watts || 0).toFixed(1) + ' W'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Total kWh</span><span class="font-bold text-success" x-text="(state.metrics.meter_total_kwh || 0).toFixed(3)"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Meter Wh</span><span class="font-bold" x-text="formatMeterPulseWh()"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Sessions</span><span x-text="(state.metrics.session_count_sauna || elementPowerMeta.session_count_sauna || 0) + ' sauna / ' + (state.metrics.session_count_ir || elementPowerMeta.session_count_ir || 0) + ' IR'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">R_th</span><span class="font-bold text-purple-400" x-text="state.metrics.r_th_insulation_coefficient !== null ? state.metrics.r_th_insulation_coefficient.toExponential(3) : 'N/A'"></span></div>
                                 </div>
 
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Background Leak</span>
-                                    <span class="font-bold text-[11px] text-accent" x-text="(state.metrics.p_leak_baseline_watts || 0).toFixed(1) + ' W'"></span>
+                                <div class="flex flex-col gap-2 p-3 bg-base-200 border border-base-300 rounded-box">
+                                    <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2">LCD mirror</div>
+                                    <pre class="wanos-lcd-screen text-[10px] leading-tight min-h-[2.5rem]" x-text="lcdScreen1Display()"></pre>
                                 </div>
 
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Total Element kWh</span>
-                                    <span class="font-bold text-[11px] text-success" x-text="((state.metrics.total_energy_real_wh || 0) / 1000).toFixed(3) + ' kWh'"></span>
-                                </div>
-                            </div>
-
-                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
-                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Active Session Load</div>
-
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Live Element Draw</span>
-                                    <span class="font-bold text-[11px] text-warning" x-text="(state.metrics.p_elements_real_watts || 0).toFixed(1) + ' W'"></span>
-                                </div>
-
-                                <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-base-400 uppercase font-bold text-[10px]">Session Energy</span>
-                                        <span class="font-bold text-[10px] text-base-content/50">Real vs Calc</span>
+                                <div class="flex flex-col gap-2 p-3 bg-base-200 border border-base-300 rounded-box">
+                                    <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2">Element @ 100% mod (learned)</div>
+                                    <div class="flex flex-col gap-1">
+                                        <div class="flex justify-between"><span class="text-base-400">U</span><span class="font-bold" x-text="(elementPowerMeta.w_u || state.metrics.extracted_p_u || 0).toFixed(0) + ' W'"></span></div>
+                                        <div class="flex justify-between"><span class="text-base-400">V</span><span class="font-bold" x-text="(elementPowerMeta.w_v || state.metrics.extracted_p_v || 0).toFixed(0) + ' W'"></span></div>
+                                        <div class="flex justify-between"><span class="text-base-400">W</span><span class="font-bold" x-text="(elementPowerMeta.w_w || state.metrics.extracted_p_w || 0).toFixed(0) + ' W'"></span></div>
+                                        <div class="flex justify-between"><span class="text-base-400">IR</span><span class="font-bold" x-text="(elementPowerMeta.w_ir || 525).toFixed(0) + ' W'"></span></div>
                                     </div>
-                                    <div class="flex items-center gap-2 mt-1">
-                                        <progress class="progress progress-warning w-1/2" :value="state.metrics.running_energy_real_wh || 0" :max="Math.max(10, state.metrics.running_energy_calc_wh, state.metrics.running_energy_real_wh)"></progress>
-                                        <progress class="progress progress-info w-1/2" :value="state.metrics.running_energy_calc_wh || 0" :max="Math.max(10, state.metrics.running_energy_calc_wh, state.metrics.running_energy_real_wh)"></progress>
-                                    </div>
-                                    <div class="flex justify-between text-[10px] font-bold">
-                                        <span class="text-warning" x-text="((state.metrics.running_energy_real_wh || 0) / 1000).toFixed(3) + ' kWh'"></span>
-                                        <span class="text-info" x-text="((state.metrics.running_energy_calc_wh || 0) / 1000).toFixed(3) + ' kWh'"></span>
+                                    <div class="text-[10px] text-base-content/50 pt-1 flex flex-col gap-0.5 border-t border-base-300 mt-1">
+                                        <div x-text="'sauna learns: ' + (elementPowerMeta.learn_count_sauna || 0) + ' · IR learns: ' + (elementPowerMeta.learn_count_ir || 0)"></div>
+                                        <div x-show="elementPowerMeta.updated_at" x-text="'updated: ' + formatUnixTime(elementPowerMeta.updated_at)"></div>
+                                        <div x-text="formatElementLastLearn('sauna')"></div>
+                                        <div x-text="formatElementLastLearn('ir')"></div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
-                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Disaggregation Matrix</div>
-
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Phase U (3500W)</span>
-                                    <span class="font-bold text-[11px]" :class="(!state.metrics.extracted_p_u || state.metrics.extracted_p_u >= 3150) ? 'text-success' : 'text-error animate-pulse'" x-text="state.metrics.extracted_p_u ? state.metrics.extracted_p_u.toFixed(0) + ' W' : (state.devices[71046] ? 'CALCULATING...' : 'AWAITING VOLTAGE')"></span>
+                            <div class="p-3 bg-base-200 border border-base-300 rounded-box" x-show="state.sauna.active || state.ir.active">
+                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Live session</div>
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex justify-between"><span class="text-base-400">Cabin</span><span x-text="(state.sensors.sauna_calc_temp != null ? state.sensors.sauna_calc_temp.toFixed(1) + ' C' : '--') + ' / ' + (state.sensors.sauna_calc_hum != null ? state.sensors.sauna_calc_hum + '%' : '--')"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Real W</span><span class="text-warning font-bold" x-text="(state.metrics.p_elements_real_watts || 0).toFixed(1) + ' W'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Calc W</span><span x-text="(state.metrics.p_elements_calc_watts || 0).toFixed(1) + ' W'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Delta W (real-calc)</span><span x-text="((state.metrics.p_elements_real_watts || 0) - (state.metrics.p_elements_calc_watts || 0)).toFixed(1) + ' W'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Energy real / calc</span><span x-text="((state.metrics.running_energy_real_wh || 0) / 1000).toFixed(3) + ' / ' + ((state.metrics.running_energy_calc_wh || 0) / 1000).toFixed(3) + ' kWh'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Delta Wh</span><span x-text="((state.metrics.running_energy_real_wh || 0) - (state.metrics.running_energy_calc_wh || 0)).toFixed(1) + ' Wh'"></span></div>
+                                    <div class="flex justify-between" x-show="state.sauna.active"><span class="text-base-400">Est. U/V/W</span><span x-text="formatLiveEstimatedPhaseW()"></span></div>
                                 </div>
-
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Phase V (3500W)</span>
-                                    <span class="font-bold text-[11px]" :class="(!state.metrics.extracted_p_v || state.metrics.extracted_p_v >= 3150) ? 'text-success' : 'text-error animate-pulse'" x-text="state.metrics.extracted_p_v ? state.metrics.extracted_p_v.toFixed(0) + ' W' : (state.devices[71046] ? 'CALCULATING...' : 'AWAITING VOLTAGE')"></span>
-                                </div>
-
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Phase W (2000W)</span>
-                                    <span class="font-bold text-[11px]" :class="(!state.metrics.extracted_p_w || state.metrics.extracted_p_w >= 1800) ? 'text-success' : 'text-error animate-pulse'" x-text="state.metrics.extracted_p_w ? state.metrics.extracted_p_w.toFixed(0) + ' W' : (state.devices[71046] ? 'CALCULATING...' : 'AWAITING VOLTAGE')"></span>
-                                </div>
-                            </div>
-
-                            <div class="flex flex-col gap-3 font-mono text-xs w-full">
-                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2 mb-2">Cabin Integrity & History</div>
-
-                                <div class="flex justify-between items-center p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-2">
-                                    <span class="text-base-400 uppercase font-bold text-[10px]">Thermal Index (R_th)</span>
-                                    <span class="font-bold text-[11px] text-purple-400" x-text="state.metrics.r_th_insulation_coefficient !== null ? state.metrics.r_th_insulation_coefficient.toExponential(3) : 'N/A'"></span>
-                                </div>
-
-                                <div class="flex flex-col p-3 bg-base-200 border border-base-300 rounded-box shadow-sm gap-1 cursor-help group relative">
-                                    <span class="text-base-400 uppercase font-bold text-[10px] border-b border-base-300 pb-1 mb-1">Last Sauna Session</span>
-                                    <template x-if="state.metrics.last_sauna_session">
-                                        <div class="flex flex-col gap-1">
-                                            <div class="flex justify-between text-[10px]"><span class="text-base-content/50">Date:</span> <span class="text-white" x-text="formatUnixTime(state.metrics.last_sauna_session.start_timestamp)"></span></div>
-                                            <div class="flex justify-between text-[10px]"><span class="text-base-content/50">Duration:</span> <span class="text-white" x-text="formatTime(state.metrics.last_sauna_session.total_runtime_secs)"></span></div>
-                                            <div class="flex justify-between text-[10px]"><span class="text-base-content/50">Max Temp:</span> <span class="text-white" x-text="state.metrics.last_sauna_session.temp_max + ' °C'"></span></div>
-                                            <div class="flex justify-between text-[10px]"><span class="text-base-content/50">Energy:</span> <span class="text-warning" x-text="(state.metrics.last_sauna_session.energy_real_wh / 1000).toFixed(3) + ' kWh'"></span></div>
-                                        </div>
-                                    </template>
-                                    <template x-if="!state.metrics.last_sauna_session">
-                                        <span class="text-[10px] italic text-base-content/50 text-center py-2">No data available</span>
-                                    </template>
-                                </div>
-                            </div>
-
-                            <div class="col-span-full border-t border-base-300 pt-4 mt-2 w-full">
-                                <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest mb-3">Calc Model Baselines (W)</div>
-                                <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 items-end font-mono text-xs">
-                                    <label class="form-control">
-                                        <span class="label-text text-[10px] uppercase text-base-400 font-bold">IR @ 100% mod</span>
-                                        <input type="number" min="1" max="50000" step="1"
-                                               class="input input-bordered input-sm font-mono"
-                                               x-model.number="effectiveWattsForm.ir" />
-                                    </label>
-                                    <label class="form-control">
-                                        <span class="label-text text-[10px] uppercase text-base-400 font-bold">Sauna phase U</span>
-                                        <input type="number" min="1" max="50000" step="1"
-                                               class="input input-bordered input-sm font-mono"
-                                               x-model.number="effectiveWattsForm.u" />
-                                    </label>
-                                    <label class="form-control">
-                                        <span class="label-text text-[10px] uppercase text-base-400 font-bold">Sauna phase V</span>
-                                        <input type="number" min="1" max="50000" step="1"
-                                               class="input input-bordered input-sm font-mono"
-                                               x-model.number="effectiveWattsForm.v" />
-                                    </label>
-                                    <label class="form-control">
-                                        <span class="label-text text-[10px] uppercase text-base-400 font-bold">Sauna phase W</span>
-                                        <input type="number" min="1" max="50000" step="1"
-                                               class="input input-bordered input-sm font-mono"
-                                               x-model.number="effectiveWattsForm.w" />
-                                    </label>
-                                    <button class="btn btn-sm btn-accent font-mono uppercase tracking-widest"
-                                            :disabled="effectiveWattsSaving"
-                                            @click="saveEffectiveWatts()">
-                                        <span x-show="!effectiveWattsSaving">Save</span>
-                                        <span x-show="effectiveWattsSaving">Saving...</span>
-                                    </button>
-                                </div>
+                                <div class="text-[10px] text-base-content/50 mt-2" x-show="state.sauna.active">Sauna U/V/W estimated from DB x duty (not meter per-phase).</div>
                             </div>
 
                         </div>
@@ -978,4 +903,4 @@
         </dialog>
     </main>
     <script src="wanos-shell.js?v=14"></script>
-    <script src="app.js?v=3.48"></script>
+    <script src="app.js?v=3.50"></script>

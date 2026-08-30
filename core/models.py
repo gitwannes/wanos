@@ -35,6 +35,7 @@ class EventType(str, Enum):
     SAUNA_TIMER_EXPIRED = "SAUNA_TIMER_EXPIRED"
     SAUNA_HOLD_TOGGLED = "SAUNA_HOLD_TOGGLED"
     SAUNA_TIMER_ADJUSTED = "SAUNA_TIMER_ADJUSTED"
+    IR_TIMER_ADJUSTED = "IR_TIMER_ADJUSTED"
     VENT_WAIT_EXPIRED = "VENT_WAIT_EXPIRED"
     VENT_RUN_EXPIRED = "VENT_RUN_EXPIRED"
     SAUNA_DOOR_GRACE_EXPIRED = "SAUNA_DOOR_GRACE_EXPIRED"  # Fired when the door remains open past the allowed threshold
@@ -275,6 +276,15 @@ class SaunaSessionRecord(BaseModel):
     extracted_p_u: float
     extracted_p_v: float
     extracted_p_w: float
+    audit_baseline_w_u: Optional[float] = None
+    audit_measured_w_u: Optional[float] = None
+    audit_new_w_u: Optional[float] = None
+    audit_baseline_w_v: Optional[float] = None
+    audit_measured_w_v: Optional[float] = None
+    audit_new_w_v: Optional[float] = None
+    audit_baseline_w_w: Optional[float] = None
+    audit_measured_w_w: Optional[float] = None
+    audit_new_w_w: Optional[float] = None
 
 
 class IrSessionRecord(BaseModel):
@@ -292,6 +302,9 @@ class IrSessionRecord(BaseModel):
     mod_avg: float
     energy_real_wh: float
     energy_calc_wh: float
+    audit_baseline_w_ir: Optional[float] = None
+    audit_measured_w_ir: Optional[float] = None
+    audit_new_w_ir: Optional[float] = None
 
 
 class MetricsState(BaseModel):
@@ -310,6 +323,7 @@ class MetricsState(BaseModel):
     # Retains isolated variables in RAM for frontend real-time reactivity
     p_leak_baseline_watts: float = 0.0
     p_elements_real_watts: float = 0.0
+    p_elements_calc_watts: float = 0.0
     r_th_insulation_coefficient: Optional[float] = None
     # Optimistically initialized to factory nominals until the background matrix proves degradation
     extracted_p_u: Optional[float] = 3500.0
@@ -319,11 +333,14 @@ class MetricsState(BaseModel):
     # ⚡ LIVE ENERGY ACCUMULATORS
     running_energy_real_wh: float = 0.0
     running_energy_calc_wh: float = 0.0
-    total_energy_real_wh: float = 0.0  # Cumulative tracking across all sessions
+    total_energy_real_wh: float = 0.0  # Element-only Wh since reboot (analytics; not meter total)
+    meter_total_kwh: float = 0.0  # Cumulative house meter (NVRAM 11001 + config baseline)
 
     # ⚡ HISTORICAL READBACK CACHES
     last_sauna_session: Optional[Dict[str, Any]] = None
     last_ir_session: Optional[Dict[str, Any]] = None
+    session_count_sauna: int = 0
+    session_count_ir: int = 0
 
     # ⚡ DEVICE INSIGHTS
     # Persisted ledger for UI analysis (last changed timestamp, daily switches, averages)

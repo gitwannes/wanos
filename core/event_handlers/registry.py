@@ -26,7 +26,7 @@ from .hub_handlers import (
 from .sauna_handlers import (
     handle_sauna_on, handle_sauna_off, handle_sauna_timer_adjusted, handle_sauna_hold_toggled,
     handle_sauna_timer_expired, handle_sauna_setpoint_changed, handle_sauna_modulation_updated,
-    handle_ir_on, handle_ir_off, handle_ir_timer_expired, handle_ir_modulation_updated
+    handle_ir_on, handle_ir_off, handle_ir_timer_expired, handle_ir_timer_adjusted, handle_ir_modulation_updated
 )
 from .system_handlers import (
     handle_system_ready, handle_alert_dismissed, handle_alert_ui_dismissed,
@@ -82,6 +82,7 @@ EVENT_ROUTERS = {
     "SAUNA_ON": handle_sauna_on,
     "SAUNA_OFF": handle_sauna_off,
     "SAUNA_TIMER_ADJUSTED": handle_sauna_timer_adjusted,
+    "IR_TIMER_ADJUSTED": handle_ir_timer_adjusted,
     "SAUNA_HOLD_TOGGLED": handle_sauna_hold_toggled,
     "SAUNA_TIMER_EXPIRED": handle_sauna_timer_expired,
     "SAUNA_SETPOINT_CHANGED": handle_sauna_setpoint_changed,

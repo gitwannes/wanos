@@ -59,16 +59,18 @@
                                 <th x-show="sessionHistoryType === 'ir'">Hum</th>
                                 <th x-show="sessionHistoryType === 'ir'">Mod</th>
                                 <th>Outside</th>
+                                <th class="w-10">i</th>
                                 <th x-show="isAdmin" class="w-16"></th>
                             </tr>
                         </thead>
                         <tbody>
                             <template x-for="s in sessionHistoryRows" :key="s.session_id">
-                                <tr>
+                                <tr @mouseenter="openSessionAuditHover($event, s)"
+                                    @mouseleave="closeSessionAuditHover()">
                                     <td x-text="s.session_id"></td>
                                     <td x-text="formatSessionTs(s.start_timestamp)"></td>
                                     <td x-text="formatSessionRuntime(s.total_runtime_secs)"></td>
-                                    <td x-text="(s.energy_real_wh != null ? (s.energy_real_wh / 1000).toFixed(2) + ' kWh' : '—')"></td>
+                                    <td x-text="formatSessionEnergy(s.energy_real_wh, sessionHistoryType)"></td>
                                     <td x-text="formatSessionAvgRealW(s.energy_real_wh, s.total_runtime_secs)"></td>
                                     <td x-text="sessionHistoryType === 'ir'
                                         ? formatSessionClimateRange(s.temp_start, s.temp_end, '°C')
@@ -78,6 +80,11 @@
                                     <td x-show="sessionHistoryType === 'ir'"
                                         x-text="s.mod_avg != null ? Number(s.mod_avg).toFixed(0) + '%' : '—'"></td>
                                     <td x-text="s.temp_outside_start != null ? Number(s.temp_outside_start).toFixed(1) + '°C' : '—'"></td>
+                                    <td>
+                                        <button type="button" class="btn btn-xs btn-ghost font-bold px-1 min-h-0 h-6"
+                                                title="W @100% audit"
+                                                @click.stop="toggleSessionAuditPopover($event, s)">i</button>
+                                    </td>
                                     <td x-show="isAdmin">
                                         <button class="btn btn-xs btn-error btn-outline font-mono"
                                                 @click="deleteSessionRow(s.session_id)">Del</button>
@@ -85,10 +92,24 @@
                                 </tr>
                             </template>
                             <tr x-show="!sessionHistoryRows.length">
-                                <td :colspan="sessionHistoryType === 'ir' ? (isAdmin ? 10 : 9) : (isAdmin ? 8 : 7)" class="text-base-content/40 italic">No sessions recorded yet.</td>
+                                <td :colspan="sessionHistoryType === 'ir' ? (isAdmin ? 11 : 10) : (isAdmin ? 9 : 8)" class="text-base-content/40 italic">No sessions recorded yet.</td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+                <!-- Fixed overlay: must stay outside overflow-x-auto so it never grows table scrollbars. -->
+                <div x-show="sessionAuditPopoverId !== null && sessionAuditPopoverRow" x-cloak
+                     class="fixed z-[100] p-2 bg-base-300 border border-base-content/20 rounded-box shadow-lg text-[10px] font-mono min-w-[14rem] pointer-events-none"
+                     :style="sessionAuditPopoverStyle"
+                     @click.outside="dismissSessionAuditPopover()">
+                    <template x-for="line in sessionAuditLines(sessionAuditPopoverRow, sessionHistoryType)" :key="line.label">
+                        <div class="mb-1 last:mb-0">
+                            <div class="font-bold" x-text="line.label + ' @100%'"></div>
+                            <div x-text="'base: ' + formatAuditW(line.baseline)"></div>
+                            <div x-text="'meas: ' + formatAuditW(line.measured)"></div>
+                            <div x-text="'new:  ' + formatAuditW(line.newVal)"></div>
+                        </div>
+                    </template>
                 </div>
                 <div class="flex justify-between items-center mt-3" x-show="sessionHistoryTotal > sessionHistoryRows.length || sessionHistoryOffset > 0">
                     <button class="btn btn-xs btn-ghost font-mono" :disabled="sessionHistoryOffset <= 0"
@@ -109,6 +130,6 @@
         </div>
     </main>
     <script src="wanos-shell.js?v=14"></script>
-    <script src="app.js?v=3.48"></script>
+    <script src="app.js?v=3.49"></script>
 </body>
 </html>

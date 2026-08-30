@@ -25,7 +25,7 @@ MAGIC_IDX_RE = re.compile(
 
 # Virtual / non-device idxs that may remain as bare ints in code.
 ALLOWLIST_IDXS = {
-    90001,  # bathroom vent lock flag
+    90001,  # sensor.generic.badk_1e_vent_lock (internal min-runtime flag)
 }
 
 SCAN_DIRS = ("logic", "core/event_handlers", "hardware")

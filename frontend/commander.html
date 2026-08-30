@@ -42,7 +42,9 @@
                     </h2>
                     <div class="mb-3">
                         <span class="badge font-mono text-[9px] md:text-[10px] tracking-wider px-1.5 md:px-2 py-2 md:py-3 whitespace-nowrap shadow-sm border border-base-200"
-                              :class="state.devices[10001] === 'OPEN' ? 'badge-error animate-pulse text-error-content border-error' : 'badge-neutral text-base-500'">
+                              :class="state.devices[10001] === 'OPEN'
+                                ? (state.ir.active ? 'badge-error text-error-content border-error' : 'badge-error animate-pulse text-error-content border-error')
+                                : 'badge-neutral text-base-500'">
                             <span x-text="state.devices[10001] === 'OPEN' ? '🚪 DOOR OPEN' : '🚪 DOOR CLOSED'"></span>
                         </span>
                     </div>
@@ -82,14 +84,6 @@
                         <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
                               x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.sauna.active && !state.ir.active && state.devices[10001] === 'OPEN'" x-cloak>
                               Cannot start sauna, please close door
-                        </span>
-                        <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
-                              x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.sauna.active && state.ir.active" x-cloak>
-                              Cannot start sauna while IR is running
-                        </span>
-                        <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
-                              x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.ir.active && state.sauna.active" x-cloak>
-                              Cannot start IR while sauna is running
                         </span>
                     </div>
 
@@ -221,6 +215,38 @@
                             <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(-10)">-10 MINS</button>
                             <button class="btn btn-xs btn-outline rounded" @click="adjustSaunaTimer(10)">+10 MINS</button>
                         </div>
+                    </div>
+
+                    <div class="mt-4 bg-base-200 p-4 rounded-box border border-base-300" x-show="state.ir.active">
+                        <div class="flex justify-between items-center text-xs font-mono mb-2">
+                            <span class="text-base-400">IR Timer: <span class="text-error font-black animate-pulse" x-text="irRemainingText"></span></span>
+                        </div>
+                        <div class="flex justify-center gap-2">
+                            <button class="btn btn-xs btn-outline rounded" @click="adjustIrTimer(-1)">-1 MIN</button>
+                            <button class="btn btn-xs btn-outline rounded" @click="adjustIrTimer(1)">+1 MIN</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 bg-base-200 p-3 rounded-box border border-base-300 font-mono text-xs"
+                         x-show="state.sauna.active || state.ir.active">
+                        <div class="text-[10px] uppercase font-bold text-base-400 mb-1 tracking-widest">Live session</div>
+                        <div class="flex justify-between gap-2">
+                            <span class="text-base-400">Real W</span>
+                            <span class="text-warning font-bold" x-text="(state.metrics.p_elements_real_watts || 0).toFixed(0) + ' W'"></span>
+                        </div>
+                        <div class="flex justify-between gap-2 mt-1">
+                            <span class="text-base-400">Energy</span>
+                            <span x-text="formatWiscLiveEnergy()"></span>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 bg-base-200 p-3 rounded-box border border-base-300 font-mono text-xs"
+                         x-show="state.metrics.last_sauna_session || state.metrics.last_ir_session">
+                        <div class="text-[10px] uppercase font-bold text-base-400 mb-1 tracking-widest">Last session</div>
+                        <div class="text-base-content/80" x-show="state.metrics.last_sauna_session"
+                             x-text="formatWiscLastSessionOneLiner('sauna')"></div>
+                        <div class="text-base-content/80 mt-0.5" x-show="state.metrics.last_ir_session"
+                             x-text="formatWiscLastSessionOneLiner('ir')"></div>
                     </div>
                 </div>
             </div>
@@ -424,6 +450,6 @@
         <div data-wanos-light-modal></div>
     </main>
     <script src="wanos-shell.js?v=14"></script>
-    <script src="app.js?v=3.48"></script>
+    <script src="app.js?v=3.50"></script>
 </body>
 </html>

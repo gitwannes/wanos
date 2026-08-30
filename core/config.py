@@ -64,18 +64,15 @@ class SaunaRuntimeConfig(BaseModel):
     vent_delay_mins: int
     vent_run_mins: int
     timer_offset_temp: float
-    # Model baseline for Session Energy (Calc) per phase — WISC nameplate defaults
-    effective_watts_u: float = 3500.0
-    effective_watts_v: float = 3500.0
-    effective_watts_w: float = 2000.0
+    # pwm_freq for sauna software PWM (optional; default in code)
+    pwm_freq: int = 5
 
 
 class IRRuntimeConfig(BaseModel):
     min_time_mins: int
     max_time_mins: int
+    default_time_mins: int = 7
     default_ir_modulation: int
-    # Model baseline for Session Energy (Calc) at 100% mod — WISC: 750 x 0.70
-    effective_watts: float = 525.0
 
 
 class BathroomConfig(BaseModel):
@@ -585,6 +582,13 @@ class HistoryConfig(BaseModel):
     ])
 
 
+class EnergyConfig(BaseModel):
+    """House kWh pulse meter cumulative display (NVRAM IDX 11001 Wh + baseline offset)."""
+    meter_baseline_kwh: float = 0.0
+    # Pulse counter (Wh) reading when meter_baseline_kwh was set; usually 0 on fresh seed.
+    meter_pulse_wh_at_baseline: float = 0.0
+
+
 class AppConfig(BaseModel):
     version: str
     wanos: WanosConfig
@@ -598,6 +602,7 @@ class AppConfig(BaseModel):
     deviceexplorer_hide: List[str] = Field(default_factory=list)  # entity_ids soft-hidden from Explorer/History/Blocky pickers
     hardware_links: Optional[HardwareLinksConfig] = None
     history: HistoryConfig = Field(default_factory=HistoryConfig)
+    energy: EnergyConfig = Field(default_factory=EnergyConfig)
     auth: AuthConfig
     pins: PinMappingConfig
     gpio_inputs: Dict[str, GPIOInputNode]

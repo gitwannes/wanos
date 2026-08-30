@@ -8,6 +8,7 @@ from datetime import datetime
 from loguru import logger
 from core.models import SaunaSessionRecord, IrSessionRecord, SystemState
 from core.well_known_entities import ENTITY_MAINS_VOLTAGE
+from logic.element_power_store import ElementPowerRow, bootstrap_if_empty, load_row, save_row
 
 
 class PowerAnalytics:
@@ -47,23 +48,230 @@ class PowerAnalytics:
         # Outdoor temp snapshot at session start (see docs/sensor_history.md)
         self._temp_outside_start: Optional[float] = None
 
+        # C32: learned element W @ 100% mod (DB singleton)
+        self._element_power: ElementPowerRow = load_row(self._db_path)
+        self._session_baseline_u: float = self._element_power.w_u
+        self._session_baseline_v: float = self._element_power.w_v
+        self._session_baseline_w: float = self._element_power.w_w
+        self._session_baseline_ir: float = self._element_power.w_ir
+
         self._init_sqlite()
-        w_u, w_v, w_w = self._sauna_effective_watts()
-        self._p_u_extracted = w_u
-        self._p_v_extracted = w_v
-        self._p_w_extracted = w_w
+        self._sync_extracted_to_metrics()
+
+    def _sync_extracted_to_metrics(self) -> None:
+        """Mirror DB nameplates to live metrics for Admin display."""
+        row = self._element_power
+        self._p_u_extracted = row.w_u
+        self._p_v_extracted = row.w_v
+        self._p_w_extracted = row.w_w
+        self.sm._state.metrics.extracted_p_u = round(row.w_u, 1)
+        self.sm._state.metrics.extracted_p_v = round(row.w_v, 1)
+        self.sm._state.metrics.extracted_p_w = round(row.w_w, 1)
+
+    def _reload_element_power(self) -> None:
+        self._element_power = load_row(self._db_path)
+        self._sync_extracted_to_metrics()
+
+    def restore_leak_baseline(self, watts: float) -> None:
+        """Boot / reload: restore last known idle leak W from NVRAM."""
+        if not isinstance(watts, (int, float)):
+            return
+        w = max(0.0, float(watts))
+        self._locked_leak_watts = w
+        self.sm._state.metrics.p_leak_baseline_watts = w
 
     def _sauna_effective_watts(self) -> tuple[float, float, float]:
-        """Per-phase model baselines for Calc integration (from config)."""
-        cfg = self.sm._config.sauna
-        return (float(cfg.effective_watts_u), float(cfg.effective_watts_v), float(cfg.effective_watts_w))
+        """Per-phase model baselines for Calc integration (from DB)."""
+        row = self._element_power
+        return (float(row.w_u), float(row.w_v), float(row.w_w))
 
     def _ir_effective_watts(self) -> float:
-        """IR model baseline at 100% modulation (from config)."""
-        return float(self.sm._config.ir.effective_watts)
+        """IR model baseline at 100% modulation (from DB)."""
+        return float(self._element_power.w_ir)
+
+    @staticmethod
+    def _ema_commit(baseline: float, measured: float) -> tuple[float, bool]:
+        """EMA 0.7/0.3 with ±25% outlier reject. Returns (new_value, committed)."""
+        if measured <= 0 or baseline <= 0:
+            return baseline, False
+        if abs(measured - baseline) / baseline > 0.25:
+            return baseline, False
+        new_val = 0.7 * baseline + 0.3 * measured
+        return new_val, True
+
+    def _record_ir_learn(
+        self,
+        status: str,
+        measured: Optional[float],
+        *,
+        committed_w: Optional[float] = None,
+    ) -> None:
+        """Persist last IR learn outcome (+ optional nameplate commit)."""
+        row = self._element_power
+        now = int(time.time())
+        row.last_learn_ir_status = status
+        row.last_learn_ir_measured_w = measured
+        row.last_learn_ir_at = now
+        if status == "accepted" and committed_w is not None:
+            row.w_ir = committed_w
+            row.updated_at = now
+            row.source = "session"
+            row.learn_count_ir = int(row.learn_count_ir or 0) + 1
+        elif status == "rejected":
+            row.source = "rejected"
+        save_row(self._db_path, row)
+        self._element_power = row
+
+    def _record_sauna_learn(
+        self,
+        status: str,
+        detail: str,
+        *,
+        committed: bool = False,
+    ) -> None:
+        """Persist last sauna learn outcome (+ bump count when EMA committed)."""
+        row = self._element_power
+        now = int(time.time())
+        row.last_learn_sauna_status = status
+        row.last_learn_sauna_detail = detail
+        row.last_learn_sauna_at = now
+        if committed:
+            row.updated_at = now
+            row.source = "session"
+            row.learn_count_sauna = int(row.learn_count_sauna or 0) + 1
+        elif status == "rejected":
+            row.source = "rejected"
+        save_row(self._db_path, row)
+        self._element_power = row
+
+    def _learn_ir(
+        self,
+        runtime_secs: int,
+        mod_min: float,
+        mod_max: float,
+        mod_avg: float,
+        energy_real_wh: float,
+    ) -> tuple[float, Optional[float], float]:
+        baseline = self._session_baseline_ir
+        if runtime_secs < 120 or mod_avg <= 0:
+            self._record_ir_learn("skipped", None)
+            return baseline, None, baseline
+        if (mod_max - mod_min) > 10:
+            self._record_ir_learn("skipped", None)
+            return baseline, None, baseline
+        avg_w = energy_real_wh * 3600.0 / runtime_secs
+        measured = avg_w * 100.0 / mod_avg
+        new_w, committed = self._ema_commit(baseline, measured)
+        if committed:
+            self._record_ir_learn("accepted", measured, committed_w=new_w)
+        else:
+            self._record_ir_learn("rejected", measured)
+            new_w = baseline
+        return baseline, measured, new_w
+
+    def _learn_sauna_phases(
+        self,
+        runtime_secs: int,
+        mod_u_min: float,
+        mod_u_avg: float,
+        mod_u_max: float,
+        mod_v_min: float,
+        mod_v_avg: float,
+        mod_v_max: float,
+        mod_w_min: float,
+        mod_w_avg: float,
+        mod_w_max: float,
+        energy_real_wh: float,
+    ) -> dict[str, tuple[float, Optional[float], float]]:
+        """Returns per-phase (baseline, measured, new) audit triples."""
+        baselines = {
+            "u": self._session_baseline_u,
+            "v": self._session_baseline_v,
+            "w": self._session_baseline_w,
+        }
+        result: dict[str, tuple[float, Optional[float], float]] = {
+            k: (baselines[k], None, baselines[k]) for k in baselines
+        }
+        if runtime_secs < 180:
+            self._record_sauna_learn("skipped", "runtime < 180s")
+            return result
+
+        avg_w = energy_real_wh * 3600.0 / runtime_secs if runtime_secs > 0 else 0.0
+        row = self._element_power
+        total_name = row.w_u + row.w_v + row.w_w
+
+        def _detail_from_result(res: dict[str, tuple[float, Optional[float], float]]) -> str:
+            parts: List[str] = []
+            for key in ("u", "v", "w"):
+                _base, meas, _new = res[key]
+                if meas is not None:
+                    parts.append(f"{key.upper()} {meas:.0f} W")
+            return " / ".join(parts) if parts else "no phase measure"
+
+        # Full-load all phases >= 30 s (approximated via session min mods)
+        if (
+            mod_u_min >= 95 and mod_v_min >= 95 and mod_w_min >= 95
+            and runtime_secs >= 30
+            and total_name > 0
+            and avg_w > 0
+        ):
+            any_commit = False
+            any_reject = False
+            for key, share in (("u", row.w_u), ("v", row.w_v), ("w", row.w_w)):
+                measured = avg_w * (share / total_name)
+                new_w, committed = self._ema_commit(baselines[key], measured)
+                if committed:
+                    setattr(row, f"w_{key}", new_w)
+                    any_commit = True
+                else:
+                    any_reject = True
+                result[key] = (baselines[key], measured, new_w if committed else baselines[key])
+            detail = _detail_from_result(result)
+            if any_commit:
+                self._element_power = row
+                self._record_sauna_learn("accepted", detail, committed=True)
+            elif any_reject:
+                self._record_sauna_learn("rejected", detail)
+            else:
+                self._record_sauna_learn("skipped", detail)
+            return result
+
+        # Single-phase windows (>= 60 s session, one phase dominant)
+        singles = (
+            ("u", mod_u_avg, mod_u_max, mod_v_max, mod_w_max),
+            ("v", mod_v_avg, mod_v_max, mod_u_max, mod_w_max),
+            ("w", mod_w_avg, mod_w_max, mod_u_max, mod_v_max),
+        )
+        any_commit = False
+        any_reject = False
+        for key, phase_avg, _phase_max, other_a, other_b in singles:
+            if phase_avg <= 50 or max(other_a, other_b) >= 5:
+                continue
+            measured = avg_w * 100.0 / phase_avg if phase_avg > 0 else 0.0
+            new_w, committed = self._ema_commit(baselines[key], measured)
+            if committed:
+                setattr(row, f"w_{key}", new_w)
+                any_commit = True
+            else:
+                any_reject = True
+            result[key] = (baselines[key], measured, new_w if committed else baselines[key])
+        detail = _detail_from_result(result)
+        if any_commit:
+            self._element_power = row
+            self._record_sauna_learn("accepted", detail, committed=True)
+        elif any_reject:
+            self._record_sauna_learn("rejected", detail)
+        else:
+            self._record_sauna_learn("skipped", "no eligible single-phase window")
+        return result
 
     def note_session_start(self, session_type: str) -> None:
         """Capture outdoor temperature and reset ephemeral session counters."""
+        self._reload_element_power()
+        self._session_baseline_u = self._element_power.w_u
+        self._session_baseline_v = self._element_power.w_v
+        self._session_baseline_w = self._element_power.w_w
+        self._session_baseline_ir = self._element_power.w_ir
         self._temp_outside_start = self.sm._state.sensors.outside_temp
         self.sm._state.metrics.running_energy_real_wh = 0.0
         self.sm._state.metrics.running_energy_calc_wh = 0.0
@@ -142,6 +350,7 @@ class PowerAnalytics:
                 cols = {row[1] for row in c.fetchall()}
                 if "temp_outside_start" not in cols:
                     c.execute(f"ALTER TABLE {table} ADD COLUMN temp_outside_start REAL")
+            bootstrap_if_empty(conn)
             conn.commit()
             conn.close()
         except Exception as e:
@@ -161,6 +370,11 @@ class PowerAnalytics:
             c.execute("SELECT * FROM ir_sessions ORDER BY session_id DESC LIMIT 1")
             i_row = c.fetchone()
             self.sm._state.metrics.last_ir_session = dict(i_row) if i_row else None
+
+            c.execute("SELECT COUNT(*) FROM sauna_sessions")
+            self.sm._state.metrics.session_count_sauna = int(c.fetchone()[0] or 0)
+            c.execute("SELECT COUNT(*) FROM ir_sessions")
+            self.sm._state.metrics.session_count_ir = int(c.fetchone()[0] or 0)
 
             conn.close()
         except Exception as e:
@@ -210,17 +424,18 @@ class PowerAnalytics:
                 self.sm._state.metrics.p_leak_baseline_watts = instant_watts
                 self._locked_leak_watts = instant_watts
                 self.sm._state.metrics.p_elements_real_watts = 0.0
+                self.sm._state.metrics.p_elements_calc_watts = 0.0
 
                 # Reset ephemeral session running tallies
                 self.sm._state.metrics.running_energy_real_wh = 0.0
                 self.sm._state.metrics.running_energy_calc_wh = 0.0
             else:
-                # ⚡ ACTIVE DECOUPLING: Isolate true element loads from frozen baseline
+                # ACTIVE DECOUPLING: Isolate true element loads from frozen baseline
                 real_element_load = instant_watts - self._locked_leak_watts
                 # Clamp zero-crossings resulting from micro-voltage natural variances
                 self.sm._state.metrics.p_elements_real_watts = max(0.0, real_element_load)
 
-                # ⚡ LIVE INTEGRATION: Convert instantaneous wattage intervals to cumulative Watt-hours
+                # LIVE INTEGRATION: Convert instantaneous wattage intervals to cumulative Watt-hours
                 step_real_wh = max(0.0, real_element_load) * (delta_t / 3600.0)
                 self.sm._state.metrics.running_energy_real_wh += step_real_wh
                 self.sm._state.metrics.total_energy_real_wh += step_real_wh
@@ -243,6 +458,8 @@ class PowerAnalytics:
                 if state.ir.active:
                     ir_mod = state.ir.modulation_pwm / 100.0
                     calc_load += self._ir_effective_watts() * ir_mod * voltage_scaler
+
+                self.sm._state.metrics.p_elements_calc_watts = max(0.0, calc_load)
 
                 step_calc_wh = calc_load * (delta_t / 3600.0)
                 self.sm._state.metrics.running_energy_calc_wh += step_calc_wh
@@ -281,12 +498,32 @@ class PowerAnalytics:
         try:
             if session_type == "sauna":
                 start_ts = state.sauna.session_start_time or now_ts
+                runtime = now_ts - start_ts
+                mod_u_min = _safe_min(self._session_mod_u_history)
+                mod_u_max = _safe_max(self._session_mod_u_history)
+                mod_u_avg = _safe_avg(self._session_mod_u_history)
+                mod_v_min = _safe_min(self._session_mod_v_history)
+                mod_v_max = _safe_max(self._session_mod_v_history)
+                mod_v_avg = _safe_avg(self._session_mod_v_history)
+                mod_w_min = _safe_min(self._session_mod_w_history)
+                mod_w_max = _safe_max(self._session_mod_w_history)
+                mod_w_avg = _safe_avg(self._session_mod_w_history)
+                energy_real = round(state.metrics.running_energy_real_wh, 2)
+
+                audits = self._learn_sauna_phases(
+                    runtime, mod_u_min, mod_u_avg, mod_u_max,
+                    mod_v_min, mod_v_avg, mod_v_max,
+                    mod_w_min, mod_w_avg, mod_w_max,
+                    energy_real,
+                )
+                self._sync_extracted_to_metrics()
+
                 record = SaunaSessionRecord(
                     start_timestamp=start_ts,
-                    total_runtime_secs=now_ts - start_ts,
-                    runtime_u_secs=now_ts - start_ts,  # Simplified for demonstration
-                    runtime_v_secs=now_ts - start_ts,
-                    runtime_w_secs=now_ts - start_ts,
+                    total_runtime_secs=runtime,
+                    runtime_u_secs=runtime,
+                    runtime_v_secs=runtime,
+                    runtime_w_secs=runtime,
                     temp_start=self._session_temp_history[0] if self._session_temp_history else 0.0,
                     temp_end=self._session_temp_history[-1] if self._session_temp_history else 0.0,
                     temp_min=_safe_min(self._session_temp_history),
@@ -301,20 +538,29 @@ class PowerAnalytics:
                     mod_system_min=0.0,
                     mod_system_max=100.0,
                     mod_system_avg=50.0,
-                    mod_u_min=_safe_min(self._session_mod_u_history),
-                    mod_u_max=_safe_max(self._session_mod_u_history),
-                    mod_u_avg=_safe_avg(self._session_mod_u_history),
-                    mod_v_min=_safe_min(self._session_mod_v_history),
-                    mod_v_max=_safe_max(self._session_mod_v_history),
-                    mod_v_avg=_safe_avg(self._session_mod_v_history),
-                    mod_w_min=_safe_min(self._session_mod_w_history),
-                    mod_w_max=_safe_max(self._session_mod_w_history),
-                    mod_w_avg=_safe_avg(self._session_mod_w_history),
-                    energy_real_wh=round(state.metrics.running_energy_real_wh, 2),
+                    mod_u_min=mod_u_min,
+                    mod_u_max=mod_u_max,
+                    mod_u_avg=mod_u_avg,
+                    mod_v_min=mod_v_min,
+                    mod_v_max=mod_v_max,
+                    mod_v_avg=mod_v_avg,
+                    mod_w_min=mod_w_min,
+                    mod_w_max=mod_w_max,
+                    mod_w_avg=mod_w_avg,
+                    energy_real_wh=energy_real,
                     energy_calc_wh=round(state.metrics.running_energy_calc_wh, 2),
-                    extracted_p_u=round(self._p_u_extracted, 1),
-                    extracted_p_v=round(self._p_v_extracted, 1),
-                    extracted_p_w=round(self._p_w_extracted, 1),
+                    extracted_p_u=round(self._element_power.w_u, 1),
+                    extracted_p_v=round(self._element_power.w_v, 1),
+                    extracted_p_w=round(self._element_power.w_w, 1),
+                    audit_baseline_w_u=audits["u"][0],
+                    audit_measured_w_u=audits["u"][1],
+                    audit_new_w_u=audits["u"][2],
+                    audit_baseline_w_v=audits["v"][0],
+                    audit_measured_w_v=audits["v"][1],
+                    audit_new_w_v=audits["v"][2],
+                    audit_baseline_w_w=audits["w"][0],
+                    audit_measured_w_w=audits["w"][1],
+                    audit_new_w_w=audits["w"][2],
                 )
 
                 # Offload DB transaction to background thread to prevent halting the master loop
@@ -324,19 +570,31 @@ class PowerAnalytics:
 
             elif session_type == "ir":
                 start_ts = state.ir.session_start_time or now_ts
+                runtime = now_ts - start_ts
+                mod_min = _safe_min(self._session_mod_ir_history)
+                mod_max = _safe_max(self._session_mod_ir_history)
+                mod_avg = _safe_avg(self._session_mod_ir_history)
+                energy_real = round(state.metrics.running_energy_real_wh, 2)
+
+                b_ir, m_ir, n_ir = self._learn_ir(runtime, mod_min, mod_max, mod_avg, energy_real)
+                self._sync_extracted_to_metrics()
+
                 record = IrSessionRecord(
                     start_timestamp=start_ts,
-                    total_runtime_secs=now_ts - start_ts,
+                    total_runtime_secs=runtime,
                     temp_start=self._session_temp_history[0] if self._session_temp_history else 0.0,
                     temp_end=self._session_temp_history[-1] if self._session_temp_history else 0.0,
                     temp_outside_start=self._temp_outside_start,
                     hum_start=int(self._session_hum_history[0]) if self._session_hum_history else 0,
                     hum_end=int(self._session_hum_history[-1]) if self._session_hum_history else 0,
-                    mod_min=_safe_min(self._session_mod_ir_history),
-                    mod_max=_safe_max(self._session_mod_ir_history),
-                    mod_avg=_safe_avg(self._session_mod_ir_history),
-                    energy_real_wh=round(state.metrics.running_energy_real_wh, 2),
-                    energy_calc_wh=round(state.metrics.running_energy_calc_wh, 2)
+                    mod_min=mod_min,
+                    mod_max=mod_max,
+                    mod_avg=mod_avg,
+                    energy_real_wh=energy_real,
+                    energy_calc_wh=round(state.metrics.running_energy_calc_wh, 2),
+                    audit_baseline_w_ir=b_ir,
+                    audit_measured_w_ir=m_ir,
+                    audit_new_w_ir=n_ir,
                 )
                 await asyncio.to_thread(self._commit_ir_record, record)
                 await asyncio.to_thread(self._fetch_last_sessions)
@@ -368,8 +626,11 @@ class PowerAnalytics:
                 mod_v_min, mod_v_max, mod_v_avg,
                 mod_w_min, mod_w_max, mod_w_avg,
                 energy_real_wh, energy_calc_wh,
-                extracted_p_u, extracted_p_v, extracted_p_w
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                extracted_p_u, extracted_p_v, extracted_p_w,
+                audit_baseline_w_u, audit_measured_w_u, audit_new_w_u,
+                audit_baseline_w_v, audit_measured_w_v, audit_new_w_v,
+                audit_baseline_w_w, audit_measured_w_w, audit_new_w_w
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             record.start_timestamp, record.total_runtime_secs, record.runtime_u_secs, record.runtime_v_secs,
             record.runtime_w_secs,
@@ -381,7 +642,10 @@ class PowerAnalytics:
             record.mod_v_min, record.mod_v_max, record.mod_v_avg,
             record.mod_w_min, record.mod_w_max, record.mod_w_avg,
             record.energy_real_wh, record.energy_calc_wh,
-            record.extracted_p_u, record.extracted_p_v, record.extracted_p_w
+            record.extracted_p_u, record.extracted_p_v, record.extracted_p_w,
+            record.audit_baseline_w_u, record.audit_measured_w_u, record.audit_new_w_u,
+            record.audit_baseline_w_v, record.audit_measured_w_v, record.audit_new_w_v,
+            record.audit_baseline_w_w, record.audit_measured_w_w, record.audit_new_w_w,
         ))
         conn.commit()
         conn.close()
@@ -395,14 +659,16 @@ class PowerAnalytics:
                 start_timestamp, total_runtime_secs,
                 temp_start, temp_end, temp_outside_start, hum_start, hum_end,
                 mod_min, mod_max, mod_avg,
-                energy_real_wh, energy_calc_wh
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                energy_real_wh, energy_calc_wh,
+                audit_baseline_w_ir, audit_measured_w_ir, audit_new_w_ir
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             record.start_timestamp, record.total_runtime_secs,
             record.temp_start, record.temp_end, record.temp_outside_start,
             record.hum_start, record.hum_end,
             record.mod_min, record.mod_max, record.mod_avg,
-            record.energy_real_wh, record.energy_calc_wh
+            record.energy_real_wh, record.energy_calc_wh,
+            record.audit_baseline_w_ir, record.audit_measured_w_ir, record.audit_new_w_ir,
         ))
         conn.commit()
         conn.close()
@@ -422,28 +688,10 @@ class PowerAnalytics:
                 # Safely aborts mathematical capacity modeling if live Z-Wave telemetry is disconnected
                 if v_raw is not None and str(v_raw).replace(" V", "").strip().replace('.', '', 1).isdigit():
                     v_live = float(str(v_raw).replace(" V", "").strip())
-
-                    # Extract live PWM duty cycles
-                    mod_u = state.sauna.phases_pwm.get("U", 0) / 100.0
-                    mod_v = state.sauna.phases_pwm.get("V", 0) / 100.0
-                    mod_w = state.sauna.phases_pwm.get("W", 0) / 100.0
-
-                    w_u, w_v, w_w = self._sauna_effective_watts()
-                    total_nameplate = w_u + w_v + w_w
-                    if real_power > 0 and mod_u == 1.0 and mod_v == 1.0 and mod_w == 1.0 and total_nameplate > 0:
-                        voltage_scaler = (v_live / 230.0) ** 2
-                        if voltage_scaler > 0:
-                            total_nominal = real_power / voltage_scaler
-                            self._p_u_extracted = total_nominal * (w_u / total_nameplate)
-                            self._p_v_extracted = total_nominal * (w_v / total_nameplate)
-                            self._p_w_extracted = total_nominal * (w_w / total_nameplate)
                 else:
                     v_live = "AWAITING"
 
-                # Push solved states back to RAM for UI dashboards
-                self.sm._state.metrics.extracted_p_u = round(self._p_u_extracted, 1)
-                self.sm._state.metrics.extracted_p_v = round(self._p_v_extracted, 1)
-                self.sm._state.metrics.extracted_p_w = round(self._p_w_extracted, 1)
+                self._sync_extracted_to_metrics()
 
                 # Calculate Normalized Thermal Integrity (R_th)
                 r_th = "N/A"

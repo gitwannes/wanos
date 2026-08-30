@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C20 → C21 → C25 → C15 → C13 → C30 → C31**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C20 → C21 → C25 → C15 → C13 → C30**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -45,9 +45,9 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C28 — LG TV skins** | `deviceexplorer-tv` + `wisc-tv`; UA gate from login; no admin; no History graphs | Shell · TV · mid · after **C4** |
 | **C26 — Frontend JS modularization** | Split `app.js` + `blockly.js`; shared helpers; `login.js`; **`reference.md` JS catalog** | FE maintainability · mid · after **C4** |
 | **C30 — WISC douche session** | Live + last summary (liters hot/cold/total, €/min gas proxy, cost) | WISC · mid |
-| **C31 — Sauna/IR analytics & WISC polish** | IR calc energy; commander/kiosk banners; Admin R_th; IR mod layout; session history IR columns + avg W; admin edit/delete effective_watts | WISC + Admin + `power_analytics` · mid |
+| **C31 + C32 — Sauna/IR analytics & power model** | ✅ **Done 2026-08-30** — combined ship; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5 | WISC + Admin + `power_analytics` · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C25** → **C15** → **C13** → **C30**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C25** → **C15** → **C13** → **C30**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1197,7 +1197,7 @@ else:
 * **C13:** Merge hide into Timers & types …
 * **C4:** **`blocky`→`blockly`** — **`blockly.html` / `blockly.js`**; shell label **Blockly**; **not** `automations.*`.
 * **C30:** WISC douche live + last summary — triage **2026-08-27**; kickoff before code.
-* **C31:** kickoff **2026-08-29** — **locked**; see § C31.
+* **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; see § C31 + C32 archive.
 
 ## 📋 C30 — WISC douche session (live + last summary) 🔜 TODO
 
@@ -1242,118 +1242,22 @@ else:
 
 **C30 DoD (stub):** Live + last douche on WISC with duration, hot/cold/total L, gas-as-minutes proxy, total cost; session gates match old WISC intent (lock numbers at kickoff); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
-## 📋 C31 — Sauna/IR analytics & WISC polish 🔜 TODO — kickoff **locked 2026-08-29**
+## ✅ C31 + C32 — Sauna/IR analytics & power model — **Done 2026-08-30**
 
-**Letter:** **C31**. **Sequence #23**. **Affinity:** Operator shell (WISC + Admin) + live analytics (`logic/power_analytics.py`). Size **mid**.
+**Combined ship** (kickoff **C31** 2026-08-29, **C32** 2026-08-30). **Pi smoke ✅ 2026-08-30.**
 
-**Operator request (verbatim, 2026-08-29):**
+**Product reference (canonical):** [`sauna-ir.md`](../sauna-ir.md) §4–5 (Real vs Calc, element DB, Admin/WISC/History UX); [`sensor_history.md`](../sensor_history.md) (meter Wh baseline, leak NVRAM); [`reference.md`](../reference.md) (`element_power_store.py`, `power_analytics.py`).
 
-> put IR mod % 2 places more to the right
-> if IR is running, don't display the "cannot start sauna" message: sauna cannot be enabled when IR is running (and vice versa)
-> when IR is running: I see "live element draw", is this the calculated or the real measured power?
-> Session energy is increasing: is this the calculated or the real measured power consumption?
-> real vs cals stays 0 kWh - what does this incdicate?
-> thermal index continuisly says calculating, even when sauna & IR is off: why?
-> IR at 67% is +-360W, at 75% it is +-387W, at 100% it is +-492W - does this check out?
-> logs copied - check them , crosscheck with these findings and give feedback
-> no code
+**Shipped (summary):**
 
-**Follow-up (verbatim, 2026-08-29, session history + config):**
+| Area | Outcome |
+|------|---------|
+| **C31** | IR calc energy; backend sauna/IR mutual exclusion; IR mod history fix; R_th N/A + retain; session history IR columns + avg W; admin session delete; WISC/kiosk banner cleanup (later refined in C32) |
+| **C32** | IR hardware PWM (`lgpio.tx_pwm`); `element_power_w` DB + EMA learning + session audit; removed `effective_watts_*` config + Admin edit API; Admin Power & Thermal redesign; LCD line1 C32 format; IR default 7 min + `IR_TIMER_ADJUSTED`; Session History Wh/kWh + fixed ℹ popover; cumulative Total kWh (NVRAM 11001 + baseline); leak W NVRAM persist; sauna/IR learn counts + last-learn Admin; WISC live session + last-session one-liners |
 
-> ir_sessions in session history ui: add temp & hum (only start if end is not significantly changed) + add mod_avg
-> roll effective_watts in this code run (C31, no seperate phase letter)
-> this is fine:
-> ir:
->   effective_watts: 525          # 750 × 0.70
-> sauna:
->   effective_watts_u: 3500
->   effective_watts_v: 3500
->   effective_watts_w: 2000
+**Out of scope (unchanged):** richer sauna session table columns; historical session row repair; B17/B18.
 
-**Follow-up (verbatim, 2026-08-29, todo expansion):**
-
-> add to todo-list:
-> - Admin live edit of effective_watts_*
-> - Admin delete sauna/IR sessions
-> - Avg real W column in session history
->
-> - Sauna session table columns (richer fields): not in scope
-
-### Kickoff record (2026-08-29)
-
-**Prereqs:** None blocking. Product SoT for analytics semantics → [`sauna-ir.md`](../sauna-ir.md). **B17** (assess hardcoded→automation) and **B18** (session_end clamp) are separate — not in C31 scope unless operator expands.
-
-**Verified (analysis + Pi logs in `docs/logs/`, session **2026-08-29 ~14:04–14:10**):**
-
-| Finding | Status |
-|---|---|
-| **Live Element Draw** | Real measured — pulse meter IDX 11001, `P_elements_real = 3600/Δt − P_leak` |
-| **Session Energy yellow (Real)** | Integrates measured element power — working (logs: pulses ~10 s; `P_Real` 356–488 W) |
-| **Session Energy blue (Calc)** | **Gap** — calc model is sauna U/V/W only; **0 during IR-only** (not a meter fault) |
-| **IR W readings vs mod** | Healthy — ~360 W @ 67%, ~387–397 W @ 75%, ~486–492 W @ 100% |
-| **Thermal Index UI** | **Bug/UX** — `null` → `"CALCULATING..."`; backend only sets R_th when sauna active **and** P_real > 500 W |
-| **Commander door banner during IR** | **UX gap** — shows “Cannot start sauna, please close door” without checking `ir.active` |
-| **Sauna ↔ IR mutual exclusion** | UI disables buttons only — **not** enforced in `sauna_handlers` |
-| **IR mod % layout** | Badge/tick row alignment off vs slider stops (commander) |
-| **WISC IR calc (legacy)** | `IRPOWER = 750 × 0.70` (525 W @ 100%); `Wh_calc = mod% × runtime × IRPOWER` |
-| **Simulator IR model** | Uses 750 W nameplate × mod% (no 0.70 factor) — differs from WISC effective |
-| **IR session SQLite mod stats** | **Bug** — `terminate_session("ir")` reads `_session_mod_u_history` (sauna phase), not IR mod |
-
-**In scope (locked 2026-08-29, expanded same day):**
-
-1. **Backend — IR calc energy:** while `ir.active`, integrate **Calc** from `ir.effective_watts` (525) × `ir.modulation_pwm`; sauna calc uses `sauna.effective_watts_u/v/w` × phase mod × optional `(V/230)²`.
-2. **Backend — IR session mod tracking:** record IR `modulation_pwm` for `ir_sessions` min/max/avg (fix wrong history source).
-3. **Backend — start gate:** block `SAUNA_ON` when `ir.active`; block `IR_ON` when `sauna.active` (handlers + start gate).
-4. **Config:** `ir.effective_watts: 525`; `sauna.effective_watts_u/v/w: 3500/3500/2000` — **keys locked 2026-08-29**.
-5. **Admin — Thermal Index label:** when never computed → **N/A**; when sauna inactive but value exists → **retain last value** (not CALCULATING…).
-6. **WISC commander + kiosk — mutual-exclusion banners**; commander **IR mod % badge** shifted right (badge only).
-7. **Session History (`sensorhistory.html`) — IR tab:** temp + hum (single value when change ≤ 0.2 °C / 2 %); **mod_avg** column.
-8. **Session History — both tabs:** **Avg real W** column (from measured session energy — lock derived vs stored at implement).
-9. **Admin — live edit** `ir.effective_watts` + `sauna.effective_watts_u/v/w` (no hand-editing YAML).
-10. **Admin — delete** individual sauna and IR session rows (admin-only API + confirm).
-11. **Docs close-out:** [`sauna-ir.md`](../sauna-ir.md) — calc baselines, Real vs Calc, R_th, session list columns.
-
-**Out of scope (operator confirmed 2026-08-29):**
-
-* **Sauna session table — richer columns** (beyond existing sauna temp arrow column; no min/max/mod/energy_calc expansion on sauna rows).
-* **B17** assess / moving handlers to automations; **B18** absolute cutoff clamp.
-* Disaggregation matrix (Phase U/V/W) cosmetic during IR-only.
-
-**750 W × 70% (reference):** IR nameplate ≈ 750 W; WISC effective **× 0.70** ≈ **525 W** at 100% mod — matches measured ~492 W at full mod in logs.
-
-### Open Qs (must lock before **implement**)
-
-*(Kickoff locks below — none block starting **implement** once operator commands it, except items marked **needs lock**.)*
-
-**Locked:**
-
-| # | Topic | Decision |
-|---|--------|----------|
-| 1 | IR / sauna calc baselines | Config keys + defaults as verbatim block above |
-| 2 | Backend mutual exclusion | UI + backend start gate |
-| 3 | R_th idle | N/A until first sample; retain last value when sauna off |
-| 4 | Banner surfaces | commander + kiosk; IR badge commander only |
-| 5 | Sauna session table expansion | **Not in scope** |
-
-**Needs lock at implement (not guessed):**
-
-| # | Topic | Options / gap |
-|---|--------|----------------|
-| A | **Avg real W** | Display-time derive `energy_real_wh ÷ (runtime/3600)` vs new SQLite column at session commit |
-| B | **Admin delete** | Single-row delete + confirm only, or bulk/multi-select too? Refresh `last_*_session` cache rules |
-| C | **Admin live edit effective_watts** | Which Admin panel/home; persist = rewrite `config.yaml` + `CONFIG_RELOAD` scope vs in-memory until restart |
-
-**Locked at implement (2026-08-29):**
-
-| # | Topic | Decision |
-|---|--------|----------|
-| A | Avg real W | **Display-time derive** — `energy_real_wh × 3600 / total_runtime_secs`; no new SQLite column |
-| B | Admin delete | **Single-row** + browser confirm; refresh `last_*_session` when row removed |
-| C | Admin live edit | **Power & Thermal Analytics** panel; persist **`config.yaml`** + in-memory `_config` (no full reload) |
-
-**Status:** code **2026-08-29** — items 1–11 implemented; **Pi smoke pending**.
-
-**Note:** Uncommitted product edits may exist on disk from an **unauthorized** implement attempt (**2026-08-29**) — operator to **revert** or **keep** before commanded ship; not part of spec.
+**Verbatim / kickoff detail:** archived in git history for this file pre-**2026-08-30** close-out.
 
 ## ❓ Residual Open Qs
 
@@ -1375,6 +1279,6 @@ else:
 * **C26:** kickoff **locked 2026-08-22** — after **C4**; classic scripts; `blockly-*` siblings; page-script dedupe; **`reference.md` § frontend catalogs all `frontend/*.js`**.
 * **C3 / C4** remain open as specified above (later in sequence).
 * **C30:** triage placed **2026-08-27** — kickoff before code (UI chrome, cost config keys, last-session persist home).
-* **C31:** kickoff **2026-08-29** — **locked**; scope expanded same day (admin edit/delete, avg real W, IR session columns); open **A–C** at implement — see § C31.
+* **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
 * NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**).

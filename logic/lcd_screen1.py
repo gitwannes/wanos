@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Optional, Tuple
 if TYPE_CHECKING:
     from core.models import SystemState
 
+FIFTEEN_MIN_SECS: int = 15 * 60
+
 
 def format_remaining_mmss(end_unix: Optional[int], *, now: int) -> str:
     """mm:ss remaining until end_unix; --:-- if unknown/expired."""
@@ -95,6 +97,42 @@ def center_cells(s: str) -> str:
     return (" " * left) + s + (" " * right)
 
 
+def right_align_timer(prefix: str, mmss: str) -> str:
+    """Right-align mm:ss timer within 16 cells (C32 sauna line1)."""
+    prefix = prefix or ""
+    timer = mmss or "--:--"
+    gap = 16 - len(prefix) - len(timer)
+    if gap < 1:
+        gap = 1
+    return fit_to_16_cells(prefix + (" " * gap) + timer)
+
+
+def compose_sauna_line1(mod: int, remaining_secs: int, mmss: str) -> str:
+    """C32 sauna line1: lowercase sauna; timer when remaining <= 15 min."""
+    mod = int(mod or 0)
+    if remaining_secs > FIFTEEN_MIN_SECS:
+        if mod == 0:
+            return fit_to_16_cells("sauna HOLD")
+        if mod >= 100:
+            return fit_to_16_cells("sauna ON")
+        return fit_to_16_cells(f"sauna ON  {mod}%")
+
+    if mod == 0:
+        return right_align_timer("sauna HOLD", mmss)
+    if mod >= 100:
+        return right_align_timer("sauna ON", mmss)
+    return right_align_timer(f"sauna {mod}%", mmss)
+
+
+def compose_ir_line1(mod: int, mmss: str) -> str:
+    """C32 IR line1: IR {mm:ss}; append ' - {mod}%' only when mod < 100."""
+    mod = int(mod or 0)
+    base = f"IR {mmss}"
+    if 0 < mod < 100:
+        base = f"{base} - {mod}%"
+    return fit_to_16_cells(base)
+
+
 def resolve_sauna_hue_on(snapshot: "SystemState", sauna_hue_entity_idx: Optional[int]) -> bool:
     """True when the configured sauna Hue light is physically ON."""
     if sauna_hue_entity_idx is None:
@@ -122,34 +160,20 @@ def compose_lcd_screen1(
     sauna_door_open = snapshot.door_sauna_open_since_unix is not None
     sauna_hue_on = resolve_sauna_hue_on(snapshot, sauna_hue_entity_idx)
 
-    # ----- Blank condition (WISC parity) -----
     if not sauna_active and not ir_active and not sauna_hue_on:
         return ("", "")
 
-    # ----- Sauna timer branch -----
     if sauna_active:
-        mmss = format_remaining_mmss(snapshot.sauna.session_end_time, now=now_i)
+        end = snapshot.sauna.session_end_time
+        remaining = max(0, int(end) - now_i) if end is not None else 0
+        mmss = format_remaining_mmss(end, now=now_i)
         mod = int(snapshot.sauna.modulation_pwm or 0)
-
-        if mod == 0:
-            suffix = "HOLD"
-        elif 0 < mod < 100:
-            suffix = f"{mod}%"
-        else:
-            suffix = ""  # WISC shows mod only in (0,100)
-
-        base = f"SAUNA {mmss}"
-        if suffix:
-            line1 = f"{base} {suffix}".strip()
-        else:
-            line1 = base
-        line1 = fit_to_16_cells(line1)
+        line1 = compose_sauna_line1(mod, remaining, mmss)
 
         if sauna_door_open:
             door_dur = format_duration_ddhhmmss(
                 None, now=now_i, open_since=snapshot.door_sauna_open_since_unix
             )
-            # Ensure the timer suffix stays visible within 16 columns.
             prefix = "plz close sdoor"
             time_str = door_dur
             time_len = len(time_str)
@@ -162,20 +186,14 @@ def compose_lcd_screen1(
             if temp is None or hum is None:
                 line2 = fit_to_16_cells("--.-§1 --%")
             else:
-                # WISC convention: use §1 as the °C custom glyph.
                 line2_raw = f"{int(temp)}§1 {int(hum)}%"
                 line2 = center_cells(line2_raw)
         return (line1, line2)
 
-    # ----- IR branch -----
     if ir_active:
         mmss = format_remaining_mmss(snapshot.ir.session_end_time, now=now_i)
         mod = int(snapshot.ir.modulation_pwm or 0)
-        if 0 < mod < 100:
-            line1 = f"IR {mmss} {mod}%"
-        else:
-            line1 = f"IR {mmss}"
-        line1 = fit_to_16_cells(line1)
+        line1 = compose_ir_line1(mod, mmss)
 
         temp = snapshot.sensors.sauna_calc_temp
         hum = snapshot.sensors.sauna_calc_hum
@@ -186,9 +204,7 @@ def compose_lcd_screen1(
             line2 = center_cells(line2_raw)
         return (line1, line2)
 
-    # ----- Sauna Hue only (shue) -----
     dt = time.localtime(now_i)
-    # WISC: "%a %d %b %Y" => e.g. "Mon 24 Aug 2026"
     date_str = time.strftime("%a %d %b %Y", dt)
     line1 = fit_to_16_cells(date_str)
 

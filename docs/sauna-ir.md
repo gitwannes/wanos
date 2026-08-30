@@ -161,7 +161,7 @@ The power analytics engine (`logic/power_analytics.py`) calculates high-frequenc
 To isolate sauna element loads from auxiliary home infrastructure drawing power from the same pulse rail (such as Raspberry Pi controllers, active ventilation fans, or solid-state electronics), the system operates a dynamic filter.
 
 #### Phase A: Idle Fingerprinting (Heaters Inactive)
-When `state.sauna.active` and `state.ir.active` are both `False`, the system measures the time delta ($\Delta t$) between consecutive pulse ticks arriving at IDX `11001`. Instantaneous Background Leak Power ($P_{leak}$) is derived continuously in RAM:
+When `state.sauna.active` and `state.ir.active` are both `False`, the system measures the time delta ($\Delta t$) between consecutive pulse ticks arriving at IDX `11001`. Instantaneous Background Leak Power ($P_{leak}$) is derived continuously in RAM and persisted in `wanos-nvram.json` (restored on boot; flushed with the 5-minute NVRAM heartbeat):
 
 $$P_{leak} = \frac{3600}{\Delta t}$$
 
@@ -177,20 +177,24 @@ Because the `StateManager` drives the physical heating elements using an asymmet
 
 $$P_{elements\_real} = \left(\frac{V_{live}}{230}\right)^2 \times ((D_U \cdot P_U) + (D_V \cdot P_V) + (D_W \cdot P_W))$$
 
-**Session Energy (Calc)** integrates a software model over time (Admin blue bar, `energy_calc_wh` in SQLite). Baselines come from `config.yaml` (not hardcoded):
+**Session Energy (Calc)** integrates a software model over time (Admin blue bar, `energy_calc_wh` in SQLite). Element **W @ 100% mod** live in SQLite table `element_power_w` (singleton row in `sauna_sessions.db`); bootstrap defaults U/V/W/IR = 3500/3500/2000/525 W until sessions refine them (EMA 0.7/0.3, gated).
 
-| Key | Default | Role |
-|-----|---------|------|
-| `sauna.effective_watts_u` / `_v` / `_w` | 3500 / 3500 / 2000 | Sauna calc per phase at 100% mod |
-| `ir.effective_watts` | 525 (750 × 0.70) | IR calc at 100% mod |
+| Source | Role |
+|--------|------|
+| `element_power_w` DB row | Calc baselines for U, V, W, IR @ 100% mod; `learn_count_sauna` / `learn_count_ir`; last-learn status/detail |
+| Pulse meter + leak subtract | Real session energy |
 
-Sauna calc: $\sum (D_{phase} \times P_{effective,phase}) \times (V/230)^2$. IR-only sessions add $(IR\_mod/100) \times ir.effective\_watts \times (V/230)^2$. **Real** session energy always comes from the pulse meter minus locked leak.
+Sauna calc: $\sum (D_{phase} \times P_{db,phase}) \times (V/230)^2$. IR-only sessions add $(IR\_mod/100) \times P_{db,ir} \times (V/230)^2$. **Real** session energy always comes from the pulse meter minus locked leak.
 
 **Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle.
 
-**Admin — calc baselines:** Power & Thermal Analytics panel exposes live edit of `ir.effective_watts` and `sauna.effective_watts_u/v/w`. Saves rewrite `config.yaml` and update in-memory config immediately (no full bridge recycle). API: `GET`/`PUT` `/api/admin/analytics/effective-watts` (admin-only).
+**Admin — Power & Thermal:** Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th); LCD mirror; element nameplates + sauna/IR learn counts + last learn outcome; live session (Real/Calc W, deltas, est. U/V/W). `GET /api/admin/analytics/element-power`.
 
-**Session History UI:** both Sauna and IR tabs show **Avg W** (display-time: `energy_real_wh × 3600 / total_runtime_secs`). IR tab adds temp/hum (single value when change ≤ 0.2 °C / 2 %), mod_avg, and outdoor temp. Admin may delete individual session rows (`DELETE /api/history/sessions/{sauna|ir}/{session_id}`) with browser confirm; `last_*_session` cache refreshes when the deleted row was most recent.
+**WISC:** while sauna/IR active — Real W + energy so far (Wh for IR-only, kWh for sauna); idle — last sauna / last IR one-liners (energy · avg W · runtime · start).
+
+**Session audit (SQLite + Session History i popover):** each session stores baseline / measured / new @100% W per element (nullable when not computed).
+
+**Session History UI:** Sauna tab Energy in **kWh**; IR tab in **Wh**; Avg W derived; IR temp/hum/mod columns; **i** popover for audit triple on both tabs. Admin may delete individual session rows.
 
 Where:
 * $V_{live}$ = Current line voltage read from Z-Wave Node 50 (IDX `71046`).

@@ -448,6 +448,9 @@ async def handle_kwh_pulse(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
         state_changed = True
         changed_domains.add("devices")
 
+        manager.refresh_meter_total_kwh()
+        changed_domains.add("metrics")
+
         if hasattr(manager, "sensor_history"):
             manager.sensor_history.note_kwh_pulse(idx, wh=1.0)
 
@@ -462,18 +465,11 @@ async def handle_kwh_pulse(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
 
 async def handle_nvram_flush_trigger(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     """
-    Periodic 5-minute heartbeat to flush active 11xxx counters to physical storage.
+    Periodic 5-minute heartbeat to flush 11xxx counters + leak baseline to disk.
     """
     import time
 
-    # Extract only the targeted cumulative metric counters (11000 - 11999)
-    nvm_payload = {
-        k: v for k, v in manager._state.devices.items()
-        if isinstance(k, int) and 11000 <= k < 12000
-    }
-
-    # Execute the Atomic Swap disk I/O
-    manager.nvm.flush(nvm_payload)
+    manager.flush_nvram()
 
     # Reschedule the next heartbeat
     manager._timer_manager.schedule(

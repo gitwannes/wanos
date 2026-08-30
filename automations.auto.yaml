@@ -1189,6 +1189,12 @@ events:
     show_on_dashboard: false
     require_confirmation: false
     enabled: true
+  - id: c4e8a1b2-9d3f-4a5e-b6c7-d8e9f0a1b2c3
+    name: IR timer adjusted
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
   - id: b751d97c-38e0-413e-bcb1-fe03d14ec36b
     name: Sauna paused (door open)
     origin: system

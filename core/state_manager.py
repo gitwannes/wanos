@@ -290,6 +290,14 @@ class StateManager:
         if 21002 not in self._state.devices:
             self._state.devices[21002] = "OFF"
 
+        vent_lock_name = "bathroom 1e vent lock"
+        self._state.device_metadata[90001] = {
+            "name": vent_lock_name, "type": "sensor", "origin": "system",
+        }
+        yaml_idxs.add(90001)
+        if 90001 not in self._state.devices:
+            self._state.devices[90001] = False
+
         sys_metrics_map = {
             22001: "Host CPU Temperature",
             22002: "Host CPU Usage",
@@ -354,6 +362,9 @@ class StateManager:
                 self._state.device_metadata[nv_idx] = {
                     "name": f"Counter {nv_idx}", "type": "sensor", "origin": "nvram",
                 }
+
+        # Restore leak baseline (non-IDX NVRAM meta) into metrics + PowerAnalytics.
+        self._restore_leak_from_nvram()
 
         self._extract_scenes_from_config()
 
@@ -433,6 +444,40 @@ class StateManager:
         # Birth / freeze entity_ids for every live metadata row; persist entity_registry.auto.yaml
         self.entity_registry.reconcile(self._state.device_metadata)
         self._stamp_resolved_product_types()
+        self.refresh_meter_total_kwh()
+
+    def refresh_meter_total_kwh(self) -> None:
+        """Derive cumulative house meter kWh from NVRAM pulse Wh + config baseline."""
+        energy = getattr(self._config, "energy", None)
+        baseline_kwh = float(getattr(energy, "meter_baseline_kwh", 0.0) or 0.0) if energy else 0.0
+        pulse_at_baseline = float(getattr(energy, "meter_pulse_wh_at_baseline", 0.0) or 0.0) if energy else 0.0
+        kwh_idx = self.resolve_entity_id("sensor.energy.kwh_meter")
+        if kwh_idx is None:
+            kwh_idx = 11001
+        current_wh = self._state.devices.get(kwh_idx)
+        if not isinstance(current_wh, (int, float)):
+            current_wh = 0.0
+        self._state.metrics.meter_total_kwh = baseline_kwh + (float(current_wh) - pulse_at_baseline) / 1000.0
+
+    def _restore_leak_from_nvram(self) -> None:
+        """Apply persisted leak W from NVRAM meta into metrics and PowerAnalytics."""
+        from core.nvm_manager import NVRAM_META_LEAK_WATTS
+
+        raw = self.nvm.get_meta().get(NVRAM_META_LEAK_WATTS)
+        if not isinstance(raw, (int, float)):
+            return
+        watts = float(raw)
+        self._state.metrics.p_leak_baseline_watts = watts
+        if hasattr(self, "_power_analytics") and self._power_analytics is not None:
+            self._power_analytics.restore_leak_baseline(watts)
+
+    def flush_nvram(self) -> None:
+        """Flush 11xxx counters + leak baseline to wanos-nvram.json (atomic)."""
+        counters, meta = self.nvm.build_flush_parts(
+            self._state.devices,
+            leak_watts=self._state.metrics.p_leak_baseline_watts,
+        )
+        self.nvm.flush(counters, meta)
 
     def _stamp_resolved_product_types(self) -> None:
         """Attach resolved_product_type to binary actuators / Hue (D1 Explorer / auto-off tier)."""
@@ -603,9 +648,7 @@ class StateManager:
 
             # FINAL NVRAM SHUTDOWN FLUSH
             # Guaranteed save cycle when the WanOS process shuts down gracefully
-            nvm_payload = {k: v for k, v in self._state.devices.items() if
-                           isinstance(k, int) and 11000 <= k < 12000}
-            self.nvm.flush(nvm_payload)
+            self.flush_nvram()
 
         await self.logger.warning("State Manager worker stopped.")
 
@@ -886,7 +929,7 @@ class StateManager:
         is_simulation_action = payload.get("from_simulator", False)
         is_user_command = event_name in [
             "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "SAUNA_MODULATION_UPDATED",
-            "SAUNA_HOLD", "SAUNA_HOLD_TOGGLED", "SAUNA_TIMER_ADJUSTED", "IR_ON", "IR_OFF",
+            "SAUNA_HOLD", "SAUNA_HOLD_TOGGLED", "SAUNA_TIMER_ADJUSTED", "IR_TIMER_ADJUSTED", "IR_ON", "IR_OFF",
             "IR_MODULATION_UPDATED"
         ]
 

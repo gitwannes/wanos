@@ -78,7 +78,7 @@ from core.rules_activation_pending import (
     pending_snapshot,
     unmark_rule_pending_on_manager,
 )
-from core.analytics_config_store import read_effective_watts, write_effective_watts
+from logic.element_power_store import load_row, row_to_dict, count_sessions
 from core.auto_off_store import read_auto_off_config, write_auto_off_config
 from core.auto_off_policy import (
     AUTO_OFF_ALLOWED_TYPES,
@@ -1194,12 +1194,6 @@ class AutoOffPutRequest(BaseModel):
     device_product_types: dict[str, str] = {}
 
 
-class EffectiveWattsPutRequest(BaseModel):
-    ir_effective_watts: float
-    sauna_effective_watts_u: float
-    sauna_effective_watts_v: float
-    sauna_effective_watts_w: float
-
 
 def _live_meta_for_eid(eid: str) -> dict[str, Any]:
     idx = state_manager.resolve_entity_id(eid)
@@ -1512,42 +1506,17 @@ async def history_delete_session(session_type: str, session_id: int, req: Reques
     return result
 
 
-@app.get("/api/admin/analytics/effective-watts")
-async def get_effective_watts(req: Request) -> dict[str, Any]:
-    """Admin: read calc-model baseline watts from config.yaml."""
+@app.get("/api/admin/analytics/element-power")
+async def get_element_power(req: Request) -> dict[str, Any]:
+    """Admin: read learned element W @ 100% mod from sauna_sessions.db."""
     if req.state.role != "admin":
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
     try:
-        return read_effective_watts()
+        db_path = getattr(state_manager._power_analytics, "_db_path", "sauna_sessions.db")
+        return row_to_dict(load_row(db_path), count_sessions(db_path))
     except Exception as e:
-        logger.error(f"effective-watts read failed: {e}")
-        return JSONResponse(status_code=500, content={"error": "Failed to read effective watts."})
-
-
-@app.put("/api/admin/analytics/effective-watts")
-async def put_effective_watts(body: EffectiveWattsPutRequest, req: Request) -> dict[str, Any]:
-    """Admin: persist calc-model baseline watts to config.yaml."""
-    if req.state.role != "admin":
-        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
-    try:
-        written = write_effective_watts(
-            ir_effective_watts=body.ir_effective_watts,
-            sauna_effective_watts_u=body.sauna_effective_watts_u,
-            sauna_effective_watts_v=body.sauna_effective_watts_v,
-            sauna_effective_watts_w=body.sauna_effective_watts_w,
-        )
-    except ValueError as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
-    except Exception as e:
-        logger.error(f"effective-watts write failed: {e}")
-        return JSONResponse(status_code=500, content={"error": "Failed to write effective watts."})
-
-    cfg = state_manager._config
-    cfg.ir.effective_watts = written["ir_effective_watts"]
-    cfg.sauna.effective_watts_u = written["sauna_effective_watts_u"]
-    cfg.sauna.effective_watts_v = written["sauna_effective_watts_v"]
-    cfg.sauna.effective_watts_w = written["sauna_effective_watts_w"]
-    return {"status": "Success", **written}
+        logger.error(f"element-power read failed: {e}")
+        return JSONResponse(status_code=500, content={"error": "Failed to read element power."})
 
 
 @app.get("/api/history/{idx}/summary")

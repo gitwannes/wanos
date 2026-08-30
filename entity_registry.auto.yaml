@@ -380,6 +380,6 @@ entities:
     status: active
     name_at_birth: cinema projector
   90001:
-    entity_id: unknown.idx_90001
+    entity_id: sensor.generic.badk_1e_vent_lock
     status: active
-    name_at_birth: idx_90001
+    name_at_birth: bathroom 1e vent lock

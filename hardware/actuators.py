@@ -34,9 +34,11 @@ class HardwareActuators(WanosComponent):
 
         self.sauna_freq: int = getattr(self.config.sauna, "pwm_freq", 5)
 
-        # ⚡ RAM targets for the software PWM background workers
+        # ⚡ RAM targets for the software PWM background workers (sauna phases only)
         self.pwm_targets: Dict[str, int] = {"IR": 0, "U": 0, "V": 0, "W": 0}
         self.pwm_tasks: List[asyncio.Task] = []
+        self._ir_pwm_freq: int = 0
+        self._ir_pwm_dc: int = 0
 
     async def _software_pwm_worker(self, pin: int, channel: str, freq: int) -> None:
         """
@@ -123,12 +125,11 @@ class HardwareActuators(WanosComponent):
             # Ensure everything starts in a definitively OFF state
             self._force_all_off()
 
-            # ⚡ Spin up the 4 asynchronous Software PWM Workers (Locked at 5 Hz)
+            # ⚡ Sauna phases: software PWM workers. IR: hardware tx_pwm (WISC parity).
             self.pwm_tasks = [
-                asyncio.create_task(self._software_pwm_worker(self.pin_ir, "IR", 5)),
                 asyncio.create_task(self._software_pwm_worker(self.pin_u, "U", self.sauna_freq)),
                 asyncio.create_task(self._software_pwm_worker(self.pin_v, "V", self.sauna_freq)),
-                asyncio.create_task(self._software_pwm_worker(self.pin_w, "W", self.sauna_freq))
+                asyncio.create_task(self._software_pwm_worker(self.pin_w, "W", self.sauna_freq)),
             ]
 
             # Broadcast successful physical hardware connection!
@@ -145,13 +146,36 @@ class HardwareActuators(WanosComponent):
                 Event(type=EventType.HARDWARE_BUS_HEALTH_UPDATED, payload={"bus": "gpio_output", "connected": False}))
             await self.logger.critical(f"Failed to initialize lgpio actuators: {e}")
 
+    def _stop_ir_pwm(self) -> None:
+        """Stop IR hardware PWM (WISC: tx_pwm at 5 Hz, 0% duty)."""
+        self._ir_pwm_freq = 0
+        self._ir_pwm_dc = 0
+        if self.chip is not None:
+            lgpio.tx_pwm(self.chip, self.pin_ir, 5, 0)
+            lgpio.gpio_write(self.chip, self.pin_ir, 0)
+
+    def _apply_ir_pwm(self, freq: int, duty: int) -> None:
+        """Drive IR via lgpio.tx_pwm using mod-specific frequency and duty (WISC parity)."""
+        if self.chip is None:
+            return
+        freq = max(0, int(freq))
+        duty = max(0, min(100, int(duty)))
+        if freq == self._ir_pwm_freq and duty == self._ir_pwm_dc:
+            return
+        self._ir_pwm_freq = freq
+        self._ir_pwm_dc = duty
+        if duty <= 0 or freq <= 0:
+            self._stop_ir_pwm()
+            return
+        lgpio.tx_pwm(self.chip, self.pin_ir, freq, duty)
+
     def _force_all_off(self) -> None:
         """Forces all control targets and physical pins LOW immediately. Safest default state."""
         self.pwm_targets = {"IR": 0, "U": 0, "V": 0, "W": 0}
         if self.chip is None: return
 
         # Stop all physical flows by writing pins LOW
-        lgpio.gpio_write(self.chip, self.pin_ir, 0)
+        self._stop_ir_pwm()
         lgpio.gpio_write(self.chip, self.pin_u, 0)
         lgpio.gpio_write(self.chip, self.pin_v, 0)
         lgpio.gpio_write(self.chip, self.pin_w, 0)
@@ -234,12 +258,17 @@ class HardwareActuators(WanosComponent):
             return
 
         # ---------------------------------------------------------------------
-        # 1. Update IR Single-Phase Modulation Targets
+        # 1. IR — hardware PWM (mod-specific frequency + duty)
         # ---------------------------------------------------------------------
-        if state.ir.active:
-            self.pwm_targets["IR"] = state.ir.modulation_pwm
+        if state.ir.active and self.output_armed:
+            freq = int(state.ir.frequency or 0)
+            duty = int(state.ir.modulation_pwm or 0)
+            if duty <= 0 or freq <= 0:
+                self._stop_ir_pwm()
+            else:
+                self._apply_ir_pwm(freq, duty)
         else:
-            self.pwm_targets["IR"] = 0
+            self._stop_ir_pwm()
 
         # ---------------------------------------------------------------------
         # 2. Update Sauna 3-Phase Modulation Targets

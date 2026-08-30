@@ -35,6 +35,8 @@ def is_hard_deny_entity_id(eid: Optional[str]) -> bool:
 # Bathroom / water / outside
 ENTITY_BATHROOM_VENT = "zwave.vent.badk_1e"
 ENTITY_BATHROOM_HUM = "sensor.temp_hum.badk_1e"
+# Internal min-runtime lock (idx 90001; hub timer, not a physical device)
+ENTITY_BATHROOM_VENT_LOCK = "sensor.generic.badk_1e_vent_lock"
 ENTITY_WATER_HOT = "sensor.fluid.warm_water"
 ENTITY_COLD_WATER = "sensor.fluid.koud_water"
 ENTITY_OUTSIDE = "sensor.temp_hum.outside_temp_hum"

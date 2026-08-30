@@ -247,6 +247,7 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
     put(20101, name="sauna temp", dtype="temp_hum", origin="system")
     put(21001, name="sauna status", dtype="sensor", origin="system")
     put(21002, name="IR status", dtype="sensor", origin="system")
+    put(90001, name="bathroom 1e vent lock", dtype="sensor", origin="system")
     for s_idx, s_name in {
         22001: "Host CPU Temperature",
         22002: "Host CPU Usage",

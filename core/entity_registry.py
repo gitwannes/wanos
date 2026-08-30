@@ -266,6 +266,20 @@ class EntityRegistry:
         existing_row = self._by_idx.get(idx)
         if existing_row and existing_row.get("entity_id"):
             eid = str(existing_row["entity_id"])
+            # Legacy vent-lock birth slug (unknown.idx_90001) → fixed system id.
+            if idx == 90001 and eid == "unknown.idx_90001":
+                from core.well_known_entities import ENTITY_BATHROOM_VENT_LOCK
+
+                old_eid = eid
+                eid = ENTITY_BATHROOM_VENT_LOCK
+                existing_row["entity_id"] = eid
+                if self._entity_to_idx.get(old_eid) == idx:
+                    self._entity_to_idx.pop(old_eid, None)
+                self._entity_to_idx[eid] = idx
+                if meta.get("name"):
+                    existing_row["name_at_birth"] = meta.get("name")
+                self._dirty = True
+                logger.info(f"Entity registry: migrated idx {idx} {old_eid} -> {eid}.")
             # Reactivate if it was removed but device is back
             if existing_row.get("status") == "removed":
                 existing_row["status"] = "active"
@@ -286,6 +300,24 @@ class EntityRegistry:
             self._entity_to_idx[str(stamped)] = idx
             self._dirty = True
             return str(stamped)
+
+        # Bathroom vent min-runtime lock (idx 90001): fixed entity_id, not slugified name.
+        if idx == 90001:
+            from core.well_known_entities import ENTITY_BATHROOM_VENT_LOCK
+
+            eid = ENTITY_BATHROOM_VENT_LOCK
+            if eid in self._entity_to_idx and self._entity_to_idx[eid] != idx:
+                eid = self._allocate_unique("sensor.generic", "badk_1e_vent_lock")
+            self._by_idx[idx] = {
+                "entity_id": eid,
+                "status": "active",
+                "name_at_birth": meta.get("name"),
+            }
+            self._entity_to_idx[eid] = idx
+            meta["entity_id"] = eid
+            self._dirty = True
+            logger.info(f"Entity birth: idx {idx} -> {eid}")
+            return eid
 
         # Epson projector: fixed entity_id (not slugify("cinema projector")).
         origin_l = str(meta.get("origin") or "").lower().strip()

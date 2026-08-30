@@ -165,6 +165,7 @@ function wanosApp() {
                 motion_triggers: {}, // ⚡ Ephemeral diagnostic tally
                 p_leak_baseline_watts: 0.0,
                 p_elements_real_watts: 0.0,
+                p_elements_calc_watts: 0.0,
                 r_th_insulation_coefficient: null,
                 extracted_p_u: 3500.0,
                 extracted_p_v: 3500.0,
@@ -172,8 +173,11 @@ function wanosApp() {
                 running_energy_real_wh: 0.0,
                 running_energy_calc_wh: 0.0,
                 total_energy_real_wh: 0.0,
+                meter_total_kwh: 0.0,
                 last_sauna_session: null,
-                last_ir_session: null
+                last_ir_session: null,
+                session_count_sauna: 0,
+                session_count_ir: 0
             },
             hardware: {
                 sht11_connected: false,
@@ -316,8 +320,18 @@ function wanosApp() {
         sessionHistoryRows: [],
         sessionHistoryTotal: 0,
         sessionHistoryOffset: 0,
-        effectiveWattsForm: { ir: 525, u: 3500, v: 3500, w: 2000 },
-        effectiveWattsSaving: false,
+        elementPowerMeta: {
+            w_u: 3500, w_v: 3500, w_w: 2000, w_ir: 525,
+            updated_at: null,
+            learn_count_sauna: 0, learn_count_ir: 0,
+            last_learn_sauna_status: null, last_learn_sauna_detail: null, last_learn_sauna_at: null,
+            last_learn_ir_status: null, last_learn_ir_measured_w: null, last_learn_ir_at: null,
+            session_count_sauna: 0, session_count_ir: 0,
+        },
+        sessionAuditPopoverId: null,
+        sessionAuditPopoverRow: null,
+        sessionAuditPopoverStyle: "",
+        sessionAuditPopoverPinned: false,
         toastTimeout: null,
 
         // ⚡ Reactive Time Heartbeat
@@ -1291,7 +1305,7 @@ function wanosApp() {
             setInterval(this.ticker.bind(this), 1000);
 
             if (this.isAdmin && window.location.pathname.includes("admin.html")) {
-                this.loadEffectiveWatts();
+                this.loadElementPower();
             }
         },
 
@@ -3386,56 +3400,176 @@ function wanosApp() {
             return watts.toFixed(0) + " W";
         },
 
-        async loadEffectiveWatts() {
+        formatSessionEnergy(energyWh, sessionType) {
+            if (energyWh == null) return "—";
+            const wh = Number(energyWh);
+            if (!Number.isFinite(wh)) return "—";
+            if (sessionType === "ir") {
+                return wh.toFixed(0) + " Wh";
+            }
+            return (wh / 1000).toFixed(2) + " kWh";
+        },
+
+        formatAuditW(val) {
+            if (val == null || !Number.isFinite(Number(val))) return "—";
+            return Number(val).toFixed(0) + " W";
+        },
+
+        formatMeterPulseWh() {
+            const idx = 11001;
+            const raw = this.state && this.state.devices ? this.state.devices[idx] : null;
+            if (raw == null || !Number.isFinite(Number(raw))) return "—";
+            return Number(raw).toFixed(0) + " Wh";
+        },
+
+        formatElementLastLearn(kind) {
+            const m = this.elementPowerMeta || {};
+            if (kind === "ir") {
+                const st = m.last_learn_ir_status;
+                if (!st) return "IR last: —";
+                const meas = m.last_learn_ir_measured_w != null
+                    ? Number(m.last_learn_ir_measured_w).toFixed(0) + " W"
+                    : "—";
+                const when = m.last_learn_ir_at ? " @ " + this.formatUnixTime(m.last_learn_ir_at) : "";
+                return "IR last: " + st + " · meas " + meas + when;
+            }
+            const st = m.last_learn_sauna_status;
+            if (!st) return "Sauna last: —";
+            const detail = m.last_learn_sauna_detail || "—";
+            const when = m.last_learn_sauna_at ? " @ " + this.formatUnixTime(m.last_learn_sauna_at) : "";
+            return "Sauna last: " + st + " · " + detail + when;
+        },
+
+        formatLiveEstimatedPhaseW() {
+            const pwm = (this.state && this.state.sauna && this.state.sauna.phases_pwm) || {};
+            const m = this.elementPowerMeta || {};
+            const u = (Number(m.w_u) || Number(this.state.metrics.extracted_p_u) || 0) * (Number(pwm.U) || 0) / 100;
+            const v = (Number(m.w_v) || Number(this.state.metrics.extracted_p_v) || 0) * (Number(pwm.V) || 0) / 100;
+            const w = (Number(m.w_w) || Number(this.state.metrics.extracted_p_w) || 0) * (Number(pwm.W) || 0) / 100;
+            return u.toFixed(0) + " / " + v.toFixed(0) + " / " + w.toFixed(0) + " W";
+        },
+
+        formatWiscLiveEnergy() {
+            const wh = Number(this.state.metrics.running_energy_real_wh) || 0;
+            if (this.state.ir && this.state.ir.active && !(this.state.sauna && this.state.sauna.active)) {
+                return wh.toFixed(0) + " Wh";
+            }
+            return (wh / 1000).toFixed(3) + " kWh";
+        },
+
+        formatWiscLastSessionOneLiner(kind) {
+            const row = kind === "ir"
+                ? (this.state.metrics.last_ir_session || null)
+                : (this.state.metrics.last_sauna_session || null);
+            if (!row) return "";
+            const label = kind === "ir" ? "IR" : "Sauna";
+            const runtime = this.formatSessionRuntime(row.total_runtime_secs);
+            const energy = this.formatSessionEnergy(row.energy_real_wh, kind);
+            const avgW = this.formatSessionAvgRealW(row.energy_real_wh, row.total_runtime_secs);
+            const when = row.start_timestamp != null ? this.formatSessionTs(row.start_timestamp) : "";
+            return label + ": " + energy + " · " + avgW + " · " + runtime + (when ? " · " + when : "");
+        },
+
+        sessionAuditLines(row, sessionType) {
+            if (!row) return [];
+            if (sessionType === "ir") {
+                return [
+                    { label: "IR", baseline: row.audit_baseline_w_ir, measured: row.audit_measured_w_ir, newVal: row.audit_new_w_ir },
+                ];
+            }
+            return [
+                { label: "U", baseline: row.audit_baseline_w_u, measured: row.audit_measured_w_u, newVal: row.audit_new_w_u },
+                { label: "V", baseline: row.audit_baseline_w_v, measured: row.audit_measured_w_v, newVal: row.audit_new_w_v },
+                { label: "W", baseline: row.audit_baseline_w_w, measured: row.audit_measured_w_w, newVal: row.audit_new_w_w },
+            ];
+        },
+
+        _sessionAuditAnchorStyle(anchorEl) {
+            if (!anchorEl || typeof anchorEl.getBoundingClientRect !== "function") {
+                return "top: 1rem; left: 1rem;";
+            }
+            const rect = anchorEl.getBoundingClientRect();
+            const tipW = 224;
+            const tipH = 120;
+            let left = rect.right - tipW;
+            let top = rect.bottom + 6;
+            if (left < 8) left = 8;
+            if (left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8;
+            if (top + tipH > window.innerHeight - 8) top = Math.max(8, rect.top - tipH - 6);
+            return `top: ${Math.round(top)}px; left: ${Math.round(left)}px;`;
+        },
+
+        openSessionAuditHover(event, row) {
+            if (!row || this.sessionAuditPopoverPinned) return;
+            // Prefer the row's i button as anchor when hovering the line on PC.
+            const btn = event && event.currentTarget
+                ? event.currentTarget.querySelector("button")
+                : null;
+            this.sessionAuditPopoverId = row.session_id;
+            this.sessionAuditPopoverRow = row;
+            this.sessionAuditPopoverStyle = this._sessionAuditAnchorStyle(btn || (event && event.currentTarget));
+        },
+
+        closeSessionAuditHover() {
+            if (this.sessionAuditPopoverPinned) return;
+            this.sessionAuditPopoverId = null;
+            this.sessionAuditPopoverRow = null;
+            this.sessionAuditPopoverStyle = "";
+        },
+
+        toggleSessionAuditPopover(event, row) {
+            if (!row) return;
+            const id = row.session_id;
+            if (this.sessionAuditPopoverPinned && this.sessionAuditPopoverId === id) {
+                this.dismissSessionAuditPopover();
+                return;
+            }
+            const anchor = event && event.currentTarget ? event.currentTarget : null;
+            this.sessionAuditPopoverId = id;
+            this.sessionAuditPopoverRow = row;
+            this.sessionAuditPopoverStyle = this._sessionAuditAnchorStyle(anchor);
+            // Defer pin so the opening click is not treated as click.outside.
+            this.$nextTick(() => {
+                this.sessionAuditPopoverPinned = true;
+            });
+        },
+
+        dismissSessionAuditPopover() {
+            this.sessionAuditPopoverPinned = false;
+            this.sessionAuditPopoverId = null;
+            this.sessionAuditPopoverRow = null;
+            this.sessionAuditPopoverStyle = "";
+        },
+
+        async loadElementPower() {
             try {
-                const res = await fetch("/api/admin/analytics/effective-watts", {
+                const res = await fetch("/api/admin/analytics/element-power", {
                     headers: this.getAuthHeaders(),
                 });
                 if (!res.ok) return;
                 const data = await res.json();
-                this.effectiveWattsForm = {
-                    ir: Number(data.ir_effective_watts) || 525,
-                    u: Number(data.sauna_effective_watts_u) || 3500,
-                    v: Number(data.sauna_effective_watts_v) || 3500,
-                    w: Number(data.sauna_effective_watts_w) || 2000,
+                this.elementPowerMeta = {
+                    w_u: Number(data.w_u) || 3500,
+                    w_v: Number(data.w_v) || 3500,
+                    w_w: Number(data.w_w) || 2000,
+                    w_ir: Number(data.w_ir) || 525,
+                    updated_at: data.updated_at != null ? Number(data.updated_at) : null,
+                    learn_count_sauna: Number(data.learn_count_sauna) || 0,
+                    learn_count_ir: Number(data.learn_count_ir) || 0,
+                    last_learn_sauna_status: data.last_learn_sauna_status || null,
+                    last_learn_sauna_detail: data.last_learn_sauna_detail || null,
+                    last_learn_sauna_at: data.last_learn_sauna_at != null
+                        ? Number(data.last_learn_sauna_at) : null,
+                    last_learn_ir_status: data.last_learn_ir_status || null,
+                    last_learn_ir_measured_w: data.last_learn_ir_measured_w != null
+                        ? Number(data.last_learn_ir_measured_w) : null,
+                    last_learn_ir_at: data.last_learn_ir_at != null
+                        ? Number(data.last_learn_ir_at) : null,
+                    session_count_sauna: Number(data.session_count_sauna) || 0,
+                    session_count_ir: Number(data.session_count_ir) || 0,
                 };
             } catch (e) {
-                console.error("Failed to load effective watts", e);
-            }
-        },
-
-        async saveEffectiveWatts() {
-            if (this.effectiveWattsSaving) return;
-            this.effectiveWattsSaving = true;
-            try {
-                const body = {
-                    ir_effective_watts: Number(this.effectiveWattsForm.ir),
-                    sauna_effective_watts_u: Number(this.effectiveWattsForm.u),
-                    sauna_effective_watts_v: Number(this.effectiveWattsForm.v),
-                    sauna_effective_watts_w: Number(this.effectiveWattsForm.w),
-                };
-                const res = await fetch("/api/admin/analytics/effective-watts", {
-                    method: "PUT",
-                    headers: { ...this.getAuthHeaders(), "Content-Type": "application/json" },
-                    body: JSON.stringify(body),
-                });
-                const data = await res.json();
-                if (!res.ok) {
-                    this.showToast(data.error || "Save failed");
-                    return;
-                }
-                this.effectiveWattsForm = {
-                    ir: Number(data.ir_effective_watts),
-                    u: Number(data.sauna_effective_watts_u),
-                    v: Number(data.sauna_effective_watts_v),
-                    w: Number(data.sauna_effective_watts_w),
-                };
-                this.showToast("Calc baselines saved");
-            } catch (e) {
-                console.error("Failed to save effective watts", e);
-                this.showToast("Save failed");
-            } finally {
-                this.effectiveWattsSaving = false;
+                console.error("Failed to load element power", e);
             }
         },
 
@@ -5584,6 +5718,7 @@ function wanosApp() {
                 const data = await res.json();
                 this.sessionHistoryRows = data.sessions || [];
                 this.sessionHistoryTotal = data.total || 0;
+                this.dismissSessionAuditPopover();
             } catch (e) {
                 console.error("Failed to load session history", e);
             }
@@ -5722,6 +5857,10 @@ function wanosApp() {
 
         adjustSaunaTimer(minutesToAdd) {
             this.publishEvent("SAUNA_TIMER_ADJUSTED", { minutes: minutesToAdd });
+        },
+
+        adjustIrTimer(minutesToAdd) {
+            this.publishEvent("IR_TIMER_ADJUSTED", { minutes: minutesToAdd });
         },
 
         toggleIR() {
