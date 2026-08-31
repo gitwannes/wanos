@@ -4,7 +4,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com)
 [![Alpine.js](https://img.shields.io/badge/Alpine.js-3.x-8BC0D0.svg)](https://alpinejs.dev)
 [![MQTT](https://img.shields.io/badge/MQTT-aiomqtt-660066.svg)](https://mqtt.org)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![License: Source Available](https://img.shields.io/badge/License-Source%20Available-lightgrey.svg)](LICENSE)
 
 **Event-driven smart home OS and industrial sauna controller**
 
@@ -84,8 +84,16 @@ Deeper design notes live under [`docs/`](docs/) (architecture, integrations, sau
 
 ---
 
+## Related repositories
+
+| Repo | Role |
+|---|---|
+| [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) | KiCad design and JLCPCB fabrication for the WanOS Raspberry Pi carrier board (GPIO break-out, pulse inputs, SHT11 headers, sauna/IR SSR drives). Pipeline and phase specs live **only** in that repo; this repo owns runtime pin mapping in `config_hardware.yaml`. |
+
+---
+
 ## License
 
-GNU General Public License v3.0 — see [LICENSE](LICENSE).
+Source available — personal use OK, no redistribution. See [LICENSE](LICENSE).
 
-*Copyright (c) 2026 https://github.com/gitwannes. All Rights Reserved.*
+Copyright (c) 2026 [Johan Wannes Hofmans](https://github.com/gitwannes). All rights reserved.

@@ -10,7 +10,7 @@ This document serves as the master blueprint and reference guide for the directo
 * `config_hue.yaml`: PC-owned Hue profile — bridge IP, `device_map`, `group_map`, `scene_map` (provision locally; mirrored to Pi).
 * `config_hue_presets.auto.yaml`: Pi-owned **`hue.presets`** (text keys → `{ name, bri, xy|rgb }`; Explorer CRUD on Pi; **StatsRepoPull** into git). Runtime merge in `load_config()`. Explorer/Blocky consume `system.hue_presets`. **B9A:** CRUD via `/api/hue-presets` (add / rename display name / delete-when-unused; unique display names).
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
-* `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths.
+* `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths. **Runtime source of truth** for BCM pins and idx wiring on the WanOS Pi. KiCad schematic, PCB layout, and JLCPCB ordering are **not** tracked here — see the separate [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) repo (`docs/gpio-interface.md` mirrors this file for board design).
 * `config_zwave.auto.yaml`: Z-Wave device map (UI/system-owned via `zwaveconfig.html`; not hand-edited as primary workflow).
 * `entity_registry.auto.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/phaseB-blocky.md`.
 

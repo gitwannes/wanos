@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-08-30 (**C31 + C32** combined ship — Pi smoke done)
+**Last updated:** 2026-08-31 (PCB repo pointer — no PCB items in this pipeline)
 
 ---
 
@@ -146,6 +146,7 @@ Not lettered product phases. Detail stays here (no `phaseX` file) unless re-home
 |---|---|---|
 | **Ops1 later** | hold | uvicorn `--no-access-log` / no `?jwt=`; ForwardToSyslog; log2ram SIZE; auth/kern no-archive |
 | **Ops2 — Pi Python runtime** | hold | **Assess only** (high). Target **not** locked to 3.13 — compare **3.12 vs 3.13** (and current Pi version); pick winner at kickoff/assess close. See § Ops2 below |
+| **PCB / carrier board (KiCad, JLCPCB)** | open | **Not in this pipeline.** Design + fab backlog → [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) (`docs/todo/pipeline.md`). This repo: `config_hardware.yaml` runtime pin map only. |
 | **Pull auto.yaml from Pi** | hold | Prefer non-repo pull dir — see [`wanos-sync.md`](../wanos-sync.md) |
 | **Cinema merge ON/OFF rules** | open | Operator YAML — pickable cinema state **to be checked** |
 | **Background Leak = 0.0 W** | hold | Verify |
