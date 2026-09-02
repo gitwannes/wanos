@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C20 → C21 → C25 → C15 → C13 → C30**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C20 → C21 → C15 → C13 → C30 → C33**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -37,7 +37,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C23 — SSE SseClient unhashable** | EventSource dies ~25 ms — ✅ **Done 2026-08-16** (with **C18**) | SSE hub · low |
 | **C16 — Day chart sliding 24 h window** | Fixed 24 h viewport; pan over `hires_days` hi-res; zoom-in only — ✅ **Pi smoke 2026-08-23** | History charts · mid |
 | **C24 — Temp/hum day fullscreen** | Tab overlay; AH + Feels-like; 5 checkboxes; 3rd y-axis; CSV — ✅ **Pi smoke 2026-08-23** | History charts · mid |
-| **C25 — Overlay dew likelihood + compare** | OWM dew%; compare; Admin **Outside weather** (sun moved) | History + Admin · mid |
+| **C25 — Overlay dew likelihood + compare** | ✅ OWM dew%; compare; Admin **Outside weather** — **Pi smoke 2026-09-01** | History + Admin · mid |
 | **C15 — Admin lab switch** | Move Enable lab controls → Debug Commands row; lab pane iff switch ON | Admin · low |
 | **C13 — Merge hide + Timers & types** | Soft-hide as column on Timers & types; retire `hiddendevices`; page rename TBD | Assess → decide · mid |
 | **C3 — Force ALL-OFF** | Admin reconciliation sweep | Admin tool + integrations |
@@ -46,8 +46,10 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C26 — Frontend JS modularization** | Split `app.js` + `blockly.js`; shared helpers; `login.js`; **`reference.md` JS catalog** | FE maintainability · mid · after **C4** |
 | **C30 — WISC douche session** | Live + last summary (liters hot/cold/total, €/min gas proxy, cost) | WISC · mid |
 | **C31 + C32 — Sauna/IR analytics & power model** | ✅ **Done 2026-08-30** — combined ship; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5 | WISC + Admin + `power_analytics` · mid |
+| **C34 + L3 — Sauna/IR polish + LCD logging** | ✅ **Done 2026-09-02** — [`sauna-ir.md`](../sauna-ir.md) §3.7 + §4 | WISC + Admin + analytics + LCD · mid |
+| **C33 — Sauna/IR History + runtime display** | Explorer History (Sonos pattern): MOD% day; duration #hrs/#days month/year; WISC rad = time-on only; Admin = remaining + runtime | History + WISC + Admin · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C25** → **C15** → **C13** → **C30**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C15** → **C13** → **C30** → **C33**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1051,91 +1053,25 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ---
 
-## 📋 C25 — Overlay dew likelihood % + compare 🔜 TODO (code shipped; Pi smoke pending)
+## 📋 C25 — Overlay dew likelihood % + compare ✅ DONE
 
-**Origin:** operator inbox **2026-08-16**. Explorer History **C24 fullscreen day overlay** + Admin **Outside weather** panel. Size **mid**. Sequence: **after C24**. **Kickoff locked 2026-08-23**; implement-detail + Admin panel locks **2026-08-27**. **Implemented 2026-08-27** — Pi smoke pending.
+**Origin:** operator inbox **2026-08-16** (+ compare **2026-08-23**, Admin weather **2026-08-27**). Size **mid**. Sequence: **after C24**. Kickoff **2026-08-23**; implement + Admin panel locks **2026-08-27**. **Shipped 2026-08-27**; **Pi smoke 2026-09-01**.
 
-**Shipped (code):** OWM every climate poll → `dew%` samples + RAM snapshot; day API `series.dew_likelihood`; overlay 6th checkbox + Compare with + CSV; Admin Outside weather (sun moved from General Diagnostics). Formula: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) §9. Charts: [`sensor_history.md`](../sensor_history.md).
-
-**Operator request (verbatim, 2026-08-16):**
+**Operator requests (verbatim):**
 > triage as new item: additional graph in the fullscreen day view -- get additional info from that 2.5 json (clouds/wind) and with your list (which i accept): plot another line "dew likelihood %"
 
-**Operator request (verbatim, 2026-08-23):**
 > add to C25 pipeline: compare 1 temp/hum graph with another one (also only temp sensors are permitted for this)
 
-**Operator (verbatim, 2026-08-27):**
 > add current 'weather' (what is polled from OWM and needed for these calculations) to admin panel in "System Administration": new panel "weather" - move sun sycle also to that panel
 
-**Triage placement:**
+**Shipped summary:** OWM every climate poll → `dew%` samples + RAM snapshot; day API `series.dew_likelihood`; overlay 6th checkbox **Dew likelihood %** + **Compare with** peer climate + CSV; Admin **Outside weather** panel (sun moved from General Diagnostics).
 
-* **New C25** — do **not** reopen **C24** (five series / three axes / CSV-of-five stay C24 DoD; C25 **adds** sixth series + compare + Admin weather panel).
-* Overlay-only extra line, series name **`Dew likelihood %`**. Honest **heuristic index 0–100**, not a calibrated meteorological probability.
-* **OWM Current 2.5** — at each climate poll, read clouds / wind / weather from JSON, compute score, **store score only** (storage **B**, unit **`dew%`**). Indoor temp/hum → **no** dew-likelihood series.
-* Night gate: OWM sunrise/sunset from schedule (`SUNRISE_SUNSET_UPDATE`). Formula + explanation → [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) § Dew likelihood.
+**Product reference:**
+* Formula + rain/night rules: [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) §9
+* Charts + compare UX: [`sensor_history.md`](../sensor_history.md) § Day overlay extras (C25)
+* OWM loop: [`reference.md`](../reference.md) (`open_weather.py`)
 
-### Kickoff locks (2026-08-23 + 2026-08-27)
-
-| Topic | Locked |
-|---|---|
-| Coding gate | **Cleared** — **C16+C24** Pi smoke **2026-08-23**. Implement when commanded. |
-| Schedule | Kickoff complete; skip-ahead OK at implement command. |
-| Storage | **B** — persist **computed** dew-likelihood **0–100** only; unit literal **`dew%`** on OWM climate idx in `sensor_samples`. Do **not** retain raw clouds/wind/rain history. |
-| Score write cadence | On **every** successful OWM climate poll (same interval), compute + enqueue `dew%` even when T/RH are duplicates and TEMP/HUM events are skipped. |
-| Rain → 0 | `raining` if any `weather[].id` in **200–599**, or `rain.1h` / `rain.3h` &gt; 0. Snow **6xx** does **not** force 0. |
-| Formula | Locked below; also documented in [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) § Dew likelihood. |
-| Dew line — checkbox | **6th** checkbox **`Dew likelihood %`**, **default ON** (OWM/outside overlay only; absent indoors). |
-| Dew line — CSV | **Yes** — include column in Export CSV (empty when N/A). |
-| Dew line — axis | Re-use right **%** axis (with RH / CI). |
-| Dew line — color | New distinct primary color on % axis (e.g. violet). |
-| Compare — entry | Button **Compare with** → dropdown; first option **`(none)`** clears peer. Any climate fullscreen overlay. |
-| Compare — series set | On peer select: **uncheck specials** on primary (**AH**, **CI**, **Dew likelihood %**). Keep **Temperature / Humidity / Dew point** only (temp-only primary → **Temperature** only). Peer row: **same** — T/RH/Td if hum exists, else **T** only. No AH/CI/dew-likelihood on the peer row. |
-| Compare — sync | **Synced** pan/zoom (one C16 window). |
-| Compare — toggles | Peer checkboxes in a **second row**. |
-| Clear compare | Leave primary checkboxes **as they are**. Remove peer row / peer series. |
-| Compare — CSV | Primary columns always; if peer selected, append `{PeerName} Temperature` [, Humidity, Dew point]. No peer AH/CI/dew%. Full `hires_days`. |
-| Compare — names/colors | Peer series: `{device label} Temperature` / `Humidity` / `Dew point`. Primary keeps C24 unprefixed names. Peer = second fixed palette (distinct hues; dashed OK). |
-
-### Admin — Outside weather panel (locked 2026-08-27, **same C25 ship**)
-
-| Topic | Locked |
-|---|---|
-| Scope | **Same phase** as overlay/compare (not a separate letter). |
-| Placement | New panel **Outside weather** in Admin **System Administration**, **under** **General Diagnostics** (same column / below that card). |
-| Move sun | **Remove** sun cycle from **General Diagnostics** (C27 Admin first row). Show sunrise/sunset in **Outside weather** instead (same **HH:MM + relative** format). |
-| Explorer | **Unchanged** — Device Explorer ℹ popover stays (C27). |
-| OWM toggle | **Stay** on the integration toggles column — do **not** move into this panel. |
-| Fields | T, RH, Td (computed), clouds %, wind m/s, weather summary + raining flag, live **Dew likelihood %**, sunrise, sunset, **last poll time**. |
-| State | Expose last-poll OWM snapshot on `/api/state` (clouds, wind, weather/raining, score, last poll ts) for Admin — T/RH + sun already present. |
-
-**Formula (locked 2026-08-23):**
-
-```
-# Inputs at poll: T °C, Td °C (Sonntag from T+RH), clouds 0–100,
-# wind_ms (OWM wind.speed), raining (200–599 or rain 1h/3h > 0), is_night
-
-if raining or not is_night:
-    score = 0
-else:
-    dT = max(0, T - Td)
-    sat   = clamp(1 - dT / 4, 0, 1)       # full at dT=0; 0 at dT ≥ 4 °C
-    clear = clamp(1 - clouds / 100, 0, 1)  # clear sky → 1
-    calm  = clamp(1 - wind_ms / 5, 0, 1)   # calm → 1; ≥ 5 m/s → 0
-    score = round(100 * (0.50 * sat + 0.30 * clear + 0.20 * calm))
-```
-
-**Still open (kickoff):** *(none — closed 2026-08-23; implement details + Admin panel locked 2026-08-27.)*
-
-**Out of scope**
-
-* Reopening **C24** / **C5** / **C12 #8**.
-* Inline day chart; month/year.
-* Leaf-wetness / IR grass sensor.
-* G4 One Call (this is Current 2.5).
-* Calling the line a true probability.
-* Persisting raw OWM clouds/wind/rain time series (storage A rejected).
-* Moving OWM enable toggle; changing Explorer ℹ.
-
-**C25 DoD:** Overlay **Dew likelihood %** from stored `dew%` + locked formula; compare as locked; Admin **Outside weather** panel (fields + sun moved from General Diagnostics); `/api/state` last-poll snapshot; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — code+docs **2026-08-27**; **Pi smoke pending**.
+**C25 DoD:** ✅ **2026-09-01** — overlay dew%; compare; Admin Outside weather; `/api/state` last-poll snapshot; **Pi smoke** (operator). **Last DoD docs audit** this close-out.
 
 ---
 
@@ -1191,8 +1127,8 @@ else:
 * **C27:** ✅ **Done 2026-08-22** — Admin General Diagnostics **first** row; Explorer **ℹ tap → popover** on Device Explorer title; format **HH:MM + relative**; History title out of scope; Pi smoke with **G15** deploy.
 * **C22:** ✅ **Done 2026-08-16** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m (`22007`/`22008`) live-only; not C11.
 * **C16:** ✅ **Pi smoke 2026-08-23** — sliding 24 h over `hires_days`; water hourly×retention + pan; subtitle; combined with **C24**. Product: [`sensor_history.md`](../sensor_history.md).
-* **C24:** ✅ **Pi smoke 2026-08-23** — tab overlay; AH / Feels-like; CSV; inherit pan; frost. Product: [`sensor_history.md`](../sensor_history.md) § Day overlay. Dew likelihood → **C25**.
-* **C25:** code+docs **2026-08-27** — storage **B** / `dew%`; formula + rain rule in env-schedule §9; compare + CSV; Admin **Outside weather**. **Pi smoke pending**.
+* **C24:** ✅ **Pi smoke 2026-08-23** — tab overlay; AH / Feels-like; CSV; inherit pan; frost. Product: [`sensor_history.md`](../sensor_history.md) § Day overlay.
+* **C25:** ✅ **Pi smoke 2026-09-01** — dew% storage; overlay compare + Admin **Outside weather**. Product: [`sensor_history.md`](../sensor_history.md) § Day overlay extras; [`env-schedule-and-system-events.md`](../env-schedule-and-system-events.md) §9.
 * **C15:** lab switch in Debug Commands; entire lab pane hidden when OFF.
 * **C13:** Merge hide into Timers & types …
 * **C4:** **`blocky`→`blockly`** — **`blockly.html` / `blockly.js`**; shell label **Blockly**; **not** `automations.*`.
@@ -1242,6 +1178,53 @@ else:
 
 **C30 DoD (stub):** Live + last douche on WISC with duration, hot/cold/total L, gas-as-minutes proxy, total cost; session gates match old WISC intent (lock numbers at kickoff); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
+## ✅ C34 + L3 — Sauna/IR analytics polish + LCD logging — **Done 2026-09-02**
+
+**Letter:** **C34** (shipped with **L3**). **Combined ship** with [`phaseL-lcd.md`](phaseL-lcd.md) § L3.
+
+**Product reference (canonical):** [`sauna-ir.md`](../sauna-ir.md) §3.7 (LCD log + compose), §4 (analytics, Admin/WISC session UX, GPIO arm gate).
+
+**Shipped (summary):**
+
+| Area | Outcome |
+|------|---------|
+| **Analytics** | Time-weighted segmented IR learn (mod plateaus); calc Wh gap fix (`_last_pulse_ts` reset + calc `delta_t` cap); `learn_count_*` from session audit rows |
+| **Logging** | `KWH_PULSE` silent in `wanos.log`; LCD agent semantic dedupe (no countdown-only DEBUG); L3 log `§1` → `°C` |
+| **LCD compose** | IR line1 @ 100% uses `right_align_timer` |
+| **Admin** | VT323 LCD mirror; Calc W (V-adj) label; IR-only live energy Wh; GPIO arm status (`OFFLINE` … `READY` → `ARMED`); last session detail line; dropped `updated:` row |
+| **WISC** | Hide setpoint/IR mod sliders when idle; last session = smart when only |
+| **Sensors** | Wake poll + 2 s fast cadence until `sauna_calc_temp` after SHT11 arm |
+| **Session when** | Dutch: `vandaag`/`gisteren`/`eergisteren` + `ochtend`/`middag`/`namiddag`/`avond`; older dates `nl-BE` month abbrev + `HH:MM` |
+
+**Out of scope (unchanged):** **C33** History charts; **L2** LCD on WanOS Pi.
+
+**C34 DoD:** [x] Shipped per locks · [x] Product docs updated (`sauna-ir.md`, `reference.md`) · [x] Last DoD docs audit **2026-09-02**.
+
+---
+
+## 📋 C33 — Sauna/IR History charts + runtime display 🔜 TODO
+
+**Letter:** **C33**. **Sequence #44**. **Affinity:** Operator shell (Explorer History + WISC + Admin). Size **mid**. **Follow-up to C31+C32** (combined triage **2026-09-01**).
+
+**Operator request (verbatim, 2026-09-01):**
+
+> add IR & Sauna to history: detail with % MOD, month & year with #hrs and #days, same as eg Sonos
+>
+> add runtime IR (& sauna) as well, not just time remaining - show only time on in rad button in wisc
+> in admin panel: show both remaining time and runtime
+
+### Placement notes (not full kickoff)
+
+* **History UX:** Explorer → History actuator charts for sauna + IR — **same families as Sonos/Onkyo** ([`sensor_history.md`](../sensor_history.md) §14): day detail with **% MOD** level; month/year **duration ON** (#hrs / #days), not session-table-only view on `sensorhistory.html`.
+* **WISC:** while sauna/IR active, round **rad** button shows **elapsed runtime** (time on) only — not countdown.
+* **Admin:** sauna/IR panels show **both** remaining time **and** elapsed runtime (live session).
+* **Depends on:** **C31+C32** ✅ (session DB, MOD history, WISC one-liners). Distinct from **C30** (douche).
+* **Out of scope:** session row schema changes; **B17** / **B18**.
+
+**Open until kickoff:** which IDX/entity_ids appear in Explorer History list (sauna switch + IR? virtual `20101`?); day-chart MOD source (session RAM vs `device_events`); whether IR-only vs sauna-full share one History row or two.
+
+**C33 DoD (stub):** Explorer History day/month/year for sauna + IR per Sonos pattern; WISC rad = runtime-only when on; Admin = remaining + runtime; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
 ## ✅ C31 + C32 — Sauna/IR analytics & power model — **Done 2026-08-30**
 
 **Combined ship** (kickoff **C31** 2026-08-29, **C32** 2026-08-30). **Pi smoke ✅ 2026-08-30.**
@@ -1270,7 +1253,7 @@ else:
 * **C21:** AUTO OFF countdown while toggle OFF.
 * **C27:** ✅ **Done 2026-08-22** — format **HH:MM + relative** locked; Explorer ℹ popover; History title out of scope; closed with **G15** Pi smoke.
 * **C16 / C24:** ✅ **Pi smoke 2026-08-23** — closed. Sections archived in this file (pointers to product docs).
-* **C25:** code+docs **2026-08-27** — see § C25; **Pi smoke pending**.
+* **C25:** ✅ **Pi smoke 2026-09-01** — closed. Product pointers in § C25 archive.
 
 ### C16+C24 residual open Qs
 
@@ -1279,6 +1262,7 @@ else:
 * **C26:** kickoff **locked 2026-08-22** — after **C4**; classic scripts; `blockly-*` siblings; page-script dedupe; **`reference.md` § frontend catalogs all `frontend/*.js`**.
 * **C3 / C4** remain open as specified above (later in sequence).
 * **C30:** triage placed **2026-08-27** — kickoff before code (UI chrome, cost config keys, last-session persist home).
+* **C33:** triage placed **2026-09-01** — follow-up to **C31+C32**; kickoff before code (History IDX rows, MOD day source).
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
 * NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**).

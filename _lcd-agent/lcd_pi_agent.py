@@ -28,6 +28,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -96,6 +97,34 @@ def _pad_to_16(s: str) -> str:
     if cells >= 16:
         return s
     return s + (" " * (16 - cells))
+
+
+def _lcd_pretty_line_for_log(raw: str) -> str:
+    """Map wire-format LCD escapes to readable log text (L3); MQTT payload unchanged."""
+    s = str(raw or "")
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        if s[i] == "§" and i + 1 < len(s) and s[i + 1].isdigit():
+            slot = s[i + 1]
+            if slot == "1":
+                out.append("°C")
+            elif slot == "0":
+                out.append("♥")
+            i += 2
+            continue
+        out.append(s[i])
+        i += 1
+    return "".join(out)
+
+
+def _lcd_semantic_line1(line1: str) -> str:
+    """Collapse mm:ss countdown so DEBUG logs skip timer-only ticks (C34)."""
+    return re.sub(r"\d{2}:\d{2}", "__:__", line1 or "")
+
+
+def _lcd_semantic_key(line1: str, line2: str) -> tuple[str, str]:
+    return (_lcd_semantic_line1(line1), line2 or "")
 
 
 class Hd44780I2c:
@@ -191,6 +220,8 @@ class TwoScreenRenderer:
         # Local blank flags — avoid re-clear / backlight churn / DEBUG spam when
         # screensaver (or MQTT blank) fires again while already blank.
         self._blank: dict[int, bool] = {1: False, 2: False}
+        # Last semantic content logged per screen (skip countdown-only MQTT ticks).
+        self._last_logged_key: dict[int, tuple[str, str]] = {}
 
     def blank_screen(self, screen: int) -> None:
         if self._blank.get(screen):
@@ -199,6 +230,7 @@ class TwoScreenRenderer:
         lcd.clear()
         lcd.backlight(False)
         self._blank[screen] = True
+        self._last_logged_key.pop(screen, None)
         LOG.debug("LCD screen%d blank", screen)
 
     def print_screen(self, *, screen: int, line1: str, line2: str) -> None:
@@ -210,11 +242,15 @@ class TwoScreenRenderer:
         lcd.write_string(1, line1 or "")
         lcd.write_string(2, line2 or "")
         self._blank[screen] = False
+        sem_key = _lcd_semantic_key(line1 or "", line2 or "")
+        if self._last_logged_key.get(screen) == sem_key:
+            return
+        self._last_logged_key[screen] = sem_key
         LOG.debug(
             "LCD screen%d | L1=%r | L2=%r",
             screen,
-            line1 or "",
-            line2 or "",
+            _lcd_pretty_line_for_log(line1 or ""),
+            _lcd_pretty_line_for_log(line2 or ""),
         )
 
 

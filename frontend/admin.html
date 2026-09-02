@@ -21,6 +21,7 @@
     <link rel="manifest" href="/favicon/site.webmanifest" />
 
     <title>WanOS - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="/wanos.css?v=1" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -365,8 +366,8 @@
                                     <span class="text-base-400 uppercase font-bold text-[10px] truncate">GPIO outputs</span>
                                     <div class="flex items-center gap-2 shrink-0">
                                         <span class="font-bold text-[10px]"
-                                              :class="state.hardware.gpio_output_connected ? (state.hardware.gpio_output_enabled ? 'text-error animate-pulse' : 'text-warning') : 'text-gray-500'"
-                                              x-text="!state.hardware.gpio_output_connected ? 'OFFLINE' : (state.hardware.gpio_output_enabled ? 'ARMED' : 'DISABLED')"></span>
+                                              :class="gpioOutputArmStatusClass()"
+                                              x-text="gpioOutputArmStatus()"></span>
                                         <input type="checkbox" class="toggle toggle-error toggle-sm shadow" autocomplete="off"
                                            :disabled="!state.hardware.gpio_output_connected || !state.hardware.gpio_input_enabled || !state.hardware.sht11_enabled || state.sensors.sauna_calc_temp == null"
                                            :checked="state.hardware.gpio_output_connected && state.hardware.gpio_output_enabled"
@@ -642,7 +643,9 @@
 
                                 <div class="flex flex-col gap-2 p-3 bg-base-200 border border-base-300 rounded-box">
                                     <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2">LCD mirror</div>
-                                    <pre class="wanos-lcd-screen text-[10px] leading-tight min-h-[2.5rem]" x-text="lcdScreen1Display()"></pre>
+                                    <pre class="wanos-lcd-screen leading-tight min-h-[2.5rem]"
+                                         :class="(lcdIntegrationEnabled() && lcdScreen1HasContent()) ? '' : 'is-standby'"
+                                         x-text="lcdScreen1Display()"></pre>
                                 </div>
 
                                 <div class="flex flex-col gap-2 p-3 bg-base-200 border border-base-300 rounded-box">
@@ -655,9 +658,8 @@
                                     </div>
                                     <div class="text-[10px] text-base-content/50 pt-1 flex flex-col gap-0.5 border-t border-base-300 mt-1">
                                         <div x-text="'sauna learns: ' + (elementPowerMeta.learn_count_sauna || 0) + ' · IR learns: ' + (elementPowerMeta.learn_count_ir || 0)"></div>
-                                        <div x-show="elementPowerMeta.updated_at" x-text="'updated: ' + formatUnixTime(elementPowerMeta.updated_at)"></div>
-                                        <div x-text="formatElementLastLearn('sauna')"></div>
-                                        <div x-text="formatElementLastLearn('ir')"></div>
+                                        <div x-text="formatElementLastSession('sauna')"></div>
+                                        <div x-text="formatElementLastSession('ir')"></div>
                                     </div>
                                 </div>
                             </div>
@@ -667,13 +669,14 @@
                                 <div class="flex flex-col gap-1">
                                     <div class="flex justify-between"><span class="text-base-400">Cabin</span><span x-text="(state.sensors.sauna_calc_temp != null ? state.sensors.sauna_calc_temp.toFixed(1) + ' C' : '--') + ' / ' + (state.sensors.sauna_calc_hum != null ? state.sensors.sauna_calc_hum + '%' : '--')"></span></div>
                                     <div class="flex justify-between"><span class="text-base-400">Real W</span><span class="text-warning font-bold" x-text="(state.metrics.p_elements_real_watts || 0).toFixed(1) + ' W'"></span></div>
-                                    <div class="flex justify-between"><span class="text-base-400">Calc W</span><span x-text="(state.metrics.p_elements_calc_watts || 0).toFixed(1) + ' W'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Calc W (V-adj)</span><span x-text="(state.metrics.p_elements_calc_watts || 0).toFixed(1) + ' W'"></span></div>
                                     <div class="flex justify-between"><span class="text-base-400">Delta W (real-calc)</span><span x-text="((state.metrics.p_elements_real_watts || 0) - (state.metrics.p_elements_calc_watts || 0)).toFixed(1) + ' W'"></span></div>
-                                    <div class="flex justify-between"><span class="text-base-400">Energy real / calc</span><span x-text="((state.metrics.running_energy_real_wh || 0) / 1000).toFixed(3) + ' / ' + ((state.metrics.running_energy_calc_wh || 0) / 1000).toFixed(3) + ' kWh'"></span></div>
+                                    <div class="flex justify-between"><span class="text-base-400">Energy real / calc</span><span x-text="formatAdminLiveEnergy()"></span></div>
                                     <div class="flex justify-between"><span class="text-base-400">Delta Wh</span><span x-text="((state.metrics.running_energy_real_wh || 0) - (state.metrics.running_energy_calc_wh || 0)).toFixed(1) + ' Wh'"></span></div>
                                     <div class="flex justify-between" x-show="state.sauna.active"><span class="text-base-400">Est. U/V/W</span><span x-text="formatLiveEstimatedPhaseW()"></span></div>
                                 </div>
                                 <div class="text-[10px] text-base-content/50 mt-2" x-show="state.sauna.active">Sauna U/V/W estimated from DB x duty (not meter per-phase).</div>
+                                <div class="text-[10px] text-base-content/50 mt-2" x-show="state.ir.active && !state.sauna.active">Calc W uses learned nameplate x mod x (V/230)^2; label is voltage-adjusted, not raw nameplate.</div>
                             </div>
 
                         </div>

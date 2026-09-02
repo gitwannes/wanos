@@ -97,8 +97,8 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `health_monitor.py`: Detached async worker pinging physical TCP/USB sockets, executing auto-kill strike protocols on failed hardware, and natively polling Linux kernel telemetry (CPU, RAM, Disk, Load) via `psutil`. Connection up/down flags ride `SYSTEM_METRICS_UPDATED` (event log silenced); transition UI/log side-effects live in `telemetry_handlers`.
 * `history_ids.py`: Shared virtual IDX constants (`20101` sauna calc, **event-UUID** synthetic history `900000+`, `HOST_HISTORY_IDXS` host/mains gauges incl. `22001` CPU temp, `22009` DB size helper; load 5m/15m **not** recorded) and helpers for event-history hashing / numeric state parsing.
 * `history_manager.py`: Actuator / motion / **event-UUID** history (`device_history.db`) with retention tiers and insights tallies.
-* `element_power_store.py`: Singleton `element_power_w` row in `sauna_sessions.db` — learned U/V/W/IR W @ 100% mod, sauna/IR learn counts, last-learn audit fields; session audit column migration.
-* `power_analytics.py`: Sauna/IR session energy accounting (Real vs Calc), NVRAM leak restore, `element_power_w` EMA learning, session SQLite persistence.
+* `element_power_store.py`: Singleton `element_power_w` row in `sauna_sessions.db` — learned U/V/W/IR W @ 100% mod; `count_learns()` derives Admin learn counts from session audit columns.
+* `power_analytics.py`: Sauna/IR session energy accounting (Real vs Calc), NVRAM leak restore, `element_power_w` EMA learning, segmented IR plateau learn (C34), session SQLite persistence.
 * `sauna_controller.py`: Manages element priority wear-leveling algorithms, probe math aggregation, and handles anti-windup loops for high thermal mass zones.
 * `sensor_history_manager.py`: Utility / climate / host time-series history (`sensor_history.db`) with hi-res, hourly, and daily rollups.
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.

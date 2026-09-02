@@ -11,6 +11,7 @@ REM   test         Dry-run rsync Local<->Pi + log pull preview (SSH, no Z:)
 REM   run          Normalize --> rsync mirror --> stats pull --> log pull --> logcopy
 REM   logcopy      Log pull --> copy wanos* into git docs\logs (no mirror/stats)
 REM   codeimport   Mirror only to a local Windows folder (required path arg)
+REM   diff         Compare one repo-relative file PC vs Pi (normalized text diff)
 REM Combining two modes (e.g. "test run") is an error.
 REM
 REM Optional trailing (any order after mode):
@@ -18,6 +19,7 @@ REM   lcd       Target LCD Pi (\_lcd-agent --> 10.32.251.51:/home/wannes/wanos)
 REM   logcopy   With test only: also dry-run the git docs\logs copy
 REM             (run always logcopies; logcopy-as-mode already does it)
 REM   verbose   Pass -VerboseSync to the .ps1
+REM diff mode: required relpath arg after mode; only lcd and verbose allowed.
 REM
 REM Includes/excludes: wanos-sync.config.txt  |  engine: wanos-sync.ps1
 REM Doc: docs\wanos-sync.md
@@ -26,6 +28,7 @@ REM ============================================================================
 set "PS_SCRIPT=%~dp0wanos-sync.ps1"
 set "MODE="
 set "CODEIMPORT_PATH="
+set "DIFF_FILE="
 set "VERBOSE=0"
 set "LCD=0"
 set "LOGCOPY=0"
@@ -33,6 +36,7 @@ set "PS_VERBOSE_ARG="
 set "PS_LCD_ARG="
 set "PS_LOGCOPY_ARG="
 set "PS_CODEIMPORT_ARG="
+set "PS_DIFF_ARG="
 
 echo.
 echo ======================================================================
@@ -64,33 +68,58 @@ if /I "%~1"=="/verbose" set "VERBOSE=1" & shift & goto :parse_args
 if /I "%~1"=="lcd"      set "LCD=1" & shift & goto :parse_args
 if /I "%~1"=="-lcd"     set "LCD=1" & shift & goto :parse_args
 REM logcopy as a trailing flag (test preview, or redundant with run / logcopy mode)
-if /I "%~1"=="logcopy"  set "LOGCOPY=1" & shift & goto :parse_args
-if /I "%~1"=="-logcopy" set "LOGCOPY=1" & shift & goto :parse_args
+if /I "%~1"=="logcopy" (
+    if /I "%MODE%"=="diff" goto :err_diff_bad_flag
+    set "LOGCOPY=1" & shift & goto :parse_args
+)
+if /I "%~1"=="-logcopy" (
+    if /I "%MODE%"=="diff" goto :err_diff_bad_flag
+    set "LOGCOPY=1" & shift & goto :parse_args
+)
 REM Reject a second mode keyword after the first mode.
 REM (Trailing "logcopy" is a flag, handled above - not a second mode.)
 if /I "%~1"=="test" goto :err_two_modes
 if /I "%~1"=="run" goto :err_two_modes
 if /I "%~1"=="codeimport" goto :err_two_modes
-REM If first mode was already logcopy, a second primary mode word errors here via test/run/codeimport.
-REM Free-form path only valid for codeimport; anything else is unexpected.
-if /I not "%MODE%"=="codeimport" (
-    echo ERROR: Unexpected argument "%~1" after mode "%MODE%".
-    echo Modes test / run / logcopy / codeimport are mutually exclusive; use one mode only.
+if /I "%~1"=="diff" goto :err_two_modes
+if /I "%~1"=="logcopy" goto :err_two_modes
+REM Free-form path for codeimport or diff; anything else is unexpected.
+if /I "%MODE%"=="codeimport" (
+    if not defined CODEIMPORT_PATH (
+        set "CODEIMPORT_PATH=%~1"
+        shift
+        goto :parse_args
+    )
+    echo ERROR: Unexpected argument "%~1"
     echo.
     goto :show_help
 )
-if not defined CODEIMPORT_PATH (
-    set "CODEIMPORT_PATH=%~1"
-    shift
-    goto :parse_args
+if /I "%MODE%"=="diff" (
+    if not defined DIFF_FILE (
+        set "DIFF_FILE=%~1"
+        shift
+        goto :parse_args
+    )
+    echo ERROR: Unexpected argument "%~1"
+    echo.
+    goto :show_help
 )
-echo ERROR: Unexpected argument "%~1"
-echo.
-goto :show_help
+if /I not "%MODE%"=="codeimport" (
+    echo ERROR: Unexpected argument "%~1" after mode "%MODE%".
+    echo Modes test / run / logcopy / codeimport / diff are mutually exclusive; use one mode only.
+    echo.
+    goto :show_help
+)
 
 :err_two_modes
 echo ERROR: Cannot combine modes "%MODE%" and "%~1".
-echo Use exactly one of: test ^| run ^| logcopy ^| codeimport
+echo Use exactly one of: test ^| run ^| logcopy ^| codeimport ^| diff
+echo.
+goto :show_help
+
+:err_diff_bad_flag
+echo ERROR: Mode diff only allows trailing lcd and verbose.
+echo Example: wanos-sync.bat diff automations.auto.yaml lcd verbose
 echo.
 goto :show_help
 
@@ -102,11 +131,13 @@ if /I "%MODE%"=="logcopy" set "LOGCOPY=1"
 if "!VERBOSE!"=="1" set "PS_VERBOSE_ARG=-VerboseSync"
 if "!LCD!"=="1" set "PS_LCD_ARG=-Lcd"
 if "!LOGCOPY!"=="1" set "PS_LOGCOPY_ARG=-LogCopy"
+if defined DIFF_FILE set PS_DIFF_ARG=-DiffFile "!DIFF_FILE!"
 
 if /I "%MODE%"=="test"       goto :mode_test
 if /I "%MODE%"=="run"        goto :mode_run
 if /I "%MODE%"=="logcopy"    goto :mode_logcopy
 if /I "%MODE%"=="codeimport" goto :mode_codeimport
+if /I "%MODE%"=="diff"       goto :mode_diff
 
 echo ERROR: Unknown mode "%MODE%"
 echo.
@@ -154,6 +185,14 @@ echo     wanos-sync.bat codeimport ^<windows-folder^>
 echo     wanos-sync.bat codeimport ^<windows-folder^> verbose
 echo         Mirror repo into the given folder. Path is required. Not with lcd.
 echo.
+echo   diff ^(one file PC vs Pi; SSH only; no mirror/stats/logcopy^)
+echo     wanos-sync.bat diff ^<repo-relative-file^>
+echo     wanos-sync.bat diff ^<repo-relative-file^> verbose
+echo     wanos-sync.bat diff ^<repo-relative-file^> lcd
+echo     wanos-sync.bat diff ^<repo-relative-file^> lcd verbose
+echo         Normalized text diff when both sides exist and file is text.
+echo         Binary: sizes only. Missing: info msg ^(exit 0^). Different text: exit 1.
+echo.
 echo     verbose  Show config load, rsync command lines, paths.
 echo     Config:  helpers\wanos-sync.config.txt
 echo     Docs:    docs\wanos-sync.md
@@ -162,13 +201,15 @@ exit /b 1
 
 :invoke_ps1
 if "!VERBOSE!"=="1" (
-    echo Invoking: powershell -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_VERBOSE_ARG!
+    echo Invoking: powershell -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_DIFF_ARG! !PS_VERBOSE_ARG!
     echo Script: %PS_SCRIPT%
     echo.
 )
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_VERBOSE_ARG!
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_DIFF_ARG! !PS_VERBOSE_ARG!
 set "RC=!ERRORLEVEL!"
 if not "!RC!"=="0" (
+    REM diff exit 1 = files differ (expected); not a script failure
+    if /I "!MODE!"=="diff" if "!RC!"=="1" exit /b 1
     echo.
     echo ERROR: wanos-sync.ps1 exited with code !RC!
     exit /b !RC!
@@ -238,5 +279,26 @@ if not "!RC!"=="0" (
     exit /b !RC!
 )
 exit /b 0
+
+:mode_diff
+if "!LOGCOPY!"=="1" (
+    echo ERROR: logcopy cannot be combined with diff.
+    echo.
+    exit /b 1
+)
+if "!DIFF_FILE!"=="" (
+    echo ERROR: Mode diff requires a repo-relative file path.
+    echo Example: wanos-sync.bat diff automations.auto.yaml
+    echo.
+    exit /b 1
+)
+if "!LCD!"=="1" (
+    echo Mode: diff lcd  ^(PC _lcd-agent vs LCD Pi^)
+) else (
+    echo Mode: diff  ^(PC repo vs main Pi^)
+)
+echo File: !DIFF_FILE!
+call :invoke_ps1
+exit /b %ERRORLEVEL%
 
 endlocal

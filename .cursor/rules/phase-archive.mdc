@@ -1,0 +1,46 @@
+---
+description: Move finished phase detail files to docs/todo/_archive on close-out
+alwaysApply: true
+---
+
+# Phase file archive (pipeline close-out)
+
+When a **phase detail file** is **fully Done** (entire letter track: no open Sequence/hold rows for that detail file + Last DoD executed):
+
+## When NOT to archive
+
+- **Subphase** close-out (e.g. C25) does **not** move the parent `phaseC-shell.md` while other C-track items remain open.
+- Archive only the **whole** `phaseX-*.md` when that letter track is finished.
+
+## Move (do not delete)
+
+1. Move `docs/todo/phaseX-*.md` → `docs/todo/_archive/phaseX-*.md`.
+2. Create `docs/todo/_archive/` if missing.
+3. **Do not** keep a second copy in `docs/todo/` (active tree = open phases + `pipeline.md` only).
+
+## Update pipeline
+
+1. Add / update **Done** row in `docs/todo/pipeline.md` with pointer to **`_archive/<file>`**.
+2. Remove the item from **Sequence** (renumber if needed).
+3. In the **Detail files** affinity table, link archived letters to `_archive/` (or note "archived" with link).
+
+## Trim archived file
+
+Per User Rule phase close-out: status **Done**, shipped summary, pointers to product docs under `docs/` (outside `todo/`); strip queued work.
+
+## Tell the operator
+
+List which files were moved to `_archive/` in the close-out message (no "move it offline yourself").
+
+## Repo-specific paths
+
+| Repo | Active phases | Archive folder |
+|---|---|---|
+| **wanos-pcb**, **wanos** | `docs/todo/phase*.md` | `docs/todo/_archive/` |
+| **hofmans.be** | `docs/phase*.md` | `docs/_archive/` |
+
+On **hofmans.be**, pipeline lives at `docs/pipeline.md` (not under `todo/`).
+
+## Conflicts
+
+User Rule **Phase / ship docs close-out** still requires product-doc audit. This rule replaces "operator manually moves offline" with **in-repo `_archive/`**.

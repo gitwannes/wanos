@@ -196,7 +196,7 @@ Shipped in **B10E** with B10B+D. Detail DoD: [`phaseB-blocky.md`](todo/phaseB-bl
 
 ---
 
-## 9. Dew likelihood % (C25 ✅ shipped — Pi smoke pending)
+## 9. Dew likelihood % (C25 ✅ shipped)
 
 Explorer History **fullscreen day overlay** only (OWM / outside climate). Honest **heuristic index 0–100**, not a meteorological probability. Indoor sensors: no series. Admin **Outside weather** shows the live last-poll inputs + score.
 
@@ -251,4 +251,4 @@ else:
 * **4 °C** depression span and **5 m/s** wind span: simple linear falloffs; not calibrated to this site.
 * **Rain → 0:** separates dew from precipitation wetness.
 
-**UI (C25):** sixth overlay checkbox **Dew likelihood %** (default on), right **%** axis, CSV column. Compare mode unchecks specials (AH / CI / dew likelihood); clear compare leaves primary checkboxes unchanged. Admin **Outside weather** panel (under General Diagnostics): live T/RH/Td/clouds/wind/weather/raining/score/sun/last poll; sun cycle **moved** here from General Diagnostics (Explorer ℹ unchanged). Detail: [`phaseC-shell.md`](todo/phaseC-shell.md) § C25.
+**UI (C25):** sixth overlay checkbox **Dew likelihood %** (default on), right **%** axis, CSV column. Compare mode unchecks specials (AH / CI / dew likelihood); clear compare leaves primary checkboxes unchanged. Admin **Outside weather** panel (under General Diagnostics): live T/RH/Td/clouds/wind/weather/raining/score/sun/last poll; sun cycle **moved** here from General Diagnostics (Explorer ℹ unchanged). Charts: [`sensor_history.md`](sensor_history.md) § Day overlay extras (C25).

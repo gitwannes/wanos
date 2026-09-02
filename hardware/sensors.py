@@ -27,6 +27,7 @@ class HardwareSensors:
         self.config = state_manager._config
         self._polling_task = None
         self._is_physically_connected = False
+        self._poll_wake = asyncio.Event()
 
     async def start(self):
         if not HARDWARE_AVAILABLE:
@@ -34,7 +35,12 @@ class HardwareSensors:
             return
 
         await self.logger.info("Initializing SHT11 active polling background sequence...")
+        setattr(self.state_manager, "_sht11_poll_wake", self._poll_wake)
         self._polling_task = asyncio.create_task(self._sht11_polling_loop())
+
+    def wake_poll(self) -> None:
+        """Interrupt idle sleep so the next SHT11 read runs immediately (e.g. after UI arm)."""
+        self._poll_wake.set()
 
     async def stop(self):
         if self._polling_task:
@@ -166,7 +172,15 @@ class HardwareSensors:
                 self.state_manager.dispatch(Event(type=EventType.HARDWARE_BUS_HEALTH_UPDATED,
                                                   payload={"bus": "sht11", "connected": any_sensor_replied}))
 
-            # ⚡ DYNAMIC CADENCE: Poll faster (every 10s) when the sauna is active to survive transient EMI noise frames
-            # and fallback to a relaxed cadence (60s) during idle hours to minimize CPU/GPIO wake cycles.
-            sleep_cadence: float = 10.0 if state.sauna.active else 60.0
-            await asyncio.sleep(sleep_cadence)
+            # Fast poll while armed but sauna composite not ready yet; else normal cadence.
+            if state.hardware.sht11_enabled and state.sensors.sauna_calc_temp is None:
+                sleep_cadence = 2.0
+            elif state.sauna.active:
+                sleep_cadence = 10.0
+            else:
+                sleep_cadence = 60.0
+            self._poll_wake.clear()
+            try:
+                await asyncio.wait_for(self._poll_wake.wait(), timeout=sleep_cadence)
+            except asyncio.TimeoutError:
+                pass

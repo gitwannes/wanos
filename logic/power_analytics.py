@@ -10,6 +10,11 @@ from core.models import SaunaSessionRecord, IrSessionRecord, SystemState
 from core.well_known_entities import ENTITY_MAINS_VOLTAGE
 from logic.element_power_store import ElementPowerRow, bootstrap_if_empty, load_row, save_row
 
+# Max inter-pulse gap used for calc Wh integration (real Wh uses meter interval).
+_MAX_CALC_PULSE_DELTA_SECS: float = 30.0
+# Min seconds at one IR mod plateau before it contributes to segmented learn.
+_IR_PLATEAU_MIN_SECS: float = 30.0
+
 
 class PowerAnalytics:
     """
@@ -41,6 +46,10 @@ class PowerAnalytics:
         self._session_mod_v_history: List[float] = []
         self._session_mod_w_history: List[float] = []
         self._session_mod_ir_history: List[float] = []
+
+        # C34: per-mod IR plateau accumulators (time-weighted segmented learn)
+        self._ir_plateau_wh: Dict[int, float] = {}
+        self._ir_plateau_secs: Dict[int, float] = {}
 
         # Deduplication tracker to prevent identical consecutive log lines
         self._last_log_content: str = ""
@@ -151,16 +160,43 @@ class PowerAnalytics:
         mod_max: float,
         mod_avg: float,
         energy_real_wh: float,
+        plateau_wh: Optional[Dict[int, float]] = None,
+        plateau_secs: Optional[Dict[int, float]] = None,
     ) -> tuple[float, Optional[float], float]:
         baseline = self._session_baseline_ir
-        if runtime_secs < 120 or mod_avg <= 0:
+        if runtime_secs < 120:
             self._record_ir_learn("skipped", None)
             return baseline, None, baseline
-        if (mod_max - mod_min) > 10:
-            self._record_ir_learn("skipped", None)
-            return baseline, None, baseline
-        avg_w = energy_real_wh * 3600.0 / runtime_secs
-        measured = avg_w * 100.0 / mod_avg
+
+        measured: Optional[float] = None
+
+        if (mod_max - mod_min) > 10 and plateau_wh and plateau_secs:
+            # Segmented: time-weighted implied 100% W per mod plateau (C34).
+            weighted_sum = 0.0
+            weight_total = 0.0
+            for mod_pct, secs in plateau_secs.items():
+                if secs < _IR_PLATEAU_MIN_SECS or mod_pct <= 0:
+                    continue
+                wh = float(plateau_wh.get(mod_pct, 0.0))
+                if wh <= 0:
+                    continue
+                avg_w = wh * 3600.0 / secs
+                implied_100 = avg_w * 100.0 / float(mod_pct)
+                weighted_sum += implied_100 * secs
+                weight_total += secs
+            if weight_total > 0:
+                measured = weighted_sum / weight_total
+
+        if measured is None:
+            if mod_avg <= 0:
+                self._record_ir_learn("skipped", None)
+                return baseline, None, baseline
+            if (mod_max - mod_min) > 10:
+                self._record_ir_learn("skipped", None)
+                return baseline, None, baseline
+            avg_w = energy_real_wh * 3600.0 / runtime_secs
+            measured = avg_w * 100.0 / mod_avg
+
         new_w, committed = self._ema_commit(baseline, measured)
         if committed:
             self._record_ir_learn("accepted", measured, committed_w=new_w)
@@ -275,6 +311,8 @@ class PowerAnalytics:
         self._temp_outside_start = self.sm._state.sensors.outside_temp
         self.sm._state.metrics.running_energy_real_wh = 0.0
         self.sm._state.metrics.running_energy_calc_wh = 0.0
+        # Avoid attributing pre-session idle gap to calc Wh on the first pulse (C34).
+        self._last_pulse_ts = time.time()
         self._session_temp_history.clear()
         self._session_hum_history.clear()
         if session_type == "sauna":
@@ -283,6 +321,8 @@ class PowerAnalytics:
             self._session_mod_w_history.clear()
         elif session_type == "ir":
             self._session_mod_ir_history.clear()
+            self._ir_plateau_wh.clear()
+            self._ir_plateau_secs.clear()
 
     def _init_sqlite(self) -> None:
         """Constructs tracking schema tables synchronously on boot if they do not exist."""
@@ -461,7 +501,8 @@ class PowerAnalytics:
 
                 self.sm._state.metrics.p_elements_calc_watts = max(0.0, calc_load)
 
-                step_calc_wh = calc_load * (delta_t / 3600.0)
+                calc_delta_t = min(delta_t, _MAX_CALC_PULSE_DELTA_SECS)
+                step_calc_wh = calc_load * (calc_delta_t / 3600.0)
                 self.sm._state.metrics.running_energy_calc_wh += step_calc_wh
 
                 # Capture dynamic moving averages per tick during sessions
@@ -475,7 +516,14 @@ class PowerAnalytics:
                     self._session_mod_v_history.append(float(state.sauna.phases_pwm.get("V", 0)))
                     self._session_mod_w_history.append(float(state.sauna.phases_pwm.get("W", 0)))
                 if state.ir.active:
-                    self._session_mod_ir_history.append(float(state.ir.modulation_pwm))
+                    ir_mod = int(round(float(state.ir.modulation_pwm or 0)))
+                    self._session_mod_ir_history.append(float(ir_mod))
+                    self._ir_plateau_wh[ir_mod] = (
+                        self._ir_plateau_wh.get(ir_mod, 0.0) + step_real_wh
+                    )
+                    self._ir_plateau_secs[ir_mod] = (
+                        self._ir_plateau_secs.get(ir_mod, 0.0) + delta_t
+                    )
 
         self._last_pulse_ts = now
 
@@ -576,7 +624,11 @@ class PowerAnalytics:
                 mod_avg = _safe_avg(self._session_mod_ir_history)
                 energy_real = round(state.metrics.running_energy_real_wh, 2)
 
-                b_ir, m_ir, n_ir = self._learn_ir(runtime, mod_min, mod_max, mod_avg, energy_real)
+                b_ir, m_ir, n_ir = self._learn_ir(
+                    runtime, mod_min, mod_max, mod_avg, energy_real,
+                    plateau_wh=dict(self._ir_plateau_wh),
+                    plateau_secs=dict(self._ir_plateau_secs),
+                )
                 self._sync_extracted_to_metrics()
 
                 record = IrSessionRecord(
@@ -610,6 +662,8 @@ class PowerAnalytics:
         self._session_mod_v_history.clear()
         self._session_mod_w_history.clear()
         self._session_mod_ir_history.clear()
+        self._ir_plateau_wh.clear()
+        self._ir_plateau_secs.clear()
         self._temp_outside_start = None
 
     def _commit_sauna_record(self, record: SaunaSessionRecord) -> None:

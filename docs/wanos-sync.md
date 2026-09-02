@@ -74,18 +74,47 @@ helpers\wanos-sync.bat codeimport <windows-folder>
 helpers\wanos-sync.bat codeimport <windows-folder> verbose
 ```
 
+**diff (one file PC vs Pi; SSH only; no mirror / stats / logcopy)**
+
+```text
+helpers\wanos-sync.bat diff <repo-relative-file>
+helpers\wanos-sync.bat diff <repo-relative-file> verbose
+helpers\wanos-sync.bat diff <repo-relative-file> lcd
+helpers\wanos-sync.bat diff <repo-relative-file> lcd verbose
+```
+
 | Mode / flags | Behaviour |
 |--------------|-----------|
 | `test` | Dry-run only (`rsync -n`) against main Pi |
 | `run` | Normalize + mirror + stats pull + log pull + **logcopy** (main Pi) |
 | `logcopy` | Log pull + copy `wanos*` into git `docs\logs` only (no mirror / stats / normalize) |
-| `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull); logcopy → `_lcd-agent\docs\logs` |
+| `diff <path>` | Compare one repo-relative file PC vs Pi (normalized text); binary = sizes only; missing-side info (exit 0) |
+| `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull); logcopy → `_lcd-agent\docs\logs`; diff uses `_lcd-agent` as local root |
 | `test … logcopy` | Dry-run also previews the git `docs\logs` copy |
 | `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd` / `logcopy`) |
 
-Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `logcopy` / `codeimport`) exits with an error — do not combine them. Do not pass trailing `logcopy` with `run` — it is always included.
+Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `logcopy` / `codeimport` / `diff`) exits with an error — do not combine them. Do not pass trailing `logcopy` with `run` — it is always included. Mode `diff` allows only trailing `lcd` and `verbose`.
 
 `verbose` → config counts and full rsync command lines.
+
+### diff mode
+
+Compare one **repo-relative** file between the PC and Pi over SSH. No rsync mirror, stats pull, or logcopy.
+
+| Case | Output | Exit |
+|------|--------|------|
+| Both exist, text, normalized content same | `Same (normalized text): …` | 0 |
+| Both exist, text, different | unified diff via `git diff --no-index` | 1 (not a batch error) |
+| Both exist, binary (by extension or NUL byte) | `Binary - not diffed` + PC/Pi sizes | 0 if same bytes, 1 if different |
+| Local only | `Only on PC: …` | 0 |
+| Remote only | `Only on Pi: …` | 0 |
+| Neither | `Missing from both: …` | 0 |
+
+Normalization before text compare: UTF-8 decode, strip BOM, CRLF/CR → LF (same rules as `.sh` normalize, read-only). Mirror excludes do **not** block diff — Pi-owned files such as `automations.auto.yaml` are valid targets.
+
+Allowed trailing flags: `lcd`, `verbose` only.
+
+Exit code **1** means the files differ after normalization; the batch wrapper does not treat that as a failure. Exit **2+** indicates a script or SSH error.
 
 ### Paths (this machine)
 

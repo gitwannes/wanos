@@ -21,13 +21,14 @@ Includes / excludes: helpers/wanos-sync.config.txt
 Paths (repo, StatsDest): in this .ps1. Remote host/paths: [PiSsh] / [LcdPiSsh] in config.
 
 Modes:
-   test | run | logcopy | codeimport
+   test | run | logcopy | codeimport | diff
 
 Switches:
    -VerboseSync              Extra diagnostics
-   -Lcd                      LCD Pi target
+   -Lcd                      LCD Pi target (diff / test / run / logcopy)
    -LogCopy                  Git log mirror (forced on for run / logcopy)
    -CodeImportPath <folder>  Required for mode codeimport
+   -DiffFile <relpath>       Required for mode diff (repo-relative path)
 
 Usage (prefer helpers\wanos-sync.bat — lists all combinations):
    powershell ... -File helpers\wanos-sync.ps1 -Mode test
@@ -36,15 +37,19 @@ Usage (prefer helpers\wanos-sync.bat — lists all combinations):
    powershell ... -File helpers\wanos-sync.ps1 -Mode logcopy
    powershell ... -File helpers\wanos-sync.ps1 -Mode logcopy -Lcd
    powershell ... -File helpers\wanos-sync.ps1 -Mode codeimport -CodeImportPath C:\data\git\wanos\code-import
+   powershell ... -File helpers\wanos-sync.ps1 -Mode diff -DiffFile automations.auto.yaml
+   powershell ... -File helpers\wanos-sync.ps1 -Mode diff -DiffFile lcd_pi_agent.py -Lcd
 ================================================================================
 #>
 
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("test", "run", "logcopy", "codeimport")]
+    [ValidateSet("test", "run", "logcopy", "codeimport", "diff")]
     [string]$Mode,
 
     [string]$CodeImportPath = "",
+
+    [string]$DiffFile = "",
 
     # Named VerboseSync (not -Verbose) to avoid clashing with PS common parameters.
     [switch]$VerboseSync,
@@ -411,6 +416,251 @@ function Test-RemoteFileExists {
     $script = "test -f '$RemoteFilePath' && echo yes || echo no"
     $out = & (Get-RsyncSshExe) -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
     return ($out -match "yes")
+}
+
+function Assert-SshAvailable {
+    Initialize-RsyncEnvironment
+    Get-RsyncSshExe | Out-Null
+}
+
+function Get-SafeDiffRelativePath {
+    param([string]$RelativePath)
+
+    if ([string]::IsNullOrWhiteSpace($RelativePath)) {
+        throw "Diff path is required (repo-relative file path)."
+    }
+
+    $trimmed = $RelativePath.Trim()
+    if ($trimmed -match '^[a-zA-Z]:[\\/]' -or $trimmed.StartsWith("\\")) {
+        throw "Diff path must be repo-relative, not absolute: $RelativePath"
+    }
+    if ($trimmed -match '\.\.') {
+        throw "Diff path must not contain '..': $RelativePath"
+    }
+
+    return ($trimmed -replace '\\', '/').TrimStart('/')
+}
+
+function Test-PathUnderRoot {
+    param(
+        [string]$FullPath,
+        [string]$RootPath
+    )
+    $full = [System.IO.Path]::GetFullPath($FullPath)
+    $root = [System.IO.Path]::GetFullPath($RootPath).TrimEnd('\', '/')
+    if ($full -eq $root) { return $true }
+    $prefix = $root + [System.IO.Path]::DirectorySeparatorChar
+    return $full.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-IsBinaryDiffFile {
+    param(
+        [string]$FileName,
+        [byte[]]$Bytes
+    )
+
+    $binaryExtensions = @(
+        ".db", ".pyc", ".pyo", ".zip", ".gz", ".png", ".jpg", ".jpeg", ".gif",
+        ".ico", ".woff", ".woff2", ".exe", ".dll", ".so", ".pdf", ".bin"
+    )
+    $lowerName = $FileName.ToLowerInvariant()
+    foreach ($ext in $binaryExtensions) {
+        if ($lowerName.EndsWith($ext)) { return $true }
+    }
+
+    if ($null -eq $Bytes -or $Bytes.Length -eq 0) { return $false }
+
+    $scan = [Math]::Min($Bytes.Length, 8192)
+    for ($i = 0; $i -lt $scan; $i++) {
+        if ($Bytes[$i] -eq 0) { return $true }
+    }
+    return $false
+}
+
+function Get-NormalizedTextFromBytes {
+    param([byte[]]$Bytes)
+
+    if ($null -eq $Bytes -or $Bytes.Length -eq 0) {
+        return ""
+    }
+
+    try {
+        $text = [System.Text.Encoding]::UTF8.GetString($Bytes)
+    } catch {
+        $text = [System.Text.Encoding]::Default.GetString($Bytes)
+    }
+
+    if ($text.Length -gt 0 -and [int][char]$text[0] -eq 0xFEFF) {
+        $text = $text.Substring(1)
+    }
+
+    return ($text -replace "`r`n", "`n" -replace "`r", "`n")
+}
+
+function Get-RemoteFileBytes {
+    param(
+        [hashtable]$Ssh,
+        [string]$RemoteFilePath
+    )
+
+    $remote = "{0}@{1}" -f $Ssh.User, $Ssh.Host
+    $script = "cat '$RemoteFilePath'"
+    $sshExe = Get-RsyncSshExe
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $sshExe
+    $psi.Arguments = "-o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script"
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    if ($null -eq $proc) {
+        throw "Failed to start ssh for remote read: $RemoteFilePath"
+    }
+
+    $stdout = $proc.StandardOutput.BaseStream
+    $ms = New-Object System.IO.MemoryStream
+    $stdout.CopyTo($ms)
+    $proc.WaitForExit()
+
+    $stderr = $proc.StandardError.ReadToEnd()
+    if ($proc.ExitCode -ne 0) {
+        throw ("Remote read failed for {0} (ssh exit {1}): {2}" -f $RemoteFilePath, $proc.ExitCode, $stderr.Trim())
+    }
+
+    return $ms.ToArray()
+}
+
+function Invoke-WanosFileDiff {
+    param(
+        [string]$RelativePath,
+        [string]$LocalRoot,
+        [hashtable]$Ssh
+    )
+
+    Write-SyncJobHeader "=== DIFF (PC vs Pi, normalized text) ==="
+
+    $rel = Get-SafeDiffRelativePath -RelativePath $RelativePath
+    $localPath = Join-Path $LocalRoot ($rel -replace '/', '\')
+    $remoteRoot = $Ssh.RemoteRoot.TrimEnd("/")
+    $remotePath = "{0}/{1}" -f $remoteRoot, $rel
+
+    Write-SyncVerbose ("Local root : {0}" -f $LocalRoot)
+    Write-SyncVerbose ("Local file : {0}" -f $localPath)
+    Write-SyncVerbose ("Remote     : {0}@{1}:{2}" -f $Ssh.User, $Ssh.Host, $remotePath)
+
+    if (-not (Test-PathUnderRoot -FullPath $localPath -RootPath $LocalRoot)) {
+        throw "Diff path escapes local root: $RelativePath"
+    }
+
+    $localExists = Test-Path -LiteralPath $localPath -PathType Leaf
+    $remoteExists = Test-RemoteFileExists -Ssh $Ssh -RemoteFilePath $remotePath
+
+    if (-not $localExists -and -not $remoteExists) {
+        Write-Host ("Missing from both: {0}" -f $rel) -ForegroundColor DarkYellow
+        Write-Host ("  PC : {0}" -f $localPath)
+        Write-Host ("  Pi : {0}" -f $remotePath)
+        return 0
+    }
+    if ($localExists -and -not $remoteExists) {
+        Write-Host ("Only on PC: {0}" -f $rel) -ForegroundColor Cyan
+        Write-Host ("  Local: {0}" -f $localPath)
+        return 0
+    }
+    if (-not $localExists -and $remoteExists) {
+        Write-Host ("Only on Pi: {0}" -f $rel) -ForegroundColor Cyan
+        Write-Host ("  Remote: {0}" -f $remotePath)
+        return 0
+    }
+
+    $localBytes = [System.IO.File]::ReadAllBytes($localPath)
+    $remoteBytes = Get-RemoteFileBytes -Ssh $Ssh -RemoteFilePath $remotePath
+    $fileName = Split-Path -Leaf $localPath
+
+    $localBinary = Test-IsBinaryDiffFile -FileName $fileName -Bytes $localBytes
+    $remoteBinary = Test-IsBinaryDiffFile -FileName $fileName -Bytes $remoteBytes
+    if ($localBinary -or $remoteBinary) {
+        $sameBytes = ($localBytes.Length -eq $remoteBytes.Length)
+        if ($sameBytes -and $localBytes.Length -gt 0) {
+            for ($i = 0; $i -lt $localBytes.Length; $i++) {
+                if ($localBytes[$i] -ne $remoteBytes[$i]) {
+                    $sameBytes = $false
+                    break
+                }
+            }
+        }
+        Write-Host ("Binary - not diffed: {0}" -f $rel) -ForegroundColor Yellow
+        Write-Host ("  PC size : {0} bytes" -f $localBytes.Length)
+        Write-Host ("  Pi size : {0} bytes" -f $remoteBytes.Length)
+        if ($sameBytes) {
+            Write-Host "  Same byte content." -ForegroundColor Green
+            return 0
+        }
+        Write-Host "  Different byte content." -ForegroundColor Yellow
+        return 1
+    }
+
+    $localNorm = Get-NormalizedTextFromBytes -Bytes $localBytes
+    $remoteNorm = Get-NormalizedTextFromBytes -Bytes $remoteBytes
+
+    if ($localNorm -ceq $remoteNorm) {
+        Write-SyncDone ("Same (normalized text): {0}" -f $rel)
+        return 0
+    }
+
+    Write-Host ("Different (normalized text): {0}" -f $rel) -ForegroundColor Yellow
+
+    $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $gitCmd) {
+        Write-Host "git not found - cannot show unified diff." -ForegroundColor DarkYellow
+        return 1
+    }
+
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    $relForward = $rel -replace '\\', '/'
+    $tempRoot = Join-Path $env:TEMP ("wanos-diff-{0}" -f [Guid]::NewGuid().ToString("N"))
+    $tempLocal = Join-Path $tempRoot ("PC\{0}" -f ($relForward -replace '/', '\'))
+    $tempRemote = Join-Path $tempRoot ("Pi\{0}" -f ($relForward -replace '/', '\'))
+    try {
+        foreach ($path in @($tempLocal, $tempRemote)) {
+            $parent = Split-Path -Parent $path
+            if (-not (Test-Path -LiteralPath $parent)) {
+                New-Item -ItemType Directory -Path $parent -Force | Out-Null
+            }
+        }
+        [System.IO.File]::WriteAllText($tempLocal, $localNorm, $utf8NoBom)
+        [System.IO.File]::WriteAllText($tempRemote, $remoteNorm, $utf8NoBom)
+        # git diff --no-index does not support --label on Windows; use PC/ vs Pi/ tree paths.
+        $pathPc = "PC/{0}" -f $relForward
+        $pathPi = "Pi/{0}" -f $relForward
+        $gitArgs = @(
+            "-c", "core.autocrlf=false",
+            "diff", "--no-index",
+            "--no-prefix",
+            "--",
+            $pathPc,
+            $pathPi
+        )
+        Push-Location -LiteralPath $tempRoot
+        try {
+            & git @gitArgs 2>&1 | ForEach-Object {
+                if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                    Write-Host $_.ToString()
+                } else {
+                    Write-Host $_
+                }
+            }
+        } finally {
+            Pop-Location
+        }
+        # git diff exits 1 when files differ; ignore that exit code here.
+    } finally {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    return 1
 }
 
 function ConvertTo-RsyncExcludeArgs {
@@ -919,8 +1169,8 @@ if ($Lcd -and $Mode -eq "codeimport") {
     exit 14
 }
 
-if ($LogCopy -and $Mode -eq "codeimport") {
-    Write-Error "Switch -LogCopy and mode codeimport cannot be combined."
+if ($LogCopy -and ($Mode -eq "codeimport" -or $Mode -eq "diff")) {
+    Write-Error "Switch -LogCopy cannot be used with mode $Mode."
     exit 14
 }
 
@@ -938,6 +1188,26 @@ if ($Mode -eq "codeimport") {
     Ensure-Directory -Path $CodeImportPath -DryRun:($false)
 }
 
+if ($Mode -eq "diff") {
+    if ([string]::IsNullOrWhiteSpace($DiffFile)) {
+        Write-Error "Mode diff requires -DiffFile <repo-relative-path>. Example: -DiffFile automations.auto.yaml"
+        exit 13
+    }
+
+    Assert-SshAvailable
+
+    $diffSsh = if ($Lcd) { $LcdPiSsh } else { $PiSsh }
+    $diffLocalRoot = if ($Lcd) { $LcdMirrorSource } else { $MirrorSource }
+
+    Write-Host ""
+    $diffExit = Invoke-WanosFileDiff `
+        -RelativePath $DiffFile `
+        -LocalRoot $diffLocalRoot `
+        -Ssh $diffSsh
+    Write-Host ""
+    exit $diffExit
+}
+
 # Normalization sources only needed when we rewrite *.sh (run / codeimport)
 if ($Mode -eq "run" -or $Mode -eq "codeimport") {
     foreach ($dir in $SourceDirs) {
@@ -949,7 +1219,7 @@ $script:DryRun = ($Mode -eq "test")
 $DryRun = $script:DryRun
 $script:LastLogPullDir = $null
 
-if ($Mode -ne "codeimport") {
+if ($Mode -ne "codeimport" -and $Mode -ne "diff") {
     Assert-RsyncAvailable
     Ensure-Directory -Path $StatsDest -DryRun:$DryRun
 }

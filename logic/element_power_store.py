@@ -224,15 +224,53 @@ def count_sessions(db_path: str) -> Dict[str, int]:
         conn.close()
 
 
-def row_to_dict(row: ElementPowerRow, session_counts: Optional[Dict[str, int]] = None) -> dict:
+def count_learns(db_path: str) -> Dict[str, int]:
+    """Sessions where learn produced a measured W (audit column set)."""
+    conn = sqlite3.connect(db_path)
+    try:
+        ensure_schema(conn)
+        c = conn.cursor()
+        c.execute(
+            """
+            SELECT COUNT(*) FROM sauna_sessions
+            WHERE audit_measured_w_u IS NOT NULL
+               OR audit_measured_w_v IS NOT NULL
+               OR audit_measured_w_w IS NOT NULL
+            """
+        )
+        n_sauna = int(c.fetchone()[0] or 0)
+        c.execute(
+            "SELECT COUNT(*) FROM ir_sessions WHERE audit_measured_w_ir IS NOT NULL"
+        )
+        n_ir = int(c.fetchone()[0] or 0)
+        return {"sauna": n_sauna, "ir": n_ir}
+    except Exception:
+        return {"sauna": 0, "ir": 0}
+    finally:
+        conn.close()
+
+
+def row_to_dict(
+    row: ElementPowerRow,
+    session_counts: Optional[Dict[str, int]] = None,
+    learn_counts: Optional[Dict[str, int]] = None,
+) -> dict:
     out: Dict[str, Any] = {
         "w_u": row.w_u,
         "w_v": row.w_v,
         "w_w": row.w_w,
         "w_ir": row.w_ir,
         "updated_at": row.updated_at,
-        "learn_count_sauna": row.learn_count_sauna,
-        "learn_count_ir": row.learn_count_ir,
+        "learn_count_sauna": (
+            int(learn_counts["sauna"])
+            if learn_counts is not None and "sauna" in learn_counts
+            else row.learn_count_sauna
+        ),
+        "learn_count_ir": (
+            int(learn_counts["ir"])
+            if learn_counts is not None and "ir" in learn_counts
+            else row.learn_count_ir
+        ),
         "last_learn_sauna_status": row.last_learn_sauna_status,
         "last_learn_sauna_detail": row.last_learn_sauna_detail,
         "last_learn_sauna_at": row.last_learn_sauna_at,

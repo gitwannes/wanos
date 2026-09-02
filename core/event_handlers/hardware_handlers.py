@@ -53,6 +53,10 @@ async def handle_sht11_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
         manager._state.hardware.sht11_enabled = is_enabled
         state_changed = True
         changed_domains.add("hardware")
+        if is_enabled:
+            hw_sensors = getattr(manager, "_hw_sensors", None)
+            if hw_sensors is not None and hasattr(hw_sensors, "wake_poll"):
+                hw_sensors.wake_poll()
 
     return state_changed, changed_domains
 
@@ -72,6 +76,10 @@ async def handle_gpio_input_toggled(event: Event, manager: Any) -> Tuple[bool, S
         manager._state.hardware.gpio_input_enabled = is_enabled
         state_changed = True
         changed_domains.add("hardware")
+        if is_enabled and manager._state.hardware.sht11_enabled:
+            hw_sensors = getattr(manager, "_hw_sensors", None)
+            if hw_sensors is not None and hasattr(hw_sensors, "wake_poll"):
+                hw_sensors.wake_poll()
 
     return state_changed, changed_domains
 

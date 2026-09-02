@@ -27,6 +27,7 @@ Only these (or clear equivalents in the same message):
 
 - **triage** / **kickoff**: may edit `docs/todo/*` only — no product code.
 - **implement** / **ship** / **patch**: product code allowed; pipeline close-out when ship/DoD says so.
+- Phase close-out: move Done `docs/todo/phase*.md` → `docs/todo/_archive/` — [`.cursor/rules/phase-archive.mdc`](phase-archive.mdc).
 
 ## When unsure
 

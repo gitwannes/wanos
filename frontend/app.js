@@ -3358,6 +3358,86 @@ function wanosApp() {
             return n.toFixed(1) + (unit ? " " + unit : "");
         },
 
+        /** Calendar day in Europe/Brussels as YYYY-MM-DD (for relative day math). */
+        _brusselsDateKey(d) {
+            return new Intl.DateTimeFormat("en-CA", {
+                timeZone: "Europe/Brussels",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+            }).format(d);
+        },
+
+        /** Whole days between two YYYY-MM-DD keys (b - a). */
+        _daysBetweenDateKeys(aKey, bKey) {
+            const [ay, am, ad] = aKey.split("-").map(Number);
+            const [by, bm, bd] = bKey.split("-").map(Number);
+            const aUtc = Date.UTC(ay, am - 1, ad);
+            const bUtc = Date.UTC(by, bm - 1, bd);
+            return Math.round((bUtc - aUtc) / 86400000);
+        },
+
+        /**
+         * Session start display: vandaag/gisteren/eergisteren + ochtend/middag/namiddag/avond,
+         * or "2 sep" / "2 sep 2025" + HH:MM for older sessions (Europe/Brussels).
+         */
+        formatSessionWhenSmart(ts) {
+            if (!ts) return "—";
+            const d = new Date(Number(ts) * 1000);
+            if (Number.isNaN(d.getTime())) return "—";
+
+            const now = new Date();
+            const dKey = this._brusselsDateKey(d);
+            const todayKey = this._brusselsDateKey(now);
+            const daysAgo = this._daysBetweenDateKeys(dKey, todayKey);
+
+            let dayPart;
+            let recent = false;
+            if (daysAgo === 0) {
+                dayPart = "vandaag";
+                recent = true;
+            } else if (daysAgo === 1) {
+                dayPart = "gisteren";
+                recent = true;
+            } else if (daysAgo === 2) {
+                dayPart = "eergisteren";
+                recent = true;
+            } else {
+                const dYear = parseInt(dKey.slice(0, 4), 10);
+                const tYear = parseInt(todayKey.slice(0, 4), 10);
+                const md = new Intl.DateTimeFormat("nl-BE", {
+                    timeZone: "Europe/Brussels",
+                    day: "numeric",
+                    month: "short",
+                }).format(d).replace(/\./g, "");
+                dayPart = dYear !== tYear ? `${md} ${dYear}` : md;
+            }
+
+            let timePart;
+            if (recent) {
+                const hour = parseInt(
+                    new Intl.DateTimeFormat("en-GB", {
+                        timeZone: "Europe/Brussels",
+                        hour: "numeric",
+                        hour12: false,
+                    }).format(d),
+                    10
+                );
+                if (hour < 12) timePart = "ochtend";
+                else if (hour < 14) timePart = "middag";
+                else if (hour < 19) timePart = "namiddag";
+                else timePart = "avond";
+            } else {
+                timePart = new Intl.DateTimeFormat("en-GB", {
+                    timeZone: "Europe/Brussels",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                }).format(d);
+            }
+            return dayPart + ", " + timePart;
+        },
+
         formatSessionTs(ts) {
             if (!ts) return "—";
             try {
@@ -3422,6 +3502,21 @@ function wanosApp() {
             return Number(raw).toFixed(0) + " Wh";
         },
 
+        formatElementLastSession(kind) {
+            const row = kind === "ir"
+                ? (this.state.metrics.last_ir_session || null)
+                : (this.state.metrics.last_sauna_session || null);
+            const label = kind === "ir" ? "IR" : "Sauna";
+            if (!row || row.start_timestamp == null) {
+                return label + " last session: —";
+            }
+            const runtime = this.formatSessionRuntime(row.total_runtime_secs);
+            const energy = this.formatSessionEnergy(row.energy_real_wh, kind);
+            const avgW = this.formatSessionAvgRealW(row.energy_real_wh, row.total_runtime_secs);
+            const when = this.formatSessionWhenSmart(row.start_timestamp);
+            return label + " last session: " + energy + " · " + avgW + " · " + runtime + " · " + when;
+        },
+
         formatElementLastLearn(kind) {
             const m = this.elementPowerMeta || {};
             if (kind === "ir") {
@@ -3457,17 +3552,46 @@ function wanosApp() {
             return (wh / 1000).toFixed(3) + " kWh";
         },
 
+        formatAdminLiveEnergy() {
+            const realWh = Number(this.state.metrics.running_energy_real_wh) || 0;
+            const calcWh = Number(this.state.metrics.running_energy_calc_wh) || 0;
+            const irOnly = this.state.ir && this.state.ir.active
+                && !(this.state.sauna && this.state.sauna.active);
+            if (irOnly) {
+                return realWh.toFixed(0) + " / " + calcWh.toFixed(0) + " Wh";
+            }
+            return (realWh / 1000).toFixed(3) + " / " + (calcWh / 1000).toFixed(3) + " kWh";
+        },
+
         formatWiscLastSessionOneLiner(kind) {
             const row = kind === "ir"
                 ? (this.state.metrics.last_ir_session || null)
                 : (this.state.metrics.last_sauna_session || null);
             if (!row) return "";
             const label = kind === "ir" ? "IR" : "Sauna";
-            const runtime = this.formatSessionRuntime(row.total_runtime_secs);
-            const energy = this.formatSessionEnergy(row.energy_real_wh, kind);
-            const avgW = this.formatSessionAvgRealW(row.energy_real_wh, row.total_runtime_secs);
-            const when = row.start_timestamp != null ? this.formatSessionTs(row.start_timestamp) : "";
-            return label + ": " + energy + " · " + avgW + " · " + runtime + (when ? " · " + when : "");
+            const when = row.start_timestamp != null
+                ? this.formatSessionWhenSmart(row.start_timestamp)
+                : "—";
+            return label + ": " + when;
+        },
+
+        /** Admin GPIO output arm status (why toggle may be blocked). */
+        gpioOutputArmStatus() {
+            const h = this.state.hardware || {};
+            if (!h.gpio_output_connected) return "OFFLINE";
+            if (!h.gpio_input_enabled) return "NEED INPUTS";
+            if (!h.sht11_enabled) return "NEED SHT11";
+            if (this.state.sensors.sauna_calc_temp == null) return "WAIT TEMP";
+            if (!h.gpio_output_enabled) return "READY";
+            return "ARMED";
+        },
+
+        gpioOutputArmStatusClass() {
+            const s = this.gpioOutputArmStatus();
+            if (s === "OFFLINE") return "text-gray-500";
+            if (s === "ARMED") return "text-error animate-pulse";
+            if (s === "READY") return "text-success";
+            return "text-warning";
         },
 
         sessionAuditLines(row, sessionType) {

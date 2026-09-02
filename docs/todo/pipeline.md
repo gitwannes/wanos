@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-08-31 (PCB repo pointer — no PCB items in this pipeline)
+**Last updated:** 2026-09-02 (C34 + L3 close-out)
 
 ---
 
@@ -80,6 +80,9 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **C29** | Timers/Hidden NameError missing imports — **Pi smoke 2026-08-27** |
 | **G16** | LG webOS TV power + Blockly apps — **Pi smoke 2026-08-27** |
 | **C31 + C32** | Sauna/IR analytics + power model DB + Admin/WISC UX + IR PWM — **Pi smoke 2026-08-30** (combined ship) |
+| **R1** | Source-available license (personal use OK, no redistribution) — **2026-09-01** |
+| **C25** | Overlay dew% + compare + Admin Outside weather — **Pi smoke 2026-09-01** |
+| **C34 + L3** | Sauna/IR analytics polish + LCD logging (combined ship) — **close-out 2026-09-02** — [`phaseC-shell.md`](phaseC-shell.md) § C34 · [`phaseL-lcd.md`](phaseL-lcd.md) § L3 |
 
 ---
 
@@ -108,33 +111,34 @@ All open items. **Detail** = phase file section.
 16  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
 17  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
 18  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
-19  open   mid  C25          Overlay dew% + compare + Admin Outside weather     phaseC § C25
-20  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
-21  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
-22  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
-23  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
-24  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
-25  open   low  G7           Integration log tags                               phaseG § G7
-26  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
-27  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
-28  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
-29  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
-30  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
-31  open   high G9           Honeywell / Evohome                                phaseG § G9
-32  open   high G10          HomeWizard energy                                  phaseG § G10
-33  open   high G12          SMA solar                                          phaseG § G12
-34  open   high G13          HomeConnect BSH                                    phaseG § G13
-35  open   high F            Security bridge (F1→F7)                            phaseF
-36  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
-37  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-38  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-39  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-40  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-41  hold   high P            Other homes / portability (assess)                 phaseP
-42  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
-43  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
+19  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
+20  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
+21  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
+22  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
+23  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
+24  open   low  G7           Integration log tags                               phaseG § G7
+25  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
+26  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
+27  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
+28  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
+29  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
+30  open   high G9           Honeywell / Evohome                                phaseG § G9
+31  open   high G10          HomeWizard energy                                  phaseG § G10
+32  open   high G12          SMA solar                                          phaseG § G12
+33  open   high G13          HomeConnect BSH                                    phaseG § G13
+34  open   high F            Security bridge (F1→F7)                            phaseF
+35  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
+36  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+37  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+38  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+39  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+40  hold   high P            Other homes / portability (assess)                 phaseP
+41  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
+42  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
+43  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
+44  open   mid  C33          Sauna/IR History charts + runtime display (WISC + Admin) phaseC § C33
 ```
-Near-term: **L2** after kickoff when ready. **Ship B7** → **B26** (Then all-match Ifs) → **B24** when ready. **B12** / **B25** may run ∥ Ship B7. **C28** after **C4**; **C26** after **C4** (HTML/JS rename, then split). **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **L1** ✅ **Pi smoke 2026-08-24**. **C29** ✅ **Pi smoke 2026-08-27**. **G16** ✅ **Pi smoke 2026-08-27**. **C25** code+docs **2026-08-27** (Pi smoke pending). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **C33** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **Ship B7** → **B26** (Then all-match Ifs) → **B24** when ready. **B12** / **B25** may run ∥ Ship B7. **C28** after **C4**; **C26** after **C4** (HTML/JS rename, then split). **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C25** ✅ **Pi smoke 2026-09-01**. **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 
@@ -151,6 +155,32 @@ Not lettered product phases. Detail stays here (no `phaseX` file) unless re-home
 | **Cinema merge ON/OFF rules** | open | Operator YAML — pickable cinema state **to be checked** |
 | **Background Leak = 0.0 W** | hold | Verify |
 | **3-phase kWh meter / Pi power** | hold | Site / manual |
+| **energy.meter_baseline_kwh** | answered | **2026-09-01 triage** — display offset only; canonical counter = NVRAM IDX `11001` (1 pulse = 1 Wh). `meter_baseline_kwh` = physical meter reading at cutover; does **not** auto-increase (only change when you re-baseline after meter swap/reset). `meter_pulse_wh_at_baseline` = IDX `11001` Wh at that moment. Admin **Total kWh** = baseline + delta — not a duplicate idx. SoT: [`sensor_history.md`](../sensor_history.md) §3 |
+| **R1 — source-available license** | done | **2026-09-01** — see § R1 below |
+
+### R1 — Source-available license — Done 2026-09-01
+
+**Status:** done · repo meta (no lettered phase file) · **Done** table row above.
+
+**Operator request (verbatim, 2026-08-31):**
+
+> Q: is the license choice for wanos correct?
+
+**Lock (2026-08-31):** **Personal use OK, no redistribution** (custom source-available notice — not GPL, not MIT).
+
+**Shipped:**
+
+| File | Change |
+|---|---|
+| `LICENSE` | Custom six-section notice (grant, no redistribution, no commercial use, attribution, no warranty, contact) |
+| `readme.md` | Badge + License section |
+| `main.py` | Copyright header |
+
+**Product reference (canonical):** [`readme.md`](../../readme.md) § License + [`LICENSE`](../../LICENSE). `LICENSE` is repo meta only — not mirrored to Pi ([`wanos-sync.md`](../wanos-sync.md)).
+
+**Out of scope:** SPDX headers on every source file; `_lcd-agent` per-file notices; **wanos-pcb** repo (separate LICENSE there).
+
+**R1 DoD:** [x] Operator lock recorded · [x] `LICENSE` / `readme.md` / `main.py` shipped · [x] Last DoD: audit `docs/**/*.md` + root README — no GPL drift (**2026-09-01**).
 
 ### Ops2 — Pi Python runtime (3.12 vs 3.13) — assess
 

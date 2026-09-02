@@ -157,8 +157,8 @@
                         </div>
                     </div>
 
-                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div>
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8" x-show="state.sauna.active || state.ir.active">
+                        <div x-show="state.sauna.active">
                             <div class="flex justify-between items-center mb-2">
                                 <span class="text-sm font-semibold tracking-wide">Temp. Setpoint Sauna</span>
                                 <div class="flex gap-2 items-center">
@@ -182,7 +182,7 @@
                                    @change="updateSaunaSetpoint()" />
                         </div>
 
-                        <div>
+                        <div x-show="state.ir.active">
                             <div class="flex justify-between items-center mb-2">
                                 <span class="text-sm font-semibold tracking-wide">IR Modulation</span>
                                 <div class="flex gap-2 items-center ml-auto pl-6">

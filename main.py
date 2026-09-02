@@ -69,7 +69,7 @@ from core.rules_activation_pending import (
     pending_snapshot,
     unmark_rule_pending_on_manager,
 )
-from logic.element_power_store import load_row, row_to_dict, count_sessions
+from logic.element_power_store import load_row, row_to_dict, count_sessions, count_learns
 from core.auto_off_store import read_auto_off_config, write_auto_off_config
 from core.auto_off_policy import (
     AUTO_OFF_ALLOWED_TYPES,
@@ -212,6 +212,7 @@ if getattr(config, "lg", None) and getattr(config.lg, "host", None):
 hw_inputs = HardwareInputs(state_manager=state_manager)
 hw_sensors = HardwareSensors(state_manager=state_manager)
 hw_actuators = HardwareActuators(state_manager=state_manager)
+state_manager._hw_sensors = hw_sensors
 
 
 @asynccontextmanager
@@ -1504,7 +1505,11 @@ async def get_element_power(req: Request) -> dict[str, Any]:
         return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
     try:
         db_path = getattr(state_manager._power_analytics, "_db_path", "sauna_sessions.db")
-        return row_to_dict(load_row(db_path), count_sessions(db_path))
+        return row_to_dict(
+            load_row(db_path),
+            count_sessions(db_path),
+            count_learns(db_path),
+        )
     except Exception as e:
         logger.error(f"element-power read failed: {e}")
         return JSONResponse(status_code=500, content={"error": "Failed to read element power."})

@@ -1076,18 +1076,54 @@ Then
 > *(2026-08-25)*
 > put into triage
 
+> *(2026-09-02)*
+> check this automation - not possible now, check pipeline and planned changed: in which phase will this flow be possible?
+
+> *(2026-09-02)*
+> don't kickoff - put the change for this flow into B26, for now: no further changed or actions other than that
+
 #### Problem (verified)
 
 B22 `then.branches` is an exclusive **If → Else-if** chain (`_first_matching_branch`). Schema rejects a second inner `when: if` (`only first inner branch may be when: if`). Operator wants **independent** gates under one wake (all that match run) plus unconditional Sets (already covered by leading/trailing).
 
 **Reference rule:** `PC Monitors -> Buro Schemer & Sonos` (same family as **B24**).
 
+#### Target flow — `PC Monitors -> Buro Schemer & Sonos` (2026-09-02)
+
+Operator attempted this shape in Blockly; **Save fails** with:
+
+`Actions cannot appear between If/Else-if blocks in Then.`
+
+(B22 FE validate in `blocky.js` — actions may be **leading** or **trailing** around one inner If/Else-if chain, not **interleaved** between control blocks.)
+
+**Top-level (unchanged — B22 today):**
+
+| Branch | Wake | Body |
+|---|---|---|
+| **If** | `PC monitors` `is: ON` | nested **Then** (below) |
+| **Else-if** | `PC monitors` `is: OFF` | schemer OFF + Sonos OFF |
+
+**Inner Then on monitors ON — desired (needs B26):**
+
+| # | Block | Semantics |
+|---|---|---|
+| **1** | **If** `PC` `is: OFF` → Set `PC` ON | independent gate — run when PC off |
+| **2** | **Set** `buro Wannes schemer` ON | unconditional whenever monitors wake ON |
+| **3** | **If** `time is light` **and** `cinema projector` `is: OFF` → Set `buro` Sonos ON (vol/station) | independent gate — run when light + cinema off |
+| **4** | *(not in inner Then)* | top-level Else-if handles monitors OFF |
+
+**Why B22 is insufficient:** today only **one** inner If/Else-if chain + optional leading/trailing Sets. Exclusive first-match means PC-off and light/Sonos gates cannot both run when both match. Live YAML uses **trailing_actions** for schemer **and** Sonos together — no light/cinema gate on Sonos, and no interleaved Set between two Ifs.
+
+**B26 must deliver:** independent inner **If** blocks (all-match) **plus** unconditional Sets anywhere in the Then sequence (not only leading/trailing); **Else-if** still exclusive after its preceding **If** group only.
+
 #### Proposal (triage — not locked)
 
 - Under **Then**: allow a **sequence of independent Ifs** — evaluate **every** matching `when: if`; collect actions from all matches.
 - **Else-if** remains exclusive continuation of the **preceding** If group (not a second independent If).
-- Trailing/leading Sets unchanged (e.g. schemer ON always).
+- Unconditional **Set** blocks may appear **between** independent Ifs in the Then body (see target flow above — schemer ON between PC gate and light/Sonos gate).
+- Leading/trailing Sets remain valid shorthand for “always first/last”.
 - Touch: `automations_schema_b22.py`, FE validate in `blocky.js`, `_resolve_branch_executable_actions`, docs/`reference.md`.
+- Cutover: rewrite **`PC Monitors -> Buro Schemer & Sonos`** inner Then to target flow (remove bundled trailing Sonos; add light + cinema projector gate).
 
 #### Open at kickoff
 
@@ -1108,8 +1144,8 @@ B22 `then.branches` is an exclusive **If → Else-if** chain (`_first_matching_b
 
 - [ ] Schema + API: multiple inner `when: if` under `then.branches` valid; Else-if mix rules locked
 - [ ] Engine: all-matching independent Ifs; Else-if exclusive within group; leading/trailing unchanged
-- [ ] Blockly: author PC-monitors shape; round-trip; clear Save errors
-- [ ] Pi smoke: monitors ON → PC gate + light/Sonos gate + schemer trailing (independent)
+- [ ] Blockly: author **`PC Monitors -> Buro Schemer & Sonos`** target shape (If PC → Set schemer → If light+cinema → Sonos); round-trip; no “Actions cannot appear between If/Else-if blocks” on Save
+- [ ] Pi smoke: monitors ON → PC gate (if off) + schemer always + Sonos only when light and cinema projector off (all independent); monitors OFF branch unchanged
 - [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
@@ -2015,6 +2051,7 @@ Pointers only — detail under § B10F / § B12–B18:
 * **B10K** — ✅ **Done 2026-08-15** — timings stopwatch + shutter OPEN/CLOSED + RFX ON/OFF (no color); **one code run with G3**.
 * **B10L** — Shared **NOT CONNECTED** overlay: richer connect status + copy **Re-connecting to WanOS...** — **∥ cluster**.
 * **B10M** — Explorer Hue preset duplicate settings — **∥ cluster** (after **B10G** Part D).
+* **B27** — bugfix: **TV ON** rule — Sonos OFF not applied / log2 gap — **∥ cluster** (triage **2026-09-01**).
 * **B10N** — ✅ **Done 2026-08-15** — closed without dedicated code; covered by **B10K** Item 3.
 * **C18** — Explorer Control live lag — ✅ **Done 2026-08-16**; [`phaseC-shell.md`](phaseC-shell.md) § C18.
 * **C19** — History auto-refresh blank — ✅ **Done 2026-08-16**; [`phaseC-shell.md`](phaseC-shell.md) § C19.
@@ -2455,6 +2492,40 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 **Locked triage intent:** Operator can save a **new** Explorer Hue preset whose color/bri/xy **matches** an existing preset (new name/key). Display-name uniqueness (B9A) stays. Not a second G6/B10G-D ship.
 
 **B10M DoD:** New preset with same settings as an existing one saves; Pi smoke Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B27 — TV ON rule Sonos OFF 🔜 TODO
+
+**Letter:** **B27**. **Sequence #44**. Size **low**. **Parallel:** ∥ bugfix cluster (**B10J** / **C20** / **C21**). Triage **2026-09-01**.
+
+**Operator request (verbatim, 2026-09-01):**
+
+> * log1:
+> 2026-08-30 20:11:54.095 | DEBUG    | [AUTOMATION] [X-RAY] rule=73062081-8633-4783-9907-e63e8a796dfb branch=if name="TV ON" triggered by switch.lg_tv (LG TV, idx 62001) (wake). Evaluating conditions...
+> 2026-08-30 20:11:54.095 | INFO     | [AUTOMATION] [Automation] Rule ""TV ON"" fired (trigger: switch.lg_tv (LG TV, idx 62001) (wake))
+> 2026-08-30 20:11:54.096 | DEBUG    | [AUTOMATION] [X-RAY] -> Conditions MET for rule=73062081-8633-4783-9907-e63e8a796dfb branch=if name="TV ON". Parsing actions...
+> 2026-08-30 20:11:54.097 | INFO     | [AUTOMATION] [ACTION] "TV ON" -> Set media_player.living_2 (living, idx 61002) to ON (FORCED) [Rich Payload]
+> 2026-08-30 20:11:54.097 | INFO     | [AUTOMATION] [ACTION] "TV ON" -> Set media_player.living (living, idx 60002) to OFF (FORCED)
+> 2026-08-30 20:11:54.098 | INFO     | [AUTOMATION] [ACTION] "TV ON" -> Set hue.group.living_hue (living Hue, idx 51005) to ON [Rich Payload]
+> 2026-08-30 20:11:54.099 | INFO     | [AUTOMATION] [Lighting Auto-Off] switch.lg_tv (LG TV, idx 62001) turned ON. Scheduling OFF timer for 240 minutes (ID: light_auto_off_62001).
+> 2026-08-30 20:11:54.118 | INFO     | [AUTOMATION] [Lighting Auto-Off] hue.group.living_hue (living Hue, idx 51005) turned ON. Scheduling OFF timer for 300 minutes (ID: light_auto_off_51005).
+> * log2:
+> 2026-08-30 20:11:39.401 | ONKYO      | ONKYO      | ON         | 61002 | living
+> 2026-08-30 20:11:54.090 | SWITCH     | LG         | ON         | 62001 | LG TV
+> 2026-08-30 20:11:54.098 | AUTOMATION RUN | TV ON
+> 2026-08-30 20:11:54.113 | HUE        | AUTOMATION | ON         | 51005 | living Hue
+> --> why not Sonos OFF?
+
+### Placement notes (not full kickoff)
+
+* **YAML rule `TV ON`** already lists `media_player.living` (Sonos, idx **60002**) **OFF** — automation log shows `[ACTION] … OFF (FORCED)`; unified **log2** has no `SONOS` line for that beat.
+* **Kickoff must verify:** was Sonos actually playing / still ON in RAM after the rule? Integration skip when already OFF? Missing `wanos.log` integration line vs failed command?
+* **Not:** operator YAML rewrite unless kickoff finds rule gap; **G16** LG TV wake path is working (trigger OK).
+
+**Open until kickoff:** repro with Sonos audibly ON before TV wake; whether fix is Sonos bridge, automation engine force-OFF, or log2 formatter only.
+
+**B27 DoD (stub):** TV ON with Sonos playing → Sonos stops + state reflects OFF; log2 shows Sonos OFF when state changes (or documents intentional skip); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

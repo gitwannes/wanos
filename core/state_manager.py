@@ -967,8 +967,11 @@ class StateManager:
                     "TIMER_CANCELLED",
                 ]
 
+                # High-frequency kWh meter: never log (analytics handles IDX 11001)
+                if event_name == "KWH_PULSE":
+                    pass
                 # HARDWARE PULSE GUARD: Only log 1 in 10 pulses to prevent terminal I/O saturation
-                if event_name == "WATER_PULSE":
+                elif event_name == "WATER_PULSE":
                     target_idx = payload.get("idx")
                     self._pulse_log_counters[target_idx] = self._pulse_log_counters.get(target_idx, 0) + 1
                     if self._pulse_log_counters[target_idx] % 10 == 0:

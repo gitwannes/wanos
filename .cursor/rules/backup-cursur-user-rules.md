@@ -237,7 +237,7 @@ Before calling a phase/ship done:
 3. Do **not** stop at `docs/todo/*`. Todo/pipeline updates alone are not enough.
 4. **Delete migrator files** for that phase/ship (one-shot helpers under `helpers/migrate_*.py` or equivalent) once cutover/soak is done — **only after explicit operator confirmation** in the conversation. Do not delete migrators unprompted.
 5. Treat steps 1–4 as the **last** Definition-of-Done actions for every phase.
-6. **Phase-out completed detail files:** when a `docs/todo/phaseX-*.md` is **fully finished** (Done in pipeline + Last DoD executed), **update that file for archive** — status Done, move open spec to shipped summary, strip queued work — then **tell the operator explicitly** so they can **manually move** the file out of the repo into offline archive. Do **not** delete or move phase files yourself unless the operator asks.
+6. **Phase-out completed detail files:** when a phase detail file is **fully finished** (entire letter track Done in pipeline — no open Sequence/hold rows for that detail file — + Last DoD executed), trim it for archive (status Done, shipped summary, product-doc pointers; strip queued work), then **move** it to the repo `_archive/` folder per project rule **phase-archive** (`docs/todo/_archive/` on **wanos** / **wanos-pcb**; `docs/_archive/` on **hofmans.be**). Update `pipeline.md` links. **Do not** ask the operator to move files manually. **Subphase** close-out alone does **not** archive the whole phase file.
 
 ## Pointers
 

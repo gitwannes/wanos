@@ -125,12 +125,11 @@ def compose_sauna_line1(mod: int, remaining_secs: int, mmss: str) -> str:
 
 
 def compose_ir_line1(mod: int, mmss: str) -> str:
-    """C32 IR line1: IR {mm:ss}; append ' - {mod}%' only when mod < 100."""
+    """C32/C34 IR line1: IR {mm:ss}; append ' - {mod}%' only when mod < 100; timer right-aligned @ 100%."""
     mod = int(mod or 0)
-    base = f"IR {mmss}"
     if 0 < mod < 100:
-        base = f"{base} - {mod}%"
-    return fit_to_16_cells(base)
+        return fit_to_16_cells(f"IR {mmss} - {mod}%")
+    return right_align_timer("IR", mmss)
 
 
 def resolve_sauna_hue_on(snapshot: "SystemState", sauna_hue_entity_idx: Optional[int]) -> bool:

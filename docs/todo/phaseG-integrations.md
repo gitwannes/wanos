@@ -112,6 +112,16 @@ Only production outside source: OWM **`30001`** / `sensor.temp_hum.outside_temp_
 * Manual dashboard half → **G5** ✅ (**`Cinema rolluik half`**, **50% open**).
 * Paid Weather Startup / `/forecast/daily` — **not required** (One Call 4.0 is enough).
 
+### OWM 10′ poll vs subscription (triage **2026-09-01** — Q&A, no separate phase)
+
+**Operator request (verbatim, 2026-09-01):**
+
+> 2026-08-28 17:24:53.424 | INFO     | Event Received [OWM_CLIMATE_SNAPSHOT]: {'temp': 17.0, 'hum': 92, ...}
+> 2026-08-28 17:34:55.926 | INFO     | Event Received [OWM_CLIMATE_SNAPSHOT]: ...
+> -> 10min polls - is this ok with subscription?
+
+**Answer (placement, not locked implement):** **Yes — expected.** **G3** ✅ ships Current Weather API 2.5 every **10′** (`weather.poll_interval_mins: 10`). That endpoint is separate from **One Call 4.0** (this phase). Home use ≈ **144 calls/day** for 10′ climate — well inside typical free tiers. **G4** adds **~1 One Call/day** for hot-sun assess; combined still ≪ 1,000/day. No code unless kickoff finds quota errors in logs.
+
 **G4 DoD:** Morning assess stores hot-sun flag from One Call 1-day; Pi smoke on a qualifying forecast day shows cinema at **60% open** after blinds-open (others full open); cool/cloudy day still full-open cinema; Admin Debug clean; ≤ a few One Call calls/day in normal use. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---

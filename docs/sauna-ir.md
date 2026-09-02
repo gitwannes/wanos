@@ -121,7 +121,9 @@ Duration format is canonical:
 These door durations are tracked in core state and are available to UI/LCD logic. The full open/closed duration string is not required on the 16x2 LCD itself.
 
 #### 3.7.2 Screen 1 (`0x27`) Display Rules
-Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../logic/lcd_screen1.py)), not legacy one-line `AuxiliaryController` text. The same lines are mirrored into `sauna.lcd_line1` / `sauna.lcd_line2` for the WISC sauna panel: green VT323 16×2 preview (`.wanos-lcd-screen`), spaces preserved so centered rows match the physical LCD. When both lines are blank, WISC shows `WanOS Wisc standby`. When Admin **LCD screens** integration is off, WISC shows `no LCD text:` / `integration off` and WanOS does not publish `wanos/lcd/*` (compose still runs internally until a future phase).
+Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../logic/lcd_screen1.py)), not legacy one-line `AuxiliaryController` text. The same lines are mirrored into `sauna.lcd_line1` / `sauna.lcd_line2` for the WISC sauna panel and Admin **LCD mirror** (green VT323 16×2 preview via `.wanos-lcd-screen`), spaces preserved so centered rows match the physical LCD. When both lines are blank, WISC shows `WanOS Wisc standby`. When Admin **LCD screens** integration is off, WISC shows `no LCD text:` / `integration off` and WanOS does not publish `wanos/lcd/*` (compose still runs internally until a future phase).
+
+**LCD agent logging (C34):** `wanos.log` DEBUG lines pretty-print `§1` as `°C` (wire MQTT unchanged). Countdown-only mm:ss ticks are not logged; blank transitions, mod/temp/hum changes are.
 
 **Integration master switch (Admin):** `system.lcd_integration_enabled` — `LCD_TOGGLED`. Requires local WanOS MQTT broker online to enable (same gate as OpenWeather). When off: no MQTT to the LCD Pi; debug/easter-egg Admin actions are also blocked at the publisher.
 
@@ -133,7 +135,7 @@ Priority:
    * No sunset countdown.
    * Line 2 default = temp/hum status.
    * If sauna door is open, line 2 becomes `plz close sdoor mm:ss` (left-aligned, warning timer suffix).
-2. **IR active** (when sauna is not active): keep WISC-style IR timer text and temp/hum line.
+2. **IR active** (when sauna is not active): line 1 `IR {mm:ss}`; append ` - {mod}%` only when `0 < mod < 100`; at 100% mod the timer is right-aligned (`IR` left). Line 2 = temp/hum.
 3. **Sauna Hue ON only** (when sauna+IR inactive): use date/outside-info fallback text (`shue` equivalent = `hue.group.sauna_hue` ON).
 4. **Blank screen 1** when sauna inactive, IR inactive, and sauna Hue is OFF.
 
@@ -179,20 +181,25 @@ Because the `StateManager` drives the physical heating elements using an asymmet
 
 $$P_{elements\_real} = \left(\frac{V_{live}}{230}\right)^2 \times ((D_U \cdot P_U) + (D_V \cdot P_V) + (D_W \cdot P_W))$$
 
-**Session Energy (Calc)** integrates a software model over time (Admin blue bar, `energy_calc_wh` in SQLite). Element **W @ 100% mod** live in SQLite table `element_power_w` (singleton row in `sauna_sessions.db`); bootstrap defaults U/V/W/IR = 3500/3500/2000/525 W until sessions refine them (EMA 0.7/0.3, gated).
+**Session Energy (Calc)** integrates the software model over time (Admin `energy_calc_wh` in SQLite). Inter-pulse gaps for calc integration are capped and reset at session start so idle gaps before the first pulse are not charged at full nominal load (C34). Element **W @ 100% mod** live in SQLite table `element_power_w` (singleton row in `sauna_sessions.db`); bootstrap defaults U/V/W/IR = 3500/3500/2000/525 W until sessions refine them (EMA 0.7/0.3, ±25% outlier reject).
+
+**IR learn (C34):** when modulation spans more than 10 points in one session (e.g. 75% then 100%), learn uses **time-weighted** implied 100% W per mod plateau (min 30 s per plateau) instead of skipping. Stable single-plateau sessions use the session-average formula.
 
 | Source | Role |
 |--------|------|
-| `element_power_w` DB row | Calc baselines for U, V, W, IR @ 100% mod; `learn_count_sauna` / `learn_count_ir`; last-learn status/detail |
+| `element_power_w` DB row | Calc baselines for U, V, W, IR @ 100% mod |
+| `ir_sessions` / `sauna_sessions` audit cols | Session ℹ popover; **learn counts** in Admin = sessions with non-null `audit_measured_w_*` |
 | Pulse meter + leak subtract | Real session energy |
 
 Sauna calc: $\sum (D_{phase} \times P_{db,phase}) \times (V/230)^2$. IR-only sessions add $(IR\_mod/100) \times P_{db,ir} \times (V/230)^2$. **Real** session energy always comes from the pulse meter minus locked leak.
 
 **Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle.
 
-**Admin — Power & Thermal:** Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th); LCD mirror; element nameplates + sauna/IR learn counts + last learn outcome; live session (Real/Calc W, deltas, est. U/V/W). `GET /api/admin/analytics/element-power`.
+**Admin — Power & Thermal:** Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th); LCD mirror (VT323); element nameplates + **learn counts** (from session audit rows) + last session detail (energy · W · runtime · smart when); live session — Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. `GET /api/admin/analytics/element-power`.
 
-**WISC:** while sauna/IR active — Real W + energy so far (Wh for IR-only, kWh for sauna); idle — last sauna / last IR one-liners (energy · avg W · runtime · start).
+**Admin — GPIO outputs arm gate:** status shows `OFFLINE` → `NEED INPUTS` → `NEED SHT11` → `WAIT TEMP` → `READY` → `ARMED`. Arming SHT11 triggers an immediate sensor poll (2 s fast cadence until `sauna_calc_temp` is valid).
+
+**WISC:** while sauna/IR active — Real W + energy so far (Wh for IR-only, kWh for sauna); setpoint / IR mod sliders only while respective session active; idle — last sauna / last IR one-liners (smart date/time only, e.g. `vandaag, namiddag`).
 
 **Session audit (SQLite + Session History i popover):** each session stores baseline / measured / new @100% W per element (nullable when not computed).
 
@@ -292,7 +299,7 @@ The integration of power analytics, safety guards, and dynamic session recording
 
 ### 6.2 `core/state_manager.py`
 * Route incoming filtered Z-Wave payload values from Node 50 (Value ID `66561`) to bind natively as line voltage on IDX `71046`.
-* Intercept `EventType.KWH_PULSE` (IDX `11001`) inputs to maintain the running Power Leak baseline.
+* Intercept `EventType.KWH_PULSE` (IDX `11001`) inputs to maintain the running Power Leak baseline. KWH_PULSE is not written to `wanos.log` (high-frequency).
 * Enforce cascade cutoff interlocks when Master Relay (IDX `71036`) toggles.
 
 ### 6.3 `logic/power_analytics.py`
