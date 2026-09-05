@@ -172,6 +172,12 @@ async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     default_mins = getattr(manager._config.ir, "default_time_mins", 7)
     manager._state.ir.session_end_time = now + (int(default_mins) * 60)
 
+    # C35: each IR_ON resets mod to site default (do not inherit last session).
+    default_mod = int(getattr(manager._config.ir, "default_ir_modulation", 75))
+    freq_map = {0: 0, 25: 25, 33: 33, 50: 50, 67: 33, 75: 25, 100: 5}
+    manager._state.ir.modulation_pwm = default_mod
+    manager._state.ir.frequency = freq_map.get(default_mod, 0)
+
     manager._timer_manager.schedule("ir_main", manager._state.ir.session_end_time, "IR_TIMER_EXPIRED")
 
     # ⚡ Mirror status to the virtual dashboard sensor

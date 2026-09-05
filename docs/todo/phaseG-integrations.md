@@ -330,7 +330,7 @@ Admin → **Reload Config** → `CONFIG_RELOAD_REQUESTED` `{ source: "ui_button"
 * Hue live color/bri truth vs bridge → **G2**.
 * Blocky save chrome / Library polish → **B10F** ✅.
 * B10G overlay **2** load checklist itself (reuse for Save config; do not respec).
-* Explorer Hue preset duplicate-settings → **B10M**.
+* Explorer Hue preset duplicate-settings → **B10M** ✅ (**2026-09-05**).
 * Replacing `wanos-sync` — sync remains file transport; reload applies RAM.
 
 **G6 DoD:** Admin shows **Full reload** (today’s behaviour, labelled) + **Scoped reload** modal with **12** checkboxes (summaries + when per row; no bundles). **Automations deferred activation → B23** ✅. Hue preset CRUD: scope 5 only (handler + alerts — ✅ **B10G Part D**). Soft-hide / timers saves: scopes 3 / 4 only. Full reload still remaps all integrations + remaining YAML. API callers migrated to minimal scopes **with matching scope-specific reload alerts** (see § Reload alerts — G6 follow-up). Pi smoke + docs. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

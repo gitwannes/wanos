@@ -31,14 +31,14 @@
 
     /** B10G: per-page deploy version (admin-only badge in titleBlock). */
     const PAGE_VERSIONS = {
-        admin: 12,
-        explorer: 12,
-        commander: 11,
-        history: 11,
-        blocky: 23,
+        admin: 14,
+        explorer: 14,
+        commander: 13,
+        history: 13,
+        blocky: 24,
         hiddendevices: 7,
         lightingautooff: 7,
-        zwave: 7
+        zwave: 8
     };
 
     /** B10G: exact AlertManager-stored strings for reload suppress (T4 C). */
@@ -92,16 +92,28 @@
         return String(s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     }
 
-    function offlineOverlay({ tone = "error", message = "Establishing connection stream to WanOS backend...", extraHideExpr = "" } = {}) {
+    function offlineOverlay({
+        tone = "error",
+        message = "Re-connecting to WanOS...",
+        extraHideExpr = "",
+        showMilestone = true
+    } = {}) {
         const t = escAttr(tone);
         const msg = escAttr(message);
         const hideExtra = extraHideExpr ? " && !(" + extraHideExpr + ")" : "";
+        // B10L: second line = honest connect milestone (no fake %); skip on Loading… pages
+        const milestone = showMilestone
+            ? '<p class="text-base-content/50 mt-1 font-mono text-xs" x-text="offlineStatusLine"></p>'
+            : "";
         return (
-            '<div x-show="!connected && !reloadSuppressOverlay' + hideExtra + '" x-cloak ' +
+            // C37: no x-cloak — before Alpine binds, overlay must stay visible (dark blank otherwise).
+            // Same lesson as B10G yellow load chrome on Automations.
+            '<div x-show="!connected && !reloadSuppressOverlay' + hideExtra + '" ' +
             'class="fixed inset-0 z-[9999] bg-base-300/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6 transition-opacity duration-300">' +
             '<span class="loading loading-infinity w-16 text-' + t + ' mb-4"></span>' +
             '<h2 class="text-2xl font-black tracking-widest text-base-content">NOT CONNECTED</h2>' +
             '<p class="text-' + t + ' mt-2 font-mono text-sm">' + msg + "</p>" +
+            milestone +
             "</div>"
         );
     }
@@ -152,7 +164,9 @@
                 '<div class="flex items-center gap-1 min-w-0 overflow-visible">' +
                 '<span class="text-xs sm:text-sm md:text-xl font-black tracking-wider truncate" ' +
                 ':class="explorerMode === \'history\' ? \'text-accent\' : \'text-primary\'" ' +
-                'x-text="explorerMode === \'history\' ? \'⚡ WanOS // Explorer · History\' : \'⚡ WanOS // Device Explorer\'"></span>' +
+                // C37: static fallback before Alpine x-text binds (empty span = blank chrome).
+                'x-text="explorerMode === \'history\' ? \'⚡ WanOS // Explorer · History\' : \'⚡ WanOS // Device Explorer\'">' +
+                '⚡ WanOS // Device Explorer</span>' +
                 // C27: tap-friendly sun cycle popover (Device Explorer title only — not History mode)
                 '<div class="relative shrink-0 overflow-visible" x-show="explorerMode !== \'history\'" x-cloak ' +
                 '@click.outside="sunCyclePopoverOpen = false">' +
@@ -263,7 +277,7 @@
             '<div tabindex="0" class="dropdown-content z-50 menu p-4 shadow-xl bg-base-200 rounded-box w-80 sm:w-96 mt-4 border border-base-300">' +
             '<div class="flex justify-between items-center mb-3 border-b border-base-300 pb-2">' +
             '<span class="font-bold text-sm uppercase text-base-400">System Notifications</span>' +
-            '<button class="btn btn-xs btn-outline btn-error" @click="clearNonCriticalAlerts()" x-show="nonCriticalAlerts.length > 0">Clear All</button>' +
+            '<button class="btn btn-xs btn-outline btn-error" @click="clearNonCriticalAlerts()" x-show="bellAlerts.length > 0">Clear All</button>' +
             "</div>" +
             '<div class="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">' +
             // C2: criticals also in bell; dismissBellAlert is independent of banner dismiss
@@ -409,8 +423,8 @@
             "</div></div></template></div></div>" +
             '<button type="button" class="btn btn-sm btn-warning btn-outline font-mono text-[10px] w-full" ' +
             'x-show="isAdmin" x-cloak ' +
-            ':disabled="huePresetEditMode || hueCurrentMatchesActivePreset()" ' +
-            ':title="huePresetEditMode ? \'Disable Edit mode to save current colour\' : (hueCurrentMatchesActivePreset() ? \'Change colour or brightness to save a new preset\' : \'Save current colour as a new preset\')" ' +
+            ':disabled="huePresetEditMode" ' +
+            ':title="huePresetEditMode ? \'Disable Edit mode to save current colour\' : \'Save current colour as a new preset (unique name)\'" ' +
             '@click="openHuePresetSaveModal()">Save current color as preset</button>' +
             "</div>" +
             '<div class="modal-action border-t border-base-200 pt-4 mt-6">' +
@@ -457,10 +471,13 @@
 
     function mount() {
         document.querySelectorAll("[data-wanos-offline]").forEach((el) => {
+            // Custom data-message (e.g. Loading…) keeps page-specific copy; no milestone line
+            const customMsg = el.getAttribute("data-message");
             const html = offlineOverlay({
                 tone: el.getAttribute("data-tone") || "error",
-                message: el.getAttribute("data-message") || "Establishing connection stream to WanOS backend...",
-                extraHideExpr: el.getAttribute("data-offline-suppress") || ""
+                message: customMsg || "Re-connecting to WanOS...",
+                extraHideExpr: el.getAttribute("data-offline-suppress") || "",
+                showMilestone: !customMsg
             });
             el.outerHTML = html;
         });

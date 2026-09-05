@@ -1025,13 +1025,19 @@ automations:
         actions: []
     id: c957ccb2-9ea9-454a-80ac-a977629673d9
   - name: IR OFF
-    enabled: false
+    enabled: true
     branches:
       - when: if
         conditions:
           - type: event
             event: a97bba4d-78d3-4ce2-b134-fff36c2cd88c
-        actions: []
+          - type: time_of_day
+            is: light
+        actions:
+          - entity_id: hue.group.sauna_hue
+            state: "OFF"
+          - entity_id: zwave.sauna_zoutlamp
+            state: "OFF"
     id: 98b26294-5fcb-46be-a6f0-53a38ca8543d
   - name: Audio gv
     enabled: true
@@ -1086,6 +1092,20 @@ automations:
             state: "ON"
             preset: relax_red
     id: 73062081-8633-4783-9907-e63e8a796dfb
+  - name: IR ON
+    enabled: true
+    branches:
+      - when: if
+        conditions:
+          - type: event
+            event: 056c3ade-659a-49e0-87f2-2c60e84ca792
+        actions:
+          - entity_id: hue.group.sauna_hue
+            state: "ON"
+            preset: my_white
+          - entity_id: zwave.sauna_zoutlamp
+            state: "ON"
+    id: 6c7b2d91-b81a-4986-95c3-d66d987714fa
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

@@ -3507,6 +3507,8 @@ function blockyApp() {
         /** B10G: yellow checklist overlay during cold init only. */
         editorLoading: true,
         reloadSuppressOverlay: false,
+        /** B10L: true after at least one successful state fetch (milestone copy). */
+        _hadSnapshot: false,
         loadTimingsModalOpen: false,
         /** Frozen copy for the admin modal — taken once at end of cold load. */
         coldLoadTimingsSnapshot: null,
@@ -5783,6 +5785,36 @@ function blockyApp() {
             this.requestLeave({ type: "newFromSe", eventId: eid });
         },
 
+        /**
+         * B10I: used SE → select companion SR in Library (scroll + focus).
+         * One SR per SE (catalog invariant).
+         */
+        goToSystemRuleForSelectedSe() {
+            if (this.uiLocked) return;
+            if (!this.selectedRule || !this.selectedRule.isSystemEventRow) return;
+            const eid = String(this.selectedRule.id || "");
+            if (!eid) return;
+            let companion = null;
+            for (const rule of this.automations || []) {
+                if (!rule) continue;
+                if (this._primaryEventIdFromRule(rule) === eid) {
+                    companion = rule;
+                    break;
+                }
+            }
+            if (!companion) return;
+            this.requestLeave({ type: "select", rule: companion });
+            const scrollKey = this.libraryRowKey(companion);
+            this.$nextTick(() => {
+                const el = document.querySelector(
+                    `[data-library-row-key="${CSS.escape(scrollKey)}"]`
+                );
+                if (el && typeof el.scrollIntoView === "function") {
+                    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+                }
+            });
+        },
+
         /** B10F: unused UE → open New rule with When user event preselected (draft). */
         createUserRuleForSelectedUe() {
             if (this.uiLocked) return;
@@ -6161,6 +6193,7 @@ function blockyApp() {
                     }
                     this.coldTimeToInteractiveMs = Math.round(performance.now());
                     this.connected = true;
+                    this._hadSnapshot = true;
                     this.editorLoading = false;
                     this._snapshotColdLoadTimings();
                     this._logColdLoadTimings();
@@ -6170,6 +6203,7 @@ function blockyApp() {
                 const fireStart = performance.now();
                 await this.fetchFireStatus();
                 this.connected = true;
+                this._hadSnapshot = true;
                 return true;
             } catch (e) {
                 if (!this.ruleSaveFailed) this.errorMessage = String(e);
@@ -6419,12 +6453,36 @@ function blockyApp() {
                     }
                     this.liveDevices = st.devices || {};
                     this.connected = true;
+                    this._hadSnapshot = true;
                 } catch (e) {
                     this.connected = false;
                 }
             };
             tick();
             this._heartbeatTimer = setInterval(tick, 10000);
+            // C37: frozen setInterval does not catch Android warm resume — tick on foreground.
+            if (!this._resumeHeartbeatBound) {
+                this._resumeHeartbeatBound = true;
+                const onResume = () => {
+                    if (document.visibilityState === "hidden") return;
+                    tick();
+                };
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") onResume();
+                });
+                document.addEventListener("resume", onResume);
+                window.addEventListener("pageshow", (ev) => {
+                    if (ev.persisted) onResume();
+                });
+            }
+        },
+
+        /**
+         * B10L: second line under Re-connecting (honest milestones; no fake %).
+         */
+        get offlineStatusLine() {
+            if (this._hadSnapshot) return "Waiting for live stream...";
+            return "Waiting for snapshot...";
         },
 
         _stopRestHeartbeat() {
@@ -6929,11 +6987,15 @@ function blockyApp() {
             this.editorLoading = true;
             const ok = await this.refreshAll();
             if (this.editorLoading) {
-                if (ok) this.connected = true;
+                if (ok) {
+                    this.connected = true;
+                    this._hadSnapshot = true;
+                }
                 this.editorLoading = false;
             }
             if (ok) {
                 this.connected = true;
+                this._hadSnapshot = true;
                 this._startRestHeartbeat();
                 if (this.showBlocklyWorkspace && !this.editorDirty) {
                     this.scheduleBlocklyLoad();

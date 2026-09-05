@@ -486,7 +486,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 
 **Not in Blockly cluster:** **B15** (schedule demotion), **B16** (internal bus UUID), **B17** (assess), **B18** (sauna clamp) — stay in general pipeline after **F** unless safety jumps **B18**.
 
-**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** anytime after **B10F**; **C18** ✅ after **B10H**; **G5** ✅ **Done 2026-08-16** (legacy + **B9C**, not after B19); **E** (Gmail + H5 Messages) ∥ Ship **B7**; **B12** ∥ Ship **B7**.
+**Parallel (beside ships — detail in [`pipeline.md`](pipeline.md) § Parallel tracks):** **B10I** ✅; **C18** ✅ after **B10H**; **G5** ✅ **Done 2026-08-16** (legacy + **B9C**, not after B19); **E** (Gmail + H5 Messages) ∥ Ship **B7**; **B12** ∥ Ship **B7**.
 
 **After F:** **B20** — Domoticz **Time** trigger + time-compare blocks (every-minute evaluation model).
 
@@ -2046,11 +2046,11 @@ Pointers only — detail under § B10F / § B12–B18:
 * **B10F** — Automations UX polish — ✅ **Done 2026-08-11** (does not reopen B10E DoD).
 * **B10G** — ✅ **Done 2026-08-12** — load checklist + timings + NOT CONNECTED (SSE A+B+C) + admin **`vNN`** + hue preset scoped reload.
 * **B10H** — Automations cold-load shorten wait — ✅ **Done 2026-08-12**.
-* **B10I** — Used SE → **Go to SR** — **∥ cluster** (anytime after B10F).
-* **B10J** — **`Event Received`** catalog display name — **∥ cluster** (anytime after B10B).
+* **B10I** — Used SE → **Go to SR** — ✅ **Done 2026-09-05**.
+* **B10J** — **`Event Received`** catalog display name — ✅ **Done 2026-09-05**.
 * **B10K** — ✅ **Done 2026-08-15** — timings stopwatch + shutter OPEN/CLOSED + RFX ON/OFF (no color); **one code run with G3**.
-* **B10L** — Shared **NOT CONNECTED** overlay: richer connect status + copy **Re-connecting to WanOS...** — **∥ cluster**.
-* **B10M** — Explorer Hue preset duplicate settings — **∥ cluster** (after **B10G** Part D).
+* **B10L** — Shared **NOT CONNECTED** overlay: richer connect status + copy **Re-connecting to WanOS...** — ✅ **Done 2026-09-05**.
+* **B10M** — Explorer Hue preset duplicate settings — ✅ **Done 2026-09-05**.
 * **B27** — bugfix: **TV ON** rule — Sonos OFF not applied / log2 gap — **∥ cluster** (triage **2026-09-01**).
 * **B10N** — ✅ **Done 2026-08-15** — closed without dedicated code; covered by **B10K** Item 3.
 * **C18** — Explorer Control live lag — ✅ **Done 2026-08-16**; [`phaseC-shell.md`](phaseC-shell.md) § C18.
@@ -2393,32 +2393,31 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ---
 
-### Phase B10I — Used SE → Go to SR 🔜 TODO
+### Phase B10I — Used SE → Go to SR ✅ DONE (2026-09-05)
 
-**Origin:** operator inbox **2026-08-12**. **After B10F** ✅. Size **low**. **Parallel:** may run beside **B10H** and Ship **B2–B7**, **B12** — no B19 dependency ([`pipeline.md`](pipeline.md) § Parallel tracks). **One SR per SE** (catalog invariant) — mirror of B10F item 6 (**unused SE → create SR**).
+**Shipped summary:** Used SE view shows **Go to SR** (replaces disabled Create). Opens the single companion SR via `_primaryEventIdFromRule` + Library `scrollIntoView`. Unused SE **Create System Rule…** unchanged. Pi smoke ✅ **2026-09-05**.
 
-**Intent:** When viewing a **used** **SE** (listening SR exists), add **Go to SR** — selects/opens the companion **SR** in the Library (scroll + focus editor).
+**Product:** Automations Library SE pane — `frontend/blocky.html` / `blocky.js` (`goToSystemRuleForSelectedSe`).
 
-**Out of scope:** Multi-SR per SE; changing SR/SE bind rules.
+**B10I DoD:**
 
-**B10I DoD:** Used SE view shows **Go to SR**; opens the single companion SR; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] Used SE → **Go to SR**; companion SR opens + scrolls
+- [x] Pi smoke — **2026-09-05**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-09-05**
 
 ---
 
-### Phase B10J — Event Received log catalog name 🔜 TODO
+### Phase B10J — Event Received log catalog name ✅ DONE (2026-09-05)
 
-**Origin:** operator inbox **2026-08-12**. Backend logging — **not** Blockly UI. Size **low**. **After B10B** ✅ (catalog UUID bus). **Parallel:** may run beside **B10H** and Ship **B2–B7**, **B12** ([`pipeline.md`](pipeline.md) § Parallel tracks).
+**Shipped summary:** INFO `Event Received […]` bracket = catalog display name (system UUID + user events). Unknown UUID stays raw; internal enum events unchanged. DEBUG lines unchanged. Pi smoke ✅ **2026-09-05**.
 
-**Operator request (verbatim):**
-> - log: "2026-08-12 12:06:26.315 | INFO     | Event Received [856d0f0d-1f6b-4a1a-ace8-a5856a5ee491]: {'origin': 'MANUAL'}" add proper name
+**Product:** [`reference.md`](../reference.md) § `state_manager.py` — `core/state_manager.py` `_event_received_log_label` + `_events_by_id`.
 
-**Locked triage intent:**
+**B10J DoD:**
 
-* When `state_manager` logs **`Event Received […]`** at INFO, bracket text = **catalog display name only** (e.g. **`Cinema rolluik half`**) — **no UUID**.
-* Internal enum events (`HUB_STATE_CHANGED`, …) unchanged.
-* **Out of scope:** full **B16** full-bus UUID refactor; **G7** integration log tags.
-
-**B10J DoD:** Manual/catalog events log readable name on Pi smoke; internal events unchanged. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] Catalog events log readable name; internals / unknown UUID unchanged
+- [x] Pi smoke — **2026-09-05**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-09-05**
 
 ---
 
@@ -2454,50 +2453,37 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ---
 
-### Phase B10L — NOT CONNECTED overlay status 🔜 TODO
+### Phase B10L — NOT CONNECTED overlay status ✅ DONE (2026-09-05)
 
-**Origin:** operator inbox **2026-08-13** (screenshot 2). **Copy line 2026-08-15.** Shared shell overlay (`data-wanos-offline`) — **all SSE pages** that use it (Automations, Explorer, Admin, WISC, History, …). Size **low**. **Parallel:** beside **B2–B7**, **B12**. Extends **B10G** overlay **1** (not overlay **2** yellow checklist).
+**Shipped summary:** Shared `data-wanos-offline` copy **Re-connecting to WanOS...** + honest milestone (`offlineStatusLine`: Waiting for snapshot / Live stream reconnecting / Waiting for live stream). No fake %. Timers & types / Hidden-devices keep **`Loading…`**. Pi smoke ✅ **2026-09-05**.
 
-**Covering operator request (verbatim):**
-> - the modal after load for the automation page: don't display it after load but have a small button top-left (right of the page-version) that displays it
-> - + 4 screenshots attached
+**Product:** [`architecture.md`](../architecture.md) § Connection Stability; [`reference.md`](../reference.md) § `/api/state/sse` — `frontend/wanos-shell.js` + `app.js` / `blocky.js` / `zwave.js`.
 
-**Operator request (verbatim from screenshot):**
-> possible to put some info: connected, receiving x%, ...?
+**B10L DoD:**
 
-**Operator request (verbatim, triage 2026-08-15):**
-> change "Establishing connection stream to WanOS backend..." to "Re-connecting to WanOS..."
-
-**Locked triage intent:**
-
-* Keep heading **NOT CONNECTED**.
-* Establishing line becomes **`Re-connecting to WanOS...`** (replaces `Establishing connection stream to WanOS backend...`). Same string on every shared-overlay page.
-* Add **honest status** under it: e.g. connecting / snapshot received / SSE open / waiting — **not** a fake percentage.
-* Real **%** only if a true progress metric exists at kickoff (otherwise omit %; use milestones).
-* Same copy on every page that uses the shared overlay.
-
-**Out of scope:** Yellow Automations load checklist (overlay **2**); timings modal (**B10K** ✅). Do not respec overlay 1 in **B10G** shipped notes — this ship supersedes the establishing line.
-
-**B10L DoD:** Overlay copy **Re-connecting to WanOS...**; live connect milestone (and % only if real); Pi smoke reconnect + cold open. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] Overlay copy + milestone; Loading… pages unchanged
+- [x] Pi smoke reconnect + cold open — **2026-09-05**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-09-05**
 
 ---
 
-### Phase B10M — Explorer Hue preset duplicate settings 🔜 TODO
+### Phase B10M — Explorer Hue preset duplicate settings ✅ DONE (2026-09-05)
 
-**Origin:** operator inbox **2026-08-15**. Explorer Hue preset CRUD (B9A / B10G Part D) — **not** Automations save (**G6**), **not** G2 color truth. Size **low**. **Parallel:** beside **B2–B7**, **B12** (after **B10G** Part D ✅).
+**Shipped summary:** New Explorer Hue preset may match an existing preset’s colour/bri; unique display name still required. FE no longer blocks save on `hueCurrentMatchesActivePreset`. Pi smoke ✅ **2026-09-05**.
 
-**Operator request (verbatim):**
-> bugfix: cannot save another preset with the same settings as an already existing preset
+**Product:** [`reference.md`](../reference.md) § `/api/hue-presets` — `frontend/app.js` + `wanos-shell.js` Save button.
 
-**Locked triage intent:** Operator can save a **new** Explorer Hue preset whose color/bri/xy **matches** an existing preset (new name/key). Display-name uniqueness (B9A) stays. Not a second G6/B10G-D ship.
+**B10M DoD:**
 
-**B10M DoD:** New preset with same settings as an existing one saves; Pi smoke Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] Same settings + new name saves
+- [x] Pi smoke Explorer — **2026-09-05**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-09-05**
 
 ---
 
 ### Phase B27 — TV ON rule Sonos OFF 🔜 TODO
 
-**Letter:** **B27**. **Sequence #44**. Size **low**. **Parallel:** ∥ bugfix cluster (**B10J** / **C20** / **C21**). Triage **2026-09-01**.
+**Letter:** **B27**. **Sequence #37**. Size **low**. Triage **2026-09-01**. (**B10J** / **C20** / **C21** ✅ **2026-09-05**.)
 
 **Operator request (verbatim, 2026-09-01):**
 

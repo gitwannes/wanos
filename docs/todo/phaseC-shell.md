@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C20 → C21 → C15 → C13 → C30 → C33**. **C20** / **C21** may run **∥ cluster**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36 → C37**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -30,8 +30,8 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C18 — Sensor live lag** | Explorer Control live lag after toggle — ✅ **Done 2026-08-16** | SSE / Q4–Q5 · mid |
 | **C19 — History auto-refresh blank** | Auto-refresh black / title-only; keep settings + window — ✅ **Done 2026-08-16** | History charts · low |
 | **C29 — Timers/Hidden NameError** | ✅ **Done 2026-08-27** — restored dropped `main.py` imports | Admin YAML APIs · low |
-| **C20 — Bell Clear All** | Admin SYSTEM NOTIFICATIONS **Clear All** does nothing | Admin alerts · low |
-| **C21 — AUTO OFF while OFF** | Explorer countdown runs on a device that is already OFF | Explorer live · low |
+| **C20 — Bell Clear All** | ✅ **Done 2026-09-05** — Clear All = dismiss every visible bell row | Admin alerts · low |
+| **C21 — AUTO OFF while OFF** | ✅ **Done 2026-09-05** — UI hide countdown when OFF | Explorer live · low |
 | **C27 — Sunrise/sunset chrome** | ✅ **Done 2026-08-22** — Admin first row + Explorer ℹ popover; Pi smoke with **G15** |
 | **C22 — Host “(no history)”** | Host CPU temp on history allowlist; load 5m/15m live-only — ✅ **Done 2026-08-16** | Host / History · low |
 | **C23 — SSE SseClient unhashable** | EventSource dies ~25 ms — ✅ **Done 2026-08-16** (with **C18**) | SSE hub · low |
@@ -47,9 +47,12 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C30 — WISC douche session** | Live + last summary (liters hot/cold/total, €/min gas proxy, cost) | WISC · mid |
 | **C31 + C32 — Sauna/IR analytics & power model** | ✅ **Done 2026-08-30** — combined ship; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5 | WISC + Admin + `power_analytics` · mid |
 | **C34 + L3 — Sauna/IR polish + LCD logging** | ✅ **Done 2026-09-02** — [`sauna-ir.md`](../sauna-ir.md) §3.7 + §4 | WISC + Admin + analytics + LCD · mid |
-| **C33 — Sauna/IR History + runtime display** | Explorer History (Sonos pattern): MOD% day; duration #hrs/#days month/year; WISC rad = time-on only; Admin = remaining + runtime | History + WISC + Admin · mid |
+| **C35 — Live IR UX + learn refresh** | ✅ **Done 2026-09-03** — [`sauna-ir.md`](../sauna-ir.md) §4 | WISC + Admin · low |
+| **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; house kWh day/7d/m/y UX; WISC rad runtime; Admin dual timer | History + WISC + Admin · mid |
+| **C36 — Device event history modal** | Right-click device → History → modal table (ON / OFF / set % / …) | Explorer Control · mid |
+| **C37 — Android PWA resume black screen** | bugfix: warm resume force-SSE + overlay no x-cloak — **coding** (smoke pending) | Shell / SSE resume · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C20** → **C21** → **C15** → **C13** → **C30** → **C33**. **C20** / **C21** **∥ cluster** (may jump). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36** → **C37**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -654,7 +657,7 @@ Alert dismissed (bell): level=<level> "…message text…"
 
 **C17 DoD:** Assess decision recorded in this file; if impl: Pi smoke Admin dismiss + reload per that decision. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
-**Out of scope:** Admin bell **Clear All** no-op → **C20**.
+**Out of scope:** Admin bell **Clear All** — ✅ **C20** (**2026-09-05**).
 
 ---
 
@@ -831,52 +834,37 @@ Two accidental import deletions in `main.py`:
 
 Restored both imports. API contracts unchanged — [`docs/reference.md`](../reference.md) § soft-hide / auto-off-timer.
 
-**Out of scope (unchanged):** **C13** merge; **C21** countdown; **G6** scoped reload.
+**Out of scope (unchanged):** **C13** merge; **C21** countdown ✅ (**2026-09-05**); **G6** scoped reload.
 
 **C29 DoD:** ✅ **2026-08-27** — Pi smoke + Last DoD docs audit this close-out.
 
 ---
 
-## 📋 C20 — Admin bell “Clear All” does nothing 🔜 TODO (kickoff **locked** 2026-08-15)
+## ✅ C20 — Admin bell “Clear All” — **Done 2026-09-05**
 
-**Origin:** operator screenshot **2026-08-14** (Admin **SYSTEM NOTIFICATIONS**). Extends **C2** / **C8** — **not** C17 (banner dismiss vs reload). Size **low**. Sequence: **after C17** (same Admin alert surface); **∥ cluster** OK.
+**Shipped summary:** **Clear All** dismisses every visible bell row (same as each ✕): C8 log per row; criticals local-dismiss only; non-criticals also `ALERT_DISMISSED`. Button when `bellAlerts.length > 0`. Pi smoke ✅ **2026-09-05**.
 
-**Operator request (verbatim from screenshot):**
-> clicking 'clear all' doesnt do anything
+**Product:** Admin SYSTEM NOTIFICATIONS — `frontend/wanos-shell.js` + `app.js` `clearNonCriticalAlerts` / `dismissBellAlert`.
 
-**Kickoff answers (operator 2026-08-15):**
+**C20 DoD:**
 
-* **Session:** dismiss **every currently visible** bell row (critical + non-critical), same semantics as **X** on each row. Criticals stay on the server (banner can remain). Non-criticals are removed from shared state.
-* **C8:** one `Alert dismissed (bell):` line per cleared row.
-* **Button:** shown whenever the bell list is non-empty (including criticals-only).
-* **Reload:** same as per-row X — non-criticals stay gone (server-removed); criticals can reappear. Persist-across-reload stays **C17**.
-
-**Locked contract:**
-
-* After **Clear All**: list empty, badge **0**, *No recent system events.*
-* Per-row **X** unchanged. Do not reopen **C2** / **C8** DoD.
-* **Banner** stays independent (C2 dual dismiss). This button is the bell only.
-
-**Fact (today, not locked as cause):** `clearNonCriticalAlerts()` only fires `ALERT_CLEAR_NON_CRITICAL` (leaves criticals; no local dismiss; no C8). Individual X uses `dismissBellAlert`. Implement when commanded.
-
-**Out of scope:** **C17** persist dismiss across reload; **C12** item 4 `produced_at` log; **G14** ON bell copy.
-
-**C20 DoD:** Clear All empties the Admin SYSTEM NOTIFICATIONS list (all visible rows); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] Clear All empties bell list; badge 0
+- [x] Pi smoke — **2026-09-05**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-09-05**
 
 ---
 
-## 📋 C21 — AUTO OFF countdown while device is OFF 🔜 TODO
+## ✅ C21 — AUTO OFF countdown while device is OFF — **Done 2026-09-05**
 
-**Origin:** operator screenshot **2026-08-15** (Explorer Control, **cinema licht**). Explorer live row — **not** C10 item 2 (Planned Automations stale timers), **not** reopening **B8**. Size **low**. Sequence: **∥ cluster**.
+**Shipped summary:** Explorer Control shows `auto_off_countdown` only when `isOn === true` (UI-only; B8 engine not reopened). Pi smoke ✅ **2026-09-05**.
 
-**Operator request (verbatim from screenshot):**
-> IS OFF, but timer runs!??
+**Product:** Explorer Control row badge — `frontend/app.js` device list countdown modeler.
 
-**Locked triage intent:** If the device is **OFF**, Explorer must **not** show a running **AUTO OFF IN …** countdown. Screenshot: **cinema licht** toggle OFF + red **AUTO OFF IN 01:43:36**. Do not reopen **B8** (auto-off engine/config). Kickoff: UI leftover vs engine timer still armed.
+**C21 DoD:**
 
-**Out of scope:** **C10** Planned Automations past-remove; **C3** Force ALL-OFF; **G6** reload re-arm (unless kickoff proves that path).
-
-**C21 DoD:** OFF device has no AUTO OFF countdown; Pi smoke Explorer. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [x] OFF device has no AUTO OFF countdown
+- [x] Pi smoke Explorer — **2026-09-05**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-09-05**
 
 ---
 
@@ -1119,11 +1107,8 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C11:** Assess/decide Control vs History list membership (queued; after C4 default).
 * **C12:** ✅ **Pi smoke 2026-08-23** — Hue bri int; binary/Hue/audio month/year duration ON (+ Y snap); alert `produced_at` log stamp; Z-Wave `-term`; scene favorites UUID; blinds proportional ui-lock; day frost + dew off month/year; Hidden preset admin-only; motion 75xxx docs.
 * **C17:** banner dismiss vs reload — **assess at kickoff** (not locked).
-* **C20:** kickoff **locked** 2026-08-15 — **Clear All** dismisses every visible bell row (same as each X); C8 per row; button iff list non-empty; reload same as X (**C17**). Implement when commanded.
-* **C18:** ✅ **Done 2026-08-16** — Explorer Control live rows; Q4/Q5; live SSE (**C23**); drain `create_task` I/O.
-* **C23:** ✅ **Done 2026-08-16** (closed **with C18**) — `SseClient` `eq=False` in the hub `set`; first ping; pure ASGI; no HTTP/2 `Connection` header. Explorer EventSource smoke; journal not a DoD.
-* **C29:** ✅ **Done 2026-08-27** — restored `main.py` imports; Timers & types + Hidden Save; Pi smoke.
-* **C21:** Explorer AUTO OFF countdown must not run when the device is already OFF.
+* **C20:** ✅ **Done 2026-09-05** — Clear All dismisses every visible bell row.
+* **C21:** ✅ **Done 2026-09-05** — UI-only hide AUTO OFF countdown when OFF.
 * **C27:** ✅ **Done 2026-08-22** — Admin General Diagnostics **first** row; Explorer **ℹ tap → popover** on Device Explorer title; format **HH:MM + relative**; History title out of scope; Pi smoke with **G15** deploy.
 * **C22:** ✅ **Done 2026-08-16** — Host CPU temp (`22001`) on `HOST_HISTORY_IDXS`; load 5m/15m (`22007`/`22008`) live-only; not C11.
 * **C16:** ✅ **Pi smoke 2026-08-23** — sliding 24 h over `hires_days`; water hourly×retention + pan; subtitle; combined with **C24**. Product: [`sensor_history.md`](../sensor_history.md).
@@ -1178,6 +1163,26 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 **C30 DoD (stub):** Live + last douche on WISC with duration, hot/cold/total L, gas-as-minutes proxy, total cost; session gates match old WISC intent (lock numbers at kickoff); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
+## ✅ C35 — WISC/Admin live IR UX + learn refresh — **Done 2026-09-03**
+
+**Letter:** **C35**. **Pi smoke ✅ 2026-09-03.**
+
+**Product reference (canonical):** [`sauna-ir.md`](../sauna-ir.md) §4 (Admin live titles; WISC Real W/Energy under controls; `IR_ON` default mod; learn-count SSE refresh).
+
+**Shipped (summary):**
+
+| Area | Outcome |
+|------|---------|
+| **Admin** | Live panel title `Live IR session` / `Live Sauna session`; learn counts refresh when last session updates (no full reload) |
+| **WISC** | No “Live session” heading; Real W + Energy under MOD (IR) / setpoint (sauna); full-width when only one active |
+| **IR_ON** | Resets mod + freq to `config.ir.default_ir_modulation` (site 75%) |
+
+**Out of scope (unchanged):** Real W ~5862 spike; **C33** History.
+
+**C35 DoD:** [x] Locks shipped · [x] Pi smoke **2026-09-03** · [x] Last DoD docs audit (`sauna-ir.md` §4).
+
+---
+
 ## ✅ C34 + L3 — Sauna/IR analytics polish + LCD logging — **Done 2026-09-02**
 
 **Letter:** **C34** (shipped with **L3**). **Combined ship** with [`phaseL-lcd.md`](phaseL-lcd.md) § L3.
@@ -1202,9 +1207,9 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ---
 
-## 📋 C33 — Sauna/IR History charts + runtime display 🔜 TODO
+## 📋 C33 — Sauna/IR History charts + runtime + nameplates + kWh ranges 🔜 TODO
 
-**Letter:** **C33**. **Sequence #44**. **Affinity:** Operator shell (Explorer History + WISC + Admin). Size **mid**. **Follow-up to C31+C32** (combined triage **2026-09-01**).
+**Letter:** **C33**. **Sequence #44**. **Affinity:** Operator shell (Explorer History + WISC + Admin). Size **mid**. **Follow-up to C31+C32** (combined triage **2026-09-01**; expanded **2026-09-03**).
 
 **Operator request (verbatim, 2026-09-01):**
 
@@ -1213,17 +1218,110 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 > add runtime IR (& sauna) as well, not just time remaining - show only time on in rad button in wisc
 > in admin panel: show both remaining time and runtime
 
+**Operator request (verbatim, 2026-09-03) — triage into C33:**
+
+> A/ Kwh: visible in history, but it seems only 24hrs, correct? why not 7 days + month/year?
+> B/ 4 real W: I meant "learned nameplates @ 100% MOD" - this is what is visible in admin right bottom corner
+> ingest: write every 10 minutes (same as temp/hum sensors) - not every Wh pulse
+> there is already a pipeline to put IR & SAUNA in history - triage into that one
+
 ### Placement notes (not full kickoff)
 
-* **History UX:** Explorer → History actuator charts for sauna + IR — **same families as Sonos/Onkyo** ([`sensor_history.md`](../sensor_history.md) §14): day detail with **% MOD** level; month/year **duration ON** (#hrs / #days), not session-table-only view on `sensorhistory.html`.
+* **History UX (sauna/IR actuators):** Explorer → History for sauna + IR — **same families as Sonos/Onkyo** ([`sensor_history.md`](../sensor_history.md) §14): day detail with **% MOD** level; month/year **duration ON** (#hrs / #days), not session-table-only view on `sensorhistory.html`.
 * **WISC:** while sauna/IR active, round **rad** button shows **elapsed runtime** (time on) only — not countdown.
 * **Admin:** sauna/IR panels show **both** remaining time **and** elapsed runtime (live session).
-* **Depends on:** **C31+C32** ✅ (session DB, MOD history, WISC one-liners). Distinct from **C30** (douche).
-* **Out of scope:** session row schema changes; **B17** / **B18**.
+* **Learned nameplates @ 100% (U/V/W/IR):** four History series from Admin element W panel (`element_power_w`); ingest **every 10 minutes** (climate/SHT cadence family — **not** per kWh pulse). Virtual IDXs + `SENSOR_META` + `note_gauge` (or equivalent) locked at kickoff.
+* **House kWh (`11001`):** already tracked in `sensor_history`. Day UI uses **C16** default **24 h viewport** over **`hires_days`** (default 7) buffer — pan/zoom-out should expose the week. Month/year ranges should already exist for energy kind; **C33** assesses + fixes if Explorer only exposes day or month/year is empty/broken for House energy. Product intent: operator can see **7-day day buffer + month + year** (not day-only forever).
+* **Depends on:** **C31+C32** ✅. Distinct from **C30** (douche); distinct from **C35** (live WISC/Admin polish).
+* **Out of scope:** session row schema changes; **B17** / **B18**; per-pulse element W ingest; Real W ~5862 spike (deferred).
 
-**Open until kickoff:** which IDX/entity_ids appear in Explorer History list (sauna switch + IR? virtual `20101`?); day-chart MOD source (session RAM vs `device_events`); whether IR-only vs sauna-full share one History row or two.
+### Assess notes (2026-09-03) — House energy “only 24 h”
 
-**C33 DoD (stub):** Explorer History day/month/year for sauna + IR per Sonos pattern; WISC rad = runtime-only when on; Admin = remaining + runtime; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+* **By design (C16):** day charts default to last **24 h**; API returns up to **`hires_days`** hi-res so the user can **zoom out / pan** across ~7 days.
+* **Month / year:** backend summary already returns today/month/year kWh for `kind=energy`; if UI feels day-only, likely FE range picker / empty rollup / operator never switched range — verify at kickoff.
+* **Not** the same as Admin Total kWh display offset (baseline); series SoT remains pulse IDX `11001`.
+
+**Open until kickoff:** which IDX/entity_ids for sauna/IR actuator rows; MOD day source; one vs two History rows for sauna vs IR; virtual IDX map for U/V/W/IR nameplates; confirm House energy month/year UX gap vs education of C16 pan.
+
+**C33 DoD (stub):** Explorer History day/month/year for sauna + IR per Sonos pattern; four learned-nameplate W@100% series @ 10 min; House energy usable across 7d day buffer + month + year; WISC rad = runtime-only when on; Admin = remaining + runtime; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+## 📋 C36 — Device event history modal (right-click) 🔜 TODO
+
+**Letter:** **C36**. **Sequence #45**. **Affinity:** Operator shell (Explorer Control). Size **mid**.
+
+**Operator request (verbatim, 2026-09-04):**
+
+> add to history: button (right-click on device) which opens modal to show, in table format, when the switch is turned on, off, set to %, etc
+
+**Placement intent (not locked):**
+
+* Explorer **Control** device row: **right-click** → **History** (or equivalent) → **modal** with a **table** of state-change events (ON / OFF / set to % / similar).
+* Distinct from Explorer **History** charts (**C5** family) and from **C33** (sauna/IR chart families + nameplates + kWh ranges).
+* Device type scope, columns, retention/source API, and which surfaces (Explorer only vs WISC) → **kickoff**.
+
+**Out of scope (this triage):** chart polish; sauna/IR History (**C33**); Blocky.
+
+**C36 DoD (stub):** Right-click → History opens modal table of device state changes; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+## 📋 C37 — bugfix: Android PWA resume → black screen 🔜 coding (awaiting smoke)
+
+**Letter:** **C37**. **Sequence #46**. **Affinity:** Operator shell (installed PWA / SSE pages). Size **mid**. **bugfix** (Sequence prefix).
+
+**Operator request (verbatim, 2026-09-04):**
+
+> also add to triage: when I re-open the (installed) app on android, it shows , for a moment, an old status - then the screen goes either black and nothing happens or the re-connection screen appears - re-connect is ok of course: the black screen is not: check root cause and fix: kickoff now
+
+**Placement intent:**
+
+* Android **installed** web app (`site.webmanifest` `display: standalone`) — **warm resume** from process still in memory (homescreen icon; app opened earlier, possibly yesterday).
+* Acceptable: brief stale UI → **NOT CONNECTED / re-connect** overlay → recover.
+* Bug: warm resume → **full blank**, stuck (no reconnect chrome / no recovery). **Sometimes.**
+* **Not** the bug: force-kill (recents swipe-up / remove from memory) then cold open — that path is **OK**.
+* Distinct from **B10L** ✅ (overlay copy + milestones). Related surface (SSE reconnect) but different DoD: warm-resume hang / blank, not copy.
+
+**Adjacent:** **B10L** ✅ **Done 2026-09-05**.
+
+**Out of scope:** intentional reconnect UX polish beyond fixing blank/stuck; iOS unless reported; cold-start path (already OK).
+
+**Status:** Spec **LOCKED** (kickoff **2026-09-04**). **Implemented 2026-09-04** — awaiting OnePlus 12 smoke.
+
+**Locked (2026-09-04):**
+
+| Lock | Decision |
+|---|---|
+| Repro | Warm resume: process still in Android memory → homescreen icon; **sometimes** full blank. Cold start after recents kill = OK. |
+| Smoke | **OnePlus 12** homescreen PWA — operator tests **all** pages used |
+| Success | No full blank hang; either live UI or NOT CONNECTED → recover |
+| Code home | Shared SSE/`app.js` resume path (+ Z-Wave / Blocky heartbeat siblings) |
+| vs B10L | Separate ship |
+
+**C37 DoD:** Root cause recorded · blank hang fixed (live or reconnect+recover) · OnePlus 12 smoke on all pages used (warm resume + cold start still OK) · **Last DoD:** audit `docs/**/*.md` (+ root README). Product notes: [`reference.md`](../reference.md) SSE/`app.js`; [`architecture.md`](../architecture.md) client resume.
+
+### C37 kickoff — answers (2026-09-04)
+
+| # | Answer | Status |
+|---|---|---|
+| 1 | Bug first seen on **Explorer**; smoke = **all** pages you use | locked |
+| 2 | **Full blank** viewport | locked |
+| 3 | **Warm resume** from memory (icon while process still alive; may be hours/day later). **Cold start** after swipe-up remove from memory = **OK**. Blank is **intermittent**. | locked |
+| 4 | **OnePlus 12**, launched from **homescreen installed app** (standalone PWA) | locked |
+| 5 | **C37** separate from **B10L** | locked |
+
+### C37 root-cause assess (2026-09-04)
+
+**Verdict:** Warm resume leaves dead/zombie SSE + stale Alpine; recovery was watchdog-only (frozen timers). Blank = `x-cloak` on offline overlay (+ empty `x-text` title) when Alpine not bound / soft reload. Detail table kept in git history for this file pre-implement.
+
+### C37 shipped (code 2026-09-04 — smoke pending)
+
+| Change | Where |
+|---|---|
+| Force SSE reconnect on `visibilitychange` / `resume` / bfcache `pageshow` | `frontend/app.js` |
+| Snapshot fetch AbortController + 20 s timeout; generation token | `frontend/app.js` |
+| Offline overlay **no** `x-cloak`; Explorer title static fallback | `frontend/wanos-shell.js` |
+| Explorer device card drop `x-cloak` | `frontend/deviceexplorer.html` |
+| Z-Wave page resume force-reconnect | `frontend/zwave.js` |
+| Automations heartbeat tick on resume | `frontend/blocky.js` |
+| Cache-bust `wanos-shell.js?v=18` / `app.js?v=3.51` (+ siblings) | HTML entrypoints |
 
 ## ✅ C31 + C32 — Sauna/IR analytics & power model — **Done 2026-08-30**
 
@@ -1249,8 +1347,8 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C12:** ✅ **Pi smoke 2026-08-23** — full items 1–9 + follow-ups (Hue/audio duration ON; Y-axis ticks). Extra climate lines / fullscreen / CSV → **C24**.
 * **C17:** **assess at kickoff** — persist while fault still true vs new occurrence; bell vs banner; store.
 * **C29:** ✅ **Done 2026-08-27** — Pi smoke; no open Qs.
-* **C20:** kickoff + contract **locked** 2026-08-15 — implement when commanded.
-* **C21:** AUTO OFF countdown while toggle OFF.
+* **C20:** ✅ **Done 2026-09-05** — Clear All = dismiss every visible bell row.
+* **C21:** ✅ **Done 2026-09-05** — UI-only hide AUTO OFF countdown when OFF.
 * **C27:** ✅ **Done 2026-08-22** — format **HH:MM + relative** locked; Explorer ℹ popover; History title out of scope; closed with **G15** Pi smoke.
 * **C16 / C24:** ✅ **Pi smoke 2026-08-23** — closed. Sections archived in this file (pointers to product docs).
 * **C25:** ✅ **Pi smoke 2026-09-01** — closed. Product pointers in § C25 archive.
@@ -1262,7 +1360,9 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C26:** kickoff **locked 2026-08-22** — after **C4**; classic scripts; `blockly-*` siblings; page-script dedupe; **`reference.md` § frontend catalogs all `frontend/*.js`**.
 * **C3 / C4** remain open as specified above (later in sequence).
 * **C30:** triage placed **2026-08-27** — kickoff before code (UI chrome, cost config keys, last-session persist home).
-* **C33:** triage placed **2026-09-01** — follow-up to **C31+C32**; kickoff before code (History IDX rows, MOD day source).
+* **C33:** triage **2026-09-01** + expand **2026-09-03** (nameplates @100% / 10 min; house kWh 7d+m/y UX) — kickoff before code.
+* **C36:** triage **2026-09-04** — right-click device → History modal (event table); kickoff before code.
+* **C37:** implemented **2026-09-04** — resume force-SSE + overlay no x-cloak; awaiting OnePlus 12 smoke.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
-* NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**).
+* NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**); overlay copy/milestones → **B10L** ✅ (**2026-09-05**).

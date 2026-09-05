@@ -6,6 +6,8 @@ function zwaveApp() {
         isAdmin: true,
         reloadSuppressOverlay: false,
         _sseOfflineDebounce: null,
+        /** B10L: true after SSE/markAlive at least once. */
+        _hadSnapshot: false,
         eventSource: null,
         usbPath: "",
         errorMessage: "",
@@ -28,6 +30,14 @@ function zwaveApp() {
         logout() {
             localStorage.removeItem("wanos_jwt");
             window.location.href = "/login.html";
+        },
+
+        /**
+         * B10L: second line under Re-connecting (honest milestones; no fake %).
+         */
+        get offlineStatusLine() {
+            if (this._hadSnapshot) return "Waiting for live stream...";
+            return "Waiting for snapshot...";
         },
 
         requestLeave(action) {
@@ -293,6 +303,22 @@ function zwaveApp() {
                 this.connectSSE(token);
             }).catch(err => console.error("Failed to fetch state:", err));
 
+            // C37: Android PWA warm resume — force-close zombie EventSource (same class as app.js).
+            this._pageReadyAt = Date.now();
+            this._pageHiddenAt = 0;
+            this._lastResumeReconnectAt = 0;
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "hidden") {
+                    this._pageHiddenAt = Date.now();
+                    return;
+                }
+                this._onPageResume(false);
+            });
+            document.addEventListener("resume", () => this._onPageResume(true));
+            window.addEventListener("pageshow", (ev) => {
+                if (ev.persisted) this._onPageResume(true);
+            });
+
             this._onBeforeUnload = (e) => {
                 if (this._allowNavigation) return;
                 if (!this.dirty) return;
@@ -302,7 +328,35 @@ function zwaveApp() {
             window.addEventListener("beforeunload", this._onBeforeUnload);
         },
 
+        /**
+         * C37: heal SSE after Android PWA warm resume (do not trust readyState OPEN).
+         * @param {boolean} fromFreeze
+         */
+        _onPageResume(fromFreeze) {
+            if (document.visibilityState === "hidden") return;
+            if (!this._pageReadyAt || (Date.now() - this._pageReadyAt) < 2000) return;
+            const hiddenFor = this._pageHiddenAt ? (Date.now() - this._pageHiddenAt) : 0;
+            if (!fromFreeze && hiddenFor > 0 && hiddenFor < 5000) return;
+            const now = Date.now();
+            if (this._lastResumeReconnectAt && (now - this._lastResumeReconnectAt) < 1500) return;
+            this._lastResumeReconnectAt = now;
+            this._pageHiddenAt = 0;
+
+            const token = localStorage.getItem("wanos_jwt") || "";
+            if (!token) return;
+            console.info("[C37] Z-Wave page forcing SSE reconnect");
+            if (this.eventSource) {
+                try { this.eventSource.close(); } catch (e) { /* ignore */ }
+                this.eventSource = null;
+            }
+            this.connected = false;
+            this.connectSSE(token);
+        },
+
         connectSSE(token) {
+            if (this.eventSource) {
+                try { this.eventSource.close(); } catch (e) { /* ignore */ }
+            }
             this.eventSource = new EventSource(`/api/state/sse?jwt=${token}`);
 
             const scheduleOffline = () => {
@@ -318,6 +372,7 @@ function zwaveApp() {
                     this._sseOfflineDebounce = null;
                 }
                 this.connected = true;
+                this._hadSnapshot = true;
             };
 
             this.eventSource.onmessage = (e) => {

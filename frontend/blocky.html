@@ -380,18 +380,20 @@
                         </p>
                         <button type="button"
                                 class="btn btn-sm btn-warning"
-                                :disabled="uiLocked || !!selectedSeListenerName"
+                                :disabled="uiLocked"
                                 @click="createSystemRuleForSelectedSe()"
                                 x-show="!selectedSeListenerName"
                                 title="Open New rule with this system event as When">
                             Create System Rule for this System Event
                         </button>
+                        <!-- B10I: used SE → open companion SR (one SR per SE) -->
                         <button type="button"
-                                class="btn btn-sm btn-warning btn-disabled"
+                                class="btn btn-sm btn-warning"
+                                :disabled="uiLocked"
+                                @click="goToSystemRuleForSelectedSe()"
                                 x-show="!!selectedSeListenerName"
-                                disabled
-                                title="A system rule already listens to this event">
-                            Create System Rule for this System Event
+                                title="Open the system rule that listens to this event">
+                            Go to SR
                         </button>
                     </div>
 
@@ -707,7 +709,7 @@
     <form method="dialog" class="modal-backdrop"><button type="button" @click="loadTimingsModalOpen = false">close</button></form>
 </dialog>
 
-<script src="wanos-shell.js?v=17"></script>
-<script src="blocky.js?v=50"></script>
+<script src="wanos-shell.js?v=18"></script>
+<script src="blocky.js?v=51"></script>
 </body>
 </html>

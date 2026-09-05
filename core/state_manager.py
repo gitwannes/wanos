@@ -14,7 +14,12 @@ from .config import load_config
 from .entity_registry import EntityRegistry
 from core.event_handlers.registry import EVENT_ROUTERS
 from core.nvm_manager import NVRAMManager
-from core.event_catalog import to_bus_token, legacy_key_for_bus_token
+from core.event_catalog import (
+    to_bus_token,
+    legacy_key_for_bus_token,
+    display_name_for_event_id,
+    is_system_bus_uuid,
+)
 from core.command_commit import CommandCommit, is_outbound_hub_command
 from core.auto_off_store import auto_off_timer_payload_from_config
 
@@ -92,6 +97,9 @@ class StateManager:
 
         # Transient counter to prevent high-frequency hardware pulses from flooding the terminal
         self._pulse_log_counters: dict[int, int] = {}
+
+        # B10J: events catalog id → row (for Event Received INFO display names)
+        self._events_by_id: Dict[str, Dict[str, Any]] = {}
 
         # FIRST-SYNC TRACKING SET (Boot Storm Protector)
         # An immutable ledger tracking which IDXs have reported their physical state at least once since the Python process started.
@@ -558,10 +566,12 @@ class StateManager:
 
         # Seed history metadata for catalog events (UUID → 900000+ idx) so charts
         # resolve the current label. Not Explorer devices — no entity_id birth.
+        events_by_id: Dict[str, Dict[str, Any]] = {}
         for row in read_events():
             eid = str(row.get("id") or "")
             if not eid:
                 continue
+            events_by_id[eid] = row
             s_idx = scene_history_idx(eid)
             self._state.device_metadata[s_idx] = {
                 "name": str(row.get("name") or eid),
@@ -569,6 +579,7 @@ class StateManager:
                 "origin": "automation",
                 "event": eid,
             }
+        self._events_by_id = events_by_id
 
     def register_listener(self, callback: Any) -> None:
         self._state_listeners.append(callback)
@@ -846,6 +857,21 @@ class StateManager:
                     changed_domains.clear()
                     batch_events.clear()
 
+    def _event_received_log_label(self, bus_token: str, event_name: str) -> str:
+        """
+        B10J: INFO Event Received bracket text.
+
+        Catalog system/user events → display name (no UUID).
+        Internal enum events unchanged. Unknown UUID → raw UUID (event_name).
+        """
+        token = str(bus_token or "")
+        events_by_id = getattr(self, "_events_by_id", None) or {}
+        if is_system_bus_uuid(token) or token in events_by_id:
+            name = display_name_for_event_id(token, events_by_id)
+            if name:
+                return name
+        return event_name
+
     async def _handle_event(self, event: Event) -> tuple[bool, Set[str]]:
         # B10B dual-mode bus: catalog events travel as UUIDs; internals stay enum strings.
         # legacy_name maps system UUIDs back to EventType keys for existing == "SAUNA_ON" checks.
@@ -979,7 +1005,9 @@ class StateManager:
                 elif is_debug_event:
                     logger.debug(f"Event Received [{event_name}]: {payload}")
                 else:
-                    logger.info(f"Event Received [{event_name}]: {payload}")
+                    # B10J: catalog events → display name; internals / unknown UUID unchanged
+                    log_label = self._event_received_log_label(bus_token, event_name)
+                    logger.info(f"Event Received [{log_label}]: {payload}")
 
             # ZERO-TRUST BACKEND FIREWALL (Granular HITL Isolation)
             # Prevents lab simulators from injecting ghost data into active physical control loops.

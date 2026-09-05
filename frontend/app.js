@@ -89,7 +89,33 @@ function wanosApp() {
         _SNAPSHOT_REUSE_MS: 30000,
         /** B10H: only show NOT CONNECTED on SSE loss when snapshot is older than this (ms). */
         _SNAPSHOT_STALE_MS: 60000,
+        /** C37: abort hung /api/state on resume (ms). */
+        _SNAPSHOT_FETCH_TIMEOUT_MS: 20000,
+        /** C37: ignore duplicate resume events within this window (ms). */
+        _RESUME_RECONNECT_MIN_MS: 1500,
+        /** C37: skip force-reconnect after short backgrounding unless frozen thaw (ms). */
+        _RESUME_HIDDEN_FORCE_MS: 5000,
+        /** C37: generation token so superseded connectSSE work does not reopen a zombie stream. */
+        _sseGeneration: 0,
+        /** C37: AbortController for in-flight snapshot fetch. */
+        _snapshotAbort: null,
+        /** C37: ms since epoch when init finished wiring SSE. */
+        _pageReadyAt: 0,
+        /** C37: ms since epoch when document became hidden (0 = unknown). */
+        _pageHiddenAt: 0,
+        /** C37: ms since epoch of last forced resume reconnect. */
+        _lastResumeReconnectAt: 0,
         showHiddenNodes: false,
+
+        /**
+         * B10L: second line under Re-connecting copy (honest milestones; no fake %).
+         * Overlay is hidden when connected — these strings apply while !connected.
+         */
+        get offlineStatusLine() {
+            if (this._sseReconnecting) return "Live stream reconnecting...";
+            if (this._lastSnapshotAt > 0) return "Waiting for live stream...";
+            return "Waiting for snapshot...";
+        },
 
         state: {
             system: {
@@ -717,10 +743,10 @@ function wanosApp() {
                     uiVolume = rawValue.volume;
                 }
 
-                // ⏱️ CLIENT-SIDE COUNTDOWN MODELER
+                // ⏱️ CLIENT-SIDE COUNTDOWN MODELER (C21: only while device is ON)
                 // Iterates over active timers to compute any matching absolute auto-off deadlines
                 let autoOffCountdown = null;
-                if (this.state.system.active_timers) {
+                if (isOn === true && this.state.system.active_timers) {
                     const targetTimerId = `light_auto_off_${idx}`;
                     for (const itemStr of this.state.system.active_timers) {
                         if (!itemStr) continue;
@@ -1303,9 +1329,29 @@ function wanosApp() {
 
             this.connectSSE();
             setInterval(this.ticker.bind(this), 1000);
+            // C37: Android PWA warm resume — force SSE heal (timers/EventSource freeze otherwise).
+            this._bindPageResumeHandlers();
+            this._pageReadyAt = Date.now();
 
             if (this.isAdmin && window.location.pathname.includes("admin.html")) {
                 this.loadElementPower();
+                // C35: refresh learn counts when a session row lands in metrics (SSE).
+                this.$watch(
+                    () => {
+                        const m = this.state.metrics || {};
+                        const ir = m.last_ir_session;
+                        const sauna = m.last_sauna_session;
+                        return [
+                            ir && ir.session_id,
+                            ir && ir.start_timestamp,
+                            sauna && sauna.session_id,
+                            sauna && sauna.start_timestamp,
+                            m.session_count_ir,
+                            m.session_count_sauna,
+                        ].join("|");
+                    },
+                    () => { this.loadElementPower(); }
+                );
             }
         },
 
@@ -1358,9 +1404,21 @@ function wanosApp() {
         },
 
         async fetchFullSnapshot() {
+            // C37: abort any prior hung snapshot (common on Android resume before radio is ready).
+            if (this._snapshotAbort) {
+                try { this._snapshotAbort.abort(); } catch (e) { /* ignore */ }
+            }
+            this._snapshotAbort = new AbortController();
+            const ac = this._snapshotAbort;
+            const timeoutId = setTimeout(() => {
+                try { ac.abort(); } catch (e) { /* ignore */ }
+            }, this._SNAPSHOT_FETCH_TIMEOUT_MS);
             try {
                 // Attach the authorization headers to the request
-                const res = await fetch("/api/state", { headers: this.getAuthHeaders() });
+                const res = await fetch("/api/state", {
+                    headers: this.getAuthHeaders(),
+                    signal: ac.signal
+                });
                 if (res.status === 401 || res.status === 403) {
                     window.location.href = '/login.html';
                     return false;
@@ -1373,11 +1431,112 @@ function wanosApp() {
                 console.log("✅ Full state snapshot loaded.");
                 return true;
             } catch (err) {
+                if (err && err.name === "AbortError") {
+                    // C37: timeout or supersede — caller owns connected / overlay state.
+                    console.warn("⚠️ Full state snapshot aborted (timeout or supersede).");
+                    return false;
+                }
                 console.error("⚠️ Failed to load full state snapshot:", err);
                 this._lastSnapshotAt = 0;
                 this.connected = false;
                 return false;
+            } finally {
+                clearTimeout(timeoutId);
+                if (this._snapshotAbort === ac) this._snapshotAbort = null;
             }
+        },
+
+        /**
+         * C37: wire Page Lifecycle hooks so Android PWA warm resume heals SSE.
+         * Frozen thaw may fire `resume` without `visibilitychange` (Chrome Android).
+         */
+        _bindPageResumeHandlers() {
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "hidden") {
+                    this._pageHiddenAt = Date.now();
+                    return;
+                }
+                this._onPageResume({ fromFreeze: false });
+            });
+            // Page Lifecycle API — frozen → active (may omit visibilitychange).
+            document.addEventListener("resume", () => {
+                this._onPageResume({ fromFreeze: true });
+            });
+            window.addEventListener("pageshow", (ev) => {
+                if (ev.persisted) this._onPageResume({ fromFreeze: true });
+            });
+        },
+
+        /**
+         * C37: decide whether to force-close EventSource and reconnect after foregrounding.
+         * @param {{ fromFreeze: boolean }} opts
+         */
+        _onPageResume(opts) {
+            const fromFreeze = !!(opts && opts.fromFreeze);
+            if (document.visibilityState === "hidden") return;
+            if (!this._pageReadyAt || (Date.now() - this._pageReadyAt) < 2000) return;
+
+            const hiddenFor = this._pageHiddenAt ? (Date.now() - this._pageHiddenAt) : 0;
+            // Brief app switches: keep stream; frozen thaw / long background: force heal.
+            if (!fromFreeze && hiddenFor > 0 && hiddenFor < this._RESUME_HIDDEN_FORCE_MS) {
+                return;
+            }
+
+            const now = Date.now();
+            if (this._lastResumeReconnectAt
+                && (now - this._lastResumeReconnectAt) < this._RESUME_RECONNECT_MIN_MS) {
+                return;
+            }
+            this._lastResumeReconnectAt = now;
+            this._pageHiddenAt = 0;
+            this._forceSseReconnect(fromFreeze ? "freeze-resume" : "visibility-resume");
+        },
+
+        /**
+         * C37: tear down zombie EventSource / hung snapshot and start a fresh connect.
+         * Does not trust readyState === OPEN after mobile suspension.
+         * @param {string} reason
+         * @returns {Promise<void>}
+         */
+        _forceSseReconnect(reason) {
+            console.info("[C37] Forcing SSE reconnect:", reason);
+            this._sseGeneration += 1;
+            const gen = this._sseGeneration;
+
+            if (this.sseWatchdog) {
+                clearTimeout(this.sseWatchdog);
+                this.sseWatchdog = null;
+            }
+            this._cancelSseOfflineDebounce();
+            if (this._snapshotAbort) {
+                try { this._snapshotAbort.abort(); } catch (e) { /* ignore */ }
+                this._snapshotAbort = null;
+            }
+            if (this.eventSource) {
+                try { this.eventSource.close(); } catch (e) { /* ignore */ }
+                this.eventSource = null;
+            }
+            // Drop hung in-flight tracking so a new connect can start.
+            this._sseConnectInFlight = null;
+
+            const snapshotAge = this._lastSnapshotAt ? Date.now() - this._lastSnapshotAt : Infinity;
+            this._sseReconnecting = true;
+            // Long-background: show NOT CONNECTED immediately (do not wait for 3s debounce).
+            if (snapshotAge >= this._SNAPSHOT_STALE_MS) {
+                this.connected = false;
+            }
+
+            const run = this._connectSSEOnce(gen).catch((err) => {
+                console.error("[C37] Resume reconnect failed:", err);
+                if (gen === this._sseGeneration) {
+                    this._sseReconnecting = false;
+                    this.connected = false;
+                }
+            });
+            this._sseConnectInFlight = run;
+            return run.finally(() => {
+                if (this._sseConnectInFlight === run) this._sseConnectInFlight = null;
+            });
         },
 
         _applyFullSnapshot(fullState) {
@@ -1581,18 +1740,28 @@ function wanosApp() {
             if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
                 return Promise.resolve();
             }
-            const run = this._connectSSEOnce();
+            const gen = this._sseGeneration;
+            const run = this._connectSSEOnce(gen);
             this._sseConnectInFlight = run;
             return run.finally(() => {
-                this._sseConnectInFlight = null;
+                if (this._sseConnectInFlight === run) this._sseConnectInFlight = null;
             });
         },
 
-        _connectSSEOnce() {
+        /**
+         * Open REST snapshot (unless fresh) + EventSource.
+         * @param {number} [generation] C37: skip open if a newer force-reconnect superseded this run
+         * @returns {Promise<void>}
+         */
+        _connectSSEOnce(generation) {
+            const gen = generation != null ? generation : this._sseGeneration;
             const snapshotAge = this._lastSnapshotAt ? Date.now() - this._lastSnapshotAt : Infinity;
             const reuseSnapshot = this._lastSnapshotAt > 0 && snapshotAge < this._SNAPSHOT_REUSE_MS;
 
             const openEventStream = () => {
+                // C37: abandoned after a newer force-reconnect
+                if (gen !== this._sseGeneration) return;
+
                 if (this.eventSource) {
                     this.eventSource.close();
                 }
@@ -1605,6 +1774,7 @@ function wanosApp() {
                 const resetWatchdog = () => {
                     if (this.sseWatchdog) clearTimeout(this.sseWatchdog);
                     this.sseWatchdog = setTimeout(() => {
+                        if (gen !== this._sseGeneration) return;
                         console.warn("⚠️ Watchdog Timeout! No server signal detected for 10s. Forcing reconnect...");
                         this._scheduleSseOfflineDebounce();
                         if (this.eventSource) this.eventSource.close();
@@ -1615,11 +1785,13 @@ function wanosApp() {
                 resetWatchdog();
 
                 this.eventSource.onopen = () => {
+                    if (gen !== this._sseGeneration) return;
                     this._sseReconnecting = false;
                     this._markSseAlive();
                 };
 
                 this.eventSource.onmessage = (event) => {
+                    if (gen !== this._sseGeneration) return;
                     // This is where the data is received from the backend, main.py
                     try {
                         // Any incoming data frame proves the underlying pipeline is alive
@@ -1639,6 +1811,7 @@ function wanosApp() {
                 };
 
                 this.eventSource.onerror = (err) => {
+                    if (gen !== this._sseGeneration) return;
                     if (this.sseWatchdog) clearTimeout(this.sseWatchdog);
                     console.error("❌ SSE stream broke. Re-linking context in 3s...");
                     if (this.eventSource) this.eventSource.close();
@@ -1658,8 +1831,10 @@ function wanosApp() {
             }
 
             return this.fetchFullSnapshot().then((ok) => {
+                if (gen !== this._sseGeneration) return;
                 if (!ok) {
                     this._sseReconnecting = false;
+                    this.connected = false;
                     throw new Error("Full state snapshot failed");
                 }
                 openEventStream();
@@ -5904,7 +6079,13 @@ function wanosApp() {
         },
 
         clearNonCriticalAlerts() {
-            this.publishEvent("ALERT_CLEAR_NON_CRITICAL");
+            // C20: Clear All = dismiss every visible bell row (same as each X)
+            const rows = this.bellAlerts || [];
+            for (const msg of rows) {
+                if (msg && msg.id != null) {
+                    this.dismissBellAlert(msg.id);
+                }
+            }
         },
 
         async requestWanosRestart() {
@@ -6475,7 +6656,7 @@ function wanosApp() {
         },
 
         openHuePresetSaveModal() {
-            if (this.hueCurrentMatchesActivePreset()) return;
+            // B10M: allow same colour/bri as an existing preset (unique display name required)
             this.huePresetNameModalMode = "save";
             this.huePresetNameModalKey = null;
             this.huePresetNameModalTitle = "Save colour preset";
@@ -6537,7 +6718,7 @@ function wanosApp() {
         },
 
         async saveCurrentAsHuePreset(name) {
-            if (this.hueCurrentMatchesActivePreset()) return;
+            // B10M: do not block when colour matches an existing / active preset
             const trimmed = String(name || "").trim();
             if (!trimmed) return;
             if (this._huePresetDisplayNameTaken(trimmed)) {

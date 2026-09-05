@@ -195,11 +195,11 @@ Sauna calc: $\sum (D_{phase} \times P_{db,phase}) \times (V/230)^2$. IR-only ses
 
 **Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle.
 
-**Admin — Power & Thermal:** Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th); LCD mirror (VT323); element nameplates + **learn counts** (from session audit rows) + last session detail (energy · W · runtime · smart when); live session — Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. `GET /api/admin/analytics/element-power`.
+**Admin — Power & Thermal:** Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th); LCD mirror (VT323); element nameplates + **learn counts** (from session audit rows; refreshed when last session updates over SSE) + last session detail (energy · W · runtime · smart when); live panel titled **Live IR session** / **Live Sauna session** — Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. `GET /api/admin/analytics/element-power`.
 
 **Admin — GPIO outputs arm gate:** status shows `OFFLINE` → `NEED INPUTS` → `NEED SHT11` → `WAIT TEMP` → `READY` → `ARMED`. Arming SHT11 triggers an immediate sensor poll (2 s fast cadence until `sauna_calc_temp` is valid).
 
-**WISC:** while sauna/IR active — Real W + energy so far (Wh for IR-only, kWh for sauna); setpoint / IR mod sliders only while respective session active; idle — last sauna / last IR one-liners (smart date/time only, e.g. `vandaag, namiddag`).
+**WISC:** while sauna/IR active — setpoint / IR mod only while respective session active (full-width when alone); Real W + Energy sit under that control (no “Live session” heading); idle — last sauna / last IR one-liners (smart date/time only, e.g. `vandaag, namiddag`). Each `IR_ON` resets modulation to `config.ir.default_ir_modulation` (site default 75%).
 
 **Session audit (SQLite + Session History i popover):** each session stores baseline / measured / new @100% W per element (nullable when not computed).
 
