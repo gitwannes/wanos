@@ -127,6 +127,115 @@ async def handle_light_timer_expired(event: Event, manager: Any) -> Tuple[bool, 
     return state_changed, changed_domains
 
 
+async def handle_automation_timed_set_expired(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """B14: Set for/after timer — apply the scheduled HUB_STATE_CHANGED payload."""
+    payload = event.payload or {}
+    state_changed = False
+    changed_domains = set()
+
+    idx = payload.get("idx")
+    if idx is None:
+        return state_changed, changed_domains
+
+    try:
+        idx_i = int(idx)
+    except (TypeError, ValueError):
+        return state_changed, changed_domains
+
+    timer_id = f"automation_set_{idx_i}"
+    active = manager._state.system.active_timers
+    original_len = len(active)
+    manager._state.system.active_timers = manager._remove_timer_robustly(active, timer_id)
+    if len(manager._state.system.active_timers) < original_len:
+        state_changed = True
+        changed_domains.add("system")
+
+    hub_payload = {
+        "idx": idx_i,
+        "state": payload.get("state"),
+        "force": bool(payload.get("force", True)),
+        "origin": payload.get("origin") or "AUTOMATION",
+    }
+    for k in ("bri", "xy", "volume", "station", "app", "preset"):
+        if payload.get(k) is not None:
+            hub_payload[k] = payload[k]
+
+    # Resolve preset at expiry if bri/xy not already present.
+    preset_name = hub_payload.pop("preset", None)
+    if preset_name and hub_payload.get("bri") is None and hub_payload.get("xy") is None:
+        try:
+            cfg = manager._config
+            presets_col = getattr(getattr(cfg, "hue", None), "presets", None)
+            preset = None
+            if isinstance(presets_col, dict):
+                preset = presets_col.get(preset_name)
+            elif presets_col is not None:
+                preset = getattr(presets_col, preset_name, None)
+            if preset:
+                bri = getattr(preset, "bri", None) if hasattr(preset, "bri") else preset.get("bri")
+                xy = getattr(preset, "xy", None) if hasattr(preset, "xy") else preset.get("xy")
+                if bri is not None:
+                    hub_payload["bri"] = bri
+                if xy is not None:
+                    hub_payload["xy"] = xy
+        except Exception:
+            pass
+
+    # B14 lock G: defer vent 1e OFF while hub min-runtime lock is active (timed end too).
+    if (
+        str(hub_payload.get("state") or "").upper() == "OFF"
+        and AutomationEngine._vent_lock_blocks_off(
+            manager._state, idx_i, "OFF"
+        )
+    ):
+        automation_logger.info(
+            f"[TIMED SET] deferred OFF for "
+            f"{AutomationEngine.format_device_ref(manager._state, idx_i)} "
+            f"(bathroom vent lock active)."
+        )
+        return state_changed, changed_domains
+
+    automation_logger.info(
+        f"[TIMED SET] expired -> Set "
+        f"{AutomationEngine.format_device_ref(manager._state, idx_i)} "
+        f"to {hub_payload.get('state')}"
+    )
+    manager.dispatch(Event(type=EventType.HUB_STATE_CHANGED, payload=hub_payload))
+    return state_changed, changed_domains
+
+
+async def handle_automation_sustained_ready(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """B14 H1: sustained-for wait complete — mark ready and replay the wake event."""
+    payload = event.payload or {}
+    state_changed = False
+    changed_domains = set()
+
+    key = payload.get("sustained_key")
+    timer_id = payload.get("timer_id")
+    if timer_id:
+        active = manager._state.system.active_timers
+        original_len = len(active)
+        manager._state.system.active_timers = manager._remove_timer_robustly(active, timer_id)
+        if len(manager._state.system.active_timers) < original_len:
+            state_changed = True
+            changed_domains.add("system")
+
+    if key:
+        AutomationEngine._sustained_ready.add(str(key))
+        automation_logger.info(f"[SUSTAINED] ready key={key}")
+
+    replay_type = payload.get("replay_event_type")
+    replay_payload = payload.get("replay_payload") or {}
+    if replay_type:
+        try:
+            et = EventType(str(replay_type))
+        except ValueError:
+            et = str(replay_type)
+        manager.dispatch(Event(type=et, payload=dict(replay_payload)))
+
+    return state_changed, changed_domains
+
+
 async def handle_vent_wait_expired(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     import time
     manager._state.sauna.ventilation_state = "RUNNING"

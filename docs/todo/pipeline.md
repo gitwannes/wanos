@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-09-05 (B10I/J/L/M + C20/C21 close-out)
+**Last updated:** 2026-09-05 (B14 part 1 coding — Set for/after + H1/H3 + 90001 gate)
 
 ---
 
@@ -95,9 +95,9 @@ All open items. **Detail** = phase file section.
 ```text
 #   Status Size Id           What                                               Detail
 ──  ────── ──── ──────────── ────────────────────────────────────────────────── ──────────────────────────
-1   open   high B7 / B14     timed Set, delay, cooldown + B5-deferred           phaseB § B14 / Ship B7
-2   open   low  B12          rule-list folder/tag                               phaseB § B12
-3   open   low  B25          rule-list complexity score + tier (sort/filter)    phaseB § B25
+1   coding high B7 / B14     Set for/after + H1/H3 + 90001 gate (part 1)        phaseB § B14 part 1
+2   open   mid  B14b         H6/H7/H9 + B5 rows 2–5 + B25 (after part 1)        phaseB § B14 part 2
+3   open   low  B12          rule-list folder/tag                               phaseB § B12
 4   open   mid  B26          independent If sequence under Then (all-match)     phaseB § B26
 5   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)      phaseB § B24
 6   open   high E            Gmail transport / outbox + Blockly Messages        phaseE
@@ -136,7 +136,7 @@ All open items. **Detail** = phase file section.
 39  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
 40  coding mid  C37          bugfix: Android PWA resume — black screen (not reconnect) phaseC § C37
 ```
-Near-term: **C37** / **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **Ship B7** → **B26** (Then all-match Ifs) → **B24** when ready. **B12** / **B25** may run ∥ Ship B7. **C28** after **C4**; **C26** after **C4** (HTML/JS rename, then split). **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C25** ✅ **Pi smoke 2026-09-01**. **B10I/J/L/M + C20/C21** ✅ **Pi smoke 2026-09-05**. **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **C37** / **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **Ship B7 / B14 part 1** (kickoff locked) → **B14b** (part 2 + **B25**) → **B26** → **B24**. **B12** may run ∥ part 1. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C25** ✅ **Pi smoke 2026-09-01**. **B10I/J/L/M + C20/C21** ✅ **Pi smoke 2026-09-05**. **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 

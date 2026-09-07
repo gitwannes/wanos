@@ -18,6 +18,7 @@ from .telemetry_handlers import (
 )
 from .timer_handlers import (
     handle_timer_scheduled, handle_timer_cancelled, handle_light_timer_expired,
+    handle_automation_timed_set_expired, handle_automation_sustained_ready,
     handle_vent_wait_expired, handle_vent_run_expired, handle_bath1_vent_lock_expired
 )
 from .hub_handlers import (
@@ -72,6 +73,8 @@ EVENT_ROUTERS = {
     "TIMER_SCHEDULED": handle_timer_scheduled,
     "TIMER_CANCELLED": handle_timer_cancelled,
     "LIGHT_TIMER_EXPIRED": handle_light_timer_expired,
+    "AUTOMATION_TIMED_SET_EXPIRED": handle_automation_timed_set_expired,
+    "AUTOMATION_SUSTAINED_READY": handle_automation_sustained_ready,
     "VENT_WAIT_EXPIRED": handle_vent_wait_expired,
     "VENT_RUN_EXPIRED": handle_vent_run_expired,
     "BATH1_VENT_LOCK_EXPIRED": handle_bath1_vent_lock_expired,

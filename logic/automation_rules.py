@@ -1,7 +1,8 @@
 # --- file: logic/automation_rules.py ---
 import time
 import json
-from typing import List, Optional, Any, Tuple
+import hashlib
+from typing import List, Optional, Any, Tuple, Dict, Set
 
 from core.models import Event, EventType, SystemState, device_name, device_entity_id, format_device_ref as core_format_device_ref
 from core.config import load_config
@@ -10,8 +11,10 @@ from core.event_catalog import to_bus_token, legacy_key_for_bus_token
 from core.auto_off_policy import resolve_auto_off_minutes
 from core.well_known_entities import (
     ENTITY_BATHROOM_VENT,
+    ENTITY_BATHROOM_VENT_LOCK,
     ENTITY_WATER_HOT,
 )
+from core.duration_hhmmss import parse_hhmmss
 
 
 class AutomationEngine:
@@ -39,7 +42,134 @@ class AutomationEngine:
 
     # Well-known system fixtures: re-exported from core.well_known_entities.
     ENTITY_BATHROOM_VENT = ENTITY_BATHROOM_VENT
+    ENTITY_BATHROOM_VENT_LOCK = ENTITY_BATHROOM_VENT_LOCK
     ENTITY_WATER_HOT = ENTITY_WATER_HOT
+
+    # B14: rule-id → unix expiry (RAM only; drop on restart).
+    _rule_cooldowns: Dict[str, float] = {}
+    # B14 H1: sustained-for keys that completed their wait (still need level hold).
+    _sustained_ready: Set[str] = set()
+    # Side effects (TIMER_SCHEDULED / CANCELLED) collected during condition eval.
+    _eval_side_effects: List[Event] = []
+
+    @classmethod
+    def drain_eval_side_effects(cls) -> List[Event]:
+        out = list(cls._eval_side_effects)
+        cls._eval_side_effects = []
+        return out
+
+    @classmethod
+    def _cooldown_rule_id(cls, rule: Any) -> str:
+        rid = str(getattr(rule, "id", None) or getattr(rule, "_cooldown_id", None) or "-")
+        return rid.split("#", 1)[0]
+
+    @classmethod
+    def _cooldown_active(cls, rule: Any) -> bool:
+        rid = cls._cooldown_rule_id(rule)
+        deadline = cls._rule_cooldowns.get(rid)
+        if deadline is None:
+            return False
+        if time.time() >= deadline:
+            cls._rule_cooldowns.pop(rid, None)
+            return False
+        return True
+
+    @classmethod
+    def _arm_cooldown(cls, rule: Any) -> None:
+        raw = getattr(rule, "cooldown", None)
+        if not raw:
+            return
+        try:
+            secs = parse_hhmmss(str(raw))
+        except ValueError:
+            return
+        rid = cls._cooldown_rule_id(rule)
+        cls._rule_cooldowns[rid] = time.time() + secs
+        automation_logger.info(
+            f"[COOLDOWN] {cls.format_rule_name(rule)} armed for {raw} "
+            f"(id={rid})."
+        )
+
+    @staticmethod
+    def _for_duration_of(condition: Any) -> Optional[str]:
+        if isinstance(condition, dict):
+            return condition.get("for") or condition.get("for_duration")
+        return getattr(condition, "for_duration", None)
+
+    @classmethod
+    def _sustained_key(cls, rule_id: str, condition: Any) -> str:
+        if hasattr(condition, "model_dump"):
+            d = condition.model_dump(by_alias=True)
+        elif isinstance(condition, dict):
+            d = condition
+        else:
+            d = {
+                "type": getattr(condition, "type", None),
+                "entity_id": getattr(condition, "entity_id", None),
+                "event": getattr(condition, "event", None),
+                "is": getattr(condition, "condition_is", None),
+                "op": getattr(condition, "op", None),
+                "attribute": getattr(condition, "attribute", None),
+                "for": getattr(condition, "for_duration", None),
+            }
+        return (
+            f"sustained:{rule_id}:"
+            f"{d.get('type')}|{d.get('entity_id')}|{d.get('event')}|"
+            f"{d.get('is')}|{d.get('op')}|{d.get('attribute')}|{d.get('for')}"
+        )
+
+    @classmethod
+    def _vent_lock_blocks_off(cls, state: SystemState, action_idx: int, target_u: str) -> bool:
+        """B14 lock G: defer automation OFF on badk_1e vent while 90001 lock is active."""
+        if target_u != "OFF":
+            return False
+        vent_idx = cls.resolve_entity_id(state, cls.ENTITY_BATHROOM_VENT)
+        if vent_idx is None or action_idx != vent_idx:
+            return False
+        lock_idx = cls.resolve_entity_id(state, cls.ENTITY_BATHROOM_VENT_LOCK)
+        if lock_idx is None:
+            lock_idx = 90001
+        raw = state.devices.get(lock_idx)
+        if raw is None:
+            raw = state.devices.get(str(lock_idx))
+        if isinstance(raw, dict):
+            locked = bool(raw.get("state"))
+        else:
+            locked = bool(raw)
+        return locked
+
+    @classmethod
+    def _schedule_device_timed_set(
+        cls,
+        *,
+        follow_up_events: List[Event],
+        state: SystemState,
+        action_idx: int,
+        deadline: int,
+        action_payload: dict,
+        label: str,
+    ) -> None:
+        """Schedule AUTOMATION_TIMED_SET_EXPIRED; timer_id keyed by device (replace)."""
+        timer_id = f"automation_set_{action_idx}"
+        meta = state.device_metadata.get(action_idx) or {}
+        follow_up_events.append(Event(
+            type=EventType.TIMER_SCHEDULED,
+            payload={
+                "timer_id": timer_id,
+                "deadline": deadline,
+                "event_type": EventType.AUTOMATION_TIMED_SET_EXPIRED.value,
+                "event_payload": {
+                    **action_payload,
+                    "name": device_name(state, action_idx, "Timed Set"),
+                    "type": str(meta.get("resolved_product_type") or "switch"),
+                    "target_state": str(action_payload.get("state") or "Execute"),
+                },
+            },
+        ))
+        automation_logger.info(
+            f"[TIMED SET] {label} -> scheduled {cls.format_device_ref(state, action_idx)} "
+            f"at {deadline} (timer {timer_id})."
+        )
 
     @classmethod
     def _get_config(cls):
@@ -375,6 +505,7 @@ class AutomationEngine:
         new_state: Any = None,
         is_transition: bool = False,
         payload: Optional[dict] = None,
+        sustained_rule_id: Optional[str] = None,
     ) -> bool:
         """Evaluate one leaf condition; True = pass. B19: event / ANY / numeric edge when event given."""
         from core.condition_tree import evaluate_condition_node, is_group_node
@@ -393,6 +524,7 @@ class AutomationEngine:
                     new_state=new_state,
                     is_transition=is_transition,
                     payload=payload,
+                    sustained_rule_id=sustained_rule_id,
                 ),
             )
         if not hasattr(condition, "type") and isinstance(condition, dict):
@@ -413,10 +545,11 @@ class AutomationEngine:
             new_state=new_state,
             is_transition=is_transition,
             payload=payload,
+            sustained_rule_id=sustained_rule_id,
         )
 
     @staticmethod
-    def _condition_holds_leaf(
+    def _condition_holds_leaf_instant(
         condition: Any,
         state: SystemState,
         *,
@@ -427,8 +560,9 @@ class AutomationEngine:
         new_state: Any = None,
         is_transition: bool = False,
         payload: Optional[dict] = None,
+        force_level: bool = False,
     ) -> bool:
-        """Evaluate one leaf Compare (device / event / time)."""
+        """Instant Compare (no sustained-for). force_level skips numeric edge-cross."""
         if condition.type == "time_of_day":
             is_dark = AutomationEngine._is_dark(state)
             if condition.condition_is == "dark":
@@ -437,7 +571,6 @@ class AutomationEngine:
                 return not is_dark
             return False
         if condition.type == "event":
-            # B19 event Compare — holds when the current bus event matches.
             want = getattr(condition, "event", None)
             if not want or not bus_token:
                 return False
@@ -449,15 +582,18 @@ class AutomationEngine:
             return False
         is_val = condition.condition_is
         op = getattr(condition, "op", None) or "=="
-        # B19: is ANY → true when this device is the waking device (any transition).
         if is_val is not None and str(is_val).upper() == "ANY":
             if event_idx is None or cond_idx != event_idx:
                 return False
             if event_name == "DOOR_CHANGED":
                 return True
             return bool(event_name == "HUB_STATE_CHANGED" and is_transition)
-        # B9A/B19 numeric op: edge-cross when this device woke; else level check.
-        if op in (">", ">=", "<", "<=", "!=", "==") and AutomationEngine._parse_compare_number(is_val) is not None:
+        # Numeric: edge-cross when waking device matches — unless sustained-for (level only).
+        if (
+            not force_level
+            and op in (">", ">=", "<", "<=", "!=", "==")
+            and AutomationEngine._parse_compare_number(is_val) is not None
+        ):
             if event is not None and event_idx is not None and cond_idx == event_idx and event_name in (
                 "HUB_STATE_CHANGED",
                 "TEMP_UPDATED",
@@ -502,6 +638,100 @@ class AutomationEngine:
             raw_state, getattr(condition, "attribute", None)
         )
         return AutomationEngine._compare_values(op, actual, is_val)
+
+    @staticmethod
+    def _condition_holds_leaf(
+        condition: Any,
+        state: SystemState,
+        *,
+        event: Optional[Event] = None,
+        bus_token: Optional[str] = None,
+        event_name: Optional[str] = None,
+        event_idx: Any = None,
+        new_state: Any = None,
+        is_transition: bool = False,
+        payload: Optional[dict] = None,
+        sustained_rule_id: Optional[str] = None,
+    ) -> bool:
+        """Evaluate one leaf Compare (device / event / time), with optional B14 sustained-for."""
+        for_raw = AutomationEngine._for_duration_of(condition)
+        force_level = bool(for_raw)
+        instant = AutomationEngine._condition_holds_leaf_instant(
+            condition,
+            state,
+            event=event,
+            bus_token=bus_token,
+            event_name=event_name,
+            event_idx=event_idx,
+            new_state=new_state,
+            is_transition=is_transition,
+            payload=payload,
+            force_level=force_level,
+        )
+        if not for_raw:
+            return instant
+
+        # --- B14 H1 sustained-for ---
+        rid = sustained_rule_id or "-"
+        key = AutomationEngine._sustained_key(rid, condition)
+        timer_id = (
+            "automation_sustained_"
+            + hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+        )
+        try:
+            secs = parse_hhmmss(str(for_raw))
+        except ValueError as exc:
+            automation_logger.warning(f"[SUSTAINED] bad for duration on {key}: {exc}")
+            return False
+
+        if not instant:
+            if key in AutomationEngine._sustained_ready:
+                AutomationEngine._sustained_ready.discard(key)
+            # Cancel pending wait timer.
+            AutomationEngine._eval_side_effects.append(Event(
+                type=EventType.TIMER_CANCELLED,
+                payload={"timer_id": timer_id},
+            ))
+            return False
+
+        if key in AutomationEngine._sustained_ready:
+            return True
+
+        # Already waiting — do not re-arm (TIMER_SCHEDULED replace would reset the clock).
+        if AutomationEngine._timer_exists(
+            getattr(getattr(state, "system", None), "active_timers", []) or [],
+            timer_id,
+        ):
+            return False
+
+        deadline = int(time.time()) + secs
+        replay_type = (
+            event.type.value if hasattr(event.type, "value") else str(event.type)
+        ) if event is not None else EventType.SYSTEM_SWEEP_REQUESTED.value
+        replay_payload = dict(payload or {})
+        if event is not None and getattr(event, "payload", None):
+            replay_payload = dict(event.payload)
+        AutomationEngine._eval_side_effects.append(Event(
+            type=EventType.TIMER_SCHEDULED,
+            payload={
+                "timer_id": timer_id,
+                "deadline": deadline,
+                "event_type": EventType.AUTOMATION_SUSTAINED_READY.value,
+                "event_payload": {
+                    "sustained_key": key,
+                    "timer_id": timer_id,
+                    "replay_event_type": replay_type,
+                    "replay_payload": replay_payload,
+                    "name": f"Sustained {for_raw}",
+                    "type": "scene",
+                    "target_state": "Ready",
+                },
+            },
+        ))
+        automation_logger.info(
+            f"[SUSTAINED] armed {for_raw} for key={key} (timer {timer_id})."
+        )
+        return False
 
     @staticmethod
     def _branch_rule_wakes(
@@ -570,6 +800,7 @@ class AutomationEngine:
             if conds:
                 from core.condition_tree import evaluate_condition_list
 
+                sust_id = AutomationEngine._cooldown_rule_id(rule)
                 ok = evaluate_condition_list(
                     conds,
                     lambda node: AutomationEngine._condition_holds(
@@ -582,6 +813,7 @@ class AutomationEngine:
                         new_state=new_state,
                         is_transition=is_transition,
                         payload=payload,
+                        sustained_rule_id=sust_id,
                     ),
                 )
             if ok:
@@ -734,6 +966,7 @@ class AutomationEngine:
         # Prevent "Boot Storms": We skip custom YAML rules if this is a boot initialization.
         # We do NOT return early so System Timers and shower vent watchdog can arm on boot!
         active_rules = [] if payload.get("is_initialization", False) else config.automations
+        AutomationEngine._eval_side_effects = []
 
         for rule in active_rules:
             # B10B: skip disabled rules (missing enabled → True).
@@ -744,6 +977,8 @@ class AutomationEngine:
             trigger_reason = ""
             matched_event_uuid: Optional[str] = None
             branch_mode = False
+            rule_cooldown = getattr(rule, "cooldown", None)
+            rule_cooldown_id = AutomationEngine._cooldown_rule_id(rule)
 
             # B19: Domoticz If/Do branches — derived wake + first-match.
             if getattr(rule, "branches", None):
@@ -769,6 +1004,7 @@ class AutomationEngine:
                     is_transition=is_transition,
                     payload=payload,
                 )
+                follow_up_events.extend(AutomationEngine.drain_eval_side_effects())
                 if br is None:
                     automation_logger.debug(
                         f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} woke ({trigger_reason}) "
@@ -797,6 +1033,7 @@ class AutomationEngine:
                     is_transition=is_transition,
                     payload=payload,
                 )
+                follow_up_events.extend(AutomationEngine.drain_eval_side_effects())
                 if getattr(br, "then", None) is not None and not resolved_actions:
                     automation_logger.debug(
                         f"[X-RAY] {AutomationEngine.format_rule_ref(rule)} branch {suffix} "
@@ -813,6 +1050,8 @@ class AutomationEngine:
                     scene=bool(getattr(rule, "scene", False)),
                     require_confirmation=bool(getattr(rule, "require_confirmation", False)),
                     branches=None,
+                    cooldown=rule_cooldown,
+                    _cooldown_id=rule_cooldown_id,
                 )
                 trigger_matched = True
                 branch_mode = True
@@ -938,6 +1177,7 @@ class AutomationEngine:
                             new_state=new_state,
                             is_transition=is_transition,
                             payload=payload,
+                            sustained_rule_id=rule_cooldown_id,
                         ):
                             conditions_met = False
                             if condition.type == "time_of_day":
@@ -957,6 +1197,15 @@ class AutomationEngine:
                                 automation_logger.debug(
                                     f"[X-RAY] -> ABORTED. Unknown condition type '{condition.type}'.")
                             break
+                    follow_up_events.extend(AutomationEngine.drain_eval_side_effects())
+
+                # B14 H3: rule-level cooldown — skip actions (log once).
+                if conditions_met and AutomationEngine._cooldown_active(rule):
+                    automation_logger.info(
+                        f"[COOLDOWN] {AutomationEngine.format_rule_name(rule)} "
+                        f"skipped actions (still cooling down)."
+                    )
+                    conditions_met = False
 
                 # If all conditions pass, we calculate and dispatch the final actions
                 if conditions_met:
@@ -1147,6 +1396,118 @@ class AutomationEngine:
                                 if app is not None:
                                     action_payload["app"] = app
 
+                                # B14 lock G: defer vent 1e OFF while hub min-runtime lock is active.
+                                if AutomationEngine._vent_lock_blocks_off(
+                                    state, action_idx, target_u
+                                ):
+                                    automation_logger.info(
+                                        f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "
+                                        f"Deferred OFF for "
+                                        f"{AutomationEngine.format_device_ref(state, action_idx)} "
+                                        f"(bathroom vent lock active)."
+                                    )
+                                    continue
+
+                                timing = getattr(action, "timing", None)
+                                duration_raw = getattr(action, "duration", None)
+                                if timing in ("for", "after") and duration_raw:
+                                    try:
+                                        dur_secs = parse_hhmmss(str(duration_raw))
+                                    except ValueError as exc:
+                                        automation_logger.warning(
+                                            f"[TIMED SET] skip bad duration on "
+                                            f"{AutomationEngine.format_rule_ref(rule)}: {exc}"
+                                        )
+                                        continue
+                                    deadline = int(time.time()) + dur_secs
+                                    if timing == "after":
+                                        # H2: queue start Set only after duration.
+                                        AutomationEngine._schedule_device_timed_set(
+                                            follow_up_events=follow_up_events,
+                                            state=state,
+                                            action_idx=action_idx,
+                                            deadline=deadline,
+                                            action_payload=action_payload,
+                                            label=AutomationEngine.format_rule_name(rule),
+                                        )
+                                        automation_logger.info(
+                                            f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "
+                                            f"Set after {duration_raw} "
+                                            f"{AutomationEngine.format_device_ref(state, action_idx)} "
+                                            f"to {target_action_state}"
+                                        )
+                                        continue
+                                    # timing == for: emit start now, schedule explicit end Set.
+                                    follow_up_events.append(Event(
+                                        type=EventType.HUB_STATE_CHANGED,
+                                        payload=action_payload,
+                                    ))
+                                    end_cfg = getattr(action, "end", None)
+                                    end_state = getattr(end_cfg, "state", None) if end_cfg else "OFF"
+                                    if end_state is None:
+                                        end_state = "OFF"
+                                    end_u = str(end_state).upper()
+                                    end_force = False
+                                    if meta_origin == "rfxcom":
+                                        end_force = True
+                                    elif meta_origin in ("sonos", "onkyo", "epson") and end_u == "OFF":
+                                        end_force = True
+                                    end_payload = {
+                                        "idx": action_idx,
+                                        "state": end_state,
+                                        "force": end_force,
+                                        "origin": "AUTOMATION",
+                                    }
+                                    if end_cfg is not None:
+                                        color_mode = getattr(end_cfg, "color_mode", None)
+                                        if str(color_mode or "").lower() == "revert":
+                                            # Snapshot current bri/xy before start Set applies.
+                                            if isinstance(raw_target_state, dict):
+                                                if raw_target_state.get("bri") is not None:
+                                                    end_payload["bri"] = raw_target_state.get("bri")
+                                                if raw_target_state.get("xy") is not None:
+                                                    end_payload["xy"] = list(raw_target_state.get("xy") or [])
+                                            end_payload["state"] = "ON"
+                                            end_force = is_force or end_force
+                                            end_payload["force"] = end_force
+                                        else:
+                                            if getattr(end_cfg, "bri", None) is not None:
+                                                end_payload["bri"] = end_cfg.bri
+                                            if getattr(end_cfg, "xy", None) is not None:
+                                                end_payload["xy"] = end_cfg.xy
+                                            if getattr(end_cfg, "volume", None) is not None:
+                                                end_payload["volume"] = end_cfg.volume
+                                            if getattr(end_cfg, "station", None) is not None:
+                                                end_payload["station"] = end_cfg.station
+                                            if getattr(end_cfg, "app", None) is not None:
+                                                end_payload["app"] = end_cfg.app
+                                            if getattr(end_cfg, "preset", None) is not None:
+                                                end_payload["preset"] = end_cfg.preset
+                                            if end_u == "ON" and (
+                                                end_payload.get("bri") is not None
+                                                or end_payload.get("xy") is not None
+                                                or end_payload.get("preset") is not None
+                                            ):
+                                                end_payload["force"] = True
+                                    AutomationEngine._schedule_device_timed_set(
+                                        follow_up_events=follow_up_events,
+                                        state=state,
+                                        action_idx=action_idx,
+                                        deadline=deadline,
+                                        action_payload=end_payload,
+                                        label=AutomationEngine.format_rule_name(rule),
+                                    )
+                                    final_state_str = (
+                                        f"{target_action_state} (FORCED)" if is_force else target_action_state
+                                    )
+                                    automation_logger.info(
+                                        f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "
+                                        f"Set for {duration_raw} "
+                                        f"{AutomationEngine.format_device_ref(state, action_idx)} "
+                                        f"to {final_state_str} then {end_payload.get('state')}"
+                                    )
+                                    continue
+
                                 follow_up_events.append(Event(
                                     type=EventType.HUB_STATE_CHANGED,
                                     payload=action_payload
@@ -1231,6 +1592,14 @@ class AutomationEngine:
                     if len(follow_up_events) > follow_ups_before:
                         rule_name: str = getattr(rule, "name", None) or "?"
                         iwhw_logger.info(f"AUTOMATION RUN | {rule_name}")
+                        # B14 H3: arm rule cooldown after successful action queue.
+                        AutomationEngine._arm_cooldown(rule)
+                        # Consume sustained-ready flags for this library rule id.
+                        prefix = f"sustained:{rule_cooldown_id}:"
+                        AutomationEngine._sustained_ready = {
+                            k for k in AutomationEngine._sustained_ready
+                            if not k.startswith(prefix)
+                        }
 
         # =========================================================================
         # 2. SYSTEM SWEEPER: Time & Environment Audit (Option B Enforcer)

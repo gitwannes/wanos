@@ -232,6 +232,8 @@ class ConditionConfig(BaseModel):
     # B9A: compare op (default equality) + optional temp_hum attribute.
     op: Optional[str] = None
     attribute: Optional[str] = None
+    # B14 H1: sustained-for — YAML key ``for`` (HH:MM:SS). Level hold while armed (not edge-cross).
+    for_duration: Optional[str] = Field(default=None, alias="for")
 
     @field_validator("condition_is", mode="before")
     @classmethod
@@ -259,8 +261,56 @@ class ConditionConfig(BaseModel):
         s = str(v).strip().lower()
         return s if s else None
 
+    @field_validator("for_duration", mode="before")
+    @classmethod
+    def _coerce_for_duration(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        return str(v).strip()
+
+    @model_validator(mode="after")
+    def _validate_for_duration(self) -> "ConditionConfig":
+        if self.for_duration is None:
+            return self
+        from core.duration_hhmmss import parse_hhmmss
+
+        parse_hhmmss(self.for_duration)
+        return self
+
 
 ConditionGroupConfig.model_rebuild()
+
+
+class ActionEndConfig(BaseModel):
+    """B14 Set-for end Set (same device as parent action; no entity_id)."""
+    model_config = ConfigDict(extra="forbid")
+
+    state: Optional[str] = None
+    preset: Optional[str] = None
+    bri: Optional[int] = None
+    xy: Optional[List[float]] = None
+    volume: Optional[int] = None
+    station: Optional[str] = None
+    app: Optional[str] = None
+    # Hue only: keep ON but restore bri/xy captured at schedule time.
+    color_mode: Optional[Literal["revert"]] = None
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            return "ON" if v else "OFF"
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return str(v)
+        return v
+
+    @field_validator("color_mode", mode="before")
+    @classmethod
+    def _coerce_color_mode(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        s = str(v).strip().lower()
+        return s if s else None
 
 
 class ActionConfig(BaseModel):
@@ -278,6 +328,10 @@ class ActionConfig(BaseModel):
     volume: Optional[int] = None  # Sonos
     station: Optional[str] = None  # Sonos
     app: Optional[str] = None  # LG webOS catalog key (G16)
+    # B14: Set for x time / Set after x time (H2 ≡ after).
+    timing: Optional[Literal["for", "after"]] = None
+    duration: Optional[str] = None  # HH:MM:SS
+    end: Optional[ActionEndConfig] = None
 
     @field_validator("state", mode="before")
     @classmethod
@@ -288,6 +342,49 @@ class ActionConfig(BaseModel):
         if isinstance(v, (int, float)) and not isinstance(v, bool):
             return str(v)
         return v
+
+    @field_validator("timing", mode="before")
+    @classmethod
+    def _coerce_timing(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        s = str(v).strip().lower()
+        return s if s else None
+
+    @field_validator("duration", mode="before")
+    @classmethod
+    def _coerce_duration(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        return str(v).strip()
+
+    @model_validator(mode="after")
+    def _validate_timing(self) -> "ActionConfig":
+        from core.duration_hhmmss import parse_hhmmss
+
+        if self.timing is None:
+            if self.duration is not None or self.end is not None:
+                raise ValueError("duration/end require timing: for|after.")
+            return self
+        if self.timing not in ("for", "after"):
+            raise ValueError("timing must be for|after.")
+        if self.entity_id is None:
+            raise ValueError("timed Set requires entity_id.")
+        parse_hhmmss(self.duration)
+        if self.timing == "for":
+            if self.end is None or (
+                self.end.state is None
+                and self.end.preset is None
+                and self.end.bri is None
+                and self.end.xy is None
+                and self.end.volume is None
+                and self.end.station is None
+                and self.end.app is None
+            ):
+                object.__setattr__(self, "end", ActionEndConfig(state="OFF"))
+        elif self.end is not None:
+            raise ValueError("end is only valid with timing: for.")
+        return self
 
 
 class BranchConfig(BaseModel):
@@ -340,6 +437,8 @@ class AutomationRuleConfig(BaseModel):
     name: str
     # B10B: per-rule enable (engine skips when False). Missing YAML → True.
     enabled: bool = True
+    # B14 H3: rule-level cooldown after successful actions (HH:MM:SS).
+    cooldown: Optional[str] = None
     # Deprecated pre-B10B dashboard flags — ignored at runtime (confirm/dashboard live on events:).
     # Kept optional so old YAML / migrator input still validates until cutover strips them.
     scene: bool = False
@@ -349,6 +448,22 @@ class AutomationRuleConfig(BaseModel):
     branches: Optional[List[BranchConfig]] = None
     conditions: Optional[List[ConditionConfig]] = None
     actions: Optional[List[ActionConfig]] = None
+
+    @field_validator("cooldown", mode="before")
+    @classmethod
+    def _coerce_cooldown(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return None
+        return str(v).strip()
+
+    @model_validator(mode="after")
+    def _validate_cooldown(self) -> "AutomationRuleConfig":
+        if self.cooldown is None:
+            return self
+        from core.duration_hhmmss import parse_hhmmss
+
+        parse_hhmmss(self.cooldown)
+        return self
 
 
 def _expand_branched_automations_for_engine(raw_automations: Any) -> List[dict]:

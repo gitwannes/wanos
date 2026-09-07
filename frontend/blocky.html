@@ -426,6 +426,18 @@
                             <input type="checkbox" class="checkbox checkbox-sm" x-model="editor.enabled"
                                    :disabled="ruleDisableBlocked || uiLocked">
                         </label>
+                        <div class="form-control w-full max-w-xs">
+                            <div class="label py-0">
+                                <span class="label-text text-xs font-semibold">Rule cooldown (HH:MM:SS)</span>
+                                <span class="label-text-alt text-xs opacity-70">empty = none</span>
+                            </div>
+                            <input type="text"
+                                   class="input input-bordered input-sm w-full font-mono"
+                                   placeholder="00:01:00"
+                                   x-model="editor.cooldown"
+                                   :disabled="uiLocked"
+                                   title="After this rule runs actions, further fires are skipped until cooldown ends. Empty = none.">
+                        </div>
                         <label class="label cursor-pointer gap-2">
                             <span class="label-text text-xs">Show hidden devices in picker</span>
                             <input type="checkbox" class="toggle toggle-error toggle-sm shadow" x-model="showHiddenEntities"
@@ -710,6 +722,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=18"></script>
-<script src="blocky.js?v=51"></script>
+<script src="blocky.js?v=53"></script>
 </body>
 </html>

@@ -101,6 +101,10 @@ class EventType(str, Enum):
     TIMER_SCHEDULED = "TIMER_SCHEDULED"
     TIMER_CANCELLED = "TIMER_CANCELLED"
     LIGHT_TIMER_EXPIRED = "LIGHT_TIMER_EXPIRED"
+    # B14: Set for/after end (or deferred start) for a device action.
+    AUTOMATION_TIMED_SET_EXPIRED = "AUTOMATION_TIMED_SET_EXPIRED"
+    # B14 H1: sustained-for timer reached; replay wake so Compare can pass.
+    AUTOMATION_SUSTAINED_READY = "AUTOMATION_SUSTAINED_READY"
     NVRAM_FLUSH_TRIGGER = "NVRAM_FLUSH_TRIGGER"  # ⚡ 5-minute heartbeat to flush counters to disk
 
 

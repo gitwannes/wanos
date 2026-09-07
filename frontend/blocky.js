@@ -113,17 +113,19 @@ const BLOCKY_HOST_GAUGE_LABELS = {
  * structure sets reasons that block Save (B).
  */
 const BLOCKY_ACTION_LEGAL_KEYS = new Set([
-    "entity_id", "state", "event", "target", "scene", "preset", "bri", "xy", "volume", "station", "app"
+    "entity_id", "state", "event", "target", "scene", "preset", "bri", "xy", "volume", "station", "app",
+    "timing", "duration", "end"
 ]);
 /** Keys Blockly authoring currently re-emits for actions (rest → opaque). */
 const BLOCKY_ACTION_UI_KEYS = new Set([
-    "entity_id", "state", "event", "preset", "bri", "xy", "volume", "station", "app"
+    "entity_id", "state", "event", "preset", "bri", "xy", "volume", "station", "app",
+    "timing", "duration", "end"
 ]);
 const BLOCKY_CONDITION_LEGAL_KEYS = new Set([
-    "type", "entity_id", "event", "is", "op", "attribute"
+    "type", "entity_id", "event", "is", "op", "attribute", "for"
 ]);
 const BLOCKY_CONDITION_UI_KEYS = new Set([
-    "type", "entity_id", "event", "is", "op", "attribute"
+    "type", "entity_id", "event", "is", "op", "attribute", "for"
 ]);
 const BLOCKY_TRIGGER_LEGAL_KEYS = new Set([
     "entity_id", "state", "event", "op", "attribute"
@@ -132,6 +134,35 @@ const BLOCKY_TRIGGER_UI_KEYS = new Set([
     "entity_id", "state", "event", "op", "attribute"
 ]);
 const BLOCKY_SUPPORTED_CONDITION_TYPES = new Set(["device_state", "time_of_day", "event"]);
+
+/** B14: parse HH:MM:SS → seconds, or null if invalid (min 1 min, max 4 h). */
+function blockyParseHhmmss(value) {
+    const s = String(value == null ? "" : value).trim();
+    if (!s) return null;
+    const parts = s.split(":");
+    if (parts.length !== 3) return null;
+    const [hhS, mmS, ssS] = parts;
+    if (!/^\d{1,2}$/.test(hhS) || !/^\d{2}$/.test(mmS) || !/^\d{2}$/.test(ssS)) return null;
+    const hh = Number(hhS);
+    const mm = Number(mmS);
+    const ss = Number(ssS);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm) || !Number.isFinite(ss)) return null;
+    if (hh < 0 || hh > 4 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return null;
+    if (hh === 4 && (mm !== 0 || ss !== 0)) return null;
+    const total = hh * 3600 + mm * 60 + ss;
+    if (total < 60 || total > 4 * 3600) return null;
+    return total;
+}
+
+function blockyDurationError(value) {
+    if (value == null || String(value).trim() === "") {
+        return "Duration required (HH:MM:SS, 00:01:00..04:00:00)";
+    }
+    if (blockyParseHhmmss(value) == null) {
+        return "Invalid duration (use HH:MM:SS, min 00:01:00, max 04:00:00)";
+    }
+    return null;
+}
 
 /** First block connected to a control block's body (BODY, or legacy DO/THEN). */
 function blockyControlBodyFirst(block) {
@@ -1300,7 +1331,10 @@ function blockyOpLevelLabel(op) {
 
 /** Numeric compare label for a device Compare block (wake vs gate context). */
 function blockyOpLabelForCondition(block, op) {
-    if (blockyConditionUsesLevelGateWording(block)) return blockyOpLevelLabel(op);
+    // B14: sustained duration forces level hold — never "crosses" wording.
+    if (blockyConditionHasSustained(block) || blockyConditionUsesLevelGateWording(block)) {
+        return blockyOpLevelLabel(op);
+    }
     return blockyOpCrossesLabel(op);
 }
 
@@ -1548,10 +1582,20 @@ function blockyApplyConditionRich(block, cond) {
         blockyOpaqueFromSource(cond, BLOCKY_CONDITION_LEGAL_KEYS, BLOCKY_CONDITION_UI_KEYS)
     );
     const profile = blockyConditionCompareProfile(eid);
+    const applyFor = () => {
+        const forDur = cond.for || cond.for_duration || "";
+        try {
+            if (block.getField("FOR_DURATION")) {
+                block.getField("FOR_DURATION").setValue(forDur ? String(forDur) : "");
+            }
+        } catch (e) { /* ignore */ }
+        blockyConditionUpdateSustainedShape(block);
+    };
 
     // Motion: fixed chrome only (ignore stored is; always ON on emit).
     if (blockyIsMotionEntity(eid)) {
         blockyConditionUpdateShape(block);
+        applyFor();
         return;
     }
 
@@ -1561,6 +1605,7 @@ function blockyApplyConditionRich(block, cond) {
             forceAttr: cond.attribute || (profile.attrs ? profile.attrs[0] : null),
             forceValue: cond.is != null ? cond.is : 0
         });
+        applyFor();
         return;
     }
 
@@ -1568,6 +1613,7 @@ function blockyApplyConditionRich(block, cond) {
         // Any edge (ON↔OFF / OPEN↔CLOSED) — same YAML is: ANY as discrete wake.
         if (String(cond.is || "").toUpperCase() === "ANY") {
             blockyConditionUpdateShape(block, { forceMode: "ANY" });
+            applyFor();
             return;
         }
         const attr = String(cond.attribute || "").toLowerCase();
@@ -1589,6 +1635,7 @@ function blockyApplyConditionRich(block, cond) {
                 forceOp: uiOp,
                 forceValue: uiVal
             });
+            applyFor();
             return;
         }
         let mode;
@@ -1598,6 +1645,7 @@ function blockyApplyConditionRich(block, cond) {
             mode = String(cond.is || "ON").toUpperCase() === "OFF" ? "OFF" : "ON";
         }
         blockyConditionUpdateShape(block, { forceMode: mode });
+        applyFor();
         return;
     }
 
@@ -1609,6 +1657,7 @@ function blockyApplyConditionRich(block, cond) {
         forceSt = blockyBlindsUiStateFromStored(cond.is) === "CLOSED" ? "100" : "0";
     }
     blockyConditionUpdateShape(block, { forceState: forceSt });
+    applyFor();
 }
 
 /**
@@ -2280,6 +2329,116 @@ function blockyActionUpdateRichShape(block, opts) {
     }
 }
 
+/** B14: true when Compare has a non-empty sustained duration. */
+function blockyConditionHasSustained(block) {
+    if (!block) return false;
+    const v = (block.getFieldValue("FOR_DURATION") || "").trim();
+    return v.length > 0;
+}
+
+/** B14: "changes state" (ANY) is incompatible with sustained duration. */
+function blockyConditionIsChangesState(block) {
+    if (!block || block.type !== "b_condition_device") return false;
+    const mode = block.getFieldValue("MODE");
+    if (mode === "ANY") return true;
+    const st = block.getFieldValue("STATE");
+    return String(st || "").toUpperCase() === "ANY";
+}
+
+/** Show/hide sustained-duration row; clear value when incompatible. */
+function blockyConditionUpdateSustainedShape(block) {
+    if (!block || block.type !== "b_condition_device") return;
+    const row = block.getInput("FOR_ROW");
+    if (!row) return;
+    const incompatible = blockyConditionIsChangesState(block);
+    if (incompatible) {
+        try {
+            if (block.getField("FOR_DURATION")) {
+                block.getField("FOR_DURATION").setValue("");
+            }
+        } catch (e) { /* ignore */ }
+        row.setVisible(false);
+    } else {
+        row.setVisible(true);
+    }
+    try {
+        if (block.rendered && typeof block.render === "function") block.render();
+    } catch (e) { /* ignore */ }
+}
+
+/**
+ * B14 Set-for end UI kind:
+ * - none: not timing for
+ * - fixed_off: normal switch / audio ON for duration → always OFF (no selector)
+ * - hue: Hue ON for duration → OFF | revert color | set color
+ */
+function blockyActionTimingEndKind(block) {
+    const timing = block.getFieldValue("TIMING") || "";
+    if (timing !== "for") return "none";
+    const eid = block.getFieldValue("ENTITY");
+    const type = blockyEntityTypeOf(eid);
+    const origin = String(blockyEntityOriginOf(eid) || "").toLowerCase();
+    const start = String(block.getFieldValue("STATE") || "").toUpperCase();
+    if (start !== "ON" && start !== "OPEN") {
+        // Non-ON start with for: end ON fixed (mirror); no selector.
+        return "fixed_on";
+    }
+    if ((type === "speaker" || type === "media_player")) return "fixed_off";
+    if ((type === "light" || type === "hue") && origin !== "rfxcom") return "hue";
+    return "fixed_off";
+}
+
+/** B14: show duration + end-Set fields on Set block based on TIMING mode. */
+function blockyActionUpdateTimingShape(block) {
+    if (!block || block.type !== "b_action_device") return;
+    const mode = block.getFieldValue("TIMING") || "";
+    const prevDur = block.getFieldValue("DURATION");
+    const prevEndHue = block.getFieldValue("END_HUE");
+    const row = block.getInput("TIMING_ROW");
+    if (!row) return;
+
+    [
+        "DURATION_LBL", "DURATION", "THEN_LBL", "END_STATE",
+        "END_HUE", "END_NOTE"
+    ].forEach((n) => {
+        try {
+            if (block.getField(n)) row.removeField(n);
+        } catch (e) { /* ignore */ }
+    });
+
+    if (mode === "for" || mode === "after") {
+        row.appendField(mode === "for" ? "duration HH:MM:SS" : "delay HH:MM:SS", "DURATION_LBL");
+        row.appendField(new Blockly.FieldTextInput(
+            prevDur && blockyParseHhmmss(prevDur) != null ? prevDur : "00:01:00"
+        ), "DURATION");
+    }
+    if (mode !== "for") return;
+
+    const endKind = blockyActionTimingEndKind(block);
+    if (endKind === "fixed_off") {
+        row.appendField("then OFF", "END_NOTE");
+        return;
+    }
+    if (endKind === "fixed_on") {
+        row.appendField("then ON", "END_NOTE");
+        return;
+    }
+    if (endKind === "hue") {
+        row.appendField("then", "THEN_LBL");
+        row.appendField(new Blockly.FieldDropdown([
+            ["OFF", "OFF"],
+            ["keep on, revert color", "REVERT"],
+            ["keep on, set color…", "SET"]
+        ]), "END_HUE");
+        try {
+            const want = prevEndHue || "OFF";
+            block.getField("END_HUE").setValue(want);
+        } catch (e) { /* ignore */ }
+        // SET color uses the same Hue preset/custom fields on the start Set (already ON).
+        // End SET copies start bri/xy/preset at save time if END_HUE=SET — see blockyReadActionRich.
+    }
+}
+
 /** Apply YAML/JSON action rich keys onto a block after shape is built (per-action, not by entity). */
 function blockyApplyActionRich(block, action) {
     if (!block || !action) return;
@@ -2296,6 +2455,28 @@ function blockyApplyActionRich(block, action) {
     if (action.station) block._pendingStation = String(action.station);
     if (action.preset) block._pendingPreset = String(action.preset);
     if (action.app) block._pendingApp = String(action.app);
+
+    // B14 timing
+    const timing = action.timing || "";
+    try {
+        if (block.getField("TIMING")) block.getField("TIMING").setValue(timing);
+    } catch (e) { /* ignore */ }
+    blockyActionUpdateTimingShape(block);
+    if (timing && action.duration && block.getField("DURATION")) {
+        try { block.getField("DURATION").setValue(String(action.duration)); } catch (e) { /* ignore */ }
+    }
+    if (timing === "for" && action.end) {
+        const end = action.end;
+        const endHue = block.getField("END_HUE");
+        if (endHue) {
+            let mode = "OFF";
+            if (String(end.color_mode || "").toLowerCase() === "revert") mode = "REVERT";
+            else if (String(end.state || "").toUpperCase() === "ON"
+                && (end.bri != null || end.xy != null || end.preset)) mode = "SET";
+            else if (String(end.state || "").toUpperCase() === "OFF") mode = "OFF";
+            try { endHue.setValue(mode); } catch (e) { /* ignore */ }
+        }
+    }
 
     if (type === "blinds" || type === "shutter") {
         const stored = action.state;
@@ -2368,6 +2549,7 @@ function blockyReadActionRich(block) {
             const pct = block.getFieldValue("OPEN_PCT");
             out.state = blockyStoredFromOpenPct(pct != null && pct !== "" ? pct : 100);
         }
+        blockyAttachActionTiming(out, block);
         return blockyMergeOpaque(out, block);
     }
 
@@ -2386,6 +2568,7 @@ function blockyReadActionRich(block) {
                 if (!Number.isNaN(x) && !Number.isNaN(y)) out.xy = [x, y];
             }
         }
+        blockyAttachActionTiming(out, block);
         return blockyMergeOpaque(out, block);
     }
 
@@ -2399,6 +2582,7 @@ function blockyReadActionRich(block) {
             const station = block.getFieldValue("STATION");
             if (station) out.station = station;
         }
+        blockyAttachActionTiming(out, block);
         return blockyMergeOpaque(out, block);
     }
 
@@ -2406,10 +2590,42 @@ function blockyReadActionRich(block) {
     if (origin === "lg" && out.state === "ON") {
         const appKey = block.getFieldValue("APP");
         if (appKey) out.app = appKey;
+        blockyAttachActionTiming(out, block);
         return blockyMergeOpaque(out, block);
     }
 
+    blockyAttachActionTiming(out, block);
     return blockyMergeOpaque(out, block);
+}
+
+/** B14: attach timing/duration/end onto an action dict (after rich fields are known). */
+function blockyAttachActionTiming(out, block) {
+    const timing = block.getFieldValue("TIMING") || "";
+    if (timing !== "for" && timing !== "after") return;
+    out.timing = timing;
+    const dur = block.getFieldValue("DURATION");
+    const derr = blockyDurationError(dur);
+    if (derr) throw new Error(derr + " on Set " + out.entity_id);
+    out.duration = String(dur).trim();
+    if (timing !== "for") return;
+    const endKind = blockyActionTimingEndKind(block);
+    if (endKind === "fixed_off") {
+        out.end = { state: "OFF" };
+    } else if (endKind === "fixed_on") {
+        out.end = { state: "ON" };
+    } else if (endKind === "hue") {
+        const hueEnd = block.getFieldValue("END_HUE") || "OFF";
+        if (hueEnd === "OFF") {
+            out.end = { state: "OFF" };
+        } else if (hueEnd === "REVERT") {
+            out.end = { state: "ON", color_mode: "revert" };
+        } else {
+            out.end = { state: "ON" };
+            if (out.preset) out.end.preset = out.preset;
+            if (out.bri != null) out.end.bri = out.bri;
+            if (out.xy) out.end.xy = out.xy.slice();
+        }
+    }
 }
 
 function blockyCoerceFieldToOptions(block, fieldName, optionsFn) {
@@ -2609,18 +2825,39 @@ function defineBlockyBlocks(Blockly, providers) {
         init() {
             this.appendDummyInput("MAIN")
                 .appendField(new Blockly.FieldDropdown(entityConditionDd), "ENTITY");
+            this.appendDummyInput("FOR_ROW")
+                .appendField("sustained duration HH:MM:SS")
+                .appendField(new Blockly.FieldTextInput(""), "FOR_DURATION");
             this.setPreviousStatement(true, "Condition");
             this.setNextStatement(true, "Condition");
             this.setColour(60);
+            this.setTooltip(
+                "Compare. Optional sustained duration: level must stay true for HH:MM:SS "
+                + "(empty = none; default example 00:01:00). Incompatible with changes state."
+            );
             blockyConditionUpdateShape(this);
+            blockyConditionUpdateSustainedShape(this);
             blockyApplyPreferredDeviceDefaults(this, "condition");
         },
         onchange(ev) {
             if (!this.workspace || this.isInFlyout) return;
             if (ev && ev.type === "change"
-                && (ev.name === "ENTITY" || ev.name === "ATTR" || ev.name === "MODE")
+                && (ev.name === "ENTITY" || ev.name === "ATTR" || ev.name === "MODE"
+                    || ev.name === "STATE" || ev.name === "FOR_DURATION")
                 && !BlockyRT.loading) {
-                blockyConditionUpdateShape(this);
+                if (ev.name !== "FOR_DURATION") {
+                    blockyConditionUpdateShape(this);
+                }
+                blockyConditionUpdateSustainedShape(this);
+                if (ev.name === "FOR_DURATION" || ev.name === "STATE" || ev.name === "MODE") {
+                    // Refresh crosses/is labels when sustained toggles.
+                    try {
+                        const lf = this.getField("CROSSES_LABEL");
+                        if (lf) {
+                            lf.setValue(blockyOpLabelForCondition(this, this.getFieldValue("OP") || "=="));
+                        }
+                    } catch (e) { /* ignore */ }
+                }
             }
         }
     };
@@ -2695,14 +2932,33 @@ function defineBlockyBlocks(Blockly, providers) {
                     (newState) => {
                         if (!BlockyRT.loading) {
                             blockyQueueRichShape(block, { forceState: newState });
+                            queueMicrotask(() => blockyActionUpdateTimingShape(block));
                         }
                         return newState;
                     }
                 ), "STATE");
+            this.appendDummyInput("TIMING_ROW")
+                .appendField(new Blockly.FieldDropdown(
+                    [
+                        ["immediately", ""],
+                        ["for", "for"],
+                        ["after", "after"]
+                    ],
+                    (mode) => {
+                        queueMicrotask(() => {
+                            if (!BlockyRT.loading) {
+                                blockyActionUpdateTimingShape(block);
+                                if (BlockyRT.app) BlockyRT.app.markEditorDirty();
+                            }
+                        });
+                        return mode;
+                    }
+                ), "TIMING");
             this.setPreviousStatement(true, BLOCKY_THEN_STMT);
             this.setNextStatement(true, BLOCKY_THEN_STMT);
             this.setColour(290);
             blockyActionUpdateRichShape(this);
+            blockyActionUpdateTimingShape(this);
             blockyApplyPreferredDeviceDefaults(this, "action");
         },
         // Shape updates come from field validators + blockyQueueRichShape (not onchange).
@@ -3610,6 +3866,8 @@ function blockyApp() {
             name: "",
             // B10B: per-rule enable (engine skips when false). Default true.
             enabled: true,
+            // B14 H3: optional rule cooldown HH:MM:SS.
+            cooldown: "",
             ruleJson: "{}",
             // UE-form fields (user event — Appear on explorer / confirm / enabled).
             eventShowOnDashboard: false,
@@ -5187,6 +5445,7 @@ function blockyApp() {
                     if (b.type === "b_action_device") {
                         blockyCoerceFieldToOptions(b, "STATE", blockyActionStateOptions);
                         blockyActionUpdateRichShape(b);
+                        blockyActionUpdateTimingShape(b);
                     }
                 });
                 // IF trees are connected: reshape device Compares (turns vs is; duplicate-safe chrome).
@@ -5287,6 +5546,17 @@ function blockyApp() {
                     out.is = "ON";
                 } else {
                     out.is = b.getFieldValue("STATE");
+                }
+                const forDur = (b.getFieldValue("FOR_DURATION") || "").trim();
+                if (forDur) {
+                    if (blockyConditionIsChangesState(b)) {
+                        throw new Error(
+                            "Sustained duration cannot be used with changes state on " + eid
+                        );
+                    }
+                    const ferr = blockyDurationError(forDur);
+                    if (ferr) throw new Error(ferr + " on sustained duration for " + eid);
+                    out.for = forDur;
                 }
                 return blockyMergeOpaque(out, b);
             };
@@ -5602,6 +5872,12 @@ function blockyApp() {
                 enabled: this.editor.enabled !== false,
                 branches
             };
+            const cd = (this.editor.cooldown || "").trim();
+            if (cd) {
+                const cerr = blockyDurationError(cd);
+                if (cerr) throw new Error("Rule cooldown: " + cerr);
+                payload.cooldown = cd;
+            }
             this._bindSrNameToSeCatalog(payload);
             if (!payload.name) throw new Error("Rule name is required.");
             this.validateNoHardDeniedEntityIds(payload);
@@ -5833,6 +6109,7 @@ function blockyApp() {
                 id: "",
                 name: "",
                 enabled: true,
+                cooldown: "",
                 ruleJson: "{}",
                 eventShowOnDashboard: false,
                 eventRequireConfirmation: false,
@@ -5863,6 +6140,7 @@ function blockyApp() {
                     id: rule.id || "",
                     name: rule.name || "",
                     enabled: true,
+                    cooldown: "",
                     ruleJson: "{}",
                     eventShowOnDashboard: !!rule.show_on_dashboard,
                     eventRequireConfirmation: !!rule.require_confirmation,
@@ -5880,6 +6158,7 @@ function blockyApp() {
                     id: rule.id || "",
                     name: rule.name || "",
                     enabled: true,
+                    cooldown: "",
                     ruleJson: "{}",
                     eventShowOnDashboard: false,
                     eventRequireConfirmation: false,
@@ -5905,12 +6184,14 @@ function blockyApp() {
                     id: rule.id,
                     name: displayName,
                     enabled: rule.enabled !== false,
+                    cooldown: rule.cooldown || undefined,
                     branches: rule.branches
                 }
                 : {
                     id: rule.id,
                     name: displayName,
                     enabled: rule.enabled !== false,
+                    cooldown: rule.cooldown || undefined,
                     trigger: rule.trigger,
                     cases: rule.cases || []
                 };
@@ -5918,6 +6199,7 @@ function blockyApp() {
                 id: rule.id || "",
                 name: displayName,
                 enabled: rule.enabled !== false,
+                cooldown: rule.cooldown ? String(rule.cooldown) : "",
                 ruleJson: JSON.stringify(ruleBody, null, 2),
                 eventShowOnDashboard: false,
                 eventRequireConfirmation: false,
@@ -6940,6 +7222,7 @@ function blockyApp() {
                     id: "",
                     name: "",
                     enabled: true,
+                    cooldown: "",
                     ruleJson: "{}",
                     eventShowOnDashboard: false,
                     eventRequireConfirmation: false,
@@ -6979,6 +7262,7 @@ function blockyApp() {
             window.addEventListener("beforeunload", this._onBeforeUnload);
             this.$watch("editor.name", () => this.markEditorDirty());
             this.$watch("editor.enabled", () => this.markEditorDirty());
+            this.$watch("editor.cooldown", () => this.markEditorDirty());
             this.$watch("editor.eventShowOnDashboard", () => this.markEditorDirty());
             this.$watch("editor.eventRequireConfirmation", () => this.markEditorDirty());
             this.$watch("editor.eventEnabled", () => this.markEditorDirty());

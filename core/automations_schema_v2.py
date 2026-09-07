@@ -63,7 +63,7 @@ def _copy_action(action: Any) -> Dict[str, Any]:
         return {}
     out = copy.deepcopy(action)
     # Drop empty optional rich fields for cleaner YAML (keep explicit 0).
-    for k in ("preset", "station", "app", "target", "scene", "event"):
+    for k in ("preset", "station", "app", "target", "scene", "event", "timing", "duration"):
         if out.get(k) in ("", None):
             out.pop(k, None)
     for k in ("bri", "volume"):
@@ -71,6 +71,16 @@ def _copy_action(action: Any) -> Dict[str, Any]:
             out.pop(k, None)
     if out.get("xy") in ("", None, []):
         out.pop("xy", None)
+    if out.get("end") in ("", None, {}):
+        out.pop("end", None)
+    # B14: validate timed Set shape when any timing field is present.
+    if out.get("timing") or out.get("duration") or out.get("end") is not None:
+        from core.config import ActionConfig
+
+        ActionConfig.model_validate(out)
+        # Re-dump defaults (e.g. end.state OFF) into the copy.
+        validated = ActionConfig.model_validate(out).model_dump(exclude_none=True)
+        out = {**out, **{k: validated[k] for k in ("timing", "duration", "end") if k in validated}}
     return out
 
 
@@ -83,6 +93,17 @@ def _copy_condition(cond: Any) -> Dict[str, Any]:
         out["is"] = out.pop("condition_is")
     else:
         out.pop("condition_is", None)
+    if "for_duration" in out and "for" not in out:
+        out["for"] = out.pop("for_duration")
+    else:
+        out.pop("for_duration", None)
+    if out.get("for") in ("", None):
+        out.pop("for", None)
+    elif out.get("for") is not None:
+        from core.duration_hhmmss import parse_hhmmss
+
+        parse_hhmmss(str(out["for"]).strip())
+        out["for"] = str(out["for"]).strip()
     return out
 
 

@@ -33,6 +33,7 @@ from core.condition_tree import (
 _B19_KEY_ORDER = (
     "name",
     "enabled",
+    "cooldown",
     "branches",
     "id",
 )
@@ -138,6 +139,12 @@ def normalize_branch_rule(rule: Dict[str, Any]) -> Dict[str, Any]:
         "branches": branches,
         "id": rule.get("id"),
     }
+    cd = rule.get("cooldown")
+    if cd not in (None, ""):
+        from core.duration_hhmmss import parse_hhmmss
+
+        parse_hhmmss(str(cd).strip())
+        out["cooldown"] = str(cd).strip()
     # Drop legacy keys if present on write normalize.
     return ordered_branch_dict(out)
 
