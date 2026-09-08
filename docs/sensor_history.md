@@ -70,7 +70,7 @@ Z-Wave power IDXs (`74001`, `74003`) include **integrated kWh** in summary tiles
 
 **Lifetime totals (not time-series):** cumulative counters in NVRAM (`wanos-nvram.json`) for IDX `11001`–`11003` remain the source of truth for **total** Wh / L.
 
-**Admin Site health "Total kWh":** derived display only — `config.yaml` `energy.meter_baseline_kwh` + `(devices[11001] − energy.meter_pulse_wh_at_baseline) / 1000`. Canonical store is still NVRAM IDX `11001` (1 pulse = 1 Wh). Do **not** persist a second cumulative kWh counter. Set `meter_pulse_wh_at_baseline` to the current `11001` Wh reading when locking a new physical-meter baseline.
+**Admin Site health "Total kWh"** (under the **Sauna / IR** card): derived display only — `config.yaml` `energy.meter_baseline_kwh` + `(devices[11001] − energy.meter_pulse_wh_at_baseline) / 1000`. Canonical store is still NVRAM IDX `11001` (1 pulse = 1 Wh). Do **not** persist a second cumulative kWh counter. Set `meter_pulse_wh_at_baseline` to the current `11001` Wh reading when locking a new physical-meter baseline.
 
 **Leak W:** `p_leak_baseline_watts` is also stored in `wanos-nvram.json` (non-IDX meta key, same atomic file). Restored on boot; rewritten on the 5-minute NVRAM flush and on graceful shutdown. Live idle pulses keep updating RAM; disk catches up on flush.
 

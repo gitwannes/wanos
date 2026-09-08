@@ -3756,6 +3756,17 @@ function wanosApp() {
             return (realWh / 1000).toFixed(3) + " / " + (calcWh / 1000).toFixed(3) + " kWh";
         },
 
+        /** Admin Site health: R_th as 0.000 °C/W (not scientific). */
+        formatRthInsulation() {
+            const raw = this.state && this.state.metrics
+                ? this.state.metrics.r_th_insulation_coefficient
+                : null;
+            if (raw === null || raw === undefined) return "N/A";
+            const n = Number(raw);
+            if (!Number.isFinite(n)) return "N/A";
+            return n.toFixed(3) + " °C/W";
+        },
+
         formatWiscLastSessionOneLiner(kind) {
             const row = kind === "ir"
                 ? (this.state.metrics.last_ir_session || null)

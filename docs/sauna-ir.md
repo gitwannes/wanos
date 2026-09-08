@@ -198,9 +198,9 @@ $$P_{elements\_real} = \left(\frac{V_{live}}{230}\right)^2 \times ((D_U \cdot P_
 
 Sauna calc: $\sum (D_{phase} \times P_{db,phase}) \times (V/230)^2$. IR-only sessions add $(IR\_mod/100) \times P_{db,ir} \times (V/230)^2$. **Real** session energy always comes from the pulse meter minus locked leak.
 
-**Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle.
+**Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle. Display is fixed **3 decimals** with unit **°C/W** (e.g. `0.002 °C/W`, not scientific); tooltip: cabin ΔT per watt of real heat — downward drift means worse seals/insulation.
 
-**Admin — Power & Thermal:** Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th); LCD mirror (VT323); element nameplates + **learn counts** (from session audit rows; refreshed when last session updates over SSE) + last session detail (energy · W · runtime · smart when); live panel titled **Live IR session** / **Live Sauna session** — Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. `GET /api/admin/analytics/element-power`.
+**Admin — Sauna / IR pane:** one card grouping Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th), LCD mirror (VT323), element nameplates + **learn counts** (from session audit rows; refreshed when last session updates over SSE) + last session detail (energy · W · runtime · smart when), Probes & SSR (ceiling/bench, Safety SSR, fireorder), and a live sub-panel that expands when a session runs — MOD total + U/V/W % (sauna) or IR MOD, runtime + remaining, Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. Sauna remaining arms at `target − timer_offset_temp`, not exact setpoint. `GET /api/admin/analytics/element-power`.
 
 **Admin — GPIO outputs arm gate:** status shows `OFFLINE` → `NEED INPUTS` → `NEED SHT11` → `WAIT TEMP` → `READY` → `ARMED` (Admin label refreshed on the 1 Hz client ticker). Arming SHT11 triggers an immediate sensor poll (2 s fast cadence until `sauna_calc_temp` is valid). SSE subscribe **seeds** current `hardware` / `sensors` domains so LIVE/READY is not stuck after a missed one-shot bus-health event.
 
@@ -222,7 +222,7 @@ To track changes in cabin insulation performance without seasonal weather variat
 
 $$R_{th} = \frac{\text{Sauna\_Calc\_Temp} - \text{Outside\_Temp}}{P_{elements\_real}}$$
 
-A downward drift in this coefficient over time signals failing physical door seals, wall insulation degradation, or water retention inside the panel structure.
+A downward drift in this coefficient over time signals failing physical door seals, wall insulation degradation, or water retention inside the panel structure. Admin renders the live value as `0.000 °C/W` (three decimal places) with a one-line tooltip on the **R_th** label.
 
 ---
 
@@ -330,6 +330,6 @@ The integration of power analytics, safety guards, and dynamic session recording
 * Audits SHT11 sensor heartbeats out-of-band every 2 seconds.
 
 ### 6.5 `frontend/app.js` & Presentation Files
-* Update Device Explorer panel (`admin.html`) to map "Sauna Probes & Heater Relays" to "Sauna Statistics".
-* Bind live session metrics and extracted power integers into Alpine's reactive state engine.
-* Render real-time element performance badges (e.g., `P_U: 3450W / Baseline: 3500W`) alongside real vs calculated energy comparison charts.
+* Admin **Sauna / IR** card (`admin.html`) groups Site health, LCD mirror, learned nameplates, Probes & SSR, and the live session sub-panel (MOD / timers / power).
+* Bind live session metrics and extracted power integers into Alpine's reactive state engine (`formatRthInsulation`, live energy helpers).
+* WISC bathroom Cold/Hot water keeps value + unit on one line on narrow viewports.

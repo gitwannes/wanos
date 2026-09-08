@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36 → C37**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36 → C37**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -49,11 +49,12 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C34 + L3 — Sauna/IR polish + LCD logging** | ✅ **Done 2026-09-02** — [`sauna-ir.md`](../sauna-ir.md) §3.7 + §4 | WISC + Admin + analytics + LCD · mid |
 | **C35 — Live IR UX + learn refresh** | ✅ **Done 2026-09-03** — [`sauna-ir.md`](../sauna-ir.md) §4 | WISC + Admin · low |
 | **C38 + L4 — Session telemetry + LCD WISC + Real W gate + Admin polish** | ✅ **Done 2026-09-08** — [`sauna-ir.md`](../sauna-ir.md) §3.7 / §4.1 / §5.1a | Sauna analytics + LCD + Admin · mid |
-| **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; house kWh day/7d/m/y UX; WISC rad runtime; Admin dual timer | History + WISC + Admin · mid |
+| **C39 — Admin Sauna/IR pane + R_th + WISC water** | ✅ **Done 2026-09-08** — [`sauna-ir.md`](../sauna-ir.md) §4 | Admin + WISC · mid |
+| **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; house kWh day/7d/m/y UX; WISC rad runtime (Admin dual timer → **C39** ✅) | History + WISC · mid |
 | **C36 — Device event history modal** | Right-click device → History → modal table (ON / OFF / set % / …) | Explorer Control · mid |
 | **C37 — Android PWA resume black screen** | bugfix: warm resume force-SSE + overlay no x-cloak — **coding** (smoke pending) | Shell / SSE resume · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36** → **C37**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36** → **C37**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1120,6 +1121,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C4:** **`blocky`→`blockly`** — **`blockly.html` / `blockly.js`**; shell label **Blockly**; **not** `automations.*`.
 * **C30:** WISC douche live + last summary — triage **2026-08-27**; kickoff before code.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; see § C31 + C32 archive.
+* **C39:** ✅ **Done 2026-09-08** — Admin Sauna/IR unified pane; R_th `0.000 °C/W` + tooltip; WISC water one-line; Admin live MOD + runtime/remaining (partial pull from **C33**).
 
 ## 📋 C30 — WISC douche session (live + last summary) 🔜 TODO
 
@@ -1212,6 +1214,44 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ---
 
+## ✅ C39 — Admin Sauna/IR unified pane + R_th + WISC water — **Done 2026-09-08**
+
+**Letter:** **C39**. **Affinity:** Operator shell (Admin + WISC). Size **mid**. **Close-out 2026-09-08**.
+
+**Operator request (verbatim, 2026-09-08):**
+
+> when the sauna session is running
+> also show on the admin page in "live session"
+> the MOD% per heater element, next to the total MOD
+> show both the sauna runtime and the time remaining (which starts only when the setpoint is reached? confirm this)
+> on smartphone: in the wisc page: the water is not on 1 line: correct that
+> how is R_Th calculated and what can I do with it?
+
+> in the admin page: add units to this (°C/W) and give a 1-liner tooltip with info - during the previous session it was 2e-3: don't use scientific notation but 0.000 (3 digits)
+>
+> in the admin page: group all sauna & IR related info in 1 pane
+> this pane gets more info when a session is running, that way, the MOD% per element is not in another pane as it is now
+
+> Site health, LCD mirror, element@100%, Sauna Probes & Heater Relays, safety SSR relay
+> all these are sauna/IR related: put in 1 pane - make sure the layout is effective but clear on both PC and smartphone
+
+### Shipped summary
+
+* **Admin:** one **Sauna / IR** card — Site health, LCD mirror, Element @100%, Probes & SSR (moved out of General Diagnostics), live sub-panel expands when session runs (MOD total + U/V/W or IR MOD, runtime + remaining, Real/Calc W, energy).
+* **R_th:** `0.000 °C/W` (3 decimals, not scientific) + tooltip on label.
+* **WISC:** Cold/Hot water value + `L` stay on one line on phone.
+* **Confirmed (product):** sauna remaining arms at `target − timer_offset_temp`, not exact setpoint.
+
+**Product SoT:** [`sauna-ir.md`](../sauna-ir.md) §4 / §4.3; [`reference.md`](../reference.md) (`formatRthInsulation`).
+
+**Pulled from C33 (partial):** Admin live remaining + runtime (C33 still owns History charts, nameplates ingest, WISC rad = runtime-only).
+
+**Out of scope:** **C33** History; **C37** PWA smoke; Pi smoke deferred to operator refresh.
+
+**C39 DoD:** [x] Unified Admin pane + live MOD/timers + R_th format + WISC water · [x] Last DoD docs audit **2026-09-08**.
+
+---
+
 ## ✅ C34 + L3 — Sauna/IR analytics polish + LCD logging — **Done 2026-09-02**
 
 **Letter:** **C34** (shipped with **L3**). **Combined ship** with [`phaseL-lcd.md`](phaseL-lcd.md) § L3.
@@ -1238,7 +1278,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ## 📋 C33 — Sauna/IR History charts + runtime + nameplates + kWh ranges 🔜 TODO
 
-**Letter:** **C33**. **Sequence #44**. **Affinity:** Operator shell (Explorer History + WISC + Admin). Size **mid**. **Follow-up to C31+C32** (combined triage **2026-09-01**; expanded **2026-09-03**).
+**Letter:** **C33**. **Sequence** (see [`pipeline.md`](pipeline.md)). **Affinity:** Operator shell (Explorer History + WISC). Size **mid**. **Follow-up to C31+C32** (combined triage **2026-09-01**; expanded **2026-09-03**). **Admin dual timer + live MOD pane → shipped in C39** ✅.
 
 **Operator request (verbatim, 2026-09-01):**
 
@@ -1258,10 +1298,10 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 * **History UX (sauna/IR actuators):** Explorer → History for sauna + IR — **same families as Sonos/Onkyo** ([`sensor_history.md`](../sensor_history.md) §14): day detail with **% MOD** level; month/year **duration ON** (#hrs / #days), not session-table-only view on `sensorhistory.html`.
 * **WISC:** while sauna/IR active, round **rad** button shows **elapsed runtime** (time on) only — not countdown.
-* **Admin:** sauna/IR panels show **both** remaining time **and** elapsed runtime (live session).
+* **Admin:** ~~sauna/IR panels show both remaining time and elapsed runtime~~ → **C39** ✅ (unified Sauna/IR live pane).
 * **Learned nameplates @ 100% (U/V/W/IR):** four History series from Admin element W panel (`element_power_w`); ingest **every 10 minutes** (climate/SHT cadence family — **not** per kWh pulse). Virtual IDXs + `SENSOR_META` + `note_gauge` (or equivalent) locked at kickoff.
 * **House kWh (`11001`):** already tracked in `sensor_history`. Day UI uses **C16** default **24 h viewport** over **`hires_days`** (default 7) buffer — pan/zoom-out should expose the week. Month/year ranges should already exist for energy kind; **C33** assesses + fixes if Explorer only exposes day or month/year is empty/broken for House energy. Product intent: operator can see **7-day day buffer + month + year** (not day-only forever).
-* **Depends on:** **C31+C32** ✅. Distinct from **C30** (douche); distinct from **C35** (live WISC/Admin polish).
+* **Depends on:** **C31+C32** ✅. Distinct from **C30** (douche); distinct from **C35** / **C39** (live WISC/Admin polish).
 * **Out of scope:** session row schema changes; **B17** / **B18**; per-pulse element W ingest; Real W ~5862 spike (deferred).
 
 ### Assess notes (2026-09-03) — House energy “only 24 h”
@@ -1272,7 +1312,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 **Open until kickoff:** which IDX/entity_ids for sauna/IR actuator rows; MOD day source; one vs two History rows for sauna vs IR; virtual IDX map for U/V/W/IR nameplates; confirm House energy month/year UX gap vs education of C16 pan.
 
-**C33 DoD (stub):** Explorer History day/month/year for sauna + IR per Sonos pattern; four learned-nameplate W@100% series @ 10 min; House energy usable across 7d day buffer + month + year; WISC rad = runtime-only when on; Admin = remaining + runtime; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C33 DoD (stub):** Explorer History day/month/year for sauna + IR per Sonos pattern; four learned-nameplate W@100% series @ 10 min; House energy usable across 7d day buffer + month + year; WISC rad = runtime-only when on; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ## 📋 C36 — Device event history modal (right-click) 🔜 TODO
 
@@ -1389,7 +1429,8 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C26:** kickoff **locked 2026-08-22** — after **C4**; classic scripts; `blockly-*` siblings; page-script dedupe; **`reference.md` § frontend catalogs all `frontend/*.js`**.
 * **C3 / C4** remain open as specified above (later in sequence).
 * **C30:** triage placed **2026-08-27** — kickoff before code (UI chrome, cost config keys, last-session persist home).
-* **C33:** triage **2026-09-01** + expand **2026-09-03** (nameplates @100% / 10 min; house kWh 7d+m/y UX) — kickoff before code.
+* **C33:** triage **2026-09-01** + expand **2026-09-03** (nameplates @100% / 10 min; house kWh 7d+m/y UX) — kickoff before code. Admin live timers → **C39** ✅.
+* **C39:** ✅ **Done 2026-09-08** — Admin Sauna/IR unified pane + R_th display + WISC water one-line.
 * **C36:** triage **2026-09-04** — right-click device → History modal (event table); kickoff before code.
 * **C37:** implemented **2026-09-04** — resume force-SSE + overlay no x-cloak; awaiting OnePlus 12 smoke.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.

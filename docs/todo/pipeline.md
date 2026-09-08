@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-09-08 (C38 + L4 close-out — session telemetry / LCD WISC / Real W gate / Admin polish)
+**Last updated:** 2026-09-08 (C39 close-out — Admin Sauna/IR pane / R_th / WISC water)
 
 ---
 
@@ -86,6 +86,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **C35** | WISC/Admin live IR UX + learn refresh + mod default/layout — **Pi smoke 2026-09-03** — [`phaseC-shell.md`](phaseC-shell.md) § C35 |
 | **B10I / B10J / B10L / B10M + C20 / C21** | ∥ LOW cluster — Go to SR; Event Received name; NOT CONNECTED copy; Hue preset dup settings; Clear All; AUTO OFF while OFF — **Pi smoke 2026-09-05** |
 | **C38 + L4** | Sauna session telemetry + LCD WISC timer/door-closed + Real W MOD gate + Admin last-poll/GPIO/ARM modal — **close-out 2026-09-08** — [`phaseC-shell.md`](phaseC-shell.md) § C38 · [`phaseL-lcd.md`](phaseL-lcd.md) § L4 |
+| **C39** | Admin Sauna/IR unified pane + R_th `0.000 °C/W` + WISC water one-line — **close-out 2026-09-08** — [`phaseC-shell.md`](phaseC-shell.md) § C39 |
 
 ---
 
@@ -133,11 +134,11 @@ All open items. **Detail** = phase file section.
 35  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
 36  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
 37  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
-38  open   mid  C33          Sauna/IR History + nameplates + house kWh ranges     phaseC § C33
+38  open   mid  C33          Sauna/IR History + nameplates + house kWh (Admin timers→C39)  phaseC § C33
 39  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
 40  coding mid  C37          bugfix: Android PWA resume — black screen (not reconnect) phaseC § C37
 ```
-Near-term: **C37** / **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **Ship B7 / B14 part 1** (kickoff locked) → **B14b** (part 2 + **B25**) → **B26** → **B24**. **B12** may run ∥ part 1. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C25** ✅ **Pi smoke 2026-09-01**. **B10I/J/L/M + C20/C21** ✅ **Pi smoke 2026-09-05**. **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **C37** / **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **Ship B7 / B14 part 1** (kickoff locked) → **B14b** (part 2 + **B25**) → **B26** → **B24**. **B12** may run ∥ part 1. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C25** ✅ **Pi smoke 2026-09-01**. **B10I/J/L/M + C20/C21** ✅ **Pi smoke 2026-09-05**. **C39** ✅ **close-out 2026-09-08** (Admin Sauna/IR pane). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 

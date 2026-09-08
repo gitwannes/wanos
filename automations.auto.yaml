@@ -84,6 +84,7 @@ auto_off_devices:
     - zwave.licht_garage
     - zwave.licht_keuken
     - zwave.licht_living
+    - zwave.sauna_zoutlamp
     - zwave.slpk_dries
     - zwave.slpk_liene
     - zwave.slpk_wannes
@@ -109,6 +110,7 @@ auto_off_devices:
     zwave.gang_beneden: 15
     zwave.gang_boven: 10
     zwave.licht_garage: 15
+    zwave.sauna_zoutlamp: 120
     zwave.slpk_dries: 30
     zwave.slpk_liene: 60
     zwave.slpk_wannes: 30
