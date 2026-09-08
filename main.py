@@ -1559,7 +1559,9 @@ async def sse_state_stream(request: Request):
     """
     Delta SSE stream. Emits domain subtrees when state changes (B10H event-driven hub).
     Payload format: {"domain": "<key>", "data": { ... }}
-    The frontend fetches /api/state on connect for the full snapshot, then
+    On subscribe, seeds current domain snapshots (hardware/sensors/…) so Admin
+    LIVE/READY status is not stuck if one-shot bus-health events were missed.
+    The frontend also fetches /api/state on connect for the full snapshot, then
     applies these partial updates by domain key as they arrive.
 
     First byte is an immediate ping: behind nginx, awaiting is_disconnected()
@@ -1576,6 +1578,12 @@ async def sse_state_stream(request: Request):
         last_ping_time = time.time()
         try:
             yield _ping_line()
+            # Seed live domains immediately so Admin GPIO/SHT11/READY status
+            # matches RAM even if one-shot bus-health SSE was missed.
+            try:
+                await sse_hub.seed_client(client, state_manager.get_state_snapshot())
+            except Exception as seed_exc:
+                logger.warning(f"SSE seed failed: {seed_exc}")
             while not shutdown_event.is_set():
                 try:
                     line = await asyncio.wait_for(client.queue.get(), timeout=5.0)

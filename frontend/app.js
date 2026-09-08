@@ -165,7 +165,7 @@ function wanosApp() {
                 max_temp: null,
                 hold_mode: "autohold",
                 modulation_pwm: 0,
-                phases_pwm: [0, 0, 0],
+                phases_pwm: {"U": 0, "V": 0, "W": 0},
                 fireorder: "--",
                 session_start_time: null,
                 session_end_time: null,
@@ -1224,6 +1224,11 @@ function wanosApp() {
         sunsetRelativeText: "",
         sunriseDisplayText: "",
         sunsetDisplayText: "",
+        /** C25 Admin Outside weather: last OWM poll HH:MM + relative (ticker-driven). */
+        owmLastPollDisplayText: "",
+        /** Admin GPIO output arm ladder label (ticker-driven so WAIT TEMP -> READY updates). */
+        gpioOutputArmStatusText: "OFFLINE",
+        gpioOutputArmStatusClassName: "text-gray-500",
 
         sunCyclePopoverOpen: false,
 
@@ -1927,6 +1932,19 @@ function wanosApp() {
                 this.sunsetRelativeText = "";
                 this.sunsetDisplayText = "";
             }
+
+            // Last OWM poll relative age (same 1 Hz path as sun cycle — not a getter).
+            const pollTs = this.state.sensors && this.state.sensors.owm_last_poll_unix;
+            if (pollTs) {
+                this.owmLastPollDisplayText = this.formatSunDiagnosticLine(pollTs, now);
+            } else {
+                this.owmLastPollDisplayText = "";
+            }
+
+            // GPIO output arm ladder — refresh every tick so WAIT TEMP -> READY
+            // after first SHT11 composite without requiring a page reload.
+            this.gpioOutputArmStatusText = this.gpioOutputArmStatus();
+            this.gpioOutputArmStatusClassName = this.gpioOutputArmStatusClass();
         },
 
         formatTime(totalSeconds) {
@@ -6935,14 +6953,6 @@ function wanosApp() {
             const t = this.state.sensors && this.state.sensors.outside_temp;
             const h = this.state.sensors && this.state.sensors.outside_hum;
             return this._dewPointC(t, h);
-        },
-
-        /** C25 Admin: last OWM climate poll as HH:MM + relative. */
-        get owmLastPollDisplayText() {
-            const ts = this.state.sensors && this.state.sensors.owm_last_poll_unix;
-            if (!ts) return "";
-            const now = Math.floor(Date.now() / 1000);
-            return this.formatSunDiagnosticLine(ts, now);
         },
 
         // Calculates countdown/countup string relative to current time

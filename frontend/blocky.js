@@ -3874,6 +3874,8 @@ function blockyApp() {
             eventRequireConfirmation: false,
             eventEnabled: true
         },
+        /** B14: cooldown input focus — empty shows &lt;not configured&gt; when blurred. */
+        cooldownFieldFocused: false,
 
         /**
          * Left Library = UE + UR + SE + SR + D, filtered by text / kind / Show disabled/unused XOR.
@@ -4584,6 +4586,30 @@ function blockyApp() {
             if (!this.selectedRule) return;
             this.editorDirty = true;
             this.blocklyUiTick = (this.blocklyUiTick || 0) + 1;
+        },
+
+        /** B14: cooldown field — overlay &lt;not configured&gt; when empty+blurred; focus placeholder 00:00:00. */
+        onRuleCooldownFocus(ev) {
+            this.cooldownFieldFocused = true;
+            const el = ev && ev.target;
+            if (!el) return;
+            // Ensure any leftover sentinel text is never kept in the real value.
+            let v = (this.editor.cooldown || "").trim();
+            if (v === "<not configured>" || v === "<empty>") v = "";
+            this.editor.cooldown = v;
+            el.value = v;
+            el.placeholder = "00:00:00";
+        },
+
+        onRuleCooldownBlur(ev) {
+            let v = (ev && ev.target && ev.target.value != null)
+                ? String(ev.target.value).trim()
+                : "";
+            if (v === "<not configured>" || v === "<empty>") v = "";
+            this.editor.cooldown = v;
+            this.cooldownFieldFocused = false;
+            if (ev && ev.target) ev.target.placeholder = "";
+            this.markEditorDirty();
         },
 
         get hasBlocklySelection() {
@@ -5873,7 +5899,7 @@ function blockyApp() {
                 branches
             };
             const cd = (this.editor.cooldown || "").trim();
-            if (cd) {
+            if (cd && cd !== "<not configured>" && cd !== "<empty>") {
                 const cerr = blockyDurationError(cd);
                 if (cerr) throw new Error("Rule cooldown: " + cerr);
                 payload.cooldown = cd;
@@ -6104,6 +6130,7 @@ function blockyApp() {
         /** B10E: draft UE form — Save → POST /api/events only (no Blockly / no rule). */
         _doNewUserEvent() {
             this.markEditorClean();
+            this.cooldownFieldFocused = false;
             this.selectedRule = { isDraft: true, isEventRow: true, libraryKind: "ue" };
             this.editor = {
                 id: "",
@@ -6128,6 +6155,7 @@ function blockyApp() {
 
         _doSelectRule(rule) {
             this.markEditorClean();
+            this.cooldownFieldFocused = false;
             this.selectedRule = rule;
             this.errorMessage = "";
             this.infoMessage = "";

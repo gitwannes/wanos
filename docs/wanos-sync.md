@@ -20,7 +20,8 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 | Mirror | Local → Pi | `rsync --delete` + excludes from config (main) or `_lcd-agent` excludes (`lcd`) |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
 | Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`) |
-| Logcopy | Local → git | Same `wanos*` files from that pull dir into `docs\logs` or `_lcd-agent\docs\logs` — **always** after `run`; also mode `logcopy` alone |
+| Sessionlog pull | Pi → Local | `{RemoteRoot}/sessionlog/*` → OneDrive `logs\` (flat) — **main Pi only**; skip if remote dir missing |
+| Logcopy | Local → git | `wanos*` (+ `sauna_session_*.csv` + `sauna_sessions.db` on main) from that pull dir into `docs\logs` or `_lcd-agent\docs\logs` — **always** after `run`; also mode `logcopy` alone. Locked/in-use dest files: red warn, skip, continue |
 
 ### Split Hue config (maps vs presets)
 
@@ -86,8 +87,8 @@ helpers\wanos-sync.bat diff <repo-relative-file> lcd verbose
 | Mode / flags | Behaviour |
 |--------------|-----------|
 | `test` | Dry-run only (`rsync -n`) against main Pi |
-| `run` | Normalize + mirror + stats pull + log pull + **logcopy** (main Pi) |
-| `logcopy` | Log pull + copy `wanos*` into git `docs\logs` only (no mirror / stats / normalize) |
+| `run` | Normalize + mirror + stats pull + log pull + sessionlog pull + **logcopy** (main Pi) |
+| `logcopy` | Log pull + sessionlog pull + copy `wanos*` / `sauna_session_*.csv` / `sauna_sessions.db` into git `docs\logs` only (no mirror / stats / normalize) |
 | `diff <path>` | Compare one repo-relative file PC vs Pi (normalized text); binary = sizes only; missing-side info (exit 0) |
 | `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull); logcopy → `_lcd-agent\docs\logs`; diff uses `_lcd-agent` as local root |
 | `test … logcopy` | Dry-run also previews the git `docs\logs` copy |
@@ -126,6 +127,7 @@ Exit code **1** means the files differ after normalization; the batch wrapper do
 | LCD Pi | `wannes@10.32.251.51:/home/wannes/wanos` | `[LcdPiSsh]` |
 | LCD log pull local | `…\wanos\logs\lcd-agent` | `[LcdPiSsh] LocalLogSubdir` |
 | App logs remote | `/var/log/wanos/wanos*` (`RemoteLogDir=/var/log/wanos` + `RemoteGlob=wanos*`; not journalctl) | both SSH sections |
+| Session CSVs remote | `{RemoteRoot}/sessionlog/*` (e.g. `sauna_session_YYYYMMDD_HHMMSS.csv`) | main Pi only; mirror-excluded |
 
 Edit `[PiSsh]` / `[LcdPiSsh]` Host/User/RemoteRoot if your Pis differ. Secrets never go in the config — only SSH keys. Reuse the same `id_ed25519` for both Pis (install pubkey on `.51` once — see `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`).
 
@@ -209,7 +211,7 @@ helpers\wanos-sync.bat run
 
 `helpers/wanos-sync.config.txt`:
 
-- `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`). Path segment **`bootstrap`** is excluded, so `helpers/bootstrap/**` is not mirrored to the **main** Pi. Path **`_lcd-agent`** is excluded from the main mirror (LCD deploy uses `lcd` mode only). Rsyslog logcap lives in **`helpers/`** (`wanos_rsyslog_logcap.sh`, `wanos-syslog-truncate.sh`, `logrotate.rsyslog`) so it **does** sync to the main Pi. File excludes include `*.bak` and `*.bak-*` (migrator stamps like `automations.auto.yaml.bak-YYYYMMDD-HHMMSS`). Repo meta not deployed: `readme.md`, `LICENSE`, `entity_id-list.txt`, and any other `*.md` outside excluded dirs (e.g. `core/logger.md`).
+- `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`). Path segment **`bootstrap`** is excluded, so `helpers/bootstrap/**` is not mirrored to the **main** Pi. Path **`_lcd-agent`** is excluded from the main mirror (LCD deploy uses `lcd` mode only). Path **`sessionlog`** is Pi-owned (sauna session CSVs); pulled to OneDrive / `docs\logs`, never mirrored. Rsyslog logcap lives in **`helpers/`** (`wanos_rsyslog_logcap.sh`, `wanos-syslog-truncate.sh`, `logrotate.rsyslog`) so it **does** sync to the main Pi. File excludes include `*.bak` and `*.bak-*` (migrator stamps like `automations.auto.yaml.bak-YYYYMMDD-HHMMSS`). Repo meta not deployed: `readme.md`, `LICENSE`, `entity_id-list.txt`, and any other `*.md` outside excluded dirs (e.g. `core/logger.md`).
 - **`.cursor`** — IDE rules (`.cursor/rules/`) and other Cursor project files; PC-only, not deployed to the Pi
 - `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite; missing remote file skipped with warning)
 - `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob

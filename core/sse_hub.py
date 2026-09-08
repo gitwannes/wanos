@@ -50,6 +50,30 @@ class SseHub:
             self._clients.add(client)
         return client
 
+    async def seed_client(self, client: SseClient, snapshot_obj: SystemState) -> None:
+        """
+        Push current domain snapshots to a newly subscribed client.
+
+        Covers the race where HARDWARE_BUS_HEALTH_UPDATED (and similar one-shot
+        domain writes) fired before EventSource connected — Admin would otherwise
+        keep OFFLINE / WAIT TEMP until a full page reload.
+        """
+        for domain in SSE_DOMAIN_KEYS:
+            domain_data: Any = getattr(snapshot_obj, domain, None)
+            if domain_data is None:
+                continue
+            if hasattr(domain_data, "model_dump"):
+                domain_json = json.dumps(domain_data.model_dump(), default=str)
+            else:
+                domain_json = json.dumps(domain_data, default=str)
+            client.last_domain_snapshots[domain] = domain_json
+            payload = json.dumps({"domain": domain, "data": json.loads(domain_json)})
+            line = f"data: {payload}\n\n"
+            try:
+                client.queue.put_nowait(line)
+            except asyncio.QueueFull:
+                pass
+
     async def unsubscribe(self, client: SseClient) -> None:
         async with self._lock:
             self._clients.discard(client)

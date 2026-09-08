@@ -6,16 +6,18 @@ ASCII-only file on purpose: Windows PowerShell 5.1 reads .ps1 as system ANSI
 unless a UTF-8 BOM is present. UTF-8 arrows/dashes/ellipsis become mojibake and
 can inject smart-quotes that break parsing.
 
-Three jobs (rsync over SSH -- no Samba/Z:):
+Four jobs (rsync over SSH -- no Samba/Z:):
 
 1) MIRROR JOB  - Local repo (or \_lcd-agent)  -->  Pi WanOS root (rsync --delete + excludes)
 2) STATS / PULL JOB  - Pi  -->  Local (repo YAML Pi-wins; telemetry to StatsDest) [main Pi only]
 3) LOG PULL JOB  - Pi /var/log/wanos/wanos*  -->  StatsDest (or StatsDest\<LocalLogSubdir>)
+4) SESSIONLOG PULL  - Pi RemoteRoot/sessionlog/*  -->  StatsDest (flat) [main Pi only]
 
 Optional:
-   -Lcd       Mirror/pull for LCD Pi only (skip stats; source = \_lcd-agent)
-   -LogCopy   After log pull, copy wanos* into git docs\logs (or \_lcd-agent\docs\logs)
-              Always on for mode run and mode logcopy; optional dry-run preview with test
+   -Lcd       Mirror/pull for LCD Pi only (skip stats/sessionlog; source = \_lcd-agent)
+   -LogCopy   After log pull, copy wanos* + sauna_session_*.csv + sauna_sessions.db (main)
+              into git docs\logs (or \_lcd-agent\docs\logs). Always on for mode run and
+              mode logcopy; optional dry-run preview with test
 
 Includes / excludes: helpers/wanos-sync.config.txt
 Paths (repo, StatsDest): in this .ps1. Remote host/paths: [PiSsh] / [LcdPiSsh] in config.
@@ -414,6 +416,17 @@ function Test-RemoteFileExists {
     $remote = "{0}@{1}" -f $Ssh.User, $Ssh.Host
     # Single remote argv: test -f '<path>' (path embedded; Pi paths have no single quotes)
     $script = "test -f '$RemoteFilePath' && echo yes || echo no"
+    $out = & (Get-RsyncSshExe) -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
+    return ($out -match "yes")
+}
+
+function Test-RemoteDirExists {
+    param(
+        [hashtable]$Ssh,
+        [string]$RemoteDirPath
+    )
+    $remote = "{0}@{1}" -f $Ssh.User, $Ssh.Host
+    $script = "test -d '$RemoteDirPath' && echo yes || echo no"
     $out = & (Get-RsyncSshExe) -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
     return ($out -match "yes")
 }
@@ -1111,6 +1124,52 @@ function Invoke-WanosRsyncLogPullJob {
 }
 
 # =============================================================================
+# JOB 4 - SESSIONLOG PULL (Pi RemoteRoot/sessionlog/* --> StatsDest flat) [main Pi]
+# =============================================================================
+
+function Invoke-WanosRsyncSessionLogPullJob {
+    param(
+        [hashtable]$Ssh,
+        [string]$StatsDest,
+        [switch]$DryRun
+    )
+
+    Write-SyncJobHeader "=== SESSIONLOG PULL (Pi sessionlog/* --> Local via rsync/SSH) ==="
+
+    Ensure-Directory -Path $StatsDest -DryRun:$DryRun
+
+    $remoteDir = "{0}/sessionlog" -f $Ssh.RemoteRoot.TrimEnd("/")
+    if (-not (Test-RemoteDirExists -Ssh $Ssh -RemoteDirPath $remoteDir)) {
+        Write-Host ("SESSIONLOG skip (missing on Pi): {0}" -f $remoteDir) -ForegroundColor DarkYellow
+        $script:LastSessionLogPullDir = $StatsDest
+        return
+    }
+
+    $localRsync = ConvertTo-RsyncLocalPath -WindowsPath $StatsDest
+    if (-not $localRsync.EndsWith("/")) { $localRsync = $localRsync + "/" }
+
+    # Trailing slash on remote: copy contents into StatsDest (flat), not a nested sessionlog/
+    $remoteSpec = "{0}@{1}:{2}/" -f $Ssh.User, $Ssh.Host, $remoteDir
+
+    Write-SyncVerbose "Remote: $remoteSpec"
+    Write-SyncVerbose "Local:  $localRsync"
+
+    $args = New-Object System.Collections.Generic.List[string]
+    [void]$args.Add("-avz")
+    if ($DryRun) { [void]$args.Add("-n") }
+    [void]$args.Add("-e")
+    [void]$args.Add((Get-SshRsyncShellArg))
+    [void]$args.Add($remoteSpec)
+    [void]$args.Add($localRsync)
+
+    Write-SyncSection ("** rsync sessionlog: {0} --> {1}" -f $remoteSpec, $StatsDest)
+    Invoke-Rsync -RsyncArgs @($args) -FailMessage "Sessionlog pull failed"
+    Write-SyncDone ("* SESSIONLOG: done --> {0}" -f $StatsDest)
+
+    $script:LastSessionLogPullDir = $StatsDest
+}
+
+# =============================================================================
 # LOGCOPY (OneDrive pull dir --> git docs\logs)
 # Always after log pull for mode run / mode logcopy; optional dry-run with test -LogCopy
 # =============================================================================
@@ -1123,7 +1182,7 @@ function Copy-WanosLogSnapshot {
         [switch]$DryRun
     )
 
-    Write-SyncJobHeader ("=== LOGCOPY ({0} --> {1}) ===" -f $SourceDir, $DestDir)
+    Write-SyncJobHeader ("=== LOGCOPY ({0} --> {1}) [glob {2}] ===" -f $SourceDir, $DestDir, $NameGlob)
 
     if (-not (Test-Path -LiteralPath $SourceDir)) {
         Write-Host ("LOGCOPY skip (source missing): {0}" -f $SourceDir) -ForegroundColor DarkYellow
@@ -1148,11 +1207,35 @@ function Copy-WanosLogSnapshot {
         if ($DryRun) {
             Write-SyncFileLine -Line ("[DRY] LogCopy: {0}" -f $f.Name)
         } else {
-            Copy-Item -LiteralPath $f.FullName -Destination $destPath -Force
-            Write-SyncFileLine -Line ("LogCopy: {0}" -f $f.Name)
+            try {
+                Copy-Item -LiteralPath $f.FullName -Destination $destPath -Force -ErrorAction Stop
+                Write-SyncFileLine -Line ("LogCopy: {0}" -f $f.Name)
+            } catch {
+                # Locked / in-use dest (or other copy failure): warn and continue
+                $reason = $_.Exception.Message
+                if ($_.Exception.InnerException) {
+                    $reason = $_.Exception.InnerException.Message
+                }
+                Write-Host ("LOGCOPY warn (skipped): {0} - {1}" -f $f.Name, $reason) -ForegroundColor Red
+            }
         }
     }
     Write-SyncDone ("* LOGCOPY: done --> {0}" -f $DestDir)
+}
+
+function Copy-WanosMainLogSnapshots {
+    param(
+        [string]$SourceDir,
+        [string]$DestDir,
+        [switch]$DryRun
+    )
+
+    # App syslog captures + sauna session CSVs + sauna_sessions.db (flat under StatsDest on main)
+    Copy-WanosLogSnapshot -SourceDir $SourceDir -DestDir $DestDir -NameGlob "wanos*" -DryRun:$DryRun
+    Write-Host ""
+    Copy-WanosLogSnapshot -SourceDir $SourceDir -DestDir $DestDir -NameGlob "sauna_session_*.csv" -DryRun:$DryRun
+    Write-Host ""
+    Copy-WanosLogSnapshot -SourceDir $SourceDir -DestDir $DestDir -NameGlob "sauna_sessions.db" -DryRun:$DryRun
 }
 
 # =============================================================================
@@ -1218,6 +1301,7 @@ if ($Mode -eq "run" -or $Mode -eq "codeimport") {
 $script:DryRun = ($Mode -eq "test")
 $DryRun = $script:DryRun
 $script:LastLogPullDir = $null
+$script:LastSessionLogPullDir = $null
 
 if ($Mode -ne "codeimport" -and $Mode -ne "diff") {
     Assert-RsyncAvailable
@@ -1241,7 +1325,7 @@ if ($Mode -eq "codeimport") {
         -ExcludeFiles $MirrorExcludeFiles `
         -DryRun:$false
 } elseif ($Mode -eq "logcopy") {
-    # Log pull + git docs\logs only (no mirror / stats / normalize)
+    # Log pull + sessionlog pull (main) + git docs\logs only (no mirror / stats / normalize)
     Write-Host ""
     if ($Lcd) {
         Invoke-WanosRsyncLogPullJob `
@@ -1262,8 +1346,13 @@ if ($Mode -eq "codeimport") {
             -StatsDest $StatsDest `
             -DryRun:$false
         Write-Host ""
+        Invoke-WanosRsyncSessionLogPullJob `
+            -Ssh $PiSsh `
+            -StatsDest $StatsDest `
+            -DryRun:$false
+        Write-Host ""
         $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else { $StatsDest }
-        Copy-WanosLogSnapshot `
+        Copy-WanosMainLogSnapshots `
             -SourceDir $logSrc `
             -DestDir $GitLogCopyDestMain `
             -DryRun:$false
@@ -1326,10 +1415,16 @@ if ($Mode -eq "codeimport") {
         -StatsDest $StatsDest `
         -DryRun:$DryRun
 
+    Write-Host ""
+    Invoke-WanosRsyncSessionLogPullJob `
+        -Ssh $PiSsh `
+        -StatsDest $StatsDest `
+        -DryRun:$DryRun
+
     if ($LogCopy) {
         Write-Host ""
         $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else { $StatsDest }
-        Copy-WanosLogSnapshot `
+        Copy-WanosMainLogSnapshots `
             -SourceDir $logSrc `
             -DestDir $GitLogCopyDestMain `
             -DryRun:$DryRun

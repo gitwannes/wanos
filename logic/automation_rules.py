@@ -1199,11 +1199,11 @@ class AutomationEngine:
                             break
                     follow_up_events.extend(AutomationEngine.drain_eval_side_effects())
 
-                # B14 H3: rule-level cooldown — skip actions (log once).
+                # B14 H3: rule-level cooldown — skip actions (debug once per blocked wake).
                 if conditions_met and AutomationEngine._cooldown_active(rule):
-                    automation_logger.info(
-                        f"[COOLDOWN] {AutomationEngine.format_rule_name(rule)} "
-                        f"skipped actions (still cooling down)."
+                    automation_logger.debug(
+                        f"[X-RAY] [COOLDOWN] {AutomationEngine.format_rule_ref(rule)} "
+                        f"woke ({trigger_reason}) but actions skipped (still cooling down)."
                     )
                     conditions_met = False
 

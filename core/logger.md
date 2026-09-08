@@ -42,7 +42,7 @@ Think of the `WanosLogger` as a **Network Broadcaster**.
 
 ### When to use it
 Use `WanosLogger` for important system transitions that an admin monitoring the MQTT broker needs to track in real-time.
-* ✅ *Example:* `await self.logger.warning("Sauna door opened! Emergency cutoff triggered.")`
+* ✅ *Example:* `await self.logger.warning("Sauna door opened! Starting silent 30s safety countdown.")`
 
 ---
 

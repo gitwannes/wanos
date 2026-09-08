@@ -429,14 +429,22 @@
                         <div class="form-control w-full max-w-xs">
                             <div class="label py-0">
                                 <span class="label-text text-xs font-semibold">Rule cooldown (HH:MM:SS)</span>
-                                <span class="label-text-alt text-xs opacity-70">empty = none</span>
                             </div>
-                            <input type="text"
-                                   class="input input-bordered input-sm w-full font-mono"
-                                   placeholder="00:01:00"
-                                   x-model="editor.cooldown"
-                                   :disabled="uiLocked"
-                                   title="After this rule runs actions, further fires are skipped until cooldown ends. Empty = none.">
+                            <div class="relative w-full">
+                                <input type="text"
+                                       class="input input-bordered input-sm w-full font-mono"
+                                       x-model="editor.cooldown"
+                                       :placeholder="cooldownFieldFocused ? '00:00:00' : ''"
+                                       :disabled="uiLocked"
+                                       autocomplete="off"
+                                       spellcheck="false"
+                                       title="After this rule runs actions, further fires are skipped until cooldown ends. Leave empty for none."
+                                       @focus="onRuleCooldownFocus($event)"
+                                       @blur="onRuleCooldownBlur($event)">
+                                <span class="pointer-events-none absolute inset-0 flex items-center px-3 text-sm font-mono italic opacity-60"
+                                      x-show="!cooldownFieldFocused && !(editor.cooldown || '').trim()"
+                                      x-cloak>&lt;not configured&gt;</span>
+                            </div>
                         </div>
                         <label class="label cursor-pointer gap-2">
                             <span class="label-text text-xs">Show hidden devices in picker</span>
@@ -722,6 +730,6 @@
 </dialog>
 
 <script src="wanos-shell.js?v=18"></script>
-<script src="blocky.js?v=53"></script>
+<script src="blocky.js?v=56"></script>
 </body>
 </html>

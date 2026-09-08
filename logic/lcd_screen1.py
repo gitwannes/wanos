@@ -15,14 +15,31 @@ if TYPE_CHECKING:
     from core.models import SystemState
 
 FIFTEEN_MIN_SECS: int = 15 * 60
+# Below this: session_end_time is remaining duration seconds (pre-arm), not unix.
+_UNIX_EPOCH_FLOOR: int = 1_000_000_000
+
+
+def resolve_sauna_remaining_secs(end_value: Optional[int], *, now: int) -> Optional[int]:
+    """
+    WISC parity for sauna remaining seconds.
+
+    Pre-arm: session_end_time holds frozen duration seconds (e.g. 70*60).
+    Post-arm: session_end_time is absolute unix end → remaining = end - now.
+    """
+    if end_value is None:
+        return None
+    end_i = int(end_value)
+    if end_i < _UNIX_EPOCH_FLOOR:
+        return max(0, end_i)
+    return max(0, end_i - int(now))
 
 
 def format_remaining_mmss(end_unix: Optional[int], *, now: int) -> str:
-    """mm:ss remaining until end_unix; --:-- if unknown/expired."""
-    if end_unix is None:
+    """mm:ss remaining; --:-- if unknown."""
+    remaining = resolve_sauna_remaining_secs(end_unix, now=now)
+    if remaining is None:
         return "--:--"
-    remaining = max(0, int(end_unix) - int(now))
-    minutes, seconds = divmod(remaining, 60)
+    minutes, seconds = divmod(int(remaining), 60)
     return f"{minutes:02d}:{seconds:02d}"
 
 
@@ -108,9 +125,9 @@ def right_align_timer(prefix: str, mmss: str) -> str:
 
 
 def compose_sauna_line1(mod: int, remaining_secs: int, mmss: str) -> str:
-    """C32 sauna line1: lowercase sauna; timer when remaining <= 15 min."""
+    """C32/WISC sauna line1: lowercase sauna; timer only when remaining < 15 min."""
     mod = int(mod or 0)
-    if remaining_secs > FIFTEEN_MIN_SECS:
+    if remaining_secs >= FIFTEEN_MIN_SECS:
         if mod == 0:
             return fit_to_16_cells("sauna HOLD")
         if mod >= 100:
@@ -130,6 +147,51 @@ def compose_ir_line1(mod: int, mmss: str) -> str:
     if 0 < mod < 100:
         return fit_to_16_cells(f"IR {mmss} - {mod}%")
     return right_align_timer("IR", mmss)
+
+
+def compose_temp_hum_with_closed_duration(
+    temp: Optional[float],
+    hum: Optional[float],
+    *,
+    closed_since: Optional[int],
+    now: int,
+) -> str:
+    """
+    WISC line2 when sauna door is closed: temp/hum left, closed-duration right-aligned.
+    """
+    if closed_since is None:
+        # No close stamp yet (boot / never transitioned): climate only, centered.
+        if temp is None or hum is None:
+            return fit_to_16_cells("--.-§1 --%")
+        return center_cells(f"{int(temp)}§1 {int(hum)}%")
+
+    dur = format_duration_ddhhmmss(None, now=now, open_since=closed_since)
+    if temp is None or hum is None:
+        gap = max(0, 16 - len(dur))
+        return fit_to_16_cells((" " * gap) + dur)
+
+    left = f"{int(temp)}§1 {int(hum)}%"
+    left_cells = visible_cell_len(left)
+    dur_cells = len(dur)
+    gap = 16 - left_cells - dur_cells
+    if gap < 1:
+        max_left_cells = max(0, 16 - dur_cells - 1)
+        trimmed: list[str] = []
+        cells = 0
+        i = 0
+        while i < len(left) and cells < max_left_cells:
+            if left[i] == "§" and i + 1 < len(left) and left[i + 1].isdigit():
+                trimmed.append(left[i:i + 2])
+                cells += 1
+                i += 2
+            else:
+                trimmed.append(left[i])
+                cells += 1
+                i += 1
+        left = "".join(trimmed)
+        left_cells = visible_cell_len(left)
+        gap = max(1, 16 - left_cells - dur_cells)
+    return fit_to_16_cells(left + (" " * gap) + dur)
 
 
 def resolve_sauna_hue_on(snapshot: "SystemState", sauna_hue_entity_idx: Optional[int]) -> bool:
@@ -164,10 +226,11 @@ def compose_lcd_screen1(
 
     if sauna_active:
         end = snapshot.sauna.session_end_time
-        remaining = max(0, int(end) - now_i) if end is not None else 0
+        remaining = resolve_sauna_remaining_secs(end, now=now_i)
+        remaining_i = int(remaining if remaining is not None else 0)
         mmss = format_remaining_mmss(end, now=now_i)
         mod = int(snapshot.sauna.modulation_pwm or 0)
-        line1 = compose_sauna_line1(mod, remaining, mmss)
+        line1 = compose_sauna_line1(mod, remaining_i, mmss)
 
         if sauna_door_open:
             door_dur = format_duration_ddhhmmss(
@@ -180,13 +243,12 @@ def compose_lcd_screen1(
             line2 = (prefix[:prefix_max] + time_str)[:16]
             line2 = line2.ljust(16)
         else:
-            temp = snapshot.sensors.sauna_calc_temp
-            hum = snapshot.sensors.sauna_calc_hum
-            if temp is None or hum is None:
-                line2 = fit_to_16_cells("--.-§1 --%")
-            else:
-                line2_raw = f"{int(temp)}§1 {int(hum)}%"
-                line2 = center_cells(line2_raw)
+            line2 = compose_temp_hum_with_closed_duration(
+                snapshot.sensors.sauna_calc_temp,
+                snapshot.sensors.sauna_calc_hum,
+                closed_since=snapshot.door_sauna_closed_since_unix,
+                now=now_i,
+            )
         return (line1, line2)
 
     if ir_active:

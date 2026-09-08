@@ -1,8 +1,8 @@
 # --- file: logic/sauna_controller.py ---
 import time
 from itertools import permutations
-from typing import Tuple, Optional, Dict, Any
-from core.models import SystemState
+from typing import Tuple, Optional, Dict, Any, Set
+from core.models import SystemState, normalize_phases_pwm
 
 
 class PID:
@@ -28,6 +28,14 @@ class PID:
         self._derivative = 0.0
         self._last_time: Optional[float] = None
         self._last_input: Optional[float] = None
+        # Last-compute diagnostics (session telemetry / PID debug)
+        self.last_error: float = 0.0
+        self.last_dt: float = 0.0
+        self.last_p: float = 0.0
+        self.last_i: float = 0.0
+        self.last_d: float = 0.0
+        self.last_output_raw: float = 0.0
+        self.last_integral_reset_reason: str = "controller_reset"
 
     def compute(self, current_input: float, current_time: float) -> float:
         """
@@ -46,9 +54,12 @@ class PID:
                 dt = 1e-16
             d_input = current_input - self._last_input
 
+        integral_reset_reason = ""
         # Thermal Anti-Windup Logic for High Thermal Mass
         if error <= 0:
             # If temperature overshoots the target, wipe integral memory instantly
+            if self._integral != 0.0:
+                integral_reset_reason = "overshoot"
             self._integral = 0.0
         else:
             # Only accumulate integral when within a reasonable control band (10°C)
@@ -61,20 +72,32 @@ class PID:
                 if self._min_output is not None:
                     self._integral = max(self._min_output, self._integral)
             else:
+                if self._integral != 0.0:
+                    integral_reset_reason = "error_band"
                 self._integral = 0.0
 
         # Compute terms
         self._proportional = self.kp * error
         self._derivative = -(self.kd * d_input) / dt
 
-        # Combine output
-        output = self._proportional + self._integral + self._derivative
+        # Combine output (pre-clamp raw for telemetry)
+        output_raw = self._proportional + self._integral + self._derivative
+        output = output_raw
 
         # Final output clamping
         if self._max_output is not None and output > self._max_output:
             output = self._max_output
         if self._min_output is not None and output < self._min_output:
             output = self._min_output
+
+        # Publish diagnostics for session telemetry
+        self.last_error = float(error)
+        self.last_dt = float(dt)
+        self.last_p = float(self._proportional)
+        self.last_i = float(self._integral)
+        self.last_d = float(self._derivative)
+        self.last_output_raw = float(output_raw)
+        self.last_integral_reset_reason = integral_reset_reason
 
         # State tracking updates
         self._last_input = current_input
@@ -92,6 +115,13 @@ class SaunaController:
         self.total_p = sum(self.sp)
         self.current_total_pwm: int = 0
         self.current_phases: Dict[str, int] = {"U": 0, "V": 0, "W": 0}
+        # Optional SaunaSessionTelemetry (wired by PowerAnalytics)
+        self.telemetry: Any = None
+
+    def _notify_telemetry(self, state: "SystemState", triggers: Set[str]) -> None:
+        tel = self.telemetry
+        if tel is not None and triggers:
+            tel.capture(state, triggers=triggers)
 
     def _get_fire_order(self) -> Tuple[int, int, int]:
         doy = time.localtime().tm_yday
@@ -177,7 +207,11 @@ class SaunaController:
             if self.current_total_pwm != 0:
                 self.current_total_pwm = 0
                 self.current_phases = {"U": 0, "V": 0, "W": 0}
+                # Mirror onto SystemState before capture so the sample sees dumped MOD.
+                state.sauna.modulation_pwm = 0
+                state.sauna.phases_pwm = normalize_phases_pwm(self.current_phases)
                 self.pid.reset()  # Flushes integral memory to guarantee no windup spikes upon auto-resume
+                self._notify_telemetry(state, {"mod"})
                 return {"pwm": 0, "phases": {"U": 0, "V": 0, "W": 0}}
             return None
 
@@ -190,14 +224,21 @@ class SaunaController:
         calculated_pwm = self.pid.compute(current_input=current_temp, current_time=now_ts)
 
         new_total_pwm = int(round(calculated_pwm))
+        triggers: Set[str] = {"pid"}
+        result: Optional[Dict[str, Any]] = None
 
         if abs(new_total_pwm - self.current_total_pwm) >= 1:
             self.current_total_pwm = new_total_pwm
             self.current_phases = self._calculate_waterfall(self.current_total_pwm)
-
-            return {
+            # Mirror onto SystemState before capture so PID+mod samples see new MOD.
+            state.sauna.modulation_pwm = self.current_total_pwm
+            state.sauna.phases_pwm = normalize_phases_pwm(self.current_phases)
+            triggers.add("mod")
+            result = {
                 "pwm": self.current_total_pwm,
                 "phases": self.current_phases
             }
 
-        return None
+        # One coalesced sample per evaluate tick (pid and optional mod).
+        self._notify_telemetry(state, triggers)
+        return result

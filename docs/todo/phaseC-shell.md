@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36 → C37**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36 → C37**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -48,11 +48,12 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C31 + C32 — Sauna/IR analytics & power model** | ✅ **Done 2026-08-30** — combined ship; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5 | WISC + Admin + `power_analytics` · mid |
 | **C34 + L3 — Sauna/IR polish + LCD logging** | ✅ **Done 2026-09-02** — [`sauna-ir.md`](../sauna-ir.md) §3.7 + §4 | WISC + Admin + analytics + LCD · mid |
 | **C35 — Live IR UX + learn refresh** | ✅ **Done 2026-09-03** — [`sauna-ir.md`](../sauna-ir.md) §4 | WISC + Admin · low |
+| **C38 + L4 — Session telemetry + LCD WISC + Real W gate + Admin polish** | ✅ **Done 2026-09-08** — [`sauna-ir.md`](../sauna-ir.md) §3.7 / §4.1 / §5.1a | Sauna analytics + LCD + Admin · mid |
 | **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; house kWh day/7d/m/y UX; WISC rad runtime; Admin dual timer | History + WISC + Admin · mid |
 | **C36 — Device event history modal** | Right-click device → History → modal table (ON / OFF / set % / …) | Explorer Control · mid |
 | **C37 — Android PWA resume black screen** | bugfix: warm resume force-SSE + overlay no x-cloak — **coding** (smoke pending) | Shell / SSE resume · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36** → **C37**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36** → **C37**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1180,6 +1181,34 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 **Out of scope (unchanged):** Real W ~5862 spike; **C33** History.
 
 **C35 DoD:** [x] Locks shipped · [x] Pi smoke **2026-09-03** · [x] Last DoD docs audit (`sauna-ir.md` §4).
+
+---
+
+## ✅ C38 + L4 — Session telemetry + LCD WISC + Real W gate + Admin polish — **Done 2026-09-08**
+
+**Letter:** **C38** (shipped with **L4**). **Combined ship** with [`phaseL-lcd.md`](phaseL-lcd.md) § L4. **Close-out 2026-09-08** (Pi smoke: session CSV + Admin/LCD checks same week).
+
+**Product reference (canonical):**
+
+| Topic | Doc |
+|-------|-----|
+| Session samples + CSV | [`sauna-ir.md`](../sauna-ir.md) §5.1a |
+| MOD=0 Real W gate | [`sauna-ir.md`](../sauna-ir.md) §4.1 |
+| LCD timer + door-closed | [`sauna-ir.md`](../sauna-ir.md) §3.7 · **L4** |
+| SSE seed + Admin ticker | [`reference.md`](../reference.md) · [`architecture.md`](../architecture.md) |
+
+**Shipped (summary):**
+
+| Area | Outcome |
+|------|---------|
+| **Session telemetry** | RAM buffer → `sauna_session_samples` + `sessionlog/*.csv` on terminate; 5 s heartbeat; PID terms + integral reset |
+| **Real W** | MOD=0 display gate; warn if meter &gt;500 W while commanded off (no auto cutoff) |
+| **LCD (L4)** | WISC remaining (duration pre-arm); mm:ss only &lt;15 min; door-closed duration on line2 |
+| **Admin** | Last poll + GPIO arm status on 1 Hz ticker; SSE subscribe seeds domains; ARM OUTPUTS modal middle + z-index |
+
+**Out of scope (unchanged):** **C33** History charts; **L2** LCD on WanOS Pi; auto SSR cutoff on unexpected MOD=0 load.
+
+**C38 DoD:** [x] Telemetry + Real W gate + Admin polish shipped · [x] Combined with **L4** · [x] Last DoD docs audit **2026-09-08**.
 
 ---
 

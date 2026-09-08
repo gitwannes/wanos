@@ -29,6 +29,7 @@ status.json
 *.log
 *.zip
 /docs/logs
+/sessionlog/
 /_lcd-agent/docs/logs/
 _backup*
 

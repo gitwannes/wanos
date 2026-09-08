@@ -3,7 +3,7 @@ import time
 from typing import Any, Set, Tuple
 from loguru import logger
 from pydantic import ValidationError
-from core.models import Event, EventType, SaunaSetpointPayload
+from core.models import Event, EventType, SaunaSetpointPayload, normalize_phases_pwm, ZERO_PHASES_PWM
 from logic.alert_manager import AlertManager
 from core.well_known_entities import (
     ENTITY_IR_STATUS,
@@ -58,7 +58,7 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
 async def handle_sauna_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.sauna.active = False
     manager._state.sauna.modulation_pwm = 0
-    manager._state.sauna.phases_pwm = [0, 0, 0]
+    manager._state.sauna.phases_pwm = dict(ZERO_PHASES_PWM)
     manager._timer_manager.cancel("sauna_main")
     manager._sauna_timer_triggered = False
 
@@ -131,7 +131,11 @@ async def handle_sauna_setpoint_changed(event: Event, manager: Any) -> Tuple[boo
 async def handle_sauna_modulation_updated(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
     manager._state.sauna.modulation_pwm = payload.get("pwm", 0)
-    manager._state.sauna.phases_pwm = payload.get("phases", [0, 0, 0])
+    manager._state.sauna.phases_pwm = normalize_phases_pwm(
+        payload.get("phases", ZERO_PHASES_PWM)
+    )
+    if hasattr(manager, "_power_analytics") and manager._power_analytics is not None:
+        manager._power_analytics.apply_mod_real_power_gate(manager._state)
     return True, {"sauna"}
 
 

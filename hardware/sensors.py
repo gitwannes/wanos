@@ -1,9 +1,13 @@
 # --- file: hardware/sensors.py ---
 import asyncio
+import time
 from typing import Dict, Any
 from core.models import Event, EventType, format_device_ref
 from core.state_manager import StateManager
 from logic.history_ids import SAUNA_CALC_IDX
+
+# Sauna cabin probes — HealthMonitor staleness watchdog keys off these IDXs.
+_SAUNA_PROBE_IDXS = frozenset({20001, 20002})
 
 try:
     import RPi.GPIO as GPIO
@@ -107,34 +111,42 @@ class HardwareSensors:
                                           payload={"idx": node.idx, "value": final_temp}))
                                 self.state_manager.dispatch(Event(type=EventType.HUMIDITY_UPDATED,
                                                                   payload={"idx": node.idx, "value": final_hum}))
-                            elif hasattr(self.state_manager, "sensor_history"):
-                                # Stable T/RH: paired heartbeat (same ts for dew pairing).
-                                self.state_manager.sensor_history.note_climate_reading(
-                                    node.idx, final_temp, final_hum
-                                )
+                            else:
+                                # Stable T/RH: suppress TEMP/HUMIDITY events, but still refresh the
+                                # out-of-band sauna safety heartbeat. Change-only events alone left
+                                # last_heartbeat_unix stale in flat rooms and false-tripped the
+                                # HealthMonitor 90s watchdog on SAUNA_ON.
+                                if node.idx in _SAUNA_PROBE_IDXS:
+                                    self.state_manager._state.sauna.last_heartbeat_unix = int(time.time())
 
-                                # Reconcile sauna composite history (virtual idx 20101).
-                                # The composite is normally updated only when TEMP/HUMIDITY events are dispatched,
-                                # but stable heartbeat reads bypass those events.
-                                if node.idx in [20001, 20002]:
-                                    high = last_readings.get(20001)
-                                    low = last_readings.get(20002)
-                                    if (
-                                        isinstance(high, tuple)
-                                        and isinstance(low, tuple)
-                                        and len(high) == 2
-                                        and len(low) == 2
-                                    ):
-                                        t_high, h_high = high
-                                        t_low, _h_low = low
-                                        try:
-                                            calc_t = round((float(t_high) * 0.7) + (float(t_low) * 0.3), 1)
-                                            calc_h = int(float(h_high))
-                                            self.state_manager.sensor_history.note_climate_reading(
-                                                SAUNA_CALC_IDX, calc_t, float(calc_h)
-                                            )
-                                        except (TypeError, ValueError):
-                                            pass
+                                if hasattr(self.state_manager, "sensor_history"):
+                                    # Paired history heartbeat (same ts for dew pairing).
+                                    self.state_manager.sensor_history.note_climate_reading(
+                                        node.idx, final_temp, final_hum
+                                    )
+
+                                    # Reconcile sauna composite history (virtual idx 20101).
+                                    # Composite RAM is normally updated only on TEMP/HUMIDITY events;
+                                    # stable reads bypass those events but must keep history continuous.
+                                    if node.idx in _SAUNA_PROBE_IDXS:
+                                        high = last_readings.get(20001)
+                                        low = last_readings.get(20002)
+                                        if (
+                                            isinstance(high, tuple)
+                                            and isinstance(low, tuple)
+                                            and len(high) == 2
+                                            and len(low) == 2
+                                        ):
+                                            t_high, h_high = high
+                                            t_low, _h_low = low
+                                            try:
+                                                calc_t = round((float(t_high) * 0.7) + (float(t_low) * 0.3), 1)
+                                                calc_h = int(float(h_high))
+                                                self.state_manager.sensor_history.note_climate_reading(
+                                                    SAUNA_CALC_IDX, calc_t, float(calc_h)
+                                                )
+                                            except (TypeError, ValueError):
+                                                pass
 
                     except Exception as e:
                         # ⚡ STATE-CHANGE LOGGING: Only log on initial boot or failure transition

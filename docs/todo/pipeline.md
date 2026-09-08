@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-09-05 (B14 part 1 coding — Set for/after + H1/H3 + 90001 gate)
+**Last updated:** 2026-09-08 (C38 + L4 close-out — session telemetry / LCD WISC / Real W gate / Admin polish)
 
 ---
 
@@ -85,6 +85,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **C34 + L3** | Sauna/IR analytics polish + LCD logging (combined ship) — **close-out 2026-09-02** — [`phaseC-shell.md`](phaseC-shell.md) § C34 · [`phaseL-lcd.md`](phaseL-lcd.md) § L3 |
 | **C35** | WISC/Admin live IR UX + learn refresh + mod default/layout — **Pi smoke 2026-09-03** — [`phaseC-shell.md`](phaseC-shell.md) § C35 |
 | **B10I / B10J / B10L / B10M + C20 / C21** | ∥ LOW cluster — Go to SR; Event Received name; NOT CONNECTED copy; Hue preset dup settings; Clear All; AUTO OFF while OFF — **Pi smoke 2026-09-05** |
+| **C38 + L4** | Sauna session telemetry + LCD WISC timer/door-closed + Real W MOD gate + Admin last-poll/GPIO/ARM modal — **close-out 2026-09-08** — [`phaseC-shell.md`](phaseC-shell.md) § C38 · [`phaseL-lcd.md`](phaseL-lcd.md) § L4 |
 
 ---
 

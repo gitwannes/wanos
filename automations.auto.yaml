@@ -391,6 +391,7 @@ automations:
     id: a9491c48-f233-413e-86d4-2cdcf713ac63
   - name: Motion garage
     enabled: true
+    cooldown: 00:02:00
     branches:
       - when: if
         conditions:
@@ -405,6 +406,7 @@ automations:
     id: 30541a25-0d37-448b-b874-df8c0bf64aeb
   - name: Motion toilet
     enabled: true
+    cooldown: 00:02:00
     branches:
       - when: if
         conditions:
@@ -696,7 +698,7 @@ automations:
         actions:
           - entity_id: media_player.badk_boven
             state: "ON"
-            volume: 10
+            volume: 6
             station: qmaxhits
       - when: else_if
         conditions:
@@ -1106,6 +1108,24 @@ automations:
           - entity_id: zwave.sauna_zoutlamp
             state: "ON"
     id: 6c7b2d91-b81a-4986-95c3-d66d987714fa
+  - name: test timer
+    enabled: false
+    cooldown: 00:10:00
+    branches:
+      - when: if
+        conditions:
+          - type: device_state
+            entity_id: zwave.buro_licht
+            is: "ON"
+            for: 00:05:00
+        actions:
+          - entity_id: zwave.buro_licht
+            state: "OFF"
+            timing: for
+            duration: 00:01:00
+            end:
+              state: "ON"
+    id: cab540ad-436d-40aa-8141-d85c543b471b
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

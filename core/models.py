@@ -212,6 +212,34 @@ class SensorsState(BaseModel):
     water_hot_liters: float = 0.0
 
 
+# Canonical zero modulation map for the three sauna heater phases.
+ZERO_PHASES_PWM: Dict[str, int] = {"U": 0, "V": 0, "W": 0}
+
+
+def normalize_phases_pwm(raw: Any) -> Dict[str, int]:
+    """
+    Coerce phase modulation to the canonical {"U","V","W"} dict.
+
+    Historical paths and MQTT examples used a list [U, V, W]; actuators and
+    power analytics call .get on phases_pwm and crash if a list leaks in.
+    """
+    if isinstance(raw, dict):
+        try:
+            return {
+                "U": int(raw.get("U", 0) or 0),
+                "V": int(raw.get("V", 0) or 0),
+                "W": int(raw.get("W", 0) or 0),
+            }
+        except (TypeError, ValueError):
+            return dict(ZERO_PHASES_PWM)
+    if isinstance(raw, (list, tuple)) and len(raw) >= 3:
+        try:
+            return {"U": int(raw[0] or 0), "V": int(raw[1] or 0), "W": int(raw[2] or 0)}
+        except (TypeError, ValueError):
+            return dict(ZERO_PHASES_PWM)
+    return dict(ZERO_PHASES_PWM)
+
+
 class SaunaState(BaseModel):
     active: bool = False
     target_temp: Optional[float] = None
@@ -219,7 +247,7 @@ class SaunaState(BaseModel):
     max_temp: Optional[float] = None
     hold_mode: str = "nohold"
     modulation_pwm: int = 0
-    phases_pwm: Dict[str, int] = Field(default_factory=lambda: {"U": 0, "V": 0, "W": 0})
+    phases_pwm: Dict[str, int] = Field(default_factory=lambda: dict(ZERO_PHASES_PWM))
     fireorder: str = "--"
     session_start_time: Optional[int] = None
     session_end_time: Optional[int] = None

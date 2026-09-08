@@ -21,6 +21,7 @@ async def handle_system_ready(event: Event, manager: Any) -> Tuple[bool, Set[str
     manager._state.hardware.gpio_output_enabled = False
     manager._set_hardware_safety_gate(False)
     manager._set_hardware_safety_gate(False)
+    # Push hardware so Admin LIVE/DISABLED/READY tracks bus claim at boot.
     return True, {"hardware"}
 
 

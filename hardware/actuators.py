@@ -1,7 +1,7 @@
 # --- file: hardware/actuators.py ---
 import asyncio
 from typing import List, Dict
-from core.models import Event, SystemState, EventType
+from core.models import Event, SystemState, EventType, normalize_phases_pwm
 from core.state_manager import StateManager
 from core.logger import WanosComponent
 
@@ -275,7 +275,8 @@ class HardwareActuators(WanosComponent):
         # Explicit mapping ensures index errors cannot accidentally overload the elements!
         # ---------------------------------------------------------------------
         if state.sauna.active:
-            phases = state.sauna.phases_pwm
+            # phases_pwm is always a {"U","V","W"} dict; coerce legacy list leftovers.
+            phases = normalize_phases_pwm(state.sauna.phases_pwm)
             self.pwm_targets["U"] = phases.get("U", 0)
             self.pwm_targets["V"] = phases.get("V", 0)
             self.pwm_targets["W"] = phases.get("W", 0)

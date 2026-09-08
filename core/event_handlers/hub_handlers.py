@@ -68,15 +68,9 @@ async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str
             _log_actuator(manager, idx, new_state)
             changed_domains.add("metrics")
 
-        # Sauna safety interlock logic evaluation
-        door_idx = manager.resolve_entity_id(ENTITY_SAUNA_DOOR)
-        if door_idx is not None and idx == door_idx and is_open and manager._state.sauna.active:
-            manager._state.sauna.active = False
-            manager._state.sauna.modulation_pwm = 0
-            manager._state.sauna.phases_pwm = [0, 0, 0]
-            manager._state.sauna.ventilation_state = "OFF"
-            changed_domains.add("sauna")
-            asyncio.create_task(system_logger.warning("🚪 Sauna door opened while active! Emergency cutoff triggered."))
+        # Sauna door open/close while heating: do NOT hard-kill the session here.
+        # StateManager owns the 30s grace timer, PAUSE on expiry, and auto-resume on re-close
+        # (see sauna_door_grace / SAUNA_DOOR_GRACE_EXPIRED / is_paused).
 
     return state_changed, changed_domains
 

@@ -8,8 +8,8 @@ REM Thin launcher for helpers\wanos-sync.ps1
 REM
 REM Modes (must match ValidateSet in the .ps1; pick exactly one):
 REM   test         Dry-run rsync Local<->Pi + log pull preview (SSH, no Z:)
-REM   run          Normalize --> rsync mirror --> stats pull --> log pull --> logcopy
-REM   logcopy      Log pull --> copy wanos* into git docs\logs (no mirror/stats)
+REM   run          Normalize --> rsync mirror --> stats pull --> log pull --> sessionlog --> logcopy
+REM   logcopy      Log/sessionlog pull --> copy wanos* + session CSVs + sauna_sessions.db into docs\logs
 REM   codeimport   Mirror only to a local Windows folder (required path arg)
 REM   diff         Compare one repo-relative file PC vs Pi (normalized text diff)
 REM Combining two modes (e.g. "test run") is an error.
@@ -151,17 +151,18 @@ echo     wanos-sync.bat test
 echo     wanos-sync.bat test verbose
 echo     wanos-sync.bat test logcopy
 echo     wanos-sync.bat test logcopy verbose
-echo         Dry-run mirror, stats pull, log pull. Needs SSH key auth.
+echo         Dry-run mirror, stats pull, log pull, sessionlog pull. Needs SSH key auth.
 echo         Trailing logcopy = also dry-run copy into git docs\logs.
 echo.
 echo     wanos-sync.bat run
 echo     wanos-sync.bat run verbose
-echo         Full sync: normalize, mirror, stats pull, log pull, logcopy.
+echo         Full sync: normalize, mirror, stats, log, sessionlog, logcopy.
 echo         logcopy is always included ^(no need to pass logcopy^).
 echo.
 echo     wanos-sync.bat logcopy
 echo     wanos-sync.bat logcopy verbose
-echo         Log pull then copy wanos* into git docs\logs only.
+echo         Log + sessionlog pull, then copy wanos*, sauna_session_*.csv,
+echo         and sauna_sessions.db into git docs\logs only.
 echo         No mirror, no stats, no normalize.
 echo.
 echo   LCD ^(LCD Pi .51; _lcd-agent --^> /home/wannes/wanos^)

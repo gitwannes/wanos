@@ -71,11 +71,14 @@ This limit runs continuously from process activation and executes an immediate h
 
 ### 3.3 Out-of-Band Data Link Staleness Watchdog
 If low-level physical I/O threads freeze due to electrical noise, memory registers can lock onto their last valid numbers, blinding event-gated emergency cuts. 
-To mitigate this, the isolated `HealthMonitor` task audits data age out-of-band every 2 seconds. Every incoming packet from the SHT11 probes refreshes `last_heartbeat_unix`. If the sauna is active and this timestamp ages past 90 seconds, the monitor steps in, bypasses the main event queue, kills all heater relays, and logs a critical emergency alarm.
+To mitigate this, the isolated `HealthMonitor` task audits data age out-of-band every 2 seconds. Every successful SHT11 poll of the sauna probes (`20001` / `20002`) refreshes `last_heartbeat_unix` — including **stable** reads where T/RH did not change (those skip `TEMP_UPDATED` / `HUMIDITY_UPDATED` to avoid event spam, but must still tick the safety heartbeat). Value-change events also refresh it via the state manager. If the sauna is active and this timestamp ages past 90 seconds, the monitor steps in, bypasses the main event queue, kills all heater relays, and logs a critical emergency alarm.
 
 ### 3.4 Magnetic Door Interlock State Machine
-* **Grace Period Countdown:** If an occupant opens the sauna door while heating is active, the state manager schedules a 30-second `sauna_door_grace` timer. If the door closes before expiration, the countdown cancels with zero impact on heating operations.
-* **Safety Pause Override:** If the grace window expires with the door left open, the engine switches into an automated `PAUSE` state, cutting element modulation.
+Door transitions update device state only in `handle_door_changed`. The interlock itself lives in `StateManager` (do **not** hard-kill `sauna.active` on open — that bypassed pause/resume).
+
+* **Grace Period Countdown:** If an occupant opens the sauna door while heating is active, the state manager schedules a **30-second** `sauna_door_grace` timer (`config_hardware.yaml` → `sauna_safety.door_grace_period_secs`). Heaters keep running during the window. If the door closes before expiration, the countdown cancels with zero impact on heating.
+* **Safety Pause Override:** If the grace window expires with the door left open, the engine sets `is_paused = True` (session stays active), cutting element modulation via the PID interlock.
+* **Auto-resume:** When the door closes while paused, `is_paused` clears and heating resumes automatically.
 * **SCADA Visual Annunciator:** Upon entering a safety pause, the core overrides ambient room lights (IDXs `51002`, `51004`, `51005`) and forces a SCADA Green color payload ($x: 0.1700, y: 0.7000$) down the network to visually alert occupants that the space is unsealed.
 
 ### 3.5 Cascade Circuit Breaker Protection
@@ -118,7 +121,7 @@ Duration format is canonical:
 * show `dd:` only when `dd > 0`
 * show `hh:` only when `hh > 0` (or when `dd > 0`)
 
-These door durations are tracked in core state and are available to UI/LCD logic. The full open/closed duration string is not required on the 16x2 LCD itself.
+These door durations are tracked in core state and rendered on sauna LCD screen1 (WISC parity).
 
 #### 3.7.2 Screen 1 (`0x27`) Display Rules
 Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../logic/lcd_screen1.py)), not legacy one-line `AuxiliaryController` text. The same lines are mirrored into `sauna.lcd_line1` / `sauna.lcd_line2` for the WISC sauna panel and Admin **LCD mirror** (green VT323 16×2 preview via `.wanos-lcd-screen`), spaces preserved so centered rows match the physical LCD. When both lines are blank, WISC shows `WanOS Wisc standby`. When Admin **LCD screens** integration is off, WISC shows `no LCD text:` / `integration off` and WanOS does not publish `wanos/lcd/*` (compose still runs internally until a future phase).
@@ -129,12 +132,10 @@ Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../l
 
 Priority:
 1. **Sauna active**
-   * Line 1 starts with `SAUNA mm:ss` (remaining session time).
-   * Append modulation only when `0 < MOD < 100` as `x%`.
-   * If `MOD == 0`, append `HOLD` on line 1.
-   * No sunset countdown.
-   * Line 2 default = temp/hum status.
-   * If sauna door is open, line 2 becomes `plz close sdoor mm:ss` (left-aligned, warning timer suffix).
+   * Line 1: `sauna ON` / `sauna HOLD` / `sauna ON  {mod}%` while remaining ≥ **15 min**; when remaining **&lt; 15 min**, show mm:ss (WISC). Pre-arm, `session_end_time` is frozen duration seconds (not unix) — LCD must not treat it as an absolute end (that produced a false `00:00`).
+   * Remaining arms when `sauna_calc_temp >= target - timer_offset_temp` (`config.yaml`), same as WISC `sstimerstarted`.
+   * Line 2 default = temp/hum **left** + **door-closed duration right-aligned** (`door_sauna_closed_since_unix`).
+   * If sauna door is open, line 2 becomes `plz close sdoor` + open duration.
 2. **IR active** (when sauna is not active): line 1 `IR {mm:ss}`; append ` - {mod}%` only when `0 < mod < 100`; at 100% mod the timer is right-aligned (`IR` left). Line 2 = temp/hum.
 3. **Sauna Hue ON only** (when sauna+IR inactive): use date/outside-info fallback text (`shue` equivalent = `hue.group.sauna_hue` ON).
 4. **Blank screen 1** when sauna inactive, IR inactive, and sauna Hue is OFF.
@@ -165,16 +166,20 @@ The power analytics engine (`logic/power_analytics.py`) calculates high-frequenc
 To isolate sauna element loads from auxiliary home infrastructure drawing power from the same pulse rail (such as Raspberry Pi controllers, active ventilation fans, or solid-state electronics), the system operates a dynamic filter.
 
 #### Phase A: Idle Fingerprinting (Heaters Inactive)
-When `state.sauna.active` and `state.ir.active` are both `False`, the system measures the time delta ($\Delta t$) between consecutive pulse ticks arriving at IDX `11001`. Instantaneous Background Leak Power ($P_{leak}$) is derived continuously in RAM and persisted in `wanos-nvram.json` (restored on boot; flushed with the 5-minute NVRAM heartbeat):
+When `state.sauna.active` and `state.ir.active` are both `False`, the system measures the time delta ($\Delta t$) between consecutive pulse ticks arriving at IDX `11001`. Instantaneous candidate leak power is:
 
-$$P_{leak} = \frac{3600}{\Delta t}$$
+$$P_{candidate} = \frac{3600}{\Delta t}$$
+
+Samples above **2000 W** are rejected (GPIO bounce / clustered ticks cannot be household baseline — those values were poisoning Real W to 0 by locking 9–18 kW “leak”). Accepted samples EMA into $P_{leak}$ (`alpha = 0.35`) and persist to `wanos-nvram.json` (restored on boot with the same sanity cap; flushed with the 5-minute NVRAM heartbeat).
 
 #### Phase B: Active Decoupling (Heaters Firing)
-The millisecond a heating session initializes, $P_{leak}$ locks its last known stable value. For every subsequent pulse tick during active operation, the isolated real wattage consumed purely by the heating elements ($P_{elements\_real}$) is computed as:
+While a heating session is active, idle fingerprinting pauses and the last accepted $P_{leak}$ stays locked. For every subsequent pulse tick, the isolated real wattage consumed purely by the heating elements ($P_{elements\_real}$) is computed as:
 
 $$P_{measured} = \frac{3600}{\Delta t}$$
 
 $$P_{elements\_real} = P_{measured} - P_{leak}$$
+
+**MOD=0 Real W gate:** while a session is active but heaters are commanded off (`sauna.modulation_pwm == 0` and IR not drawing), displayed `p_elements_real_watts` is forced to **0** immediately (clears stale last-pulse samples). If the meter still reports leak-subtracted load **&gt; 500 W**, WanOS logs a **warning** (60 s cooldown): treat as possible stuck SSR / unexpected load on the same rail — **no auto cutoff**. Session Real Wh still integrates the measured pulses so unexplained energy remains auditable.
 
 ### 4.2 Disaggregated Dynamic Power Rating Extraction
 Because the `StateManager` drives the physical heating elements using an asymmetric PWM strategy across phases U, V, and W via the PID controller, duty ratios drift continuously. The relationship between real power, live voltage sags, and heating element capacity is modeled linearly as:
@@ -197,7 +202,7 @@ Sauna calc: $\sum (D_{phase} \times P_{db,phase}) \times (V/230)^2$. IR-only ses
 
 **Admin — Power & Thermal:** Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th); LCD mirror (VT323); element nameplates + **learn counts** (from session audit rows; refreshed when last session updates over SSE) + last session detail (energy · W · runtime · smart when); live panel titled **Live IR session** / **Live Sauna session** — Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. `GET /api/admin/analytics/element-power`.
 
-**Admin — GPIO outputs arm gate:** status shows `OFFLINE` → `NEED INPUTS` → `NEED SHT11` → `WAIT TEMP` → `READY` → `ARMED`. Arming SHT11 triggers an immediate sensor poll (2 s fast cadence until `sauna_calc_temp` is valid).
+**Admin — GPIO outputs arm gate:** status shows `OFFLINE` → `NEED INPUTS` → `NEED SHT11` → `WAIT TEMP` → `READY` → `ARMED` (Admin label refreshed on the 1 Hz client ticker). Arming SHT11 triggers an immediate sensor poll (2 s fast cadence until `sauna_calc_temp` is valid). SSE subscribe **seeds** current `hardware` / `sensors` domains so LIVE/READY is not stuck after a missed one-shot bus-health event.
 
 **WISC:** while sauna/IR active — setpoint / IR mod only while respective session active (full-width when alone); Real W + Energy sit under that control (no “Live session” heading); idle — last sauna / last IR one-liners (smart date/time only, e.g. `vandaag, namiddag`). Each `IR_ON` resets modulation to `config.ir.default_ir_modulation` (site default 75%).
 
@@ -226,6 +231,18 @@ A downward drift in this coefficient over time signals failing physical door sea
 To maximize performance while preventing wear-leveling failure on the Raspberry Pi's physical SD card, high-frequency time-series math is kept strictly in volatile RAM. Completed session analytics are written to a local SQLite database (`sauna_sessions.db`) upon session termination.
 
 House-level power/water **time-series history** (hi-res / hourly / daily rollups, Sensor History UI) is **not** stored here — see [sensor_history.md](sensor_history.md). Session rows remain in `sauna_sessions.db` with forever retention; that document also defines the planned `temp_outside_start` column and how sessions are listed in the UI.
+
+### 5.1a Sauna session sample telemetry (PID / climate debug)
+While `sauna.active`, WanOS buffers time-series samples in RAM (`logic/sauna_session_telemetry.py`) and flushes them on `SAUNA_OFF` into:
+
+1. SQLite table **`sauna_session_samples`** (same `sauna_sessions.db`, keyed by `session_id`)
+2. CSV **`sessionlog/sauna_session_YYYYMMDD_HHMMSS.csv`** (app root; local wall clock of session start)
+
+**Sample triggers:** climate temp/hum change; every PID `compute` (coalesced with MOD change on the same tick); `hold_mode` / `is_paused` edges; **5 s** heartbeat while active (including paused). Keep sampling through door grace / pause.
+
+**Columns:** `ts`, probe + calc T/RH, `mod_u/v/w` + `mod_total`, calc W per phase + total, **Real W total only**, `w_measured_total` (real+leak), PID `p/i/d/error/output_raw/dt`, `integral_reset_reason`, `target_temp`, `hold_mode`, `is_paused`, `fireorder`, `door_state`, `outside_temp`, `kp/ki/kd`, `r_th`, `v_line`, `p_leak`, `trigger`.
+
+Mid-session crash loses the RAM buffer (flush-at-end). Folder `sessionlog/` is gitignored. Sync pulls `sessionlog/*` into OneDrive `logs\` and (with logcopy) into git `docs\logs` — see [wanos-sync.md](wanos-sync.md).
 
 ### 5.1 SQLite Schema: `sauna_sessions`
 ```sql

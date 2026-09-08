@@ -20,6 +20,8 @@
 #   RemoteLogDir + RemoteGlob compose /var/log/wanos/wanos* (app files inside the dir — NOT /var/log/wanos*)
 #   Empty LocalLogSubdir = land flat under StatsDest; otherwise StatsDest\<LocalLogSubdir>\
 #   Main: StatsDest\  |  LCD: StatsDest\lcd-agent\  (never StatsDest\wanos\ or …\lcd-agent\wanos\)
+# Job 4 SESSIONLOG PULL (main Pi only): RemoteRoot/sessionlog/* --> StatsDest (flat)
+#   logcopy then also copies sauna_session_*.csv + sauna_sessions.db into git docs\logs (with wanos*)
 # LCD mode: helpers\wanos-sync.bat test|run|logcopy lcd  (source = repo\_lcd-agent\ --> LcdPiSsh)
 # logcopy: always after run; also mode "logcopy" alone (pull + copy into git docs\logs)
 #          test logcopy = dry-run preview of that copy
@@ -48,6 +50,8 @@ wanos_venv
 migration_venv
 billit_venv
 __pycache__
+# Sauna session CSV dumps (Pi-owned; pulled to OneDrive/docs\logs, never mirrored)
+sessionlog
 
 [MirrorExcludeFiles]
 # Pi-owned runtime (pushing from PC destroys live state / fights StatsRepoPull)

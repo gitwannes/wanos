@@ -6,14 +6,24 @@ import os
 from typing import Any, Dict, Optional, List
 from datetime import datetime
 from loguru import logger
-from core.models import SaunaSessionRecord, IrSessionRecord, SystemState
+from core.models import SaunaSessionRecord, IrSessionRecord, SystemState, normalize_phases_pwm
 from core.well_known_entities import ENTITY_MAINS_VOLTAGE
 from logic.element_power_store import ElementPowerRow, bootstrap_if_empty, load_row, save_row
+from logic.sauna_session_telemetry import SaunaSessionTelemetry
 
 # Max inter-pulse gap used for calc Wh integration (real Wh uses meter interval).
 _MAX_CALC_PULSE_DELTA_SECS: float = 30.0
 # Min seconds at one IR mod plateau before it contributes to segmented learn.
 _IR_PLATEAU_MIN_SECS: float = 30.0
+# Idle "leak" fingerprinting: reject pulse pairs that imply absurd household baseline
+# (bounce / double-tick). 2000 W is still far below a single sauna phase (~3500 W).
+_MAX_IDLE_LEAK_WATTS: float = 2000.0
+# EMA toward accepted idle samples (1.0 = replace; lower = smoother).
+_IDLE_LEAK_EMA_ALPHA: float = 0.35
+# While heaters are commanded OFF (MOD=0), still warn if the meter sees load above this.
+_MOD_ZERO_UNEXPECTED_WATTS: float = 500.0
+# Rate-limit unexpected MOD=0 power warnings (seconds).
+_MOD_ZERO_WARN_COOLDOWN_SECS: float = 60.0
 
 
 class PowerAnalytics:
@@ -32,6 +42,7 @@ class PowerAnalytics:
 
         # High-Frequency Pulse Time Variables
         self._last_pulse_ts: float = 0.0
+        self._last_mod_zero_warn_ts: float = 0.0
 
         # Operational Baselines
         self._locked_leak_watts: float = 0.0
@@ -64,8 +75,17 @@ class PowerAnalytics:
         self._session_baseline_w: float = self._element_power.w_w
         self._session_baseline_ir: float = self._element_power.w_ir
 
+        # Sauna session time-series (RAM buffer -> SQLite + CSV on terminate)
+        self.session_telemetry = SaunaSessionTelemetry(self)
         self._init_sqlite()
         self._sync_extracted_to_metrics()
+        self._wire_sauna_telemetry()
+
+    def _wire_sauna_telemetry(self) -> None:
+        """Attach telemetry to SaunaController when it exists (may be created later)."""
+        logic = getattr(self.sm, "sauna_logic", None)
+        if logic is not None:
+            logic.telemetry = self.session_telemetry
 
     def _sync_extracted_to_metrics(self) -> None:
         """Mirror DB nameplates to live metrics for Admin display."""
@@ -82,12 +102,39 @@ class PowerAnalytics:
         self._sync_extracted_to_metrics()
 
     def restore_leak_baseline(self, watts: float) -> None:
-        """Boot / reload: restore last known idle leak W from NVRAM."""
+        """Boot / reload: restore last known idle leak W from NVRAM (sanitized)."""
         if not isinstance(watts, (int, float)):
             return
         w = max(0.0, float(watts))
+        if w > _MAX_IDLE_LEAK_WATTS:
+            # Corrupt / bounce-polluted NVRAM (e.g. 9-18 kW) must not poison Real W.
+            logger.warning(
+                f"Discarding absurd NVRAM leak baseline {w:.1f}W "
+                f"(max idle {_MAX_IDLE_LEAK_WATTS:.0f}W); resetting to 0."
+            )
+            w = 0.0
         self._locked_leak_watts = w
         self.sm._state.metrics.p_leak_baseline_watts = w
+
+    def _accept_idle_leak_sample(self, instant_watts: float) -> bool:
+        """
+        Update idle leak baseline from one pulse-derived wattage.
+
+        Rejects samples above _MAX_IDLE_LEAK_WATTS (GPIO bounce / clustered ticks).
+        Accepted samples EMA into the locked baseline so one quiet pulse does not
+        jump the fingerprint, and one noisy spike cannot stick forever.
+        """
+        if instant_watts < 0.0 or instant_watts > _MAX_IDLE_LEAK_WATTS:
+            return False
+        prev = float(self._locked_leak_watts or 0.0)
+        if prev <= 0.0:
+            blended = instant_watts
+        else:
+            a = _IDLE_LEAK_EMA_ALPHA
+            blended = (a * instant_watts) + ((1.0 - a) * prev)
+        self._locked_leak_watts = blended
+        self.sm._state.metrics.p_leak_baseline_watts = blended
+        return True
 
     def _sauna_effective_watts(self) -> tuple[float, float, float]:
         """Per-phase model baselines for Calc integration (from DB)."""
@@ -97,6 +144,45 @@ class PowerAnalytics:
     def _ir_effective_watts(self) -> float:
         """IR model baseline at 100% modulation (from DB)."""
         return float(self._element_power.w_ir)
+
+    @staticmethod
+    def _heaters_commanded_off(state: SystemState) -> bool:
+        """True when no heater PWM is commanded (sauna MOD total 0 and IR not drawing)."""
+        sauna_mod = int(state.sauna.modulation_pwm or 0)
+        if sauna_mod > 0:
+            return False
+        if state.ir.active and int(state.ir.modulation_pwm or 0) > 0:
+            return False
+        return True
+
+    def apply_mod_real_power_gate(
+        self,
+        state: Optional[SystemState] = None,
+        *,
+        measured_watts: Optional[float] = None,
+    ) -> None:
+        """
+        When heaters are commanded OFF (MOD=0), force displayed Real W to 0 immediately
+        so the UI does not keep the last pulse sample. Unexpected meter load still warns.
+        """
+        snap = state if state is not None else self.sm.get_state_snapshot()
+        if not snap.sauna.active and not snap.ir.active:
+            return
+        if not self._heaters_commanded_off(snap):
+            return
+
+        if measured_watts is not None and measured_watts > _MOD_ZERO_UNEXPECTED_WATTS:
+            now = time.time()
+            if (now - self._last_mod_zero_warn_ts) >= _MOD_ZERO_WARN_COOLDOWN_SECS:
+                self._last_mod_zero_warn_ts = now
+                logger.warning(
+                    f"MOD=0 but meter still shows {measured_watts:.0f}W "
+                    f"(leak-subtracted). Real W display gated to 0; "
+                    f"Wh still counted. Treat as HW/SSR stuck or house load on same rail "
+                    f"- no auto cutoff."
+                )
+
+        self.sm._state.metrics.p_elements_real_watts = 0.0
 
     @staticmethod
     def _ema_commit(baseline: float, measured: float) -> tuple[float, bool]:
@@ -319,6 +405,9 @@ class PowerAnalytics:
             self._session_mod_u_history.clear()
             self._session_mod_v_history.clear()
             self._session_mod_w_history.clear()
+            start_ts = int(self.sm._state.sauna.session_start_time or time.time())
+            self._wire_sauna_telemetry()
+            self.session_telemetry.start_session(start_ts)
         elif session_type == "ir":
             self._session_mod_ir_history.clear()
             self._ir_plateau_wh.clear()
@@ -391,6 +480,8 @@ class PowerAnalytics:
                 if "temp_outside_start" not in cols:
                     c.execute(f"ALTER TABLE {table} ADD COLUMN temp_outside_start REAL")
             bootstrap_if_empty(conn)
+            # Session time-series table (sauna debug / PID analysis)
+            self.session_telemetry.ensure_schema(conn)
             conn.commit()
             conn.close()
         except Exception as e:
@@ -460,9 +551,14 @@ class PowerAnalytics:
             state: SystemState = self.sm.get_state_snapshot()
 
             if not state.sauna.active and not state.ir.active:
-                # ⚡ IDLE FINGERPRINTING: Track natural household baseline leak
-                self.sm._state.metrics.p_leak_baseline_watts = instant_watts
-                self._locked_leak_watts = instant_watts
+                # IDLE FINGERPRINTING: household baseline only — reject bounce/spikes.
+                # Always advance _last_pulse_ts (below) so a rejected pair does not
+                # compound into the next interval.
+                if not self._accept_idle_leak_sample(instant_watts):
+                    logger.debug(
+                        f"Idle leak sample rejected: {instant_watts:.1f}W "
+                        f"(max {_MAX_IDLE_LEAK_WATTS:.0f}W)"
+                    )
                 self.sm._state.metrics.p_elements_real_watts = 0.0
                 self.sm._state.metrics.p_elements_calc_watts = 0.0
 
@@ -473,10 +569,17 @@ class PowerAnalytics:
                 # ACTIVE DECOUPLING: Isolate true element loads from frozen baseline
                 real_element_load = instant_watts - self._locked_leak_watts
                 # Clamp zero-crossings resulting from micro-voltage natural variances
-                self.sm._state.metrics.p_elements_real_watts = max(0.0, real_element_load)
+                measured_real = max(0.0, real_element_load)
+                self.sm._state.metrics.p_elements_real_watts = measured_real
+
+                # MOD=0 gate: do not leave a stale high Real W on the UI while heaters
+                # are commanded off. Unexpected meter load → warning only (no auto cutoff).
+                if self._heaters_commanded_off(state):
+                    self.apply_mod_real_power_gate(state, measured_watts=measured_real)
 
                 # LIVE INTEGRATION: Convert instantaneous wattage intervals to cumulative Watt-hours
-                step_real_wh = max(0.0, real_element_load) * (delta_t / 3600.0)
+                # (uses measured_real even when display is gated — keeps unexplained Wh visible).
+                step_real_wh = measured_real * (delta_t / 3600.0)
                 self.sm._state.metrics.running_energy_real_wh += step_real_wh
                 self.sm._state.metrics.total_energy_real_wh += step_real_wh
 
@@ -487,9 +590,10 @@ class PowerAnalytics:
                     v_live = float(str(v_raw).replace(" V", "").strip())
 
                 w_u, w_v, w_w = self._sauna_effective_watts()
-                mod_u = state.sauna.phases_pwm.get("U", 0) / 100.0
-                mod_v = state.sauna.phases_pwm.get("V", 0) / 100.0
-                mod_w = state.sauna.phases_pwm.get("W", 0) / 100.0
+                phases = normalize_phases_pwm(state.sauna.phases_pwm)
+                mod_u = phases.get("U", 0) / 100.0
+                mod_v = phases.get("V", 0) / 100.0
+                mod_w = phases.get("W", 0) / 100.0
                 voltage_scaler = ((v_live / 230.0) ** 2) if v_live is not None else 1.0
 
                 calc_load = voltage_scaler * (
@@ -512,9 +616,9 @@ class PowerAnalytics:
                     self._session_hum_history.append(float(state.sensors.sauna_calc_hum))
 
                 if state.sauna.active:
-                    self._session_mod_u_history.append(float(state.sauna.phases_pwm.get("U", 0)))
-                    self._session_mod_v_history.append(float(state.sauna.phases_pwm.get("V", 0)))
-                    self._session_mod_w_history.append(float(state.sauna.phases_pwm.get("W", 0)))
+                    self._session_mod_u_history.append(float(phases.get("U", 0)))
+                    self._session_mod_v_history.append(float(phases.get("V", 0)))
+                    self._session_mod_w_history.append(float(phases.get("W", 0)))
                 if state.ir.active:
                     ir_mod = int(round(float(state.ir.modulation_pwm or 0)))
                     self._session_mod_ir_history.append(float(ir_mod))
@@ -612,7 +716,8 @@ class PowerAnalytics:
                 )
 
                 # Offload DB transaction to background thread to prevent halting the master loop
-                await asyncio.to_thread(self._commit_sauna_record, record)
+                session_id = await asyncio.to_thread(self._commit_sauna_record, record)
+                self.session_telemetry.end_session_async(int(session_id or 0))
                 await asyncio.to_thread(self._fetch_last_sessions)
                 await self.logger.success("✅ Sauna Session metrics evaluated and flushed to SQLite.")
 
@@ -656,6 +761,7 @@ class PowerAnalytics:
             await self.logger.error(f"Failed to compile session SQL teardown metrics: {e}")
 
         # Clear ephemeral tracking lists entirely for the next session
+        self.session_telemetry.stop_heartbeat()
         self._session_temp_history.clear()
         self._session_hum_history.clear()
         self._session_mod_u_history.clear()
@@ -666,7 +772,7 @@ class PowerAnalytics:
         self._ir_plateau_secs.clear()
         self._temp_outside_start = None
 
-    def _commit_sauna_record(self, record: SaunaSessionRecord) -> None:
+    def _commit_sauna_record(self, record: SaunaSessionRecord) -> int:
         """Blocking SQLite write operation (Safely executed in an offloaded thread)."""
         conn = sqlite3.connect(self._db_path)
         c = conn.cursor()
@@ -701,8 +807,10 @@ class PowerAnalytics:
             record.audit_baseline_w_v, record.audit_measured_w_v, record.audit_new_w_v,
             record.audit_baseline_w_w, record.audit_measured_w_w, record.audit_new_w_w,
         ))
+        session_id = int(c.lastrowid or 0)
         conn.commit()
         conn.close()
+        return session_id
 
     def _commit_ir_record(self, record: IrSessionRecord) -> None:
         """Blocking SQLite write operation (Safely executed in an offloaded thread)."""

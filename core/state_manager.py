@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, Any, Set, Dict
 from loguru import logger
 
-from .models import SystemState, Event, EventType, device_name
+from .models import SystemState, Event, EventType, device_name, normalize_phases_pwm
 from .mqtt_transport import MqttClientManager
 from .logger import WanosLogger, iwhw_logger
 from .config import load_config
@@ -475,9 +475,14 @@ class StateManager:
         if not isinstance(raw, (int, float)):
             return
         watts = float(raw)
-        self._state.metrics.p_leak_baseline_watts = watts
         if hasattr(self, "_power_analytics") and self._power_analytics is not None:
+            # restore_leak_baseline sanitizes absurd values and mirrors into metrics.
             self._power_analytics.restore_leak_baseline(watts)
+            # Persist clean baseline if NVRAM held bounce-polluted garbage (e.g. 9-18 kW).
+            if float(watts) != float(self._state.metrics.p_leak_baseline_watts):
+                self.flush_nvram()
+        else:
+            self._state.metrics.p_leak_baseline_watts = max(0.0, watts)
 
     def flush_nvram(self) -> None:
         """Flush 11xxx counters + leak baseline to wanos-nvram.json (atomic)."""
@@ -606,6 +611,8 @@ class StateManager:
                 ki=self._config.sauna.ki,
                 kd=self._config.sauna.kd
             )
+            if hasattr(self, "_power_analytics") and self._power_analytics is not None:
+                self._power_analytics._wire_sauna_telemetry()
 
     async def start(self) -> None:
         self._worker_task = asyncio.create_task(self._process_events())
@@ -1284,6 +1291,12 @@ class StateManager:
                     state_changed = True
                     changed_domains.add("sensors")
                     changed_domains.add("devices")
+                    if (
+                        hasattr(self, "_power_analytics")
+                        and self._power_analytics is not None
+                        and self._state.sauna.active
+                    ):
+                        self._power_analytics.session_telemetry.observe_climate(self._state)
                 except (ValueError, TypeError):
                     pass
             else:
@@ -1295,6 +1308,12 @@ class StateManager:
                     state_changed = True
                     changed_domains.add("sensors")
                     changed_domains.add("devices")
+                    if (
+                        hasattr(self, "_power_analytics")
+                        and self._power_analytics is not None
+                        and self._state.sauna.active
+                    ):
+                        self._power_analytics.session_telemetry.observe_climate(self._state)
 
         if event_name in ["TEMP_UPDATED", "SAUNA_ON", "SAUNA_OFF", "SAUNA_SETPOINT_CHANGED", "DOOR_CHANGED"]:
             current_temp = self._state.sensors.sauna_calc_temp
@@ -1336,13 +1355,20 @@ class StateManager:
                         logger.info("Setpoint met! System automatically dropped load: autohold -> hold")
                         state_changed = True
                         changed_domains.add("sauna")
+                        if hasattr(self, "_power_analytics") and self._power_analytics is not None:
+                            self._power_analytics.session_telemetry.observe_mode(self._state)
 
                 calc_result = self.sauna_logic.evaluate(self._state)
                 if calc_result:
                     self._state.sauna.modulation_pwm = calc_result.get("pwm", 0)
-                    self._state.sauna.phases_pwm = calc_result.get("phases", [0, 0, 0])
+                    self._state.sauna.phases_pwm = normalize_phases_pwm(
+                        calc_result.get("phases", {"U": 0, "V": 0, "W": 0})
+                    )
                     state_changed = True
                     changed_domains.add("sauna")
+                    if hasattr(self, "_power_analytics") and self._power_analytics is not None:
+                        # Clear stale Real W as soon as MOD dumps (do not wait for next pulse).
+                        self._power_analytics.apply_mod_real_power_gate(self._state)
 
         # --- DEFENSIVE RE-RENDER CHECKPOINT ---
         from logic.auxiliary_controller import AuxiliaryController
@@ -1403,6 +1429,8 @@ class StateManager:
                     await self.logger.success("🟢 Sauna door closed. Resuming active heating session automatically.")
                     state_changed = True
                     changed_domains.add("sauna")
+                    if hasattr(self, "_power_analytics") and self._power_analytics is not None:
+                        self._power_analytics.session_telemetry.observe_mode(self._state)
 
         # 2. Door Grace Period Expiry Trip
         if event_name == "SAUNA_DOOR_GRACE_EXPIRED":
@@ -1418,6 +1446,8 @@ class StateManager:
                     }))
                 state_changed = True
                 changed_domains.add("sauna")
+                if hasattr(self, "_power_analytics") and self._power_analytics is not None:
+                    self._power_analytics.session_telemetry.observe_mode(self._state)
 
         # 3. Clean Session Interlock Teardown & Analytic SQL Flushes
         if event_name == "SAUNA_OFF":

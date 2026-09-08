@@ -2,7 +2,7 @@
 
 Dedicated 16x2 HD44780 screens (WISC-compatible text). **L1** = agent on a second Pi (**Done**). **L2** = same screens on the WanOS Pi (queued).
 
-**Status:** **L1** Done — Pi smoke **2026-08-24**. **L3** Done — shipped with **C34** **2026-09-02**. **L2** queued.
+**Status:** **L1** Done — Pi smoke **2026-08-24**. **L3** Done — shipped with **C34** **2026-09-02**. **L4** Done — shipped with **C38** **2026-09-08**. **L2** queued.
 
 **Related:** Product home → [`docs/sauna-ir.md`](../sauna-ir.md) § 3.7. Sync → [`docs/wanos-sync.md`](../wanos-sync.md). Install → [`_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`](../../_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -17,6 +17,7 @@ Dedicated 16x2 HD44780 screens (WISC-compatible text). **L1** = agent on a secon
 | **L1** | LCD Pi agent under `_lcd-agent/`, MQTT render, bootstrap/SSH, `wanos-sync` `lcd` + `logcopy`, WISC screen1 mirror | **Done** 2026-08-24 |
 | **L2** | Move physical LCDs onto the WanOS Pi; retire dedicated LCD Pi | Queued |
 | **L3** | LCD log `§1` → `°C` + DEBUG semantic dedupe (no countdown-only lines) | **Done** 2026-09-02 (with **C34**) |
+| **L4** | WISC screen1 timer remaining + door-closed duration | **Done** 2026-09-08 (with **C38**) |
 
 ---
 
@@ -53,3 +54,13 @@ Same hardware on `10.32.251.30`; drop the dedicated LCD Pi. Split at L2 kickoff 
 **Delivery record:** [`phaseC-shell.md`](phaseC-shell.md) § C34 (combined ship close-out **2026-09-02**).
 
 **L3 DoD:** [x] Log pretty-print · [x] Semantic dedupe · [x] Docs audit with **C34** **2026-09-02**.
+
+---
+
+## ✅ L4 — WISC screen1 timer + door-closed duration — **Done 2026-09-08** (shipped with **C38**)
+
+**Product reference:** [`sauna-ir.md`](../sauna-ir.md) §3.7 — `logic/lcd_screen1.py`: pre-arm `session_end_time` as duration seconds (no false `00:00`); mm:ss only when remaining &lt; 15 min; door closed → temp/hum + closed-duration right-aligned (WISC `lcdcontrol` parity).
+
+**Delivery record:** [`phaseC-shell.md`](phaseC-shell.md) § C38 (combined ship close-out **2026-09-08**).
+
+**L4 DoD:** [x] Timer remaining · [x] Door-closed line2 · [x] Docs audit with **C38** **2026-09-08**.
