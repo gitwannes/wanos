@@ -19,6 +19,25 @@ The sauna heating system operates on a balanced 3x400V+N star configuration wher
 * **Phase W (Heater Element 3):** Nominal 2000 Watts capacity.
 * **Infrared (IR) Array:** Single-phase pulse-width modulated (PWM) heater zone operating independently or in combined mode.
 
+### 1.1a SSR modulation (sauna vs IR)
+
+Heaters use **zero-crossing SSRs** on 50 Hz mains (100 ZC/s, 10 ms between crossings). Integer MOD is meaningful only when on/off times map to whole AC cycles.
+
+**Sauna (U/V/W) — software PWM** (`hardware/actuators.py`, `config.sauna.pwm_freq`, default **0.5 Hz**):
+* Period = **2 s**. Integer MOD 0–100 from the PID waterfall.
+* **1% = 20 ms ON** = 2 zero-crossings = **one full sinus** (matches ZC SSR quantum).
+* Timing uses `asyncio.sleep` (not mains-edge locked); on-time length matches one cycle per percent.
+
+**IR — hardware `lgpio.tx_pwm`** with stepped duty + frequency (WISC / UI slider):
+* `100%` → DC 100%, 5 Hz (freq irrelevant): all on  
+* `75%` → DC 75%, 25 Hz: 3 ZC on, 1 off  
+* `67%` → DC 67%, 33 Hz: 2 ZC on, 1 off  
+* `50%` → DC 50%, 50 Hz: 1 ZC on, 1 off  
+* `33%` → DC 33%, 33 Hz: 1 ZC on, 2 off  
+* `25%` → DC 25%, 25 Hz: 1 ZC on, 3 off  
+
+Frontend `irStepValues` / `irStepFreqs` and backend `freq_map` must stay aligned.
+
 ### 1.2 Measurement Infrastructure & System Asset Identifiers (IDXs)
 * **Real-Time Energy Tracking (Pulse Meter):** Physically wired to GPIO Input Pin 12 and mapped as Virtual Identifier (IDX) `11001`. Operates at a resolution of 1000 pulses per kWh (exactly 1.0 Watt-hour per pulse tick).
 * **Mains Voltage Monitoring:** Ingests live AC voltage telemetry from Z-Wave Node 50 (Endpoint 0, Value ID `66561`), mapped as Virtual Identifier (IDX) `71046`. Acts as a real-time line voltage proxy across the house bus structure.
@@ -121,7 +140,7 @@ Duration format is canonical:
 * show `dd:` only when `dd > 0`
 * show `hh:` only when `hh > 0` (or when `dd > 0`)
 
-These door durations are tracked in core state and rendered on sauna LCD screen1 (WISC parity).
+These door durations are tracked in core state. Sauna LCD screen1 shows **closed** duration on line2 (with temp/hum); when the door is **open**, line2 is `plz close sdoor` with **no** duration.
 
 #### 3.7.2 Screen 1 (`0x27`) Display Rules
 Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../logic/lcd_screen1.py)), not legacy one-line `AuxiliaryController` text. The same lines are mirrored into `sauna.lcd_line1` / `sauna.lcd_line2` for the WISC sauna panel and Admin **LCD mirror** (green VT323 16×2 preview via `.wanos-lcd-screen`), spaces preserved so centered rows match the physical LCD. When both lines are blank, WISC shows `WanOS Wisc standby`. When Admin **LCD screens** integration is off, WISC shows `no LCD text:` / `integration off` and WanOS does not publish `wanos/lcd/*` (compose still runs internally until a future phase).
@@ -135,7 +154,7 @@ Priority:
    * Line 1: `sauna ON` / `sauna HOLD` / `sauna ON  {mod}%` while remaining ≥ **15 min**; when remaining **&lt; 15 min**, show mm:ss (WISC). Pre-arm, `session_end_time` is frozen duration seconds (not unix) — LCD must not treat it as an absolute end (that produced a false `00:00`).
    * Remaining arms when `sauna_calc_temp >= target - timer_offset_temp` (`config.yaml`), same as WISC `sstimerstarted`.
    * Line 2 default = temp/hum **left** + **door-closed duration right-aligned** (`door_sauna_closed_since_unix`).
-   * If sauna door is open, line 2 becomes `plz close sdoor` + open duration.
+   * If sauna door is open, line 2 becomes `plz close sdoor` **without** open/closed duration.
 2. **IR active** (when sauna is not active): line 1 `IR {mm:ss}`; append ` - {mod}%` only when `0 < mod < 100`; at 100% mod the timer is right-aligned (`IR` left). Line 2 = temp/hum.
 3. **Sauna Hue ON only** (when sauna+IR inactive): use date/outside-info fallback text (`shue` equivalent = `hue.group.sauna_hue` ON).
 4. **Blank screen 1** when sauna inactive, IR inactive, and sauna Hue is OFF.
@@ -180,7 +199,7 @@ When `state.sauna.active` and `state.ir.active` are both `False`, the system mea
 
 $$P_{candidate} = \frac{3600}{\Delta t}$$
 
-Samples above **2000 W** are rejected (GPIO bounce / clustered ticks cannot be household baseline — those values were poisoning Real W to 0 by locking 9–18 kW “leak”). Accepted samples EMA into $P_{leak}$ (`alpha = 0.35`) and persist to `wanos-nvram.json` (restored on boot with the same sanity cap; flushed with the 5-minute NVRAM heartbeat).
+Samples above **2000 W** are rejected (GPIO bounce / clustered ticks cannot be household baseline — those values were poisoning Real W to 0 by locking 9–18 kW “leak”). Accepted samples EMA into $P_{leak}$ (`alpha = 0.35`) and persist to `wanos-nvram.json` (restored on boot with the same sanity cap; flushed with the 5-minute NVRAM heartbeat). While the **sauna extraction fan** (`zwave.vent.sauna`) is **ON**, idle leak updates **freeze** (vent load must not raise the household baseline).
 
 #### Phase B: Active Decoupling (Heaters Firing)
 While a heating session is active, idle fingerprinting pauses and the last accepted $P_{leak}$ stays locked. For every subsequent pulse tick, the isolated real wattage consumed purely by the heating elements ($P_{elements\_real}$) is computed as:
@@ -189,14 +208,16 @@ $$P_{measured} = \frac{3600}{\Delta t}$$
 
 $$P_{elements\_real} = P_{measured} - P_{leak}$$
 
-**MOD=0 Real W gate:** while a session is active but heaters are commanded off (`sauna.modulation_pwm == 0` and IR not drawing), displayed `p_elements_real_watts` is forced to **0** immediately (clears stale last-pulse samples). If the meter still reports leak-subtracted load **&gt; 500 W**, WanOS logs a **warning** (60 s cooldown): treat as possible stuck SSR / unexpected load on the same rail — **no auto cutoff**. Session Real Wh still integrates the measured pulses so unexplained energy remains auditable.
+**MOD=0 Real W gate:** while a session is active but heaters are commanded off (`sauna.modulation_pwm == 0` and IR not drawing), displayed `p_elements_real_watts` is forced to **0** immediately (clears stale last-pulse samples). If leak-subtracted meter load is **&gt; 1 W** (i.e. raw &gt; leak + 1 W), WanOS logs a **warning** (60 s cooldown): treat as possible stuck SSR / unexpected load on the same rail — **no auto cutoff**. Session Real Wh still integrates the measured pulses so unexplained energy remains auditable.
 
 ### 4.2 Disaggregated Dynamic Power Rating Extraction
-Because the `StateManager` drives the physical heating elements using an asymmetric PWM strategy across phases U, V, and W via the PID controller, duty ratios drift continuously. The relationship between real power, live voltage sags, and heating element capacity is modeled linearly as:
+Because the `StateManager` drives the physical heating elements using an asymmetric PWM strategy across phases U, V, and W via the PID controller (software PWM at **0.5 Hz** by default — see §1.1a), duty ratios drift continuously. The relationship between real power, live voltage sags, and heating element capacity is modeled linearly as:
 
 $$P_{elements\_real} = \left(\frac{V_{live}}{230}\right)^2 \times ((D_U \cdot P_U) + (D_V \cdot P_V) + (D_W \cdot P_W))$$
 
 **Session Energy (Calc)** integrates the software model over time (Admin `energy_calc_wh` in SQLite). Inter-pulse gaps for calc integration are capped and reset at session start so idle gaps before the first pulse are not charged at full nominal load (C34). Element **W @ 100% mod** live in SQLite table `element_power_w` (singleton row in `sauna_sessions.db`); bootstrap defaults U/V/W/IR = 3500/3500/2000/525 W until sessions refine them (EMA 0.7/0.3, ±25% outlier reject).
+
+**Sauna learn (full-load window):** on each energy pulse while sauna is active, WanOS tracks contiguous time where **U, V, and W are all ≥ 95%**. If the best contiguous run is **≥ 30 s**, nameplate learn uses average real W from **all** pulse intervals that met that condition (not whole-session average, and not session-wide phase mins — heat-up / PID ramp-down no longer disqualify a long MOD-100 stretch). Fallback remains a single-phase-dominant session window.
 
 **IR learn (C34):** when modulation spans more than 10 points in one session (e.g. 75% then 100%), learn uses **time-weighted** implied 100% W per mod plateau (min 30 s per plateau) instead of skipping. Stable single-plateau sessions use the session-average formula.
 
@@ -208,13 +229,15 @@ $$P_{elements\_real} = \left(\frac{V_{live}}{230}\right)^2 \times ((D_U \cdot P_
 
 Sauna calc: $\sum (D_{phase} \times P_{db,phase}) \times (V/230)^2$. IR-only sessions add $(IR\_mod/100) \times P_{db,ir} \times (V/230)^2$. **Real** session energy always comes from the pulse meter minus locked leak.
 
-**Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle. Display is fixed **3 decimals** with unit **°C/W** (e.g. `0.002 °C/W`, not scientific); tooltip: cabin ΔT per watt of real heat — downward drift means worse seals/insulation.
+**Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle. Stored as °C/W; Admin label **Rth** displays **2 decimals** in **°C/kW** (×1000), e.g. `0.98 °C/kW`. Tooltip: cabin ΔT per kW of real heat — downward drift means worse seals/insulation.
 
-**Admin — Sauna / IR pane:** one card grouping Site health (mains, leak, Total kWh, raw meter Wh, session counts, R_th), LCD mirror (VT323), element nameplates + **learn counts** (from session audit rows; refreshed when last session updates over SSE) + last session detail (energy · W · runtime · smart when), Probes & SSR (ceiling/bench, Safety SSR, fireorder), and a live sub-panel that expands when a session runs — MOD total + U/V/W % (sauna) or IR MOD, runtime + remaining, Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. Sauna remaining arms at `target − timer_offset_temp`, not exact setpoint. `GET /api/admin/analytics/element-power`.
+**Admin — Sauna / IR pane:** one card grouping Site health (mains, leak, Total kWh, session counts, Rth), LCD mirror (VT323), element nameplates (vertical stack) + **learn counts** (from session audit rows; refreshed when last session updates over SSE) + last session detail (energy · W · runtime **HH:MM:SS** · smart when), Probes & SSR (ceiling/bench, Safety SSR, fireorder), and a live sub-panel that expands when a session runs — MOD total + U/V/W % (sauna) or IR MOD, runtime + remaining, Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. Sauna remaining arms at `target − timer_offset_temp`, not exact setpoint. `GET /api/admin/analytics/element-power`. Total kWh = NVRAM `11001` Wh / 1000 (absolute face reading; reseed counter to match the physical meter).
+
+**Admin — General Diagnostics:** lifetime **Total water** (cold / hot / sum liters from NVRAM counters).
 
 **Admin — GPIO outputs arm gate:** status shows `OFFLINE` → `NEED INPUTS` → `NEED SHT11` → `WAIT TEMP` → `READY` → `ARMED` (Admin label refreshed on the 1 Hz client ticker). Arming SHT11 triggers an immediate sensor poll (2 s fast cadence until `sauna_calc_temp` is valid). SSE subscribe **seeds** current `hardware` / `sensors` domains so LIVE/READY is not stuck after a missed one-shot bus-health event.
 
-**WISC:** while sauna/IR active — setpoint / IR mod only while respective session active (full-width when alone); Real W + Energy sit under that control (no “Live session” heading); idle — last sauna / last IR one-liners (smart date/time only, e.g. `vandaag, namiddag`). Each `IR_ON` resets modulation to `config.ir.default_ir_modulation` (site default 75%).
+**WISC:** while sauna/IR active — Real W + **Energy real/calc** on one line under the control; Bathroom shows **cold/hot water today** (not lifetime totals). Idle — last sauna / last IR one-liners (smart date/time only). Each `IR_ON` resets modulation to `config.ir.default_ir_modulation` (site default 75%).
 
 **Session audit (SQLite + Session History i popover):** each session stores baseline / measured / new @100% W per element (nullable when not computed).
 
@@ -232,7 +255,7 @@ To track changes in cabin insulation performance without seasonal weather variat
 
 $$R_{th} = \frac{\text{Sauna\_Calc\_Temp} - \text{Outside\_Temp}}{P_{elements\_real}}$$
 
-A downward drift in this coefficient over time signals failing physical door seals, wall insulation degradation, or water retention inside the panel structure. Admin renders the live value as `0.000 °C/W` (three decimal places) with a one-line tooltip on the **R_th** label.
+A downward drift in this coefficient over time signals failing physical door seals, wall insulation degradation, or water retention inside the panel structure. Admin renders the live value as **Rth** `0.00 °C/kW` (two decimal places; stored °C/W ×1000) with a one-line tooltip on the label.
 
 ---
 

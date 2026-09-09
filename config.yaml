@@ -194,11 +194,6 @@ history:
     - sensor.power.pc_power
     - sensor.power.pc_monitors_power
 
-# House kWh pulse meter cumulative total (NVRAM IDX 11001 + baseline offset).
-energy:
-  meter_baseline_kwh: 4871.0
-  meter_pulse_wh_at_baseline: 0.0
-
 # ==============================================================================
 # Automatic sections (deviceexplorer_hide, auto_off_devices, automations) live in:
 #   automations.auto.yaml
@@ -215,6 +210,8 @@ sauna:
   vent_delay_mins: 1             # Cooldown wait time before starting the extraction fan
   vent_run_mins: 160             # Duration the extraction fan runs
   timer_offset_temp: 7.0         # Frozen countdown: triggers when temp >= (Setpoint - Offset)
+  # Software PWM for U/V/W SSRs (ZC type). 0.5 Hz = 2 s period => 1% MOD = 20 ms = 1 full sinus.
+  pwm_freq: 0.5
 
 ir:
   default_ir_modulation: 75      # Default IR power modulation (75%)

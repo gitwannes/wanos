@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36 → C37 → C40**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). **C41 ✅ DONE** (**close-out 2026-09-09**). **C37 ✅ DONE** (**OnePlus 12 smoke 2026-09-09**). **C40 cancelled 2026-09-09** (PID v2 not open). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36**. Pipeline Blockly next: **B14b** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -50,12 +50,13 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C35 — Live IR UX + learn refresh** | ✅ **Done 2026-09-03** — [`sauna-ir.md`](../sauna-ir.md) §4 | WISC + Admin · low |
 | **C38 + L4 — Session telemetry + LCD WISC + Real W gate + Admin polish** | ✅ **Done 2026-09-08** — [`sauna-ir.md`](../sauna-ir.md) §3.7 / §4.1 / §5.1a | Sauna analytics + LCD + Admin · mid |
 | **C39 — Admin Sauna/IR pane + R_th + WISC water** | ✅ **Done 2026-09-08** — [`sauna-ir.md`](../sauna-ir.md) §4 | Admin + WISC · mid |
+| **C41 — Sauna analytics + Admin/WISC polish** | ✅ **Done 2026-09-09** — [`sauna-ir.md`](../sauna-ir.md) §3.7 / §4 / [`sensor_history.md`](../sensor_history.md) §3 | Sauna analytics + shell · mid |
 | **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; house kWh day/7d/m/y UX; WISC rad runtime (Admin dual timer → **C39** ✅) | History + WISC · mid |
 | **C36 — Device event history modal** | Right-click device → History → modal table (ON / OFF / set % / …) | Explorer Control · mid |
-| **C37 — Android PWA resume black screen** | bugfix: warm resume force-SSE + overlay no x-cloak — **coding** (smoke pending) | Shell / SSE resume · mid |
-| **C40 — Sauna PID v2** | Drop v1 sample-schema rewrite; hold-at-setpoint product at kickoff | Sauna PID / telemetry · mid |
+| **C37 — Android PWA resume black screen** | ✅ **Done 2026-09-09** — warm resume force-SSE + overlay no x-cloak; OnePlus 12 smoke | Shell / SSE resume · mid |
+| **C40 — Sauna PID v2** | ❌ **Cancelled 2026-09-09** — not open; re-triage when wanted | Sauna PID · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36** → **C37**. **C40** after v1 PID has booted once on the Pi. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C41** ✅ **close-out 2026-09-09**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **C40** cancelled (PID v2 not open). **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1247,7 +1248,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 **Pulled from C33 (partial):** Admin live remaining + runtime (C33 still owns History charts, nameplates ingest, WISC rad = runtime-only).
 
-**Out of scope:** **C33** History; **C37** PWA smoke; Pi smoke deferred to operator refresh.
+**Out of scope:** **C33** History; **C37** ✅ (PWA resume closed **2026-09-09**).
 
 **C39 DoD:** [x] Unified Admin pane + live MOD/timers + R_th format + WISC water · [x] Last DoD docs audit **2026-09-08**.
 
@@ -1333,65 +1334,60 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 **C36 DoD (stub):** Right-click → History opens modal table of device state changes; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
-## 📋 C37 — bugfix: Android PWA resume → black screen 🔜 coding (awaiting smoke)
+## ✅ C37 — bugfix: Android PWA resume → black screen — **Done 2026-09-09**
 
-**Letter:** **C37**. **Sequence #46**. **Affinity:** Operator shell (installed PWA / SSE pages). Size **mid**. **bugfix** (Sequence prefix).
+**Letter:** **C37**. Affinity: Operator shell (installed PWA / SSE pages). Size **mid**. **bugfix**.
 
 **Operator request (verbatim, 2026-09-04):**
 
 > also add to triage: when I re-open the (installed) app on android, it shows , for a moment, an old status - then the screen goes either black and nothing happens or the re-connection screen appears - re-connect is ok of course: the black screen is not: check root cause and fix: kickoff now
 
-**Placement intent:**
+**Product reference:** [`reference.md`](../reference.md) (`app.js` / SSE); [`architecture.md`](../architecture.md) § Sliding WATCHDOG / C37 resume.
 
-* Android **installed** web app (`site.webmanifest` `display: standalone`) — **warm resume** from process still in memory (homescreen icon; app opened earlier, possibly yesterday).
-* Acceptable: brief stale UI → **NOT CONNECTED / re-connect** overlay → recover.
-* Bug: warm resume → **full blank**, stuck (no reconnect chrome / no recovery). **Sometimes.**
-* **Not** the bug: force-kill (recents swipe-up / remove from memory) then cold open — that path is **OK**.
-* Distinct from **B10L** ✅ (overlay copy + milestones). Related surface (SSE reconnect) but different DoD: warm-resume hang / blank, not copy.
+**Shipped summary:** Warm resume left zombie EventSource + frozen timers; blank came from `x-cloak` on offline overlay when Alpine not bound. Fix: force SSE reconnect on `visibilitychange` / Page Lifecycle `resume` / bfcache `pageshow`; snapshot fetch AbortController + 20 s timeout; offline overlay **no** `x-cloak`; Z-Wave / Automations resume siblings. Distinct from **B10L** (copy/milestones).
 
-**Adjacent:** **B10L** ✅ **Done 2026-09-05**.
+**DoD:**
 
-**Out of scope:** intentional reconnect UX polish beyond fixing blank/stuck; iOS unless reported; cold-start path (already OK).
+- [x] Root cause recorded (zombie SSE + `x-cloak` blank)
+- [x] Blank hang fixed (live UI or NOT CONNECTED → recover)
+- [x] OnePlus 12 smoke — all pages used; warm resume + cold start OK — **operator 2026-09-09**
+- [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-09-09**
 
-**Status:** Spec **LOCKED** (kickoff **2026-09-04**). **Implemented 2026-09-04** — awaiting OnePlus 12 smoke.
+**Out of scope (unchanged):** intentional reconnect polish beyond blank/stuck; iOS unless reported.
 
-**Locked (2026-09-04):**
+## ✅ C41 — Sauna analytics + Admin/WISC polish — **Done 2026-09-09**
 
-| Lock | Decision |
-|---|---|
-| Repro | Warm resume: process still in Android memory → homescreen icon; **sometimes** full blank. Cold start after recents kill = OK. |
-| Smoke | **OnePlus 12** homescreen PWA — operator tests **all** pages used |
-| Success | No full blank hang; either live UI or NOT CONNECTED → recover |
-| Code home | Shared SSE/`app.js` resume path (+ Z-Wave / Blocky heartbeat siblings) |
-| vs B10L | Separate ship |
+**Letter:** **C41**. Affinity: Operator shell (sauna analytics + Admin/WISC). Size **mid**. Close-out covers **2026-09-08–09** ship after **C38** / **C39** (first-boot DB order, learn gate, UI polish, absolute house Wh).
 
-**C37 DoD:** Root cause recorded · blank hang fixed (live or reconnect+recover) · OnePlus 12 smoke on all pages used (warm resume + cold start still OK) · **Last DoD:** audit `docs/**/*.md` (+ root README). Product notes: [`reference.md`](../reference.md) SSE/`app.js`; [`architecture.md`](../architecture.md) client resume.
+**Operator request (verbatim, close-out 2026-09-09):**
 
-### C37 kickoff — answers (2026-09-04)
+> remove helpers/reseed_house_kwh_nvram.py
+> close this phase, the first-boot DB bug, PID analysis v1, UI changes - all what we did yesterday & today
 
-| # | Answer | Status |
-|---|---|---|
-| 1 | Bug first seen on **Explorer**; smoke = **all** pages you use | locked |
-| 2 | **Full blank** viewport | locked |
-| 3 | **Warm resume** from memory (icon while process still alive; may be hours/day later). **Cold start** after swipe-up remove from memory = **OK**. Blank is **intermittent**. | locked |
-| 4 | **OnePlus 12**, launched from **homescreen installed app** (standalone PWA) | locked |
-| 5 | **C37** separate from **B10L** | locked |
+**Product reference (canonical):** [`sauna-ir.md`](../sauna-ir.md) §3.7 (PWM), §4–5 (learn window, Admin/WISC, Rth, leak); [`sensor_history.md`](../sensor_history.md) §3 (absolute house Wh); [`reference.md`](../reference.md) (`power_analytics`, sensor history).
 
-### C37 root-cause assess (2026-09-04)
+**Shipped (summary):**
 
-**Verdict:** Warm resume leaves dead/zombie SSE + stale Alpine; recovery was watchdog-only (frozen timers). Blank = `x-cloak` on offline overlay (+ empty `x-text` title) when Alpine not bound / soft reload. Detail table kept in git history for this file pre-implement.
+| Area | Outcome |
+|------|---------|
+| First-boot DB | `_init_sqlite()` before `load_row()` so first boot does not fail on missing tables |
+| Sauna PWM | `pwm_freq` **0.5 Hz** (plant); IR ZC comments clarified |
+| Learn gate | Contiguous U/V/W ≥95% window ≥30s (not session-wide phase mins); EMA from Wh in that window |
+| LCD door | `plz close sdoor` only — no open duration |
+| Water | WISC **today** cold/hot separate; Admin keeps lifetime totals |
+| WISC Energy | real/calc on one line |
+| Rth | Label `Rth`, display `°C/kW` 2 dp (stored °C/W ×1000) |
+| MOD=0 warn | Threshold = leak-subtracted **> 1 W** (was 500 W) |
+| Leak + vent | Freeze leak updates while `zwave.vent.sauna` ON |
+| Element UI | Vertical @100% stack; last session runtime **HH:MM:SS** |
+| WISC bathroom Main Light | Physical `71007` → Hue **`51001`** |
+| House kWh | Single absolute NVRAM **`11001`** Wh; Admin **Total kWh** = `11001/1000`; dropped `energy:` dual-baseline config + Meter Wh row |
+| Ops | Manual element EMA UPDATE from session CSVs (evening U/V/W); IR left as-is |
+| Helper | `helpers/reseed_house_kwh_nvram.py` removed (operator reseeds Pi NVRAM offline) |
 
-### C37 shipped (code 2026-09-04 — smoke pending)
+**Out of scope / still open:** **C33** History + nameplates + house kWh ranges; **C40** drop v1 sample-schema rewrite + PID hold product; Pi NVRAM reseed to face reading (**1715500** Wh) after deploy.
 
-| Change | Where |
-|---|---|
-| Force SSE reconnect on `visibilitychange` / `resume` / bfcache `pageshow` | `frontend/app.js` |
-| Snapshot fetch AbortController + 20 s timeout; generation token | `frontend/app.js` |
-| Offline overlay **no** `x-cloak`; Explorer title static fallback | `frontend/wanos-shell.js` |
-| Explorer device card drop `x-cloak` | `frontend/deviceexplorer.html` |
-| Z-Wave page resume force-reconnect | `frontend/zwave.js` |
-| Automations heartbeat tick on resume | `frontend/blocky.js` |
-| Cache-bust `wanos-shell.js?v=18` / `app.js?v=3.51` (+ siblings) | HTML entrypoints |
+**Last DoD:** Product docs audited for learn window, absolute Wh, Admin/WISC polish (2026-09-09).
 
 ## 📋 C40 — Sauna PID v2 🔜 TODO
 
@@ -1448,8 +1444,9 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C30:** triage placed **2026-08-27** — kickoff before code (UI chrome, cost config keys, last-session persist home).
 * **C33:** triage **2026-09-01** + expand **2026-09-03** (nameplates @100% / 10 min; house kWh 7d+m/y UX) — kickoff before code. Admin live timers → **C39** ✅.
 * **C39:** ✅ **Done 2026-09-08** — Admin Sauna/IR unified pane + R_th display + WISC water one-line.
+* **C41:** ✅ **Done 2026-09-09** — first-boot DB + learn window + Admin/WISC polish + absolute house Wh.
 * **C36:** triage **2026-09-04** — right-click device → History modal (event table); kickoff before code.
-* **C37:** implemented **2026-09-04** — resume force-SSE + overlay no x-cloak; awaiting OnePlus 12 smoke.
+* **C37:** ✅ **Done 2026-09-09** — OnePlus 12 smoke; resume force-SSE + overlay no x-cloak.
 * **C40:** triage **2026-09-09** — drop v1 sample-schema rewrite after Pi has migrated; hold-at-setpoint product at kickoff.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.

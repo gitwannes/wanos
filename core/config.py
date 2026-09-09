@@ -66,8 +66,9 @@ class SaunaRuntimeConfig(BaseModel):
     vent_delay_mins: int
     vent_run_mins: int
     timer_offset_temp: float
-    # pwm_freq for sauna software PWM (optional; default in code)
-    pwm_freq: int = 5
+    # Sauna software PWM Hz. 0.5 => period 2 s => 1% MOD = 20 ms = 1 full 50 Hz sinus
+    # (matches zero-crossing SSR quantum). Override in config.yaml if needed.
+    pwm_freq: float = 0.5
 
 
 class IRRuntimeConfig(BaseModel):
@@ -699,13 +700,6 @@ class HistoryConfig(BaseModel):
     ])
 
 
-class EnergyConfig(BaseModel):
-    """House kWh pulse meter cumulative display (NVRAM IDX 11001 Wh + baseline offset)."""
-    meter_baseline_kwh: float = 0.0
-    # Pulse counter (Wh) reading when meter_baseline_kwh was set; usually 0 on fresh seed.
-    meter_pulse_wh_at_baseline: float = 0.0
-
-
 class AppConfig(BaseModel):
     version: str
     wanos: WanosConfig
@@ -719,7 +713,6 @@ class AppConfig(BaseModel):
     deviceexplorer_hide: List[str] = Field(default_factory=list)  # entity_ids soft-hidden from Explorer/History/Blocky pickers
     hardware_links: Optional[HardwareLinksConfig] = None
     history: HistoryConfig = Field(default_factory=HistoryConfig)
-    energy: EnergyConfig = Field(default_factory=EnergyConfig)
     auth: AuthConfig
     pins: PinMappingConfig
     gpio_inputs: Dict[str, GPIOInputNode]

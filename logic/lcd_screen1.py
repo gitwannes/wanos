@@ -233,15 +233,8 @@ def compose_lcd_screen1(
         line1 = compose_sauna_line1(mod, remaining_i, mmss)
 
         if sauna_door_open:
-            door_dur = format_duration_ddhhmmss(
-                None, now=now_i, open_since=snapshot.door_sauna_open_since_unix
-            )
-            prefix = "plz close sdoor"
-            time_str = door_dur
-            time_len = len(time_str)
-            prefix_max = max(0, 16 - time_len)
-            line2 = (prefix[:prefix_max] + time_str)[:16]
-            line2 = line2.ljust(16)
+            # Door open: ask to close; do not show open/closed duration (operator lock).
+            line2 = fit_to_16_cells("plz close sdoor")
         else:
             line2 = compose_temp_hum_with_closed_duration(
                 snapshot.sensors.sauna_calc_temp,

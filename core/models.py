@@ -371,7 +371,11 @@ class MetricsState(BaseModel):
     running_energy_real_wh: float = 0.0
     running_energy_calc_wh: float = 0.0
     total_energy_real_wh: float = 0.0  # Element-only Wh since reboot (analytics; not meter total)
-    meter_total_kwh: float = 0.0  # Cumulative house meter (NVRAM 11001 + config baseline)
+    meter_total_kwh: float = 0.0  # Absolute house meter kWh (NVRAM 11001 Wh / 1000)
+
+    # Bathroom water day totals (liters; from sensor_history day buckets)
+    water_cold_today_l: float = 0.0
+    water_hot_today_l: float = 0.0
 
     # ⚡ HISTORICAL READBACK CACHES
     last_sauna_session: Optional[Dict[str, Any]] = None

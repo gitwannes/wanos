@@ -200,6 +200,8 @@ function wanosApp() {
                 running_energy_calc_wh: 0.0,
                 total_energy_real_wh: 0.0,
                 meter_total_kwh: 0.0,
+                water_cold_today_l: 0.0,
+                water_hot_today_l: 0.0,
                 last_sauna_session: null,
                 last_ir_session: null,
                 session_count_sauna: 0,
@@ -1184,16 +1186,15 @@ function wanosApp() {
             return true; // Fallback for local macros/scenes
         },
 
-        // ⚡ IR Snapping Matrix (Values & Legacy Frequencies)
-        // Solid State Relays (SSRs) must align with the 50Hz European AC grid (100 zero-crossings per second).
-        // Standard PWM causes severe light flickering. This array maps specific power percentages to exact zero-crossing frequencies:
-        // 0%   = 0Hz
-        // 25%  = 25Hz (1 zero-crossing ON, 3 OFF)
-        // 33%  = 33Hz (1 zero-crossing ON, 2 OFF)
-        // 50%  = 50Hz (1 zero-crossing ON, 1 OFF)
-        // 67%  = 33Hz (2 zero-crossings ON, 1 OFF)
-        // 75%  = 25Hz (3 zero-crossings ON, 1 OFF)
-        // 100% = 5Hz  (All ON - frequency technically irrelevant here, but 5Hz keeps lgpio stable)
+        // IR Snapping Matrix (duty % + PWM freq for zero-crossing SSRs).
+        // net = 50 Hz => 100 zero-crossings / s = 10 ms between crossings.
+        // 100% = DC 100%, freq 5 Hz (freq irrelevant): all on
+        //  75% = DC  75%, freq 25 Hz: 3 zc on, 1 zc off
+        //  67% = DC  67%, freq 33 Hz: 2 zc on, 1 zc off
+        //  50% = DC  50%, freq 50 Hz: 1 zc on, 1 zc off
+        //  33% = DC  33%, freq 33 Hz: 1 zc on, 2 zc off
+        //  25% = DC  25%, freq 25 Hz: 1 zc on, 3 zc off
+        //  0%  = 0 Hz
         irStepIndex: 5, // Defaults to index 5 (75%)
         irStepValues: [0, 25, 33, 50, 67, 75, 100],
         irStepFreqs: [0, 25, 33, 50, 33, 25, 5],
@@ -3642,9 +3643,12 @@ function wanosApp() {
 
         formatSessionRuntime(secs) {
             if (secs == null) return "—";
-            const m = Math.floor(Number(secs) / 60);
-            const s = Number(secs) % 60;
-            return m + "m " + s + "s";
+            const total = Math.max(0, Math.floor(Number(secs)));
+            if (!Number.isFinite(total)) return "—";
+            const h = Math.floor(total / 3600).toString().padStart(2, "0");
+            const m = Math.floor((total % 3600) / 60).toString().padStart(2, "0");
+            const s = (total % 60).toString().padStart(2, "0");
+            return h + ":" + m + ":" + s;
         },
 
         /** Session list: single value when start/end differ insignificantly (IR temp/hum). */
@@ -3686,13 +3690,6 @@ function wanosApp() {
         formatAuditW(val) {
             if (val == null || !Number.isFinite(Number(val))) return "—";
             return Number(val).toFixed(0) + " W";
-        },
-
-        formatMeterPulseWh() {
-            const idx = 11001;
-            const raw = this.state && this.state.devices ? this.state.devices[idx] : null;
-            if (raw == null || !Number.isFinite(Number(raw))) return "—";
-            return Number(raw).toFixed(0) + " Wh";
         },
 
         formatElementLastSession(kind) {
@@ -3756,7 +3753,7 @@ function wanosApp() {
             return (realWh / 1000).toFixed(3) + " / " + (calcWh / 1000).toFixed(3) + " kWh";
         },
 
-        /** Admin Site health: R_th as 0.000 °C/W (not scientific). */
+        /** Admin Site health: Rth as 0.00 °C/kW (stored as °C/W; display x1000). */
         formatRthInsulation() {
             const raw = this.state && this.state.metrics
                 ? this.state.metrics.r_th_insulation_coefficient
@@ -3764,7 +3761,7 @@ function wanosApp() {
             if (raw === null || raw === undefined) return "N/A";
             const n = Number(raw);
             if (!Number.isFinite(n)) return "N/A";
-            return n.toFixed(3) + " °C/W";
+            return (n * 1000).toFixed(2) + " °C/kW";
         },
 
         formatWiscLastSessionOneLiner(kind) {

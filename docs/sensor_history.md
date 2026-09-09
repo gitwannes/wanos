@@ -70,9 +70,9 @@ Z-Wave power IDXs (`74001`, `74003`) include **integrated kWh** in summary tiles
 
 **Lifetime totals (not time-series):** cumulative counters in NVRAM (`wanos-nvram.json`) for IDX `11001`–`11003` remain the source of truth for **total** Wh / L.
 
-**Admin Site health "Total kWh"** (under the **Sauna / IR** card): derived display only — `config.yaml` `energy.meter_baseline_kwh` + `(devices[11001] − energy.meter_pulse_wh_at_baseline) / 1000`. Canonical store is still NVRAM IDX `11001` (1 pulse = 1 Wh). Do **not** persist a second cumulative kWh counter. Set `meter_pulse_wh_at_baseline` to the current `11001` Wh reading when locking a new physical-meter baseline.
+**Admin Site health "Total kWh"** (under the **Sauna / IR** card): `devices[11001] / 1000`. Canonical store is NVRAM IDX `11001` as **absolute house Wh** (1 pulse = +1 Wh). To align with the physical meter face, reseed `11001` to `round(face_kWh * 1000)` (e.g. 1715.5 kWh → 1715500 Wh). Do **not** keep a second baseline/offset in config.
 
-**Leak W:** `p_leak_baseline_watts` is also stored in `wanos-nvram.json` (non-IDX meta key, same atomic file). Restored on boot; rewritten on the 5-minute NVRAM flush and on graceful shutdown. Live idle pulses keep updating RAM; disk catches up on flush.
+**Leak W:** `p_leak_baseline_watts` is also stored in `wanos-nvram.json` (non-IDX meta key, same atomic file). Restored on boot; rewritten on the 5-minute NVRAM flush and on graceful shutdown. Live idle pulses keep updating RAM; disk catches up on flush. Idle updates **freeze** while sauna extraction fan (`zwave.vent.sauna`) is ON. **WISC Bathroom** shows cold/hot **today** liters (`metrics.water_*_today_l`); lifetime totals live on **Admin General Diagnostics**.
 
 **Sauna / IR:** session rows in `sauna_sessions.db` (see §6 and [sauna-ir.md](sauna-ir.md) §5), retention **forever**.
 
@@ -99,7 +99,8 @@ Industry-aligned rollup: high-resolution samples → hourly → daily → derive
 ## 5. Ingest rules
 
 ### 5.1 House kWh (`11001`)
-* Hardware continues to count every pulse into NVRAM / `devices[11001]` (1 Wh per pulse).
+* Hardware counts every pulse into NVRAM / `devices[11001]` (**absolute house Wh**; 1 Wh per pulse).
+* Admin **Total kWh** = `11001 / 1000`. Reseed `11001` when locking to the physical meter face (integer Wh).
 * **History hi-res:** when cumulative Wh advanced since last history sample ≥ **100 Wh (0.1 kWh)**:
   * Compute instantaneous watts from pulse timing (same `3600/Δt` family as live analytics, using the interval covering that 0.1 kWh window or last known rate — implementation detail).
   * Insert `sensor_samples` row `(11001, ts, watts, 'W')`.

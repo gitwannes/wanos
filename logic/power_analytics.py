@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, List
 from datetime import datetime
 from loguru import logger
 from core.models import SaunaSessionRecord, IrSessionRecord, SystemState, normalize_phases_pwm
-from core.well_known_entities import ENTITY_MAINS_VOLTAGE
+from core.well_known_entities import ENTITY_MAINS_VOLTAGE, ENTITY_SAUNA_VENT
 from logic.element_power_store import ElementPowerRow, bootstrap_if_empty, load_row, save_row
 from logic.sauna_session_telemetry import SaunaSessionTelemetry
 
@@ -15,13 +15,17 @@ from logic.sauna_session_telemetry import SaunaSessionTelemetry
 _MAX_CALC_PULSE_DELTA_SECS: float = 30.0
 # Min seconds at one IR mod plateau before it contributes to segmented learn.
 _IR_PLATEAU_MIN_SECS: float = 30.0
+# Sauna full-load learn: each phase PWM must stay at/above this during the window.
+_FULL_LOAD_PHASE_MIN_PCT: float = 95.0
+# Min contiguous seconds with all phases at full load before nameplate learn runs.
+_FULL_LOAD_MIN_SECS: float = 30.0
 # Idle "leak" fingerprinting: reject pulse pairs that imply absurd household baseline
 # (bounce / double-tick). 2000 W is still far below a single sauna phase (~3500 W).
 _MAX_IDLE_LEAK_WATTS: float = 2000.0
 # EMA toward accepted idle samples (1.0 = replace; lower = smoother).
 _IDLE_LEAK_EMA_ALPHA: float = 0.35
-# While heaters are commanded OFF (MOD=0), still warn if the meter sees load above this.
-_MOD_ZERO_UNEXPECTED_WATTS: float = 500.0
+# MOD=0 unexpected load: leak-subtracted watts above this (equiv. raw > leak + 1 W).
+_MOD_ZERO_UNEXPECTED_ABOVE_LEAK_W: float = 1.0
 # Rate-limit unexpected MOD=0 power warnings (seconds).
 _MOD_ZERO_WARN_COOLDOWN_SECS: float = 60.0
 
@@ -62,11 +66,23 @@ class PowerAnalytics:
         self._ir_plateau_wh: Dict[int, float] = {}
         self._ir_plateau_secs: Dict[int, float] = {}
 
+        # Sauna full-load learn: contiguous U/V/W >= 95% window (not session-wide mins).
+        self._full_load_run_secs: float = 0.0
+        self._full_load_best_secs: float = 0.0
+        self._full_load_total_secs: float = 0.0
+        self._full_load_total_wh: float = 0.0
+
         # Deduplication tracker to prevent identical consecutive log lines
         self._last_log_content: str = ""
 
         # Outdoor temp snapshot at session start (see docs/sensor_history.md)
         self._temp_outside_start: Optional[float] = None
+
+        # Sauna session time-series (RAM buffer -> SQLite + CSV on terminate).
+        # Create session tables BEFORE load_row: ensure_schema ALTERs sauna_sessions /
+        # ir_sessions and crashes on a truly empty DB if those tables do not exist yet.
+        self.session_telemetry = SaunaSessionTelemetry(self)
+        self._init_sqlite()
 
         # C32: learned element W @ 100% mod (DB singleton)
         self._element_power: ElementPowerRow = load_row(self._db_path)
@@ -75,9 +91,6 @@ class PowerAnalytics:
         self._session_baseline_w: float = self._element_power.w_w
         self._session_baseline_ir: float = self._element_power.w_ir
 
-        # Sauna session time-series (RAM buffer -> SQLite + CSV on terminate)
-        self.session_telemetry = SaunaSessionTelemetry(self)
-        self._init_sqlite()
         self._sync_extracted_to_metrics()
         self._wire_sauna_telemetry()
 
@@ -155,6 +168,13 @@ class PowerAnalytics:
             return False
         return True
 
+    def _sauna_vent_operational(self, state: SystemState) -> bool:
+        """True when sauna extraction fan is physically ON (freeze idle leak)."""
+        idx = self.sm.resolve_entity_id(ENTITY_SAUNA_VENT)
+        if idx is None:
+            return False
+        return state.devices.get(idx) == "ON"
+
     def apply_mod_real_power_gate(
         self,
         state: Optional[SystemState] = None,
@@ -171,13 +191,19 @@ class PowerAnalytics:
         if not self._heaters_commanded_off(snap):
             return
 
-        if measured_watts is not None and measured_watts > _MOD_ZERO_UNEXPECTED_WATTS:
+        # measured_watts is leak-subtracted; >1 W means raw > leak + 1 W.
+        if (
+            measured_watts is not None
+            and measured_watts > _MOD_ZERO_UNEXPECTED_ABOVE_LEAK_W
+        ):
             now = time.time()
             if (now - self._last_mod_zero_warn_ts) >= _MOD_ZERO_WARN_COOLDOWN_SECS:
                 self._last_mod_zero_warn_ts = now
+                leak = float(self._locked_leak_watts or 0.0)
                 logger.warning(
                     f"MOD=0 but meter still shows {measured_watts:.0f}W "
-                    f"(leak-subtracted). Real W display gated to 0; "
+                    f"(leak-subtracted; threshold leak+1={leak + _MOD_ZERO_UNEXPECTED_ABOVE_LEAK_W:.1f}W raw). "
+                    f"Real W display gated to 0; "
                     f"Wh still counted. Treat as HW/SSR stuck or house load on same rail "
                     f"- no auto cutoff."
                 )
@@ -291,6 +317,43 @@ class PowerAnalytics:
             new_w = baseline
         return baseline, measured, new_w
 
+    def _reset_full_load_accumulators(self) -> None:
+        """Clear sauna full-load learn window counters for a new session."""
+        self._full_load_run_secs = 0.0
+        self._full_load_best_secs = 0.0
+        self._full_load_total_secs = 0.0
+        self._full_load_total_wh = 0.0
+
+    def _note_full_load_pulse(
+        self,
+        phases: Dict[str, int],
+        delta_t: float,
+        step_real_wh: float,
+    ) -> None:
+        """
+        Track contiguous + total time where U/V/W are all at full load.
+
+        Used so learn does not require session-wide phase mins (heat-up / PID
+        ramp-down would otherwise permanently disqualify a long MOD-100 stretch).
+        """
+        u = float(phases.get("U", 0) or 0)
+        v = float(phases.get("V", 0) or 0)
+        w = float(phases.get("W", 0) or 0)
+        dt = max(0.0, float(delta_t))
+        wh = max(0.0, float(step_real_wh))
+        if (
+            u >= _FULL_LOAD_PHASE_MIN_PCT
+            and v >= _FULL_LOAD_PHASE_MIN_PCT
+            and w >= _FULL_LOAD_PHASE_MIN_PCT
+        ):
+            self._full_load_run_secs += dt
+            self._full_load_total_secs += dt
+            self._full_load_total_wh += wh
+            if self._full_load_run_secs > self._full_load_best_secs:
+                self._full_load_best_secs = self._full_load_run_secs
+        else:
+            self._full_load_run_secs = 0.0
+
     def _learn_sauna_phases(
         self,
         runtime_secs: int,
@@ -304,6 +367,10 @@ class PowerAnalytics:
         mod_w_avg: float,
         mod_w_max: float,
         energy_real_wh: float,
+        *,
+        full_load_best_secs: float = 0.0,
+        full_load_total_secs: float = 0.0,
+        full_load_total_wh: float = 0.0,
     ) -> dict[str, tuple[float, Optional[float], float]]:
         """Returns per-phase (baseline, measured, new) audit triples."""
         baselines = {
@@ -318,6 +385,7 @@ class PowerAnalytics:
             self._record_sauna_learn("skipped", "runtime < 180s")
             return result
 
+        # Session-average W: fallback for single-phase path only.
         avg_w = energy_real_wh * 3600.0 / runtime_secs if runtime_secs > 0 else 0.0
         row = self._element_power
         total_name = row.w_u + row.w_v + row.w_w
@@ -330,17 +398,22 @@ class PowerAnalytics:
                     parts.append(f"{key.upper()} {meas:.0f} W")
             return " / ".join(parts) if parts else "no phase measure"
 
-        # Full-load all phases >= 30 s (approximated via session min mods)
+        # Full-load: real contiguous window (all phases >= 95%) for >= 30 s.
+        # Nameplate split uses Wh integrated only while that condition held.
+        full_load_avg_w = (
+            full_load_total_wh * 3600.0 / full_load_total_secs
+            if full_load_total_secs > 0.0
+            else 0.0
+        )
         if (
-            mod_u_min >= 95 and mod_v_min >= 95 and mod_w_min >= 95
-            and runtime_secs >= 30
+            full_load_best_secs >= _FULL_LOAD_MIN_SECS
             and total_name > 0
-            and avg_w > 0
+            and full_load_avg_w > 0.0
         ):
             any_commit = False
             any_reject = False
             for key, share in (("u", row.w_u), ("v", row.w_v), ("w", row.w_w)):
-                measured = avg_w * (share / total_name)
+                measured = full_load_avg_w * (share / total_name)
                 new_w, committed = self._ema_commit(baselines[key], measured)
                 if committed:
                     setattr(row, f"w_{key}", new_w)
@@ -348,7 +421,11 @@ class PowerAnalytics:
                 else:
                     any_reject = True
                 result[key] = (baselines[key], measured, new_w if committed else baselines[key])
-            detail = _detail_from_result(result)
+            detail = (
+                f"{_detail_from_result(result)} "
+                f"(full-load {full_load_best_secs:.0f}s best / "
+                f"{full_load_total_secs:.0f}s tot)"
+            )
             if any_commit:
                 self._element_power = row
                 self._record_sauna_learn("accepted", detail, committed=True)
@@ -384,7 +461,12 @@ class PowerAnalytics:
         elif any_reject:
             self._record_sauna_learn("rejected", detail)
         else:
-            self._record_sauna_learn("skipped", "no eligible single-phase window")
+            self._record_sauna_learn(
+                "skipped",
+                f"no full-load window "
+                f"(best {full_load_best_secs:.0f}s < {_FULL_LOAD_MIN_SECS:.0f}s) "
+                f"and no eligible single-phase window",
+            )
         return result
 
     def note_session_start(self, session_type: str) -> None:
@@ -405,6 +487,7 @@ class PowerAnalytics:
             self._session_mod_u_history.clear()
             self._session_mod_v_history.clear()
             self._session_mod_w_history.clear()
+            self._reset_full_load_accumulators()
             start_ts = int(self.sm._state.sauna.session_start_time or time.time())
             self._wire_sauna_telemetry()
             self.session_telemetry.start_session(start_ts)
@@ -566,9 +649,14 @@ class PowerAnalytics:
 
             if not state.sauna.active and not state.ir.active:
                 # IDLE FINGERPRINTING: household baseline only — reject bounce/spikes.
+                # Freeze while sauna extraction fan is ON (do not absorb vent into leak).
                 # Always advance _last_pulse_ts (below) so a rejected pair does not
                 # compound into the next interval.
-                if not self._accept_idle_leak_sample(instant_watts):
+                if self._sauna_vent_operational(state):
+                    logger.debug(
+                        f"Idle leak frozen (sauna vent ON); sample {instant_watts:.1f}W ignored"
+                    )
+                elif not self._accept_idle_leak_sample(instant_watts):
                     logger.debug(
                         f"Idle leak sample rejected: {instant_watts:.1f}W "
                         f"(max {_MAX_IDLE_LEAK_WATTS:.0f}W)"
@@ -633,6 +721,7 @@ class PowerAnalytics:
                     self._session_mod_u_history.append(float(phases.get("U", 0)))
                     self._session_mod_v_history.append(float(phases.get("V", 0)))
                     self._session_mod_w_history.append(float(phases.get("W", 0)))
+                    self._note_full_load_pulse(phases, delta_t, step_real_wh)
                 if state.ir.active:
                     ir_mod = int(round(float(state.ir.modulation_pwm or 0)))
                     self._session_mod_ir_history.append(float(ir_mod))
@@ -681,6 +770,9 @@ class PowerAnalytics:
                     mod_v_min, mod_v_avg, mod_v_max,
                     mod_w_min, mod_w_avg, mod_w_max,
                     energy_real,
+                    full_load_best_secs=self._full_load_best_secs,
+                    full_load_total_secs=self._full_load_total_secs,
+                    full_load_total_wh=self._full_load_total_wh,
                 )
                 self._sync_extracted_to_metrics()
 
@@ -788,6 +880,7 @@ class PowerAnalytics:
         self._session_mod_ir_history.clear()
         self._ir_plateau_wh.clear()
         self._ir_plateau_secs.clear()
+        self._reset_full_load_accumulators()
         self._temp_outside_start = None
 
     def _commit_sauna_record(self, record: SaunaSessionRecord) -> int:

@@ -37,7 +37,6 @@ deviceexplorer_hide:
   - zwave.pc
   - zwave.sauna_hue_physical
   - zwave.slpk_wannes_hue_physical
-  - zwave.vent.sauna
 device_product_types:
   rfx.buro_wannes_schemer: light
   rfx.cinema_schemer: light

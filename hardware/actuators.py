@@ -12,6 +12,10 @@ try:
 except ImportError:
     HARDWARE_AVAILABLE = False
 
+# Default sauna software-PWM Hz when config omits pwm_freq (must stay in sync with
+# SaunaRuntimeConfig.pwm_freq). 0.5 Hz => 1% integer MOD = one full 50 Hz sinus.
+_DEFAULT_SAUNA_PWM_FREQ_HZ: float = 0.5
+
 
 class HardwareActuators(WanosComponent):
     """
@@ -32,21 +36,31 @@ class HardwareActuators(WanosComponent):
         self.pin_v: int = self.config.pins.sauna_relais_phase_V
         self.pin_w: int = self.config.pins.sauna_relais_phase_W
 
-        self.sauna_freq: int = getattr(self.config.sauna, "pwm_freq", 5)
+        raw_freq = getattr(self.config.sauna, "pwm_freq", _DEFAULT_SAUNA_PWM_FREQ_HZ)
+        self.sauna_freq: float = float(raw_freq) if raw_freq else _DEFAULT_SAUNA_PWM_FREQ_HZ
 
-        # ⚡ RAM targets for the software PWM background workers (sauna phases only)
+        # RAM targets for the software PWM background workers (sauna phases only)
         self.pwm_targets: Dict[str, int] = {"IR": 0, "U": 0, "V": 0, "W": 0}
         self.pwm_tasks: List[asyncio.Task] = []
         self._ir_pwm_freq: int = 0
         self._ir_pwm_dc: int = 0
 
-    async def _software_pwm_worker(self, pin: int, channel: str, freq: int) -> None:
+    async def _software_pwm_worker(self, pin: int, channel: str, freq: float) -> None:
         """
         Background task that manually toggles a GPIO pin to simulate PWM.
         Uses asyncio.sleep() to yield control back to the main event loop,
         preventing hardware lockups on shared kernel peripheral blocks.
+
+        Sauna MOD is an integer 0-100. Default freq 0.5 Hz (config sauna.pwm_freq):
+            0.5 Hz = 2 s pulse
+            net = 50 Hz => 100 zero-crossings per second
+            = 10 ms between zero-crossings
+            1% of 2 s = 20 ms = 2 zero-crossings: a full sinus
+
+        Zero-crossing SSRs only switch on ZC edges; this period makes each 1% step
+        match one full AC cycle of requested on-time (timing is not ZC-locked).
         """
-        period = 1.0 / freq
+        period = 1.0 / freq if freq > 0 else 1.0 / _DEFAULT_SAUNA_PWM_FREQ_HZ
         while True:
             try:
                 target_pwm = self.pwm_targets.get(channel, 0)
@@ -155,7 +169,21 @@ class HardwareActuators(WanosComponent):
             lgpio.gpio_write(self.chip, self.pin_ir, 0)
 
     def _apply_ir_pwm(self, freq: int, duty: int) -> None:
-        """Drive IR via lgpio.tx_pwm using mod-specific frequency and duty (WISC parity)."""
+        """
+        Drive IR via lgpio.tx_pwm using mod-specific frequency and duty (WISC parity).
+
+        Zero-crossing SSRs on 50 Hz mains (100 ZC / s, 10 ms between crossings).
+        Stepped MOD maps to duty + PWM freq so on/off counts are whole ZC quanta:
+
+            100% = DC 100%, freq 5 Hz (freq irrelevant): all on
+             75% = DC  75%, freq 25 Hz: 3 zc on, 1 zc off
+             67% = DC  67%, freq 33 Hz: 2 zc on, 1 zc off
+             50% = DC  50%, freq 50 Hz: 1 zc on, 1 zc off
+             33% = DC  33%, freq 33 Hz: 1 zc on, 2 zc off
+             25% = DC  25%, freq 25 Hz: 1 zc on, 3 zc off
+
+        Frontend irStepValues / irStepFreqs and backend freq_map must stay aligned.
+        """
         if self.chip is None:
             return
         freq = max(0, int(freq))

@@ -455,17 +455,14 @@ class StateManager:
         self.refresh_meter_total_kwh()
 
     def refresh_meter_total_kwh(self) -> None:
-        """Derive cumulative house meter kWh from NVRAM pulse Wh + config baseline."""
-        energy = getattr(self._config, "energy", None)
-        baseline_kwh = float(getattr(energy, "meter_baseline_kwh", 0.0) or 0.0) if energy else 0.0
-        pulse_at_baseline = float(getattr(energy, "meter_pulse_wh_at_baseline", 0.0) or 0.0) if energy else 0.0
+        """Admin Total kWh = NVRAM pulse counter (absolute house Wh) / 1000."""
         kwh_idx = self.resolve_entity_id("sensor.energy.kwh_meter")
         if kwh_idx is None:
             kwh_idx = 11001
         current_wh = self._state.devices.get(kwh_idx)
         if not isinstance(current_wh, (int, float)):
             current_wh = 0.0
-        self._state.metrics.meter_total_kwh = baseline_kwh + (float(current_wh) - pulse_at_baseline) / 1000.0
+        self._state.metrics.meter_total_kwh = float(current_wh) / 1000.0
 
     def _restore_leak_from_nvram(self) -> None:
         """Apply persisted leak W from NVRAM meta into metrics and PowerAnalytics."""
@@ -599,6 +596,7 @@ class StateManager:
             self._state.boot_seed = self._config.boot_seed
 
             self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
+            # Stepped IR duty/freq for ZC SSRs (keep in sync with frontend irStepFreqs / actuators).
             freq_map = {0: 0, 25: 25, 33: 33, 50: 50, 67: 33, 75: 25, 100: 5}
             self._state.ir.frequency = freq_map.get(self._state.ir.modulation_pwm, 0)
 

@@ -188,8 +188,8 @@
                                     <span class="text-warning font-bold" x-text="(state.metrics.p_elements_real_watts || 0).toFixed(0) + ' W'"></span>
                                 </div>
                                 <div class="flex justify-between gap-2">
-                                    <span class="text-base-400">Energy</span>
-                                    <span x-text="formatWiscLiveEnergy()"></span>
+                                    <span class="text-base-400 shrink-0">Energy real/calc</span>
+                                    <span class="text-right whitespace-nowrap" x-text="formatAdminLiveEnergy()"></span>
                                 </div>
                             </div>
                         </div>
@@ -217,8 +217,8 @@
                                     <span class="text-warning font-bold" x-text="(state.metrics.p_elements_real_watts || 0).toFixed(0) + ' W'"></span>
                                 </div>
                                 <div class="flex justify-between gap-2">
-                                    <span class="text-base-400">Energy</span>
-                                    <span x-text="formatWiscLiveEnergy()"></span>
+                                    <span class="text-base-400 shrink-0">Energy real/calc</span>
+                                    <span class="text-right whitespace-nowrap" x-text="formatAdminLiveEnergy()"></span>
                                 </div>
                             </div>
                         </div>
@@ -297,12 +297,12 @@
                         <div class="text-xs font-bold text-base-400 uppercase">Main Light</div>
                         <div class="flex items-center gap-3">
                             <span class="font-mono text-sm mt-0.5"
-                                  :class="!isDeviceOnline(71007) || state.devices[71007] === null ? 'text-gray-500 italic text-xs' : (state.devices[71007] === 'ON' ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
-                                  x-text="!isDeviceOnline(71007) ? 'OFFLINE' : (state.devices[71007] === null ? 'SYNCING...' : (state.devices[71007] === 'ON' ? '💡 ON' : 'OFF'))"></span>
+                                  :class="!isDeviceOnline(51001) || state.devices[51001] === null ? 'text-gray-500 italic text-xs' : (((state.devices[51001]?.state || state.devices[51001]) === 'ON') ? 'text-warning font-bold animate-pulse' : 'text-base-500')"
+                                  x-text="!isDeviceOnline(51001) ? 'OFFLINE' : (state.devices[51001] === null ? 'SYNCING...' : (((state.devices[51001]?.state || state.devices[51001]) === 'ON') ? '💡 ON' : 'OFF'))"></span>
                             <input type="checkbox" class="toggle toggle-warning toggle-sm shadow"
-                                   :disabled="!isDeviceOnline(71007) || state.devices[71007] === null"
-                                   :checked="state.devices[71007] === 'ON'"
-                                   @change="injectLabHubStateChange(71007, $event.target.checked)" />
+                                   :disabled="!isDeviceOnline(51001) || state.devices[51001] === null"
+                                   :checked="(state.devices[51001]?.state || state.devices[51001]) === 'ON'"
+                                   @change="injectLabHubStateChange(51001, $event.target.checked)" />
                         </div>
                     </div>
 
@@ -321,14 +321,14 @@
 
                     <div class="grid grid-cols-2 gap-3 sm:gap-4 font-mono text-xs">
                         <div class="bg-base-200 p-3 rounded-box border border-base-300 min-w-0">
-                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1 whitespace-nowrap">Cold Water</div>
+                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1 whitespace-nowrap">Cold water today</div>
                             <div class="text-base sm:text-lg font-black text-white whitespace-nowrap tabular-nums"
-                                 x-text="(state.devices[11002] || 0).toFixed(1) + ' L'"></div>
+                                 x-text="(Number(state.metrics.water_cold_today_l) || 0).toFixed(1) + ' L'"></div>
                         </div>
                         <div class="bg-base-200 p-3 rounded-box border border-base-300 min-w-0">
-                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1 whitespace-nowrap">Hot Water</div>
+                            <div class="text-[10px] uppercase font-bold text-base-400 mb-1 whitespace-nowrap">Hot water today</div>
                             <div class="text-base sm:text-lg font-black text-error whitespace-nowrap tabular-nums"
-                                 x-text="(state.devices[11003] || 0).toFixed(1) + ' L'"></div>
+                                 x-text="(Number(state.metrics.water_hot_today_l) || 0).toFixed(1) + ' L'"></div>
                         </div>
                     </div>
                     <div class="mt-4 bg-neutral p-3 rounded-box border border-base-300 text-xs font-mono" x-show="state.metrics.douche_active || state.metrics.douche_water_liters > 0">

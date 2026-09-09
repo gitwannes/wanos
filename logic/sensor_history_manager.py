@@ -337,6 +337,7 @@ class SensorHistoryManager:
     def start(self) -> None:
         self._flush_task = asyncio.create_task(self._batch_flush_loop())
         self._midnight_task = asyncio.create_task(self._midnight_loop())
+        self.refresh_water_today_metrics()
         logger.info(
             f"SensorHistoryManager started (tz={self.timezone_name}, "
             f"hires={self.hires_days}d, hourly={self.hourly_days}d, daily={self.daily_days}d)"
@@ -437,10 +438,19 @@ class SensorHistoryManager:
         if isinstance(self.sm._state.devices.get(idx), (int, float)):
             day.counter_end = float(self.sm._state.devices[idx])
 
+        self.refresh_water_today_metrics()
+
         # History "sample" cadence: every whole liter step (no W series)
         while rt.pending_liters >= self.water_step_l:
             rt.pending_liters -= self.water_step_l
             self._clear_boot_gap_flag_if_needed()
+
+    def refresh_water_today_metrics(self) -> None:
+        """Mirror cold/hot water day liters into SystemState metrics (WISC / Admin)."""
+        cold = self._water_period_consumption(WATER_COLD_IDX)
+        hot = self._water_period_consumption(WATER_HOT_IDX)
+        self.sm._state.metrics.water_cold_today_l = float(cold.get("today") or 0.0)
+        self.sm._state.metrics.water_hot_today_l = float(hot.get("today") or 0.0)
 
     def note_power_watts(self, idx: int, watts: float) -> None:
         if idx not in self.tracked_idxs:
@@ -826,6 +836,7 @@ class SensorHistoryManager:
                 cur_hour = self._hour_key()
                 self._hour_buckets = {k: v for k, v in self._hour_buckets.items() if k[1] >= cur_hour[:10]}
                 self._climate_hour = {k: v for k, v in self._climate_hour.items() if k[1] >= cur_hour[:10]}
+                self.refresh_water_today_metrics()
                 logger.info("Sensor history midnight close + cull complete")
             except asyncio.CancelledError:
                 break

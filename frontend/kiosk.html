@@ -218,9 +218,9 @@
 
                 <div class="grid grid-cols-4 grid-rows-3 gap-4 flex-1 min-h-0">
 
-                    <button @click="injectLabHubStateChange(71007, !(state.devices[71007] === 'ON'))"
+                    <button @click="injectLabHubStateChange(51001, !((state.devices[51001]?.state || state.devices[51001]) === 'ON'))"
                             class="rounded-2xl border flex flex-col items-center justify-center text-center p-2 transition-all duration-200"
-                            :class="state.devices[71007] === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
+                            :class="(state.devices[51001]?.state || state.devices[51001]) === 'ON' ? 'bg-amber-300 border-amber-400 text-amber-900 shadow-md' : 'bg-white border-stone-200 text-stone-500 shadow-sm'">
                         <span class="font-black text-xs uppercase tracking-wider">Badkamer<br>Licht</span>
                     </button>
 
