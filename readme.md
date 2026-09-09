@@ -26,7 +26,7 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 
 ### Sauna and thermal control
 - **Safety gates** — start interlocks, door checks, grace periods, and long-run hardware cutoffs aligned with EN 60335-2-53 practice.
-- **PID control** — proportional–integral–derivative control of thermal mass, with phase-waterfall distribution across U / V / W elements.
+- **PID control** — v1 heat-up is P-only (`kp=12`, `ki=kd=0`) with a −1 °C autohold setpoint bias so MOD reaches 0 just below target; phase-waterfall across U / V / W. See [`docs/sauna-ir.md`](docs/sauna-ir.md) § 3.8.
 - **Disaggregation** — line voltage and kWh pulse metering used to infer active element behaviour and degradation.
 - **Remote LCD status** — dual 16×2 I2C screens on a dedicated Pi (`_lcd-agent/`), driven over MQTT (`wanos/lcd/screen1|2`); see [`docs/sauna-ir.md`](docs/sauna-ir.md) § 3.7.
 - **Remote LCDs** — WISC-compatible 16×2 screens on a dedicated Pi (`wanos/lcd/screen1|2`); WISC mirrors screen1. See [`docs/sauna-ir.md`](docs/sauna-ir.md) § 3.7.

@@ -60,6 +60,8 @@ class SaunaRuntimeConfig(BaseModel):
     kp: float
     ki: float
     kd: float
+    # Degrees C added to the PID setpoint during autohold heat-up (WISC v1: -1.0).
+    setpoint_bias: float
     default_timer: int
     vent_delay_mins: int
     vent_run_mins: int

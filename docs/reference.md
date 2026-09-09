@@ -101,8 +101,8 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `history_manager.py`: Actuator / motion / **event-UUID** history (`device_history.db`) with retention tiers and insights tallies.
 * `element_power_store.py`: Singleton `element_power_w` row in `sauna_sessions.db` — learned U/V/W/IR W @ 100% mod; `count_learns()` derives Admin learn counts from session audit columns.
 * `power_analytics.py`: Sauna/IR session energy accounting (Real vs Calc), NVRAM leak restore, `element_power_w` EMA learning, segmented IR plateau learn (C34), session SQLite persistence; owns sauna session sample telemetry flush. **C38:** MOD=0 Real W display gate + unexpected meter warning (&gt;500 W).
-* `sauna_session_telemetry.py`: In-session RAM sample buffer (climate / PID / MOD / hold / pause / 5 s heartbeat) flushed to `sauna_session_samples` + `sessionlog/*.csv` on sauna terminate (see [sauna-ir.md](sauna-ir.md) §5.1a).
-* `sauna_controller.py`: Manages element priority wear-leveling algorithms, probe math aggregation, anti-windup loops, and PID term diagnostics for session telemetry.
+* `sauna_session_telemetry.py`: In-session RAM sample buffer (climate / PID / MOD / hold / pause / 5 s heartbeat) flushed to `sauna_session_samples` + `sessionlog/*.csv` on sauna terminate (see [sauna-ir.md](sauna-ir.md) §5.1a). Sample rows include applied `setpoint_bias`; `kp`/`ki`/`kd`/`fireorder` are session constants on `sauna_sessions` (CSV comment line).
+* `sauna_controller.py`: Wear-leveling (fire order frozen at `SAUNA_ON`), probe math, PID compute with setpoint bias (v1 autohold −1 °C), anti-windup, and PID term diagnostics for session telemetry.
 * `sensor_history_manager.py`: Utility / climate / host time-series history (`sensor_history.db`) with hi-res, hourly, and daily rollups.
 * `timers.py`: An absolute timestamp scheduler running asynchronous sleepers that fire expiration events back to the primary central queue.
 

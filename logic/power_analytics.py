@@ -453,7 +453,11 @@ class PowerAnalytics:
                     energy_calc_wh REAL,
                     extracted_p_u REAL,
                     extracted_p_v REAL,
-                    extracted_p_w REAL
+                    extracted_p_w REAL,
+                    kp REAL,
+                    ki REAL,
+                    kd REAL,
+                    fireorder TEXT
                 )
             ''')
             c.execute('''
@@ -473,12 +477,22 @@ class PowerAnalytics:
                     energy_calc_wh REAL
                 )
             ''')
-            # Migrate older DBs that lack temp_outside_start
+            # Migrate older DBs that lack temp_outside_start or session-constant PID/fireorder
             for table in ("sauna_sessions", "ir_sessions"):
                 c.execute(f"PRAGMA table_info({table})")
                 cols = {row[1] for row in c.fetchall()}
                 if "temp_outside_start" not in cols:
                     c.execute(f"ALTER TABLE {table} ADD COLUMN temp_outside_start REAL")
+            c.execute("PRAGMA table_info(sauna_sessions)")
+            sauna_cols = {row[1] for row in c.fetchall()}
+            for name, decl in (
+                ("kp", "REAL"),
+                ("ki", "REAL"),
+                ("kd", "REAL"),
+                ("fireorder", "TEXT"),
+            ):
+                if name not in sauna_cols:
+                    c.execute(f"ALTER TABLE sauna_sessions ADD COLUMN {name} {decl}")
             bootstrap_if_empty(conn)
             # Session time-series table (sauna debug / PID analysis)
             self.session_telemetry.ensure_schema(conn)
@@ -704,6 +718,10 @@ class PowerAnalytics:
                     extracted_p_u=round(self._element_power.w_u, 1),
                     extracted_p_v=round(self._element_power.w_v, 1),
                     extracted_p_w=round(self._element_power.w_w, 1),
+                    kp=self.session_telemetry.session_kp,
+                    ki=self.session_telemetry.session_ki,
+                    kd=self.session_telemetry.session_kd,
+                    fireorder=self.session_telemetry.session_fireorder,
                     audit_baseline_w_u=audits["u"][0],
                     audit_measured_w_u=audits["u"][1],
                     audit_new_w_u=audits["u"][2],
@@ -787,10 +805,11 @@ class PowerAnalytics:
                 mod_w_min, mod_w_max, mod_w_avg,
                 energy_real_wh, energy_calc_wh,
                 extracted_p_u, extracted_p_v, extracted_p_w,
+                kp, ki, kd, fireorder,
                 audit_baseline_w_u, audit_measured_w_u, audit_new_w_u,
                 audit_baseline_w_v, audit_measured_w_v, audit_new_w_v,
                 audit_baseline_w_w, audit_measured_w_w, audit_new_w_w
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             record.start_timestamp, record.total_runtime_secs, record.runtime_u_secs, record.runtime_v_secs,
             record.runtime_w_secs,
@@ -803,6 +822,7 @@ class PowerAnalytics:
             record.mod_w_min, record.mod_w_max, record.mod_w_avg,
             record.energy_real_wh, record.energy_calc_wh,
             record.extracted_p_u, record.extracted_p_v, record.extracted_p_w,
+            record.kp, record.ki, record.kd, record.fireorder,
             record.audit_baseline_w_u, record.audit_measured_w_u, record.audit_new_w_u,
             record.audit_baseline_w_v, record.audit_measured_w_v, record.audit_new_w_v,
             record.audit_baseline_w_w, record.audit_measured_w_w, record.audit_new_w_w,

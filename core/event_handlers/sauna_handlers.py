@@ -44,6 +44,11 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._sauna_timer_duration_secs = manager._config.sauna.default_timer * 60
     manager._state.sauna.session_end_time = manager._sauna_timer_duration_secs
 
+    # Freeze U/V/W fire order for this session (waterfall + display + session record).
+    if hasattr(manager, "sauna_logic"):
+        order = manager.sauna_logic.lock_fire_order()
+        manager._state.sauna.fireorder = order.replace(" -> ", "")
+
     # ⚡ Mirror status to the virtual dashboard sensor
     status_idx = manager.resolve_entity_id(ENTITY_SAUNA_STATUS)
     if status_idx is not None:
@@ -61,6 +66,8 @@ async def handle_sauna_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.sauna.phases_pwm = dict(ZERO_PHASES_PWM)
     manager._timer_manager.cancel("sauna_main")
     manager._sauna_timer_triggered = False
+    if hasattr(manager, "sauna_logic"):
+        manager.sauna_logic.unlock_fire_order()
 
     manager._state.sauna.ventilation_state = "WAITING"
     manager._state.sauna.ventilation_deadline = int(time.time()) + (manager._config.sauna.vent_delay_mins * 60)
