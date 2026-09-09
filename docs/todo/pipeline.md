@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-09-08 (C39 close-out — Admin Sauna/IR pane / R_th / WISC water)
+**Last updated:** 2026-09-09 (C40 queued — PID v2 leftover: drop v1 sample-schema rewrite)
 
 ---
 
@@ -137,8 +137,9 @@ All open items. **Detail** = phase file section.
 38  open   mid  C33          Sauna/IR History + nameplates + house kWh (Admin timers→C39)  phaseC § C33
 39  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
 40  coding mid  C37          bugfix: Android PWA resume — black screen (not reconnect) phaseC § C37
+41  open   mid  C40          Sauna PID v2 (drop v1 sample-schema rewrite; hold kickoff) phaseC § C40
 ```
-Near-term: **C37** / **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **Ship B7 / B14 part 1** (kickoff locked) → **B14b** (part 2 + **B25**) → **B26** → **B24**. **B12** may run ∥ part 1. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C25** ✅ **Pi smoke 2026-09-01**. **B10I/J/L/M + C20/C21** ✅ **Pi smoke 2026-09-05**. **C39** ✅ **close-out 2026-09-08** (Admin Sauna/IR pane). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **C37** / **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **C40** after v1 PID has booted once on the Pi (schema rewrite then dead). **L2** after kickoff when ready. **Ship B7 / B14 part 1** (kickoff locked) → **B14b** (part 2 + **B25**) → **B26** → **B24**. **B12** may run ∥ part 1. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside Ship B7. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C25** ✅ **Pi smoke 2026-09-01**. **B10I/J/L/M + C20/C21** ✅ **Pi smoke 2026-09-05**. **C39** ✅ **close-out 2026-09-08** (Admin Sauna/IR pane). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 

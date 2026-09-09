@@ -207,9 +207,10 @@ sauna:
   default_sauna_setpoint: 80     # Default sauna temperature setpoint
   min_temp: 50                   # Minimum setpoint that can be set in the UI
   max_temp: 95                   # Maximum setpoint that can be set in the UI
-  kp: 3.0                        # PID Proportional
-  ki: 0.01                       # PID Integral
-  kd: 0.0                        # PID Derivative
+  kp: 12.0                       # PID Proportional (band = 100/kp C)
+  ki: 0.0                        # PID Integral (v1 heat-up: off)
+  kd: 0.0                        # PID Derivative (v1: off)
+  setpoint_bias: -1.0            # C added to PID setpoint during autohold; -1 coasts last degree
   default_timer: 70              # Default sauna duration in minutes
   vent_delay_mins: 1             # Cooldown wait time before starting the extraction fan
   vent_run_mins: 160             # Duration the extraction fan runs

@@ -156,6 +156,16 @@ Secret variant should be retained in WISC-compatible formatting.
 #### 3.7.6 Debug LCD test (Admin)
 Admin → **Debug Commands** → **Test LCD screens** publishes the same payload to `wanos/lcd/screen1` and `wanos/lcd/screen2`: line 1 = local `YYYY-MM-DD HH:MM` (16 cells); line 2 = `operator debug` (≤16). Used to verify MQTT → LCD Pi path without a sauna session. Empty both-lines MQTT payloads blank the physical screen (`clear` + backlight off). Forced debug text is **held** until live screen1 content exists (sauna / IR / sauna Hue) — idle blank compose must not wipe it on the next door/sensor tick.
 
+### 3.8 Sauna PID heat-up (v1)
+Heat-up uses a P-only loop with a virtual setpoint, matching the WISC `PID.py` caller (`setpointbias = -1.0`, gains 12 / 0 / 0).
+
+* **Gains** (`config.yaml` `sauna.kp` / `ki` / `kd`): **12.0 / 0.0 / 0.0**. Proportional band is `100 / kp` °C (~8.3 °C). With Ki = Kd = 0, MOD stays at 100% until about 8 °C below the *virtual* setpoint, then ramps linearly to 0.
+* **Bias** (`sauna.setpoint_bias`): °C added to the PID setpoint. **−1.0 while `hold_mode` is `autohold`**. Error is `(target + bias) − T`, so at target 80 °C the PID aims at 79 °C and MOD reaches 0 at 79 °C; cabin inertia is expected to finish the last degree (about 1 °C overshoot is acceptable). **`nohold` uses bias 0** (real setpoint). `hold` / pause still dump MOD and reset the PID (unchanged).
+* **Autohold:** when `sauna_calc_temp >= target`, WanOS still switches `autohold → hold` and cuts heaters. With v1 bias, that dump happens when PID output is already ~0.
+* **Fire order:** the U/V/W permutation is calculated at `SAUNA_ON` and frozen for the session (waterfall, live `fireorder`, and the session record). A session that crosses midnight does not rotate phases.
+
+v2 (not this ship): drop autohold and use I (and possibly D / a different bias) to hold temperature.
+
 ---
 
 ## 4. Mathematical Formulations & Power Analytics Engine
@@ -240,7 +250,9 @@ While `sauna.active`, WanOS buffers time-series samples in RAM (`logic/sauna_ses
 
 **Sample triggers:** climate temp/hum change; every PID `compute` (coalesced with MOD change on the same tick); `hold_mode` / `is_paused` edges; **5 s** heartbeat while active (including paused). Keep sampling through door grace / pause.
 
-**Columns:** `ts`, probe + calc T/RH, `mod_u/v/w` + `mod_total`, calc W per phase + total, **Real W total only**, `w_measured_total` (real+leak), PID `p/i/d/error/output_raw/dt`, `integral_reset_reason`, `target_temp`, `hold_mode`, `is_paused`, `fireorder`, `door_state`, `outside_temp`, `kp/ki/kd`, `r_th`, `v_line`, `p_leak`, `trigger`.
+**Session constants** (not copied on every sample row): `kp`, `ki`, `kd`, and `fireorder` live on **`sauna_sessions`**. CSV files put the same four values on a commented first line, e.g. `# kp=12.0 ki=0.0 kd=0.0 fireorder=WVU`. On boot, if an older `sauna_session_samples` table still has those columns, WanOS copies the first usable value onto the parent session row, then rebuilds samples without them. Pre-v1 sample rows get `setpoint_bias` = NULL.
+
+**Sample columns:** `ts`, probe + calc T/RH, `mod_u/v/w` + `mod_total`, calc W per phase + total, **Real W total only**, `w_measured_total` (real+leak), PID `p/i/d/error/output_raw/dt`, `integral_reset_reason`, **`setpoint_bias`** (applied that tick: −1.0 in autohold, 0 otherwise), `target_temp`, `hold_mode`, `is_paused`, `door_state`, `outside_temp`, `r_th`, `v_line`, `p_leak`, `trigger`.
 
 Mid-session crash loses the RAM buffer (flush-at-end). Folder `sessionlog/` is gitignored. Sync pulls `sessionlog/*` into OneDrive `logs\` and (with logcopy) into git `docs\logs` — see [wanos-sync.md](wanos-sync.md).
 
@@ -280,7 +292,11 @@ CREATE TABLE sauna_sessions (
     energy_calc_wh       REAL NOT NULL, -- Integration of software math model over time
     extracted_p_u        REAL NOT NULL, -- Solved capacity for Phase U (Watts)
     extracted_p_v        REAL NOT NULL, -- Solved capacity for Phase V (Watts)
-    extracted_p_w        REAL NOT NULL  -- Solved capacity for Phase W (Watts)
+    extracted_p_w        REAL NOT NULL, -- Solved capacity for Phase W (Watts)
+    kp                   REAL,        -- Session-constant PID gain (from samples for pre-v1 rows)
+    ki                   REAL,
+    kd                   REAL,
+    fireorder            TEXT         -- Frozen at SAUNA_ON (e.g. WVU)
 );
 ```
 

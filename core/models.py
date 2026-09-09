@@ -308,6 +308,11 @@ class SaunaSessionRecord(BaseModel):
     extracted_p_u: float
     extracted_p_v: float
     extracted_p_w: float
+    # Session-constant PID gains + frozen fire order (not duplicated on sample rows).
+    kp: Optional[float] = None
+    ki: Optional[float] = None
+    kd: Optional[float] = None
+    fireorder: Optional[str] = None
     audit_baseline_w_u: Optional[float] = None
     audit_measured_w_u: Optional[float] = None
     audit_new_w_u: Optional[float] = None

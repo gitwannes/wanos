@@ -14,7 +14,7 @@ import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from loguru import logger
 
@@ -55,20 +55,61 @@ SAMPLE_FIELDS: List[str] = [
     "pid_output_raw",
     "pid_dt_s",
     "integral_reset_reason",
+    "setpoint_bias",
     "target_temp",
     "hold_mode",
     "is_paused",
-    "fireorder",
     "door_state",
     "outside_temp",
-    "kp",
-    "ki",
-    "kd",
     "r_th",
     "v_line",
     "p_leak",
     "trigger",
 ]
+
+# Session-constant columns: live on sauna_sessions (and the CSV comment line), not per sample.
+_SAMPLE_SESSION_CONST_COLS: Tuple[str, ...] = ("kp", "ki", "kd", "fireorder")
+
+_SAMPLES_CREATE_SQL: str = """
+            CREATE TABLE sauna_session_samples (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER,
+                ts REAL NOT NULL,
+                temp_low REAL,
+                temp_high REAL,
+                temp_calc REAL,
+                hum_low REAL,
+                hum_high REAL,
+                hum_calc REAL,
+                mod_u REAL,
+                mod_v REAL,
+                mod_w REAL,
+                mod_total REAL,
+                w_calc_u REAL,
+                w_calc_v REAL,
+                w_calc_w REAL,
+                w_calc_total REAL,
+                w_real_total REAL,
+                w_measured_total REAL,
+                pid_p REAL,
+                pid_i REAL,
+                pid_d REAL,
+                pid_error REAL,
+                pid_output_raw REAL,
+                pid_dt_s REAL,
+                integral_reset_reason TEXT,
+                setpoint_bias REAL,
+                target_temp REAL,
+                hold_mode TEXT,
+                is_paused INTEGER,
+                door_state TEXT,
+                outside_temp REAL,
+                r_th REAL,
+                v_line REAL,
+                p_leak REAL,
+                trigger TEXT
+            )
+            """
 
 
 def _probe_dict(state: SystemState, idx: Optional[int]) -> Dict[str, Any]:
@@ -114,61 +155,132 @@ class SaunaSessionTelemetry:
         self._last_mod_total: Optional[int] = None
         self._last_hold_mode: Optional[str] = None
         self._last_is_paused: Optional[bool] = None
+        # Session-constant snapshot for CSV comment + sauna_sessions parent row.
+        self.session_kp: Optional[float] = None
+        self.session_ki: Optional[float] = None
+        self.session_kd: Optional[float] = None
+        self.session_fireorder: Optional[str] = None
 
         self._repo_root: Path = Path(__file__).resolve().parent.parent
         self._sessionlog_dir: Path = self._repo_root / "sessionlog"
 
     def ensure_schema(self, conn: sqlite3.Connection) -> None:
-        """Create sauna_session_samples if missing (called from PowerAnalytics._init_sqlite)."""
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sauna_session_samples (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id INTEGER,
-                ts REAL NOT NULL,
-                temp_low REAL,
-                temp_high REAL,
-                temp_calc REAL,
-                hum_low REAL,
-                hum_high REAL,
-                hum_calc REAL,
-                mod_u REAL,
-                mod_v REAL,
-                mod_w REAL,
-                mod_total REAL,
-                w_calc_u REAL,
-                w_calc_v REAL,
-                w_calc_w REAL,
-                w_calc_total REAL,
-                w_real_total REAL,
-                w_measured_total REAL,
-                pid_p REAL,
-                pid_i REAL,
-                pid_d REAL,
-                pid_error REAL,
-                pid_output_raw REAL,
-                pid_dt_s REAL,
-                integral_reset_reason TEXT,
-                target_temp REAL,
-                hold_mode TEXT,
-                is_paused INTEGER,
-                fireorder TEXT,
-                door_state TEXT,
-                outside_temp REAL,
-                kp REAL,
-                ki REAL,
-                kd REAL,
-                r_th REAL,
-                v_line REAL,
-                p_leak REAL,
-                trigger TEXT
-            )
-            """
+        """Create/migrate sauna_session_samples and session-constant columns on sauna_sessions."""
+        self._ensure_session_const_columns(conn)
+        c = conn.cursor()
+        c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='sauna_session_samples'"
         )
+        exists = c.fetchone() is not None
+        if not exists:
+            conn.execute(_SAMPLES_CREATE_SQL)
+        else:
+            c.execute("PRAGMA table_info(sauna_session_samples)")
+            cols = {row[1] for row in c.fetchall()}
+            if any(name in cols for name in _SAMPLE_SESSION_CONST_COLS):
+                self._backfill_session_constants_from_samples(conn)
+                self._rebuild_samples_table(conn, cols)
+            elif "setpoint_bias" not in cols:
+                conn.execute("ALTER TABLE sauna_session_samples ADD COLUMN setpoint_bias REAL")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_sauna_samples_session "
             "ON sauna_session_samples(session_id)"
         )
+
+    @staticmethod
+    def _ensure_session_const_columns(conn: sqlite3.Connection) -> None:
+        """Add kp/ki/kd/fireorder to sauna_sessions when missing."""
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sauna_sessions'")
+        if c.fetchone() is None:
+            return
+        c.execute("PRAGMA table_info(sauna_sessions)")
+        cols = {row[1] for row in c.fetchall()}
+        for name, decl in (
+            ("kp", "REAL"),
+            ("ki", "REAL"),
+            ("kd", "REAL"),
+            ("fireorder", "TEXT"),
+        ):
+            if name not in cols:
+                conn.execute(f"ALTER TABLE sauna_sessions ADD COLUMN {name} {decl}")
+
+    @staticmethod
+    def _backfill_session_constants_from_samples(conn: sqlite3.Connection) -> None:
+        """Copy kp/ki/kd/fireorder from historical sample rows onto sauna_sessions."""
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sauna_sessions'")
+        if c.fetchone() is None:
+            return
+        c.execute("PRAGMA table_info(sauna_session_samples)")
+        sample_cols = {row[1] for row in c.fetchall()}
+        if not any(name in sample_cols for name in _SAMPLE_SESSION_CONST_COLS):
+            return
+        # Gains were constant per session; take the earliest usable sample per column.
+        assignments: List[str] = []
+        if "kp" in sample_cols:
+            assignments.append(
+                """kp = COALESCE(kp, (
+                    SELECT s.kp FROM sauna_session_samples s
+                    WHERE s.session_id = sauna_sessions.session_id AND s.kp IS NOT NULL
+                    ORDER BY s.ts ASC LIMIT 1
+                ))"""
+            )
+        if "ki" in sample_cols:
+            assignments.append(
+                """ki = COALESCE(ki, (
+                    SELECT s.ki FROM sauna_session_samples s
+                    WHERE s.session_id = sauna_sessions.session_id AND s.ki IS NOT NULL
+                    ORDER BY s.ts ASC LIMIT 1
+                ))"""
+            )
+        if "kd" in sample_cols:
+            assignments.append(
+                """kd = COALESCE(kd, (
+                    SELECT s.kd FROM sauna_session_samples s
+                    WHERE s.session_id = sauna_sessions.session_id AND s.kd IS NOT NULL
+                    ORDER BY s.ts ASC LIMIT 1
+                ))"""
+            )
+        if "fireorder" in sample_cols:
+            assignments.append(
+                """fireorder = COALESCE(fireorder, (
+                    SELECT s.fireorder FROM sauna_session_samples s
+                    WHERE s.session_id = sauna_sessions.session_id
+                      AND s.fireorder IS NOT NULL
+                      AND s.fireorder != ''
+                      AND s.fireorder != '--'
+                    ORDER BY s.ts ASC LIMIT 1
+                ))"""
+            )
+        if assignments:
+            c.execute("UPDATE sauna_sessions SET " + ", ".join(assignments))
+
+    def _rebuild_samples_table(self, conn: sqlite3.Connection, old_cols: Set[str]) -> None:
+        """Drop kp/ki/kd/fireorder from samples; keep setpoint_bias (NULL on old rows)."""
+        dest_cols = ["id", "session_id"] + list(SAMPLE_FIELDS)
+        select_parts: List[str] = []
+        for name in dest_cols:
+            if name in old_cols:
+                select_parts.append(name)
+            elif name == "setpoint_bias":
+                select_parts.append("NULL AS setpoint_bias")
+            else:
+                select_parts.append(f"NULL AS {name}")
+        conn.execute("DROP TABLE IF EXISTS sauna_session_samples_new")
+        conn.execute(_SAMPLES_CREATE_SQL.replace(
+            "CREATE TABLE sauna_session_samples",
+            "CREATE TABLE sauna_session_samples_new",
+            1,
+        ))
+        dest_sql = ",".join(dest_cols)
+        src_sql = ",".join(select_parts)
+        conn.execute(
+            f"INSERT INTO sauna_session_samples_new ({dest_sql}) "
+            f"SELECT {src_sql} FROM sauna_session_samples"
+        )
+        conn.execute("DROP TABLE sauna_session_samples")
+        conn.execute("ALTER TABLE sauna_session_samples_new RENAME TO sauna_session_samples")
 
     def start_session(self, start_unix: int) -> None:
         """Begin buffering for a new sauna session."""
@@ -177,8 +289,24 @@ class SaunaSessionTelemetry:
         self._active = True
         self._session_start_unix = int(start_unix)
         self._reset_edges()
+        self._snapshot_session_constants()
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         logger.info("Sauna session telemetry buffer started.")
+
+    def _snapshot_session_constants(self) -> None:
+        """Capture kp/ki/kd/fireorder at SAUNA_ON for the parent row and CSV comment."""
+        logic = getattr(self._sm, "sauna_logic", None)
+        pid_obj = getattr(logic, "pid", None) if logic is not None else None
+        self.session_kp = getattr(pid_obj, "kp", None) if pid_obj is not None else None
+        self.session_ki = getattr(pid_obj, "ki", None) if pid_obj is not None else None
+        self.session_kd = getattr(pid_obj, "kd", None) if pid_obj is not None else None
+        fo = getattr(self._sm._state.sauna, "fireorder", None)
+        if not fo or fo == "--":
+            if logic is not None:
+                fo = logic.get_current_order_string()
+        if fo:
+            fo = str(fo).replace(" -> ", "").replace("->", "")
+        self.session_fireorder = fo if fo and fo != "--" else None
 
     def _reset_edges(self) -> None:
         self._last_temp_low = None
@@ -342,15 +470,12 @@ class SaunaSessionTelemetry:
             "pid_output_raw": _pid_attr("last_output_raw"),
             "pid_dt_s": _pid_attr("last_dt"),
             "integral_reset_reason": _pid_attr("last_integral_reset_reason") or "",
+            "setpoint_bias": _pid_attr("last_setpoint_bias"),
             "target_temp": state.sauna.target_temp,
             "hold_mode": state.sauna.hold_mode,
             "is_paused": 1 if state.sauna.is_paused else 0,
-            "fireorder": state.sauna.fireorder,
             "door_state": state.devices.get(door_idx) if door_idx is not None else None,
             "outside_temp": state.sensors.outside_temp,
-            "kp": _pid_attr("kp"),
-            "ki": _pid_attr("ki"),
-            "kd": _pid_attr("kd"),
             "r_th": r_th,
             "v_line": v_line,
             "p_leak": round(p_leak, 2),
@@ -371,6 +496,20 @@ class SaunaSessionTelemetry:
         self._last_mod_total = mod_total
         self._last_hold_mode = state.sauna.hold_mode
         self._last_is_paused = state.sauna.is_paused
+
+    @staticmethod
+    def _fmt_gain(value: Optional[float]) -> str:
+        if value is None:
+            return ""
+        return f"{float(value):.1f}"
+
+    def _csv_session_comment(self) -> str:
+        """First CSV line: session-constant gains + frozen fireorder (not a data row)."""
+        kp = self._fmt_gain(self.session_kp)
+        ki = self._fmt_gain(self.session_ki)
+        kd = self._fmt_gain(self.session_kd)
+        fo = self.session_fireorder or "--"
+        return f"# kp={kp} ki={ki} kd={kd} fireorder={fo}"
 
     def flush_blocking(self, session_id: int) -> Optional[str]:
         """
@@ -409,7 +548,9 @@ class SaunaSessionTelemetry:
         self._sessionlog_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.fromtimestamp(start_unix).strftime("%Y%m%d_%H%M%S")
         csv_path = self._sessionlog_dir / f"sauna_session_{stamp}.csv"
+        comment = self._csv_session_comment()
         with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+            fh.write(comment + "\n")
             writer = csv.DictWriter(fh, fieldnames=SAMPLE_FIELDS, extrasaction="ignore")
             writer.writeheader()
             for row in rows:

@@ -609,7 +609,8 @@ class StateManager:
                 initial_target_temp=self._state.sauna.target_temp,
                 kp=self._config.sauna.kp,
                 ki=self._config.sauna.ki,
-                kd=self._config.sauna.kd
+                kd=self._config.sauna.kd,
+                setpoint_bias=self._config.sauna.setpoint_bias,
             )
             if hasattr(self, "_power_analytics") and self._power_analytics is not None:
                 self._power_analytics._wire_sauna_telemetry()

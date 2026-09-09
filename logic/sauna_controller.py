@@ -36,13 +36,23 @@ class PID:
         self.last_d: float = 0.0
         self.last_output_raw: float = 0.0
         self.last_integral_reset_reason: str = "controller_reset"
+        self.last_setpoint_bias: float = 0.0
 
-    def compute(self, current_input: float, current_time: float) -> float:
+    def compute(
+            self,
+            current_input: float,
+            current_time: float,
+            setpoint_bias: float = 0.0,
+    ) -> float:
         """
         Computes the PID output based on an injected system timestamp.
         Allows deterministic calculations across live deployment and simulation environments.
+
+        setpoint_bias is added to the configured setpoint (WISC parity). v1 autohold
+        uses -1.0 so MOD reaches 0 one degree below the real target; inertia covers
+        the last degree. nohold uses 0.0 (real setpoint).
         """
-        error = self.setpoint - current_input
+        error = (self.setpoint + setpoint_bias) - current_input
 
         # Check if this is the very first calculation tick
         if self._last_time is None or self._last_input is None:
@@ -98,6 +108,7 @@ class PID:
         self.last_d = float(self._derivative)
         self.last_output_raw = float(output_raw)
         self.last_integral_reset_reason = integral_reset_reason
+        self.last_setpoint_bias = float(setpoint_bias)
 
         # State tracking updates
         self._last_input = current_input
@@ -108,8 +119,19 @@ class PID:
 class SaunaController:
     """The central business logic for sauna heating, fire-orders, and wear-leveling."""
 
-    def __init__(self, initial_target_temp: float, kp: float = 1.0, ki: float = 0.1, kd: float = 0.0):
+    def __init__(
+            self,
+            initial_target_temp: float,
+            kp: float = 1.0,
+            ki: float = 0.1,
+            kd: float = 0.0,
+            setpoint_bias: float = 0.0,
+    ):
         self.pid = PID(kp=kp, ki=ki, kd=kd, setpoint=initial_target_temp, output_limits=(0.0, 100.0))
+        # Configured heat-up bias (applied only while hold_mode is autohold).
+        self.setpoint_bias: float = float(setpoint_bias)
+        # Frozen U/V/W permutation for the active session (midnight-safe).
+        self._locked_fire_order: Optional[Tuple[int, int, int]] = None
         # Known mapping: Phase U = 3500W, Phase V = 3500W, Phase W = 2000W
         self.sp = (3500, 3500, 2000)
         self.total_p = sum(self.sp)
@@ -123,10 +145,29 @@ class SaunaController:
         if tel is not None and triggers:
             tel.capture(state, triggers=triggers)
 
-    def _get_fire_order(self) -> Tuple[int, int, int]:
+    def _compute_fire_order(self) -> Tuple[int, int, int]:
+        """Day-of-year wear-leveling permutation (not used while a session lock is held)."""
         doy = time.localtime().tm_yday
         fo_number = doy % 6
         return list(permutations((0, 1, 2)))[fo_number]
+
+    def _get_fire_order(self) -> Tuple[int, int, int]:
+        if self._locked_fire_order is not None:
+            return self._locked_fire_order
+        return self._compute_fire_order()
+
+    def lock_fire_order(self) -> str:
+        """
+        Freeze the U/V/W fire order for the current session.
+        Call on SAUNA_ON so a session that crosses midnight keeps the same waterfall.
+        Returns the human-readable order string (e.g. 'W -> V -> U').
+        """
+        self._locked_fire_order = self._compute_fire_order()
+        return self.get_current_order_string()
+
+    def unlock_fire_order(self) -> None:
+        """Clear the session fire-order lock (SAUNA_OFF)."""
+        self._locked_fire_order = None
 
     def _calculate_waterfall(self, total_pwm: int) -> Dict[str, int]:
         """
@@ -221,7 +262,13 @@ class SaunaController:
         now_ts = time.time()
 
         self.pid.setpoint = target_temp
-        calculated_pwm = self.pid.compute(current_input=current_temp, current_time=now_ts)
+        # v1: autohold uses configured bias (typically -1 C). nohold tracks the real setpoint.
+        applied_bias = float(self.setpoint_bias) if state.sauna.hold_mode == "autohold" else 0.0
+        calculated_pwm = self.pid.compute(
+            current_input=current_temp,
+            current_time=now_ts,
+            setpoint_bias=applied_bias,
+        )
 
         new_total_pwm = int(round(calculated_pwm))
         triggers: Set[str] = {"pid"}
