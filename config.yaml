@@ -42,7 +42,7 @@ epson:
 
 # LG webOS TV (G16) — pairing key lives in ~/.config/wanos/ (not synced); scout: helpers/lg_webos_power.py
 lg:
-  host: "10.32.251.39"
+  host: "10.32.251.37"
   mac: "20:17:42:f7:d9:4b"  # WOL for cold ON
   wol_wait_secs: 8
   poll_secs: 10

@@ -19,10 +19,11 @@
 # Job 3 LOG PULL (Pi /var/log/wanos/wanos* --> StatsDest via rsync/SSH): [PiSsh] or [LcdPiSsh]
 #   RemoteLogDir + RemoteGlob compose /var/log/wanos/wanos* (app files inside the dir — NOT /var/log/wanos*)
 #   Empty LocalLogSubdir = land flat under StatsDest; otherwise StatsDest\<LocalLogSubdir>\
-#   Main: StatsDest\  |  LCD: StatsDest\lcd-agent\  (never StatsDest\wanos\ or …\lcd-agent\wanos\)
+#   Main: StatsDest\  |  LCD: StatsDest\lcd-agent\  |  WLW: StatsDest\wlw\ (+ [WlwExtraLogFiles])
 # Job 4 SESSIONLOG PULL (main Pi only): RemoteRoot/sessionlog/* --> StatsDest (flat)
 #   logcopy then also copies sauna_session_*.csv + sauna_sessions.db into git docs\logs (with wanos*)
 # LCD mode: helpers\wanos-sync.bat test|run|logcopy lcd  (source = repo\_lcd-agent\ --> LcdPiSsh)
+# WLW mode: helpers\wanos-sync.bat test|run|logcopy wlw (source = C:\data\git\be90webserver --> WlwPiSsh)
 # logcopy: always after run; also mode "logcopy" alone (pull + copy into git docs\logs)
 #          test logcopy = dry-run preview of that copy
 # =============================================================================
@@ -124,3 +125,19 @@ RemoteRoot=/home/wannes/wanos
 RemoteLogDir=/var/log/wanos
 LocalLogSubdir=lcd-agent
 RemoteGlob=wanos*
+
+[WlwPiSsh]
+# WLW portal on main Pi (.30). Mirror source = sibling repo C:\data\git\be90webserver
+# (hardcoded in .ps1). Same SSH key as PiSsh. Product locks: be90webserver docs/wlw-sync.md
+Host=10.32.251.30
+User=wannes
+RemoteRoot=/home/wannes/be90webserver
+RemoteLogDir=/var/log/wlw
+LocalLogSubdir=wlw
+RemoteGlob=wlw*
+
+[WlwExtraLogFiles]
+# Absolute Pi paths pulled flat into StatsDest\wlw\ (plus sibling .log.1 when present; skip .gz)
+# Missing files are skipped (vhost may not exist until N1).
+/var/log/nginx/hofmans.synology.me.access.log
+/var/log/nginx/hofmans.synology.me.error.log

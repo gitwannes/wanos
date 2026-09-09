@@ -17,11 +17,11 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 
 | Job | Direction | Behaviour |
 |-----|-----------|-----------|
-| Mirror | Local → Pi | `rsync --delete` + excludes from config (main) or `_lcd-agent` excludes (`lcd`) |
+| Mirror | Local → Pi | `rsync --delete` + excludes from config (main), `_lcd-agent` (`lcd`), or be90webserver excludes (`wlw`) |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
-| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`) |
-| Sessionlog pull | Pi → Local | `{RemoteRoot}/sessionlog/*` → OneDrive `logs\` (flat) — **main Pi only**; skip if remote dir missing |
-| Logcopy | Local → git | `wanos*` (+ `sauna_session_*.csv` + `sauna_sessions.db` on main) from that pull dir into `docs\logs` or `_lcd-agent\docs\logs` — **always** after `run`; also mode `logcopy` alone. Locked/in-use dest files: red warn, skip, continue |
+| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`); WLW: `/var/log/wlw/wlw*` + Nginx vhost logs → `logs\wlw\` |
+| Sessionlog pull | Pi → Local | `{RemoteRoot}/sessionlog/*` → OneDrive `logs\` (flat) — **main WanOS only**; skip if remote dir missing |
+| Logcopy | Local → git | `wanos*` (+ session CSVs/DB on main) → `docs\logs` or `_lcd-agent\docs\logs`; WLW: `wlw*` + `hofmans.synology.me.*` → `be90webserver\docs\logs` — **always** after `run`; also mode `logcopy` alone. Locked/in-use dest files: red warn, skip, continue |
 
 ### Split Hue config (maps vs presets)
 
@@ -68,6 +68,23 @@ helpers\wanos-sync.bat logcopy lcd
 helpers\wanos-sync.bat logcopy lcd verbose
 ```
 
+**WLW (main Pi `.30`; sibling repo `be90webserver` → `/home/wannes/be90webserver`)**
+
+Product locks: `C:\data\git\be90webserver\docs\wlw-sync.md`.
+
+```text
+helpers\wanos-sync.bat test wlw
+helpers\wanos-sync.bat test wlw verbose
+helpers\wanos-sync.bat test wlw logcopy
+helpers\wanos-sync.bat test wlw logcopy verbose
+
+helpers\wanos-sync.bat run wlw
+helpers\wanos-sync.bat run wlw verbose
+
+helpers\wanos-sync.bat logcopy wlw
+helpers\wanos-sync.bat logcopy wlw verbose
+```
+
 **codeimport (local mirror only; no SSH)**
 
 ```text
@@ -82,19 +99,22 @@ helpers\wanos-sync.bat diff <repo-relative-file>
 helpers\wanos-sync.bat diff <repo-relative-file> verbose
 helpers\wanos-sync.bat diff <repo-relative-file> lcd
 helpers\wanos-sync.bat diff <repo-relative-file> lcd verbose
+helpers\wanos-sync.bat diff <repo-relative-file> wlw
+helpers\wanos-sync.bat diff <repo-relative-file> wlw verbose
 ```
 
 | Mode / flags | Behaviour |
 |--------------|-----------|
 | `test` | Dry-run only (`rsync -n`) against main Pi |
-| `run` | Normalize + mirror + stats pull + log pull + sessionlog pull + **logcopy** (main Pi) |
+| `run` | Normalize + mirror + stats pull + log pull + sessionlog pull + **logcopy** (main WanOS) |
 | `logcopy` | Log pull + sessionlog pull + copy `wanos*` / `sauna_session_*.csv` / `sauna_sessions.db` into git `docs\logs` only (no mirror / stats / normalize) |
 | `diff <path>` | Compare one repo-relative file PC vs Pi (normalized text); binary = sizes only; missing-side info (exit 0) |
 | `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull); logcopy → `_lcd-agent\docs\logs`; diff uses `_lcd-agent` as local root |
+| `… wlw` | Same modes against **WLW**: mirror `C:\data\git\be90webserver` → `10.32.251.30:/home/wannes/be90webserver` (no stats/sessionlog); log pull `/var/log/wlw/wlw*` + Nginx vhost logs; logcopy → `be90webserver\docs\logs`; diff uses be90 tree as local root. Mutually exclusive with `lcd`. |
 | `test … logcopy` | Dry-run also previews the git `docs\logs` copy |
-| `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd` / `logcopy`) |
+| `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd` / `wlw` / `logcopy`) |
 
-Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `logcopy` / `codeimport` / `diff`) exits with an error — do not combine them. Do not pass trailing `logcopy` with `run` — it is always included. Mode `diff` allows only trailing `lcd` and `verbose`.
+Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `logcopy` / `codeimport` / `diff`) exits with an error — do not combine them. Do not pass trailing `logcopy` with `run` — it is always included. Mode `diff` allows only trailing `lcd`, `wlw`, and `verbose`.
 
 `verbose` → config counts and full rsync command lines.
 
@@ -113,7 +133,7 @@ Compare one **repo-relative** file between the PC and Pi over SSH. No rsync mirr
 
 Normalization before text compare: UTF-8 decode, strip BOM, CRLF/CR → LF (same rules as `.sh` normalize, read-only). Mirror excludes do **not** block diff — Pi-owned files such as `automations.auto.yaml` are valid targets.
 
-Allowed trailing flags: `lcd`, `verbose` only.
+Allowed trailing flags: `lcd`, `wlw`, `verbose` only.
 
 Exit code **1** means the files differ after normalization; the batch wrapper does not treat that as a failure. Exit **2+** indicates a script or SSH error.
 
@@ -122,14 +142,18 @@ Exit code **1** means the files differ after normalization; the batch wrapper do
 | Name | Value | Where |
 |------|--------|--------|
 | Repo | `C:\data\git\wanos` | `.ps1` |
+| WLW source | `C:\data\git\be90webserver` | `.ps1` (sibling repo) |
 | Stats / logs | `C:\data\OneDrive\data\professional\wanos\logs` | `.ps1` |
 | Main Pi | `wannes@10.32.251.30:/home/wannes/wanos` | `[PiSsh]` |
 | LCD Pi | `wannes@10.32.251.51:/home/wannes/wanos` | `[LcdPiSsh]` |
+| WLW app root | `wannes@10.32.251.30:/home/wannes/be90webserver` | `[WlwPiSsh]` |
 | LCD log pull local | `…\wanos\logs\lcd-agent` | `[LcdPiSsh] LocalLogSubdir` |
-| App logs remote | `/var/log/wanos/wanos*` (`RemoteLogDir=/var/log/wanos` + `RemoteGlob=wanos*`; not journalctl) | both SSH sections |
-| Session CSVs remote | `{RemoteRoot}/sessionlog/*` (e.g. `sauna_session_YYYYMMDD_HHMMSS.csv`) | main Pi only; mirror-excluded |
+| WLW log pull local | `…\wanos\logs\wlw` | `[WlwPiSsh] LocalLogSubdir` |
+| App logs remote | `/var/log/wanos/wanos*` (main/LCD) or `/var/log/wlw/wlw*` (WLW) | SSH sections |
+| WLW Nginx logs | `/var/log/nginx/hofmans.synology.me.*.log` (+ `.log.1`; skip `.gz`) | `[WlwExtraLogFiles]` |
+| Session CSVs remote | `{RemoteRoot}/sessionlog/*` (e.g. `sauna_session_YYYYMMDD_HHMMSS.csv`) | main WanOS only; mirror-excluded |
 
-Edit `[PiSsh]` / `[LcdPiSsh]` Host/User/RemoteRoot if your Pis differ. Secrets never go in the config — only SSH keys. Reuse the same `id_ed25519` for both Pis (install pubkey on `.51` once — see `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`).
+Edit `[PiSsh]` / `[LcdPiSsh]` / `[WlwPiSsh]` Host/User/RemoteRoot if your Pis differ. Secrets never go in the config — only SSH keys. Reuse the same `id_ed25519` for both Pis (install pubkey on `.51` once — see `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). WLW uses the same key as main Pi `.30`.
 
 **SSH binary:** `helpers/wanos-sync.ps1` calls `%USERPROFILE%\scoop\apps\git\current\usr\bin\ssh.exe` (full path, and that dir prepended on PATH). MSYS `rsync` plus `C:\Windows\System32\OpenSSH\ssh.exe` resets the protocol stream (`safe_read` 4 bytes / `Connection reset` / `0 bytes received`). Both binaries read the same `%USERPROFILE%\.ssh\` keys. Windows OpenSSH is still fine for one-time `ssh-keygen` and pubkey install from a normal prompt.
 
@@ -216,8 +240,10 @@ helpers\wanos-sync.bat run
 - `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite; missing remote file skipped with warning)
 - `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob
 - `[LcdPiSsh]` — LCD Pi (same keys); `LocalLogSubdir=lcd-agent` lands pulls under OneDrive `logs\lcd-agent`
+- `[WlwPiSsh]` — WLW on main Pi `.30`; source `C:\data\git\be90webserver`; `LocalLogSubdir=wlw`; no bare `bootstrap` exclude (helpers/bootstrap syncs)
+- `[WlwExtraLogFiles]` — absolute Nginx log paths pulled flat into `logs\wlw\` (+ `.log.1` when present; skip `.gz`)
 
-Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine. First LCD deploy: `test lcd` then `run lcd` (install: `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`).
+Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine. First LCD deploy: `test lcd` then `run lcd` (install: `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). First WLW deploy: `test wlw` then `run wlw`, then on Pi `sudo bash /home/wannes/be90webserver/helpers/bootstrap/wlw_bootstrap.sh` (creates `/var/lib/wlw` + `/var/log/wlw`). Product locks: be90webserver `docs/wlw-sync.md`.
 
 ---
 

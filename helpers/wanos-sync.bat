@@ -9,20 +9,22 @@ REM
 REM Modes (must match ValidateSet in the .ps1; pick exactly one):
 REM   test         Dry-run rsync Local<->Pi + log pull preview (SSH, no Z:)
 REM   run          Normalize --> rsync mirror --> stats pull --> log pull --> sessionlog --> logcopy
-REM   logcopy      Log/sessionlog pull --> copy wanos* + session CSVs + sauna_sessions.db into docs\logs
+REM   logcopy      Log/sessionlog pull --> copy logs into git docs\logs
 REM   codeimport   Mirror only to a local Windows folder (required path arg)
 REM   diff         Compare one repo-relative file PC vs Pi (normalized text diff)
 REM Combining two modes (e.g. "test run") is an error.
 REM
 REM Optional trailing (any order after mode):
 REM   lcd       Target LCD Pi (\_lcd-agent --> 10.32.251.51:/home/wannes/wanos)
+REM   wlw       Target WLW portal (be90webserver --> 10.32.251.30:/home/wannes/be90webserver)
 REM   logcopy   With test only: also dry-run the git docs\logs copy
 REM             (run always logcopies; logcopy-as-mode already does it)
 REM   verbose   Pass -VerboseSync to the .ps1
-REM diff mode: required relpath arg after mode; only lcd and verbose allowed.
+REM diff mode: required relpath arg after mode; only lcd, wlw, and verbose allowed.
+REM lcd and wlw are mutually exclusive.
 REM
 REM Includes/excludes: wanos-sync.config.txt  |  engine: wanos-sync.ps1
-REM Doc: docs\wanos-sync.md
+REM Doc: docs\wanos-sync.md  |  WLW locks: be90webserver docs\wlw-sync.md
 REM ============================================================================
 
 set "PS_SCRIPT=%~dp0wanos-sync.ps1"
@@ -31,9 +33,11 @@ set "CODEIMPORT_PATH="
 set "DIFF_FILE="
 set "VERBOSE=0"
 set "LCD=0"
+set "WLW=0"
 set "LOGCOPY=0"
 set "PS_VERBOSE_ARG="
 set "PS_LCD_ARG="
+set "PS_WLW_ARG="
 set "PS_LOGCOPY_ARG="
 set "PS_CODEIMPORT_ARG="
 set "PS_DIFF_ARG="
@@ -67,6 +71,8 @@ if /I "%~1"=="--verbose" set "VERBOSE=1" & shift & goto :parse_args
 if /I "%~1"=="/verbose" set "VERBOSE=1" & shift & goto :parse_args
 if /I "%~1"=="lcd"      set "LCD=1" & shift & goto :parse_args
 if /I "%~1"=="-lcd"     set "LCD=1" & shift & goto :parse_args
+if /I "%~1"=="wlw"      set "WLW=1" & shift & goto :parse_args
+if /I "%~1"=="-wlw"     set "WLW=1" & shift & goto :parse_args
 REM logcopy as a trailing flag (test preview, or redundant with run / logcopy mode)
 if /I "%~1"=="logcopy" (
     if /I "%MODE%"=="diff" goto :err_diff_bad_flag
@@ -118,18 +124,25 @@ echo.
 goto :show_help
 
 :err_diff_bad_flag
-echo ERROR: Mode diff only allows trailing lcd and verbose.
-echo Example: wanos-sync.bat diff automations.auto.yaml lcd verbose
+echo ERROR: Mode diff only allows trailing lcd, wlw, and verbose.
+echo Example: wanos-sync.bat diff helpers/bootstrap/wlw_bootstrap.sh wlw verbose
 echo.
 goto :show_help
 
 :args_done
+if "!LCD!"=="1" if "!WLW!"=="1" (
+    echo ERROR: lcd and wlw cannot be combined.
+    echo.
+    exit /b 1
+)
+
 REM run always logcopies; logcopy mode always logcopies
 if /I "%MODE%"=="run" set "LOGCOPY=1"
 if /I "%MODE%"=="logcopy" set "LOGCOPY=1"
 
 if "!VERBOSE!"=="1" set "PS_VERBOSE_ARG=-VerboseSync"
 if "!LCD!"=="1" set "PS_LCD_ARG=-Lcd"
+if "!WLW!"=="1" set "PS_WLW_ARG=-Wlw"
 if "!LOGCOPY!"=="1" set "PS_LOGCOPY_ARG=-LogCopy"
 if defined DIFF_FILE set PS_DIFF_ARG=-DiffFile "!DIFF_FILE!"
 
@@ -181,16 +194,34 @@ echo     wanos-sync.bat logcopy lcd
 echo     wanos-sync.bat logcopy lcd verbose
 echo         Log pull + copy wanos* into _lcd-agent\docs\logs only.
 echo.
+echo   WLW ^(main Pi .30; be90webserver --^> /home/wannes/be90webserver^)
+echo     wanos-sync.bat test wlw
+echo     wanos-sync.bat test wlw verbose
+echo     wanos-sync.bat test wlw logcopy
+echo     wanos-sync.bat test wlw logcopy verbose
+echo         Dry-run mirror + log pull ^(app wlw* + Nginx vhost logs^). No stats.
+echo         Trailing logcopy = also dry-run copy into be90webserver\docs\logs.
+echo.
+echo     wanos-sync.bat run wlw
+echo     wanos-sync.bat run wlw verbose
+echo         Mirror be90webserver + log pull + logcopy ^(always^). No stats.
+echo.
+echo     wanos-sync.bat logcopy wlw
+echo     wanos-sync.bat logcopy wlw verbose
+echo         Log pull + copy wlw* and hofmans.synology.me.* into be90webserver\docs\logs.
+echo.
 echo   codeimport ^(local mirror only; no SSH^)
 echo     wanos-sync.bat codeimport ^<windows-folder^>
 echo     wanos-sync.bat codeimport ^<windows-folder^> verbose
-echo         Mirror repo into the given folder. Path is required. Not with lcd.
+echo         Mirror repo into the given folder. Path is required. Not with lcd/wlw.
 echo.
 echo   diff ^(one file PC vs Pi; SSH only; no mirror/stats/logcopy^)
 echo     wanos-sync.bat diff ^<repo-relative-file^>
 echo     wanos-sync.bat diff ^<repo-relative-file^> verbose
 echo     wanos-sync.bat diff ^<repo-relative-file^> lcd
 echo     wanos-sync.bat diff ^<repo-relative-file^> lcd verbose
+echo     wanos-sync.bat diff ^<repo-relative-file^> wlw
+echo     wanos-sync.bat diff ^<repo-relative-file^> wlw verbose
 echo         Normalized text diff when both sides exist and file is text.
 echo         Binary: sizes only. Missing: info msg ^(exit 0^). Different text: exit 1.
 echo.
@@ -202,11 +233,11 @@ exit /b 1
 
 :invoke_ps1
 if "!VERBOSE!"=="1" (
-    echo Invoking: powershell -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_DIFF_ARG! !PS_VERBOSE_ARG!
+    echo Invoking: powershell -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_WLW_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_DIFF_ARG! !PS_VERBOSE_ARG!
     echo Script: %PS_SCRIPT%
     echo.
 )
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_DIFF_ARG! !PS_VERBOSE_ARG!
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Mode %MODE% !PS_LCD_ARG! !PS_WLW_ARG! !PS_LOGCOPY_ARG! !PS_CODEIMPORT_ARG! !PS_DIFF_ARG! !PS_VERBOSE_ARG!
 set "RC=!ERRORLEVEL!"
 if not "!RC!"=="0" (
     REM diff exit 1 = files differ (expected); not a script failure
@@ -220,6 +251,8 @@ exit /b 0
 :mode_test
 if "!LCD!"=="1" (
     echo Mode: test lcd  ^(dry-run LCD Pi^)
+) else if "!WLW!"=="1" (
+    echo Mode: test wlw  ^(dry-run WLW / be90webserver^)
 ) else (
     echo Mode: test  ^(dry-run, rsync/SSH^)
 )
@@ -230,6 +263,8 @@ exit /b %ERRORLEVEL%
 :mode_run
 if "!LCD!"=="1" (
     echo Mode: run lcd  ^(rsync/SSH LCD Pi; always logcopy^)
+) else if "!WLW!"=="1" (
+    echo Mode: run wlw  ^(rsync/SSH WLW; always logcopy^)
 ) else (
     echo Mode: run  ^(rsync/SSH; always logcopy^)
 )
@@ -240,6 +275,8 @@ exit /b %ERRORLEVEL%
 :mode_logcopy
 if "!LCD!"=="1" (
     echo Mode: logcopy lcd  ^(log pull + git docs\logs; LCD Pi^)
+) else if "!WLW!"=="1" (
+    echo Mode: logcopy wlw  ^(log pull + be90webserver\docs\logs^)
 ) else (
     echo Mode: logcopy  ^(log pull + git docs\logs; main Pi^)
 )
@@ -249,6 +286,11 @@ exit /b %ERRORLEVEL%
 :mode_codeimport
 if "!LCD!"=="1" (
     echo ERROR: lcd cannot be combined with codeimport.
+    echo.
+    exit /b 1
+)
+if "!WLW!"=="1" (
+    echo ERROR: wlw cannot be combined with codeimport.
     echo.
     exit /b 1
 )
@@ -295,6 +337,8 @@ if "!DIFF_FILE!"=="" (
 )
 if "!LCD!"=="1" (
     echo Mode: diff lcd  ^(PC _lcd-agent vs LCD Pi^)
+) else if "!WLW!"=="1" (
+    echo Mode: diff wlw  ^(PC be90webserver vs Pi RemoteRoot^)
 ) else (
     echo Mode: diff  ^(PC repo vs main Pi^)
 )
