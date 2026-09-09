@@ -2,6 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
+**Last updated:** 2026-09-09 (S1 vent strip — hardcode removed; Library + Timers & types own post-OFF fan)
 **Last updated:** 2026-09-09 (C37 close-out — Android PWA resume black screen; OnePlus 12 smoke OK)
 **Last updated:** 2026-09-09 (C40 cancelled — PID v2 not open; C38/C41 already Done)
 **Last updated:** 2026-09-09 (C41 close-out — sauna analytics + Admin/WISC polish + absolute house Wh)
@@ -146,7 +147,7 @@ All open items. **Detail** = phase file section.
 38  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
 39  open   mid  S1           Sauna vent strip (rules+timers) + door closed start gate  phaseS § S1
 ```
-Near-term: **S1** still **kickoff** (not implemented — open Qs + no strip/door gate code yet). **B14b** next Blockly ship → **B26** → **B24**. **B12** may run ∥ **B14b**. **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside **B14b**. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **B7 / B14 part 1** ✅ **Pi smoke 2026-09-09**. **C38** / **C41** ✅ **close-out**. **C40** cancelled (PID v2 not open). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **S1** vent strip ✅ **2026-09-09** (door gate still open — kickoff Qs). **B14b** next Blockly ship → **B26** → **B24**. **B12** may run ∥ **B14b**. **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside **B14b**. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **B7 / B14 part 1** ✅ **Pi smoke 2026-09-09**. **C38** / **C41** ✅ **close-out**. **C40** cancelled (PID v2 not open). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 

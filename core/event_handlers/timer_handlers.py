@@ -236,22 +236,6 @@ async def handle_automation_sustained_ready(event: Event, manager: Any) -> Tuple
     return state_changed, changed_domains
 
 
-async def handle_vent_wait_expired(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
-    import time
-    manager._state.sauna.ventilation_state = "RUNNING"
-    manager._state.devices[8577] = "ON"
-    manager._state.sauna.ventilation_deadline = int(time.time()) + (manager._config.sauna.vent_run_mins * 60)
-    manager._timer_manager.schedule("vent_run", manager._state.sauna.ventilation_deadline, "VENT_RUN_EXPIRED")
-    return True, {"sauna", "devices"}
-
-
-async def handle_vent_run_expired(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
-    manager._state.sauna.ventilation_state = "OFF"
-    manager._state.devices[8577] = "OFF"
-    manager._state.sauna.ventilation_deadline = None
-    return True, {"sauna", "devices"}
-
-
 async def handle_bath1_vent_lock_expired(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.devices[90001] = False
     state_changed = True

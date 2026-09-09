@@ -135,12 +135,10 @@
                             <span class="font-mono mt-0.5 transition-all duration-300"
                                   :class="!isDeviceOnline(71038) || state.devices[71038] === null
                                     ? 'text-gray-500 italic text-xs'
-                                    : (state.sauna.ventilation_state !== 'OFF'
-                                        ? 'text-info font-bold animate-pulse text-[10px] tracking-wider'
-                                        : (state.devices[71038] === 'ON'
-                                            ? 'text-info font-bold animate-pulse text-sm'
-                                            : 'text-base-500 text-sm'))"
-                                  x-text="!isDeviceOnline(71038) ? 'OFFLINE' : (state.devices[71038] === null ? 'SYNCING...' : (state.sauna.ventilation_state !== 'OFF' ? state.sauna.ventilation_state + ' [' + ventRemainingText + ']' : (state.devices[71038] === 'ON' ? 'MANUAL ON' : 'OFF')))"></span>
+                                    : (state.devices[71038] === 'ON'
+                                        ? 'text-info font-bold animate-pulse text-sm'
+                                        : 'text-base-500 text-sm')"
+                                  x-text="!isDeviceOnline(71038) ? 'OFFLINE' : (state.devices[71038] === null ? 'SYNCING...' : (state.devices[71038] === 'ON' ? 'ON' : 'OFF'))"></span>
                             <input type="checkbox" class="toggle toggle-warning toggle-sm shadow" autocomplete="off"
                                    :disabled="!isDeviceOnline(71038) || state.devices[71038] === null"
                                    :checked="state.devices[71038] === 'ON'"
@@ -460,7 +458,7 @@
 
         <div data-wanos-light-modal></div>
     </main>
-    <script src="wanos-shell.js?v=18"></script>
-    <script src="app.js?v=3.51"></script>
+    <script src="wanos-shell.js?v=19"></script>
+    <script src="app.js?v=3.52"></script>
 </body>
 </html>

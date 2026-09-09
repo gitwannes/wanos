@@ -2,9 +2,9 @@
 
 Sauna ventilator cutover to Library + Timers & types, and door closed-duration start lock. Not Blocky feature work (**B**); not general shell chrome (**C**). Broader “sauna/IR hardcoded → rules” assess remains **B17**.
 
-**Status:** **S1** kickoff in progress (**2026-09-08**). No code until operator says **implement** / **ship** / **patch**.
+**Status:** **S1** vent strip ✅ **shipped 2026-09-09** (code). Door start gate still open (kickoff Qs). Sequence → [`pipeline.md`](pipeline.md).
 
-**Product home (after ship):** [`docs/sauna-ir.md`](../sauna-ir.md). Sequence → [`pipeline.md`](pipeline.md).
+**Product home:** [`docs/sauna-ir.md`](../sauna-ir.md) §2.2 (post-OFF vent) · §2.1 (start gate — door closed-duration still pending).
 
 **DoD convention:** Last DoD = audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.
 
@@ -14,7 +14,7 @@ Sauna ventilator cutover to Library + Timers & types, and door closed-duration s
 
 | Id | What | Status |
 |----|------|--------|
-| **S1** | Strip hardcoded sauna vent automation + door closed ≤5 min start gate (same ship) | Kickoff |
+| **S1** | Strip hardcoded sauna vent automation + door closed ≤5 min start gate (same ship) | **Vent strip done 2026-09-09**; door gate pending open Qs |
 
 ---
 
@@ -47,6 +47,12 @@ Sauna ventilator cutover to Library + Timers & types, and door closed-duration s
 > 5: kickoff now, I'll ask to implement when ready (no code just yet)
 > 6: same ship
 
+**2026-09-09 — vent strip authorize:**
+
+> S1: I've created the needed automations (vent ON 10 minutes after sauna OFF + 180 min auto-off) - check code/config & confirm - if ok: remove hardcode
+> 180 min is now configured
+> check & remove hardcode sauna vent automation
+
 ---
 
 ## S1 — Vent strip + door start gate
@@ -68,56 +74,32 @@ Sauna ventilator cutover to Library + Timers & types, and door closed-duration s
 | L6 | Closed-too-long Commander text: `Cannot start sauna, open sauna door first and check if all is ok` |
 | L7 | Threshold in **config** (proposed key `sauna.door_closed_max_mins: 5`) |
 | L8 | Null `door_sauna_closed_since_unix` → **block** start |
-| L9 | No product code until operator commands **implement** / **ship** / **patch** |
 
-### In scope (code + docs — at implement)
+### Vent strip — shipped 2026-09-09
 
-**Vent strip**
+**Operator config (verified in repo):**
 
-* `handle_sauna_off` vent wait arming; `handle_vent_wait_expired` / `handle_vent_run_expired`; registry wiring
-* `sauna.vent_delay_mins` / `sauna.vent_run_mins` from `config.yaml` + `SaunaConfig`
-* `ventilation_state` / `ventilation_deadline` model + Commander WAITING/RUNNING UI + `ventRemainingText`
-* Catalog / seed: `VENT_WAIT_EXPIRED`, `VENT_RUN_EXPIRED` (YAML `events:` + `core/event_catalog.py`)
-* Any remaining **8577** vent device writes/comments in this path
-* Product docs: post-OFF vent = Library + Timers & types (`sauna-ir.md`)
+* Rule **Sauna OFF** (`9bb07614-…`): `zwave.vent.sauna` **Set after** `00:10:00` **ON**
+* Timers & types: `zwave.vent.sauna` in `managed_auto_off` + `auto_off_delays: 180`
 
-**Door gate**
+**Code removed:** `handle_sauna_off` vent arming; `handle_vent_wait_expired` / `handle_vent_run_expired`; registry; `EventType` VENT_*; `SaunaState.ventilation_*`; `sauna.vent_delay_mins` / `vent_run_mins`; catalog/seed + YAML SE rows; Commander WAITING/RUNNING + `ventRemainingText`; zwave map `| 8577` comment.
 
-* Start Gate + bouncer + Commander: CLOSED age &gt; max (or null) → block; OPEN → existing close-door path
-* Config `sauna.door_closed_max_mins` (name confirm at implement if needed)
-* Banner reason aligned (proposed: `Door closed too long`)
-* `sauna-ir.md` §2.1
+**Product:** [`sauna-ir.md`](../sauna-ir.md) §2.2.
 
-**Catalog**
+### Door gate — still pending
 
-* Remove YAML + seed row for **Sauna timer expired** per L3 — **internal timer behaviour open** (Q1)
+**Open questions (no assumptions — answer before door implement):**
 
-### Out of scope
+1. **Sauna timer expired:** Prefer **A:** remove from pickable catalog / YAML / seed only; **keep** internal `SAUNA_TIMER_EXPIRED` → `SAUNA_OFF` (mirror IR). **B:** something else.
+2. **Door OPEN Commander line:** Keep `Cannot start sauna, please close door`, or use L6 string for **both** OPEN and closed-too-long?
+3. **Start Gate banner** for closed-too-long: OK with `Door closed too long`, or exact alternate text?
 
-* Authoring the operator’s Library rule / Timers & types row (operator)
-* Broader Sauna/IR hardcoded → automation assess (**B17**)
-* Changing mid-session door grace / pause (30 s) behaviour
-* IR start gates beyond existing mutual exclusion
+### DoD
 
-### Open questions (kickoff — no assumptions)
-
-1. **Sauna timer expired:** Today `SAUNA_TIMER_EXPIRED` is a **catalog** SE; the bus still schedules it and `handle_sauna_timer_expired` dispatches **`SAUNA_OFF`** (session soft timer). **IR_TIMER_EXPIRED** is already internal-only (not catalog). Confirm intended meaning of “remove”:
-   - **A (recommended):** Remove from pickable catalog / YAML / seed only; **keep** internal `SAUNA_TIMER_EXPIRED` → `SAUNA_OFF` (mirror IR timer).
-   - **B:** Something else (say what) — removing the handler without a replacement would leave the session timer unable to end via that path.
-2. **Door OPEN Commander line:** Keep existing `Cannot start sauna, please close door`, or use the new L6 string for **both** OPEN and closed-too-long?
-3. **Start Gate banner** for closed-too-long: OK with `Door closed too long` (→ `Sauna start blocked: Door closed too long`), or exact alternate text?
-
-### Prereqs
-
-* None blocking kickoff. Operator will place vent rule + auto-off before/at implement.
-* **B14** timed Set (already shipped) required for operator’s delayed ON rule — not a code dependency of the strip itself.
-
-### DoD (stub — finalize at implement)
-
-- [ ] Hardcoded vent wait/run path gone; no 8577 vent writes
-- [ ] Catalog/seed: vent run events + Sauna timer expired removed per locked Q1
+- [x] Hardcoded vent wait/run path gone; no 8577 vent writes — **2026-09-09**
+- [x] Catalog/seed: vent run events removed (Sauna timer expired still open — Q1)
 - [ ] Door closed-duration start gate + config + Commander/banner
-- [ ] Pi smoke: start blocked when closed too long / null; OPEN still blocked; after `SAUNA_OFF`, vent behaviour follows operator rule + auto-off only
+- [ ] Pi smoke: start blocked when closed too long / null; OPEN still blocked; after `SAUNA_OFF`, vent = rule + auto-off only
 - [ ] **Last DoD:** audit & update ALL `docs/**/*.md` (+ root README) against shipped behavior
 
 ---

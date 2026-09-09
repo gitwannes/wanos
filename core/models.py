@@ -36,8 +36,6 @@ class EventType(str, Enum):
     SAUNA_HOLD_TOGGLED = "SAUNA_HOLD_TOGGLED"
     SAUNA_TIMER_ADJUSTED = "SAUNA_TIMER_ADJUSTED"
     IR_TIMER_ADJUSTED = "IR_TIMER_ADJUSTED"
-    VENT_WAIT_EXPIRED = "VENT_WAIT_EXPIRED"
-    VENT_RUN_EXPIRED = "VENT_RUN_EXPIRED"
     SAUNA_DOOR_GRACE_EXPIRED = "SAUNA_DOOR_GRACE_EXPIRED"  # Fired when the door remains open past the allowed threshold
 
     # IR Events
@@ -251,8 +249,6 @@ class SaunaState(BaseModel):
     fireorder: str = "--"
     session_start_time: Optional[int] = None
     session_end_time: Optional[int] = None
-    ventilation_state: str = "OFF"
-    ventilation_deadline: Optional[int] = None
     light_color: str = "#FFD180"  # Warm White Baseline
     # Screen1 mirror (same compose as MQTT wanos/lcd/screen1). Blank → WISC shows standby.
     lcd_line1: str = ""

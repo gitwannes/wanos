@@ -33,7 +33,7 @@
     const PAGE_VERSIONS = {
         admin: 16,
         explorer: 15,
-        commander: 15,
+        commander: 16,
         history: 14,
         blocky: 25,
         hiddendevices: 8,

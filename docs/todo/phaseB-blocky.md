@@ -1887,8 +1887,7 @@ UUIDs: locked in `core/event_catalog.py`. **Name** = Blockly / catalog display s
 | `SAUNA_HOLD_TOGGLED` | Sauna hold toggled | |
 | `SAUNA_TIMER_ADJUSTED` | Sauna timer adjusted | |
 | `SAUNA_DOOR_GRACE_EXPIRED` | Sauna paused (door open) | Door open too long while sauna active → heaters pause |
-| `VENT_WAIT_EXPIRED` | Sauna ventilator run start | After `SAUNA_OFF` delay: vent → ON, start run timer |
-| `VENT_RUN_EXPIRED` | Sauna ventilator run expired | Vent run finished → vent OFF |
+| ~~`VENT_WAIT_EXPIRED` / `VENT_RUN_EXPIRED`~~ | ~~Sauna ventilator run…~~ | **Removed S1** — post-OFF vent = Library Set after + Timers & types auto-off |
 | `IR_MODULATION_UPDATED` | IR modulation updated | |
 | `TEMP_UPDATED` | Temperature updated | Not SHT-only (SHT + Z-Wave + OWM climate + lab/sim) |
 | `HUMIDITY_UPDATED` | Humidity updated | Same sources as temp |

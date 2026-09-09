@@ -169,8 +169,6 @@ function wanosApp() {
                 fireorder: "--",
                 session_start_time: null,
                 session_end_time: null,
-                ventilation_state: "OFF",
-                ventilation_deadline: null,
                 light_color: "#FFD180",
                 lcd_line1: "",
                 lcd_line2: "",
@@ -1218,7 +1216,6 @@ function wanosApp() {
         irElapsedText: "00:00:00",
         irRemainingText: "00:00:00",
 
-        ventRemainingText: "00:00:00",
         doucheElapsedText: "00:00:00",
 
         sunriseRelativeText: "",
@@ -1895,13 +1892,6 @@ function wanosApp() {
             } else {
                 this.irElapsedText = "00:00:00";
                 this.irRemainingText = "00:00:00";
-            }
-
-            if (this.state.sauna.ventilation_state !== "OFF" && this.state.sauna.ventilation_deadline) {
-                const vRemain = Math.max(0, this.state.sauna.ventilation_deadline - now);
-                this.ventRemainingText = this.formatTime(vRemain);
-            } else {
-                this.ventRemainingText = "00:00:00";
             }
 
             if (this.state.metrics.douche_active && this.state.metrics.douche_start_time) {

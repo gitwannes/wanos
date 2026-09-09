@@ -89,6 +89,7 @@ auto_off_devices:
     - zwave.slpk_wannes
     - zwave.toilet
     - zwave.vent.badk_2e
+    - zwave.vent.sauna
     - zwave.vent.toilet_motor
     - zwave.voorraad_gv
     - zwave.waskot
@@ -115,6 +116,7 @@ auto_off_devices:
     zwave.slpk_wannes: 30
     zwave.toilet: 10
     zwave.vent.badk_2e: 30
+    zwave.vent.sauna: 180
     zwave.vent.toilet_motor: 5
     zwave.voorraad_gv: 1
     zwave.waskot: 5
@@ -1250,18 +1252,6 @@ events:
     enabled: true
   - id: b751d97c-38e0-413e-bcb1-fe03d14ec36b
     name: Sauna paused (door open)
-    origin: system
-    show_on_dashboard: false
-    require_confirmation: false
-    enabled: true
-  - id: 94bbfd22-d226-4408-bc6d-3b4897b1ec81
-    name: Sauna ventilator run start
-    origin: system
-    show_on_dashboard: false
-    require_confirmation: false
-    enabled: true
-  - id: 26a640cd-2ba3-4541-bf1d-17e45d5d60d0
-    name: Sauna ventilator run expired
     origin: system
     show_on_dashboard: false
     require_confirmation: false

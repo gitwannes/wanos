@@ -69,9 +69,7 @@ async def handle_sauna_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     if hasattr(manager, "sauna_logic"):
         manager.sauna_logic.unlock_fire_order()
 
-    manager._state.sauna.ventilation_state = "WAITING"
-    manager._state.sauna.ventilation_deadline = int(time.time()) + (manager._config.sauna.vent_delay_mins * 60)
-    manager._timer_manager.schedule("vent_wait", manager._state.sauna.ventilation_deadline, "VENT_WAIT_EXPIRED")
+    # Post-OFF extraction fan: Library rule (Set after) + Timers & types auto-off — not hub timers.
 
     # ⚡ Mirror status to the virtual dashboard sensor
     status_idx = manager.resolve_entity_id(ENTITY_SAUNA_STATUS)

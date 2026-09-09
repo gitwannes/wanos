@@ -1210,7 +1210,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 | **LCD (L4)** | WISC remaining (duration pre-arm); mm:ss only &lt;15 min; door-closed duration on line2 |
 | **Admin** | Last poll + GPIO arm status on 1 Hz ticker; SSE subscribe seeds domains; ARM OUTPUTS modal middle + z-index |
 
-**Out of scope (unchanged):** **C33** History charts; **L2** LCD on WanOS Pi; auto SSR cutoff on unexpected MOD=0 load. Sample-table rewrite drop after v1 soak → **C40**.
+**Out of scope (unchanged):** **C33** History charts; **L2** LCD on WanOS Pi; auto SSR cutoff on unexpected MOD=0 load. Sample-table rewrite drop / PID hold → not queued (**C40** cancelled).
 
 **C38 DoD:** [x] Telemetry + Real W gate + Admin polish shipped · [x] Combined with **L4** · [x] Last DoD docs audit **2026-09-08**.
 
@@ -1385,25 +1385,24 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 | Ops | Manual element EMA UPDATE from session CSVs (evening U/V/W); IR left as-is |
 | Helper | `helpers/reseed_house_kwh_nvram.py` removed (operator reseeds Pi NVRAM offline) |
 
-**Out of scope / still open:** **C33** History + nameplates + house kWh ranges; **C40** drop v1 sample-schema rewrite + PID hold product; Pi NVRAM reseed to face reading (**1715500** Wh) after deploy.
+**Out of scope / still open:** **C33** History + nameplates + house kWh ranges; Pi NVRAM reseed to face reading (**1715500** Wh) after deploy. (**C40** PID v2 cancelled — not open.)
 
 **Last DoD:** Product docs audited for learn window, absolute Wh, Admin/WISC polish (2026-09-09).
 
-## 📋 C40 — Sauna PID v2 🔜 TODO
+## ❌ C40 — Sauna PID v2 — **Cancelled 2026-09-09**
 
-**Letter:** **C40**. **Sequence #41**. **Affinity:** Operator shell (sauna PID / session telemetry). Size **mid**. **After** v1 PID has booted once on the Pi (sample-schema rewrite then unused).
+**Letter:** **C40**. Affinity: Operator shell (sauna PID). **Not open** — cancelled on operator correction **2026-09-09** (PID v2 is not queued).
 
-**Operator request (verbatim, 2026-09-09):**
+**Operator request (verbatim, triage 2026-09-09):**
 
 > "Past data: on boot, the first usable sample values (skipping -- fireorder) are copied onto the parent session, then those columns are dropped from sauna_session_samples" -- make a note into pipeline for v2 to drop that temporary re-write code
 
-**v1 leftover (locked for this subphase):** after the Pi has run a WanOS build that already migrated `sauna_session_samples` (kp/ki/kd/fireorder copied onto `sauna_sessions`, those columns dropped from samples, `setpoint_bias` present), **delete the one-shot rewrite**. Code home: `logic/sauna_session_telemetry.py` (`_SAMPLE_SESSION_CONST_COLS`, `_backfill_session_constants_from_samples`, `_rebuild_samples_table`, and the `ensure_schema` branch that calls them). Parent `ALTER` for kp/ki/kd/fireorder on `sauna_sessions` can stay until kickoff says the CREATE TABLE path is enough. Product note today: [`sauna-ir.md`](../sauna-ir.md) §5.1a.
+**Operator correction (verbatim, 2026-09-09):**
 
-**Product remainder (not locked — kickoff):** v1 is P-only heat-up + autohold dump. v2 intent from the v1 ship: drop autohold and use I (and possibly D / a different bias) to *hold* temperature; `nohold` bias detail then. Do not implement until `kickoff C40`.
+> C40 is PID v2, that is not open
+> C38, C41 can be closed
 
-**Out of scope (this triage):** changing v1 gains/bias; re-adding kp/ki/kd/fireorder on sample rows.
-
-**C40 DoD (stub):** One-shot sample-schema rewrite gone once v1 migration has run on Pi; hold-at-setpoint product per kickoff locks; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**Parked intent (re-triage when wanted):** drop one-shot sample-schema rewrite in `logic/sauna_session_telemetry.py` after Pi migration soak; later hold-at-setpoint PID product (I/D / bias). Product note today: [`sauna-ir.md`](../sauna-ir.md) §5.1a. Do **not** kickoff or implement until a new triage places work.
 
 ## ✅ C31 + C32 — Sauna/IR analytics & power model — **Done 2026-08-30**
 
@@ -1444,10 +1443,11 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C30:** triage placed **2026-08-27** — kickoff before code (UI chrome, cost config keys, last-session persist home).
 * **C33:** triage **2026-09-01** + expand **2026-09-03** (nameplates @100% / 10 min; house kWh 7d+m/y UX) — kickoff before code. Admin live timers → **C39** ✅.
 * **C39:** ✅ **Done 2026-09-08** — Admin Sauna/IR unified pane + R_th display + WISC water one-line.
+* **C38 + L4:** ✅ **Done 2026-09-08** — session telemetry / PID analysis v1 + LCD WISC + Real W gate.
 * **C41:** ✅ **Done 2026-09-09** — first-boot DB + learn window + Admin/WISC polish + absolute house Wh.
 * **C36:** triage **2026-09-04** — right-click device → History modal (event table); kickoff before code.
 * **C37:** ✅ **Done 2026-09-09** — OnePlus 12 smoke; resume force-SSE + overlay no x-cloak.
-* **C40:** triage **2026-09-09** — drop v1 sample-schema rewrite after Pi has migrated; hold-at-setpoint product at kickoff.
+* **C40:** ❌ **Cancelled 2026-09-09** — PID v2 not open; re-triage when wanted.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
 * NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**); overlay copy/milestones → **B10L** ✅ (**2026-09-05**).

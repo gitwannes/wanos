@@ -67,6 +67,15 @@ When a user or automated timer dispatches a `SAUNA_ON` event payload to `/api/ev
 
 If any single condition fails, the execution loop aborts, drops the start command, and dispatches a high-priority banner notification to the web client via `AlertManager`.
 
+### 2.2 Post-OFF extraction fan (Library + Timers & types)
+
+Hub code does **not** arm sauna vent wait/run timers after `SAUNA_OFF`. Operator-owned behaviour:
+
+* **Delayed ON:** Library rule on **Sauna OFF** → **Set after** (e.g. `00:10:00`) → `zwave.vent.sauna` **ON**.
+* **Auto OFF:** Timers & types membership for `zwave.vent.sauna` with a per-device delay (e.g. **180** minutes).
+
+WISC Extraction Fan row shows live device ON/OFF only (no WAITING/RUNNING hub countdown).
+
 ---
 
 ## 3. Sauna Safety Subsystems & Compliance Framework

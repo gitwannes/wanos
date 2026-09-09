@@ -63,8 +63,6 @@ class SaunaRuntimeConfig(BaseModel):
     # Degrees C added to the PID setpoint during autohold heat-up (WISC v1: -1.0).
     setpoint_bias: float
     default_timer: int
-    vent_delay_mins: int
-    vent_run_mins: int
     timer_offset_temp: float
     # Sauna software PWM Hz. 0.5 => period 2 s => 1% MOD = 20 ms = 1 full 50 Hz sinus
     # (matches zero-crossing SSR quantum). Override in config.yaml if needed.

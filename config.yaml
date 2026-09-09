@@ -207,8 +207,7 @@ sauna:
   kd: 0.0                        # PID Derivative (v1: off)
   setpoint_bias: -1.0            # C added to PID setpoint during autohold; -1 coasts last degree
   default_timer: 70              # Default sauna duration in minutes
-  vent_delay_mins: 1             # Cooldown wait time before starting the extraction fan
-  vent_run_mins: 160             # Duration the extraction fan runs
+  # Post-OFF extraction fan: Library (Sauna OFF Set after) + Timers & types auto-off — not hub timers.
   timer_offset_temp: 7.0         # Frozen countdown: triggers when temp >= (Setpoint - Offset)
   # Software PWM for U/V/W SSRs (ZC type). 0.5 Hz = 2 s period => 1% MOD = 20 ms = 1 full sinus.
   pwm_freq: 0.5
