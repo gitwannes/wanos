@@ -16,6 +16,12 @@
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
+# Cloud Agent environment definition (portable, no secrets).
+!.cursor/environment.json
+!.cursor/install.sh
+!.cursor/start.sh
+# ...but never the generated runtime state (broker passwd/conf, dev requirements).
+.cursor/runtime/
 
 # 1. Secrets & Environment Variables
 # (CRITICAL: Never commit the actual .env file containing the MQTT password or PIN)
@@ -27,6 +33,9 @@ helpers/lg_webos_client_keys.json
 recovery_state.json
 status.json
 *.log
+# Runtime databases and NVRAM (created at repo root when the backend runs)
+*.db
+wanos-nvram.json
 *.zip
 /docs/logs
 /sessionlog/
