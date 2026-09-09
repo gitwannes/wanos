@@ -826,15 +826,27 @@ automations:
         conditions:
           - type: event
             event: 08b79199-86aa-4a1e-a29c-20ef2eb74e98
-        actions:
-          - entity_id: hue.group.verd_1_hue
-            state: 'ON'
-            preset: my_white
-          - entity_id: hue.group.living_hue
-            state: 'ON'
-            preset: my_white
-          - entity_id: zwave.sauna_zoutlamp
-            state: 'OFF'
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: time_of_day
+                  is: light
+              actions:
+                - entity_id: hue.group.living_hue
+                  state: "OFF"
+          leading_actions:
+            - entity_id: hue.group.verd_1_hue
+              state: "ON"
+              preset: relax_red
+            - entity_id: hue.group.living_hue
+              state: "OFF"
+            - entity_id: zwave.sauna_zoutlamp
+              state: "OFF"
+            - entity_id: zwave.vent.sauna
+              state: "ON"
+              timing: after
+              duration: 00:10:00
     id: 9bb07614-9395-4c8c-8622-6dba8c6152bc
   - name: '--- CINEMA ON'
     enabled: true

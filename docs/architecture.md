@@ -5,7 +5,7 @@
 
 ** Wanos backend
 * Raspberry Pi 4 Model B Rev 1.5 (batcat -A /proc/device-tree/model)
-* OS: Debian 13 Trixie Lite 64-bit
+* OS: Debian 13 Trixie Lite 64-bit (Not 11 Bulseye?)
 
 ** Wanos frontend
 * Raspberry Pi 3 Model B Rev 1.2 (cat /proc/device-tree/model)
