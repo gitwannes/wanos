@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36 → C37**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36 → C37 → C40**. Pipeline Blockly next: **B7** / **B14** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -53,8 +53,9 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; house kWh day/7d/m/y UX; WISC rad runtime (Admin dual timer → **C39** ✅) | History + WISC · mid |
 | **C36 — Device event history modal** | Right-click device → History → modal table (ON / OFF / set % / …) | Explorer Control · mid |
 | **C37 — Android PWA resume black screen** | bugfix: warm resume force-SSE + overlay no x-cloak — **coding** (smoke pending) | Shell / SSE resume · mid |
+| **C40 — Sauna PID v2** | Drop v1 sample-schema rewrite; hold-at-setpoint product at kickoff | Sauna PID / telemetry · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36** → **C37**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36** → **C37**. **C40** after v1 PID has booted once on the Pi. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1208,7 +1209,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 | **LCD (L4)** | WISC remaining (duration pre-arm); mm:ss only &lt;15 min; door-closed duration on line2 |
 | **Admin** | Last poll + GPIO arm status on 1 Hz ticker; SSE subscribe seeds domains; ARM OUTPUTS modal middle + z-index |
 
-**Out of scope (unchanged):** **C33** History charts; **L2** LCD on WanOS Pi; auto SSR cutoff on unexpected MOD=0 load.
+**Out of scope (unchanged):** **C33** History charts; **L2** LCD on WanOS Pi; auto SSR cutoff on unexpected MOD=0 load. Sample-table rewrite drop after v1 soak → **C40**.
 
 **C38 DoD:** [x] Telemetry + Real W gate + Admin polish shipped · [x] Combined with **L4** · [x] Last DoD docs audit **2026-09-08**.
 
@@ -1392,6 +1393,22 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 | Automations heartbeat tick on resume | `frontend/blocky.js` |
 | Cache-bust `wanos-shell.js?v=18` / `app.js?v=3.51` (+ siblings) | HTML entrypoints |
 
+## 📋 C40 — Sauna PID v2 🔜 TODO
+
+**Letter:** **C40**. **Sequence #41**. **Affinity:** Operator shell (sauna PID / session telemetry). Size **mid**. **After** v1 PID has booted once on the Pi (sample-schema rewrite then unused).
+
+**Operator request (verbatim, 2026-09-09):**
+
+> "Past data: on boot, the first usable sample values (skipping -- fireorder) are copied onto the parent session, then those columns are dropped from sauna_session_samples" -- make a note into pipeline for v2 to drop that temporary re-write code
+
+**v1 leftover (locked for this subphase):** after the Pi has run a WanOS build that already migrated `sauna_session_samples` (kp/ki/kd/fireorder copied onto `sauna_sessions`, those columns dropped from samples, `setpoint_bias` present), **delete the one-shot rewrite**. Code home: `logic/sauna_session_telemetry.py` (`_SAMPLE_SESSION_CONST_COLS`, `_backfill_session_constants_from_samples`, `_rebuild_samples_table`, and the `ensure_schema` branch that calls them). Parent `ALTER` for kp/ki/kd/fireorder on `sauna_sessions` can stay until kickoff says the CREATE TABLE path is enough. Product note today: [`sauna-ir.md`](../sauna-ir.md) §5.1a.
+
+**Product remainder (not locked — kickoff):** v1 is P-only heat-up + autohold dump. v2 intent from the v1 ship: drop autohold and use I (and possibly D / a different bias) to *hold* temperature; `nohold` bias detail then. Do not implement until `kickoff C40`.
+
+**Out of scope (this triage):** changing v1 gains/bias; re-adding kp/ki/kd/fireorder on sample rows.
+
+**C40 DoD (stub):** One-shot sample-schema rewrite gone once v1 migration has run on Pi; hold-at-setpoint product per kickoff locks; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
 ## ✅ C31 + C32 — Sauna/IR analytics & power model — **Done 2026-08-30**
 
 **Combined ship** (kickoff **C31** 2026-08-29, **C32** 2026-08-30). **Pi smoke ✅ 2026-08-30.**
@@ -1433,6 +1450,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C39:** ✅ **Done 2026-09-08** — Admin Sauna/IR unified pane + R_th display + WISC water one-line.
 * **C36:** triage **2026-09-04** — right-click device → History modal (event table); kickoff before code.
 * **C37:** implemented **2026-09-04** — resume force-SSE + overlay no x-cloak; awaiting OnePlus 12 smoke.
+* **C40:** triage **2026-09-09** — drop v1 sample-schema rewrite after Pi has migrated; hold-at-setpoint product at kickoff.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
 * NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**); overlay copy/milestones → **B10L** ✅ (**2026-09-05**).
