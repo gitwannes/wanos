@@ -1,32 +1,43 @@
 ---
-description: No product code or config edits unless the operator explicitly commands implement/ship/patch
+description: No product/helper code until the operator explicitly says implement
 alwaysApply: true
 ---
 
 # Implement gate (hard rule)
 
-**Do not edit product code, config, or markup** (Python, JS, HTML, YAML runtime config, SQL schema, etc.) unless the operator **explicitly** commands implementation in that turn or a prior turn they have not revoked.
+**No coding** until the operator **explicitly** says **`implement`** in that turn (or a prior turn they have not revoked).
 
-## Commands that authorize code
+This covers **all** of: Python, JS, HTML, CSS, YAML runtime config, SQL, shell/PowerShell, **`helpers/**` scouts/scripts**, markup that ships with the product, and any other executable or runtime artifact.
 
-Only these (or clear equivalents in the same message):
+## Only keyword that authorizes new code
 
-- `implement`
+- **`implement`** — required. Exact word in the operator message (e.g. `implement`, `implement G10`, `implement the discovery helper`).
+
+Also authorize code only when the operator uses these **explicit** ship verbs (same bar — not soft synonyms):
+
 - `ship`
 - `patch`
-- `fix` / `bugfix` when clearly directed at code (e.g. "patch the door banner")
+- `fix` / `bugfix` when clearly directed at code (e.g. `patch the door banner`)
 
-## Does NOT authorize code
+If the message does **not** contain one of those words → **do not write or edit code**.
 
-- `triage`, `kickoff`, analysis, Q&A, "re-assess", "no code"
-- Locked spec, kickoff answers, "this is fine", config shape agreement
-- Phrases like "in this code run", "when you build C31", "roll X into C31" (scope only — wait for **implement**)
-- Pipeline / phase markdown updates during triage or kickoff (those flows have their own rules)
+## Does NOT authorize code (non-exhaustive)
 
-## Pipeline docs
+- `triage`, `kickoff`, analysis, Q&A, "re-assess", "any open items", "no code"
+- Locked spec, kickoff answers, "proposal ok", "this is fine", config shape agreement
+- Timing / urgency: **"this is now"**, "do it now", "step 0", "ahead of the bridge", "when ready"
+- Scope language: "in this code run", "when you build C31", "roll X into C31", "helper path = …"
+- Naming a file (`helpers/foo.py`) or agreeing a scout/script design
+- "write the helper" / "create a script" **without** the word **`implement`**
+- Pipeline / phase markdown updates during triage or kickoff
 
-- **triage** / **kickoff**: may edit `docs/todo/*` only — no product code.
-- **implement** / **ship** / **patch**: product code allowed; pipeline close-out when ship/DoD says so.
+**No "helpful" interpretation.** If unsure whether code is allowed → **ask**. Do not start coding.
+
+## Pipeline docs (allowed without `implement`)
+
+- **triage** / **kickoff**: may edit `docs/todo/*` only — **no** product code, **no** `helpers/**`.
+- Product docs under `docs/**` outside `todo/` only when the operator explicitly asks for a **docs** change (still no code).
+- **implement** / **ship** / **patch**: product code + helpers allowed; pipeline close-out when ship/DoD says so.
 - Phase close-out: move Done `docs/todo/phase*.md` → `docs/todo/_archive/` — [`.cursor/rules/phase-archive.mdc`](phase-archive.mdc).
 
 ## When unsure
@@ -35,4 +46,4 @@ Stop and ask: **triage**, **kickoff**, or **implement**? Do not "helpfully" star
 
 ## Conflicts
 
-User Rule **Collaboration standards** wins. This rule makes the implement gate explicit for WanOS.
+User Rule **Collaboration standards** wins. This rule makes the implement gate explicit for WanOS: **no code until `implement` (or ship/patch/fix)**.

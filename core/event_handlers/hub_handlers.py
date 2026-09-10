@@ -40,29 +40,24 @@ async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str
     changed_domains = set()
 
     idx = payload.get("idx")
-    is_open = payload.get("is_open", False)
+    try:
+        if idx is not None:
+            idx = int(idx)
+            payload["idx"] = idx
+    except (TypeError, ValueError):
+        pass
+    is_open = bool(payload.get("is_open", False))
     new_state = "OPEN" if is_open else "CLOSED"
+    now_unix = int(time.time())
 
-    if manager._state.devices.get(idx) != new_state:
+    old_val = manager._state.devices.get(idx)
+    if old_val is None and idx is not None:
+        old_val = manager._state.devices.get(str(idx))
+
+    if old_val != new_state:
         manager._state.devices[idx] = new_state
         state_changed = True
         changed_domains.add("devices")
-
-        # LCD parity: track door open/close durations for *all* known doors.
-        # These timestamps are later formatted on the remote LCD Pi.
-        now_unix = int(time.time())
-        sauna_door_idx = manager.resolve_entity_id(ENTITY_SAUNA_DOOR)
-        if sauna_door_idx is not None and idx == sauna_door_idx:
-            manager._state.door_sauna_open_since_unix = now_unix if is_open else None
-            manager._state.door_sauna_closed_since_unix = None if is_open else now_unix
-            # Ensure LCD refresh cadence hooks off door transitions
-            changed_domains.add("sauna")
-
-        bathroom_door_idx = manager.resolve_entity_id(ENTITY_BATHROOM_DOOR)
-        if bathroom_door_idx is not None and idx == bathroom_door_idx:
-            manager._state.door_bathroom_open_since_unix = now_unix if is_open else None
-            manager._state.door_bathroom_closed_since_unix = None if is_open else now_unix
-            changed_domains.add("devices")
 
         if hasattr(manager, "history_manager"):
             _log_actuator(manager, idx, new_state)
@@ -71,6 +66,55 @@ async def handle_door_changed(event: Event, manager: Any) -> Tuple[bool, Set[str
         # Sauna door open/close while heating: do NOT hard-kill the session here.
         # StateManager owns the 30s grace timer, PAUSE on expiry, and auto-resume on re-close
         # (see sauna_door_grace / SAUNA_DOOR_GRACE_EXPIRED / is_paused).
+
+    # Open/closed-since stamps: reconcile on every DOOR_CHANGED (including cold-boot
+    # baseline when device state did not change). Do not reset an existing same-mode stamp.
+    doors = manager._state.doors
+    doors_touched = False
+
+    sauna_door_idx = manager.resolve_entity_id(ENTITY_SAUNA_DOOR)
+    if sauna_door_idx is not None and idx == sauna_door_idx:
+        if is_open:
+            if doors.sauna_closed_since_unix is not None:
+                doors.sauna_closed_since_unix = None
+                doors_touched = True
+            if doors.sauna_open_since_unix is None:
+                doors.sauna_open_since_unix = now_unix
+                doors_touched = True
+        else:
+            if doors.sauna_open_since_unix is not None:
+                doors.sauna_open_since_unix = None
+                doors_touched = True
+            if doors.sauna_closed_since_unix is None:
+                doors.sauna_closed_since_unix = now_unix
+                doors_touched = True
+        if doors_touched:
+            changed_domains.add("sauna")
+            changed_domains.add("doors")
+
+    bathroom_door_idx = manager.resolve_entity_id(ENTITY_BATHROOM_DOOR)
+    if bathroom_door_idx is not None and idx == bathroom_door_idx:
+        bath_touched = False
+        if is_open:
+            if doors.bathroom_closed_since_unix is not None:
+                doors.bathroom_closed_since_unix = None
+                bath_touched = True
+            if doors.bathroom_open_since_unix is None:
+                doors.bathroom_open_since_unix = now_unix
+                bath_touched = True
+        else:
+            if doors.bathroom_open_since_unix is not None:
+                doors.bathroom_open_since_unix = None
+                bath_touched = True
+            if doors.bathroom_closed_since_unix is None:
+                doors.bathroom_closed_since_unix = now_unix
+                bath_touched = True
+        if bath_touched:
+            doors_touched = True
+            changed_domains.add("doors")
+
+    if doors_touched:
+        state_changed = True
 
     return state_changed, changed_domains
 

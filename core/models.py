@@ -32,7 +32,6 @@ class EventType(str, Enum):
     SAUNA_MODULATION_UPDATED = "SAUNA_MODULATION_UPDATED"
     SAUNA_SETPOINT_REACHED = "SAUNA_SETPOINT_REACHED"
     SAUNA_HOLD = "SAUNA_HOLD"
-    SAUNA_TIMER_EXPIRED = "SAUNA_TIMER_EXPIRED"
     SAUNA_HOLD_TOGGLED = "SAUNA_HOLD_TOGGLED"
     SAUNA_TIMER_ADJUSTED = "SAUNA_TIMER_ADJUSTED"
     IR_TIMER_ADJUSTED = "IR_TIMER_ADJUSTED"
@@ -42,7 +41,6 @@ class EventType(str, Enum):
     IR_ON = "IR_ON"
     IR_OFF = "IR_OFF"
     IR_MODULATION_UPDATED = "IR_MODULATION_UPDATED"
-    IR_TIMER_EXPIRED = "IR_TIMER_EXPIRED"
 
     # System Events
     SYSTEM_READY = "SYSTEM_READY"
@@ -258,6 +256,8 @@ class SaunaState(BaseModel):
     last_light_temp: Optional[float] = None  # Enforces a 1.0°C quantization throttle to prevent Zigbee mesh DDoS storms
     absolute_cutoff_unix: Optional[int] = None  # ⚡ EN 60335-2-53 hard 6-hour limit epoch wall
     last_heartbeat_unix: Optional[int] = None  # ⚡ Active SHT11 bus reception timestamp marker
+    # Mirrored from config.yaml sauna.door_closed_max_mins (WISC start-gate UI).
+    door_closed_max_mins: int = 5
 
 
 class IRState(BaseModel):
@@ -397,6 +397,14 @@ class HardwareState(BaseModel):
     sensor_errors: List[str] = Field(default_factory=list)
 
 
+class DoorsState(BaseModel):
+    """Open/closed-since unix for site doors (LCD + Admin Site info + start gate)."""
+    sauna_open_since_unix: Optional[int] = None
+    sauna_closed_since_unix: Optional[int] = None
+    bathroom_open_since_unix: Optional[int] = None
+    bathroom_closed_since_unix: Optional[int] = None
+
+
 class SystemState(BaseModel):
     system: SystemAdminState = Field(default_factory=SystemAdminState)
     sensors: SensorsState = Field(default_factory=SensorsState)
@@ -404,21 +412,11 @@ class SystemState(BaseModel):
     ir: IRState = Field(default_factory=IRState)
     metrics: MetricsState = Field(default_factory=MetricsState)
     hardware: HardwareState = Field(default_factory=HardwareState)
+    # Nested so SSE can stream domain "doors" (top-level fields were invisible to the UI).
+    doors: DoorsState = Field(default_factory=DoorsState)
 
     # The generic "Peripheral Catch-all" dictionary for the Sorting Office
     devices: Dict[int, Any] = Field(default_factory=dict)
-
-    # ---------------------------------------------------------------------
-    # LCD-specific door duration tracking (WISC parity)
-    # ---------------------------------------------------------------------
-    # Tracks open/close durations for the configured door sensors so the
-    # LCD Pi can render the "plz close sdoor dd:hh:mm:ss" warnings.
-    #
-    # Updated on DOOR_CHANGED events in core/event_handlers/hub_handlers.py.
-    door_sauna_open_since_unix: Optional[int] = None
-    door_bathroom_open_since_unix: Optional[int] = None
-    door_sauna_closed_since_unix: Optional[int] = None
-    door_bathroom_closed_since_unix: Optional[int] = None
 
     # The dynamic device registry. Maps IDXs to a dictionary containing
     # {name: str, type: str, origin: str, entity_id: str, ...}

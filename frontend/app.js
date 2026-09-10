@@ -172,7 +172,8 @@ function wanosApp() {
                 light_color: "#FFD180",
                 lcd_line1: "",
                 lcd_line2: "",
-                lcd_text: ""
+                lcd_text: "",
+                door_closed_max_mins: 5
             },
             ir: {
                 active: false,
@@ -222,6 +223,13 @@ function wanosApp() {
             // ⚡ DYNAMIC REGISTRY: Devices are dynamically injected by the backend.
             devices: {},
             device_metadata: {}, // ⚡ The dynamic registry powering deviceexplorer.html
+            // Nested doors domain (SSE + REST); open/closed-since for Admin Site info + start gate.
+            doors: {
+                sauna_open_since_unix: null,
+                sauna_closed_since_unix: null,
+                bathroom_open_since_unix: null,
+                bathroom_closed_since_unix: null
+            },
             boot_seed: null
         },
 
@@ -1227,6 +1235,11 @@ function wanosApp() {
         /** Admin GPIO output arm ladder label (ticker-driven so WAIT TEMP -> READY updates). */
         gpioOutputArmStatusText: "OFFLINE",
         gpioOutputArmStatusClassName: "text-gray-500",
+        /** Admin Site info: door label suffix + timer (ticker-driven). */
+        doorSaunaLabelText: "Sauna door —",
+        doorSaunaTimerText: "—",
+        doorBathroomLabelText: "Bathroom door —",
+        doorBathroomTimerText: "—",
 
         sunCyclePopoverOpen: false,
 
@@ -1558,7 +1571,7 @@ function wanosApp() {
             fullState.sauna.modulation_pwm = fullState.sauna.modulation_pwm ?? 0;
 
             // Alpine Reactivity Preservation
-            for (const domain of ["system", "sensors", "sauna", "ir", "metrics", "hardware", "device_metadata"]) {
+            for (const domain of ["system", "sensors", "sauna", "ir", "metrics", "hardware", "doors", "device_metadata"]) {
                 if (fullState[domain]) {
                     this.state[domain] = Object.assign({}, this.state[domain], fullState[domain]);
                 }
@@ -1936,6 +1949,24 @@ function wanosApp() {
             // after first SHT11 composite without requiring a page reload.
             this.gpioOutputArmStatusText = this.gpioOutputArmStatus();
             this.gpioOutputArmStatusClassName = this.gpioOutputArmStatusClass();
+            const saunaDoor = this.formatDoorAdminRow(
+                "Sauna door",
+                this.state.devices[10001],
+                this.state.doors && this.state.doors.sauna_open_since_unix,
+                this.state.doors && this.state.doors.sauna_closed_since_unix,
+                now
+            );
+            this.doorSaunaLabelText = saunaDoor.label;
+            this.doorSaunaTimerText = saunaDoor.timer;
+            const bathDoor = this.formatDoorAdminRow(
+                "Bathroom door",
+                this.state.devices[10002],
+                this.state.doors && this.state.doors.bathroom_open_since_unix,
+                this.state.doors && this.state.doors.bathroom_closed_since_unix,
+                now
+            );
+            this.doorBathroomLabelText = bathDoor.label;
+            this.doorBathroomTimerText = bathDoor.timer;
         },
 
         formatTime(totalSeconds) {
@@ -1943,6 +1974,69 @@ function wanosApp() {
             const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             const s = (Math.floor(totalSeconds) % 60).toString().padStart(2, '0');
             return `${h}:${m}:${s}`;
+        },
+
+        /**
+         * LCD-parity duration: [dd:][hh:]mm:ss (omit leading zero day/hour fields).
+         * @param {number|null|undefined} sinceUnix
+         * @param {number} nowUnix
+         * @returns {string}
+         */
+        formatDurationDdhhmmss(sinceUnix, nowUnix) {
+            if (sinceUnix == null || !Number.isFinite(Number(sinceUnix))) return "—";
+            let duration = Math.max(0, Math.floor(Number(nowUnix) - Number(sinceUnix)));
+            const days = Math.floor(duration / 86400);
+            duration %= 86400;
+            const hours = Math.floor(duration / 3600);
+            duration %= 3600;
+            const minutes = Math.floor(duration / 60);
+            const seconds = duration % 60;
+            const pad = (n) => String(n).padStart(2, "0");
+            if (days > 0) return `${pad(days)}:${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+            if (hours > 0) return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+            return `${pad(minutes)}:${pad(seconds)}`;
+        },
+
+        /**
+         * Admin Site info row: label from live device OPEN|CLOSED; timer from matching since-unix.
+         * Falls back to stamps only when device state is missing.
+         * @param {string} baseLabel
+         * @param {string|null|undefined} deviceState OPEN|CLOSED|…
+         * @param {number|null|undefined} openSince
+         * @param {number|null|undefined} closedSince
+         * @param {number} nowUnix
+         * @returns {{ label: string, timer: string }}
+         */
+        formatDoorAdminRow(baseLabel, deviceState, openSince, closedSince, nowUnix) {
+            // Prefer live device state for open/closed label; stamps only drive the timer.
+            // (Stale open_since must not keep the label on "open" after a close.)
+            const raw = (deviceState == null) ? "" : String(deviceState).toUpperCase();
+            let mode = null;
+            let since = null;
+            if (raw === "OPEN") {
+                mode = "open";
+                if (openSince != null && Number.isFinite(Number(openSince))) {
+                    since = openSince;
+                }
+            } else if (raw === "CLOSED") {
+                mode = "closed";
+                if (closedSince != null && Number.isFinite(Number(closedSince))) {
+                    since = closedSince;
+                }
+            } else if (openSince != null && Number.isFinite(Number(openSince))) {
+                mode = "open";
+                since = openSince;
+            } else if (closedSince != null && Number.isFinite(Number(closedSince))) {
+                mode = "closed";
+                since = closedSince;
+            }
+            if (!mode) {
+                return { label: baseLabel + " —", timer: "—" };
+            }
+            return {
+                label: baseLabel + " " + mode,
+                timer: this.formatDurationDdhhmmss(since, nowUnix)
+            };
         },
 
         /** LCD integration master switch (Admin); gates MQTT to LCD Pi agent. */
@@ -3743,7 +3837,7 @@ function wanosApp() {
             return (realWh / 1000).toFixed(3) + " / " + (calcWh / 1000).toFixed(3) + " kWh";
         },
 
-        /** Admin Site health: Rth as 0.00 °C/kW (stored as °C/W; display x1000). */
+        /** Admin Site info: Rth as 0.00 °C/kW (stored as °C/W; display x1000). */
         formatRthInsulation() {
             const raw = this.state && this.state.metrics
                 ? this.state.metrics.r_th_insulation_coefficient
@@ -6147,6 +6241,20 @@ function wanosApp() {
             }
             const action = this.state.sauna.active ? "SAUNA_OFF" : "SAUNA_ON";
             this.publishEvent(action);
+        },
+
+        /**
+         * S1: true when sauna door is CLOSED but closed-since is missing or older than
+         * sauna.door_closed_max_mins (start gate blocks SAUNA_ON).
+         */
+        saunaDoorClosedTooLong() {
+            if (this.state.devices[10001] === "OPEN") return false;
+            const since = this.state.doors && this.state.doors.sauna_closed_since_unix;
+            const maxMins = Number(this.state.sauna.door_closed_max_mins);
+            const limit = (Number.isFinite(maxMins) && maxMins > 0) ? maxMins : 5;
+            if (since == null) return true;
+            const ageSec = Math.floor(Date.now() / 1000) - Number(since);
+            return !Number.isFinite(ageSec) || ageSec > (limit * 60);
         },
 
         updateSaunaSetpoint() {

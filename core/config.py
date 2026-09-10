@@ -63,6 +63,8 @@ class SaunaRuntimeConfig(BaseModel):
     # Degrees C added to the PID setpoint during autohold heat-up (WISC v1: -1.0).
     setpoint_bias: float
     default_timer: int
+    # Max age of door CLOSED before SAUNA_ON is blocked (null closed_since also blocks).
+    door_closed_max_mins: int = 5
     timer_offset_temp: float
     # Sauna software PWM Hz. 0.5 => period 2 s => 1% MOD = 20 ms = 1 full 50 Hz sinus
     # (matches zero-crossing SSR quantum). Override in config.yaml if needed.

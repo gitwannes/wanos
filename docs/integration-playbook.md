@@ -79,9 +79,10 @@ If an edit would *move* an existing hardcode into config: **propose, ask, do not
 | `620xx` | LG webOS TV |
 | `7xxxx` | Z-Wave (sub-bands in `config_zwave.auto.yaml`) |
 | `80001` | Epson |
+| `810xx` | HomeWizard (**G10**) |
 | `900xxx` | Scene-history synthetic |
 
-**Free (examples, not locked):** `31xxx–39xxx`, `63xxx–69xxx`, `81xxx–89xxx`. Pick **one unused band per vendor** at that ship’s kickoff. Do not invent a scheme in code before it is confirmed.
+**Free (examples, not locked):** `31xxx–39xxx`, `63xxx–69xxx`, `82xxx–89xxx`. Pick **one unused band per vendor** at that ship’s kickoff (Samsung **G11** IDX band = lock at G11 implement / re-kickoff — **not** `810xx`). Do not invent a scheme in code before it is confirmed.
 
 ### What to do with the chosen band
 
@@ -321,8 +322,8 @@ New: `[Honeywell]`, `[HomeWizard]`, `[Samsung]`, `[SMA]`, `[HomeConnect]` (or wh
 | Ship | Intent (already in phase G) | Still kickoff |
 |---|---|---|
 | **G9 Honeywell** | Setpoints, ambient, HVAC fire over HTTPS | `somecomfort` vs `evohomeclient` vs `aiolyric`; which thermostats; commandable vs read-only |
-| **G10 HomeWizard** | Local P1 / kWh / sockets | Which meters; whether sockets are commandable (C18) |
-| **G11 Samsung** | Climate power/setpoint | SmartThings cloud vs local `samsungrac` |
+| **G10 HomeWizard** | Local P1 / kWh / sockets | Kickoff **locked 2026-09-10** — poll 60s; scout path proposed (`helpers/homewizard_discovery.py`) — **code only on `implement`**; Z-Wave-style field pick after dump |
+| **G11 Samsung** | Climate power/setpoint | IDX band **TBD at implement / re-kickoff** (not `810xx`); SmartThings cloud vs local `samsungrac` already locked cloud-only |
 | **G12 SMA** | Live production | `pysma` vs SunSpec Modbus |
 | **G13 HomeConnect** | Cycle state (oven/dishwasher/laundry) | Which appliances; commands vs telemetry |
 

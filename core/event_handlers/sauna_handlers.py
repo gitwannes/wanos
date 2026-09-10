@@ -1,7 +1,6 @@
 # --- file: core/event_handlers/sauna_handlers.py ---
 import time
 from typing import Any, Set, Tuple
-from loguru import logger
 from pydantic import ValidationError
 from core.models import Event, EventType, SaunaSetpointPayload, normalize_phases_pwm, ZERO_PHASES_PWM
 from logic.alert_manager import AlertManager
@@ -23,6 +22,14 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     )
     if door_sauna_open:
         await manager.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Door is open.")
+        return False, set()
+    # Door must have been closed recently (config sauna.door_closed_max_mins); null = never seen close.
+    closed_since = manager._state.doors.sauna_closed_since_unix
+    max_mins = int(getattr(manager._config.sauna, "door_closed_max_mins", 5) or 5)
+    if closed_since is None or (int(time.time()) - int(closed_since)) > (max_mins * 60):
+        await manager.logger.warning(
+            "🌡️ Bouncer rejected SAUNA_ON: Door closed too long (or closed_since unknown)."
+        )
         return False, set()
     if manager._state.sensors.sauna_calc_temp is None:
         await manager.logger.warning("🌡️ Bouncer rejected SAUNA_ON: Temperature data is currently missing (NULL).")
@@ -88,7 +95,8 @@ async def handle_sauna_timer_adjusted(event: Event, manager: Any) -> Tuple[bool,
         if manager._sauna_timer_triggered:
             manager._state.sauna.session_end_time += (minutes_to_add * 60)
             manager._timer_manager.cancel("sauna_main")
-            manager._timer_manager.schedule("sauna_main", manager._state.sauna.session_end_time, "SAUNA_TIMER_EXPIRED")
+            # Soft session end: fire Sauna OFF directly (no SAUNA_TIMER_EXPIRED hop).
+            manager._timer_manager.schedule("sauna_main", manager._state.sauna.session_end_time, "SAUNA_OFF")
         else:
             manager._state.sauna.session_end_time = manager._sauna_timer_duration_secs
         return True, {"sauna"}
@@ -103,12 +111,6 @@ async def handle_sauna_hold_toggled(event: Event, manager: Any) -> Tuple[bool, S
     else:
         manager._state.sauna.hold_mode = "hold"
     return True, {"sauna"}
-
-
-async def handle_sauna_timer_expired(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
-    logger.warning("Sauna session limit countdown reached 0.")
-    manager.dispatch(Event(type=EventType.SAUNA_OFF))
-    return False, set()
 
 
 async def handle_sauna_setpoint_changed(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
@@ -161,8 +163,9 @@ async def handle_ir_timer_adjusted(event: Event, manager: Any) -> Tuple[bool, Se
     manager._state.ir.session_end_time = max(min_end, min(max_end, new_end))
 
     manager._timer_manager.cancel("ir_main")
+    # Soft IR session end: fire IR OFF directly (no IR_TIMER_EXPIRED hop).
     manager._timer_manager.schedule(
-        "ir_main", manager._state.ir.session_end_time, "IR_TIMER_EXPIRED"
+        "ir_main", manager._state.ir.session_end_time, "IR_OFF"
     )
     return True, {"ir"}
 
@@ -188,7 +191,7 @@ async def handle_ir_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.ir.modulation_pwm = default_mod
     manager._state.ir.frequency = freq_map.get(default_mod, 0)
 
-    manager._timer_manager.schedule("ir_main", manager._state.ir.session_end_time, "IR_TIMER_EXPIRED")
+    manager._timer_manager.schedule("ir_main", manager._state.ir.session_end_time, "IR_OFF")
 
     # ⚡ Mirror status to the virtual dashboard sensor
     ir_status_idx = manager.resolve_entity_id(ENTITY_IR_STATUS)
@@ -211,11 +214,6 @@ async def handle_ir_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
         manager._state.devices[ir_status_idx] = "OFF"
 
     return True, {"ir", "devices"}
-
-
-async def handle_ir_timer_expired(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
-    manager.dispatch(Event(type=EventType.IR_OFF))
-    return False, set()
 
 
 async def handle_ir_modulation_updated(event: Event, manager: Any) -> Tuple[bool, Set[str]]:

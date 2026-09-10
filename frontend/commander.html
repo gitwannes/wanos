@@ -55,7 +55,7 @@
 
                     <div class="grid grid-cols-2 gap-2 mb-2 w-full">
                         <button :class="state.sauna.active ? 'btn btn-error shadow-lg' : 'btn btn-outline'"
-                                :disabled="((!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON')) || state.sensors.sauna_calc_temp == null || (!state.sauna.active && (state.devices[10001] === 'OPEN' || state.ir.active)))"
+                                :disabled="((!state.hardware.simulations_enabled && (!state.hardware.gpio_output_enabled || state.devices[71036] !== 'ON')) || state.sensors.sauna_calc_temp == null || (!state.sauna.active && (state.devices[10001] === 'OPEN' || saunaDoorClosedTooLong() || state.ir.active)))"
                                 @click="toggleSauna()">
                             <span x-show="state.sauna.active" class="animate-pulse flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">🔥</span> Sauna ON</span>
                             <span x-show="!state.sauna.active" class="flex items-center justify-center gap-1 text-[10px] sm:text-xs"><span class="text-sm">❄️</span> Sauna OFF</span>
@@ -84,6 +84,10 @@
                         <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
                               x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.sauna.active && !state.ir.active && state.devices[10001] === 'OPEN'" x-cloak>
                               Cannot start sauna, please close door
+                        </span>
+                        <span class="text-[10px] md:text-xs font-bold text-warning animate-pulse"
+                              x-show="(state.hardware.simulations_enabled || (state.hardware.gpio_output_enabled && state.devices[71036] === 'ON')) && state.sensors.sauna_calc_temp != null && !state.sauna.active && !state.ir.active && state.devices[10001] !== 'OPEN' && saunaDoorClosedTooLong()" x-cloak>
+                              Cannot start sauna, open sauna door first and check if all is ok
                         </span>
                     </div>
 
@@ -458,7 +462,7 @@
 
         <div data-wanos-light-modal></div>
     </main>
-    <script src="wanos-shell.js?v=19"></script>
-    <script src="app.js?v=3.52"></script>
+    <script src="wanos-shell.js?v=22"></script>
+    <script src="app.js?v=3.56"></script>
 </body>
 </html>

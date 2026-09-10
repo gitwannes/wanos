@@ -20,6 +20,7 @@ SSE_DOMAIN_KEYS: tuple[str, ...] = (
     "ir",
     "metrics",
     "hardware",
+    "doors",
     "devices",
     "device_metadata",
 )

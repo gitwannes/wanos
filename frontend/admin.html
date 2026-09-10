@@ -605,7 +605,7 @@
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                                 <div class="flex flex-col gap-2 p-3 bg-base-200 border border-base-300 rounded-box min-w-0">
-                                    <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2">Site health</div>
+                                    <div class="text-center font-bold text-[10px] text-base-400 uppercase tracking-widest border-b border-base-300 pb-2">Site info</div>
                                     <div class="flex justify-between gap-2"><span class="text-base-400 shrink-0">Mains V</span><span class="font-bold text-info text-right truncate" x-text="state.devices[71046] || 'AWAITING'"></span></div>
                                     <div class="flex justify-between gap-2"><span class="text-base-400 shrink-0">Leak W</span><span class="font-bold text-right" x-text="(state.metrics.p_leak_baseline_watts || 0).toFixed(1) + ' W'"></span></div>
                                     <div class="flex justify-between gap-2"><span class="text-base-400 shrink-0">Total kWh</span><span class="font-bold text-success text-right" x-text="(state.metrics.meter_total_kwh || 0).toFixed(3)"></span></div>
@@ -614,6 +614,14 @@
                                         <span class="text-base-400 shrink-0 cursor-help underline decoration-dotted decoration-base-content/40"
                                               title="Cabin Delta-T per kW of real heat; downward drift means worse seals or insulation.">Rth</span>
                                         <span class="font-bold text-purple-400 text-right whitespace-nowrap" x-text="formatRthInsulation()"></span>
+                                    </div>
+                                    <div class="flex justify-between gap-2 border-t border-base-300 pt-2 mt-1">
+                                        <span class="text-base-400 shrink-0" x-text="doorSaunaLabelText"></span>
+                                        <span class="font-bold text-right whitespace-nowrap" x-text="doorSaunaTimerText"></span>
+                                    </div>
+                                    <div class="flex justify-between gap-2">
+                                        <span class="text-base-400 shrink-0" x-text="doorBathroomLabelText"></span>
+                                        <span class="font-bold text-right whitespace-nowrap" x-text="doorBathroomTimerText"></span>
                                     </div>
                                 </div>
 
@@ -950,5 +958,5 @@
             <form method="dialog" class="modal-backdrop"><button type="button" @click="cancelWanosRestart()">close</button></form>
         </dialog>
     </main>
-    <script src="wanos-shell.js?v=19"></script>
-    <script src="app.js?v=3.52"></script>
+    <script src="wanos-shell.js?v=22"></script>
+    <script src="app.js?v=3.56"></script>

@@ -51,7 +51,7 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C38 + L4 — Session telemetry + LCD WISC + Real W gate + Admin polish** | ✅ **Done 2026-09-08** — [`sauna-ir.md`](../sauna-ir.md) §3.7 / §4.1 / §5.1a | Sauna analytics + LCD + Admin · mid |
 | **C39 — Admin Sauna/IR pane + R_th + WISC water** | ✅ **Done 2026-09-08** — [`sauna-ir.md`](../sauna-ir.md) §4 | Admin + WISC · mid |
 | **C41 — Sauna analytics + Admin/WISC polish** | ✅ **Done 2026-09-09** — [`sauna-ir.md`](../sauna-ir.md) §3.7 / §4 / [`sensor_history.md`](../sensor_history.md) §3 | Sauna analytics + shell · mid |
-| **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; house kWh day/7d/m/y UX; WISC rad runtime (Admin dual timer → **C39** ✅) | History + WISC · mid |
+| **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; sauna kWh (`11001`) day/7d/m/y UX; WISC rad runtime (Admin dual timer → **C39** ✅) | History + WISC · mid |
 | **C36 — Device event history modal** | Right-click device → History → modal table (ON / OFF / set % / …) | Explorer Control · mid |
 | **C37 — Android PWA resume black screen** | ✅ **Done 2026-09-09** — warm resume force-SSE + overlay no x-cloak; OnePlus 12 smoke | Shell / SSE resume · mid |
 | **C40 — Sauna PID v2** | ❌ **Cancelled 2026-09-09** — not open; re-triage when wanted | Sauna PID · mid |
@@ -1088,7 +1088,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ### Out of scope
 
-* Changing soft-hide or auto-off YAML keys / engine semantics.
+* Changing soft-hide or auto-off YAML keys / engine semantics — auto-off SoT unification → **B28** ([`phaseB-blocky.md`](phaseB-blocky.md) § B28), not C13.
 * Reopening **D1** product-type rules (still edited on Timers & types).
 * Explorer Control **Hidden devices** toggle (C1/C7) — separate surface.
 
@@ -1239,7 +1239,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ### Shipped summary
 
-* **Admin:** one **Sauna / IR** card — Site health, LCD mirror, Element @100%, Probes & SSR (moved out of General Diagnostics), live sub-panel expands when session runs (MOD total + U/V/W or IR MOD, runtime + remaining, Real/Calc W, energy).
+* **Admin:** one **Sauna / IR** card — Site info (formerly Site health), LCD mirror, Element @100%, Probes & SSR (moved out of General Diagnostics), live sub-panel expands when session runs (MOD total + U/V/W or IR MOD, runtime + remaining, Real/Calc W, energy).
 * **R_th:** `0.000 °C/W` (3 decimals, not scientific) + tooltip on label.
 * **WISC:** Cold/Hot water value + `L` stay on one line on phone.
 * **Confirmed (product):** sauna remaining arms at `target − timer_offset_temp`, not exact setpoint.
@@ -1302,19 +1302,20 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **WISC:** while sauna/IR active, round **rad** button shows **elapsed runtime** (time on) only — not countdown.
 * **Admin:** ~~sauna/IR panels show both remaining time and elapsed runtime~~ → **C39** ✅ (unified Sauna/IR live pane).
 * **Learned nameplates @ 100% (U/V/W/IR):** four History series from Admin element W panel (`element_power_w`); ingest **every 10 minutes** (climate/SHT cadence family — **not** per kWh pulse). Virtual IDXs + `SENSOR_META` + `note_gauge` (or equivalent) locked at kickoff.
-* **House kWh (`11001`):** already tracked in `sensor_history`. Day UI uses **C16** default **24 h viewport** over **`hires_days`** (default 7) buffer — pan/zoom-out should expose the week. Month/year ranges should already exist for energy kind; **C33** assesses + fixes if Explorer only exposes day or month/year is empty/broken for House energy. Product intent: operator can see **7-day day buffer + month + year** (not day-only forever).
+* **Sauna kWh (`11001`):** already tracked in `sensor_history` (sauna-circuit pulse meter — **not** whole-house; whole-house → **G10**). Day UI uses **C16** default **24 h viewport** over **`hires_days`** (default 7) buffer — pan/zoom-out should expose the week. Month/year ranges should already exist for energy kind; **C33** assesses + fixes if Explorer only exposes day or month/year is empty/broken for sauna energy. Product intent: operator can see **7-day day buffer + month + year** (not day-only forever).
 * **Depends on:** **C31+C32** ✅. Distinct from **C30** (douche); distinct from **C35** / **C39** (live WISC/Admin polish).
 * **Out of scope:** session row schema changes; **B17** / **B18**; per-pulse element W ingest; Real W ~5862 spike (deferred).
 
-### Assess notes (2026-09-03) — House energy “only 24 h”
+### Assess notes (2026-09-03) — Sauna energy “only 24 h”
 
 * **By design (C16):** day charts default to last **24 h**; API returns up to **`hires_days`** hi-res so the user can **zoom out / pan** across ~7 days.
 * **Month / year:** backend summary already returns today/month/year kWh for `kind=energy`; if UI feels day-only, likely FE range picker / empty rollup / operator never switched range — verify at kickoff.
-* **Not** the same as Admin Total kWh display offset (baseline); series SoT remains pulse IDX `11001`.
+* **Not** the same as Admin Total kWh display offset (baseline); series SoT remains pulse IDX `11001` (sauna circuit).
+* Whole-house energy is **out of C33** — **G10** HomeWizard P1.
 
-**Open until kickoff:** which IDX/entity_ids for sauna/IR actuator rows; MOD day source; one vs two History rows for sauna vs IR; virtual IDX map for U/V/W/IR nameplates; confirm House energy month/year UX gap vs education of C16 pan.
+**Open until kickoff:** which IDX/entity_ids for sauna/IR actuator rows; MOD day source; one vs two History rows for sauna vs IR; virtual IDX map for U/V/W/IR nameplates; confirm sauna energy month/year UX gap vs education of C16 pan.
 
-**C33 DoD (stub):** Explorer History day/month/year for sauna + IR per Sonos pattern; four learned-nameplate W@100% series @ 10 min; House energy usable across 7d day buffer + month + year; WISC rad = runtime-only when on; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**C33 DoD (stub):** Explorer History day/month/year for sauna + IR per Sonos pattern; four learned-nameplate W@100% series @ 10 min; sauna energy (`11001`) usable across 7d day buffer + month + year; WISC rad = runtime-only when on; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ## 📋 C36 — Device event history modal (right-click) 🔜 TODO
 
@@ -1357,14 +1358,14 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 ## ✅ C41 — Sauna analytics + Admin/WISC polish — **Done 2026-09-09**
 
-**Letter:** **C41**. Affinity: Operator shell (sauna analytics + Admin/WISC). Size **mid**. Close-out covers **2026-09-08–09** ship after **C38** / **C39** (first-boot DB order, learn gate, UI polish, absolute house Wh).
+**Letter:** **C41**. Affinity: Operator shell (sauna analytics + Admin/WISC). Size **mid**. Close-out covers **2026-09-08–09** ship after **C38** / **C39** (first-boot DB order, learn gate, UI polish, absolute sauna Wh on `11001`).
 
 **Operator request (verbatim, close-out 2026-09-09):**
 
 > remove helpers/reseed_house_kwh_nvram.py
 > close this phase, the first-boot DB bug, PID analysis v1, UI changes - all what we did yesterday & today
 
-**Product reference (canonical):** [`sauna-ir.md`](../sauna-ir.md) §3.7 (PWM), §4–5 (learn window, Admin/WISC, Rth, leak); [`sensor_history.md`](../sensor_history.md) §3 (absolute house Wh); [`reference.md`](../reference.md) (`power_analytics`, sensor history).
+**Product reference (canonical):** [`sauna-ir.md`](../sauna-ir.md) §3.7 (PWM), §4–5 (learn window, Admin/WISC, Rth, leak); [`sensor_history.md`](../sensor_history.md) §3 (absolute sauna Wh on `11001`); [`reference.md`](../reference.md) (`power_analytics`, sensor history).
 
 **Shipped (summary):**
 
@@ -1381,11 +1382,11 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 | Leak + vent | Freeze leak updates while `zwave.vent.sauna` ON |
 | Element UI | Vertical @100% stack; last session runtime **HH:MM:SS** |
 | WISC bathroom Main Light | Physical `71007` → Hue **`51001`** |
-| House kWh | Single absolute NVRAM **`11001`** Wh; Admin **Total kWh** = `11001/1000`; dropped `energy:` dual-baseline config + Meter Wh row |
+| Sauna kWh | Single absolute NVRAM **`11001`** Wh (sauna circuit — **not** whole-house); Admin **Total kWh** = `11001/1000`; dropped `energy:` dual-baseline config + Meter Wh row |
 | Ops | Manual element EMA UPDATE from session CSVs (evening U/V/W); IR left as-is |
 | Helper | `helpers/reseed_house_kwh_nvram.py` removed (operator reseeds Pi NVRAM offline) |
 
-**Out of scope / still open:** **C33** History + nameplates + house kWh ranges; Pi NVRAM reseed to face reading (**1715500** Wh) after deploy. (**C40** PID v2 cancelled — not open.)
+**Out of scope / still open:** **C33** History + nameplates + sauna kWh ranges; Pi NVRAM reseed to face reading (**1715500** Wh) after deploy. (**C40** PID v2 cancelled — not open.) Whole-house energy → **G10**.
 
 **Last DoD:** Product docs audited for learn window, absolute Wh, Admin/WISC polish (2026-09-09).
 
@@ -1441,10 +1442,10 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C26:** kickoff **locked 2026-08-22** — after **C4**; classic scripts; `blockly-*` siblings; page-script dedupe; **`reference.md` § frontend catalogs all `frontend/*.js`**.
 * **C3 / C4** remain open as specified above (later in sequence).
 * **C30:** triage placed **2026-08-27** — kickoff before code (UI chrome, cost config keys, last-session persist home).
-* **C33:** triage **2026-09-01** + expand **2026-09-03** (nameplates @100% / 10 min; house kWh 7d+m/y UX) — kickoff before code. Admin live timers → **C39** ✅.
+* **C33:** triage **2026-09-01** + expand **2026-09-03** (nameplates @100% / 10 min; sauna kWh 7d+m/y UX) — kickoff before code. Admin live timers → **C39** ✅.
 * **C39:** ✅ **Done 2026-09-08** — Admin Sauna/IR unified pane + R_th display + WISC water one-line.
 * **C38 + L4:** ✅ **Done 2026-09-08** — session telemetry / PID analysis v1 + LCD WISC + Real W gate.
-* **C41:** ✅ **Done 2026-09-09** — first-boot DB + learn window + Admin/WISC polish + absolute house Wh.
+* **C41:** ✅ **Done 2026-09-09** — first-boot DB + learn window + Admin/WISC polish + absolute sauna Wh (`11001`).
 * **C36:** triage **2026-09-04** — right-click device → History modal (event table); kickoff before code.
 * **C37:** ✅ **Done 2026-09-09** — OnePlus 12 smoke; resume force-SSE + overlay no x-cloak.
 * **C40:** ❌ **Cancelled 2026-09-09** — PID v2 not open; re-triage when wanted.

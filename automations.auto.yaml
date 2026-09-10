@@ -1226,12 +1226,6 @@ events:
     show_on_dashboard: false
     require_confirmation: false
     enabled: true
-  - id: 25df4527-8989-433d-8ee7-c52fe8273289
-    name: Sauna timer expired
-    origin: system
-    show_on_dashboard: false
-    require_confirmation: false
-    enabled: true
   - id: 97f7eb14-c136-4230-9a11-c393fb8eec19
     name: Sauna hold toggled
     origin: system
@@ -1312,6 +1306,12 @@ events:
     enabled: true
   - id: fff4c790-1b10-4084-a11f-4d7bf519ce40
     name: Sensor error
+    origin: system
+    show_on_dashboard: false
+    require_confirmation: false
+    enabled: true
+  - id: 25df4527-8989-433d-8ee7-c52fe8273289
+    name: Sauna timer expired
     origin: system
     show_on_dashboard: false
     require_confirmation: false

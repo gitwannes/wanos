@@ -218,7 +218,7 @@ def compose_lcd_screen1(
     sauna_active = bool(snapshot.sauna.active)
     ir_active = bool(snapshot.ir.active)
 
-    sauna_door_open = snapshot.door_sauna_open_since_unix is not None
+    sauna_door_open = snapshot.doors.sauna_open_since_unix is not None
     sauna_hue_on = resolve_sauna_hue_on(snapshot, sauna_hue_entity_idx)
 
     if not sauna_active and not ir_active and not sauna_hue_on:
@@ -239,7 +239,7 @@ def compose_lcd_screen1(
             line2 = compose_temp_hum_with_closed_duration(
                 snapshot.sensors.sauna_calc_temp,
                 snapshot.sensors.sauna_calc_hum,
-                closed_since=snapshot.door_sauna_closed_since_unix,
+                closed_since=snapshot.doors.sauna_closed_since_unix,
                 now=now_i,
             )
         return (line1, line2)

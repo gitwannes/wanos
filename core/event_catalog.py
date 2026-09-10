@@ -26,7 +26,6 @@ _SYSTEM_SEED_ROWS: Tuple[Tuple[str, str, str], ...] = (
     ("SAUNA_MODULATION_UPDATED", "b94ab2e2-a5d6-4651-9ff8-c832221c9169", "Sauna modulation updated"),
     ("SAUNA_SETPOINT_REACHED", "60821356-d372-4e53-a00b-fdd0377fe0e6", "Sauna setpoint reached"),
     ("SAUNA_HOLD", "718d81a1-c9bb-4f02-8b92-78de27c9aae9", "Sauna hold"),
-    ("SAUNA_TIMER_EXPIRED", "25df4527-8989-433d-8ee7-c52fe8273289", "Sauna timer expired"),
     ("SAUNA_HOLD_TOGGLED", "97f7eb14-c136-4230-9a11-c393fb8eec19", "Sauna hold toggled"),
     ("SAUNA_TIMER_ADJUSTED", "8af93aec-f43a-422f-b022-1a1f9558c7f7", "Sauna timer adjusted"),
     ("IR_TIMER_ADJUSTED", "c4e8a1b2-9d3f-4a5e-b6c7-d8e9f0a1b2c3", "IR timer adjusted"),

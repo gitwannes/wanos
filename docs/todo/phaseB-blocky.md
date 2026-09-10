@@ -1883,7 +1883,7 @@ UUIDs: locked in `core/event_catalog.py`. **Name** = Blockly / catalog display s
 | `SAUNA_MODULATION_UPDATED` | Sauna modulation updated | |
 | `SAUNA_SETPOINT_REACHED` | Sauna setpoint reached | Seeded + Blocky-pickable (B10B); emit may land later |
 | `SAUNA_HOLD` | Sauna hold | |
-| `SAUNA_TIMER_EXPIRED` | Sauna timer expired | |
+| ~~`SAUNA_TIMER_EXPIRED`~~ | ~~Sauna timer expired~~ | **Removed S1** — soft timer schedules **Sauna OFF** directly |
 | `SAUNA_HOLD_TOGGLED` | Sauna hold toggled | |
 | `SAUNA_TIMER_ADJUSTED` | Sauna timer adjusted | |
 | `SAUNA_DOOR_GRACE_EXPIRED` | Sauna paused (door open) | Door open too long while sauna active → heaters pause |
@@ -1905,13 +1905,13 @@ UUIDs: locked in `core/event_catalog.py`. **Name** = Blockly / catalog display s
 
 | EventType key | Status |
 |---|---|
-| `IR_TIMER_EXPIRED` | Internal only — only `dispatch(IR_OFF)`; rules use **IR OFF** |
+| ~~`IR_TIMER_EXPIRED`~~ | **Removed S1** — soft IR timer schedules **IR OFF** directly; rules use **IR OFF** |
 | `HUB_STATE_CHANGED` + telemetry SEs above | Catalog + bus yes; Blockly pickers exclude (`NON_PICKABLE_SYSTEM_UUIDS`) |
 | `LIGHTING_STATE_CHANGED` | **Removed** from codebase (enum + handler + registry); lights use `HUB_STATE_CHANGED` |
 
 (`SAUNA_SETPOINT_REACHED` remains seeded + pickable; emit may land later — not a B9A gate.)
 
-**Not in catalog (internal bus only):** timers/infra (incl. `IR_TIMER_EXPIRED`), integration toggles, alerts. **`EMAIL_REQUESTED`:** wait for phase **E**.
+**Not in catalog (internal bus only):** timers/infra, integration toggles, alerts. **`EMAIL_REQUESTED`:** wait for phase **E**.
 
 **User events (config only — leave code):** migrate from live `scene: true` rules / SCENE_* keys:
 
@@ -2051,6 +2051,7 @@ Pointers only — detail under § B10F / § B12–B18:
 * **B10L** — Shared **NOT CONNECTED** overlay: richer connect status + copy **Re-connecting to WanOS...** — ✅ **Done 2026-09-05**.
 * **B10M** — Explorer Hue preset duplicate settings — ✅ **Done 2026-09-05**.
 * **B27** — bugfix: **TV ON** rule — Sonos OFF not applied / log2 gap — **∥ cluster** (triage **2026-09-01**).
+* **B28** — assess: auto-off SoT → singular `automations:` rules; Timers & types = filtered overview (triage **2026-09-10**).
 * **B10N** — ✅ **Done 2026-08-15** — closed without dedicated code; covered by **B10K** Item 3.
 * **C18** — Explorer Control live lag — ✅ **Done 2026-08-16**; [`phaseC-shell.md`](phaseC-shell.md) § C18.
 * **C19** — History auto-refresh blank — ✅ **Done 2026-08-16**; [`phaseC-shell.md`](phaseC-shell.md) § C19.
@@ -2511,6 +2512,48 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 **Open until kickoff:** repro with Sonos audibly ON before TV wake; whether fix is Sonos bridge, automation engine force-OFF, or log2 formatter only.
 
 **B27 DoD (stub):** TV ON with Sonos playing → Sonos stops + state reflects OFF; log2 shows Sonos OFF when state changes (or documents intentional skip); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+### Phase B28 — Auto-off SoT → singular automation rules (assess) 🔜 TODO
+
+**Letter:** **B28**. **Sequence #5** (after **B24**; after **B14b** Set for/after). Size **high**. Status **hold** — triage **2026-09-10**. **Assess only** until kickoff locks disposition + a later implement ship is commanded.
+
+**Operator request (verbatim, 2026-09-10):**
+
+> the current auto-off sits in "Timers & types" - is it an idea to have the configuration of the auto-off moved to the automation yaml?
+> that way, there is no seperate config & code for the auto-off
+> I would keep the "Timers & types" but have the timers part (auto-off) read the config from the automation yaml (& filter on "singular auto-off rules) - that way I have an overview, like I have now, of all auto-off
+> assess, goal is to triage, not kickoff
+
+### Verified facts (not assumptions)
+
+* Auto-off **already** lives in **`automations.auto.yaml`**, but as a **parallel domain** `auto_off_devices:` (`managed_auto_off` + general / per-type / per-device delays) — **not** as `automations:` Library rules. Shipped **B8**.
+* Dedicated path today: `core/auto_off_policy.py` + timer arm/cancel + `GET/PUT /api/auto-off-timer` + Admin **Timers & types** (`lightingautooff.js`). Product types (`device_product_types`) share that page (**D1**) and stay separate.
+* **B14 part 1** ✅ already ships Set **for/after** — a singular rule shape `When <eid> ON → Set <eid> OFF after N` is expressible in Library.
+* **B24** (open) is per-rule sweep reconcile — relevant if auto-off becomes rules that must re-arm when already ON at sweep.
+* **C13** (open) merges Hidden → Timers & types UI only; explicitly **out of scope** for auto-off YAML/engine semantics.
+
+### Triage intent (not locked)
+
+* **Directionally yes:** retire parallel `auto_off_devices:` + dedicated auto-off engine; SoT = singular `automations:` rules; keep **Timers & types** as an **overview** that filters those rules (edit membership/delay there and/or deep-link to Library).
+* **Not** “move YAML file” — already same file; this is **unify domains / code paths**.
+* **Not** **C13**, **B17**, or reopen closed **B8** as a bugfix — new phase.
+
+### Assess scope (stub — expand at kickoff)
+
+* Rule shape / stable marker for “singular auto-off” (tag? `kind`? structural match only?).
+* Per-type + general **defaults** today (`default_auto_off_minutes` / `default_pertype_auto_off_minutes`) — keep as defaults YAML, expand to N rules, or drop inherit?
+* Engine parity: arm on ON, cancel on OFF, replace on re-ON, boot/sweep — vs Set after + **B24**.
+* Timers & types write path vs Library Blockly surgical write (no dual SoT fight); migrator + dual-read window.
+* What stays on Timers page: product types (**D1**); soft-hide column (**C13**).
+
+### Out of scope (this triage)
+
+* Implementing cutover, deleting `auto_off_devices:`, or changing Timers UI now.
+* Folding into **C13** / **B17** / **P**.
+
+**B28 DoD (stub):** written assess with recommended disposition (go / keep parallel / hybrid) + marker/defaults/engine/UI write-path answers; **no code** until a later implement command. **Last DoD (only if a later ship lands):** audit & update ALL `docs/**/*.md` (+ root README) against shipped behavior.
 
 ---
 

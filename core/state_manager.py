@@ -593,6 +593,9 @@ class StateManager:
             self._state.sauna.target_temp = float(self._config.sauna.default_sauna_setpoint)
             self._state.sauna.min_temp = float(self._config.sauna.min_temp)
             self._state.sauna.max_temp = float(self._config.sauna.max_temp)
+            self._state.sauna.door_closed_max_mins = int(
+                getattr(self._config.sauna, "door_closed_max_mins", 5) or 5
+            )
             self._state.boot_seed = self._config.boot_seed
 
             self._state.ir.modulation_pwm = self._config.ir.default_ir_modulation
@@ -1053,9 +1056,14 @@ class StateManager:
             # Rule 3: Telemetry Health (Always required, even if it's simulated telemetry)
             if self._state.sensors.sauna_calc_temp is None:
                 reasons.append("Telemetry offline")
-            # Rule 4: Physical Door (Sauna Only)
+            # Rule 4: Physical Door (Sauna Only) — sealed CLOSED, and closed recently
             if event_name == "SAUNA_ON" and self._state.devices.get(10001) == "OPEN":
                 reasons.append("Door open")
+            elif event_name == "SAUNA_ON":
+                closed_since = self._state.doors.sauna_closed_since_unix
+                max_mins = int(getattr(self._config.sauna, "door_closed_max_mins", 5) or 5)
+                if closed_since is None or (int(time.time()) - int(closed_since)) > (max_mins * 60):
+                    reasons.append("Door closed too long")
             # Rule 5: Sauna / IR mutual exclusion
             if event_name == "SAUNA_ON" and self._state.ir.active:
                 reasons.append("IR active")
@@ -1337,7 +1345,8 @@ class StateManager:
                     if current_temp >= threshold_temp:
                         self._sauna_timer_triggered = True
                         self._state.sauna.session_end_time = int(time.time()) + self._sauna_timer_duration_secs
-                        self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time, "SAUNA_TIMER_EXPIRED")
+                        # Soft session end: SAUNA_OFF directly (Library Sauna OFF rules still fire).
+                        self._timer_manager.schedule("sauna_main", self._state.sauna.session_end_time, "SAUNA_OFF")
                         logger.info(f"Heat threshold met ({current_temp}°C >= {threshold_temp}°C). Activating timer countdown!")
                         state_changed = True
                         changed_domains.add("sauna")

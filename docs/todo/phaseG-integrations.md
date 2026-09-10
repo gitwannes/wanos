@@ -23,9 +23,9 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G3 — OWM poll** | ✅ **Done 2026-08-15** — outside temp/hum every **10′** (was 30′) |
 | **G4 — OWM daily + hot sun** | One Call 4.0 once/day; hot+full-sun → cinema opens to **60% open** |
 | **G5 — Cinema rolluik half** | ✅ **Done 2026-08-16** — dashboard UE/UR; open % **> 50** → set **50%** open (stored **50**); legacy canvas + **B9C** |
-| **G11 — Samsung SmartThings** | Airco climate — **own ship** (1st of 5) — kickoff **locked 2026-08-20** |
+| **G11 — Samsung SmartThings** | Airco climate — **own ship** (1st of 5) — kickoff locked **2026-08-20**; **IDX band TBD** at implement (not `810xx`) |
 | **G9 — Honeywell** | Thermostats / Evohome — **own ship** (2nd) |
-| **G10 — HomeWizard** | Energy local API — **own ship** (3rd) |
+| **G10 — HomeWizard** | Energy local API — **own ship** (3rd) — kickoff **locked 2026-09-10**; band **`810xx`**; may implement **before** G11+G9; discovery scout + Z-Wave-style field pick |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
@@ -33,7 +33,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 
 Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** ✅ **Done 2026-08-22** (Pi smoke **2026-08-22**). **G16** ✅ **Done 2026-08-27** (Pi smoke **2026-08-27**). **G4** still owns the automatic hot-sun morning open.
 
-**G11 → G9 → G10 → G12 → G13:** remaining vendor bridges — **one integration per code run**, this order, **never combined**. Operator reordered **G11 first** **2026-08-20**; **G16** ✅ shipped **2026-08-27**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
+**G11 → G9 → G10 → G12 → G13:** remaining vendor bridges — **one integration per code run**, **never combined**. Original letter order G11 first (**2026-08-20**); **G10 may implement before G11+G9** (operator override **2026-09-10**). **G16** ✅ shipped **2026-08-27**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
 ---
 
@@ -412,7 +412,7 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 > The Library: homeconnect or aiohomeconnect
 > How it works: This library interfaces with the official BSH Home Connect REST API. It establishes a local Server-Sent Events (SSE) stream connected to their cloud servers, allowing your Python code to listen for real-time oven temperatures, dishwasher states, or laundry cycle updates.
 
-**Locked for all five:** **one integration per PR / code run**; order **G11 → G9 → G10 → G12 → G13** (operator reordered **2026-08-20**); do not combine. Size **high** each. Default sequence: after **G4**, before **F**. Config/creds/IPs/device maps → home pack (**P**). **Library pick stays inside each phase** (G9/G11/G12/G13 kickoff) — **not this triage**. Admin enable + Explorer/Blockly surface + G6 reload row: **assess at that ship’s kickoff**. Shared procedure (do not copy into each stub): [`docs/integration-playbook.md`](../integration-playbook.md).
+**Locked for all five:** **one integration per PR / code run**; do not combine. Size **high** each. Letter order was **G11 → G9 → G10 → G12 → G13** (**2026-08-20**); **G10 may ship before G11+G9** (**2026-09-10**). Default sequence: after **G4**, before **F**. Config/creds/IPs/device maps → home pack (**P**). **Library pick stays inside each phase** (G9/G11/G12/G13 kickoff) — **not this triage**. Admin enable + Explorer/Blockly surface + G6 reload row: **assess at that ship’s kickoff**. Shared procedure (do not copy into each stub): [`docs/integration-playbook.md`](../integration-playbook.md).
 
 ---
 
@@ -439,9 +439,9 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 
 ---
 
-## 📋 G10 — HomeWizard energy 🔜 TODO
+## 📋 G10 — HomeWizard energy 🔜 TODO — kickoff **locked 2026-09-10** (field pick after dump)
 
-**Origin:** operator inbox **2026-08-14**. **3rd of 5.** Own ship. After **G9**. **Not** same run as G9/G11+.
+**Origin:** operator inbox **2026-08-14**. **3rd of 5** by original letter order; **implement may run before G11+G9** (operator override **2026-09-10**). Own ship. **Not** same run as G9/G11+.
 
 **Operator request (verbatim):**
 > - 5 integrations, each to be done seperately, not in the same code run - but in this order
@@ -452,11 +452,64 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 >
 > *(Full five-integration inbox text in § Inbox 2026-08-14.)*
 
-**Intent:** Local API v1/v2 via `python-homewizard-energy` — P1 / Wi-Fi kWh / Energy Sockets; no cloud.
+**Operator kickoff (verbatim excerpts 2026-09-10):**
+> Coding G10 before G11+G9: confirmed
+> p1 meter, kWh meter for PV, 3 sockets kWh: airco, TV, diepvries
+> for PV: yes, in&export W, kWh for all, gas, everything that you can get
+> 11001 = actualy the sauna energy meter, not the complete house-kwh, that will come from homewizard
+> [sockets:] read-only power
+> Q6: B
+> poll every minute: keep detail info for 1 week, same as the rest (for history / graphs)
+> proposal ok (helpers/homewizard_discovery.py, this is now) - in pipeline = z-wave style picker
+> "house energy" move to "Sauna energy" in this ship
+
+**Intent:** Local API via `python-homewizard-energy` — P1 / Wi‑Fi kWh / Energy Sockets; no cloud. Whole-house energy SoT = HomeWizard (not GPIO `11001`).
 
 **Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G10-only.
 
-**G10 DoD:** HomeWizard metrics in WanOS on Pi; own ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+### Locked decisions (2026-09-10)
+
+| Topic | Decision |
+|---|---|
+| **Sequence** | **G10 may implement before G11+G9**. Still one ship; not bundled. |
+| **Devices** | **P1** · **PV Wi‑Fi kWh meter** · **3 Energy Sockets** (airco, TV, diepvries) |
+| **Library / API** | **`python-homewizard-energy` + API v2** (HTTPS + bearer token) |
+| **Ingest** | **REST poll** every **60 s** (`poll_secs: 60`) — not WebSocket in v1 |
+| **History** | **Yes** — `history.tracked_entities` / sensor_history; hi-res detail **`hires_days` = 7** (same as rest); 1′ poll aligns with existing **60 s** power-sample throttle |
+| **Sockets** | **Read-only power** — no ON/OFF, no C18 |
+| **Bridge kind** | **Telemetry-only** |
+| **IDX band** | **`810xx`** |
+| **Entity prefix** | **`sensor.energy.homewizard.<slug>`** (type `power` / `energy` / `fluid` per field after pick) |
+| **Field → idx pick** | **Z-Wave-style:** discovery dump lists available measurement fields; operator **chooses** which get idxs in `device_map` (curated map, not auto-import-all). Gas/`external[]` included **only if present in dump** and selected. |
+| **Discovery scout** | **Proposed path:** `helpers/homewizard_discovery.py` (pair + dump + pick list). **Not written until `implement`.** |
+| **G6 scoped reload** | **Not in this ship** — full reload only |
+| **Explorer** | Read-only analog rows (`power` / `energy` / `fluid` / `sensor`) |
+| **Admin enable** | **Yes** (playbook) |
+| **Blockly** | No new block types |
+| **Log tag** | **`[HomeWizard]`** |
+| **`11001` / Admin Total kWh** | **Stays sauna** — not in HomeWizard |
+| **Runtime label `11001`** | **`"House energy"` → `"Sauna energy"`** in this ship (code + docs) |
+
+### Field pick — how (Z-Wave-style)
+
+Same idea as Z-Wave `device_map`: hardware exposes many values; WanOS only maps what you curate.
+
+1. After **`implement`** (scout): run **`helpers/homewizard_discovery.py`** per device IP (button-pair → token in `~/.config/wanos/`, dump JSON).
+2. Dump shows **every** measurement key + live value (+ `external[]` if any).
+3. You mark which keys to import (reply in kickoff / edit candidate YAML).
+4. G10 bridge implement writes those into **`810xx` `device_map`** only — one WanOS idx per selected field (or agreed composite). Unselected fields stay unused.
+
+**Not locked until dump:** concrete field list, gas presence/type, exact idxs inside `810xx`.
+
+### Open (post-dump only)
+
+* Which measurement fields / `external[]` entries to import.
+* Exact `810xx` idx assignment + display names.
+* Per-field product type (`power` vs `energy` vs `fluid`).
+
+**Out of scope (G10):** HomeConnect (**G13**); Samsung (**G11**); SMA (**G12**) unless folded later; Energy Socket switching; G6 modal row; WebSocket ingest; retargeting Admin Total kWh off `11001`.
+
+**G10 DoD:** HomeWizard poll@60s on Pi for selected `810xx` metrics; Admin enable; history 7d hi-res; `11001` label Sauna energy; discovery helper used for pick; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
@@ -494,12 +547,12 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 | **Library** | **`pysmartthings`** (PyPI; inbox “python-smartthings” = informal name). Pin to **last release compatible with Pi Python** at implement (v4.x requires **3.13+**; v3.7.x requires **3.12+** — confirm Pi venv before pin). **Fallback:** thin **`aiohttp`** client against public REST if no compatible wheel. |
 | **Auth — production** | **OAuth 2.0 refresh-token flow** (SmartThings-recommended for ongoing access). Tokens in **`.env`** / home pack — not git. |
 | **Auth — discovery** | **PAT** acceptable for **initial device/capability discovery only** (see § PAT guide below). New PATs expire in **24 h** — not a production credential. |
-| **IDX band** | **`810xx`** — **`81001`** = airco climate entity (only device today). |
+| **IDX band** | **TBD at G11 implement / re-kickoff** — **not** `810xx` (`810xx` = HomeWizard / **G10**; see `config.yaml`). Pick an unused free band then. |
 | **Entity prefix** | **`climate.samsung.<slug>`** (from display name via registry birth). |
 | **Bridge kind** | **Mixed / commandable climate** — C18 applies to outbound power / mode / setpoint commands. |
 | **Commandable** | **Power** on/off · **cooling setpoint** (16–30 °C) · **HVAC mode** (`cool` / `dry` / `wind` / `auto` / `heat`) |
 | **Read-only telemetry** | **Current temp** · **humidity** · **instant W** · **cumulative energy (Wh→kWh)** |
-| **Power consumption** | **Yes** — `powerConsumptionReport.powerConsumption`: `power` (W) + `energy` / `persistedEnergy` (Wh). Track on idx **81001** + sensor history. |
+| **Power consumption** | **Yes** — `powerConsumptionReport.powerConsumption`: `power` (W) + `energy` / `persistedEnergy` (Wh). Track on the **chosen** climate idx + sensor history. |
 | **Explorer Control** | **Option C:** ON/OFF + **HVAC mode selector** + **setpoint** control. Show current temp / humidity as read-only alongside controls. |
 | **History** | **Yes** — at minimum **ON/OFF**; plus **setpoint**, **mode**, **temp**, **humidity** when present; plus **W / kWh** if device exposes them. |
 | **Blockly** | Existing **`HUB_STATE_CHANGED`** pickers for ON/OFF / level where applicable; **no new block types** in G11 unless implement discovers a gap (assess then — default: metadata-only appearance). |
@@ -586,13 +639,14 @@ Second call reveals capabilities (temperature, humidity, switch, thermostatMode,
 
 ### Open at implement (not blockers for kickoff)
 
+* **IDX band + concrete idx** for `buro-cinema` — lock at implement / re-kickoff (**not** `810xx`).
 * Pi Python version → **`pysmartthings` pin** vs aiohttp fallback.
 * OAuth client registration (SmartThings developer workspace) — step-by-step in `docs/integration_samsung.md` at ship.
 * Confirm energy unit display (Wh → kWh) in Explorer History / Control readouts.
 * Poll interval default (propose in config YAML comment at implement).
 * Stale cloud reads (CLOUD OCF RAC — monitor on Pi smoke; `reportStateRealtime` is **disabled** on this unit).
 
-**G11 DoD:** One Samsung airco (`buro-cinema`, idx **81001**) live on Pi via SmartThings Cloud; Explorer ON/mode/setpoint + temp/humidity; history for ON/OFF + climate attrs + **power W + energy kWh from `powerConsumptionReport`**; C18 on commands; Admin enable + `[Samsung]` logs; G6 scope **`samsung`** (handler + alerts; modal row when G6 ships); OAuth refresh for ongoing auth; no `samsungrac`; dishwasher not in this ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G11 DoD:** One Samsung airco (`buro-cinema`, **idx TBD**) live on Pi via SmartThings Cloud; Explorer ON/mode/setpoint + temp/humidity; history for ON/OFF + climate attrs + **power W + energy kWh from `powerConsumptionReport`**; C18 on commands; Admin enable + `[Samsung]` logs; G6 scope **`samsung`** (handler + alerts; modal row when G6 ships); OAuth refresh for ongoing auth; no `samsungrac`; dishwasher not in this ship. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

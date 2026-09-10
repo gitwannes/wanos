@@ -2,12 +2,16 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
+**Last updated:** 2026-09-10 (S1 close-out — Pi smoke OK; archived `_archive/phaseS-sauna.md`)
+**Last updated:** 2026-09-10 (G10 kickoff locked — poll 60s; discovery scout; Z-Wave-style field pick)
+**Last updated:** 2026-09-10 (G10 kickoff — HomeWizard; `11001` = sauna kWh docs; Samsung IDX unlocked)
+**Last updated:** 2026-09-10 (B28 triage — assess auto-off SoT → singular automation rules)
 **Last updated:** 2026-09-09 (S1 vent strip — hardcode removed; Library + Timers & types own post-OFF fan)
 **Last updated:** 2026-09-09 (C37 close-out — Android PWA resume black screen; OnePlus 12 smoke OK)
 **Last updated:** 2026-09-09 (C40 cancelled — PID v2 not open; C38/C41 already Done)
 **Last updated:** 2026-09-09 (C41 close-out — sauna analytics + Admin/WISC polish + absolute house Wh)
 **Last updated:** 2026-09-09 (Ship B7 / B14 part 1 close-out — Pi smoke OK)
-**Last updated:** 2026-09-08 (S1 triage + kickoff — sauna vent strip + door start gate)
+**Last updated:** 2026-09-10 (S1 door start gate + timer-hop removal — code shipped; smoke closed above)
 
 ---
 
@@ -35,7 +39,7 @@ Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase
 | **G** | Integrations | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **P** | Portability | [`phaseP-portability.md`](phaseP-portability.md) |
 | **L** | Local character LCDs | [`phaseL-lcd.md`](phaseL-lcd.md) |
-| **S** | Sauna plant (vent + start gate) | [`phaseS-sauna.md`](phaseS-sauna.md) |
+| **S** | Sauna plant (vent + start gate) | [`_archive/phaseS-sauna.md`](_archive/phaseS-sauna.md) (archived) |
 
 **DoD (every phase):** Last step = audit & update all `docs/**/*.md` (+ root README) against shipped behavior.
 
@@ -94,9 +98,10 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **C38 + L4** | Sauna session telemetry + LCD WISC timer/door-closed + Real W MOD gate + Admin last-poll/GPIO/ARM modal — **close-out 2026-09-08** — [`phaseC-shell.md`](phaseC-shell.md) § C38 · [`phaseL-lcd.md`](phaseL-lcd.md) § L4 |
 | **C39** | Admin Sauna/IR unified pane + R_th `0.000 °C/W` + WISC water one-line — **close-out 2026-09-08** — [`phaseC-shell.md`](phaseC-shell.md) § C39 |
 | **B7 / B14 part 1** | Set for/after + H1/H3 + 90001 gate — **Pi smoke 2026-09-09** — [`phaseB-blocky.md`](phaseB-blocky.md) § B14 part 1 |
-| **C41** | First-boot DB order + learn window + Admin/WISC polish + absolute house Wh (`11001`) — **close-out 2026-09-09** — [`phaseC-shell.md`](phaseC-shell.md) § C41 |
+| **C41** | First-boot DB order + learn window + Admin/WISC polish + absolute sauna Wh (`11001`) — **close-out 2026-09-09** — [`phaseC-shell.md`](phaseC-shell.md) § C41 |
 | **C37** | bugfix: Android PWA resume black screen — **OnePlus 12 smoke 2026-09-09** — [`phaseC-shell.md`](phaseC-shell.md) § C37 |
 | **C40** | Cancelled **2026-09-09** — PID v2 not open; re-triage when wanted — [`phaseC-shell.md`](phaseC-shell.md) § C40 |
+| **S1** | Sauna vent strip + door closed ≤5 min start gate + timer-hop removal — **Pi smoke 2026-09-10** — [`_archive/phaseS-sauna.md`](_archive/phaseS-sauna.md) |
 
 ---
 
@@ -111,43 +116,43 @@ All open items. **Detail** = phase file section.
 2   open   low  B12          rule-list folder/tag                               phaseB § B12
 3   open   mid  B26          independent If sequence under Then (all-match)     phaseB § B26
 4   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)      phaseB § B24
-5   open   high E            Gmail transport / outbox + Blockly Messages        phaseE
-6   open   mid  C3           Force ALL-OFF                                      phaseC § C3
-7   open   mid  C4           Rename HTML entrypoints (commander→wisc, blocky→blockly; login landing)  phaseC § C4
-8   open   mid  C28          LG TV skins (explorer-tv + wisc-tv; gate from login) phaseC § C28
-9   open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
-10  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
-11  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
-12  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
-13  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
-14  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
-15  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
-16  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
-17  open   low  G7           Integration log tags                               phaseG § G7
-18  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
-19  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
-20  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
-21  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
-22  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
-23  open   high G9           Honeywell / Evohome                                phaseG § G9
-24  open   high G10          HomeWizard energy                                  phaseG § G10
-25  open   high G12          SMA solar                                          phaseG § G12
-26  open   high G13          HomeConnect BSH                                    phaseG § G13
-27  open   high F            Security bridge (F1→F7)                            phaseF
-28  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
-29  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-30  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-31  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-32  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-33  hold   high P            Other homes / portability (assess)                 phaseP
-34  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
-35  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
-36  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
-37  open   mid  C33          Sauna/IR History + nameplates + house kWh (Admin timers→C39)  phaseC § C33
-38  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
-39  open   mid  S1           Sauna vent strip (rules+timers) + door closed start gate  phaseS § S1
+5   hold   high B28          assess: auto-off SoT → singular automation rules   phaseB § B28
+6   open   high E            Gmail transport / outbox + Blockly Messages        phaseE
+7   open   mid  C3           Force ALL-OFF                                      phaseC § C3
+8   open   mid  C4           Rename HTML entrypoints (commander→wisc, blocky→blockly; login landing)  phaseC § C4
+9   open   mid  C28          LG TV skins (explorer-tv + wisc-tv; gate from login) phaseC § C28
+10  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
+11  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
+12  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
+13  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
+14  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
+15  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
+16  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
+17  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
+18  open   low  G7           Integration log tags                               phaseG § G7
+19  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
+20  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
+21  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
+22  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
+23  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
+24  open   high G9           Honeywell / Evohome                                phaseG § G9
+25  open   high G10          HomeWizard energy (kickoff locked; discovery next) phaseG § G10
+26  open   high G12          SMA solar                                          phaseG § G12
+27  open   high G13          HomeConnect BSH                                    phaseG § G13
+28  open   high F            Security bridge (F1→F7)                            phaseF
+29  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
+30  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+31  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+32  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+33  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+34  hold   high P            Other homes / portability (assess)                 phaseP
+35  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
+36  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
+37  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
+38  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
+39  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
 ```
-Near-term: **S1** vent strip ✅ **2026-09-09** (door gate still open — kickoff Qs). **B14b** next Blockly ship → **B26** → **B24**. **B12** may run ∥ **B14b**. **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside **B14b**. Vendor bridges **G11→G9→G10→G12→G13** after **G4**, before **F**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **B7 / B14 part 1** ✅ **Pi smoke 2026-09-09**. **C38** / **C41** ✅ **close-out**. **C40** cancelled (PID v2 not open). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **B14b** next Blockly ship → **B26** → **B24**. **B28** hold assess (auto-off → singular rules) — after **B14b** / prefer after **B24**; not **C13**. **B12** may run ∥ **B14b**. **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside **B14b**. Vendor bridges: **G10** may implement **before** G11+G9 (kickoff override **2026-09-10**); else **G11→G9→G10→G12→G13**; default after **G4**, before **F**. **S1** ✅ **Pi smoke 2026-09-10** (archived). **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **B7 / B14 part 1** ✅ **Pi smoke 2026-09-09**. **C38** / **C41** ✅ **close-out**. **C40** cancelled (PID v2 not open). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 
@@ -164,7 +169,7 @@ Not lettered product phases. Detail stays here (no `phaseX` file) unless re-home
 | **Cinema merge ON/OFF rules** | open | Operator YAML — pickable cinema state **to be checked** |
 | **Background Leak = 0.0 W** | hold | Verify |
 | **3-phase kWh meter / Pi power** | hold | Site / manual |
-| **energy.meter_baseline_kwh** | superseded | **C41 2026-09-09** — dual baseline/`energy:` config removed. Canonical = NVRAM IDX `11001` absolute Wh; Admin **Total kWh** = `11001/1000`. Reseed `11001` to `round(face_kWh*1000)` after deploy (e.g. 1715.5 → 1715500). SoT: [`sensor_history.md`](../sensor_history.md) §3 |
+| **energy.meter_baseline_kwh** | superseded | **C41 2026-09-09** — dual baseline/`energy:` config removed. Canonical = NVRAM IDX `11001` **sauna-circuit** Wh (not whole-house); Admin **Total kWh** = `11001/1000`. Reseed `11001` to `round(face_kWh*1000)` after deploy (e.g. 1715.5 → 1715500). Whole-house → **G10** HomeWizard P1. SoT: [`sensor_history.md`](../sensor_history.md) §3 |
 | **R1 — source-available license** | done | **2026-09-01** — see § R1 below |
 
 ### R1 — Source-available license — Done 2026-09-01

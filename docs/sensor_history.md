@@ -13,7 +13,7 @@ Related documents:
 
 ### 1.1 Goals
 * Persist and visualize **power** history for:
-  * Whole-house kWh pulse meter (IDX `11001`)
+  * Sauna circuit kWh pulse meter (IDX `11001`)
   * Z-Wave instantaneous power sensors (IDX `74001`, `74003`)
 * Persist and visualize **water** consumption history for:
   * Cold water (IDX `11002`)
@@ -62,7 +62,7 @@ Z-Wave power IDXs (`74001`, `74003`) include **integrated kWh** in summary tiles
 
 | IDX | Name | Kind | History series |
 |-----|------|------|----------------|
-| `11001` | House kWh pulse | Energy pulse (1 pulse = 1 Wh) | Instant W (from Δt at sample points) + Wh consumption buckets |
+| `11001` | Sauna kWh pulse | Energy pulse (1 pulse = 1 Wh) | Instant W (from Δt at sample points) + Wh consumption buckets |
 | `74001` | PC power | Z-Wave Power (W) | Instant W + daily min/avg/max W |
 | `74003` | PC monitors power | Z-Wave Power (W) | Instant W + daily min/avg/max W |
 | `11002` | Cold water | Fluid pulse (396 pulses = 1 L) | Liter consumption buckets only |
@@ -70,7 +70,7 @@ Z-Wave power IDXs (`74001`, `74003`) include **integrated kWh** in summary tiles
 
 **Lifetime totals (not time-series):** cumulative counters in NVRAM (`wanos-nvram.json`) for IDX `11001`–`11003` remain the source of truth for **total** Wh / L.
 
-**Admin Site health "Total kWh"** (under the **Sauna / IR** card): `devices[11001] / 1000`. Canonical store is NVRAM IDX `11001` as **absolute house Wh** (1 pulse = +1 Wh). To align with the physical meter face, reseed `11001` to `round(face_kWh * 1000)` (e.g. 1715.5 kWh → 1715500 Wh). Do **not** keep a second baseline/offset in config.
+**Admin Site info "Total kWh"** (under the **Sauna / IR** card): `devices[11001] / 1000`. Canonical store is NVRAM IDX `11001` as **absolute sauna-circuit Wh** (1 pulse = +1 Wh) — **not** whole-house energy (whole-house → HomeWizard P1, **G10**). To align with the physical sauna meter face, reseed `11001` to `round(face_kWh * 1000)` (e.g. 1715.5 kWh → 1715500 Wh). Do **not** keep a second baseline/offset in config.
 
 **Leak W:** `p_leak_baseline_watts` is also stored in `wanos-nvram.json` (non-IDX meta key, same atomic file). Restored on boot; rewritten on the 5-minute NVRAM flush and on graceful shutdown. Live idle pulses keep updating RAM; disk catches up on flush. Idle updates **freeze** while sauna extraction fan (`zwave.vent.sauna`) is ON. **WISC Bathroom** shows cold/hot **today** liters (`metrics.water_*_today_l`); lifetime totals live on **Admin General Diagnostics**.
 
@@ -98,9 +98,9 @@ Industry-aligned rollup: high-resolution samples → hourly → daily → derive
 
 ## 5. Ingest rules
 
-### 5.1 House kWh (`11001`)
-* Hardware counts every pulse into NVRAM / `devices[11001]` (**absolute house Wh**; 1 Wh per pulse).
-* Admin **Total kWh** = `11001 / 1000`. Reseed `11001` when locking to the physical meter face (integer Wh).
+### 5.1 Sauna kWh (`11001`)
+* Hardware counts every pulse into NVRAM / `devices[11001]` (**absolute sauna-circuit Wh**; 1 Wh per pulse).
+* Admin **Total kWh** = `11001 / 1000` (sauna meter face, not house). Reseed `11001` when locking to the physical sauna meter face (integer Wh).
 * **History hi-res:** when cumulative Wh advanced since last history sample ≥ **100 Wh (0.1 kWh)**:
   * Compute instantaneous watts from pulse timing (same `3600/Δt` family as live analytics, using the interval covering that 0.1 kWh window or last known rate — implementation detail).
   * Insert `sensor_samples` row `(11001, ts, watts, 'W')`.

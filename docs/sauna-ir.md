@@ -39,7 +39,7 @@ Heaters use **zero-crossing SSRs** on 50 Hz mains (100 ZC/s, 10 ms between cross
 Frontend `irStepValues` / `irStepFreqs` and backend `freq_map` must stay aligned.
 
 ### 1.2 Measurement Infrastructure & System Asset Identifiers (IDXs)
-* **Real-Time Energy Tracking (Pulse Meter):** Physically wired to GPIO Input Pin 12 and mapped as Virtual Identifier (IDX) `11001`. Operates at a resolution of 1000 pulses per kWh (exactly 1.0 Watt-hour per pulse tick).
+* **Real-Time Energy Tracking (Pulse Meter):** Sauna-circuit kWh meter (not whole-house). Physically wired to GPIO Input Pin 12 and mapped as Virtual Identifier (IDX) `11001`. Operates at a resolution of 1000 pulses per kWh (exactly 1.0 Watt-hour per pulse tick). Whole-house energy is HomeWizard P1 (**G10**).
 * **Mains Voltage Monitoring:** Ingests live AC voltage telemetry from Z-Wave Node 50 (Endpoint 0, Value ID `66561`), mapped as Virtual Identifier (IDX) `71046`. Acts as a real-time line voltage proxy across the house bus structure.
 * **Master Safety Relays:** 
   * 5V Master Safety Relay: Virtual Identifier (IDX) `71036`.
@@ -58,14 +58,18 @@ Frontend `irStepValues` / `irStepFreqs` and backend `freq_map` must stay aligned
 To prevent hazardous activation, the WanOS `StateManager` enforces a strict multi-point verification checklist before ignition commands are dispatched to the solid-state relays (SSRs).
 
 ### 2.1 Dynamic Start Gate Interceptor (`SAUNA_ON`)
-When a user or automated timer dispatches a `SAUNA_ON` event payload to `/api/event`, the system verifies five mandatory hardware criteria:
-1. **Master Relay Power:** The 5V Master Safety Relay (IDX `71036`) must report an active `ON` state.
+When a user or automated timer dispatches a `SAUNA_ON` event payload to `/api/event`, the system verifies these hardware / session criteria:
+1. **Master Relay Power:** The 5V Master Safety Relay (IDX `71036`) must report an active `ON` state (Start Gate row may be soft-disabled in code for dry-run; bouncer still checks `switch.safety` / SSR entity).
 2. **Hardware Bus Arming:** The physical local Raspberry Pi GPIO output bus state (`gpio_output_enabled`) must be explicitly set to `True` following a valid administrator PIN entry.
 3. **Sensor Validity:** Composite temperature calculation (`sauna_calc_temp`) must be non-null and actively receiving live telemetry.
-4. **Physical Seal Verification:** The magnetic door safety sensor (IDX `10001`) must detect a sealed `CLOSED` condition.
-5. **Session Authorization:** Inbound REST payloads must contain a valid, unexpired JWT token.
+4. **Physical Seal Verification:** The magnetic door safety sensor (IDX `10001` / `sensor.door.sauna_deur`) must detect a sealed `CLOSED` condition.
+5. **Recent door close:** `doors.sauna_closed_since_unix` must be set and not older than `sauna.door_closed_max_mins` (default **5**). Null (no close seen this process) **blocks** start. WISC: `Cannot start sauna, open sauna door first and check if all is ok`; Start Gate banner fragment `Door closed too long`. Door **OPEN** still uses `Cannot start sauna, please close door` / `Door open`.
+6. **Mutual exclusion:** IR must not be active.
+7. **Session Authorization:** Inbound REST payloads must contain a valid, unexpired JWT token.
 
 If any single condition fails, the execution loop aborts, drops the start command, and dispatches a high-priority banner notification to the web client via `AlertManager`.
+
+**Soft session timers:** When the sauna/IR soft countdown reaches zero, the hub schedules **`SAUNA_OFF` / `IR_OFF` directly** (no `*_TIMER_EXPIRED` catalog hop). Library rules that listen to Sauna OFF / IR OFF still run.
 
 ### 2.2 Post-OFF extraction fan (Library + Timers & types)
 
@@ -140,16 +144,18 @@ WanOS keeps the two character LCDs on a dedicated Wi-Fi Pi (`10.32.251.51`) and 
 * `0x26` = Screen 2 (control/status)
 
 #### 3.7.1 Door Duration Tracking Contract
-WanOS tracks open/close timing for all configured doors (currently two):
-* Sauna door: entity `sensor.door.sauna_deur` (state + `door_sauna_open_since_unix` / `door_sauna_closed_since_unix`)
-* Bathroom door: entity `sensor.door.badkamer_deur` (state + `door_bathroom_open_since_unix` / `door_bathroom_closed_since_unix`)
+WanOS tracks open/close timing for all configured doors (currently two) under nested `state.doors` (SSE domain **`doors`**):
+* Sauna door: entity `sensor.door.sauna_deur` (device OPEN/CLOSED + `doors.sauna_open_since_unix` / `doors.sauna_closed_since_unix`)
+* Bathroom door: entity `sensor.door.badkamer_deur` (device OPEN/CLOSED + `doors.bathroom_open_since_unix` / `doors.bathroom_closed_since_unix`)
+
+`DOOR_CHANGED` reconciles stamps on every event (including GPIO cold-boot baseline when device state does not change): clears the opposite-mode stamp; seeds the current-mode stamp only when it is still null (does not reset an existing same-mode age).
 
 Duration format is canonical:
 * `[dd:][hh:]mm:ss`
 * show `dd:` only when `dd > 0`
 * show `hh:` only when `hh > 0` (or when `dd > 0`)
 
-These door durations are tracked in core state. Sauna LCD screen1 shows **closed** duration on line2 (with temp/hum); when the door is **open**, line2 is `plz close sdoor` with **no** duration.
+Sauna LCD screen1 shows **closed** duration on line2 (with temp/hum); when the door is **open**, line2 is `plz close sdoor` with **no** duration. Admin **Site info** door rows: label from live device OPEN/CLOSED; timer from the matching stamp (or `—` if unset).
 
 #### 3.7.2 Screen 1 (`0x27`) Display Rules
 Screen 1 follows WISC text intent (shared composer [`logic/lcd_screen1.py`](../logic/lcd_screen1.py)), not legacy one-line `AuxiliaryController` text. The same lines are mirrored into `sauna.lcd_line1` / `sauna.lcd_line2` for the WISC sauna panel and Admin **LCD mirror** (green VT323 16×2 preview via `.wanos-lcd-screen`), spaces preserved so centered rows match the physical LCD. When both lines are blank, WISC shows `WanOS Wisc standby`. When Admin **LCD screens** integration is off, WISC shows `no LCD text:` / `integration off` and WanOS does not publish `wanos/lcd/*` (compose still runs internally until a future phase).
@@ -162,7 +168,7 @@ Priority:
 1. **Sauna active**
    * Line 1: `sauna ON` / `sauna HOLD` / `sauna ON  {mod}%` while remaining ≥ **15 min**; when remaining **&lt; 15 min**, show mm:ss (WISC). Pre-arm, `session_end_time` is frozen duration seconds (not unix) — LCD must not treat it as an absolute end (that produced a false `00:00`).
    * Remaining arms when `sauna_calc_temp >= target - timer_offset_temp` (`config.yaml`), same as WISC `sstimerstarted`.
-   * Line 2 default = temp/hum **left** + **door-closed duration right-aligned** (`door_sauna_closed_since_unix`).
+   * Line 2 default = temp/hum **left** + **door-closed duration right-aligned** (`doors.sauna_closed_since_unix`).
    * If sauna door is open, line 2 becomes `plz close sdoor` **without** open/closed duration.
 2. **IR active** (when sauna is not active): line 1 `IR {mm:ss}`; append ` - {mod}%` only when `0 < mod < 100`; at 100% mod the timer is right-aligned (`IR` left). Line 2 = temp/hum.
 3. **Sauna Hue ON only** (when sauna+IR inactive): use date/outside-info fallback text (`shue` equivalent = `hue.group.sauna_hue` ON).
@@ -240,7 +246,7 @@ Sauna calc: $\sum (D_{phase} \times P_{db,phase}) \times (V/230)^2$. IR-only ses
 
 **Thermal Index ($R_{th}$):** computed only while sauna is active and $P_{real} > 500$ W; Admin shows **N/A** until first valid sample, then retains the last value when idle. Stored as °C/W; Admin label **Rth** displays **2 decimals** in **°C/kW** (×1000), e.g. `0.98 °C/kW`. Tooltip: cabin ΔT per kW of real heat — downward drift means worse seals/insulation.
 
-**Admin — Sauna / IR pane:** one card grouping Site health (mains, leak, Total kWh, session counts, Rth), LCD mirror (VT323), element nameplates (vertical stack) + **learn counts** (from session audit rows; refreshed when last session updates over SSE) + last session detail (energy · W · runtime **HH:MM:SS** · smart when), Probes & SSR (ceiling/bench, Safety SSR, fireorder), and a live sub-panel that expands when a session runs — MOD total + U/V/W % (sauna) or IR MOD, runtime + remaining, Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. Sauna remaining arms at `target − timer_offset_temp`, not exact setpoint. `GET /api/admin/analytics/element-power`. Total kWh = NVRAM `11001` Wh / 1000 (absolute face reading; reseed counter to match the physical meter).
+**Admin — Sauna / IR pane:** one card grouping Site info (mains, leak, Total kWh, session counts, Rth, sauna/bathroom door open|closed + duration), LCD mirror (VT323), element nameplates (vertical stack) + **learn counts** (from session audit rows; refreshed when last session updates over SSE) + last session detail (energy · W · runtime **HH:MM:SS** · smart when), Probes & SSR (ceiling/bench, Safety SSR, fireorder), and a live sub-panel that expands when a session runs — MOD total + U/V/W % (sauna) or IR MOD, runtime + remaining, Real W, **Calc W (V-adj)** (voltage-scaled model; not equal to nameplate @ 100%), energy real/calc (Wh for IR-only, kWh otherwise), deltas, est. U/V/W when sauna active. Sauna remaining arms at `target − timer_offset_temp`, not exact setpoint. `GET /api/admin/analytics/element-power`. Total kWh = NVRAM `11001` Wh / 1000 (absolute **sauna** meter face; reseed to that physical meter — not whole-house; whole-house → HomeWizard P1 / **G10**).
 
 **Admin — General Diagnostics:** lifetime **Total water** (cold / hot / sum liters from NVRAM counters).
 
@@ -272,7 +278,7 @@ A downward drift in this coefficient over time signals failing physical door sea
 
 To maximize performance while preventing wear-leveling failure on the Raspberry Pi's physical SD card, high-frequency time-series math is kept strictly in volatile RAM. Completed session analytics are written to a local SQLite database (`sauna_sessions.db`) upon session termination.
 
-House-level power/water **time-series history** (hi-res / hourly / daily rollups, Sensor History UI) is **not** stored here — see [sensor_history.md](sensor_history.md). Session rows remain in `sauna_sessions.db` with forever retention; that document also defines the planned `temp_outside_start` column and how sessions are listed in the UI.
+Utility power/water **time-series history** (hi-res / hourly / daily rollups, Sensor History UI) is **not** stored here — see [sensor_history.md](sensor_history.md). Session rows remain in `sauna_sessions.db` with forever retention; that document also defines the planned `temp_outside_start` column and how sessions are listed in the UI.
 
 ### 5.1a Sauna session sample telemetry (PID / climate debug)
 While `sauna.active`, WanOS buffers time-series samples in RAM (`logic/sauna_session_telemetry.py`) and flushes them on `SAUNA_OFF` into:
@@ -378,6 +384,6 @@ The integration of power analytics, safety guards, and dynamic session recording
 * Audits SHT11 sensor heartbeats out-of-band every 2 seconds.
 
 ### 6.5 `frontend/app.js` & Presentation Files
-* Admin **Sauna / IR** card (`admin.html`) groups Site health, LCD mirror, learned nameplates, Probes & SSR, and the live session sub-panel (MOD / timers / power).
+* Admin **Sauna / IR** card (`admin.html`) groups Site info (incl. door open/closed ages), LCD mirror, learned nameplates, Probes & SSR, and the live session sub-panel (MOD / timers / power).
 * Bind live session metrics and extracted power integers into Alpine's reactive state engine (`formatRthInsulation`, live energy helpers).
 * WISC bathroom Cold/Hot water keeps value + unit on one line on narrow viewports.

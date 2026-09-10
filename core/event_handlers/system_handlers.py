@@ -197,6 +197,11 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
         new_config = load_config()
         manager._config = new_config
         AutomationEngine._config = None  # Reset rules engine cached reference copy
+        # Keep WISC start-gate UI in sync with sauna.door_closed_max_mins after reload.
+        if getattr(manager._config, "sauna", None) is not None:
+            manager._state.sauna.door_closed_max_mins = int(
+                getattr(manager._config.sauna, "door_closed_max_mins", 5) or 5
+            )
 
         # Delegate metadata assembly to the atomic rebuilder
         manager.rebuild_core_metadata()
