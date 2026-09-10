@@ -208,6 +208,27 @@ if getattr(config, "lg", None) and getattr(config.lg, "host", None):
     except Exception as e:
         logger.exception(f"CRITICAL: Crash loading LgWebOsBridge: {e}")
 
+# 8c. Bind HomeWizard Energy bridge (G10)
+homewizard_bridge = None
+_hw_cfg = getattr(config, "homewizard", None)
+_hw_map = getattr(_hw_cfg, "device_map", None) if _hw_cfg is not None else None
+if _hw_cfg is not None and _hw_map:
+    try:
+        from integrations.homewizard import HomeWizardBridge
+        homewizard_bridge = HomeWizardBridge(state_manager=state_manager, config=config)
+        state_manager.homewizard_bridge = homewizard_bridge
+        logger.info(
+            f"HomeWizard Bridge initialized ({len(_hw_map)} metric(s))"
+        )
+    except Exception as e:
+        logger.exception(f"CRITICAL: Crash loading HomeWizardBridge: {e}")
+elif _hw_cfg is not None:
+    logger.warning(
+        "[HomeWizard] config present but device_map empty - bridge not started"
+    )
+else:
+    logger.info("[HomeWizard] no homewizard: block in config - bridge not started")
+
 # 9. Bind the Physical Hardware Layer
 hw_inputs = HardwareInputs(state_manager=state_manager)
 hw_sensors = HardwareSensors(state_manager=state_manager)
@@ -285,6 +306,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             except Exception as e:
                 logger.exception(f"[LG] Bridge start failed: {e}")
 
+        if homewizard_bridge:
+            try:
+                await homewizard_bridge.start()
+                state_manager.dispatch(
+                    Event(type=EventType.HOMEWIZARD_TOGGLED, payload={"enabled": True})
+                )
+            except Exception as e:
+                logger.exception(f"[HomeWizard] Bridge start failed: {e}")
+
         # Start Physical Hardware Layer
         logger.info("Initializing Raspberry Pi Hardware Layer...")
         await hw_inputs.start()
@@ -313,6 +343,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 state_manager.dispatch(Event(type=EventType.ONKYO_TOGGLED, payload={"enabled": True}))
                 # Phase 3b: LG (also enabled immediately after lg_bridge.start; keep for autostart parity)
                 state_manager.dispatch(Event(type=EventType.LG_TOGGLED, payload={"enabled": True}))
+                # Phase 3c: HomeWizard Energy (G10)
+                state_manager.dispatch(Event(type=EventType.HOMEWIZARD_TOGGLED, payload={"enabled": True}))
                 # Phase 4: Enable Z-Wave (may defer silently until MQTT data plane is alive;
                 # telemetry auto-recovery arms it when ready — no false "frozen" reject alert).
                 state_manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True}))
@@ -366,6 +398,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await hue_bridge.stop()
     if lg_bridge:
         await lg_bridge.stop()
+    if homewizard_bridge:
+        await homewizard_bridge.stop()
     await zwave_bridge.stop()
 
     await state_manager.stop()

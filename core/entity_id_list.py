@@ -141,6 +141,8 @@ def origin_from_idx(idx: int) -> str:
         return "zwave"
     if idx == 80001:
         return "epson"
+    if 81000 <= idx <= 81999:
+        return "homewizard"
     return ""
 
 
@@ -237,6 +239,16 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
         for idx, node in lg.items():
             name = node.get("name") if isinstance(node, dict) else None
             put(idx, name=name or "LG TV", dtype="switch", origin="lg")
+    hw = (cfg.get("homewizard") or {}).get("device_map") or {}
+    if isinstance(hw, dict):
+        for idx, node in hw.items():
+            if not isinstance(node, dict):
+                continue
+            name = node.get("name")
+            dtype = str(node.get("type") or "sensor").strip().lower()
+            if dtype not in ("power", "energy", "fluid", "sensor"):
+                dtype = "sensor"
+            put(idx, name=name, dtype=dtype, origin="homewizard")
     if cfg.get("epson"):
         put(80001, name="cinema projector", dtype="switch", origin="epson")
     for eid in auto_cfg.get("deviceexplorer_hide") or cfg.get("deviceexplorer_hide") or []:

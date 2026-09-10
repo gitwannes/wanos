@@ -617,6 +617,22 @@ class LgConfig(BaseModel):
     apps: Dict[str, LgAppNode] = Field(default_factory=dict)
 
 
+class HomeWizardMetricNode(BaseModel):
+    """One curated HomeWizard measurement field -> WanOS idx (G10)."""
+    host: str  # Device LAN IP
+    field: str  # API key (power_w) or external.<type> (external.gas_meter)
+    name: str
+    type: str = "sensor"  # power | energy | fluid | sensor
+
+
+class HomeWizardConfig(BaseModel):
+    """HomeWizard Energy Local API v2 (G10) — aiohttp; tokens outside repo."""
+    poll_secs: float = 60.0
+    # Optional override; default ~/.config/wanos/homewizard_tokens.json
+    token_file: Optional[str] = None
+    device_map: Dict[int, HomeWizardMetricNode] = Field(default_factory=dict)
+
+
 class SonosDeviceNode(BaseModel):
     ip: str
     name: str
@@ -707,6 +723,7 @@ class AppConfig(BaseModel):
     hue: Optional[HueConfig] = None
     epson: Optional[EpsonConfig] = None
     lg: Optional[LgConfig] = None
+    homewizard: Optional[HomeWizardConfig] = None
     sonos: Optional[SonosConfig] = None
     onkyo: Optional[OnkyoConfig] = None
     zwave: Optional[ZwaveConfig] = None
@@ -845,6 +862,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "hue": hue_data,  # ⚡ Injecting modular Hue configuration profile mapping to eliminate KeyErrors
         "epson": runtime_data.get("epson"),
         "lg": runtime_data.get("lg"),
+        "homewizard": runtime_data.get("homewizard"),
         "sonos": runtime_data.get("sonos"),
         "onkyo": runtime_data.get("onkyo"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile

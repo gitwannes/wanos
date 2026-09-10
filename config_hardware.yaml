@@ -4,7 +4,7 @@
 gpio_input:
   kwh_meter:
     idx: 11001
-    name: "kWh meter"
+    name: "Sauna kWh meter"
     pin: 12
     type: "energy"
   water_cold:

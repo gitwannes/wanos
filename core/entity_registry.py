@@ -55,6 +55,16 @@ def classify_entity_prefix(
     if origin_l == "hue":
         return "hue.group" if hue_kind_l == "group" else "hue.light"
 
+    # HomeWizard Energy (G10): typed prefixes under .homewizard
+    if origin_l == "homewizard":
+        if dtype == "power":
+            return "sensor.power.homewizard"
+        if dtype == "energy":
+            return "sensor.energy.homewizard"
+        if dtype == "fluid":
+            return "sensor.fluid.homewizard"
+        return "sensor.homewizard"
+
     if dtype == "blinds":
         return "blinds"
     if dtype == "power":

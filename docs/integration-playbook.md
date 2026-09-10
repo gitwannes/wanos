@@ -322,7 +322,7 @@ New: `[Honeywell]`, `[HomeWizard]`, `[Samsung]`, `[SMA]`, `[HomeConnect]` (or wh
 | Ship | Intent (already in phase G) | Still kickoff |
 |---|---|---|
 | **G9 Honeywell** | Setpoints, ambient, HVAC fire over HTTPS | `somecomfort` vs `evohomeclient` vs `aiolyric`; which thermostats; commandable vs read-only |
-| **G10 HomeWizard** | Local P1 / kWh / sockets | Kickoff **locked 2026-09-10** — poll 60s; scout path proposed (`helpers/homewizard_discovery.py`) — **code only on `implement`**; Z-Wave-style field pick after dump |
+| **G10 HomeWizard** | Local P1 / kWh / sockets | **Shipped** (P1 + PV; sockets deferred) — [`integration_homewizard.md`](integration_homewizard.md); scout `helpers/homewizard_discovery.py` |
 | **G11 Samsung** | Climate power/setpoint | IDX band **TBD at implement / re-kickoff** (not `810xx`); SmartThings cloud vs local `samsungrac` already locked cloud-only |
 | **G12 SMA** | Live production | `pysma` vs SunSpec Modbus |
 | **G13 HomeConnect** | Cycle state (oven/dishwasher/laundry) | Which appliances; commands vs telemetry |

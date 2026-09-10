@@ -139,6 +139,8 @@ function wanosApp() {
                 epson_integration_enabled: false, // ⚡ Master UI switch to block/allow Epson commands
                 lg_connected: false, // ⚡ LG bridge healthy (not TV power) — G16
                 lg_integration_enabled: false, // ⚡ Master UI switch for LG webOS — G16
+                homewizard_connected: false, // ⚡ HomeWizard poll bridge reachable — G10
+                homewizard_integration_enabled: false, // ⚡ Master UI switch for HomeWizard — G10
                 sonos_connected: false, // ⚡ Tracks physical availability of Sonos network
                 sonos_integration_enabled: false, // ⚡ Master UI switch to block/allow Sonos commands
                 onkyo_connected: false, // ⚡ Tracks physical TCP availability of Onkyo Receivers
@@ -288,7 +290,7 @@ function wanosApp() {
 
         // ⚡ Dynamic Device Explorer (deviceexplorer.html) UI States
         searchQuery: "",
-        typeFilter: "ALL",   // "ALL", "SWITCH", "SCENE", "BLINDS", "SENSOR"
+        typeFilter: "ALL",   // "ALL", "SWITCH", "LIGHT", "HUE", "SHUTTER", "SPEAKER", "SENSOR", "POWER", "SCENE"
         statusFilter: "ALL", // "ALL", "ON", "OFF"
         sortMode: "NAME",    // "NAME", "STATUS"
         explorerMode: "control", // "control" | "history" — always land on control
@@ -572,6 +574,7 @@ function wanosApp() {
             if (!this.state.system.hue_integration_enabled) disabled.push("Hue");
             if (!this.state.system.epson_integration_enabled) disabled.push("Epson projector");
             if (!this.state.system.lg_integration_enabled) disabled.push("LG TV");
+            if (!this.state.system.homewizard_integration_enabled) disabled.push("HomeWizard");
             if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
             if (!this.state.system.zwave_integration_enabled) disabled.push("Z-Wave");
             if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
@@ -605,6 +608,7 @@ function wanosApp() {
                 if (meta.origin === 'onkyo' && !this.state.system.onkyo_integration_enabled) continue;
                 if (meta.origin === 'epson' && !this.state.system.epson_integration_enabled) continue;
                 if (meta.origin === 'lg' && !this.state.system.lg_integration_enabled) continue;
+                if (meta.origin === 'homewizard' && !this.state.system.homewizard_integration_enabled) continue;
 
                 // Native Physical & Cloud Integrations
                 if (meta.origin === 'gpio_input' && !this.state.hardware.gpio_input_enabled) continue;
@@ -647,10 +651,10 @@ function wanosApp() {
                     } else if (meta.type === 'door') {
                         // OPEN = active / ajar (matches History status emphasis)
                         isOn = rawValue === 'OPEN';
-                    } else if (meta.type === 'switch' || meta.type === 'light' || meta.type === 'speaker' || meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy') {
+                    } else if (meta.type === 'switch' || meta.type === 'light' || meta.type === 'speaker' || meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy' || meta.type === 'fluid') {
                         // ⚡ ANALOG vs BINARY DISTINCTION
                         // Ensure power (W) and energy (kWh) natively map to analog UI elements rather than binary switches
-                        if ((meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy') && rawValue !== 'ON' && rawValue !== 'OFF' && rawValue !== null) {
+                        if ((meta.type === 'sensor' || meta.type === 'power' || meta.type === 'energy' || meta.type === 'fluid') && rawValue !== 'ON' && rawValue !== 'OFF' && rawValue !== null) {
                             isOn = null; // Explicitly mark analog strings (e.g., "55 Lux", "150 W") as having no binary state
                         } else {
                             // ⚡ RICH PAYLOAD SUPPORT: Parse "ON" state whether it's a flat string or a dictionary object
@@ -731,15 +735,21 @@ function wanosApp() {
                     const n = meta.name.toLowerCase();
 
                     if (meta.type === 'energy' || n.includes('kwh') || n.includes('energy')) {
-                        // ⚡ Smart Scaling: Physical GPIO pulses (Wh) require division. Z-Wave and similar integrations are natively pre-scaled.
-                        if (meta.origin === 'gpio_input') {
+                        // GPIO pulse + HomeWizard store absolute Wh; divide for kWh display.
+                        if (meta.origin === 'gpio_input' || meta.origin === 'homewizard') {
                             displayText = `${(parseFloat(rawValue) / 1000).toFixed(3)} kWh`;
                         } else {
                             displayText = `${parseFloat(rawValue).toFixed(3)} kWh`;
                         }
                     }
                     else if (meta.type === 'power' || n.includes('power') || n.includes('watt')) displayText = `${rawValue} W`;
-                    else if (meta.type === 'fluid' || n.includes('water') || n.includes('liter')) displayText = `${parseFloat(rawValue).toFixed(1)} l`;
+                    else if (meta.type === 'fluid' || n.includes('water') || n.includes('liter') || n.includes('gas')) {
+                        if (n.includes('gas') || n.includes('m3')) {
+                            displayText = `${parseFloat(rawValue).toFixed(3)} m3`;
+                        } else {
+                            displayText = `${parseFloat(rawValue).toFixed(1)} l`;
+                        }
+                    }
                     else if (n.includes('temp')) displayText = `${rawValue} °C`;
                     else if (n.includes('hum')) displayText = `${rawValue} %`;
                     else if (n.includes('lux')) displayText = `${rawValue} Lux`;
@@ -881,6 +891,17 @@ function wanosApp() {
                             || t === "power" || t === "energy" || t === "sensor"
                             || t === "door" || t === "fluid" || t === "motion";
                     }
+                    // Power: HomeWizard + power W + energy/kWh + voltage (not water fluids)
+                    if (this.typeFilter === "POWER") {
+                        if (item.origin === "homewizard") return true;
+                        if (t === "power" || t === "energy") return true;
+                        const n = String(item.name || "").toLowerCase();
+                        if (n.includes("volt") || n.includes("kwh") || n.includes("watt")
+                            || n.includes("power") || n.includes("energy")) {
+                            return true;
+                        }
+                        return false;
+                    }
                     return true;
                 });
             }
@@ -891,7 +912,8 @@ function wanosApp() {
             if (this.statusFilter !== "ALL") {
                 list = list.filter(item => {
                     if (item.type === 'temp' || item.type === 'hum' || item.type === 'temp_hum'
-                        || item.type === 'power' || item.type === 'energy' || item.type === 'scene') {
+                        || item.type === 'power' || item.type === 'energy' || item.type === 'fluid'
+                        || item.type === 'scene') {
                         return false;
                     }
                     if (item.type === 'blinds') {
@@ -1185,6 +1207,7 @@ function wanosApp() {
             if (meta.origin === 'hue') return this.state.system.hue_integration_enabled;
             if (meta.origin === 'epson') return this.state.system.epson_integration_enabled;
             if (meta.origin === 'lg') return this.state.system.lg_integration_enabled;
+            if (meta.origin === 'homewizard') return this.state.system.homewizard_integration_enabled;
             if (meta.origin === 'sonos') return this.state.system.sonos_integration_enabled;
             if (meta.origin === 'onkyo') return this.state.system.onkyo_integration_enabled;
             if (meta.origin === 'gpio_input') return this.state.hardware.gpio_input_enabled;
@@ -6344,6 +6367,11 @@ function wanosApp() {
         toggleLg() {
             const nextState = !this.state.system.lg_integration_enabled;
             this.publishEvent("LG_TOGGLED", { enabled: nextState });
+        },
+
+        toggleHomeWizard() {
+            const nextState = !this.state.system.homewizard_integration_enabled;
+            this.publishEvent("HOMEWIZARD_TOGGLED", { enabled: nextState });
         },
 
         toggleSonos() {

@@ -187,6 +187,59 @@ async def handle_lg_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]
     return state_changed, changed_domains
 
 
+async def handle_homewizard_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Admin / boot enable for HomeWizard Energy poll bridge (G10)."""
+    payload = event.payload or {}
+    state_changed = False
+    changed_domains = set()
+    is_enabled = payload.get("enabled", False)
+
+    bridge = getattr(manager, "homewizard_bridge", None)
+    # Soft gate: only require the bridge object (hosts may still be catching up).
+    if is_enabled and bridge is None:
+        await manager.logger.warning(
+            "🟡 [HomeWizard] Command rejected: bridge not loaded "
+            "(check config.yaml homewizard.device_map + sync)."
+        )
+        ch, dom = AlertManager.process_alert(
+            manager._state,
+            "🟡 Command rejected: HomeWizard bridge not loaded.",
+        )
+        state_changed |= ch
+        changed_domains |= dom
+        return state_changed, changed_domains
+
+    state_str = "ON" if is_enabled else "OFF"
+    manager._state.system.homewizard_integration_enabled = is_enabled
+    if bridge is not None and hasattr(bridge, "set_enabled"):
+        bridge.set_enabled(bool(is_enabled))
+    # Mirror process-up so Admin is not stuck OFFLINE waiting for first health ping
+    if is_enabled:
+        manager._state.system.homewizard_connected = True
+        if bridge is not None:
+            bridge.is_connected = True
+    state_changed = True
+    changed_domains.add("system")
+
+    color = "🟢" if is_enabled else "⚪"
+    raw_error = payload.get("error_msg")
+    error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
+    ch, dom = AlertManager.process_alert(
+        manager._state, error_alert, f"{color} HomeWizard Integration turned {state_str}"
+    )
+    state_changed |= ch
+    changed_domains |= dom
+
+    if is_enabled and payload.get("is_auto_recovery", False):
+        deadline = int(time.time()) + 10
+        manager._timer_manager.schedule(
+            "post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"}
+        )
+        logger.info("HomeWizard Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
+
+    return state_changed, changed_domains
+
+
 async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     payload = event.payload or {}
     state_changed = False

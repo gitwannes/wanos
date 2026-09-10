@@ -51,7 +51,7 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 - Siemens HomeConnect
 - Honeywell Home (central heating)
 - SMA (PV inverter)
-- HomeWizard (P1 / PV)
+- HomeWizard Energy Sockets (API v1) — P1 + PV kWh ✅
 - EZVIZ doorbell
 
 ---

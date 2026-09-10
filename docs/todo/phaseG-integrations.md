@@ -25,7 +25,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G5 — Cinema rolluik half** | ✅ **Done 2026-08-16** — dashboard UE/UR; open % **> 50** → set **50%** open (stored **50**); legacy canvas + **B9C** |
 | **G11 — Samsung SmartThings** | Airco climate — **own ship** (1st of 5) — kickoff locked **2026-08-20**; **IDX band TBD** at implement (not `810xx`) |
 | **G9 — Honeywell** | Thermostats / Evohome — **own ship** (2nd) |
-| **G10 — HomeWizard** | Energy local API — **own ship** (3rd) — kickoff **locked 2026-09-10**; band **`810xx`**; may implement **before** G11+G9; discovery scout + Z-Wave-style field pick |
+| **G10 — HomeWizard** | Energy local API — **✅ shipped 2026-09-10** (P1 + PV; sockets deferred) — [`integration_homewizard.md`](../integration_homewizard.md) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
@@ -439,9 +439,11 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 
 ---
 
-## 📋 G10 — HomeWizard energy 🔜 TODO — kickoff **locked 2026-09-10** (field pick after dump)
+## ✅ G10 — HomeWizard energy — **shipped 2026-09-10** (P1 + PV; sockets deferred)
 
 **Origin:** operator inbox **2026-08-14**. **3rd of 5** by original letter order; **implement may run before G11+G9** (operator override **2026-09-10**). Own ship. **Not** same run as G9/G11+.
+
+**Product reference:** [`docs/integration_homewizard.md`](../integration_homewizard.md) — config, poll, tokens, scout, IDX map.
 
 **Operator request (verbatim):**
 > - 5 integrations, each to be done seperately, not in the same code run - but in this order
@@ -463,7 +465,7 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 > proposal ok (helpers/homewizard_discovery.py, this is now) - in pipeline = z-wave style picker
 > "house energy" move to "Sauna energy" in this ship
 
-**Intent:** Local API via `python-homewizard-energy` — P1 / Wi‑Fi kWh / Energy Sockets; no cloud. Whole-house energy SoT = HomeWizard (not GPIO `11001`).
+**Intent:** Local API v2 — P1 / Wi‑Fi kWh / Energy Sockets; no cloud. Whole-house energy SoT = HomeWizard (not GPIO `11001`).
 
 **Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G10-only.
 
@@ -472,44 +474,34 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 | Topic | Decision |
 |---|---|
 | **Sequence** | **G10 may implement before G11+G9**. Still one ship; not bundled. |
-| **Devices** | **P1** · **PV Wi‑Fi kWh meter** · **3 Energy Sockets** (airco, TV, diepvries) |
-| **Library / API** | **`python-homewizard-energy` + API v2** (HTTPS + bearer token) |
+| **Devices** | **P1** · **PV Wi‑Fi kWh meter** · **3 Energy Sockets** (airco, TV, diepvries) — **sockets deferred** (API v1-only on site today) |
+| **Library / API** | **aiohttp** Local API **v2** (HTTPS + bearer). `python-homewizard-energy` V2 needs Python ≥3.12 — not pinned on Pi 3.9 |
 | **Ingest** | **REST poll** every **60 s** (`poll_secs: 60`) — not WebSocket in v1 |
-| **History** | **Yes** — `history.tracked_entities` / sensor_history; hi-res detail **`hires_days` = 7** (same as rest); 1′ poll aligns with existing **60 s** power-sample throttle |
-| **Sockets** | **Read-only power** — no ON/OFF, no C18 |
+| **History** | **Yes** — `history.tracked_entities` / sensor_history; hi-res detail **`hires_days` = 7** |
+| **Sockets** | **Read-only power** — no ON/OFF, no C18 (when added later) |
 | **Bridge kind** | **Telemetry-only** |
-| **IDX band** | **`810xx`** |
-| **Entity prefix** | **`sensor.energy.homewizard.<slug>`** (type `power` / `energy` / `fluid` per field after pick) |
-| **Field → idx pick** | **Z-Wave-style:** discovery dump lists available measurement fields; operator **chooses** which get idxs in `device_map` (curated map, not auto-import-all). Gas/`external[]` included **only if present in dump** and selected. |
-| **Discovery scout** | **Proposed path:** `helpers/homewizard_discovery.py` (pair + dump + pick list). **Not written until `implement`.** |
+| **IDX band** | **`810xx`** — P1 `81001`–`81020`, PV `81030`–`81038` |
+| **Entity prefix** | **`sensor.{power\|energy\|fluid}.homewizard.<slug>`** |
+| **Field → idx pick** | Z-Wave-style curated `device_map` after discovery dump |
+| **Discovery scout** | **`helpers/homewizard_discovery.py`** — kept |
 | **G6 scoped reload** | **Not in this ship** — full reload only |
-| **Explorer** | Read-only analog rows (`power` / `energy` / `fluid` / `sensor`) |
-| **Admin enable** | **Yes** (playbook) |
+| **Explorer** | Read-only analog rows |
+| **Admin enable** | **Yes** |
 | **Blockly** | No new block types |
 | **Log tag** | **`[HomeWizard]`** |
-| **`11001` / Admin Total kWh** | **Stays sauna** — not in HomeWizard |
-| **Runtime label `11001`** | **`"House energy"` → `"Sauna energy"`** in this ship (code + docs) |
+| **`11001` / Admin Total kWh** | **Stays sauna** — label **`Sauna energy`** |
+| **Runtime label `11001`** | **`"House energy"` → `"Sauna kWh meter"`** ✅ |
 
-### Field pick — how (Z-Wave-style)
+### Shipped summary (2026-09-10)
 
-Same idea as Z-Wave `device_map`: hardware exposes many values; WanOS only maps what you curate.
+* Bridge `integrations/homewizard.py` + Admin toggle + health/auto-kill.
+* Scout `helpers/homewizard_discovery.py` retained (`scan` / `pair` / `dump`).
+* Field map for P1 `.56` + PV `.57` in `config.yaml`; Energy Sockets **not** in this pass.
+* Product doc: [`integration_homewizard.md`](../integration_homewizard.md).
 
-1. After **`implement`** (scout): run **`helpers/homewizard_discovery.py`** per device IP (button-pair → token in `~/.config/wanos/`, dump JSON).
-2. Dump shows **every** measurement key + live value (+ `external[]` if any).
-3. You mark which keys to import (reply in kickoff / edit candidate YAML).
-4. G10 bridge implement writes those into **`810xx` `device_map`** only — one WanOS idx per selected field (or agreed composite). Unselected fields stay unused.
+**Out of scope (G10):** HomeConnect (**G13**); Samsung (**G11**); SMA (**G12**); Energy Socket switching; G6 modal row; WebSocket ingest; retargeting Admin Total kWh off `11001`.
 
-**Not locked until dump:** concrete field list, gas presence/type, exact idxs inside `810xx`.
-
-### Open (post-dump only)
-
-* Which measurement fields / `external[]` entries to import.
-* Exact `810xx` idx assignment + display names.
-* Per-field product type (`power` vs `energy` vs `fluid`).
-
-**Out of scope (G10):** HomeConnect (**G13**); Samsung (**G11**); SMA (**G12**) unless folded later; Energy Socket switching; G6 modal row; WebSocket ingest; retargeting Admin Total kWh off `11001`.
-
-**G10 DoD:** HomeWizard poll@60s on Pi for selected `810xx` metrics; Admin enable; history 7d hi-res; `11001` label Sauna energy; discovery helper used for pick; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G10 DoD:** ✅ HomeWizard poll@60s for selected `810xx`; Admin enable; history 7d hi-res; `11001` label Sauna energy; discovery helper kept; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

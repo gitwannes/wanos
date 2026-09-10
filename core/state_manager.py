@@ -115,10 +115,11 @@ class StateManager:
         # Instantiate isolated mathematical telemetry and logging engine
         self._power_analytics = PowerAnalytics(self)
         self.history_manager = DeviceHistoryManager(self)
-        self.sensor_history = SensorHistoryManager(self)
 
         # ATOMIC RECONCILIATION: Delegate metadata assembly to the atomic rebuilder
+        # (must run before SensorHistoryManager so tracked_entities resolve newborn entity_ids)
         self.rebuild_core_metadata()
+        self.sensor_history = SensorHistoryManager(self)
 
         # Timer Manager placeholder.
         # Instantiation has been moved to start() to safely bind to the asyncio loop!
@@ -265,6 +266,24 @@ class StateManager:
                 yaml_idxs.add(idx_i)
                 if idx_i not in self._state.devices:
                     self._state.devices[idx_i] = "OFF"
+
+        if getattr(self._config, "homewizard", None) and getattr(
+            self._config.homewizard, "device_map", None
+        ):
+            for idx, node in self._config.homewizard.device_map.items():
+                idx_i = int(idx)
+                name = getattr(node, "name", None) or f"HomeWizard {idx_i}"
+                dtype = str(getattr(node, "type", "sensor") or "sensor").strip().lower()
+                if dtype not in ("power", "energy", "fluid", "sensor"):
+                    dtype = "sensor"
+                self._state.device_metadata[idx_i] = {
+                    "name": name,
+                    "type": dtype,
+                    "origin": "homewizard",
+                }
+                yaml_idxs.add(idx_i)
+                if idx_i not in self._state.devices:
+                    self._state.devices[idx_i] = None
 
         if getattr(self._config, "sonos", None):
             max_vol = getattr(self._config.sonos, "max_volume", 70)
@@ -455,7 +474,7 @@ class StateManager:
         self.refresh_meter_total_kwh()
 
     def refresh_meter_total_kwh(self) -> None:
-        """Admin Total kWh = NVRAM pulse counter (absolute house Wh) / 1000."""
+        """Admin Total kWh = NVRAM pulse counter (absolute sauna-circuit Wh) / 1000."""
         kwh_idx = self.resolve_entity_id("sensor.energy.kwh_meter")
         if kwh_idx is None:
             kwh_idx = 11001
@@ -992,6 +1011,7 @@ class StateManager:
                 # High-chatter bus events → DEBUG (IWHW / dedicated lines keep the audit trail)
                 is_debug_event = event_name in [
                     "POWER_UPDATED",
+                    "HOMEWIZARD_METRIC",
                     "TEMP_UPDATED",
                     "HUMIDITY_UPDATED",
                     "ZWAVE_HEARTBEAT",

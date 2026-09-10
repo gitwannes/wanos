@@ -57,6 +57,8 @@ class EventType(str, Enum):
     HUE_TOGGLED = "HUE_TOGGLED"  # Listen to local Hue Bridge messages
     EPSON_TOGGLED = "EPSON_TOGGLED"  # Block/allow Epson projector network commands
     LG_TOGGLED = "LG_TOGGLED"  # Block/allow LG webOS TV bridge (G16)
+    HOMEWIZARD_TOGGLED = "HOMEWIZARD_TOGGLED"  # Block/allow HomeWizard Energy (G10)
+    HOMEWIZARD_METRIC = "HOMEWIZARD_METRIC"  # Absolute energy/fluid/sensor reading from HW poll
     SONOS_TOGGLED = "SONOS_TOGGLED"  # Block/allow local Sonos API control
     ONKYO_TOGGLED = "ONKYO_TOGGLED"  # Block/allow Onkyo TCP streaming
     LCD_TOGGLED = "LCD_TOGGLED"  # Block/allow MQTT LCD screen payloads
@@ -121,6 +123,8 @@ class SystemAdminState(BaseModel):
     epson_integration_enabled: bool = False  # Master UI switch to block/allow Epson commands
     lg_connected: bool = False  # LG bridge healthy (independent of TV power ON/OFF)
     lg_integration_enabled: bool = False  # Master UI switch for LG webOS commands (G16)
+    homewizard_connected: bool = False  # HomeWizard bridge reachable (G10)
+    homewizard_integration_enabled: bool = False  # Master UI switch for HomeWizard poll (G10)
     sonos_integration_enabled: bool = False  # Master UI switch to block/allow Sonos commands
     onkyo_connected: bool = False  # Tracks physical TCP availability of Onkyo Receivers
     onkyo_integration_enabled: bool = False  # Master UI switch to block/allow Onkyo Receivers

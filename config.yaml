@@ -81,6 +81,43 @@ lg:
       label: "YouTube"
       id: "youtube.leanback.v4"
 
+# HomeWizard Energy (G10) — tokens in ~/.config/wanos/homewizard_tokens.json
+# Scout: helpers/homewizard_discovery.py  |  sockets deferred (v1-only today)
+homewizard:
+  poll_secs: 60
+  device_map:
+    # --- P1 Meter 10.32.251.56 ---
+    81001: { host: "10.32.251.56", field: "power_w", name: "P1 power", type: "power" }
+    81002: { host: "10.32.251.56", field: "power_l1_w", name: "P1 power L1", type: "power" }
+    81003: { host: "10.32.251.56", field: "power_l2_w", name: "P1 power L2", type: "power" }
+    81004: { host: "10.32.251.56", field: "power_l3_w", name: "P1 power L3", type: "power" }
+    81005: { host: "10.32.251.56", field: "energy_import_kwh", name: "P1 import kWh", type: "energy" }
+    81006: { host: "10.32.251.56", field: "energy_export_kwh", name: "P1 export kWh", type: "energy" }
+    81007: { host: "10.32.251.56", field: "energy_import_t1_kwh", name: "P1 import T1 kWh", type: "energy" }
+    81008: { host: "10.32.251.56", field: "energy_import_t2_kwh", name: "P1 import T2 kWh", type: "energy" }
+    81009: { host: "10.32.251.56", field: "energy_export_t1_kwh", name: "P1 export T1 kWh", type: "energy" }
+    81010: { host: "10.32.251.56", field: "energy_export_t2_kwh", name: "P1 export T2 kWh", type: "energy" }
+    81011: { host: "10.32.251.56", field: "average_power_15m_w", name: "P1 avg 15m W", type: "power" }
+    81012: { host: "10.32.251.56", field: "monthly_power_peak_w", name: "P1 monthly peak W", type: "power" }
+    81013: { host: "10.32.251.56", field: "external.gas_meter", name: "P1 gas m3", type: "fluid" }
+    81014: { host: "10.32.251.56", field: "voltage_l1_v", name: "P1 voltage L1", type: "sensor" }
+    81015: { host: "10.32.251.56", field: "voltage_l2_v", name: "P1 voltage L2", type: "sensor" }
+    81016: { host: "10.32.251.56", field: "voltage_l3_v", name: "P1 voltage L3", type: "sensor" }
+    81017: { host: "10.32.251.56", field: "current_a", name: "P1 current", type: "sensor" }
+    81018: { host: "10.32.251.56", field: "current_l1_a", name: "P1 current L1", type: "sensor" }
+    81019: { host: "10.32.251.56", field: "current_l2_a", name: "P1 current L2", type: "sensor" }
+    81020: { host: "10.32.251.56", field: "current_l3_a", name: "P1 current L3", type: "sensor" }
+    # --- PV kWh Meter 10.32.251.57 ---
+    81030: { host: "10.32.251.57", field: "power_w", name: "PV power", type: "power" }
+    81031: { host: "10.32.251.57", field: "energy_export_kwh", name: "PV export kWh", type: "energy" }
+    81032: { host: "10.32.251.57", field: "energy_import_kwh", name: "PV import kWh", type: "energy" }
+    81033: { host: "10.32.251.57", field: "voltage_v", name: "PV voltage", type: "sensor" }
+    81034: { host: "10.32.251.57", field: "current_a", name: "PV current", type: "sensor" }
+    81035: { host: "10.32.251.57", field: "frequency_hz", name: "PV frequency", type: "sensor" }
+    81036: { host: "10.32.251.57", field: "power_factor", name: "PV power factor", type: "sensor" }
+    81037: { host: "10.32.251.57", field: "apparent_power_va", name: "PV apparent VA", type: "sensor" }
+    81038: { host: "10.32.251.57", field: "reactive_power_var", name: "PV reactive VAR", type: "sensor" }
+
 sonos:
   max_volume: 70
   device_map:
@@ -194,6 +231,23 @@ history:
     - sensor.fluid.warm_water
     - sensor.power.pc_power
     - sensor.power.pc_monitors_power
+    # HomeWizard G10 (entity_ids born from device_map names)
+    - sensor.power.homewizard.p1_power
+    - sensor.power.homewizard.p1_power_l1
+    - sensor.power.homewizard.p1_power_l2
+    - sensor.power.homewizard.p1_power_l3
+    - sensor.energy.homewizard.p1_import_kwh
+    - sensor.energy.homewizard.p1_export_kwh
+    - sensor.energy.homewizard.p1_import_t1_kwh
+    - sensor.energy.homewizard.p1_import_t2_kwh
+    - sensor.energy.homewizard.p1_export_t1_kwh
+    - sensor.energy.homewizard.p1_export_t2_kwh
+    - sensor.power.homewizard.p1_avg_15m_w
+    - sensor.power.homewizard.p1_monthly_peak_w
+    - sensor.fluid.homewizard.p1_gas_m3
+    - sensor.power.homewizard.pv_power
+    - sensor.energy.homewizard.pv_export_kwh
+    - sensor.energy.homewizard.pv_import_kwh
 
 # ==============================================================================
 # Automatic sections (deviceexplorer_hide, auto_off_devices, automations) live in:

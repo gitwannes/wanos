@@ -34,6 +34,7 @@ Stable automation identifiers. Pattern is `prefix.<slug>` or `prefix.<kind>.<slu
 | `sensor.power.<slug>` | Power meters | `sensor.power.pc` |
 | `sensor.temp_hum.<slug>` | Temperature / humidity | `sensor.temp_hum.sauna_high` |
 | `sensor.energy.<slug>` | Energy pulse (kWh) | `sensor.energy.kwh_meter` |
+| `sensor.*.homewizard.<slug>` | HomeWizard P1 / PV (G10) | `sensor.power.homewizard.p1_power` |
 | `sensor.fluid.<slug>` | Water / fluid pulse | `sensor.fluid.cold` |
 | `sensor.door.<slug>` | Door contacts | `sensor.door.sauna` |
 | `sensor.generic.<slug>` | Other sensors (motion, system status, etc.) | `sensor.generic.garage_motion` |
@@ -116,6 +117,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `hue.py`: Local Philips Hue Bridge API v2 SSE/HTTP client.
 * `epson.py`: TCP control for Epson projectors.
 * `lg.py`: LG webOS TV (**G16** ✅) — WOL + SSAP power poll + fixed app catalog launch. Product: [`docs/integration_lg.md`](integration_lg.md).
+* `homewizard.py`: HomeWizard Energy (**G10**) — Local API v2 poll (aiohttp) for P1 / PV kWh → `810xx`. Product: [`docs/integration_homewizard.md`](integration_homewizard.md). Scout: `helpers/homewizard_discovery.py`.
 
 ---
 

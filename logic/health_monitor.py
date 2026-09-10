@@ -34,7 +34,7 @@ class HealthMonitor:
         # Dedicated Strike Counters for Auto-Kill thresholds
         # Network integrations get 3 strikes (6 seconds) to survive minor TCP blips.
         # USB hardware gets 1 strike (2 seconds) because a missing /dev/tty is immediately fatal.
-        self.strikes = {"hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0, "sonos": 0, "lg": 0}
+        self.strikes = {"hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0, "sonos": 0, "lg": 0, "homewizard": 0}
 
         # ⚡ Stateful Hysteresis Tracker for System Telemetry
         # Debounces alerts so the UI isn't spammed every 60 seconds during a persistent load spike.
@@ -164,6 +164,20 @@ class HealthMonitor:
                 lg_bridge = getattr(sm, "lg_bridge", None)
                 lg_conn = bool(lg_bridge and getattr(lg_bridge, "is_connected", False))
 
+                # HomeWizard: ping configured hosts (token + /api)
+                hw_bridge = getattr(sm, "homewizard_bridge", None)
+                hw_conn = False
+                if hw_bridge is not None:
+                    try:
+                        hw_conn = bool(await hw_bridge.ping())
+                        hw_bridge.is_connected = hw_conn
+                    except Exception:
+                        hw_conn = False
+                        try:
+                            hw_bridge.is_connected = False
+                        except Exception:
+                            pass
+
                 # Z-Wave health is a multi-tiered verification matrix:
                 # 1. Physical USB stick presence (Tier 1 - Physical)
                 zwave_conf = getattr(config, "zwave", None)
@@ -196,6 +210,9 @@ class HealthMonitor:
                 self.strikes["rfxcom"] = 0 if rfx_conn else self.strikes["rfxcom"] + 1
                 # Do not strike LG on TV-off; only if bridge itself is down while configured
                 self.strikes["lg"] = 0 if lg_conn or lg_bridge is None else self.strikes["lg"] + 1
+                self.strikes["homewizard"] = (
+                    0 if hw_conn or hw_bridge is None else self.strikes["homewizard"] + 1
+                )
 
                 # Z-Wave USB drop is fatal immediately (1 strike). Web/Data drops get 3 strikes (network blips).
                 self.strikes["zwave"] = 0 if zwave_conn else self.strikes["zwave"] + 1
@@ -226,6 +243,11 @@ class HealthMonitor:
                     sm.dispatch(Event(type=EventType.LG_TOGGLED, payload={
                         "enabled": False,
                         "error_msg": "🔌 LG bridge unavailable after 3 retries. Integration disabled."}))
+
+                if self.strikes["homewizard"] >= 3 and sys_state.system.homewizard_integration_enabled:
+                    sm.dispatch(Event(type=EventType.HOMEWIZARD_TOGGLED, payload={
+                        "enabled": False,
+                        "error_msg": "🔌 HomeWizard unreachable after 3 retries. Integration disabled."}))
 
                 if self.strikes["rfxcom"] >= 1 and sys_state.system.rfxcom_integration_enabled:
                     sm.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={
@@ -294,6 +316,7 @@ class HealthMonitor:
                     "hue_connected": hue_conn,
                     "epson_connected": epson_conn,
                     "lg_connected": lg_conn,
+                    "homewizard_connected": hw_conn,
                     "onkyo_connected": onkyo_conn,
                     "sonos_connected": sonos_conn,
                     "zwave_hardware_connected": zwave_physical,

@@ -16,7 +16,7 @@ from logic.history_ids import SAUNA_CALC_IDX, HOST_HISTORY_IDXS
 from core.well_known_entities import ENTITY_MAINS_VOLTAGE
 
 SENSOR_META: Dict[int, Dict[str, str]] = {
-    11001: {"label": "House energy", "kind": "energy", "unit": "Wh"},
+    11001: {"label": "Sauna kWh meter", "kind": "energy", "unit": "Wh"},
     11002: {"label": "Cold water", "kind": "water", "unit": "L"},
     11003: {"label": "Hot water", "kind": "water", "unit": "L"},
     74001: {"label": "PC power", "kind": "power", "unit": "W"},
@@ -31,6 +31,23 @@ SENSOR_META: Dict[int, Dict[str, str]] = {
     22006: {"label": "Host Load Average (1m)", "kind": "host", "unit": "%"},
     22009: {"label": "WanOS DB size", "kind": "host", "unit": "MB"},
     71046: {"label": "Mains voltage", "kind": "host", "unit": "V"},
+    # HomeWizard P1 (81001–81020) + PV kWh (81030–81038) — G10
+    81001: {"label": "P1 power", "kind": "power", "unit": "W"},
+    81002: {"label": "P1 power L1", "kind": "power", "unit": "W"},
+    81003: {"label": "P1 power L2", "kind": "power", "unit": "W"},
+    81004: {"label": "P1 power L3", "kind": "power", "unit": "W"},
+    81005: {"label": "P1 import kWh", "kind": "energy", "unit": "Wh"},
+    81006: {"label": "P1 export kWh", "kind": "energy", "unit": "Wh"},
+    81007: {"label": "P1 import T1 kWh", "kind": "energy", "unit": "Wh"},
+    81008: {"label": "P1 import T2 kWh", "kind": "energy", "unit": "Wh"},
+    81009: {"label": "P1 export T1 kWh", "kind": "energy", "unit": "Wh"},
+    81010: {"label": "P1 export T2 kWh", "kind": "energy", "unit": "Wh"},
+    81011: {"label": "P1 avg 15m W", "kind": "power", "unit": "W"},
+    81012: {"label": "P1 monthly peak W", "kind": "power", "unit": "W"},
+    81013: {"label": "P1 gas m3", "kind": "fluid", "unit": "m3"},
+    81030: {"label": "PV power", "kind": "power", "unit": "W"},
+    81031: {"label": "PV export kWh", "kind": "energy", "unit": "Wh"},
+    81032: {"label": "PV import kWh", "kind": "energy", "unit": "Wh"},
 }
 
 # Paired fluid meters — History UI merges into one "Water" detail (shared liters axis).
@@ -122,6 +139,8 @@ class _IdxRuntime:
     window_wh: float = 0.0
     # water liters since last history step
     pending_liters: float = 0.0
+    # Absolute cumulative meters (HomeWizard energy Wh / fluid units)
+    last_absolute: Optional[float] = None
     # Z-Wave throttle / Wh integration
     last_zwave_ts: float = 0.0
     last_zwave_watts: Optional[float] = None
@@ -444,6 +463,109 @@ class SensorHistoryManager:
         while rt.pending_liters >= self.water_step_l:
             rt.pending_liters -= self.water_step_l
             self._clear_boot_gap_flag_if_needed()
+
+    def note_absolute_energy_kwh(self, idx: int, kwh: float) -> None:
+        """
+        Absolute cumulative kWh meter (HomeWizard). Accrues Wh deltas into
+        hour/day buckets; hi-res W samples every kwh_step_wh (same as pulse path).
+        devices[idx] is expected to hold Wh (handler converts API kWh * 1000).
+        """
+        if idx not in self.tracked_idxs:
+            return
+        meta = SENSOR_META.get(idx, {})
+        if meta.get("kind") != "energy":
+            return
+        try:
+            wh_abs = float(kwh) * 1000.0
+        except (TypeError, ValueError):
+            return
+
+        now = time.time()
+        if idx not in self._runtime:
+            self._runtime[idx] = _IdxRuntime()
+        rt = self._runtime[idx]
+        hour = self._get_hour(idx)
+        day = self._get_day(idx)
+
+        if rt.last_absolute is None:
+            rt.last_absolute = wh_abs
+            rt.window_start_ts = now
+            if day.counter_start is None:
+                day.counter_start = wh_abs
+            day.counter_end = wh_abs
+            rt.last_seen_ts = now
+            return
+
+        delta_wh = wh_abs - rt.last_absolute
+        rt.last_absolute = wh_abs
+        day.counter_end = wh_abs
+        rt.last_seen_ts = now
+
+        if delta_wh < 0:
+            # Meter reset / glitch — reseat window, do not accrue negative
+            rt.window_wh = 0.0
+            rt.window_start_ts = now
+            return
+        if delta_wh == 0:
+            return
+
+        hour.consumption += delta_wh
+        day.consumption += delta_wh
+        if day.counter_start is None:
+            day.counter_start = wh_abs - delta_wh
+
+        if rt.window_start_ts <= 0:
+            rt.window_start_ts = now
+        rt.window_wh += delta_wh
+        if rt.window_wh >= self.kwh_step_wh:
+            dt = max(now - rt.window_start_ts, 0.001)
+            watts = 3600.0 * rt.window_wh / dt
+            self._enqueue_sample(idx, int(now), watts, "W")
+            hour.note_watts(watts)
+            day.note_watts(watts)
+            rt.window_wh = 0.0
+            rt.window_start_ts = now
+            self._clear_boot_gap_flag_if_needed()
+
+    def note_absolute_fluid(self, idx: int, value: float) -> None:
+        """Absolute cumulative fluid meter (e.g. gas m3). Accrues positive deltas."""
+        if idx not in self.tracked_idxs:
+            return
+        meta = SENSOR_META.get(idx, {})
+        if meta.get("kind") not in ("fluid", "water"):
+            return
+        try:
+            abs_val = float(value)
+        except (TypeError, ValueError):
+            return
+
+        now = time.time()
+        if idx not in self._runtime:
+            self._runtime[idx] = _IdxRuntime()
+        rt = self._runtime[idx]
+        hour = self._get_hour(idx)
+        day = self._get_day(idx)
+
+        if rt.last_absolute is None:
+            rt.last_absolute = abs_val
+            if day.counter_start is None:
+                day.counter_start = abs_val
+            day.counter_end = abs_val
+            rt.last_seen_ts = now
+            return
+
+        delta = abs_val - rt.last_absolute
+        rt.last_absolute = abs_val
+        day.counter_end = abs_val
+        rt.last_seen_ts = now
+        if delta <= 0:
+            return
+
+        hour.consumption += delta
+        day.consumption += delta
+        if day.counter_start is None:
+            day.counter_start = abs_val - delta
+        self._clear_boot_gap_flag_if_needed()
 
     def refresh_water_today_metrics(self) -> None:
         """Mirror cold/hot water day liters into SystemState metrics (WISC / Admin)."""
@@ -1510,6 +1632,16 @@ class SensorHistoryManager:
                 "year": year_cons / 1000.0,
                 "total": None,
                 "display_unit": "kWh",
+            }
+        if kind == "fluid":
+            return {
+                "idx": idx,
+                **meta,
+                "today": today_cons,
+                "month": month_cons,
+                "year": year_cons,
+                "total": total,
+                "display_unit": meta.get("unit") or "m3",
             }
         return {
             "idx": idx,
