@@ -186,6 +186,7 @@ async def handle_hub_state_changed(event: Event, manager: Any) -> Tuple[bool, Se
                 "name": device_name_payload, "type": payload.get("device_type") or "unknown",
                 "origin": payload.get("origin") or "system",
             }
+            manager._apply_resolved_product_type(manager._state.device_metadata[idx])
             state_changed = True
             changed_domains.add("device_metadata")
             if not is_init:

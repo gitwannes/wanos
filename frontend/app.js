@@ -4248,7 +4248,7 @@ function wanosApp() {
                     type: "value",
                     name: yName,
                     nameTextStyle: { color: "#9ca3af" },
-                    axisLabel: { color: "#9ca3af" },
+                    axisLabel: { color: "#9ca3af", hideOverlap: true },
                     splitLine: { lineStyle: { color: "#374151" } }
                 },
                 dataZoom: [
@@ -4858,7 +4858,7 @@ function wanosApp() {
                         name: showAxisNames && showLeft ? "°C" : "",
                         show: showLeft,
                         nameTextStyle: { color: "#eab308", fontSize: labelFs },
-                        axisLabel: { color: "#eab308", fontSize: labelFs, margin: compact ? 4 : 8 },
+                        axisLabel: { color: "#eab308", fontSize: labelFs, margin: compact ? 4 : 8, hideOverlap: true },
                         splitLine: { lineStyle: { color: "#374151" } },
                     },
                     {
@@ -4868,7 +4868,7 @@ function wanosApp() {
                         position: "right",
                         offset: 0,
                         nameTextStyle: { color: "#9ca3af", fontSize: labelFs },
-                        axisLabel: { color: "#9ca3af", fontSize: labelFs, margin: compact ? 4 : 8 },
+                        axisLabel: { color: "#9ca3af", fontSize: labelFs, margin: compact ? 4 : 8, hideOverlap: true },
                         splitLine: { show: false },
                     },
                     {
@@ -4882,6 +4882,7 @@ function wanosApp() {
                             color: this._climateFsSeriesColor("ah"),
                             fontSize: labelFs,
                             margin: compact ? 4 : 8,
+                            hideOverlap: true,
                         },
                         splitLine: { show: false },
                     },
@@ -5047,6 +5048,28 @@ function wanosApp() {
         },
 
         /**
+         * Label spacing so Y-axis has at most maxLabels ticks (inclusive).
+         * Interval is a multiple of snapStep when practical.
+         * @param {number} minV
+         * @param {number} maxV
+         * @param {number} snapStep
+         * @param {number} [maxLabels=8]
+         * @returns {number}
+         */
+        _yLabelInterval(minV, maxV, snapStep, maxLabels = 8) {
+            const step = Number(snapStep) > 0 ? Number(snapStep) : 1;
+            const lo = Number(minV);
+            const hi = Number(maxV);
+            if (!Number.isFinite(lo) || !Number.isFinite(hi)) return step;
+            const span = Math.max(0, hi - lo);
+            if (span <= 0) return step;
+            const slots = Math.max(1, Number(maxLabels) - 1);
+            const raw = span / slots;
+            const mult = Math.max(1, Math.ceil(raw / step));
+            return mult * step;
+        },
+
+        /**
          * C5 locked snap steps by unit.
          * @param {string} unit
          * @param {"day"|"month"|"year"} [range]
@@ -5059,7 +5082,12 @@ function wanosApp() {
             if (u === "W") return 10;
             if (u === "L" || u === "l") return range === "day" ? 10 : 50;
             if (u === "V") return 5;
+            if (u === "A") return 1;
+            if (u === "Hz") return 1;
+            if (u === "VA" || u === "VAR") return 50;
             if (u === "MB" || u === "MiB") return 50;
+            // Power factor / unitless gauges
+            if (u === "" || u === "x") return 0.1;
             return null;
         },
 
@@ -5129,7 +5157,7 @@ function wanosApp() {
                 yPatch[ax.axisIndex] = {
                     min: bounds.min,
                     max: bounds.max,
-                    interval: step,
+                    interval: this._yLabelInterval(bounds.min, bounds.max, step, 8),
                 };
             }
 
@@ -5453,8 +5481,7 @@ function wanosApp() {
 
         /**
          * C12: duration ON Y-axis for month/year (binary / Hue / audio).
-         * Bounds: month snap ±10 min; year snap ±1 h. Interval aims for ~5 ticks
-         * so labels stay readable (not every integer).
+         * Bounds: month snap ±10 min; year snap ±1 h. At most 8 Y labels.
          * @param {number[]} vals
          * @param {"month"|"year"} range
          * @returns {{ min: number, max: number, interval: number }}
@@ -5471,15 +5498,7 @@ function wanosApp() {
             if (range === "year") {
                 let min = Math.max(0, Math.floor(dataMin));
                 let max = Math.max(min + 1, Math.ceil(dataMax));
-                const span = max - min;
-                // Prefer ~5 ticks: 1, 2, 5, 10, 20…
-                let interval = 1;
-                if (span > 6) interval = 2;
-                if (span > 12) interval = 5;
-                if (span > 30) interval = 10;
-                if (span > 60) interval = 20;
-                if (span > 120) interval = Math.ceil(span / 5);
-                // Align max to interval so ticks land cleanly
+                let interval = this._yLabelInterval(min, max, 1, 8);
                 max = min + Math.ceil((max - min) / interval) * interval;
                 return { min, max, interval };
             }
@@ -5487,12 +5506,7 @@ function wanosApp() {
             // month — minutes, snap bounds to 10
             let min = Math.max(0, Math.floor(dataMin / 10) * 10);
             let max = Math.max(min + 10, Math.ceil(dataMax / 10) * 10);
-            const span = max - min;
-            let interval = 10;
-            if (span > 50) interval = 20;
-            if (span > 100) interval = 50;
-            if (span > 250) interval = 100;
-            if (span > 500) interval = Math.ceil(span / 5 / 10) * 10;
+            let interval = this._yLabelInterval(min, max, 10, 8);
             max = min + Math.ceil((max - min) / interval) * interval;
             return { min, max, interval };
         },
@@ -5545,7 +5559,11 @@ function wanosApp() {
                         itemStyle: { color: "#64748b" }
                     }]
                 };
-                if (peak > 0) opt.yAxis.max = Math.ceil(peak);
+                if (peak > 0) {
+                    const max = Math.ceil(peak);
+                    opt.yAxis.max = max;
+                    opt.yAxis.interval = this._yLabelInterval(0, max, 1, 8);
+                }
                 this._setHistoryChartOption(chart, opt, savedZoom, { soft, replaceYAxis: true });
                 return;
             }
@@ -5609,7 +5627,7 @@ function wanosApp() {
             const stateYName = "Level";
             const stateMinName = "Level min";
             const stateMaxName = "Level max";
-            const stateAxisLabel = { color: "#9ca3af" };
+            const stateAxisLabel = { color: "#9ca3af", hideOverlap: true };
 
             const opt = {
                 backgroundColor: "transparent",
@@ -5643,6 +5661,7 @@ function wanosApp() {
                         name: stateYName,
                         min: 0,
                         max: levelMax,
+                        interval: this._yLabelInterval(0, Number(levelMax) || 100, 1, 8),
                         nameTextStyle: { color: "#9ca3af" },
                         axisLabel: stateAxisLabel,
                         splitLine: { lineStyle: { color: "#374151" } }
@@ -5650,8 +5669,15 @@ function wanosApp() {
                     {
                         type: "value",
                         name: "Events",
+                        min: 0,
+                        interval: this._yLabelInterval(
+                            0,
+                            Math.max(1, ...hitVals.map((n) => Number(n) || 0)),
+                            1,
+                            8
+                        ),
                         nameTextStyle: { color: "#9ca3af" },
-                        axisLabel: { color: "#9ca3af" },
+                        axisLabel: { color: "#9ca3af", hideOverlap: true },
                         splitLine: { show: false }
                     }
                 ],
@@ -5753,7 +5779,7 @@ function wanosApp() {
                     name: "liters",
                     min: 0,
                     nameTextStyle: { color: "#9ca3af" },
-                    axisLabel: { color: "#9ca3af" },
+                    axisLabel: { color: "#9ca3af", hideOverlap: true },
                     splitLine: { lineStyle: { color: "#374151" } }
                 },
                 series: [
@@ -5790,7 +5816,7 @@ function wanosApp() {
                 const peak = Math.max(0, ...coldVals.map(Number), ...hotVals.map(Number));
                 const bounds = this._snapBounds(0, peak, step);
                 opt.yAxis.max = bounds.max;
-                opt.yAxis.interval = step;
+                opt.yAxis.interval = this._yLabelInterval(bounds.min, bounds.max, step, 8);
             }
             this._setHistoryChartOption(chart, opt, null, { soft });
             if (range === "day") {

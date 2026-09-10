@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-09-10 (G10 HomeWizard P1+PV bridge shipped; sockets deferred)
+**Last updated:** 2026-09-10 (**G10** close-out — Pi smoke OK)
 
 ---
 
@@ -93,7 +93,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **C37** | bugfix: Android PWA resume black screen — **OnePlus 12 smoke 2026-09-09** — [`phaseC-shell.md`](phaseC-shell.md) § C37 |
 | **C40** | Cancelled **2026-09-09** — PID v2 not open; re-triage when wanted — [`phaseC-shell.md`](phaseC-shell.md) § C40 |
 | **S1** | Sauna vent strip + door closed ≤5 min start gate + timer-hop removal — **Pi smoke 2026-09-10** — [`_archive/phaseS-sauna.md`](_archive/phaseS-sauna.md) |
-| **G10** | HomeWizard Energy P1 + PV (`810xx`) — **shipped 2026-09-10** (sockets deferred) — [`phaseG-integrations.md`](phaseG-integrations.md) § G10 · [`integration_homewizard.md`](../integration_homewizard.md) |
+| **G10** | HomeWizard Energy P1 + PV (`810xx`) — **Done 2026-09-10** (Pi smoke OK; sockets deferred) — [`phaseG-integrations.md`](phaseG-integrations.md) § G10 · [`integration_homewizard.md`](../integration_homewizard.md) |
 
 ---
 
@@ -130,20 +130,22 @@ All open items. **Detail** = phase file section.
 24  open   high G9           Honeywell / Evohome                                phaseG § G9
 25  open   high G12          SMA solar                                          phaseG § G12
 26  open   high G13          HomeConnect BSH                                    phaseG § G13
-27  open   high F            Security bridge (F1→F7)                            phaseF
-28  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
-29  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-30  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-31  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-32  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-33  hold   high P            Other homes / portability (assess)                 phaseP
-34  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
-35  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
-36  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
-37  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
-38  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
+27  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
+28  open   high F            Security bridge (F1→F7)                            phaseF
+29  hold   mid  B20          Domoticz Time trigger (after F)                    phaseB § B20
+30  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+31  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+32  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+33  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+34  hold   high P            Other homes / portability (assess)                 phaseP
+35  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
+36  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
+37  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
+38  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
+39  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
+40  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
 ```
-Near-term: **B14b** next Blockly ship → **B26** → **B24**. **B28** hold assess (auto-off → singular rules) — after **B14b** / prefer after **B24**; not **C13**. **B12** may run ∥ **B14b**. **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **L2** after kickoff when ready. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside **B14b**. Vendor bridges: **G11→G9→G12→G13** (**G10** ✅ P1+PV; sockets deferred); default after **G4**, before **F**. **S1** ✅ **Pi smoke 2026-09-10** (archived). **G10** ✅ **2026-09-10**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **B7 / B14 part 1** ✅ **Pi smoke 2026-09-09**. **C38** / **C41** ✅ **close-out**. **C40** cancelled (PID v2 not open). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **B14b** next Blockly ship → **B26** → **B24**. **B28** hold assess (auto-off → singular rules) — after **B14b** / prefer after **B24**; not **C13**. **B12** may run ∥ **B14b**. **C33** / **C36** / **B27** may run ∥ near-term cluster (kickoff each). **P1** = history series config (entity_id + kind/unit/how); default after **C33** / with **P** cluster. **G17** = HomeWizard Z-Wave-style field picker + add hosts/devices without hand-YAML (after **G13**, before **F**). **L2** after kickoff when ready. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside **B14b**. Vendor bridges: **G11→G9→G12→G13** then **G17**; (**G10** ✅ **Pi smoke / close-out 2026-09-10**; sockets deferred); default after **G4**, before **F**. **S1** ✅ **Pi smoke 2026-09-10** (archived). **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **B7 / B14 part 1** ✅ **Pi smoke 2026-09-09**. **C38** / **C41** ✅ **close-out**. **C40** cancelled (PID v2 not open). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 

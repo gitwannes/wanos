@@ -81,7 +81,7 @@ lg:
       label: "YouTube"
       id: "youtube.leanback.v4"
 
-# HomeWizard Energy (G10) — tokens in ~/.config/wanos/homewizard_tokens.json
+# HomeWizard Energy — tokens in ~/.config/wanos/homewizard_tokens.json
 # Scout: helpers/homewizard_discovery.py  |  sockets deferred (v1-only today)
 homewizard:
   poll_secs: 60
@@ -248,6 +248,20 @@ history:
     - sensor.power.homewizard.pv_power
     - sensor.energy.homewizard.pv_export_kwh
     - sensor.energy.homewizard.pv_import_kwh
+    # HomeWizard gauges (type: sensor in device_map)
+    - sensor.homewizard.p1_voltage_l1
+    - sensor.homewizard.p1_voltage_l2
+    - sensor.homewizard.p1_voltage_l3
+    - sensor.homewizard.p1_current
+    - sensor.homewizard.p1_current_l1
+    - sensor.homewizard.p1_current_l2
+    - sensor.homewizard.p1_current_l3
+    - sensor.homewizard.pv_voltage
+    - sensor.homewizard.pv_current
+    - sensor.homewizard.pv_frequency
+    - sensor.homewizard.pv_power_factor
+    - sensor.homewizard.pv_apparent_va
+    - sensor.homewizard.pv_reactive_var
 
 # ==============================================================================
 # Automatic sections (deviceexplorer_hide, auto_off_devices, automations) live in:

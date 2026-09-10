@@ -61,7 +61,8 @@ Make WanOS **usable for another house**: engine stays generic; **home-specific**
 ### Code that still assumes this house (extract or parameterize)
 
 * `state_manager.py` — sauna composite **0.7×20001 + 0.3×20002**, hum from 20001, virtual **20101**; SHT locks `[20001, 20002]`; lab inject `[20001–20004]`
-* `logic/history_ids.py` — `SAUNA_CALC_IDX = 20101`
+* `logic/history_ids.py` — `SAUNA_CALC_IDX = 20101`; **`HOST_HISTORY_IDXS`** allowlist
+* `logic/sensor_history_manager.py` — **`SENSOR_META`** (idx → label/kind/unit) — see **P1**
 * `hardware/actuators.py` — **topology** fixed: 3 sauna phases + IR + one safety GPIO (pins from config)
 * `core/well_known_entities.py` — sauna door/probes, badk 1e vent/hum, Epson, SSR/WISC 5V
 * `logic/automation_rules.py` — shower `WATER_PULSE` → badk 1e vent ON only; humidity band → Library rule **`Badk 1e ventilatie`** (Ship **B5** ✅ **2026-08-17**)
@@ -95,5 +96,44 @@ Make WanOS **usable for another house**: engine stays generic; **home-specific**
 * Whether well-known eids stay as **names** in code (resolved via registry) vs all plant policy in YAML/rules.
 * **B17** vs **P**: B17 may land first; **P** takes leftover plant-in-code.
 * Sample `config.yaml` / hardware template without Borsbeek IPs (no secrets).
+* **P1** first concrete extraction vs wait for full **P** inventory.
 
 **P DoD (stub):** Kickoff assess recorded; home vs engine documented; extraction ships (if any) only after operator OK per item. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 P1 — Configurable sensor-history series 🔜 TODO
+
+**Status:** open · size **high** · Sequence → [`pipeline.md`](pipeline.md)  
+**Affinity:** Portability (hardcoded history contract → home config). Not Explorer chrome (**C**); not a new vendor bridge (**G**).
+
+### Operator request (verbatim, 2026-09-10)
+
+> triage this: we need to redesign this: now this is hardcoded, I need a configurable way of telling wanos which device to have history for and how
+
+### Problem (today)
+
+| Mechanism | Role | Pain |
+|---|---|---|
+| `SENSOR_META` in `logic/sensor_history_manager.py` | Hardcoded idx → `label` / `kind` / `unit` | Site IDXs + chart contract in Python |
+| `HOST_HISTORY_IDXS` in `logic/history_ids.py` | Host/mains gauge allowlist | Same |
+| `history.tracked_entities` in `config.yaml` | Opt-in entity_ids for utility ingest + History list | **Which** only — not **how** (kind/unit/ingest) |
+
+Climate discovery and actuator `device_history` stay separate unless kickoff expands scope.
+
+### Intent (delivery — lock at kickoff)
+
+* One **config** place (prefer extend `history:` in `config.yaml`, not a second system / settings UI unless asked) that says **which** entity_ids get sensor-history **and how** (kind, unit, ingest mode: power W / absolute energy / fluid / host gauge / …).
+* Remove (or shrink to engine defaults only) hardcoded `SENSOR_META` / `HOST_HISTORY_IDXS` site rows.
+* Labels prefer live `device_metadata` / registry; config carries series contract, not house display names if avoidable.
+* Product docs: [`docs/sensor_history.md`](../sensor_history.md).
+
+### Out of scope (this triage)
+
+* Implement / schema lock (needs **kickoff P1**)
+* History UI redesign (**C**); actuator event history (**C36**); Sauna/IR History polish (**C33**)
+* “Historize every device by default”
+
+### P1 DoD (stub)
+
+Kickoff locks config shape + migration of current Borsbeek rows; code reads config; `SENSOR_META` / host allowlist no longer site-hardcoded; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

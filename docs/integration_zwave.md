@@ -7,7 +7,7 @@ Based on the WanOS backend architecture, the Z-Wave integration acts as a **lazy
 When the WanOS backend boots, the `ZWaveJSUIBridge` is instantiated, but it does not immediately subscribe to device telemetry. 
 
 *   **Silent Standby:** The bridge subscribes exclusively to the Z-Wave JS UI driver status (`driver/status`) and an out-of-band data plane heartbeat (`_EVENTS/+/controller/statistics_updated`). 
-*   **Lazy Boot:** The integration waits for two distinct hardware flags to become `True`: the physical USB stick connection (`zwave_hardware_connected`) and the MQTT engine status (`is_mqtt_engine_alive`). Only when both are verified does the bridge parse `config_zwave.auto.yaml` to map the network. Mapped binary actuators receive (or reuse) a stable `entity_id` via system-owned `entity_registry.auto.yaml` — birth pattern **`zwave.<slug>`** (vent motors **`zwave.vent.<slug>`**). Product **light** vs **switch** is not the id prefix — see Timers & types / `device_product_types` in [`phaseD-typing.md`](todo/phaseD-typing.md).
+*   **Lazy Boot:** The integration waits for two distinct hardware flags to become `True`: the physical USB stick connection (`zwave_hardware_connected`) and the MQTT engine status (`is_mqtt_engine_alive`). Only when both are verified does the bridge parse `config_zwave.auto.yaml` to map the network. Mapped binary actuators receive (or reuse) a stable `entity_id` via system-owned `entity_registry.auto.yaml` — birth pattern **`zwave.<slug>`** (vent motors **`zwave.vent.<slug>`**). Product **light** vs **switch** is not the id prefix — see Timers & types / `device_product_types` in [`phaseD-typing.md`](todo/phaseD-typing.md). After atomic metadata seed, the bridge **restamps** `resolved_product_type` from `device_product_types` (Explorer LIGHT/SWITCH filters; boot rebuild alone cannot stamp Z-Wave rows that do not exist yet).
 *   **Armed Subscription:** Once the UI master toggle enables the integration, the bridge opens the telemetry stream (`zwave/#`) to actively listen for node updates.
 
 ## 2. Protocol Variations: Command Classes
@@ -23,7 +23,7 @@ Unlike integrations that abstract device complexity, the Z-Wave bridge natively 
 When the hardware is fully detected and mapped, the bridge performs an atomic RAM injection:
 
 *   **Ghost Buster (Orphan Purge):** It compares the newly loaded config against the RAM dictionary. If a previously mapped Z-Wave node is no longer in the configuration, the bridge dynamically purges it from memory and dispatches a `None` state to erase it from the frontend instantly.
-*   **Metadata Seeding:** It evaluates the configuration path strings to assign specific UI semantics. For example, `73xxx` blocks are mapped as `blinds`, `74xxx` as `power`, and explicit node paths (like `66561`) are mapped as `sensor` to prevent AC Line Voltage monitors from rendering as toggle switches.
+*   **Metadata Seeding:** It evaluates the configuration path strings to assign specific UI semantics. For example, `73xxx` blocks are mapped as `blinds`, `74xxx` as `power`, and explicit node paths (like `66561`) are mapped as `sensor` to prevent AC Line Voltage monitors from rendering as toggle switches. After the seed pass, `resolved_product_type` is restamped from `device_product_types` so Timers & types **light** overrides appear in Explorer without a Timers save.
 *   **"Sync..." Placeholder:** It forces the frontend to render the newly mapped devices instantly with a `"Sync..."` state.
 
 ## 4. UI Quirks & State Synchronization

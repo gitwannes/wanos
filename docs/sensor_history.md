@@ -63,7 +63,7 @@ Z-Wave power IDXs (`74001`, `74003`) include **integrated kWh** in summary tiles
 | IDX | Name | Kind | History series |
 |-----|------|------|----------------|
 | `11001` | Sauna kWh meter | Energy pulse (1 pulse = 1 Wh) | Instant W (from Δt at sample points) + Wh consumption buckets |
-| `81001`+ | HomeWizard P1 / PV | Absolute kWh / W / gas m³ (G10) | Power: 60 s W samples; energy/gas: absolute counter deltas |
+| `81001`+ | HomeWizard P1 / PV | Absolute kWh / W / gas m³ + gauges (G10) | Power: 60 s W samples; energy/gas: absolute counter deltas; V/A/Hz/PF/VA/VAR: **host** gauges @ 60 s |
 | `74001` | PC power | Z-Wave Power (W) | Instant W + daily min/avg/max W |
 | `74003` | PC monitors power | Z-Wave Power (W) | Instant W + daily min/avg/max W |
 | `11002` | Cold water | Fluid pulse (396 pulses = 1 L) | Liter consumption buckets only |
@@ -299,7 +299,7 @@ Every state/level change counts toward today / month averages.
 - List: Control inventory shared with History mode; **C10:** omit all `type === "scene"` catalog-event rows (logging still writes synthetic idxs; Control dashboard buttons unchanged).
 - Detail charts for **selected** actuator:
   - **Day (C16 ✅):** same families as today; hi-res buffer = **`hires_days`**; **24 h max viewport**, pannable, zoom-in only; from/to subtitle when not live
-  - **Binary** (switch / non-Hue light / door / …): day ON/OFF Y; month/year **duration ON** (**C12** ✅) — integer **minutes** / **hours** (1 decimal); clip; carry-in; open→now; Y snap ±10 min / ±1 h with ~5 tick labels
+  - **Binary** (switch / non-Hue light / door / …): day ON/OFF Y; month/year **duration ON** (**C12** ✅) — integer **minutes** / **hours** (1 decimal); clip; carry-in; open→now; Y snap ±10 min / ±1 h with **at most 8** tick labels
   - **Hue** + **Audio** (Sonos / Onkyo): day Level; month/year **duration ON** only (no Events, no Level min/max); same Y snap — **C12** ✅
   - **Level** (blinds): day Level step; month/year event counts + Level min/max
   - **Motion hits:** day impulse spikes with blank/`hit` Y labels; month/year **# hits** only (not duration)
@@ -399,9 +399,15 @@ Same retention as actuators. Motion `75xxx` stays **soft-hidden** by default (Z-
 | 22006 | Host Load Average (1m) | % (of 4 cores) |
 | 22009 | WanOS DB size | MB (MiB) |
 | 71046 | Mains voltage | V |
+| `81014`–`81020` | HomeWizard P1 V/A gauges | V / A |
+| `81033`–`81038` | HomeWizard PV gauges | V / A / Hz / (unitless PF) / VA / VAR |
 
 `22009` = sum of `sensor_history.db` + `device_history.db` + `sauna_sessions.db` including `-wal`/`-shm` sidecars.
 
 **Not recorded (live only):** `22007` / `22008` Host Load Average (5m / 15m) — omitted from `HOST_HISTORY_IDXS` (**C22** ✅).
 
-Ingested from `HUB_STATE_CHANGED` (health_monitor ~60s; Z-Wave voltage). Charts: day line + month/year min/max (same shape as power). Visibility follows `deviceexplorer_hide` / Hidden toggle (same as Device Explorer; hide list lives in `automations.auto.yaml`).
+Ingested from `HUB_STATE_CHANGED` (health_monitor ~60s; Z-Wave voltage) for `HOST_HISTORY_IDXS`, and from `HOMEWIZARD_METRIC` (`type: sensor`) for HomeWizard gauges. Charts: day line + month/year min/max (same shape as power). Visibility follows `deviceexplorer_hide` / Hidden toggle (same as Device Explorer; hide list lives in `automations.auto.yaml`). HomeWizard gauges must also appear in `history.tracked_entities` so they show in the History list.
+
+### Y-axis labels (History charts)
+
+Snapped min/max steps stay unit-specific (**C5**). After snapping, the Y-axis **interval** is chosen so there are **at most 8** labels (inclusive). Applies to utility / host / water / climate snap axes, duration ON, hits, and actuator level/events axes. `axisLabel.hideOverlap: true` is an extra safety net.

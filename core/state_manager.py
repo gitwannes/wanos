@@ -4,7 +4,7 @@ import time
 import json
 import threading
 from datetime import datetime
-from typing import Optional, Any, Set, Dict
+from typing import Optional, Any, Set, Dict, Mapping
 from loguru import logger
 
 from .models import SystemState, Event, EventType, device_name, normalize_phases_pwm
@@ -508,29 +508,39 @@ class StateManager:
         )
         self.nvm.flush(counters, meta)
 
-    def _stamp_resolved_product_types(self) -> None:
-        """Attach resolved_product_type to binary actuators / Hue (D1 Explorer / auto-off tier)."""
+    def _apply_resolved_product_type(
+        self,
+        meta: dict,
+        overrides: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        """Stamp or clear resolved_product_type on one metadata dict (D1)."""
         from core.product_type_policy import resolve_product_type
 
+        if overrides is None:
+            overrides = getattr(self._config, "device_product_types", None) or {}
+        eid = meta.get("entity_id")
+        if not eid:
+            meta.pop("resolved_product_type", None)
+            return
+        origin = str(meta.get("origin") or "")
+        dtype = str(meta.get("type") or "").lower()
+        # Product light|switch only applies to Hue mesh and binary actuators.
+        if origin == "hue" or dtype in ("switch", "light"):
+            meta["resolved_product_type"] = resolve_product_type(
+                str(eid),
+                origin=origin,
+                overrides=overrides,
+            )
+        else:
+            meta.pop("resolved_product_type", None)
+
+    def _stamp_resolved_product_types(self) -> None:
+        """Attach resolved_product_type to binary actuators / Hue (D1 Explorer / auto-off tier)."""
         overrides = getattr(self._config, "device_product_types", None) or {}
         for _idx, meta in self._state.device_metadata.items():
             if not isinstance(meta, dict):
                 continue
-            eid = meta.get("entity_id")
-            if not eid:
-                meta.pop("resolved_product_type", None)
-                continue
-            origin = str(meta.get("origin") or "")
-            dtype = str(meta.get("type") or "").lower()
-            # Product light|switch only applies to Hue mesh and binary actuators.
-            if origin == "hue" or dtype in ("switch", "light"):
-                meta["resolved_product_type"] = resolve_product_type(
-                    str(eid),
-                    origin=origin,
-                    overrides=overrides,
-                )
-            else:
-                meta.pop("resolved_product_type", None)
+            self._apply_resolved_product_type(meta, overrides)
 
     def ensure_entity_id(self, idx: int) -> Optional[str]:
         """Stamp a frozen entity_id onto device_metadata[idx] (does not flush disk)."""
@@ -973,6 +983,9 @@ class StateManager:
                     new_meta["max_volume"] = existing["max_volume"]
                 self._state.device_metadata[meta_idx] = new_meta
                 self.entity_registry.ensure(int(meta_idx), new_meta)
+                # Re-resolve after rewrite — do not carry a stale stamp across type/origin changes,
+                # and do not drop Timers & types overrides when Z-Wave/RFX reseed metadata.
+                self._apply_resolved_product_type(new_meta)
                 # Do not save per-event — flush once after the queue drain (see worker).
                 state_changed = True
                 changed_domains.add("device_metadata")

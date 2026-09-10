@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9–G13** five new vendor bridges (sequential own ships) — inbox **2026-08-14**.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
@@ -25,7 +25,8 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G5 — Cinema rolluik half** | ✅ **Done 2026-08-16** — dashboard UE/UR; open % **> 50** → set **50%** open (stored **50**); legacy canvas + **B9C** |
 | **G11 — Samsung SmartThings** | Airco climate — **own ship** (1st of 5) — kickoff locked **2026-08-20**; **IDX band TBD** at implement (not `810xx`) |
 | **G9 — Honeywell** | Thermostats / Evohome — **own ship** (2nd) |
-| **G10 — HomeWizard** | Energy local API — **✅ shipped 2026-09-10** (P1 + PV; sockets deferred) — [`integration_homewizard.md`](../integration_homewizard.md) |
+| **G10 — HomeWizard** | Energy local API — **✅ Done 2026-09-10** (Pi smoke OK; P1 + PV; sockets deferred) — [`integration_homewizard.md`](../integration_homewizard.md) |
+| **G17 — HomeWizard map UI** | Z-Wave-style field picker + add hosts/devices (no hand-YAML) — G10 follow-up |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
@@ -439,13 +440,16 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 
 ---
 
-## ✅ G10 — HomeWizard energy — **shipped 2026-09-10** (P1 + PV; sockets deferred)
+## ✅ G10 — HomeWizard energy — **Done 2026-09-10** (Pi smoke OK; sockets deferred)
 
-**Origin:** operator inbox **2026-08-14**. **3rd of 5** by original letter order; **implement may run before G11+G9** (operator override **2026-09-10**). Own ship. **Not** same run as G9/G11+.
+**Letter:** **G10**. **Pipeline:** Done. Size **high**. **Pi smoke:** ✅ **2026-09-10** (operator).
 
-**Product reference:** [`docs/integration_homewizard.md`](../integration_homewizard.md) — config, poll, tokens, scout, IDX map.
+**Product reference (canonical):** [`docs/integration_homewizard.md`](../integration_homewizard.md) · [`docs/sensor_history.md`](../sensor_history.md) §3 / §17 · [`docs/reference.md`](../reference.md) (`homewizard.py`).
 
-**Operator request (verbatim):**
+**Follow-ups (not this ship):** map UI / add-device → **G17**; history series config → **P1**; Energy Socket switching (when API v2).
+
+### Operator request (verbatim)
+
 > - 5 integrations, each to be done seperately, not in the same code run - but in this order
 >
 > ⚡ HomeWizard (Energy Monitoring)
@@ -454,54 +458,69 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 >
 > *(Full five-integration inbox text in § Inbox 2026-08-14.)*
 
-**Operator kickoff (verbatim excerpts 2026-09-10):**
-> Coding G10 before G11+G9: confirmed
-> p1 meter, kWh meter for PV, 3 sockets kWh: airco, TV, diepvries
-> for PV: yes, in&export W, kWh for all, gas, everything that you can get
-> 11001 = actualy the sauna energy meter, not the complete house-kwh, that will come from homewizard
-> [sockets:] read-only power
-> Q6: B
-> poll every minute: keep detail info for 1 week, same as the rest (for history / graphs)
+**Kickoff excerpts (verbatim 2026-09-10):** Coding G10 before G11+G9; P1 + PV + sockets (sockets deferred); poll 60 s / hi-res 7 d; scout now, z-wave picker → pipeline (**G17**); `11001` = sauna energy.
+
+### Shipped summary
+
+* Bridge `integrations/homewizard.py` (aiohttp Local API v2) + Admin toggle + health/auto-kill + soft enable / per-host status logs.
+* Scout `helpers/homewizard_discovery.py` (`scan` / `pair` / `dump`).
+* `config.yaml` `homewizard.device_map` for P1 `.56` + PV `.57` (`81001`–`820`, `81030`–`838`); gauges as `kind: host` history.
+* Explorer Power filter; `11001` → **Sauna kWh meter**; `HOMEWIZARD_METRIC` Event Received → DEBUG.
+* `core/config.py` injects `homewizard:` into compiled runtime config.
+
+### Locked decisions (delivery pointer)
+
+See kickoff table in git history / product doc — key locks: telemetry-only; `810xx`; entity prefixes `sensor.{power|energy|fluid}.homewizard.<slug>` + `sensor.homewizard.<slug>`; full reload only (no G6 row); whole-house = P1 not `11001`.
+
+**Out of scope (G10):** Socket switching; G6 modal row; WebSocket; map UI (**G17**); **P1** history redesign.
+
+### G10 DoD
+
+- [x] Poll @60 s for selected `810xx`; Admin enable; history 7 d hi-res; `11001` Sauna label; scout kept
+- [x] Pi smoke — **2026-09-10** (operator)
+- [x] **Last DoD:** audit & update ALL `docs/**/*.md` (and root README) against shipped behavior — **2026-09-10**
+
+---
+
+## 📋 G17 — HomeWizard map UI (Z-Wave-style picker + add devices) 🔜 TODO
+
+**Status:** open · size **high** · Sequence → [`pipeline.md`](pipeline.md) (#27, after **G13**, before **F**)  
+**Affinity:** Integrations (**G**). Follow-up to **G10** (bridge already shipped). Not **P1** (history series contract) — related but separate.
+
+### Operator request (verbatim, 2026-09-10)
+
+> give it a sequence, put in triage - and add to that same ship the possibility to add homewizard devices without having to hardcode them (or is this the case already?)
+
+**Earlier G10 kickoff (verbatim, 2026-09-10):**
 > proposal ok (helpers/homewizard_discovery.py, this is now) - in pipeline = z-wave style picker
-> "house energy" move to "Sauna energy" in this ship
 
-**Intent:** Local API v2 — P1 / Wi‑Fi kWh / Energy Sockets; no cloud. Whole-house energy SoT = HomeWizard (not GPIO `11001`).
+### Today (verified — not already the case for UI)
 
-**Playbook:** follow [`docs/integration-playbook.md`](../integration-playbook.md); this stub is G10-only.
-
-### Locked decisions (2026-09-10)
-
-| Topic | Decision |
+| What | State |
 |---|---|
-| **Sequence** | **G10 may implement before G11+G9**. Still one ship; not bundled. |
-| **Devices** | **P1** · **PV Wi‑Fi kWh meter** · **3 Energy Sockets** (airco, TV, diepvries) — **sockets deferred** (API v1-only on site today) |
-| **Library / API** | **aiohttp** Local API **v2** (HTTPS + bearer). `python-homewizard-energy` V2 needs Python ≥3.12 — not pinned on Pi 3.9 |
-| **Ingest** | **REST poll** every **60 s** (`poll_secs: 60`) — not WebSocket in v1 |
-| **History** | **Yes** — `history.tracked_entities` / sensor_history; hi-res detail **`hires_days` = 7** |
-| **Sockets** | **Read-only power** — no ON/OFF, no C18 (when added later) |
-| **Bridge kind** | **Telemetry-only** |
-| **IDX band** | **`810xx`** — P1 `81001`–`81020`, PV `81030`–`81038` |
-| **Entity prefix** | **`sensor.{power\|energy\|fluid}.homewizard.<slug>`** |
-| **Field → idx pick** | Z-Wave-style curated `device_map` after discovery dump |
-| **Discovery scout** | **`helpers/homewizard_discovery.py`** — kept |
-| **G6 scoped reload** | **Not in this ship** — full reload only |
-| **Explorer** | Read-only analog rows |
-| **Admin enable** | **Yes** |
-| **Blockly** | No new block types |
-| **Log tag** | **`[HomeWizard]`** |
-| **`11001` / Admin Total kWh** | **Stays sauna** — label **`Sauna energy`** |
-| **Runtime label `11001`** | **`"House energy"` → `"Sauna kWh meter"`** ✅ |
+| Device / field list | **`config.yaml` → `homewizard.device_map`** (YAML curated by hand) — **not** Python literals |
+| Add a new host / field | Scout (`scan` / `pair` / `dump`) + **edit YAML** + reload — **no** Admin/Z-Wave-style page |
+| Persist like Z-Wave | Z-Wave uses **`config_zwave.auto.yaml`** + map page; HomeWizard has **no** `.auto.yaml` writer / UI yet |
+| History | Separate: `history.tracked_entities` (+ hardcoded `SENSOR_META` until **P1**) |
 
-### Shipped summary (2026-09-10)
+So: not hardcoded in bridge code, but **still hand-config** — operator must edit YAML to include sensors or add devices.
 
-* Bridge `integrations/homewizard.py` + Admin toggle + health/auto-kill.
-* Scout `helpers/homewizard_discovery.py` retained (`scan` / `pair` / `dump`).
-* Field map for P1 `.56` + PV `.57` in `config.yaml`; Energy Sockets **not** in this pass.
-* Product doc: [`integration_homewizard.md`](../integration_homewizard.md).
+### Intent (delivery — lock at kickoff)
 
-**Out of scope (G10):** HomeConnect (**G13**); Samsung (**G11**); SMA (**G12**); Energy Socket switching; G6 modal row; WebSocket ingest; retargeting Admin Total kWh off `11001`.
+1. **Z-Wave-style page** to choose which measurement fields are mapped (include/exclude, idx/name/type) for known HomeWizard hosts.
+2. **Add HomeWizard devices** from the UI (discover / pair / assign next free `810xx`) **without** hand-editing `config.yaml` — persist to an auto/owned map (shape vs Z-Wave `.auto.yaml` locked at kickoff).
+3. Bridge remaps after save (full reload and/or G6 `homewizard` scope if/when G6 lands — assess at kickoff).
 
-**G10 DoD:** ✅ HomeWizard poll@60s for selected `810xx`; Admin enable; history 7d hi-res; `11001` label Sauna energy; discovery helper kept; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+### Out of scope (this triage)
+
+* Re-implement G10 poll bridge
+* Energy Socket **switching** (read-only power still deferred unless kickoff expands)
+* **P1** history kind/unit config (may stay manual / follow-up until P1)
+* SMA / Samsung / HomeConnect map UIs
+
+### G17 DoD (stub)
+
+Kickoff locks page + persist path + add-device flow; Pi smoke: pick fields + add host without hand-YAML; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

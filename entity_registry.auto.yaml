@@ -379,6 +379,122 @@ entities:
     entity_id: switch.epson
     status: active
     name_at_birth: cinema projector
+  81001:
+    entity_id: sensor.power.homewizard.p1_power
+    status: active
+    name_at_birth: P1 power
+  81002:
+    entity_id: sensor.power.homewizard.p1_power_l1
+    status: active
+    name_at_birth: P1 power L1
+  81003:
+    entity_id: sensor.power.homewizard.p1_power_l2
+    status: active
+    name_at_birth: P1 power L2
+  81004:
+    entity_id: sensor.power.homewizard.p1_power_l3
+    status: active
+    name_at_birth: P1 power L3
+  81005:
+    entity_id: sensor.energy.homewizard.p1_import_kwh
+    status: active
+    name_at_birth: P1 import kWh
+  81006:
+    entity_id: sensor.energy.homewizard.p1_export_kwh
+    status: active
+    name_at_birth: P1 export kWh
+  81007:
+    entity_id: sensor.energy.homewizard.p1_import_t1_kwh
+    status: active
+    name_at_birth: P1 import T1 kWh
+  81008:
+    entity_id: sensor.energy.homewizard.p1_import_t2_kwh
+    status: active
+    name_at_birth: P1 import T2 kWh
+  81009:
+    entity_id: sensor.energy.homewizard.p1_export_t1_kwh
+    status: active
+    name_at_birth: P1 export T1 kWh
+  81010:
+    entity_id: sensor.energy.homewizard.p1_export_t2_kwh
+    status: active
+    name_at_birth: P1 export T2 kWh
+  81011:
+    entity_id: sensor.power.homewizard.p1_avg_15m_w
+    status: active
+    name_at_birth: P1 avg 15m W
+  81012:
+    entity_id: sensor.power.homewizard.p1_monthly_peak_w
+    status: active
+    name_at_birth: P1 monthly peak W
+  81013:
+    entity_id: sensor.fluid.homewizard.p1_gas_m3
+    status: active
+    name_at_birth: P1 gas m3
+  81014:
+    entity_id: sensor.homewizard.p1_voltage_l1
+    status: active
+    name_at_birth: P1 voltage L1
+  81015:
+    entity_id: sensor.homewizard.p1_voltage_l2
+    status: active
+    name_at_birth: P1 voltage L2
+  81016:
+    entity_id: sensor.homewizard.p1_voltage_l3
+    status: active
+    name_at_birth: P1 voltage L3
+  81017:
+    entity_id: sensor.homewizard.p1_current
+    status: active
+    name_at_birth: P1 current
+  81018:
+    entity_id: sensor.homewizard.p1_current_l1
+    status: active
+    name_at_birth: P1 current L1
+  81019:
+    entity_id: sensor.homewizard.p1_current_l2
+    status: active
+    name_at_birth: P1 current L2
+  81020:
+    entity_id: sensor.homewizard.p1_current_l3
+    status: active
+    name_at_birth: P1 current L3
+  81030:
+    entity_id: sensor.power.homewizard.pv_power
+    status: active
+    name_at_birth: PV power
+  81031:
+    entity_id: sensor.energy.homewizard.pv_export_kwh
+    status: active
+    name_at_birth: PV export kWh
+  81032:
+    entity_id: sensor.energy.homewizard.pv_import_kwh
+    status: active
+    name_at_birth: PV import kWh
+  81033:
+    entity_id: sensor.homewizard.pv_voltage
+    status: active
+    name_at_birth: PV voltage
+  81034:
+    entity_id: sensor.homewizard.pv_current
+    status: active
+    name_at_birth: PV current
+  81035:
+    entity_id: sensor.homewizard.pv_frequency
+    status: active
+    name_at_birth: PV frequency
+  81036:
+    entity_id: sensor.homewizard.pv_power_factor
+    status: active
+    name_at_birth: PV power factor
+  81037:
+    entity_id: sensor.homewizard.pv_apparent_va
+    status: active
+    name_at_birth: PV apparent VA
+  81038:
+    entity_id: sensor.homewizard.pv_reactive_var
+    status: active
+    name_at_birth: PV reactive VAR
   90001:
     entity_id: sensor.generic.badk_1e_vent_lock
     status: active

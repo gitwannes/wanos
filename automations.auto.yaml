@@ -6,7 +6,16 @@ deviceexplorer_hide:
   - rfx.kerstboom
   - sensor.door.badkamer_deur
   - sensor.door.sauna_deur
+  - sensor.energy.homewizard.p1_export_kwh
+  - sensor.energy.homewizard.p1_export_t1_kwh
+  - sensor.energy.homewizard.p1_export_t2_kwh
+  - sensor.energy.homewizard.p1_import_kwh
+  - sensor.energy.homewizard.p1_import_t1_kwh
+  - sensor.energy.homewizard.p1_import_t2_kwh
+  - sensor.energy.homewizard.pv_export_kwh
+  - sensor.energy.homewizard.pv_import_kwh
   - sensor.energy.kwh_meter
+  - sensor.fluid.homewizard.p1_gas_m3
   - sensor.fluid.koud_water
   - sensor.fluid.warm_water
   - sensor.generic.garage_motion
@@ -20,6 +29,26 @@ deviceexplorer_hide:
   - sensor.generic.mains_voltage
   - sensor.generic.toilet_motion
   - sensor.generic.wanos_db_size
+  - sensor.homewizard.p1_current
+  - sensor.homewizard.p1_current_l1
+  - sensor.homewizard.p1_current_l2
+  - sensor.homewizard.p1_current_l3
+  - sensor.homewizard.p1_voltage_l1
+  - sensor.homewizard.p1_voltage_l2
+  - sensor.homewizard.p1_voltage_l3
+  - sensor.homewizard.pv_apparent_va
+  - sensor.homewizard.pv_current
+  - sensor.homewizard.pv_frequency
+  - sensor.homewizard.pv_power_factor
+  - sensor.homewizard.pv_reactive_var
+  - sensor.homewizard.pv_voltage
+  - sensor.power.homewizard.p1_avg_15m_w
+  - sensor.power.homewizard.p1_monthly_peak_w
+  - sensor.power.homewizard.p1_power
+  - sensor.power.homewizard.p1_power_l1
+  - sensor.power.homewizard.p1_power_l2
+  - sensor.power.homewizard.p1_power_l3
+  - sensor.power.homewizard.pv_power
   - sensor.power.pc_monitors_power
   - sensor.power.pc_power
   - sensor.temp_hum.host_cpu_temperature

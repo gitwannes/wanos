@@ -651,6 +651,9 @@ class ZWaveJSUIBridge(WanosComponent):
                 self.state_manager._state.system.hidden_explorer_idxs = hidden_list
                 self.state_manager.sync_hidden_metadata()
                 self.state_manager.flush_entity_registry()
+                # Lazy map runs after boot rebuild — restamp so device_product_types
+                # (Timers & types light overrides) apply to Z-Wave binary actuators.
+                self.state_manager._stamp_resolved_product_types()
 
             self._is_mapped = True
             await self.logger.info(

@@ -13,7 +13,6 @@ from zoneinfo import ZoneInfo
 from loguru import logger
 
 from logic.history_ids import SAUNA_CALC_IDX, HOST_HISTORY_IDXS
-from core.well_known_entities import ENTITY_MAINS_VOLTAGE
 
 SENSOR_META: Dict[int, Dict[str, str]] = {
     11001: {"label": "Sauna kWh meter", "kind": "energy", "unit": "Wh"},
@@ -45,9 +44,22 @@ SENSOR_META: Dict[int, Dict[str, str]] = {
     81011: {"label": "P1 avg 15m W", "kind": "power", "unit": "W"},
     81012: {"label": "P1 monthly peak W", "kind": "power", "unit": "W"},
     81013: {"label": "P1 gas m3", "kind": "fluid", "unit": "m3"},
+    81014: {"label": "P1 voltage L1", "kind": "host", "unit": "V"},
+    81015: {"label": "P1 voltage L2", "kind": "host", "unit": "V"},
+    81016: {"label": "P1 voltage L3", "kind": "host", "unit": "V"},
+    81017: {"label": "P1 current", "kind": "host", "unit": "A"},
+    81018: {"label": "P1 current L1", "kind": "host", "unit": "A"},
+    81019: {"label": "P1 current L2", "kind": "host", "unit": "A"},
+    81020: {"label": "P1 current L3", "kind": "host", "unit": "A"},
     81030: {"label": "PV power", "kind": "power", "unit": "W"},
     81031: {"label": "PV export kWh", "kind": "energy", "unit": "Wh"},
     81032: {"label": "PV import kWh", "kind": "energy", "unit": "Wh"},
+    81033: {"label": "PV voltage", "kind": "host", "unit": "V"},
+    81034: {"label": "PV current", "kind": "host", "unit": "A"},
+    81035: {"label": "PV frequency", "kind": "host", "unit": "Hz"},
+    81036: {"label": "PV power factor", "kind": "host", "unit": ""},
+    81037: {"label": "PV apparent VA", "kind": "host", "unit": "VA"},
+    81038: {"label": "PV reactive VAR", "kind": "host", "unit": "VAR"},
 }
 
 # Paired fluid meters — History UI merges into one "Water" detail (shared liters axis).
@@ -612,7 +624,9 @@ class SensorHistoryManager:
         self._clear_boot_gap_flag_if_needed()
 
     def note_gauge(self, idx: int, value: float) -> None:
-        """Persist host / mains gauge samples (min/max rollups; no consumption)."""
+        """Persist host / mains / HomeWizard gauge samples (min/max rollups; no consumption)."""
+        if idx not in self.tracked_idxs and not self._is_host_gauge(idx):
+            return
         meta = SENSOR_META.get(idx)
         if not meta or meta.get("kind") != "host":
             return
@@ -623,9 +637,8 @@ class SensorHistoryManager:
 
         now = time.time()
         rt = self._climate_rt(idx)  # shared per-idx runtime (throttle fields)
-        # Voltage / gauges: keep at most ~1/min (host loop is already 60s)
-        mains_idx = self.sm.resolve_entity_id(ENTITY_MAINS_VOLTAGE)
-        min_iv = self.zwave_min_interval if mains_idx is not None and idx == mains_idx else 0.0
+        # Throttle to history sample interval (HomeWizard poll is 60s; mains same family)
+        min_iv = float(self.zwave_min_interval or 0.0)
         if min_iv > 0 and rt.last_zwave_ts > 0 and (now - rt.last_zwave_ts) < min_iv:
             rt.last_zwave_watts = value
             return
