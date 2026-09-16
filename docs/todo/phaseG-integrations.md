@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
@@ -27,6 +27,8 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G9 — Honeywell** | Thermostats / Evohome — **own ship** (2nd) |
 | **G10 — HomeWizard** | Energy local API — **✅ Done 2026-09-10** (Pi smoke OK; P1 + PV; sockets deferred) — [`integration_homewizard.md`](../integration_homewizard.md) |
 | **G17 — HomeWizard map UI** | Z-Wave-style field picker + add hosts/devices (no hand-YAML) — G10 follow-up |
+| **G18 — Z-Wave vent OFF** | bugfix: `zwave.vent.badk_1e` OFF not sent (unmapped/disabled/empty) |
+| **G19 — IWHW ledger empty** | assess: empty `wanos_iwhw.log` (Grok claim: `self.iwhw_logger` missing) — hold |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
@@ -485,7 +487,7 @@ See kickoff table in git history / product doc — key locks: telemetry-only; `8
 ## 📋 G17 — HomeWizard map UI (Z-Wave-style picker + add devices) 🔜 TODO
 
 **Status:** open · size **high** · Sequence → [`pipeline.md`](pipeline.md) (#27, after **G13**, before **F**)  
-**Affinity:** Integrations (**G**). Follow-up to **G10** (bridge already shipped). Not **P1** (history series contract) — related but separate.
+**Affinity:** Integrations (**G**). Follow-up to **G10** (bridge already shipped). Not **P1** (history series contract) — related but separate. HomeWizard-style **power graphs** → **C42** (∥ **G17** / **C33** / **P1**).
 
 ### Operator request (verbatim, 2026-09-10)
 
@@ -516,6 +518,7 @@ So: not hardcoded in bridge code, but **still hand-config** — operator must ed
 * Re-implement G10 poll bridge
 * Energy Socket **switching** (read-only power still deferred unless kickoff expands)
 * **P1** history kind/unit config (may stay manual / follow-up until P1)
+* HomeWizard-style power graphs (**C42** — parallel ship, not this phase)
 * SMA / Samsung / HomeConnect map UIs
 
 ### G17 DoD (stub)
@@ -936,3 +939,90 @@ After midnight until OWM daily refresh (`sun_refresh_hour`, default **03:00** �
 
 *(DoD + shipped summary — see § G15 Done above.)*
 
+---
+
+## 📋 G18 — bugfix: `zwave.vent.badk_1e` OFF not sent 🔜 TODO
+
+**Letter:** **G18**. **Sequence** (see [`pipeline.md`](pipeline.md)). **Affinity:** Integrations (Z-Wave command path). Size **mid**.
+
+**Operator request (verbatim, 2026-09-15):**
+
+> bugfix:
+> 2026-09-09 15:45:54.845 | ERROR    | ERROR: Command failed: zwave.vent.badk_1e (badk 1e ventilatie, idx 71034) → OFF not sent (unmapped, disabled, or empty payload)
+
+### Placement notes (not full kickoff)
+
+* **Symptom:** command path rejects OFF for bathroom 1e vent with “unmapped, disabled, or empty payload”.
+* **Distinct from:** **B14** part 1 `90001` min-runtime deferral (different message / gate — confirm at kickoff that this is not that path).
+* **Surface:** Z-Wave outbound mapping / payload for OFF on `zwave.vent.badk_1e` (idx **71034** per log).
+
+**Out of scope (this triage):** bathroom climate rule redesign (**B5** / **B14b**); other vents unless same root cause.
+
+**G18 DoD (stub):** OFF for `zwave.vent.badk_1e` sends when mapped/enabled; error path honest if truly unmapped; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 G19 — assess: empty `wanos_iwhw.log` (Grok claim) 🔜 TODO (hold)
+
+**Letter:** **G19**. **Sequence** (see [`pipeline.md`](pipeline.md)). **Affinity:** Integrations / core logging (IWHW ledger). Size **mid**. **Status:** **hold** — evaluate only; **do not** implement in this triage.
+
+**Operator request (verbatim, 2026-09-15):**
+
+> ## a question was asked to Grok: "no entries appear in /var/log/wanos/wanos_iwhw.log - find out why"
+> ## answer below: don't check this now, put in triage to evaluate this
+> **Root cause: `self.iwhw_logger` does not exist.**
+> In `core/state_manager.py` the IWHW ledger write uses an instance attribute that was never created:
+> ```python
+> self.iwhw_logger.bind(prefix=prefix, name=name).info(f"| {new_bin}{origin_str}")
+> ```
+> `iwhw_logger` is only imported as a module-level global:
+> ```python
+> from .logger import WanosLogger, iwhw_logger
+> ```
+> and is never assigned to `self` in `StateManager.__init__` (only `self.logger` is set).
+> ### What happens at runtime
+> 1. A device state change that should produce an IWHW entry reaches the logging block.
+> 2. `AttributeError: 'StateManager' object has no attribute 'iwhw_logger'` is raised.
+> 3. The exception is caught by the outer handler in `_process_events`:
+> ```python
+> except Exception as e:
+>     await self.logger.error(f"Error handling event {event.type.value}: {e}")
+> ```
+> 4. Nothing is written to `/var/log/wanos/wanos_iwhw.log`.
+> Scene logging works because it correctly uses the global:
+> ```python
+> iwhw_logger.bind(prefix="SCENE", name=scene.get("name")).info("")
+> ```
+> ### Logger setup itself is fine
+> In `core/logger.py` the sink is correctly registered:
+> ```python
+> sys_logger.add(
+>     f"{log_dir}/wanos_iwhw.log",
+>     ...
+>     filter=lambda record: record["extra"].get("iwhw", False)
+> )
+> ```
+> and `iwhw_logger = sys_logger.bind(iwhw=True)` is correct. The problem is purely the call site.
+> ### Fix
+> Change the device-transition line to use the imported global:
+> ```python
+> iwhw_logger.bind(prefix=prefix, name=name).info(f"| {new_bin}{origin_str}")
+> ```
+> (or assign `self.iwhw_logger = iwhw_logger` in `__init__` and keep the existing call).
+> ### Secondary issue
+> Immediately after the IWHW block the event handler is invoked a **second** time:
+> ```python
+> handler = EVENT_ROUTERS.get(event_name)
+> if handler:
+>     ch, dom = await handler(event, self)
+>     ...
+> ```
+> The first invocation already ran a few lines earlier. That duplicate call should be removed; it can cause double side-effects and is unrelated to the missing log entries but worth cleaning up at the same time.
+
+### Placement notes (not full kickoff)
+
+* **Intent:** **evaluate** Grok’s root-cause + secondary duplicate-handler claim against live code/logs — **do not** code until that assess + implement command.
+* **Related:** **G7** (log tag prefixes) is separate; do not fold silently.
+* **Out of scope (this triage):** implementing the proposed one-liner or removing the duplicate handler.
+
+**G19 DoD (stub):** Written assess: confirm or refute `self.iwhw_logger` / duplicate `EVENT_ROUTERS` claims; recommended fix (or close as already fixed). **No code** until implement. **Last DoD (only if a later ship lands):** audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.

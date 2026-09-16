@@ -259,7 +259,8 @@ class HomeWizardBridge:
                     if value is None:
                         continue
                     self._dispatch_metric(idx, value, name, dtype)
-        logger.info(
+        # Steady-state success summary every poll_secs - DEBUG only (host up/down stays INFO)
+        logger.debug(
             f"{LOG_TAG} poll done any_ok={any_ok} "
             f"hosts={dict(self._host_status)}"
         )

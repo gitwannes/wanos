@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). **C41 ✅ DONE** (**close-out 2026-09-09**). **C37 ✅ DONE** (**OnePlus 12 smoke 2026-09-09**). **C40 cancelled 2026-09-09** (PID v2 not open). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36**. Pipeline Blockly next: **B14b** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). **C41 ✅ DONE** (**close-out 2026-09-09**). **C37 ✅ DONE** (**OnePlus 12 smoke 2026-09-09**). **C40 cancelled 2026-09-09** (PID v2 not open). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36**; **C42** ∥ **C33** / **G17** / **P1**; **C43** ∥ **C33** / **C36** / **C42**; **C44** ∥ reconnect cluster. Pipeline Blockly next: **B14b** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -52,11 +52,14 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C39 — Admin Sauna/IR pane + R_th + WISC water** | ✅ **Done 2026-09-08** — [`sauna-ir.md`](../sauna-ir.md) §4 | Admin + WISC · mid |
 | **C41 — Sauna analytics + Admin/WISC polish** | ✅ **Done 2026-09-09** — [`sauna-ir.md`](../sauna-ir.md) §3.7 / §4 / [`sensor_history.md`](../sensor_history.md) §3 | Sauna analytics + shell · mid |
 | **C33 — Sauna/IR History + runtime + nameplates + kWh ranges** | Explorer: sauna/IR like Sonos; learned U/V/W/IR W@100%; sauna kWh (`11001`) day/7d/m/y UX; WISC rad runtime (Admin dual timer → **C39** ✅) | History + WISC · mid |
+| **C42 — HomeWizard-style power graphs** | Explorer History power charts in HomeWizard Energy style (G10 `810xx`) | History · mid · ∥ **C33** / **G17** / **P1** |
+| **C43 — Explorer view presets polish** | Presets store Control/History; clear selected preset when filter/mode drifts | Explorer FE · low · ∥ **C33** / **C36** / **C42** |
 | **C36 — Device event history modal** | Right-click device → History → modal table (ON / OFF / set % / …) | Explorer Control · mid |
 | **C37 — Android PWA resume black screen** | ✅ **Done 2026-09-09** — warm resume force-SSE + overlay no x-cloak; OnePlus 12 smoke | Shell / SSE resume · mid |
 | **C40 — Sauna PID v2** | ❌ **Cancelled 2026-09-09** — not open; re-triage when wanted | Sauna PID · mid |
+| **C44 — SSE reconnect after backend reboot** | bugfix: UI stays offline / does not re-link when backend reboots | Shell / SSE · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C41** ✅ **close-out 2026-09-09**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **C40** cancelled (PID v2 not open). **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C41** ✅ **close-out 2026-09-09**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **C40** cancelled (PID v2 not open). **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36**. **C42** may run ∥ **C33** / **G17** / **P1**. **C43** may run ∥ **C33** / **C36** / **C42**. **C44** may run ∥ near-term (distinct from **C37**). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1311,7 +1314,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **By design (C16):** day charts default to last **24 h**; API returns up to **`hires_days`** hi-res so the user can **zoom out / pan** across ~7 days.
 * **Month / year:** backend summary already returns today/month/year kWh for `kind=energy`; if UI feels day-only, likely FE range picker / empty rollup / operator never switched range — verify at kickoff.
 * **Not** the same as Admin Total kWh display offset (baseline); series SoT remains pulse IDX `11001` (sauna circuit).
-* Whole-house energy is **out of C33** — **G10** HomeWizard P1.
+* Whole-house energy is **out of C33** — **G10** HomeWizard P1 ingest; HomeWizard-style **power graphs** → **C42** (∥ this ship).
 
 **Open until kickoff:** which IDX/entity_ids for sauna/IR actuator rows; MOD day source; one vs two History rows for sauna vs IR; virtual IDX map for U/V/W/IR nameplates; confirm sauna energy month/year UX gap vs education of C16 pan.
 
@@ -1334,6 +1337,61 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 **Out of scope (this triage):** chart polish; sauna/IR History (**C33**); Blocky.
 
 **C36 DoD (stub):** Right-click → History opens modal table of device state changes; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+## 📋 C42 — HomeWizard-style power graphs 🔜 TODO
+
+**Letter:** **C42**. **Sequence** (see [`pipeline.md`](pipeline.md)). **Affinity:** Operator shell (Explorer History). Size **mid**. **Parallel:** may ship ∥ **C33** / **G17** / **P1** (operator **2026-09-11**).
+
+**Operator request (verbatim, 2026-09-11):**
+
+> triage: create power graphs "homewizard-style"
+
+**Placement (verbatim, 2026-09-11):**
+
+> letter C
+> ship in parallel with C33, G17 AND P1
+
+**Meaning of “HomeWizard-style” (verbatim, 2026-09-11):**
+
+> meaning of "HomeWizard-style": graphs look the same as homewizard - i'll upload screenshots when we kickoff this
+
+### Placement notes (not full kickoff)
+
+* **Visual SoT:** Match HomeWizard Energy **look** (same as their graphs). Operator will **upload screenshots at kickoff** — those images lock layout / series / stacking / chrome; do not invent a WanOS reinterpretation before that.
+* **Surface:** Explorer → History **power** charts (confirm entry / page at kickoff if screenshots imply otherwise).
+* **Data:** HomeWizard P1/PV (`810xx`) already ingested by **G10** ✅ — this ship is **chart UX**, not a new bridge.
+* **Distinct from:** **G17** (map UI / add devices); **P1** (configurable history series meta / `SENSOR_META`); **C33** (sauna/IR History + `11001`); **C5** family (generic History polish already Done).
+* **Related product docs (pointers only until ship):** [`integration_homewizard.md`](../integration_homewizard.md); [`sensor_history.md`](../sensor_history.md).
+
+**Out of scope (this triage):** G10 re-implement; Energy Socket switching; map UI (**G17**); series-config redesign (**P1**); sauna/IR History (**C33**).
+
+**Open until kickoff:** screenshots + which WanOS surfaces/series map to each HW graph; any API gaps beyond existing history endpoints.
+
+**C42 DoD (stub):** HomeWizard-style power graphs live in Explorer History; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+## 📋 C43 — Explorer view presets: Control/History + clear on filter drift 🔜 TODO
+
+**Letter:** **C43**. **Sequence** (see [`pipeline.md`](pipeline.md)). **Affinity:** Operator shell (Explorer view presets). Size **low**. **Parallel:** may ship ∥ **C33** / **C36** / **C42**.
+
+**Operator request (verbatim, 2026-09-14):**
+
+> triage: presets in explorer:
+> - should include control or history selection
+> - when a preset is selected (a summary of the filter is displayed beneath the favorite) and I change the selection/filter the selected preset, it should be un-selected
+
+### Placement notes (not full kickoff)
+
+* **Surface:** Device Explorer **view presets** (numbered chips / save-apply) — not Hue color presets, not Manage Presets Hidden row.
+* **Item 1:** Persist **Control vs History** mode in the preset payload; applying a preset restores that mode; filter summary under the active favorite/chip includes Control or History.
+* **Item 2:** While a preset is **selected** (`appliedPresetIndex` / chip active + summary under it), any change to filters **or** Control/History that no longer matches the stored preset → **clear** the selected preset (chip unselected; summary gone). Saving still writes the current snapshot.
+* **Builds on:** **C1** / **C7** / **C12** shipped preset + favorites chrome — this is incremental polish, not a reopen of those Done DoDs.
+* **Distinct from:** **C11** (Control vs History *list membership* assess) — different problem.
+
+**Out of scope (this triage):** Redesign of preset UI chrome; Hue presets; Hidden/Favorites filter semantics beyond drift clear.
+
+**Open until kickoff:** Exact summary label wording; whether search text / sort / other chrome bits count as “filter” for deselect (operator to confirm if ambiguous).
+
+**C43 DoD (stub):** View presets include Control/History; selected preset clears when live filters/mode diverge; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ## ✅ C37 — bugfix: Android PWA resume → black screen — **Done 2026-09-09**
 
@@ -1449,6 +1507,25 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C36:** triage **2026-09-04** — right-click device → History modal (event table); kickoff before code.
 * **C37:** ✅ **Done 2026-09-09** — OnePlus 12 smoke; resume force-SSE + overlay no x-cloak.
 * **C40:** ❌ **Cancelled 2026-09-09** — PID v2 not open; re-triage when wanted.
+* **C44:** triage **2026-09-15** — UI SSE reconnect after backend reboot; kickoff before code.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
 * NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**); overlay copy/milestones → **B10L** ✅ (**2026-09-05**).
+
+## 📋 C44 — bugfix: UI SSE reconnect after backend reboot 🔜 TODO
+
+**Letter:** **C44**. **Sequence** (see [`pipeline.md`](pipeline.md)). **Affinity:** Operator shell (SSE / offline overlay). Size **mid**.
+
+**Operator request (verbatim, 2026-09-15):**
+
+> why does Wanos UI not re-connect when backend is rebooted?
+
+### Placement notes (not full kickoff)
+
+* **Symptom:** after WanOS backend reboot (process/host), open UI tabs do not recover live SSE / stay offline until manual reload (confirm at kickoff).
+* **Distinct from:** **C37** ✅ (Android PWA warm resume / visibility); **C23** ✅ (dead EventSource pipe); **B10G** / **B10H** / **B10L** (cold-load + reconnect copy/milestones that already exist).
+* **Likely surface:** `frontend` SSE client reconnect / watchdog after long downtime or TCP reset while backend was down; not a new Admin restart API.
+
+**Out of scope (this triage):** PWA resume (**C37**); intentional Admin restart UX polish beyond reconnect; iOS unless reported.
+
+**C44 DoD (stub):** After backend reboot, open Explorer/WISC/Admin (and peers using SSE) re-link without full page reload (or documented reload policy locked at kickoff); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

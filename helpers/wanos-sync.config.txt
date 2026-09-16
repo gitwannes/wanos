@@ -87,6 +87,9 @@ dhcpcd.conf
 *.tmp
 # LG integration registration file/key
 lg_webos_client_keys.json
+# original JS source (minified ssh-term.js still deploys). WanOS main + LCD: this section.
+# WLW today: also listed in $WlwMirrorExcludeFiles in wanos-sync.ps1 until P2 unifies excludes.
+ssh-term-full.js
 
 [StatsInclude]
 # Repo pull (also listed under StatsRepoPull) - Pi is source of truth

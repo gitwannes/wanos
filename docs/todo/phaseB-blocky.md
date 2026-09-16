@@ -101,7 +101,7 @@ Confirmed from deployed Pi report (`ENTITY REGISTRY / CUTOVER CHECK`): **RESULT:
 
 ## 📋 Blocky implementation checklist
 
-**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-17**). **Ship B4 (H4) ✅ DONE** (**2026-08-17**). **Ship B5 (H12 + bathroom) ✅ DONE** (**2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN). **Phase B9B ✅ DONE** (**2026-08-20** — H5 deferred to **E**). **Ship B7 / B14 part 1 ✅ Done** (**Pi smoke 2026-09-09**). **Next cluster:** **B14b** (part 2 + **B25**). **B12** / **B26** / **B24** / **B11–B18** / **B20** = lettered backlog (**B11** cancelled **2026-08-22**; **B26** triaged **2026-08-25**; **B25** → **B14b**).
+**Current status:** Phase B0–B5 **✅ DONE**. Phase **B6A–B6C ✅ DONE**. **Phase B7 ✅ DONE**. **Phase B8 ✅ DONE**. **Phase B10A ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10C ✅ DONE** (Pi smoke **2026-08-09**). **Phase B10B+D+E ✅ DONE** (**2026-08-10**). **Phase B10F ✅ DONE** (**2026-08-11**). **Phase B9A ✅ DONE** (**2026-08-12**). **Phase B10G / B10H ✅ DONE** (**2026-08-12**). **Phase B10K + B10N ✅ DONE** (**2026-08-15**). **Phase B9C (Ship B2) ✅ DONE** (**2026-08-16**). **Ship B3 (B19+B13) ✅ DONE** (**2026-08-17**). **Ship B4 (H4) ✅ DONE** (**2026-08-17**). **Ship B5 (H12 + bathroom) ✅ DONE** (**2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN). **Phase B9B ✅ DONE** (**2026-08-20** — H5 deferred to **E**). **Ship B7 / B14 part 1 ✅ Done** (**Pi smoke 2026-09-09**). **Next cluster:** **B14b** (part 2 + **B25**; **H7** → **B29**). **B12** / **B26** / **B24** / **B11–B18** / **B20** = lettered backlog (**B11** cancelled **2026-08-22**; **B26** triaged **2026-08-25**; **B25** → **B14b**).
 
 **Follow-up (pickers):** **B9A** opens sensors / temp / power / energy / fluid / host gauges / status sensors in Blockly (**G2** — see § B9A). **Motion** = When-device trigger only; never as action. Soft-hidden / out-of-catalog sticky eids unchanged. Actions = actuators only. **B9B:** **H4** ✅ **B4**; **H12 + bathroom** ✅ **B5**; **H5** notify → **E** (was Ship **B6** — cancelled **2026-08-20**).
 
@@ -364,9 +364,9 @@ Dry-run reviewed (26 managed, 14 delays, vents kept) → `--write` → restart �
 |---|---------|---------|
 | **H4** | Condition AND/OR groups + retire trigger “when any of” | ✅ **Ship B4** **2026-08-17** — schema + Blockly Logic + engine; OR-list migrator |
 | **H5** | Notify / alert action | → **Phase E** — Blockly **Messages** block + `EMAIL_REQUESTED` (no bell/alert-only block; operator **2026-08-20**) |
-| **H12** | Dual-threshold humidity band | ✅ **Done (Ship B5 2026-08-17)** — If/Else-if **edge-cross** (no new block). Min-runtime OFF gate → **B14** part 1 ✅. Dedicated Schmitt / hygrostat / Auto → **B14b**. |
+| **H12** | Dual-threshold humidity band | ✅ **Done (Ship B5 2026-08-17)** — If/Else-if **edge-cross** (no new block). Min-runtime OFF gate → **B14** part 1 ✅. Hygrostat/Schmitt clones **dropped from B14b**; **Auto/Manual** → **B29**. Level vs edge authoring → **B14b**. |
 
-**Later lettered (not B9A/B9B):** H1–H3 ✅ **B14** part 1; H6/H7/H9 → **B14b**; H8 optional later; H10 dropped; H11 → **B13** (Ship **B3** with **B19**). Domoticz canvas → **B19** (Ship B3). Nested If/Do → **B22** ✅ **Done 2026-08-22**. Time trigger → **B20** (after F). See § B12–B20 + **B22** (**B11** cancelled **2026-08-22**).
+**Later lettered (not B9A/B9B):** H1–H3 ✅ **B14** part 1; H6/H9 → **B14b**; **H7** → **B29**; H8 optional later; H10 dropped; H11 → **B13** (Ship **B3** with **B19**). Domoticz canvas → **B19** (Ship B3). Nested If/Do → **B22** ✅ **Done 2026-08-22**. Time trigger → **B20** (after F). See § B12–B20 + **B22** (**B11** cancelled **2026-08-22**).
 
 #### Facts
 
@@ -481,7 +481,7 @@ Scanned `automations.auto.yaml` production rules against Blockly v2 canvas:
 | **B3** | **B19** + **B13** | **high** | ✅ **Done 2026-08-17** — If/Do + Else-if/Else, Compare, toolbox, Set, branch cutover; Pi smoke OK. |
 | **B4** | **B9B H4** only | high | ✅ **Done 2026-08-17** — nested AND/OR/NOT in Compare; OR-list migrator; `b_trig_or` removed; Debug GREEN. |
 | **B5** | **B9B H12** + bathroom | mid | ✅ **Done 2026-08-17** — If/Else-if edge-cross; `Badk 1e ventilatie`; climate loop removed; Pi smoke + Admin Debug GREEN |
-| **B7** | **B14** part 1 | high | ✅ **Done 2026-09-09** — Set for/after; H1 sustained-for; H3 cooldown; timer replace; no persist; engine **90001** defer OFF on vent 1e; Pi smoke OK. **Part 2** (`B14b`): H6/H7/H9 + rows 2–5 + **B25**. **H8** optional later; **H10** dropped; sweeper → **B24**. **No** Time trigger (→ **B20**). **Not** Phase **B7** (soft-hide ✅). |
+| **B7** | **B14** part 1 | high | ✅ **Done 2026-09-09** — Set for/after; H1 sustained-for; H3 cooldown; timer replace; no persist; engine **90001** defer OFF on vent 1e; Pi smoke OK. **Part 2** (`B14b`) kickoff **2026-09-15**: H6 + H9 + row 2 + **B25**; rows **4–5** dropped; **H7**/row **3** → **B29**. **H8** optional later; **H10** dropped; sweeper → **B24**. **No** Time trigger (→ **B20**). **Not** Phase **B7** (soft-hide ✅). |
 | ~~**B6**~~ | ~~**B11** + **B12**~~ | — | **Cancelled** **2026-08-22** — B11 multi-flow dropped (operator); **B12** unbundled → standalone in Sequence. *(Slot: H5 notify → **E** **2026-08-20**.)* |
 
 **Not in Blockly cluster:** **B15** (schedule demotion), **B16** (internal bus UUID), **B17** (assess), **B18** (sauna clamp) — stay in general pipeline after **F** unless safety jumps **B18**.
@@ -2557,6 +2557,107 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ---
 
+### Phase B29 — H7 Auto / Manual override 🔜 TODO
+
+**Letter:** **B29**. **Sequence #6**. Size **mid** (grows if entry model **D**). Status **hold** — triage **2026-09-15**. **No code** until kickoff locks entry + exit model.
+
+**Moved out of:** **B14b** / B5 row **3** (operator **2026-09-15**).
+
+**Depends on:** Automations Library + engine (**B19** ✅). Prefer after **B14b** so part 2 stays unblocked. Adjacent to bathroom climate (**B5** ✅) — humidity-only edge-cross already avoids some manual-ON fights; H7 is the stronger “pause this automation family” switch.
+
+#### Operator request (verbatim, 2026-09-15)
+
+> move this decision and its code to another phase, put in triage and remove from this ship - put all these options in the docs for me to read and decide later
+
+#### Goal (product)
+
+Virtual **Auto / Manual** mode. Rules that opt in skip **Do** while Manual (freeze climate/lighting logic until something returns Auto). Bathroom today already avoids “manual ON killed by humidity” via humidity-only edge-cross — H7 is opt-in freeze, not a replacement for that pattern.
+
+#### Verified facts (not assumptions)
+
+* Explorer Sets often tag `origin: MANUAL` (`frontend/app.js`).
+* Automation timer path can tag `AUTOMATION` (`timer_handlers`).
+* Physical Z-Wave / Hue / bridge changes usually arrive as device telemetry (`origin: zwave` / bridge) — **not** a clean HA-style “human finger” flag.
+* So auto-detect from Explorer is partly free; full physical auto-detect needs suppress windows and is easy to false-positive.
+
+---
+
+#### Manual **entry** options (undecided — pick at kickoff)
+
+**A — Explicit only**  
+Operator (or a rule) **Set** the mode entity to Manual / Auto — Explorer chip, Blockly Set, or a scene rule.
+
+| Pros | Cons |
+|---|---|
+| Clear, deterministic, smallest ship | Easy to forget to flip Manual before touching the device |
+| No false positives from telemetry | Two steps: mode then device |
+
+**B — Explicit + auto-flip on Explorer**  
+Any Explorer Set on a **watched** device (listed on the mode / rule) → flip that mode to Manual. Return to Auto = explicit (or pair with **C**).
+
+| Pros | Cons |
+|---|---|
+| Matches “I touched it in the UI” | Must define which devices belong to which mode |
+| Reuses existing `origin: MANUAL` | Physical wall switch still does **not** auto-flip |
+
+**C — B + self-heal timer**  
+Auto-flip to Manual on override, then after `HH:MM:SS` (reuse part 1 duration limits) return to Auto and optionally re-eval.
+
+| Pros | Cons |
+|---|---|
+| Party / shower override without permanent freeze | Extra timer model; collision rules with Set for/after |
+| Auto recovery | Surprising if you wanted Manual until morning |
+
+**D — Full human override (Explorer + physical)**  
+Also treat non-automation state changes on watched devices as Manual (Z-Wave paddle, Hue app, …).
+
+| Pros | Cons |
+|---|---|
+| Closest to HA “context was human” | Hard: bridge reports often look like any telemetry |
+| Best for wall switches | Risk: automation echo / poll / another rule → false Manual |
+| | Needs “command we just sent” suppress window — mid/high alone |
+
+**E — No mode entity; per-rule “ignore if device was set manually recently”**  
+Implicit cooldown after `MANUAL` origin on the actuator.
+
+| Pros | Cons |
+|---|---|
+| No extra entity | Opaque; hard to see why a rule did not run |
+| | Weak for physical; fights edge-cross rules |
+
+**Not recommended** for first ship.
+
+---
+
+#### Manual **exit** options (combine with A–D)
+
+| Exit | Notes |
+|---|---|
+| **Explicit Auto only** | Safest with **A** / **B** |
+| **Timer back to Auto** | Natural with **C**; shared `HH:MM:SS` limits |
+| **Auto when condition matches again** | e.g. humidity re-enters band — couples H7 to sensors; easy to get wrong |
+
+---
+
+#### Rough recommendation (not locked)
+
+| Goal | Pick |
+|---|---|
+| Ship H7 without origin archaeology | **A** |
+| “I used Explorer, stop fighting me” | **B** (or **B+C**) |
+| Wall paddle must freeze automations | **D** — own chunk; do not bury lightly |
+
+---
+
+#### Out of scope (until kickoff locks)
+
+* Any H7 / mode-entity / auto-flip code in **B14b**.
+* Changing bathroom `Badk 1e ventilatie` cutover (still Q6 follow-up).
+
+**B29 DoD (stub):** lock entry + exit at kickoff; mode entity + rule opt-in; Blockly/Explorer UX; Pi smoke; **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
 ### Phase B10N — RFX living schemer still shows color ✅ DONE (2026-08-15)
 
 **Closed without a dedicated code run.** Operator **2026-08-15:** cannot reproduce; **probably fixed in earlier phases, likely B10K**. Same RFX no-color rule as **B10K** Item 3 (`wantHue` excludes origin `rfxcom`, including `rfx.living_schemer` typed `light`).
@@ -2597,7 +2698,7 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 
 ### Phase B25 — Rule-list complexity score + tier 🔜 TODO (→ B14 part 2)
 
-**Letter:** **B25**. **Absorbed into Sequence `B14b` (B14 part 2)** — kickoff **2026-09-05** (no longer a standalone Sequence row). Ships with **H6/H7/H9** + B5 rows **2–5**. Detail checklist stays here; delivery DoD closes under § **B14** part 2.
+**Letter:** **B25**. **Absorbed into Sequence `B14b` (B14 part 2)** — kickoff **2026-09-05** (no longer a standalone Sequence row). Ships with **H6 / H9 / row 2** (**H7** / row **3** → **B29**; rows **4–5** dropped). Detail checklist stays here; delivery DoD closes under § **B14** part 2.
 
 **Depends on:** Automations Library list (**B10E** ✅); **B14 part 1** ✅. Adjacent to **B12** (folder/tag) — still separate from folders.
 
@@ -2611,26 +2712,25 @@ List / v2 cache at boot — triage **2026-08-12**: defer until **&lt; 500 ms** c
 > number/tier to drive: 1
 > put in triage
 
-#### Locked at triage (not kickoff)
+#### Locked (triage + kickoff **2026-09-15**)
 
 | # | Topic | Lock |
 |---|---|---|
-| **1** | Model | **A+B:** derived **structural score** + **cognitive tier** (e.g. S/M/C) |
+| **1** | Model | **A+B:** derived **structural score** + **cognitive tier** **S / M / C** |
 | **2** | Persistence | **No** YAML `complexity` field — compute on read (API and/or FE) |
 | **3** | Product use | Automations **Library list sort / filter only** (not editor warnings, not engine, not runtime cost) |
-| **4** | Out of scope (this item) | Wake/runtime cost badge; blast-radius badge; manual operator weight |
+| **4** | Out of scope | Wake/runtime cost badge; blast-radius badge; manual operator weight |
+| **5** | Score formula | `leaf_compares + 2 * top_level_branches + logic_nest_depth_max + then_nest_depth_max + action_count` (actions = all Sets incl. nested `then` / leading / trailing). Reuse `count_leaf_compares` + existing nest helpers where possible |
+| **6** | Tiers | **S** ≤ 6 · **M** 7–14 · **C** ≥ 15 |
+| **7** | UX | Badge on Library row; sort by score; filter by tier; hover/title shows raw score |
 
-#### Proposal (triage — thresholds at kickoff)
-
-Score inputs (reuse existing helpers where possible): condition leaves (`count_leaf_compares`), top-level branch count, max Logic nest depth, B22 `then` nest depth, action count (incl. nested `then`). Map score → tier for list badge; expose number for sort/hover.
-
-#### DoD (stub)
+#### DoD (with B14b)
 
 - [ ] Derived score + tier on Library list rows
 - [ ] Sort and/or filter by complexity (tier and/or score)
 - [ ] No on-disk complexity field
 - [ ] Pi smoke: sort/filter on a few simple vs nested rules
-- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** (closes with **B14b**)
 
 ---
 
@@ -2648,12 +2748,12 @@ Score inputs (reuse existing helpers where possible): condition leaves (`count_l
 
 **Letter:** **B14** · Ship **B7** (delivery batch — **not** closed Phase **B7** soft-hide).  
 **Part 1 status:** ✅ **Done 2026-09-09** (Pi smoke + Last DoD).  
-**Part 2 status:** open — Sequence **B14b** (kickoff when ready).  
+**Part 2 status:** open — Sequence **B14b** — **kickoff locks 2026-09-15** (await **implement**).  
 **Depends on:** **B19+B13** (Ship **B3**) ✅; **Ship B4** (H4) ✅.
 
-**Not B9A/B9B.** HA-pattern ids (**H\***) are gap labels, not Sequence letters. (**H11** → **B13** / Ship **B3**; **H4** ✅ **B4**; **H5** → **E**; **H12 bathroom** → **B5** Option A.)
+**Not B9A/B9B.** HA-pattern ids (**H\***) are gap labels, not Sequence letters. (**H11** → **B13** / Ship **B3**; **H4** ✅ **B4**; **H5** → **E**; **H12 bathroom** → **B5** Option A; **H7** → **B29**.)
 
-**Excludes (whole B14):** Domoticz **Time trigger** → **B20** after **F**. User variables · debug block. **H10** blueprints — **dropped**. Live/hardcoded rule cutover (**Q6**) — **follow-up after** these ships.
+**Excludes (whole B14):** Domoticz **Time trigger** → **B20** after **F**. User variables · debug block. **H10** blueprints — **dropped**. Live/hardcoded rule cutover (**Q6**) — **follow-up after** these ships. **H7** / Auto–Manual → **B29**.
 
 #### Part 1 — shipped (Sequence **B7 / B14**) ✅ Done 2026-09-09
 
@@ -2679,40 +2779,73 @@ Score inputs (reuse existing helpers where possible): condition leaves (`count_l
 - [x] Pi smoke: Set for/after; sustained-for; cooldown; vent 1e OFF deferred while lock active then re-eval; restart drops pending timers — **operator 2026-09-09**
 - [x] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.** — ✅ **2026-09-09**
 
-**Out of part 1 (still):** H6 · H7 · H9 · B5 rows **2–5** · **B25** · H8 · H10 · Q6 cutover · **B24** · separate Wait · restore-previous · timer persistence · Blockly min-runtime duration · vents other than 1e → **part 2 / later**.
+**Out of part 1 (still):** → part 2 locks below · **B29** (H7) · **B24** · H8 · Q6 cutover · separate Wait · restore-previous · timer persistence · Blockly min-runtime duration · vents other than 1e.
 
-#### Part 2 — pipeline (Sequence **B14b**)
+#### Part 2 — Sequence **B14b** — kickoff locks **2026-09-15**
 
-**After part 1.** Size **mid** · **one PR**. Includes former standalone **B25**.
+**Size mid · one PR.** Includes **B25**. Operator locked proposals (this turn).
 
-| In |
-|---|
-| **H7** Auto / Manual override |
-| B5 rows **2–5**: level vs edge-cross · Auto/Manual · generic hygrostat · Schmitt block |
-| **H6** helpers |
-| **H9** sun elevation |
-| **B25** Library complexity score + tier (sort/filter; no YAML field) — see § **B25** |
+##### In / out
 
-**Part 2 DoD (stub):** ship table above; B25 DoD checklist; Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+| In | Out of B14b |
+|---|---|
+| **Row 2** — numeric Compare **edge** vs **level** | **H7** / row **3** → **B29** |
+| **H6** — number helpers | **Row 4** standalone generic hygrostat engine — **dropped** (use If/Else-if + helpers + level/edge) |
+| **H9** — sun elevation sensor + Compare | **Row 5** Schmitt block — **dropped** (Option A If/Else-if remains the band pattern) |
+| **B25** — complexity score + tier | **H8** optional later · **H10** dropped · **B24** · Q6 cutover |
+
+##### Behaviour locks
+
+| # | Topic | Lock |
+|---|---|---|
+| **1** | Delivery | **One PR** / one DoD (trim above). Peel **B25** only if implement proves too large |
+| **2** | Row 2 — Compare mode | Per numeric Compare: **`edge`** (default, today’s B9A/B5) or **`level`** (true while predicate holds). Same wake path as today’s numeric Compare; only predicate semantics change |
+| **3** | Row 2 × H1 | `for:` **requires level** (already part 1). Blockly: no “edge + for” |
+| **4** | H6 helpers | Number helpers only (HA `input_number` analogue). **Not** full helper platform (`input_boolean` / selects / timer-helpers stay out) |
+| **5** | H6 SoT | List under **`automations.auto.yaml`** (e.g. `helpers.numbers:` — name, value, optional min/max/unit). Pickable as Compare **RHS** (or literal). **Not** Explorer device rows unless a later phase says so |
+| **6** | H9 sensor | Virtual eid **`sensor.generic.sun_elevation`** (degrees, float). Normal numeric Compare (edge or level per row 2) |
+| **7** | H9 config | New **`weather.latitude`** / **`weather.longitude`** (keep existing `weather.location` for OWM). If lat/lon missing → elevation **unavailable** (no crash); Compares on it do not match until set |
+| **8** | H9 refresh | Recompute on a **~1 min** timer (and may hitch on existing sun/env ticks). No new trigger mode |
+| **9** | B25 | See § **B25** locks (formula + S/M/C tiers) |
+| **10** | Live rules | **No** bathroom / Library cutover in this ship (Q6 still follow-up) |
+
+##### Part 2 DoD
+
+- [ ] Numeric Compare **edge** \| **level** (default edge); `for:` forces level
+- [ ] H6 number helpers in automations YAML + Blockly RHS pick + engine resolve
+- [ ] H9 `sensor.generic.sun_elevation` + lat/lon config + ~1 min refresh + Compare
+- [ ] B25 score + tier on Library list (sort/filter; no YAML field)
+- [ ] Pi smoke: level vs edge; helper RHS; elevation Compare; complexity sort/filter
+- [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+##### Open before implement (no assumptions)
+
+| # | Open | Why |
+|---|---|---|
+| **O1** | **H6 day-to-day edit surface** — how does the operator change a helper’s value after create? Blockly **Set** only · Admin/Automations list editor · **both**? | Proposed “Set + list edit” was not confirmed as a product choice |
+| **O2** | **H6 identity** — stable id key for YAML/API (slug from name? explicit `id` field?) and rename rules | Not specified in the proposal beyond name/value |
+| **O3** | **H9 math source** — which library / formula computes elevation from lat/lon/time (e.g. astral vs hand-rolled)? | Implement detail with a dependency choice; not locked |
 
 #### Optional later (not part 1/2)
 
 | Item | Notes |
 |---|---|
+| **H7** Auto / Manual | → **B29** (entry model undecided — options documented there) |
 | **H8** area trigger | Wake on any member of a named area/group — useful for multi-device rooms without giant OR trees. Examples: any Living light ON; any bathroom humidity; alarm-zone doors; Buro PC/monitors; Cinema sources. |
 | **H10** | Dropped — do not reopen without triage |
+| **Row 4 / 5** | Hygrostat engine / Schmitt block — **dropped from B14b**; re-triage only if Option A + helpers prove insufficient |
 
 #### B5 kickoff deferred inventory (2026-08-17)
 
 **Origin (verbatim 2026-08-17):** ok, A for now - put the rest in the pipeline in the existing future phases
 
-| # | What | Disposition (kickoff 2026-09-05) |
+| # | What | Disposition |
 |---|---|---|
 | **1** | Bathroom **min-runtime** / `90001` / HA `min_cycle_duration` (min ON → re-eval — **not** Set-for-x force OFF). Climate OFF must not ignore shower lock. | ✅ **Part 1** — engine gate on `zwave.vent.badk_1e` + `90001` (locks **G**/**H**); no Library rewrite |
-| **2** | Explicit numeric Compare **level vs edge-cross** | **Part 2** |
-| **3** | **Auto / Manual** override switch | **Part 2** (with **H7**) |
-| **4** | **Generic hygrostat** helper | **Part 2** (with **H6**) |
-| **5** | Dedicated **H12 Schmitt** Blockly block | **Part 2** |
+| **2** | Explicit numeric Compare **level vs edge-cross** | **B14b** (locked **2026-09-15**) |
+| **3** | **Auto / Manual** override switch | → **B29** (with **H7**) — triage **2026-09-15** |
+| **4** | **Generic hygrostat** helper | **Dropped from B14b** — covered by If/Else-if + H6 + level/edge |
+| **5** | Dedicated **H12 Schmitt** Blockly block | **Dropped from B14b** — Option A remains |
 | **6** | Boot / sweeper **replay** | **B24** (not B14) |
 
 ---
@@ -2726,9 +2859,16 @@ Score inputs (reuse existing helpers where possible): condition leaves (`count_l
 
 **Until B20:** system catalog events (blinds open/close, twilight, …) + `if time` / dark-light conditions — unchanged (B10B+E).
 
-**Out of scope:** user variables · debug block.
+**Operator request (verbatim, 2026-09-15) — triage into B20 (not B26):**
 
-**B20 DoD (stub):** Time trigger mode + time-compare blocks on Domoticz canvas; Pi smoke; no regression on catalog schedule events. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+> add time-bases rules: e.g. shut off this light at 22:30
+> (can this be included in B26?)
+
+**Placement note:** Example use-case for **B20** (clock / time-of-day wake). **Not B26** (B26 = independent If sequence under Then — structure, not a Time trigger).
+
+**Out of scope:** user variables · debug block · folding into **B26**.
+
+**B20 DoD (stub):** Time trigger mode + time-compare blocks on Domoticz canvas; authorable clock rules (e.g. device OFF at HH:MM); Pi smoke; no regression on catalog schedule events. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

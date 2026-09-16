@@ -131,9 +131,41 @@ Climate discovery and actuator `device_history` stay separate unless kickoff exp
 ### Out of scope (this triage)
 
 * Implement / schema lock (needs **kickoff P1**)
-* History UI redesign (**C**); actuator event history (**C36**); Sauna/IR History polish (**C33**)
+* History UI redesign (**C**); HomeWizard-style power graphs (**C42**, ∥ this ship); actuator event history (**C36**); Sauna/IR History polish (**C33**)
 * “Historize every device by default”
 
 ### P1 DoD (stub)
 
 Kickoff locks config shape + migration of current Borsbeek rows; code reads config; `SENSOR_META` / host allowlist no longer site-hardcoded; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 P2 — sync: `[MirrorExcludeFiles]` for all three modes 🔜 TODO
+
+**Status:** open · size **mid** · Sequence → [`pipeline.md`](pipeline.md)  
+**Affinity:** Portability / deploy tooling (`helpers/wanos-sync.*`). Not product UI.
+
+### Operator request (verbatim, 2026-09-15)
+
+> put in triage for the sync-tool (in wanos repo) that the [MirrorExcludeFiles] section should be used for ALL three syncs
+
+(Context from same thread: `ssh-term-full.js` was added under `[MirrorExcludeFiles]` but `wlw` ignored it because WLW/LCD use hardcoded `$WlwMirrorExcludeFiles` / `$LcdMirrorExcludeFiles` in `wanos-sync.ps1`.)
+
+### Intent (delivery — lock at kickoff)
+
+* **`[MirrorExcludeFiles]`** (and likely dirs, or documented unions) drive excludes for **main**, **`lcd`**, and **`wlw`** — one config place operators edit.
+* Mode-specific extras (e.g. WLW must **not** apply bare segment `bootstrap`) stay explicit — union/overlay, not a silent copy of WanOS-main-only rules that would skip `helpers/bootstrap/`.
+* Docs: [`docs/wanos-sync.md`](../wanos-sync.md); be90 product handoff `C:\data\git\be90webserver\docs\wlw-sync.md`.
+
+### Interim (already applied 2026-09-15)
+
+* `ssh-term-full.js` listed in `[MirrorExcludeFiles]` **and** in `$WlwMirrorExcludeFiles` until this ship.
+
+### Out of scope (this triage)
+
+* Implement / schema of overlays (needs **kickoff P2**)
+* Changing RemoteRoot / SSH hosts
+
+### P2 DoD (stub)
+
+Kickoff locks how shared vs mode-specific excludes merge; all three modes read config; dry-run proves `ssh-term-full.js` excluded on `wlw` via config alone; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

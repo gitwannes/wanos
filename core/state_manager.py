@@ -1025,6 +1025,7 @@ class StateManager:
                 is_debug_event = event_name in [
                     "POWER_UPDATED",
                     "HOMEWIZARD_METRIC",
+                    "OWM_CLIMATE_SNAPSHOT",
                     "TEMP_UPDATED",
                     "HUMIDITY_UPDATED",
                     "ZWAVE_HEARTBEAT",

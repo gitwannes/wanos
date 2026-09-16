@@ -17,7 +17,7 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 
 | Job | Direction | Behaviour |
 |-----|-----------|-----------|
-| Mirror | Local → Pi | `rsync --delete` + excludes from config (main), `_lcd-agent` (`lcd`), or be90webserver excludes (`wlw`) |
+| Mirror | Local → Pi | `rsync --delete` + excludes: main uses config `[MirrorExclude*]`; `lcd` / `wlw` use hardcoded lists in `.ps1` until **P2** (shared `[MirrorExcludeFiles]` for all three) |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
 | Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`); WLW: `/var/log/wlw/wlw*` + Nginx vhost logs → `logs\wlw\` |
 | Sessionlog pull | Pi → Local | `{RemoteRoot}/sessionlog/*` → OneDrive `logs\` (flat) — **main WanOS only**; skip if remote dir missing |

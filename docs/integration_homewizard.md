@@ -31,7 +31,7 @@ python helpers/homewizard_discovery.py dump --host <ip>
 - **History:** `history.tracked_entities` lists power + energy + gas **and** gauge (`type: sensor`) entity_ids; hi-res **`hires_days` = 7**. Absolute kWh/gas meters accrue deltas; power and gauges use the existing **60 s** sample throttle (`zwave_min_interval_secs`). Gauges (V/A/Hz/PF/VA/VAR) ingest as **`kind: host`** via `note_gauge` on `HOMEWIZARD_METRIC`. Series kind/unit still partly hardcoded in `SENSOR_META` until **P1**.
 - **Explorer:** read-only analog rows (`origin: homewizard`). **Power** filter includes HomeWizard (not water fluids). `11001` label = **Sauna kWh meter**.
 - **Blockly:** no new blocks.
-- **Logs:** `[HomeWizard]`
+- **Logs:** `[HomeWizard]` — per-host online/offline status changes at INFO; steady `poll done` summary at DEBUG
 - **Reload:** full config reload remaps `device_map` (no G6 scoped row in this ship). `load_config()` must pass `homewizard:` into compiled runtime config.
 
 ## IDX map (this site)

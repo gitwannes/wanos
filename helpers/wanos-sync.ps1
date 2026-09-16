@@ -291,7 +291,9 @@ $WlwMirrorExcludeFiles = @(
     ".env*",
     "*.md",
     ".gitignore",
-    ".gitattributes"
+    ".gitattributes",
+    # Dev source; Pi serves minified public/js/ssh-term.js only (see be90 cursor rule)
+    "ssh-term-full.js"
 )
 
 $LcdMirrorSource = Join-Path $MirrorSource "_lcd-agent"

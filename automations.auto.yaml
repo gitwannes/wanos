@@ -657,11 +657,23 @@ automations:
           - type: device_state
             entity_id: hue.group.badk_1e_hue
             is: "OFF"
-        actions:
-          - entity_id: media_player.badk_1e
-            state: "OFF"
-          - entity_id: zwave.badk_1e_wastafel
-            state: "OFF"
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: device_state
+                  entity_id: zwave.pc_monitors
+                  is: "ON"
+              actions:
+                - entity_id: media_player.buro
+                  state: "ON"
+                  volume: 6
+                  station: qmaxhits
+          leading_actions:
+            - entity_id: media_player.badk_1e
+              state: "OFF"
+            - entity_id: zwave.badk_1e_wastafel
+              state: "OFF"
     id: caa74273-e140-4354-8021-741bf7c311ca
   - name: 'Badk 2e: physical switch'
     enabled: true
