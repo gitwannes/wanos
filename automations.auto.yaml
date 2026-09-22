@@ -386,16 +386,13 @@ automations:
           - entity_id: hue.group.slpk_dries_hue
             state: "OFF"
     id: 70b7e4a3-b773-4bdd-83ea-4c18a9b1c61b
-  - name: Keuken, Living & Eetk -> Eetk Hue
+  - name: Keuken, eetk -> eetk Hue
     enabled: true
     branches:
       - when: if
         conditions:
           - op: or
             children:
-              - type: device_state
-                entity_id: zwave.licht_living
-                is: "ON"
               - type: device_state
                 entity_id: zwave.licht_keuken
                 is: "ON"
@@ -1182,6 +1179,26 @@ automations:
             end:
               state: "ON"
     id: cab540ad-436d-40aa-8141-d85c543b471b
+  - name: Keuken, living -> living Hue
+    enabled: true
+    branches:
+      - when: if
+        conditions:
+          - op: or
+            children:
+              - type: device_state
+                entity_id: zwave.licht_living
+                is: "ON"
+              - type: device_state
+                entity_id: zwave.licht_keuken
+                is: "ON"
+          - type: time_of_day
+            is: dark
+        actions:
+          - entity_id: hue.group.living_hue
+            state: "ON"
+            preset: relax_red
+    id: 1927bf70-db71-4e72-9233-b3244350d1fb
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

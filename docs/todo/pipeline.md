@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-09-15 (**B14b** kickoff locks — H6/H9/row2/B25; H7→B29; rows 4–5 dropped)
+**Last updated:** 2026-09-22 (**G20** Done — LG commanded-OFF latch)
 
 ---
 
@@ -94,6 +94,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **C40** | Cancelled **2026-09-09** — PID v2 not open; re-triage when wanted — [`phaseC-shell.md`](phaseC-shell.md) § C40 |
 | **S1** | Sauna vent strip + door closed ≤5 min start gate + timer-hop removal — **Pi smoke 2026-09-10** — [`_archive/phaseS-sauna.md`](_archive/phaseS-sauna.md) |
 | **G10** | HomeWizard Energy P1 + PV (`810xx`) — **Done 2026-09-10** (Pi smoke OK; sockets deferred) — [`phaseG-integrations.md`](phaseG-integrations.md) § G10 · [`integration_homewizard.md`](../integration_homewizard.md) |
+| **G20** | bugfix: LG web OFF bounce — commanded-OFF latch — **close-out 2026-09-22** — [`phaseG-integrations.md`](phaseG-integrations.md) § G20 · [`integration_lg.md`](../integration_lg.md) |
 
 ---
 
@@ -152,7 +153,7 @@ All open items. **Detail** = phase file section.
 46  open   mid  G18          bugfix: zwave.vent.badk_1e OFF not sent (unmapped/empty)    phaseG § G18
 47  hold   mid  G19          assess: empty wanos_iwhw.log (Grok: missing self.iwhw_logger)  phaseG § G19
 ```
-Near-term: **B14b** next Blockly ship (kickoff **locked 2026-09-15** — open O1–O3 before implement) → **B26** → **B24**. **B29** hold (H7 Auto/Manual — entry options in phaseB § B29; kickoff later). **B28** hold assess (auto-off → singular rules) — after **B14b** / prefer after **B24**; not **C13**. **B12** may run ∥ **B14b**. **C33** / **C36** / **C42** / **C43** / **B27** / **C44** / **G18** may run ∥ near-term cluster (kickoff each). **C42** ∥ **C33** / **G17** / **P1** (HomeWizard-style power graphs; G10 ingest ✅). **C43** = Explorer view-preset polish (mode + deselect on drift); may run ∥ **C33** / **C36** / **C42**. **C44** = SSE reconnect after full backend reboot (distinct from **C37** PWA resume). **G18** = Z-Wave vent 1e OFF command path. **G19** hold assess — evaluate Grok iwhw claim before code; may run ∥ **G7**. **P1** = history series config (entity_id + kind/unit/how); default after **C33** / with **P** cluster; may run ∥ **C42**. **P2** = sync exclude config for main/lcd/wlw (may run ∥ **P1** / tooling). **G17** = HomeWizard Z-Wave-style field picker + add hosts/devices without hand-YAML (after **G13**, before **F**); may run ∥ **C42**. **L2** after kickoff when ready. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside **B14b**. Vendor bridges: **G11→G9→G12→G13** then **G17**; (**G10** ✅ **Pi smoke / close-out 2026-09-10**; sockets deferred); default after **G4**, before **F**. **S1** ✅ **Pi smoke 2026-09-10** (archived). **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **B7 / B14 part 1** ✅ **Pi smoke 2026-09-09**. **C38** / **C41** ✅ **close-out**. **C40** cancelled (PID v2 not open). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
+Near-term: **B14b** next Blockly ship (kickoff **locked 2026-09-15** — open O1–O3 before implement) → **B26** → **B24**. **B29** hold (H7 Auto/Manual — entry options in phaseB § B29; kickoff later). **B28** hold assess (auto-off → singular rules) — after **B14b** / prefer after **B24**; not **C13**. **B12** may run ∥ **B14b**. **C33** / **C36** / **C42** / **C43** / **B27** / **C44** / **G18** may run ∥ near-term cluster (kickoff each). **C42** ∥ **C33** / **G17** / **P1** (HomeWizard-style power graphs; G10 ingest ✅). **C43** = Explorer view-preset polish (mode + deselect on drift); may run ∥ **C33** / **C36** / **C42**. **C44** = SSE reconnect after full backend reboot (distinct from **C37** PWA resume). **G18** = Z-Wave vent 1e OFF command path. **G19** hold assess — evaluate Grok iwhw claim before code; may run ∥ **G7**. **G20** ✅ **close-out 2026-09-22**. **P1** = history series config (entity_id + kind/unit/how); default after **C33** / with **P** cluster; may run ∥ **C42**. **P2** = sync exclude config for main/lcd/wlw (may run ∥ **P1** / tooling). **G17** = HomeWizard Z-Wave-style field picker + add hosts/devices without hand-YAML (after **G13**, before **F**); may run ∥ **C42**. **L2** after kickoff when ready. **C28** after **C4**; **C26** after **C4**. **C30** = WISC douche live + last summary. **E** may run beside **B14b**. Vendor bridges: **G11→G9→G12→G13** then **G17**; (**G10** ✅ **Pi smoke / close-out 2026-09-10**; sockets deferred); default after **G4**, before **F**. **S1** ✅ **Pi smoke 2026-09-10** (archived). **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **B7 / B14 part 1** ✅ **Pi smoke 2026-09-09**. **C38** / **C41** ✅ **close-out**. **C40** cancelled (PID v2 not open). **Ops2** hold — large assess only; **do not** fix/target 3.13 until assess; **3.12** remains a valid outcome.
 
 ---
 

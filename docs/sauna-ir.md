@@ -10,7 +10,7 @@ This document serves as the master specification for the physical topography, op
 
 The sauna and infrared heating infrastructure operates on a high-power, multi-phase electrical topology managed through direct microsecond GPIO actuation and localized protocol bridges.
 
-**PCB / carrier board:** KiCad design, connector pinouts, and JLCPCB fabrication are tracked in the separate [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) repository. GPIO idx and BCM assignments for the running WanOS Pi remain in root `config_hardware.yaml` (mirrored for board design in wanos-pcb `docs/gpio-interface.md`).
+**PCB / carrier board:** KiCad design, connector pinouts, and JLCPCB fabrication are tracked in the separate [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) repository. GPIO idx and BCM assignments for the running WanOS Pi remain in root `config_hardware.yaml`. Full WISC BCM inventory: [wanos-pcb `docs/gpio-map.md`](https://github.com/gitwannes/wanos-pcb/blob/main/docs/gpio-map.md). New carrier map: [wanos-pcb `docs/gpio-interface.md`](https://github.com/gitwannes/wanos-pcb/blob/main/docs/gpio-interface.md).
 
 ### 1.1 Electrical Phase Layout & Element Capacities
 The sauna heating system operates on a balanced 3x400V+N star configuration where every independent resistor phase draws load across a dedicated line conductor and Neutral, operating at a 230V nominal AC rating.

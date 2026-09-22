@@ -10,7 +10,7 @@ This document serves as the master blueprint and reference guide for the directo
 * `config_hue.yaml`: PC-owned Hue profile — bridge IP, `device_map`, `group_map`, `scene_map` (provision locally; mirrored to Pi).
 * `config_hue_presets.auto.yaml`: Pi-owned **`hue.presets`** (text keys → `{ name, bri, xy|rgb }`; Explorer CRUD on Pi; **StatsRepoPull** into git). Runtime merge in `load_config()`. Explorer/Blocky consume `system.hue_presets`. **B9A:** CRUD via `/api/hue-presets` (add / rename display name / delete-when-unused; unique display names).
 * `config_lab.yaml`: Mock architecture state profiles used to seed lab baseline metrics during detachment mode testing.
-* `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths. **Runtime source of truth** for BCM pins and idx wiring on the WanOS Pi. KiCad schematic, PCB layout, and JLCPCB ordering are **not** tracked here — see the separate [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) repo (`docs/gpio-interface.md` mirrors this file for board design).
+* `config_hardware.yaml`: Static, layered hardware-pin mapping defining local physical GPIO assignments and communication paths. **Runtime source of truth** for BCM pins and idx wiring on the WanOS Pi. Full BCM inventory (claimed / free / 1-wire notes): [**wanos-pcb** `docs/gpio-map.md`](https://github.com/gitwannes/wanos-pcb/blob/main/docs/gpio-map.md) (stub in this repo: [`gpio-map.md`](gpio-map.md)). KiCad schematic, PCB layout, and JLCPCB ordering are **not** tracked here — see [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) (`docs/gpio-interface.md` = **wanos-pcb-v1** board map; `docs/gpio-map.md` = WISC production inventory).
 * `config_zwave.auto.yaml`: Z-Wave device map (UI/system-owned via `zwaveconfig.html`; not hand-edited as primary workflow).
 * `entity_registry.auto.yaml`: System-owned stable `entity_id` ↔ `idx` registry. Auto-assigned at device birth, frozen across renames; not hand-edited for normal operation. See `docs/todo/phaseB-blocky.md`.
 
@@ -116,7 +116,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `zwave.py`: MQTT bridge to Z-Wave JS UI for mesh switch/sensor/power telemetry and command routing.
 * `hue.py`: Local Philips Hue Bridge API v2 SSE/HTTP client.
 * `epson.py`: TCP control for Epson projectors.
-* `lg.py`: LG webOS TV (**G16** ✅) — WOL + SSAP power poll + fixed app catalog launch. Product: [`docs/integration_lg.md`](integration_lg.md).
+* `lg.py`: LG webOS TV (**G16** ✅; **G20** OFF latch) — WOL + SSAP power poll + commanded-OFF latch (poll ON suppressed while SSAP stays open after WanOS OFF) + fixed app catalog launch. Product: [`docs/integration_lg.md`](integration_lg.md).
 * `homewizard.py`: HomeWizard Energy (**G10** ✅) — Local API v2 poll (aiohttp) for P1 / PV → `810xx` (gauges as host history). Product: [`docs/integration_homewizard.md`](integration_homewizard.md). Scout: `helpers/homewizard_discovery.py`. Map UI → **G17**.
 
 ---

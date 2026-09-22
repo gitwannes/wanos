@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
@@ -29,6 +29,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G17 — HomeWizard map UI** | Z-Wave-style field picker + add hosts/devices (no hand-YAML) — G10 follow-up |
 | **G18 — Z-Wave vent OFF** | bugfix: `zwave.vent.badk_1e` OFF not sent (unmapped/disabled/empty) |
 | **G19 — IWHW ledger empty** | assess: empty `wanos_iwhw.log` (Grok claim: `self.iwhw_logger` missing) — hold |
+| **G20 — LG OFF bounce** | ✅ **Done 2026-09-22** — commanded-OFF latch; product [`integration_lg.md`](../integration_lg.md) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
@@ -715,7 +716,7 @@ Second call reveals capabilities (temperature, humidity, switch, thermostatMode,
 
 **Letter:** **G16**. **Pipeline:** Done. Size **high**. **Pi smoke:** ✅ **2026-08-27**. **Not C28** (TV browser skins).
 
-**Product reference:** [`docs/integration_lg.md`](../integration_lg.md) — config, C18, adaptive poll, Blockly catalog, key path, G6 scope `lg`.
+**Product reference:** [`docs/integration_lg.md`](../integration_lg.md) — config, C18, adaptive poll, commanded-OFF latch (**G20**), Blockly catalog, key path, G6 scope `lg`.
 
 **Operator request (verbatim):**
 > I have an LG TV - can I integrate this? I want to see when its on and off and turn it on and off remotely - which other options are there? what are the best libraries for this, if needed? triage as G16
@@ -1026,3 +1027,45 @@ After midnight until OWM daily refresh (`sun_refresh_hour`, default **03:00** �
 * **Out of scope (this triage):** implementing the proposed one-liner or removing the duplicate handler.
 
 **G19 DoD (stub):** Written assess: confirm or refute `self.iwhw_logger` / duplicate `EVENT_ROUTERS` claims; recommended fix (or close as already fixed). **No code** until implement. **Last DoD (only if a later ship lands):** audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.
+
+---
+
+## ✅ G20 — bugfix: LG web OFF → hub ON bounce — **Done 2026-09-22**
+
+**Letter:** **G20**. **Pipeline:** Done. Size **mid**. **Close-out:** **2026-09-22** (operator). Post-**G16**.
+
+**Product reference:** [`docs/integration_lg.md`](../integration_lg.md) — commanded-OFF latch; also [`docs/reference.md`](../reference.md) · [`docs/integration-playbook.md`](../integration-playbook.md) C18 LG row.
+
+**Operator request (verbatim, 2026-09-22):**
+
+> yesterday evening LG was ON - I turned it OFF via the web interface but it turned ON back automatically -- see log:
+> *(OFF → Rule "TV ON" wake → ON loop)*
+>
+> triage G-bugfix
+> implement C now
+
+### Shipped summary
+
+| Piece | Where |
+|---|---|
+| Root cause | SSAP TCP open = ON; after `power_off`, fast poll bounced hub ON (Instant On / network standby) |
+| Fix **C** | `integrations/lg.py` — commanded-OFF latch: suppress poll→ON while SSAP open; clear on SSAP close or WanOS ON |
+| Logs | `[LG] OFF latch armed` / `SSAP still open` / `cleared (…)` |
+| Not | `"TV ON"` rule rewrite; **B27**; SSAP `getPowerState` (**D**) |
+
+### Locked (delivery record)
+
+| Topic | Lock |
+|---|---|
+| **Latch** | After successful WanOS OFF, poll must not flip hub ON while SSAP stays open |
+| **Clear** | SSAP ports close, or explicit WanOS ON/WOL |
+| **Limit** | Instant On + remote ON while latched not detected until WanOS ON or ports close→reopen |
+
+### G20 DoD
+
+- [x] Commanded-OFF latch in `integrations/lg.py`
+- [x] Product docs: `integration_lg.md`, `reference.md`, `integration-playbook.md`
+- [x] Last DoD: audit `docs/**/*.md` + root README against shipped behavior (**2026-09-22**)
+- [x] Operator close-out **2026-09-22**
+
+---

@@ -41,7 +41,7 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 | **Z-Wave** | Z-Wave JS UI MQTT data plane |
 | **Philips Hue** | Local API v2 (HTTP/2 SSE) |
 | **Sonos & Onkyo** | TCP control (`soco`, eISCP) |
-| **LG webOS TV** | WOL + SSAP (`pywebostv`); power + Blockly app catalog |
+| **LG webOS TV** | WOL + SSAP (`pywebostv`); power + OFF latch (**G20**) + Blockly app catalog |
 | **HomeWizard Energy** | Local API v2 (aiohttp) — P1 + PV kWh (`810xx`); sockets deferred |
 | **RFXCOM** | 433 MHz via `serial_asyncio` |
 | **OpenWeatherMap** | Environment / twilight for scheduling |

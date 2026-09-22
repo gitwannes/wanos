@@ -224,7 +224,7 @@ Existing locked table (pattern to extend at each kickoff):
 | Sonos | OFF: pause returns; ON: `_start_playback` is **true** | Exception; ON and playback did not start |
 | Onkyo | `write` + `drain` complete | Exception; no TCP writer |
 | Epson | `power()` **True** (today’s read-timeout → True) | `power()` **False** |
-| LG | ON: WOL (if cold) + SSAP ports open within wait; OFF: `power_off` OK (idempotent if already OFF); app: catalog launch OK | Exception; SSAP still closed after WOL; app-only while OFF; unknown catalog key |
+| LG | ON: WOL (if cold) + SSAP ports open within wait (+ clears G20 OFF latch); OFF: `power_off` OK (idempotent if already OFF) + OFF latch armed; app: catalog launch OK | Exception; SSAP still closed after WOL; app-only while OFF; unknown catalog key |
 | RFX | `transport.write` completed | Port dead; parse/protocol error; write exception |
 
 For G9–G13, **fill this row at kickoff** from the chosen library (e.g. Honeywell: HTTPS 200 vs 401; SMA: Modbus exception vs poll). Do not leave it implicit.

@@ -5,6 +5,8 @@ LG webOS TV bridge (G16).
 Power via Wake-on-LAN (cold ON) + SSAP (OFF / reachable=ON).
 App launch via pywebostv ApplicationControl from a fixed config catalog.
 Adaptive TCP poll of SSAP ports owns power state for idx in device_map.
+G20: after commanded OFF, an off-latch suppresses poll-ON while SSAP stays
+open (Instant On / network standby); latch clears on SSAP close or WanOS ON.
 """
 
 from __future__ import annotations
@@ -56,6 +58,9 @@ class LgWebOsBridge:
         self._last_power: Optional[str] = None
         self._fast_poll_until: float = 0.0
         self._command_lock = asyncio.Lock()
+        # G20: commanded-OFF latch — poll must not flip hub ON while SSAP stays up.
+        self._off_latch: bool = False
+        self._off_latch_suppress_logged: bool = False
 
     def _apply_config(self, config: Any) -> None:
         """Refresh host/MAC/maps from AppConfig.lg (or None)."""
@@ -86,6 +91,23 @@ class LgWebOsBridge:
         if time.monotonic() < self._fast_poll_until:
             return self.poll_fast_secs
         return self.poll_secs
+
+    def _arm_off_latch(self) -> None:
+        """Arm G20 latch after accepting a WanOS OFF command."""
+        if not self._off_latch:
+            logger.info(
+                "[LG] OFF latch armed - poll ON suppressed until SSAP closes "
+                "or WanOS ON"
+            )
+        self._off_latch = True
+        self._off_latch_suppress_logged = False
+
+    def _clear_off_latch(self, reason: str) -> None:
+        """Clear G20 latch (ports closed, WanOS ON, or failed OFF)."""
+        if self._off_latch:
+            logger.info(f"[LG] OFF latch cleared ({reason})")
+        self._off_latch = False
+        self._off_latch_suppress_logged = False
 
     def _load_store(self) -> Dict[str, str]:
         """Load pywebostv store for this host from key file."""
@@ -222,7 +244,23 @@ class LgWebOsBridge:
         if self.tv_idx is None or not self.host:
             return
         on = await asyncio.to_thread(ssap_ports_open, self.host)
-        new_state = "ON" if on else "OFF"
+
+        # G20: after commanded OFF, Instant On keeps SSAP open — do not bounce ON.
+        # Boot probe never inherits a latch (process-local).
+        if self._off_latch and not is_initialization:
+            if on:
+                if not self._off_latch_suppress_logged:
+                    logger.info(
+                        "[LG] OFF latch: SSAP still open - keeping hub OFF"
+                    )
+                    self._off_latch_suppress_logged = True
+                return
+            # Deep OFF: ports closed — release latch so a later reopen can be ON.
+            self._clear_off_latch("SSAP closed")
+            new_state = "OFF"
+        else:
+            new_state = "ON" if on else "OFF"
+
         if not is_initialization and new_state == self._last_power:
             return
         self._last_power = new_state
@@ -307,6 +345,8 @@ class LgWebOsBridge:
         if want_app and not want_on and not ports_up:
             return False, "[LG] TV is OFF; app launch requires ON (or ON+app)"
 
+        # G20: arm latch before OFF I/O so a concurrent poll cannot bounce ON.
+        armed_off_latch = False
         try:
             if want_on and not ports_up:
                 try:
@@ -319,9 +359,13 @@ class LgWebOsBridge:
                     return False, "[LG] SSAP still closed after WOL"
 
             if want_on:
+                # Explicit WanOS ON / WOL path — clear any commanded-OFF latch.
+                self._clear_off_latch("WanOS ON")
                 self._last_power = "ON"
 
             if want_off:
+                self._arm_off_latch()
+                armed_off_latch = True
                 if not ports_up:
                     # Idempotent OFF
                     self._last_power = "OFF"
@@ -352,6 +396,8 @@ class LgWebOsBridge:
             return False, "[LG] empty command"
 
         except Exception as exc:  # noqa: BLE001
+            if armed_off_latch:
+                self._clear_off_latch("OFF command failed")
             logger.error(
                 f"[LG] Command failed for "
                 f"{format_device_ref(self.state_manager._state, self.tv_idx)}: {exc}"
