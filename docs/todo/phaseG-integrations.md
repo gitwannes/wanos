@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
@@ -30,6 +30,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G18 — Z-Wave vent OFF** | bugfix: `zwave.vent.badk_1e` OFF not sent (unmapped/disabled/empty) |
 | **G19 — IWHW ledger empty** | assess: empty `wanos_iwhw.log` (Grok claim: `self.iwhw_logger` missing) — hold |
 | **G20 — LG OFF bounce** | ✅ **Done 2026-09-22** — commanded-OFF latch; product [`integration_lg.md`](../integration_lg.md) |
+| **G21 — HomeWizard health** | ✅ **Done 2026-09-22** — A+B+D poll-staleness health; product [`integration_homewizard.md`](../integration_homewizard.md) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
@@ -449,7 +450,7 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 
 **Product reference (canonical):** [`docs/integration_homewizard.md`](../integration_homewizard.md) · [`docs/sensor_history.md`](../sensor_history.md) §3 / §17 · [`docs/reference.md`](../reference.md) (`homewizard.py`).
 
-**Follow-ups (not this ship):** map UI / add-device → **G17**; history series config → **P1**; Energy Socket switching (when API v2).
+**Follow-ups (not this ship):** map UI / add-device → **G17**; history series config → **P1**; Energy Socket switching (when API v2). Health TimeoutError flaps → **G21** ✅ **2026-09-22**.
 
 ### Operator request (verbatim)
 
@@ -1067,5 +1068,46 @@ After midnight until OWM daily refresh (`sun_refresh_hour`, default **03:00** �
 - [x] Product docs: `integration_lg.md`, `reference.md`, `integration-playbook.md`
 - [x] Last DoD: audit `docs/**/*.md` + root README against shipped behavior (**2026-09-22**)
 - [x] Operator close-out **2026-09-22**
+
+---
+
+## ✅ G21 — bugfix: HomeWizard P1 online/offline TimeoutError flaps — **Done 2026-09-22**
+
+**Letter:** **G21**. **Pipeline:** Done. Size **mid**. **Close-out:** **2026-09-22** (operator lock + implement). Post-**G10**.
+
+**Product reference:** [`docs/integration_homewizard.md`](../integration_homewizard.md) · [`docs/reference.md`](../reference.md).
+
+### Operator request (verbatim, 2026-09-22)
+
+> *(P1 `10.32.251.56` INFO flaps `offline (TimeoutError)` / `online` every few seconds; curl timings ~0.8–1.6s with 5s hard timeout)*
+>
+> proposal for fix: A+B+D
+>
+> Staleness window: 3×poll_secs (with poll_secs=60 both are 180)
+> Hysteresis: 3 failures
+> lock & implement
+
+### Locked (delivery record)
+
+| Topic | Lock |
+|---|---|
+| **A — Health** | No live HTTPS on health tick. Connected iff ≥1 token-backed host has last successful measurement within **`3 × poll_secs`**. Boot seeds last-OK so strikes do not fire before first poll window. |
+| **B — Session** | One shared `ClientSession`, `TCPConnector(limit=1)`, per-host lock; measurement timeout **15 s**. |
+| **D — Hysteresis** | Host INFO online→offline (or non-online status) only after **3 consecutive** poll failures; earlier misses DEBUG. On trip, clear that host’s last-OK so staleness health agrees. |
+
+### Shipped summary
+
+| Piece | Where |
+|---|---|
+| Bridge | `integrations/homewizard.py` — A+B+D |
+| Health caller | `logic/health_monitor.py` — comment only (still calls `ping()`; ping is now staleness) |
+| Product docs | `integration_homewizard.md`, `reference.md`, playbook row |
+
+### G21 DoD
+
+- [x] A+B+D in `integrations/homewizard.py`
+- [x] Product docs match shipped health/session/hysteresis
+- [x] Last DoD: audit `docs/**/*.md` + root README against shipped behavior (**2026-09-22**)
+- [x] Operator lock values: stale **`3×poll_secs`**, hysteresis **3**
 
 ---

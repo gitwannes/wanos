@@ -42,7 +42,7 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 | **Philips Hue** | Local API v2 (HTTP/2 SSE) |
 | **Sonos & Onkyo** | TCP control (`soco`, eISCP) |
 | **LG webOS TV** | WOL + SSAP (`pywebostv`); power + OFF latch (**G20**) + Blockly app catalog |
-| **HomeWizard Energy** | Local API v2 (aiohttp) — P1 + PV kWh (`810xx`); sockets deferred |
+| **HomeWizard Energy** | Local API v2 (aiohttp) — P1 + PV kWh (`810xx`); sockets deferred; health = poll staleness (**G21**) |
 | **RFXCOM** | 433 MHz via `serial_asyncio` |
 | **OpenWeatherMap** | Environment / twilight for scheduling |
 | **GPIO** | `lgpio` outputs and interrupt edges |

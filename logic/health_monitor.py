@@ -164,7 +164,7 @@ class HealthMonitor:
                 lg_bridge = getattr(sm, "lg_bridge", None)
                 lg_conn = bool(lg_bridge and getattr(lg_bridge, "is_connected", False))
 
-                # HomeWizard: ping configured hosts (token + /api)
+                # HomeWizard: staleness of last successful poll (no live HTTPS every 2s)
                 hw_bridge = getattr(sm, "homewizard_bridge", None)
                 hw_conn = False
                 if hw_bridge is not None:
