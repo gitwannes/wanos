@@ -7453,19 +7453,17 @@ function loginApp() {
         async init() {
             // ⚡ ROLE-AWARE SESSION AUTO-RESTORE:
             // Inspects localStorage for existing authorization signatures before rendering the keypad.
-            // This guarantees standard user roles are never accidentally misrouted to administrative pages.
+            // Valid admin/user JWTs restore to Device Explorer; kiosk restores to kiosk.html.
             const persistentToken = localStorage.getItem("wanos_jwt");
             if (persistentToken) {
                 try {
                     const claimsPayload = JSON.parse(atob(persistentToken.split('.')[1]));
                     const currentUnixTimestamp = Math.floor(Date.now() / 1000);
 
-                    // Validate session expiration timeline parameters before allowing a bypass redirect
+                    // Validate session expiration timeline parameters before allowing a bypass redirect.
+                    // Admin and user both restore to Device Explorer (Admin remains reachable via shell nav).
                     if (claimsPayload.exp && currentUnixTimestamp < claimsPayload.exp) {
-                        if (claimsPayload.role === "admin") {
-                            window.location.href = "/admin.html";
-                            return;
-                        } else if (claimsPayload.role === "user") {
+                        if (claimsPayload.role === "admin" || claimsPayload.role === "user") {
                             window.location.href = "/deviceexplorer.html";
                             return;
                         } else if (claimsPayload.role === "kiosk") {

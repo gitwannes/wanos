@@ -144,3 +144,12 @@ RemoteGlob=wlw*
 # Missing files are skipped (vhost may not exist until N1).
 /var/log/nginx/hofmans.synology.me.access.log
 /var/log/nginx/hofmans.synology.me.error.log
+
+[WlwSqlitePullFiles]
+# Pi -> PC only (never push). Land under StatsDest\wlw\state\ (not logcopied into git).
+# Missing files / empty globs are skipped. Do not list .env here.
+# Live DBs: *.sqlite. Budget Backup / Restore dumps: *.sql (be90 H7 / wlw-sync.md).
+/var/lib/wlw/wlw.sqlite
+/var/lib/wlw/budget.sqlite
+/var/lib/wlw/budget-backup-*.sql
+/var/lib/wlw/budget-bak-*.sql

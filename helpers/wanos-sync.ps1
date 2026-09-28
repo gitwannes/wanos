@@ -163,6 +163,7 @@ function Read-WanosSyncConfig {
         RemoteGlob     = "wlw*"
     }
     $wlwExtraLogFiles = New-Object System.Collections.Generic.List[string]
+    $wlwSqlitePullFiles = New-Object System.Collections.Generic.List[string]
     $current = $null
 
     $lineNo = 0
@@ -179,6 +180,10 @@ function Read-WanosSyncConfig {
                 continue
             }
             if ($name -eq "WlwExtraLogFiles") {
+                $current = $name
+                continue
+            }
+            if ($name -eq "WlwSqlitePullFiles") {
                 $current = $name
                 continue
             }
@@ -223,6 +228,11 @@ function Read-WanosSyncConfig {
             continue
         }
 
+        if ($current -eq "WlwSqlitePullFiles") {
+            [void]$wlwSqlitePullFiles.Add($line)
+            continue
+        }
+
         [void]$sectionLists[$current].Add($line)
     }
 
@@ -252,6 +262,7 @@ function Read-WanosSyncConfig {
         LcdPiSsh           = $lcdPiSsh
         WlwPiSsh           = $wlwPiSsh
         WlwExtraLogFiles   = @($wlwExtraLogFiles)
+        WlwSqlitePullFiles = @($wlwSqlitePullFiles)
     }
 }
 
@@ -266,6 +277,7 @@ $PiSsh              = $SyncConfig.PiSsh
 $LcdPiSsh           = $SyncConfig.LcdPiSsh
 $WlwPiSsh           = $SyncConfig.WlwPiSsh
 $WlwExtraLogFiles   = $SyncConfig.WlwExtraLogFiles
+$WlwSqlitePullFiles = $SyncConfig.WlwSqlitePullFiles
 
 # LCD mirror excludes (do NOT reuse backend bootstrap/docs excludes that would skip helpers/bootstrap).
 $LcdMirrorExcludeDirs = @(
@@ -312,6 +324,7 @@ Write-SyncVerbose ("  PiSsh             : {0}@{1}:{2}" -f $PiSsh.User, $PiSsh.Ho
 Write-SyncVerbose ("  LcdPiSsh          : {0}@{1}:{2}" -f $LcdPiSsh.User, $LcdPiSsh.Host, $LcdPiSsh.RemoteRoot)
 Write-SyncVerbose ("  WlwPiSsh          : {0}@{1}:{2}" -f $WlwPiSsh.User, $WlwPiSsh.Host, $WlwPiSsh.RemoteRoot)
 Write-SyncVerbose ("  WlwExtraLogFiles  : {0}" -f $WlwExtraLogFiles.Count)
+Write-SyncVerbose ("  WlwSqlitePullFiles: {0}" -f $WlwSqlitePullFiles.Count)
 Write-SyncVerbose ("  Lcd / Wlw / LogCopy : {0} / {1} / {2}" -f [bool]$Lcd, [bool]$Wlw, [bool]$LogCopy)
 Write-SyncVerbose ""
 
@@ -505,6 +518,27 @@ function Test-RemoteGlobHasMatches {
     $script = ('set -- {0}; if [ -e "$1" ]; then echo yes; else echo no; fi' -f $pattern)
     $out = & (Get-RsyncSshExe) -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
     return ($out -match "yes")
+}
+
+function Get-RemoteGlobFiles {
+    param(
+        [hashtable]$Ssh,
+        [string]$RemoteGlobPath
+    )
+    # Expand a remote shell glob to absolute paths (one per line). No matches -> empty.
+    $remote = "{0}@{1}" -f $Ssh.User, $Ssh.Host
+    $pattern = $RemoteGlobPath.Trim()
+    # If the glob matches nothing, $1 stays the literal pattern - treat as empty.
+    $script = ('set -- {0}; if [ -e "$1" ]; then for f; do printf "%s\n" "$f"; done; fi' -f $pattern)
+    $out = & (Get-RsyncSshExe) -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
+    $files = @()
+    if ($null -eq $out) { return $files }
+    foreach ($line in @($out)) {
+        $p = [string]$line
+        if ([string]::IsNullOrWhiteSpace($p)) { continue }
+        $files += $p.Trim()
+    }
+    return $files
 }
 
 function Assert-SshAvailable {
@@ -1285,11 +1319,101 @@ function Invoke-WlwExtraLogPullJob {
     $script:LastLogPullDir = $localDir
 }
 
+function Invoke-WlwSqlitePullJob {
+    param(
+        [hashtable]$Ssh,
+        [string]$StatsDest,
+        [string[]]$SqliteFiles,
+        [switch]$DryRun
+    )
+
+    Write-SyncJobHeader "=== WLW STATE PULL (Pi /var/lib/wlw sqlite+sql --> Local state/) ==="
+
+    $subdir = if ($null -eq $Ssh.LocalLogSubdir) { "" } else { [string]$Ssh.LocalLogSubdir }
+    $subdir = $subdir.Trim().Trim('\', '/')
+    $baseDir = if ([string]::IsNullOrWhiteSpace($subdir)) {
+        $StatsDest
+    } else {
+        Join-Path $StatsDest $subdir
+    }
+    $localDir = Join-Path $baseDir "state"
+    Ensure-Directory -Path $localDir -DryRun:$DryRun
+
+    $localRsync = ConvertTo-RsyncLocalPath -WindowsPath $localDir
+    if (-not $localRsync.EndsWith("/")) { $localRsync = $localRsync + "/" }
+
+    if ($null -eq $SqliteFiles -or $SqliteFiles.Count -eq 0) {
+        Write-Host "WLW SQLITE: no [WlwSqlitePullFiles] entries" -ForegroundColor DarkYellow
+        return
+    }
+
+    # Expand globs (budget-backup-*.sql / budget-bak-*.sql) to concrete paths.
+    $resolved = New-Object System.Collections.Generic.List[string]
+    foreach ($remotePath in $SqliteFiles) {
+        $path = [string]$remotePath
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+        $path = $path.Trim()
+        if ($path -like "*.env*" -or $path.EndsWith("/.env") -or $path.EndsWith("\.env")) {
+            Write-Host ("WLW SQLITE skip (refused .env): {0}" -f $path) -ForegroundColor Red
+            continue
+        }
+        if ($path.Contains("*") -or $path.Contains("?")) {
+            $matches = @(Get-RemoteGlobFiles -Ssh $Ssh -RemoteGlobPath $path)
+            if ($matches.Count -eq 0) {
+                Write-Host ("WLW SQLITE skip (no glob matches): {0}" -f $path) -ForegroundColor DarkYellow
+                continue
+            }
+            foreach ($m in $matches) {
+                [void]$resolved.Add($m)
+            }
+            continue
+        }
+        [void]$resolved.Add($path)
+    }
+
+    foreach ($remotePath in $resolved) {
+        $path = [string]$remotePath
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+        $path = $path.Trim()
+        if ($path -like "*.env*" -or $path.EndsWith("/.env") -or $path.EndsWith("\.env")) {
+            Write-Host ("WLW SQLITE skip (refused .env): {0}" -f $path) -ForegroundColor Red
+            continue
+        }
+        # Live DBs (.sqlite) and budget SQL dumps (.sql) only - never .env or other state.
+        $isSqlite = $path -like "*.sqlite"
+        $isSqlDump = ($path -like "*.sql") -and (-not $isSqlite)
+        if (-not $isSqlite -and -not $isSqlDump) {
+            Write-Host ("WLW SQLITE skip (not .sqlite/.sql): {0}" -f $path) -ForegroundColor DarkYellow
+            continue
+        }
+
+        if (-not (Test-RemoteFileExists -Ssh $Ssh -RemoteFilePath $path)) {
+            Write-Host ("WLW SQLITE skip (missing): {0}" -f $path) -ForegroundColor DarkYellow
+            continue
+        }
+
+        $remoteSpec = "{0}@{1}:{2}" -f $Ssh.User, $Ssh.Host, $path
+        $args = New-Object System.Collections.Generic.List[string]
+        [void]$args.Add("-avz")
+        if ($DryRun) { [void]$args.Add("-n") }
+        [void]$args.Add("-e")
+        [void]$args.Add((Get-SshRsyncShellArg))
+        [void]$args.Add($remoteSpec)
+        [void]$args.Add($localRsync)
+
+        Write-SyncSection ("** rsync sqlite: {0} --> {1}" -f $remoteSpec, $localDir)
+        Invoke-Rsync -RsyncArgs @($args) -FailMessage ("WLW sqlite pull failed for {0}" -f $path)
+    }
+
+    Write-SyncDone ("* WLW SQLITE: done --> {0}" -f $localDir)
+}
+
 function Invoke-WlwLogPullJobs {
     param(
         [hashtable]$Ssh,
         [string]$StatsDest,
         [string[]]$ExtraLogFiles,
+        [string[]]$SqliteFiles,
         [switch]$DryRun
     )
 
@@ -1303,6 +1427,12 @@ function Invoke-WlwLogPullJobs {
         -Ssh $Ssh `
         -StatsDest $StatsDest `
         -ExtraLogFiles $ExtraLogFiles `
+        -DryRun:$DryRun
+    Write-Host ""
+    Invoke-WlwSqlitePullJob `
+        -Ssh $Ssh `
+        -StatsDest $StatsDest `
+        -SqliteFiles $SqliteFiles `
         -DryRun:$DryRun
 }
 
@@ -1560,6 +1690,7 @@ if ($Mode -eq "codeimport") {
             -Ssh $WlwPiSsh `
             -StatsDest $StatsDest `
             -ExtraLogFiles $WlwExtraLogFiles `
+            -SqliteFiles $WlwSqlitePullFiles `
             -DryRun:$false
         Write-Host ""
         $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else {
@@ -1627,6 +1758,7 @@ if ($Mode -eq "codeimport") {
         -Ssh $WlwPiSsh `
         -StatsDest $StatsDest `
         -ExtraLogFiles $WlwExtraLogFiles `
+        -SqliteFiles $WlwSqlitePullFiles `
         -DryRun:$DryRun
 
     if ($LogCopy) {
