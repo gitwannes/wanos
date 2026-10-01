@@ -8,7 +8,8 @@
 // Device defaults: Hidden OFF → zwave.buro_licht ON; Hidden ON → door sauna opens / zwave.vent.sauna ON.
 // Legacy Phase 6B: unified Blockly canvas for schema v2 (trigger + ordered cases) — retired.
 // Contextual dropdowns: only show entries valid for the current trigger / device type.
-// Phase 6C: rich action authoring — Hue preset XOR custom color (iro→bri/xy), blinds open %, Sonos/Onkyo volume, Sonos station.
+// Phase 6C: rich action authoring — Hue preset XOR custom color (iro→bri/xy), blinds open %,
+//   Sonos ON+volume+station; G22 Onkyo power Set vs volume Set (split).
 // Phase B10A: editor trust — Hue picker-only / type-switch rebuild / no restore-modal;
 //   toolbar Delete (no trashcan); Blockly Events disable/enable paired (v13 refcount); dirty from canvas.
 // Phase B10B+D: events: catalog (UUID bus) — no family triggers / SCENE_* strings;
@@ -850,6 +851,10 @@ function blockyActionStateOptions(block) {
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
     if (type === "speaker" || type === "media_player") {
+        // G22: Onkyo — separate power (ON/OFF) vs volume Set; Sonos stays ON/OFF only (+ rich on ON).
+        if (origin === "onkyo") {
+            return [["ON", "ON"], ["OFF", "OFF"], ["volume", "VOLUME"]];
+        }
         return [["ON", "ON"], ["OFF", "OFF"]];
     }
     // Epson / LG: no FORCE_* in the menu.
@@ -2175,7 +2180,11 @@ function blockyActionUpdateRichShape(block, opts) {
 
         const wantBlinds = type === "blinds" || type === "shutter";
         const wantHue = (type === "light" || type === "hue") && origin !== "rfxcom" && state === "ON";
-        const wantAudio = (type === "speaker" || type === "media_player") && state === "ON";
+        // G22: Onkyo volume only on STATE=VOLUME; Sonos keeps volume(+station) on ON.
+        const wantAudio = (type === "speaker" || type === "media_player") && (
+            (origin === "onkyo" && state === "VOLUME")
+            || (origin !== "onkyo" && state === "ON")
+        );
         // G16: app catalog only when LG Set is ON (not combinable with OFF)
         const wantLgApp = origin === "lg" && state === "ON";
 
@@ -2381,6 +2390,8 @@ function blockyActionTimingEndKind(block) {
     const start = String(block.getFieldValue("STATE") || "").toUpperCase();
     if (start !== "ON" && start !== "OPEN") {
         // Non-ON start with for: end ON fixed (mirror); no selector.
+        // G22: Onkyo volume-only Set — no duration end chrome.
+        if (start === "VOLUME") return "none";
         return "fixed_on";
     }
     if ((type === "speaker" || type === "media_player")) return "fixed_off";
@@ -2515,9 +2526,27 @@ function blockyApplyActionRich(block, action) {
     }
 
     if ((type === "speaker" || type === "media_player") && String(action.state || "").toUpperCase() === "ON") {
+        // G22 Onkyo: ON = power only (ignore legacy combined volume on this block).
+        // Sonos: still attach volume(+station) on ON.
         blockyActionUpdateRichShape(block);
-        if (action.volume != null) blockySafeSetField(block, "VOLUME", Number(action.volume));
-        if (action.station) blockySafeSetField(block, "STATION", action.station);
+        if (origin !== "onkyo") {
+            if (action.volume != null) blockySafeSetField(block, "VOLUME", Number(action.volume));
+            if (action.station) blockySafeSetField(block, "STATION", action.station);
+        }
+        delete block._pendingStation;
+        return;
+    }
+
+    // G22: Onkyo volume-only action (no power state, or explicit VOLUME sentinel from older canvas).
+    if (
+        origin === "onkyo"
+        && (type === "speaker" || type === "media_player")
+        && action.volume != null
+        && (action.state == null || action.state === "" || String(action.state).toUpperCase() === "VOLUME")
+    ) {
+        blockyForceDropdownValue(block, "STATE", "VOLUME");
+        blockyActionUpdateRichShape(block, { forceState: "VOLUME" });
+        blockySafeSetField(block, "VOLUME", Number(action.volume));
         delete block._pendingStation;
         return;
     }
@@ -2573,14 +2602,29 @@ function blockyReadActionRich(block) {
     }
 
     if ((type === "speaker" || type === "media_player") && out.state === "ON") {
-        const vol = block.getFieldValue("VOLUME");
-        if (vol !== "" && vol != null) {
-            const n = Number(vol);
-            if (!Number.isNaN(n)) out.volume = n;
+        // G22 Onkyo: power Set dumps ON/OFF only. Sonos still dumps volume(+station) on ON.
+        if (origin !== "onkyo") {
+            const vol = block.getFieldValue("VOLUME");
+            if (vol !== "" && vol != null) {
+                const n = Number(vol);
+                if (!Number.isNaN(n)) out.volume = n;
+            }
+            if (origin === "sonos") {
+                const station = block.getFieldValue("STATION");
+                if (station) out.station = station;
+            }
         }
-        if (origin === "sonos") {
-            const station = block.getFieldValue("STATION");
-            if (station) out.station = station;
+        blockyAttachActionTiming(out, block);
+        return blockyMergeOpaque(out, block);
+    }
+
+    // G22: Onkyo volume Set → YAML { entity_id, volume } (no power state).
+    if (origin === "onkyo" && (type === "speaker" || type === "media_player") && out.state === "VOLUME") {
+        const vol = block.getFieldValue("VOLUME");
+        const n = Number(vol);
+        delete out.state;
+        if (vol !== "" && vol != null && !Number.isNaN(n)) {
+            out.volume = n;
         }
         blockyAttachActionTiming(out, block);
         return blockyMergeOpaque(out, block);

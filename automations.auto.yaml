@@ -1199,6 +1199,27 @@ automations:
             state: "ON"
             preset: relax_red
     id: 1927bf70-db71-4e72-9233-b3244350d1fb
+  - name: TV OFF
+    enabled: true
+    branches:
+      - when: if
+        conditions:
+          - type: device_state
+            entity_id: switch.lg_tv
+            is: "OFF"
+        then:
+          branches:
+            - when: if
+              conditions:
+                - type: time_of_day
+                  is: light
+              actions:
+                - entity_id: hue.group.living_hue
+                  state: "OFF"
+          leading_actions:
+            - entity_id: media_player.living_2
+              state: "OFF"
+    id: 7bf647fd-9691-4450-b0e8-450c9d5a62b9
 events:
   - id: a130c1d4-1bc9-4491-b126-81f716c045c9
     name: Shutters open

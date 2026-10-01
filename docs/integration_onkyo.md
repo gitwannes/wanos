@@ -17,17 +17,19 @@ The integration supports two distinct hardware generations, controlled by a `leg
 ## 3. The Initial Query Sequence
 The moment the TCP socket connects successfully, the bridge actively interrogates the receiver to sync the UI. Timings are heavily dictated by the hardware generation to prevent "Socket Shock" (buffer overflows on older chips).
 
-1.  It immediately pushes a placeholder `"OFF"` state to the UI to clear any "SYNC..." loading text.
+1.  It immediately pushes a placeholder `"OFF"` / volume `0` baseline so the UI is not stuck on a null device row.
 2.  It waits for the receiver's network card to stabilize: **0.5 seconds** (Native) or **2.0 seconds** (Legacy).
 3.  It sends the Power Status query (`!1PWRQSTN`).
 4.  It strictly paces the next query: waiting **0.2 seconds** (Native) or **2.0 seconds** (Legacy).
 5.  It sends the Master Volume query (`!1MVLQSTN`).
 
+(Reconnect / first TCP connect still queries volume. **Power ON commands** do not — see §4 / G22.)
+
 ## 4. UI Quirks & State Synchronization
 The Onkyo bridge employs several advanced Optimistic UI mechanisms to mask network latency and prevent race conditions.
 
 *   **Raw Integers vs. Percentages:** The WanOS backend and Alpine.js frontend do *not* translate volume into a 0-100% scale. The UI dynamically binds its maximum slider limit directly to the `max_volume` integer defined in the config (e.g., `60`). This eliminates rounding errors and prevents the slider from snapping to incorrect values if a user physically turns the knob past a software-defined limit. **Sonos uses the same `max_volume` meta / slider / history-axis pattern** (`config.sonos.max_volume`, e.g. `70`); only the underlying protocol differs (eISCP hex vs SoCo 0–100).
-*   **State Invalidation (The "SYNC..." Decoupling):** When a user turns the receiver **ON** via the UI, the frontend instantly sets the volume state to `null` while leaving the power state `ON`. This triggers an `is_syncing` flag, which visually disables the volume slider and displays "SYNC...". The slider remains physically locked until the receiver boots, answers the backend's automatic volume query, and returns its actual startup volume. When turning **OFF**, the volume cache is intentionally left intact so the UI instantly displays "OFF" without a syncing delay.
+*   **Power vs volume (G22):** Power **ON** / **OFF** does **not** clear or null the cached volume and does **not** force a post-ON `MVLQSTN` handshake. Explorer keeps the last known volume (no **SYNC...** on power). Volume changes are a separate command path (`MVL` only). Unsolicited amp `MVL` / `PWR` echoes still update state. Blockly: Onkyo Set actions are split — **ON/OFF** (power only) vs **volume** (level only); Sonos remains combined ON+volume+station.
 *   **The Infinite Echo Guard:** If a user physically turns the receiver's volume dial, the receiver broadcasts the change over TCP, updating the WanOS UI. To prevent the backend from blindly echoing that same volume command back to the receiver (which causes violent rubberbanding on the physical knob), the backend employs an `origin == "onkyo"` check. If the command originated from the hardware, it updates the UI but strictly aborts TCP transmission.
 *   **Slider Lock TTL:** While actively dragging the volume slider, the UI applies a 2-second lock to ignore network echoes. The absolute moment the user releases the slider, this lock is dropped to `0`. This allows the blazing-fast 0.2s network reply from the receiver to instantly populate and confirm the final value.
 

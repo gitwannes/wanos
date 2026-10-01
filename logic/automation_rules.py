@@ -1258,11 +1258,20 @@ class AutomationEngine:
                         # ⚡ STRICT STATE FILTER: Prevent 'None' states from propagating to physical hardware.
                         # Drops ghost payloads (e.g., Hue brightness slides without binary power states)
                         # before they hit the execution blocks.
-                        # We safely bypass this filter for Native Events and Hue Scenes which inherently do not require binary states.
+                        # Bypass: Native Events, Hue Scenes, and volume-only Sets (G22 Onkyo split).
                         is_pure_event: bool = getattr(action, "event", None) is not None
                         is_hue_scene: bool = getattr(action, "target", None) == "hue_scene"
+                        is_volume_only: bool = (
+                            target_action_state is None
+                            and getattr(action, "volume", None) is not None
+                        )
 
-                        if target_action_state is None and not is_pure_event and not is_hue_scene:
+                        if (
+                            target_action_state is None
+                            and not is_pure_event
+                            and not is_hue_scene
+                            and not is_volume_only
+                        ):
                             automation_logger.debug(
                                 f"[X-RAY] -> Action SKIPPED: Target state resolved to None (Ghost Payload)."
                             )
@@ -1342,6 +1351,9 @@ class AutomationEngine:
                                 current_target_state is None
                                 or str(current_target_state).upper() != target_u
                             )
+                            # G22: volume-only Set (no power state) is not a power edge.
+                            if target_action_state is None and volume is not None:
+                                power_differs = False
                             rich_differs = False
                             if app is not None:
                                 rich_differs = True
@@ -1383,8 +1395,14 @@ class AutomationEngine:
                             if power_differs or is_force or rich_differs:
                             # Use a distinct variable name to prevent shadowing the original event payload!
                             # Explicitly tags the origin as "AUTOMATION" for the IWHW Ledger
-                                action_payload = {"idx": action_idx, "state": target_action_state,
-                                                  "force": is_force, "origin": "AUTOMATION"}
+                                action_payload = {
+                                    "idx": action_idx,
+                                    "force": is_force,
+                                    "origin": "AUTOMATION",
+                                }
+                                # Omit state on volume-only Sets (G22) so hub keeps power unchanged.
+                                if target_action_state is not None:
+                                    action_payload["state"] = target_action_state
                                 if bri is not None:
                                     action_payload["bri"] = bri
                                 if xy is not None:
@@ -1514,7 +1532,14 @@ class AutomationEngine:
                                 ))
 
                                 # --- TIER C: The Action Audit Trail (INFO) ---
-                                final_state_str = f"{target_action_state} (FORCED)" if is_force else target_action_state
+                                if target_action_state is None and volume is not None:
+                                    final_state_str = f"volume {volume}"
+                                    if is_force:
+                                        final_state_str += " (FORCED)"
+                                else:
+                                    final_state_str = (
+                                        f"{target_action_state} (FORCED)" if is_force else target_action_state
+                                    )
                                 preset_str = f" [Rich Payload]" if is_rich_action else ""
                                 automation_logger.info(
                                     f"[ACTION] {AutomationEngine.format_rule_name(rule)} -> "

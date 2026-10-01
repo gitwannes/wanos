@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G22 ✅ Done 2026-10-01** — Onkyo power-ON / SYNC. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
@@ -31,6 +31,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G19 — IWHW ledger empty** | assess: empty `wanos_iwhw.log` (Grok claim: `self.iwhw_logger` missing) — hold |
 | **G20 — LG OFF bounce** | ✅ **Done 2026-09-22** — commanded-OFF latch; product [`integration_lg.md`](../integration_lg.md) |
 | **G21 — HomeWizard health** | ✅ **Done 2026-09-22** — A+B+D poll-staleness health; product [`integration_homewizard.md`](../integration_homewizard.md) |
+| **G22 — Onkyo power-ON volume** | ✅ **Done 2026-10-01** — no SYNC wipe on ON; Onkyo Blocky power vs volume split; product [`integration_onkyo.md`](../integration_onkyo.md) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
@@ -1109,5 +1110,50 @@ After midnight until OWM daily refresh (`sun_refresh_hour`, default **03:00** �
 - [x] Product docs match shipped health/session/hysteresis
 - [x] Last DoD: audit `docs/**/*.md` + root README against shipped behavior (**2026-09-22**)
 - [x] Operator lock values: stale **`3×poll_secs`**, hysteresis **3**
+
+---
+
+## ✅ G22 — bugfix: Onkyo power-ON must not force volume / SYNC... — **Done 2026-10-01**
+
+**Letter:** **G22**. **Pipeline:** Done. Size **mid**. **Close-out:** **2026-10-01** (operator). Product: [`integration_onkyo.md`](../integration_onkyo.md).
+
+### Operator request (verbatim, 2026-10-01)
+
+> quite often, tje onkyo in living gets SYNC - find in logs those occurrances and find root cause
+
+> find root cause & kickoff a fix - goal is to implement when ready
+> don't force the volume when turning it on
+
+> leave sonos as-is: no changes there
+> implement
+
+### Root cause (short)
+
+Power ON deliberately nullled `volume` → Explorer **SYNC...**, then forced `MVLQSTN`. Living legacy delays stretched the window; TV ON hit it often. Wipe used `origin: system` (silent + `int(None)` re-entry).
+
+### Shipped summary
+
+| Piece | Where |
+|---|---|
+| Bridge | `integrations/onkyo.py` — ON sends PWR only; no volume-null; no post-ON `MVLQSTN`; skip MVL when volume is `None` |
+| Explorer | `frontend/app.js` — `toggleSpeakerPower` keeps last volume |
+| Engine | `logic/automation_rules.py` — volume-only Sets allowed (ghost-state bypass) |
+| Blocky | `frontend/blocky.js` — Onkyo Set **ON/OFF** vs **volume** (separate); **Sonos unchanged** |
+| Cache | `app.js?v=3.57`, `blocky.js?v=57` |
+| Product doc | [`integration_onkyo.md`](../integration_onkyo.md) §3–4 |
+
+**Locks:** L1–L5 + O1/B + O1b–O1d (Onkyo-only Blocky split; no rule special-cases; no migrator — operator edits Library by hand).
+
+**Not archived:** parent [`phaseG-integrations.md`](phaseG-integrations.md) stays active (other G items open).
+
+### G22 DoD
+
+- [x] Power ON does not null volume / force SYNC... (bridge + Explorer)
+- [x] Onkyo Blocky: separate power Set vs volume Set; Sonos unchanged; no rule special-cases
+- [x] Engine accepts volume-only actions
+- [x] No `int(None)` Onkyo command path on volume key
+- [x] Product doc `integration_onkyo.md` matches shipped behaviour
+- [x] Operator close **2026-10-01** (manual Library edits + smoke accepted)
+- [x] Last DoD: audit `docs/**/*.md` + root README against shipped behavior (**2026-10-01**)
 
 ---

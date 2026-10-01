@@ -148,8 +148,10 @@ RemoteGlob=wlw*
 [WlwSqlitePullFiles]
 # Pi -> PC only (never push). Land under StatsDest\wlw\state\ (not logcopied into git).
 # Missing files / empty globs are skipped. Do not list .env here.
-# Live DBs: *.sqlite. Budget Backup / Restore dumps: *.sql (be90 H7 / wlw-sync.md).
+# Live DBs: *.sqlite. Full backup dumps: budget-backup-*.sql (+ legacy bak). CSV masters archives: budget-csv-*.zip (+ legacy data).
 /var/lib/wlw/wlw.sqlite
 /var/lib/wlw/budget.sqlite
 /var/lib/wlw/budget-backup-*.sql
 /var/lib/wlw/budget-bak-*.sql
+/var/lib/wlw/budget-csv-*.zip
+/var/lib/wlw/budget-data-*.zip

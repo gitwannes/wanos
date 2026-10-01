@@ -1347,7 +1347,7 @@ function Invoke-WlwSqlitePullJob {
         return
     }
 
-    # Expand globs (budget-backup-*.sql / budget-bak-*.sql) to concrete paths.
+    # Expand globs (budget-backup-*.sql / budget-bak-*.sql / budget-data-*.zip) to concrete paths.
     $resolved = New-Object System.Collections.Generic.List[string]
     foreach ($remotePath in $SqliteFiles) {
         $path = [string]$remotePath

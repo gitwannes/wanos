@@ -6482,13 +6482,7 @@ function wanosApp() {
             if (current.state === targetState) return;
 
             current.state = targetState;
-
-            // ⚡ CONTEXTUAL CACHE INVALIDATION:
-            // Only wipe the volume cache when turning ON (so we can fetch the boot volume).
-            // When turning OFF, the volume is irrelevant, and keeping the cached value avoids the "SYNC..." text.
-            if (targetState === "ON") {
-                current.volume = null;
-            }
+            // G22: keep last known volume on power ON/OFF — do not force SYNC...
 
             this.state.devices[idx] = current;
 

@@ -100,7 +100,7 @@ class OnkyoBridge:
                 self.receivers[idx] = writer
                 logger.success(f"Onkyo {idx} ({ip}) connected successfully.")
 
-                # Force UI to clear "SYNC..." by pushing a default baseline immediately
+                # Baseline so Explorer is not stuck on a null device row before PWR/MVL replies.
                 self._update_state(idx, state="OFF", volume=0)
 
                 # Wait for the receiver's network card to stabilize before firing requests.
@@ -243,38 +243,24 @@ class OnkyoBridge:
         try:
             command_sent = False
 
-            if "volume" in payload:
-                # ⚡ Send absolute raw integer directly. No percentage translation!
-                raw_vol = max(0, min(self.max_vol, int(payload["volume"])))
-                hex_vol = f"{raw_vol:02X}"  # Convert int to uppercase 2-digit Hex
-
-                # Note: pack_func prepends the '!1' automatically
+            # G22: volume only when payload carries a real integer (never None).
+            # Power ON must not null UI volume or force MVLQSTN — keep last known level.
+            raw_vol_payload = payload.get("volume") if "volume" in payload else None
+            if raw_vol_payload is not None:
+                raw_vol = max(0, min(self.max_vol, int(raw_vol_payload)))
+                hex_vol = f"{raw_vol:02X}"
                 writer.write(pack_func(f"MVL{hex_vol}"))
                 await writer.drain()
                 command_sent = True
 
             target_state = payload.get("state")
             if target_state in ["ON", "OFF"]:
-                # ⚡ Pacing Guard: If WanOS automation fires volume + power in the exact same payload,
-                # we MUST pause between the two TCP packet blasts to prevent dropping the connection.
+                # Pacing: volume + power in one payload (legacy YAML) — pause between TCP writes.
                 if command_sent:
                     await asyncio.sleep(pacing_delay)
 
                 if target_state == "ON":
-                    # ⚡ CACHE INVALIDATION: Force backend UI state to null so the sliders instantly show "SYNC..."
-                    self.manager._state.devices[idx] = {"state": "ON", "volume": None}
-                    self.manager.dispatch(Event(
-                        type=EventType.HUB_STATE_CHANGED,
-                        payload={"idx": idx, "state": "ON", "volume": None, "origin": "system"}
-                    ))
-
                     writer.write(pack_func("PWR01"))
-                    await writer.drain()
-
-                    # ⚡ STARTUP HANDSHAKE: Wait a moment for the amplifier to boot, then query its default volume
-                    boot_delay = 2.0 if is_legacy else 0.5
-                    await asyncio.sleep(boot_delay)
-                    writer.write(pack_func("MVLQSTN"))
                     await writer.drain()
                     command_sent = True
 
