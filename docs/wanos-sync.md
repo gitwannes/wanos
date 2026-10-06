@@ -11,6 +11,17 @@ Day-to-day deploy and pull between the Windows workstation and the Pi. Transport
 
 Samba on the Pi is optional (Explorer browse). Sync does not use it.
 
+### WLW pair (keep in sync with be90webserver)
+
+| Side | Tool |
+|------|------|
+| PC → Pi live | This repo: `helpers\wanos-sync.bat … wlw` |
+| Pi clone → Pi live | **be90webserver** `helpers/wlw-sync.sh` (`test` / `run` / `info`) |
+
+Product locks: be90webserver `docs/wlw-sync.md`. When the **WLW mirror** behaviour changes in either tool (excludes, compare rules, modes, path locks, LF normalize set), make the **same** change in the other repo’s tool and update both docs.
+
+**Line endings:** Pi live tree must be **LF**. `test wlw` / `run wlw` CRLF→LF-normalize deploy text under the be90 tree before rsync (`.sh`, `.php`, `.js`, `.css`, `.csv`, `.py`, `.txt`, `.conf`, `.inc`, `.service`, `.json`, `.html` / `.htm`). Binaries are left alone. Main WanOS / LCD still normalize `*.sh` only. The Pi tool compares by checksum and can rewrite the live tree from the Linux clone.
+
 ---
 
 ## What it does
@@ -34,7 +45,7 @@ Edit lights/groups locally → `run` pushes `config_hue.yaml`. Edit presets on P
 
 Pi cutover for Hue presets is complete; `config_hue_presets.auto.yaml` is now the operational source of truth.
 
-Also: LF-normalize `*.sh` on `run` / `codeimport`.
+Also: LF-normalize on `run` / `codeimport` (`*.sh` for main/LCD; broader text set for `wlw` — see **WLW pair**). `test wlw` also previews that normalize (no write when dry-run).
 
 ### Modes
 
@@ -110,7 +121,7 @@ helpers\wanos-sync.bat diff <repo-relative-file> wlw verbose
 | `logcopy` | Log pull + sessionlog pull + copy `wanos*` / `sauna_session_*.csv` / `sauna_sessions.db` into git `docs\logs` only (no mirror / stats / normalize) |
 | `diff <path>` | Compare one repo-relative file PC vs Pi (normalized text); binary = sizes only; missing-side info (exit 0) |
 | `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull); logcopy → `_lcd-agent\docs\logs`; diff uses `_lcd-agent` as local root |
-| `… wlw` | Same modes against **WLW**: mirror `C:\data\git\be90webserver` → `10.32.251.30:/home/wannes/be90webserver` (no stats/sessionlog); log pull `/var/log/wlw/wlw*` + Nginx vhost logs; logcopy → `be90webserver\docs\logs`; diff uses be90 tree as local root. Mutually exclusive with `lcd`. |
+| `… wlw` | Same modes against **WLW**: mirror `C:\data\git\be90webserver` → `10.32.251.30:/home/wannes/be90webserver` (no stats/sessionlog); log pull `/var/log/wlw/wlw*` + Nginx vhost logs; logcopy → `be90webserver\docs\logs`; diff uses be90 tree as local root. LF-normalize deploy text before mirror (`test` dry-run / `run` write). Mutually exclusive with `lcd`. Pair: be90 `helpers/wlw-sync.sh` on the Pi. |
 | `test … logcopy` | Dry-run also previews the git `docs\logs` copy |
 | `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd` / `wlw` / `logcopy`) |
 
