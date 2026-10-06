@@ -598,8 +598,14 @@ const BLOCKY_FIRE_ALWAYS_SYSTEM_IDS = new Set([
     "a97bba4d-78d3-4ce2-b134-fff36c2cd88c"  // IR_OFF
 ]);
 
-/** localStorage key for Library sort mode (kind | name). */
+/** localStorage key for Library sort mode (kind | name | complexity). */
 const BLOCKY_LIBRARY_SORT_KEY = "blockyLibrarySortMode";
+const BLOCKY_LIBRARY_SORT_MODES = ["kind", "name", "complexity"];
+
+function blockyNormalizeLibrarySortMode(raw) {
+    const s = String(raw || "").trim().toLowerCase();
+    return BLOCKY_LIBRARY_SORT_MODES.includes(s) ? s : "kind";
+}
 
 /** Resolve catalog event id → picker/UI label (wire still stores UUID). */
 function blockyEventLabel(eventId) {
@@ -3849,9 +3855,12 @@ function blockyApp() {
         showDisabledOnly: false,
         /** Kind checkboxes — B10F: UE & SE default OFF; UR/SR/D default ON. */
         libraryKindFilter: { ue: false, ur: true, se: false, sr: true, d: true },
-        /** 'kind' = UE→UR→SE→SR→D then name; 'name' = name only. Persisted in localStorage. */
+        /** B25: complexity tier filter (S/M/C). Applies to rules only; UE/SE ignore. */
+        libraryTierFilter: { S: true, M: true, C: true },
+        /** 'kind' | 'name' | 'complexity' — persisted in localStorage. */
         librarySortMode: (typeof localStorage !== "undefined"
-            && localStorage.getItem(BLOCKY_LIBRARY_SORT_KEY) === "name") ? "name" : "kind",
+            ? blockyNormalizeLibrarySortMode(localStorage.getItem(BLOCKY_LIBRARY_SORT_KEY))
+            : "kind"),
         automations: [],
         selectedRule: null,
         entityOptions: [],
@@ -3929,6 +3938,7 @@ function blockyApp() {
         get filteredLibrary() {
             const q = this.filterText.trim().toLowerCase();
             const kinds = this.libraryKindFilter || {};
+            const tiers = this.libraryTierFilter || {};
             const showDis = !!this.showDisabledOnly;
             // Companion SR presence — SE used/unused XOR.
             const seListeners = this._systemEventsWithListeners();
@@ -3945,6 +3955,11 @@ function blockyApp() {
                     const isDis = this.libraryRowIsDisabled(r);
                     // Exclusive: enabled view XOR disabled view (UE/UR/SR/D).
                     if (showDis ? !isDis : isDis) return false;
+                }
+                // B25: tier filter — rules only (UE/SE have no score).
+                if (this.libraryRowHasComplexity(r)) {
+                    const tier = String(r.complexity_tier || "").toUpperCase();
+                    if (tier && tiers[tier] === false) return false;
                 }
                 if (!q) return true;
                 const label = this.libraryRowLabel(r).toLowerCase();
@@ -4297,9 +4312,35 @@ function blockyApp() {
         },
 
         toggleLibrarySortMode() {
-            this.librarySortMode = this.librarySortMode === "name" ? "kind" : "name";
-            try { localStorage.setItem(BLOCKY_LIBRARY_SORT_KEY, this.librarySortMode); }
+            const cur = blockyNormalizeLibrarySortMode(this.librarySortMode);
+            const ix = BLOCKY_LIBRARY_SORT_MODES.indexOf(cur);
+            const next = BLOCKY_LIBRARY_SORT_MODES[(ix + 1) % BLOCKY_LIBRARY_SORT_MODES.length];
+            this.librarySortMode = next;
+            try { localStorage.setItem(BLOCKY_LIBRARY_SORT_KEY, next); }
             catch (e) { /* ignore */ }
+        },
+
+        /** Card title for Library sort mode (B25 adds complexity). */
+        librarySortTitle() {
+            const m = blockyNormalizeLibrarySortMode(this.librarySortMode);
+            if (m === "name") return "Library · name";
+            if (m === "complexity") return "Library · complexity";
+            return "Library";
+        },
+
+        /** B25: rule rows carry derived complexity_score + complexity_tier from GET. */
+        libraryRowHasComplexity(row) {
+            if (!row || row.isEventRow || row.isSystemEventRow) return false;
+            const t = String(row.complexity_tier || "").toUpperCase();
+            return t === "S" || t === "M" || t === "C";
+        },
+
+        libraryComplexityTitle(row) {
+            if (!this.libraryRowHasComplexity(row)) return "";
+            const score = Number(row.complexity_score);
+            const tier = String(row.complexity_tier || "").toUpperCase();
+            const n = Number.isFinite(score) ? score : "?";
+            return `Complexity ${n} (${tier})`;
         },
 
         libraryRowKey(row) {
@@ -4376,9 +4417,20 @@ function blockyApp() {
 
         _sortLibraryRows(rows) {
             const kindRank = { ue: 0, ur: 1, se: 2, sr: 3, d: 4 };
-            const mode = this.librarySortMode;
+            const mode = blockyNormalizeLibrarySortMode(this.librarySortMode);
             const nameKey = (r) => String(this.libraryRowLabel(r) || "").toLowerCase();
+            const scoreKey = (r) => {
+                if (!this.libraryRowHasComplexity(r)) return Number.POSITIVE_INFINITY;
+                const n = Number(r.complexity_score);
+                return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+            };
             return rows.slice().sort((a, b) => {
+                if (mode === "complexity") {
+                    const sa = scoreKey(a);
+                    const sb = scoreKey(b);
+                    if (sa !== sb) return sa - sb;
+                    return nameKey(a).localeCompare(nameKey(b), undefined, { sensitivity: "base" });
+                }
                 if (mode !== "name") {
                     const ka = kindRank[this.libraryKind(a)] ?? 9;
                     const kb = kindRank[this.libraryKind(b)] ?? 9;

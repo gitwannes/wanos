@@ -1352,6 +1352,7 @@ def _build_state_api_payload() -> dict[str, Any]:
 
 def _list_automations_payload() -> dict[str, Any]:
     """Sync automations list for GET /api/automations (B10H: one YAML load, no N+1 bind)."""
+    from core.automation_complexity import attach_complexity
     from core.automations_schema_b19 import is_branch_rule, ordered_branch_dict, normalize_branch_rule
 
     root, _ = load_automations_roundtrip()
@@ -1369,7 +1370,8 @@ def _list_automations_payload() -> dict[str, Any]:
             # Cutover window: still list legacy v2 until migrator runs.
             row = ordered_v2_dict(legacy_to_v2(dict(r)))
         _bind_sr_name_to_se_catalog(row, events_by_id=catalog)
-        out.append(row)
+        # B25: derived score + tier on read only (never persisted).
+        out.append(attach_complexity(row))
     return {"automations": out}
 
 
