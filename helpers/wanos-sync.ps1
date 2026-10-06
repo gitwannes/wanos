@@ -308,6 +308,23 @@ $WlwMirrorExcludeFiles = @(
     "ssh-term-full.js"
 )
 
+# WLW text on the Pi must be LF. Normalize these before run/test wlw (not binaries).
+$WlwLfNormalizeExtensions = @(
+    ".sh",
+    ".php",
+    ".js",
+    ".css",
+    ".csv",
+    ".py",
+    ".txt",
+    ".conf",
+    ".inc",
+    ".service",
+    ".json",
+    ".html",
+    ".htm"
+)
+
 $LcdMirrorSource = Join-Path $MirrorSource "_lcd-agent"
 # Sibling repo (not under wanos). Product locks: be90webserver docs/wlw-sync.md
 $WlwMirrorSource = "C:\data\git\be90webserver"
@@ -858,16 +875,25 @@ function Invoke-Rsync {
 }
 
 # =============================================================================
-# NORMALIZE *.sh (CRLF --> LF, UTF-8 no BOM)
+# NORMALIZE text (CRLF --> LF, UTF-8 no BOM)
 # =============================================================================
 
-function Normalize-ShFiles {
+function Normalize-LfTextFiles {
     param(
         [string[]]$Dirs,
+        [string[]]$Extensions,
         [switch]$Recurse
     )
 
-    Write-Host "=== NORMALIZE .sh (CRLF --> LF) ===" -ForegroundColor White
+    $extLabel = ($Extensions | ForEach-Object { "*" + $_ }) -join ", "
+    Write-Host ("=== NORMALIZE text (CRLF --> LF): {0} ===" -f $extLabel) -ForegroundColor White
+
+    $extSet = @{}
+    foreach ($e in $Extensions) {
+        $key = $e.ToLowerInvariant()
+        if (-not $key.StartsWith(".")) { $key = "." + $key }
+        $extSet[$key] = $true
+    }
 
     foreach ($dir in $Dirs) {
         if (-not (Test-Path -LiteralPath $dir)) {
@@ -877,13 +903,15 @@ function Normalize-ShFiles {
 
         $childArgs = @{
             LiteralPath = $dir
-            Filter      = "*.sh"
             File        = $true
             ErrorAction = "SilentlyContinue"
         }
         if ($Recurse) { $childArgs["Recurse"] = $true }
 
         Get-ChildItem @childArgs | ForEach-Object {
+            $ext = $_.Extension.ToLowerInvariant()
+            if (-not $extSet.ContainsKey($ext)) { return }
+
             $path = $_.FullName
             $bytes = [System.IO.File]::ReadAllBytes($path)
 
@@ -909,6 +937,15 @@ function Normalize-ShFiles {
             }
         }
     }
+}
+
+function Normalize-ShFiles {
+    param(
+        [string[]]$Dirs,
+        [switch]$Recurse
+    )
+
+    Normalize-LfTextFiles -Dirs $Dirs -Extensions @(".sh") -Recurse:$Recurse
 }
 
 # =============================================================================
@@ -1651,12 +1688,14 @@ if ($Mode -ne "codeimport" -and $Mode -ne "diff") {
     Ensure-Directory -Path $StatsDest -DryRun:$DryRun
 }
 
-# Normalize on real writes (run + codeimport); logcopy skips normalize
-if ($Mode -eq "run" -or $Mode -eq "codeimport") {
+# Normalize CRLF-->LF before mirror writes. logcopy skips normalize.
+# WLW: also on test (dry-run preview). Main/LCD: run + codeimport only; *.sh only.
+# WLW run/test: deploy text extensions (PHP/JS/CSS/...) so the Pi gets LF.
+if ($Mode -eq "run" -or $Mode -eq "codeimport" -or ($Mode -eq "test" -and $Wlw)) {
     if ($Lcd) {
         Normalize-ShFiles -Dirs @($LcdMirrorSource) -Recurse
     } elseif ($Wlw) {
-        Normalize-ShFiles -Dirs @($WlwMirrorSource) -Recurse
+        Normalize-LfTextFiles -Dirs @($WlwMirrorSource) -Extensions $WlwLfNormalizeExtensions -Recurse
     } else {
         Normalize-ShFiles -Dirs $SourceDirs
     }
