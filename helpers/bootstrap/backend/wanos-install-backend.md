@@ -273,7 +273,12 @@ ss -tulpn | grep 8091
 Register `wanos.service` to allow systemd to manage the core WanOS Python process, ensure automatic restarts on failure, and direct logs to journald. To prepare for NGINX reverse proxying, Uvicorn is explicitly bound ONLY to internal `127.0.0.1:8080`.
 
 ### 5.1 Review Service Definition (`wanos.service`)
-Review the repo template `helpers/bootstrap/backend/wanos.service` (on the Pi: `/home/wannes/wanos/helpers/bootstrap/backend/wanos.service`). Ensure it contains the production parameters bound to `127.0.0.1:8080` before copying to the installed unit at `/etc/systemd/system/wanos.service`:
+Review the repo template `helpers/bootstrap/backend/wanos.service` (on the Pi: `/home/wannes/wanos/helpers/bootstrap/backend/wanos.service`). Ensure it contains the production parameters bound to `127.0.0.1:8080` before copying to the installed unit at `/etc/systemd/system/wanos.service`.
+
+**Production (systemd / bootstrap):** do **not** pass uvicorn `--reload`. File-watch auto-restart burns CPU on a Pi and is wrong under `Restart=always`. Code/config changes: `systemctl restart wanos.service` (or Admin “Reboot WanOS”).
+
+**Dev-only (interactive shell, never in `wanos.service`):** `uvicorn main:app --host 127.0.0.1 --port 8080 --reload` — optionally with `watchfiles` and `--reload-dir` / `--reload-exclude` to narrow the watch tree. Still heavy on a Pi; not used by bootstrap.
+
 ```ini
 [Unit]
 Description=WanOS Home Automation Core
@@ -287,8 +292,8 @@ WorkingDirectory=/home/wannes/wanos
 # Forces unbuffered Python output so journald receives logs instantly
 Environment=PYTHONUNBUFFERED=1
 # Force Uvicorn to listen ONLY to internal localhost traffic on port 8080.
-# [PRODUCTION NOTE]: Remove '--reload' in stable production to eliminate CPU scanning overhead.
-ExecStart=/home/wannes/wanos/wanos_venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8080 --reload
+# No --reload here (production). See note above for interactive dev use.
+ExecStart=/home/wannes/wanos/wanos_venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8080
 Restart=always
 RestartSec=5
 TimeoutStopSec=10
