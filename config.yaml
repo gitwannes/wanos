@@ -26,6 +26,7 @@ auth:
 # 620xx : LG
 # 7xxxx : Z-Wave - detail in config_zwave.auto.yaml
 # 810xx : HomeWizard
+# 820xx : Water-Link
 # 900xx : scene history synthetic keys (crc32 of event name)
 
 # ==============================================================================
@@ -188,6 +189,10 @@ native_rfx:
     on_id: "545511"
     off_id: "545514"
 
+waterlink:
+  meter_id: "260202659"
+  poll_interval_hours: 6
+  idx: 82001          # Ingest IDX for cumulative m³
 
 # ==============================================================================
 #

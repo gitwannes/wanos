@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-10-05 (**B14b** / **B25** Done — Library complexity score + tier)
+**Last updated:** 2026-10-22 (**Ops7** fresh main Pi — folds **Ops2**; host bootstrap canonical here)
 
 ---
 
@@ -31,6 +31,7 @@ Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase
 | **P** | Portability | [`phaseP-portability.md`](phaseP-portability.md) |
 | **L** | Local character LCDs | [`phaseL-lcd.md`](phaseL-lcd.md) |
 | **S** | Sauna plant (vent + start gate) | [`_archive/phaseS-sauna.md`](_archive/phaseS-sauna.md) (archived) |
+| **Ops7** | Fresh main Pi (OS / PHP / Python) | [`ops7-fresh-install.md`](ops7-fresh-install.md) · product [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md) |
 
 **DoD (every phase):** Last step = audit & update all `docs/**/*.md` (+ root README) against shipped behavior.
 
@@ -63,6 +64,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **C19** | History auto-refresh blank — Pi smoke **2026-08-16** |
 | **C22** | Host CPU temp history — docs close-out **2026-08-16** |
 | **Ops1** | log2ram / rsyslog cap — Pi smoke **2026-08-16** |
+| **Ops2** | Pi Python 3.12 vs 3.13 assess — **superseded 2026-10-22** by **Ops7** (Trixie → system Python **3.13**) |
 | **B2 / B9C** | Legacy-canvas bridge (temp/hum, shutters, audio) — Pi smoke **2026-08-16** |
 | **G5** | `Cinema rolluik half` — docs close-out **2026-08-16** |
 | **B3 / B19+B13** | Domoticz If/Do + Else-if — Pi smoke **2026-08-17** |
@@ -145,7 +147,7 @@ All open items. **Detail** = phase file section.
 35  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
 36  open   mid  P2           sync: [MirrorExcludeFiles] for main + lcd + wlw      phaseP § P2
 37  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
-38  hold   high Ops2         assess: Pi Python runtime (3.12 vs 3.13; no lock)   pipeline Manual § Ops2
+38  open   high Ops7         fresh main Pi: Trixie + PHP≥8.4.27 + Python 3.13   ops7-fresh-install.md
 39  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
 40  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
 41  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
@@ -158,7 +160,7 @@ All open items. **Detail** = phase file section.
 48  open   low  B31          H6 number helpers (was B14b)                       phaseB § B31
 49  open   low  B32          H9 sun elevation (was B14b)                        phaseB § B32
 ```
-Near-term: **B26** → **B24**. **B12** may run ∥. **B30**/**B31**/**B32** low (after near-term Blockly). **B29** hold (H7). **B28** hold assess — prefer after **B24**. **B14b** / **B25** ✅ **close-out 2026-10-05**. **C33** / **C36** / **C42** / **C43** / **B27** / **C44** / **G18** may run ∥ (kickoff each). **C42** ∥ **C33** / **G17** / **P1**. **C43** = Explorer view-preset polish. **C44** = SSE reconnect after backend reboot. **G18** = Z-Wave vent 1e OFF. **G19** hold assess. **G22** ✅ **2026-10-01**. **G20**/**G21** ✅ **2026-09-22**. **P1** after **C33** / with **P**; may run ∥ **C42**. **P2** may run ∥ **P1**. **G17** after **G13**, before **F**; may run ∥ **C42**. **L2** after kickoff. **C28**/**C26** after **C4**. **C30** = WISC douche. **E** may run beside Blockly. Vendor bridges: **G11→G9→G12→G13** then **G17**; (**G10** ✅). **S1** ✅ archived. **C37** ✅. **B7 / B14 part 1** ✅. **C38**/**C41** ✅. **C40** cancelled. **Ops2** hold — do not target 3.13 until assess; **3.12** valid.
+Near-term: **B26** → **B24**. **B12** may run ∥. **B30**/**B31**/**B32** low (after near-term Blockly). **B29** hold (H7). **B28** hold assess — prefer after **B24**. **B14b** / **B25** ✅ **close-out 2026-10-05**. **C33** / **C36** / **C42** / **C43** / **B27** / **C44** / **G18** may run ∥ (kickoff each). **C42** ∥ **C33** / **G17** / **P1**. **C43** = Explorer view-preset polish. **C44** = SSE reconnect after backend reboot. **G18** = Z-Wave vent 1e OFF. **G19** hold assess. **G22** ✅ **2026-10-01**. **G20**/**G21** ✅ **2026-09-22**. **P1** after **C33** / with **P**; may run ∥ **C42**. **P2** may run ∥ **P1**. **G17** after **G13**, before **F**; may run ∥ **C42**. **L2** after kickoff. **C28**/**C26** after **C4**. **C30** = WISC douche. **E** may run beside Blockly. Vendor bridges: **G11→G9→G12→G13** then **G17**; (**G10** ✅). **S1** ✅ archived. **C37** ✅. **B7 / B14 part 1** ✅. **C38**/**C41** ✅. **C40** cancelled. **Ops7** open (high) — fresh `.30` install; folds former **Ops2**. WLW overlay after host green (be90webserver Ops7).
 
 ---
 
@@ -169,7 +171,8 @@ Not lettered product phases. Detail stays here (no `phaseX` file) unless re-home
 | Item | Status | Notes |
 |---|---|---|
 | **Ops1 later** | hold | uvicorn `--no-access-log` / no `?jwt=`; ForwardToSyslog; log2ram SIZE; auth/kern no-archive |
-| **Ops2 — Pi Python runtime** | hold | **Assess only** (high). Target **not** locked to 3.13 — compare **3.12 vs 3.13** (and current Pi version); pick winner at kickoff/assess close. See § Ops2 below |
+| **Ops7 — Fresh main Pi** | open | Trixie Lite 64-bit + PHP ≥ **8.4.27** + Python **3.13**; no Samba; folds **Ops2**. Detail [`ops7-fresh-install.md`](ops7-fresh-install.md) · product [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md) |
+| **Ops2 — Pi Python runtime** | superseded | **2026-10-22** → **Ops7** (Trixie locks system Python 3.13; soak in Ops7 DoD) |
 | **PCB / carrier board (KiCad, JLCPCB)** | open | **Not in this pipeline.** Design + fab backlog → [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) (`docs/todo/pipeline.md`). This repo: `config_hardware.yaml` runtime pin map only. |
 | **Pull auto.yaml from Pi** | hold | Prefer non-repo pull dir — see [`wanos-sync.md`](../wanos-sync.md) |
 | **Cinema merge ON/OFF rules** | open | Operator YAML — pickable cinema state **to be checked** |
@@ -202,34 +205,16 @@ Not lettered product phases. Detail stays here (no `phaseX` file) unless re-home
 
 **R1 DoD:** [x] Operator lock recorded · [x] `LICENSE` / `readme.md` / `main.py` shipped · [x] Last DoD: audit `docs/**/*.md` + root README — no GPL drift (**2026-09-01**).
 
-### Ops2 — Pi Python runtime (3.12 vs 3.13) — assess
+### Ops7 — Fresh main Pi (OS / PHP / Python) — open
 
-**Status:** hold · size **high** · Sequence #44  
-**Letter file:** none (Ops / Manual) — re-home only if operator asks.
+**Status:** open · size **high** · Sequence #38  
+**Detail:** [`ops7-fresh-install.md`](ops7-fresh-install.md) · product [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md)  
+**WLW overlay after host:** be90webserver Ops7 (pointer).
 
-**Operator request (verbatim, 2026-08-27):**
+**Folds Ops2** (2026-08-27 assess verbatim retained in Ops7 detail file). Lock: latest Pi OS → Trixie → system **Python 3.13**; PHP ≥ **8.4.27**; no Samba.
 
-> triage this move to 3.13 into pipeline - don't fix on 3.13 - assess will be a big task, if 3.12 is eventually the better option, we will go for that
+**DoD / locks / cutover:** see detail file — no code until `implement` / `ship` / `patch`.
 
-**Intent (placement, not locked target):**
+### Ops2 — Pi Python runtime — superseded 2026-10-22
 
-* Large **assess** of moving the WanOS Pi venv / runtime to a newer CPython.
-* **Do not** lock or implement “fix on 3.13.”
-* Assess must keep **3.12 as a first-class outcome** if it is the better fit (wheels, GPIO/SHT path, ops cost).
-* Outcome of assess = recommended target (3.12 or 3.13 or stay) + install story + risk list — **then** a later implement ship only when commanded.
-
-**Assess scope (stub — expand at kickoff):**
-
-* Confirm live Pi: OS (Trixie/Bookworm), `python3 --version`, venv interpreter, systemd unit paths.
-* Full `requirements.txt` + `_lcd-agent` deps: wheels vs source on candidate versions.
-* Hardware Domain A (`lgpio` inputs) and Domain B (`pi-sht1x` / `RPi.GPIO` vs `rpi-lgpio` / bit-bang port) — install story per candidate.
-* Downstream pins: **G11** `pysmartthings` (3.12+ / 3.13+); **G16** shipped on **3.9** with `pywebostv` (not `aiowebostv`); badge/docs `3.9+`.
-* Effort/risk: venv recreate, bootstrap docs, soak (sauna SHT11 + pulse inputs).
-
-**Out of scope (this triage):**
-
-* Choosing 3.13 (or 3.12) as locked target
-* Implementing runtime upgrade, GPIO stack rewrite, or dependency bumps
-* Folding into **P** (other homes) — runtime platform, not home-pack extraction
-
-**Ops2 DoD (stub):** Assess recorded with recommended target + rationale; hardware/deps matrix; no code until implement command. **Last DoD (only if a later ship lands):** audit & update ALL `docs/**/*.md` (+ root README) against shipped behavior.
+Former assess (3.12 vs 3.13) closed into **Ops7**. Do not re-open a separate Ops2 Sequence row.

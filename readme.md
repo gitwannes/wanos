@@ -61,9 +61,9 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 
 | Layer | Technologies |
 |---|---|
-| **Backend** | Python 3.9+, FastAPI / Uvicorn, `aiomqtt`, Loguru, SQLite |
+| **Backend** | Python 3.9+ (Ops7 target: Trixie **3.13**), FastAPI / Uvicorn, `aiomqtt`, Loguru, SQLite |
 | **Frontend** | HTML5, Alpine.js, Tailwind CSS, DaisyUI, Apache ECharts 5 |
-| **Host** | Raspberry Pi / Debian Linux |
+| **Host** | Raspberry Pi 4 / Debian — fresh install: [`docs/bootstrap-main-pi.md`](docs/bootstrap-main-pi.md) (**Ops7**) |
 
 ---
 

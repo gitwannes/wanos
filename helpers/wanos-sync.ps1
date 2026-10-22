@@ -297,15 +297,28 @@ $WlwMirrorExcludeDirs = @(
     ".cursor",
     "docs",
     "__pycache__",
-    ".venv"
+    ".venv",
+    # Google AI Studio
+    "aistudio-preview"
 )
 $WlwMirrorExcludeFiles = @(
     ".env*",
     "*.md",
     ".gitignore",
     ".gitattributes",
+	# symbolic links
+	"db+credentials",
+	"logs",
     # Dev source; Pi serves minified public/js/ssh-term.js only (see be90 cursor rule)
-    "ssh-term-full.js"
+    "ssh-term-full.js",
+    # Local noise. Same patterns as be90 .gitignore. Sync does not read .gitignore.
+    "*.lnk",
+    "_tmp*",
+    # Google AI Studio
+    "server.ts",
+    "tsconfig.json",
+    "metadata.json",
+    "package.json"
 )
 
 # WLW text on the Pi must be LF. Normalize these before run/test wlw (not binaries).

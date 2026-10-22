@@ -1,7 +1,10 @@
 # --- file: helpers/bootstrap/backend/wanos-install-backend.md ---
-# ⚡ WanOS Backend Fresh Installation & Bootstrap Blueprint
+# WanOS Backend Fresh Installation & Bootstrap Blueprint
 
-This document is the master operational guide for deploying a fresh WanOS backend installation on a Raspberry Pi 4 host. It provides a complete, step-by-step walkthrough detailing how the system is bootstrapped using automated shell scripts (`wanos_bootstrap_phase1.sh` and `wanos_bootstrap_phase2.sh`), helper configuration files (`smb.conf`, `docker-compose.yml`, `mosquitto-st.conf`, `wanos.service`), and NGINX with Let's Encrypt SSL via ACME-DNS challenge delegation for Nomeo DNS.
+**Ops7 locks + order of operations (canonical):** [`docs/bootstrap-main-pi.md`](../../../docs/bootstrap-main-pi.md) · delivery [`docs/todo/ops7-fresh-install.md`](../../../docs/todo/ops7-fresh-install.md).  
+**WLW host flash:** not here — WLW overlay is be90webserver; see that repo `docs/bootstrap-host.md`.
+
+This document is the long-form operational guide for deploying a fresh WanOS backend on a Raspberry Pi 4 (shared with WLW at `.30`). Scripts: `wanos_bootstrap_phase1.sh` / `wanos_bootstrap_phase2.sh`; helpers: `docker-compose.yml`, `mosquitto-st.conf`, `wanos.service` (**Samba / `smb.conf` retired under Ops7 — do not install**). NGINX + Let's Encrypt via ACME-DNS (Nomeo). **Ops7 also adds PHP-FPM** (patched ≥ 8.4.27) on this host when `implement` rewrites the scripts.
 
 ---
 

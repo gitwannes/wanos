@@ -9,7 +9,7 @@ Day-to-day deploy and pull between the Windows workstation and the Pi. Transport
 | `helpers/wanos-sync.config.txt` | Includes / excludes / `[PiSsh]` (no secrets) |
 | `docs/wanos-sync.md` | This document |
 
-Samba on the Pi is optional (Explorer browse). Sync does not use it.
+Samba is **not used** (Ops7: do not install on fresh main Pi). Sync does not use it.
 
 ### WLW pair (keep in sync with be90webserver)
 
@@ -19,6 +19,8 @@ Samba on the Pi is optional (Explorer browse). Sync does not use it.
 | Pi clone → Pi live | **be90webserver** `helpers/wlw-sync.sh` (`test` / `run` / `info`) |
 
 Product locks: be90webserver `docs/wlw-sync.md`. When the **WLW mirror** behaviour changes in either tool (excludes, compare rules, modes, path locks, LF normalize set), make the **same** change in the other repo’s tool and update both docs.
+
+**WLW file excludes (both tools):** `.env*`, `*.md`, `.gitignore`, `.gitattributes`, `ssh-term-full.js`, `*.lnk`, `_tmp*`. The last two are Windows shortcuts and local scratch (same patterns as be90 `.gitignore`). Sync does not read `.gitignore`.
 
 **Line endings:** Pi live tree must be **LF**. `test wlw` / `run wlw` CRLF→LF-normalize deploy text under the be90 tree before rsync (`.sh`, `.php`, `.js`, `.css`, `.csv`, `.py`, `.txt`, `.conf`, `.inc`, `.service`, `.json`, `.html` / `.htm`). Binaries are left alone. Main WanOS / LCD still normalize `*.sh` only. The Pi tool compares by checksum and can rewrite the live tree from the Linux clone.
 

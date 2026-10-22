@@ -875,10 +875,12 @@ automations:
                 - entity_id: hue.group.living_hue
                   state: "OFF"
           leading_actions:
-            - entity_id: hue.group.verd_1_hue
+            - entity_id: hue.group.cinema_hue
               state: "ON"
               preset: relax_red
             - entity_id: hue.group.living_hue
+              state: "OFF"
+            - entity_id: hue.group.sauna_hue
               state: "OFF"
             - entity_id: zwave.sauna_zoutlamp
               state: "OFF"
