@@ -4,7 +4,9 @@
 **Ops7 locks + order of operations (canonical):** [`docs/bootstrap-main-pi.md`](../../../docs/bootstrap-main-pi.md) · delivery [`docs/todo/ops7-fresh-install.md`](../../../docs/todo/ops7-fresh-install.md).  
 **WLW host flash:** not here — WLW overlay is be90webserver; see that repo `docs/bootstrap-host.md`.
 
-This document is the long-form operational guide for deploying a fresh WanOS backend on a Raspberry Pi 4 (shared with WLW at `.30`). Canonical locks/order: [`docs/bootstrap-main-pi.md`](../../../docs/bootstrap-main-pi.md). Scripts: `wanos_bootstrap_phase1.sh` / `wanos_bootstrap_phase2.sh`; helpers: `docker-compose.yml`, `mosquitto-st.conf`, `wanos.service`. **No Samba** (Ops7). Phase 1 installs **nginx + PHP-FPM** (patched ≥ **8.4.27**) and gates `php -v`. NGINX `app.wanos.be` site + Let's Encrypt via ACME-DNS (Nomeo) remain in later sections.
+This document is the long-form operational guide for deploying a fresh WanOS backend on a Raspberry Pi 4 (shared with WLW at `.30`). Canonical locks/order: [`docs/bootstrap-main-pi.md`](../../../docs/bootstrap-main-pi.md). Short ticks: [`docs/ops7-operator-checklist.md`](../../../docs/ops7-operator-checklist.md). Scripts: `wanos_bootstrap_phase1.sh` / `wanos_bootstrap_phase2.sh`; helpers: `docker-compose.yml`, `mosquitto-st.conf`, `wanos.service`, `wanos.nginx.conf`. **No Samba** (Ops7).
+
+**Automated (Ops7):** phase1 — nginx + PHP-FPM (gate ≥ **8.4.27**) + **`app.wanos.be` site** (self-signed until LE) + **Mosquitto apt + `mosquitto-st.conf`**. phase2 — venv + **`wanos.service` enable** + nginx refresh (prefer LE). **Still operator:** `st.pwd`, ACME-DNS first LE (Nomeo CNAME), Z-Wave store backup/restore + Docker.
 
 ---
 
@@ -45,19 +47,20 @@ The bootstrap pipeline requires a freshly flashed Linux host with SSH access and
 
 ### 0.3 Pre-Flight File Delivery
 Before executing Phase 1, transfer the bootstrap scripts and helper files into `/home/wannes/` (or keep them beside the scripts) via SCP — path segment `bootstrap` is excluded from main `wanos-sync` mirror:
-* `wanos_bootstrap_phase1.sh` (System bootstrap — nginx, PHP-FPM, no Samba)
-* `wanos_bootstrap_phase2.sh` (Python venv)
+* `wanos_bootstrap_phase1.sh` (nginx, PHP-FPM, Mosquitto apt, `app.wanos.be` site, no Samba)
+* `wanos_bootstrap_phase2.sh` (venv, `wanos.service`, nginx LE refresh)
 * `apt-packages.txt` (OS-level package list)
+* `wanos.nginx.conf` (site template)
 * `requirements.txt` (after first sync, or copy with phase2)
 * `docker-compose.yml` (Z-Wave JS UI)
-* `mosquitto-st.conf` (MQTT broker)
-* `wanos.service` (systemd unit)
+* `mosquitto-st.conf` (MQTT broker conf)
+* `wanos.service` (systemd unit template)
 
 ---
 
 ## Phase 1: System Bootstrapping & OS Tuning (Scripted + Manual Post-Actions)
 
-Phase 1 optimizes the OS, installs packages from `apt-packages.txt` (incl. **nginx** + **PHP-FPM**), gates patched PHP (≥ 8.4.27 on Trixie), disables onboard Bluetooth for UART, sets up `log2ram`, applies **rsyslog logcap** when available, and **does not install Samba**.
+Phase 1 optimizes the OS, installs packages from `apt-packages.txt` (incl. **nginx**, **PHP-FPM**, **mosquitto**), gates patched PHP (≥ 8.4.27 on Trixie), installs the **`app.wanos.be`** nginx site + Mosquitto conf, disables onboard Bluetooth for UART, sets up `log2ram`, applies **rsyslog logcap** when available, and **does not install Samba**.
 
 ### 1.1 Execute Phase 1 Script
 Run `wanos_bootstrap_phase1.sh` with superuser privileges:
@@ -71,8 +74,10 @@ sudo ./wanos_bootstrap_phase1.sh
 
 > **What `wanos_bootstrap_phase1.sh` performs automatically:**
 > * Updates APT and upgrades system packages.
-> * Installs packages from `apt-packages.txt` (tools, **nginx**, **PHP-FPM** + extensions, python3-venv/pip, i2c/udev, …). **No Samba.**
+> * Installs packages from `apt-packages.txt` (tools, **nginx**, **PHP-FPM**, **mosquitto**, python3-venv/pip, …). **No Samba.**
 > * Enables PHP-FPM; **fails** if `php -v` is below patched gate (8.4.27 / 8.2.35).
+> * Installs **`app.wanos.be`** nginx site from `wanos.nginx.conf` (self-signed under `/etc/ssl/wanos/` until LE).
+> * Deploys **`mosquitto-st.conf`**; enables mosquitto when `st.pwd` exists (else prints `mosquitto_passwd` hint).
 > * Purges leftover Samba if present.
 > * Boot overlays: `dtoverlay=disable-bt`, `enable_uart=1`; masks `hciuart`.
 > * Bash aliases, console monitors, `.vimrc`, bat config.
@@ -134,9 +139,9 @@ WanOS app logs stay `/var/log/wanos/*`. Optional later (not this script): uvicor
 
 ---
 
-## Phase 2: Python Virtual Environment & Hardware Rules (Scripted)
+## Phase 2: Venv, RFX udev, `wanos.service`, nginx refresh (Scripted)
 
-Phase 2 builds the isolated Python execution environment, updates pip dependencies (including `certbot`), and sets up udev rules for external serial transceivers.
+Phase 2 builds `wanos_venv`, installs requirements (incl. certbot in the venv for ACME-DNS), RFX udev, **enables `wanos.service`**, and **refreshes** the `app.wanos.be` nginx site (LE certs if present).
 
 ### 2.1 Execute Phase 2 Script
 SSH back into the Raspberry Pi as user `wannes` (do **NOT** run with `sudo`):
@@ -152,53 +157,28 @@ chmod +x wanos_bootstrap_phase2.sh
 
 > **What `wanos_bootstrap_phase2.sh` performs automatically:**
 > * Verifies `requirements.txt` exists in `/home/wannes/wanos/`.
-> * Creates a dedicated Python virtual environment (`wanos_venv`).
-> * Upgrades `pip`, `setuptools`, and `wheel` inside the virtual environment.
-> * Installs all Python dependencies listed in `requirements.txt` (including `certbot`).
-> * Creates udev rule `/etc/udev/rules.d/99-rfxcom.rules` mapping vendor `0403:6001` to `/dev/rfxcom`.
-> * Triggers `udevadm` rule reloading.
+> * Creates `wanos_venv`; upgrades pip tooling; installs `requirements.txt`.
+> * RFX udev rule → `/dev/rfxcom`.
+> * Installs and **`enable --now` `wanos.service`** from bootstrap template.
+> * Refreshes nginx `app.wanos.be` site (Let's Encrypt paths if present, else self-signed).
 
 ---
 
-## Phase 3: MQTT Broker Installation & Authentication Setup (Manual Setup)
+## Phase 3: MQTT — password file (operator; packages/conf by phase1)
 
-The bootstrap scripts do not install or configure Mosquitto. You must manually install the broker, apply your custom `mosquitto-st.conf`, and generate the user credentials file.
+Phase 1 already `apt`-installs **mosquitto** / **mosquitto-clients** and deploys **`mosquitto-st.conf`**. Broker starts only when **`/etc/mosquitto/conf.d/st.pwd`** exists.
 
-### 3.1 Install Mosquitto Broker Package
+### 3.1 Create or restore `st.pwd`
 ```bash
-# Install Mosquitto broker and command-line diagnostic tools
-sudo apt update && sudo apt install -y mosquitto mosquitto-clients
-```
-
-### 3.2 Deploy Custom Mosquitto Configuration
-Copy `mosquitto-st.conf` into Mosquitto's configuration include directory:
-```bash
-sudo cp /home/wannes/wanos/mosquitto-st.conf /etc/mosquitto/conf.d/mosquitto-st.conf
-```
-
-> **Understanding `mosquitto-st.conf`:**
-> * References `/etc/mosquitto/conf.d/st.pwd` for user authentication.
-> * Establishes standard TCP Listener on **Port 1883** for Python backend events.
-> * Establishes WebSockets Listener on **Port 9001** for browser clients.
-
-### 3.3 Create Encrypted Password File (`st.pwd`)
-Because `mosquitto-st.conf` requires `/etc/mosquitto/conf.d/st.pwd`, you must generate this file using `mosquitto_passwd` to prevent service startup crashes:
-```bash
-# Create the password file and assign credentials for user 'wannes'
+# New password:
 sudo mosquitto_passwd -c /etc/mosquitto/conf.d/st.pwd wannes
-```
 
-### 3.4 Enable and Start Mosquitto
-```bash
-# Restart Mosquitto to parse the new configuration and password file
-sudo systemctl restart mosquitto
-
-# Enable Mosquitto to start automatically on system boot
-sudo systemctl enable mosquitto
-
-# Verify broker status
+# Or restore offline backup of st.pwd into /etc/mosquitto/conf.d/st.pwd
+sudo systemctl enable --now mosquitto
 sudo systemctl status mosquitto
 ```
+
+> **`mosquitto-st.conf`:** TCP **1883** (backend) + WebSockets **9001** (browser).
 
 ---
 
@@ -233,7 +213,18 @@ ls -l /dev/serial/by-id/
 *Expected Output:*
 Shows a symlink pointing to your USB stick (e.g., `/dev/serial/by-id/usb-Nabu_Casa_ZWA-2_1CDBD4AF8A6C-if00`). Ensure this path matches line 11 of your `docker-compose.yml` file.
 
-### 4.3 Deploy Z-Wave JS UI Container
+### 4.3 Restore Z-Wave store (**operator** — Ops7)
+
+Before starting the container on a **fresh** card, restore the backed-up store tree to **`/opt/zwave-js-ui`** (from wanos-sync / interim rsync of the old card). See [`docs/ops7-operator-checklist.md`](../../../docs/ops7-operator-checklist.md) and [`docs/integration_zwave.md`](../../../docs/integration_zwave.md) § 9.2b. Skipping this loses mesh / NVM state.
+
+```bash
+# Example after copying from PC backup:
+sudo mkdir -p /opt/zwave-js-ui
+# … copy store files into /opt/zwave-js-ui …
+sudo chown -R root:root /opt/zwave-js-ui   # adjust if your live perms differ
+```
+
+### 4.4 Deploy Z-Wave JS UI Container
 Launch the containerized middleware using Docker Compose:
 ```bash
 cd /home/wannes/wanos
@@ -242,7 +233,7 @@ cd /home/wannes/wanos
 docker compose up -d
 ```
 
-### 4.4 Verify Middleware Container Health
+### 4.5 Verify Middleware Container Health
 ```bash
 # Confirm container is active and running
 docker ps
@@ -250,63 +241,27 @@ docker ps
 # Verify web management port 8091 is open
 ss -tulpn | grep 8091
 ```
+Confirm nodes match the pre-cutover mesh (restored store).
 
 ---
 
-## Phase 5: Systemd Core Service Registration (Manual Setup)
+## Phase 5: Systemd Core Service (`wanos.service`)
 
-Register `wanos.service` to allow systemd to manage the core WanOS Python process, ensure automatic restarts on failure, and direct logs to journald. To prepare for NGINX reverse proxying, Uvicorn is explicitly bound ONLY to internal `127.0.0.1:8080`.
+**Automated by phase2** after venv exists: copies `helpers/bootstrap/backend/wanos.service` → `/etc/systemd/system/wanos.service`, `daemon-reload`, `enable --now`. Uvicorn binds **`127.0.0.1:8080`** only (no `--reload`).
 
-### 5.1 Review Service Definition (`wanos.service`)
-Review the repo template `helpers/bootstrap/backend/wanos.service` (on the Pi: `/home/wannes/wanos/helpers/bootstrap/backend/wanos.service`). Ensure it contains the production parameters bound to `127.0.0.1:8080` before copying to the installed unit at `/etc/systemd/system/wanos.service`.
-
-**Production (systemd / bootstrap):** do **not** pass uvicorn `--reload`. File-watch auto-restart burns CPU on a Pi and is wrong under `Restart=always`. Code/config changes: `systemctl restart wanos.service` (or Admin “Reboot WanOS”).
-
-**Dev-only (interactive shell, never in `wanos.service`):** `uvicorn main:app --host 127.0.0.1 --port 8080 --reload` — optionally with `watchfiles` and `--reload-dir` / `--reload-exclude` to narrow the watch tree. Still heavy on a Pi; not used by bootstrap.
-
-```ini
-[Unit]
-Description=WanOS Home Automation Core
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=wannes
-Group=wannes
-WorkingDirectory=/home/wannes/wanos
-# Forces unbuffered Python output so journald receives logs instantly
-Environment=PYTHONUNBUFFERED=1
-# Force Uvicorn to listen ONLY to internal localhost traffic on port 8080.
-# No --reload here (production). See note above for interactive dev use.
-ExecStart=/home/wannes/wanos/wanos_venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8080
-Restart=always
-RestartSec=5
-TimeoutStopSec=10
-KillSignal=SIGTERM
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 5.2 Install and Enable Systemd Unit
+### 5.1 Verify (after phase2)
 ```bash
-# Copy unit file from the repo template to the systemd system directory
-sudo cp /home/wannes/wanos/helpers/bootstrap/backend/wanos.service /etc/systemd/system/wanos.service
-
-# Reload systemd manager configuration
-sudo systemctl daemon-reload
-
-# Enable and start the WanOS core service immediately
-sudo systemctl enable --now wanos.service
-```
-
-### 5.3 Verify Execution & Monitor Logs
-```bash
-# Check service execution status (Confirm binding to 127.0.0.1:8080)
 sudo systemctl status wanos.service
-
-# Stream live application console output using the helper logger script
 /home/wannes/wanos/wanoslog.sh 1
+```
+
+**Dev-only (never in unit):** `uvicorn main:app --host 127.0.0.1 --port 8080 --reload`.
+
+### 5.2 Manual re-install (if needed)
+```bash
+sudo cp /path/to/wanos.service /etc/systemd/system/wanos.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now wanos.service
 ```
 
 ### 5.4 Passwordless service restart (Admin “Reboot WanOS”)
@@ -317,7 +272,7 @@ Phase 1 writes this into `/etc/sudoers.d/wannes_sudo_policy`. Required so the Ad
 wannes ALL=(root) NOPASSWD: /usr/bin/systemctl restart wanos.service
 ```
 
-**Fresh install:** already applied by `wanos_bootstrap_phase1.sh`. After the unit is enabled (5.2), verify as user `wannes`:
+**Fresh install:** sudoers already applied by `wanos_bootstrap_phase1.sh`. After phase2 enables the unit, verify as user `wannes`:
 
 ```bash
 # Must exit 0 with no password prompt
@@ -357,13 +312,10 @@ Because Nomeo DNS lacks a native Certbot API plugin, we use **ACME-DNS CNAME del
    * **TTL:** `300` (or default)
 3. Save the DNS changes.
 
-### 6.2 Install NGINX, Symlink Certbot & Download ACME-DNS Hook Script
-1. Install NGINX web server:
-   ```bash
-   sudo apt update && sudo apt install nginx -y
-   ```
+### 6.2 Certbot symlink & ACME-DNS hook (nginx already from phase1)
+1. **Nginx** is already installed and the `app.wanos.be` site is live from **phase1** (self-signed until this LE succeeds). Do **not** re-`apt install nginx` unless missing.
 
-2. Symlink the virtual environment's `certbot` binary (installed via `requirements.txt` in Phase 2) so `sudo certbot` works globally:
+2. Symlink the **venv** `certbot` (from phase2 `requirements.txt`) for ACME-DNS — this is the binary the WanOS LE procedure uses (apt also ships `certbot`; prefer the venv path here for renew cron consistency):
    ```bash
    sudo ln -sf /home/wannes/wanos/wanos_venv/bin/certbot /usr/local/bin/certbot
    ```
@@ -371,7 +323,7 @@ Because Nomeo DNS lacks a native Certbot API plugin, we use **ACME-DNS CNAME del
 3. Create the configuration directory, download the official ACME-DNS authentication hook script, and set permissions:
    ```bash
    sudo mkdir -p /etc/letsencrypt
-   sudo curl -o /etc/letsencrypt/acme-dns-auth.py [https://raw.githubusercontent.com/joohoi/acme-dns-certbot-joohoi/master/acme-dns-auth.py](https://raw.githubusercontent.com/joohoi/acme-dns-certbot-joohoi/master/acme-dns-auth.py)
+   sudo curl -o /etc/letsencrypt/acme-dns-auth.py https://raw.githubusercontent.com/joohoi/acme-dns-certbot-joohoi/master/acme-dns-auth.py
    sudo chmod 0700 /etc/letsencrypt/acme-dns-auth.py
    ```
 
@@ -407,101 +359,22 @@ Please add a CNAME record with the following information:
 4. Wait 30 seconds for DNS propagation, then press **Enter** in your Pi terminal session.
 5. Certbot will verify the CNAME, generate keys, and store certificate files in `/etc/letsencrypt/live/app.wanos.be/`.
 
-### 6.5 Deploy NGINX Virtual Host Configuration for `app.wanos.be`
-Create `/etc/nginx/sites-available/wanos`:
+### 6.5 NGINX `app.wanos.be` site (automated)
+
+Phase1 installs the site from **`wanos.nginx.conf`** (self-signed under `/etc/ssl/wanos/` until LE exists). After §6.3–6.4 succeed, **re-run phase2** (or phase1) so the site picks up `/etc/letsencrypt/live/app.wanos.be/*`.
+
 ```bash
-sudo vi /etc/nginx/sites-available/wanos
-```
+# Prefer: re-run phase2 as wannes (refreshes nginx + leaves venv alone if already built)
+./wanos_bootstrap_phase2.sh
 
-Paste the following configuration pointing to your live Let's Encrypt keys:
-
-```nginx
-# ==============================================================================
-# 1. LEGACY BACKWARD COMPATIBILITY (Port 8000)
-# ==============================================================================
-# If any old tablets or bookmarks hit port 8000, NGINX intercepts it 
-# and instantly forces a 301 redirect to the secure 443 port.
-server {
-    listen 8000;
-    server_name app.wanos.be;
-    return 301 https://$host$request_uri;
-}
-
-# ==============================================================================
-# 2. STANDARD HTTP REDIRECT (Port 80)
-# ==============================================================================
-# Forces standard HTTP traffic to upgrade to HTTPS automatically.
-server {
-    listen 80;
-    server_name app.wanos.be;
-    return 301 https://$host$request_uri;
-}
-
-# ==============================================================================
-# 3. MAIN WANOS HTTPS SERVER (Port 443)
-# ==============================================================================
-server {
-    listen 443 ssl http2;
-    server_name app.wanos.be;
-
-    # Point to live Let's Encrypt SSL keys issued via ACME-DNS
-    ssl_certificate /etc/letsencrypt/live/app.wanos.be/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.wanos.be/privkey.pem;
-
-    location / {
-        # THE REVERSE PROXY
-        # NGINX takes the 443 traffic and safely pipes it to Uvicorn on localhost
-        proxy_pass http://127.0.0.1:8080;
-        
-        # Pass the original client IPs and Headers through to WanOS
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # CRITICAL FOR WANOS SSE STREAM (Server-Sent Events)
-        # NGINX buffers HTTP traffic by default. If we don't turn this off, 
-        # the live telemetry stream to the UI will freeze.
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_buffering off;
-        proxy_cache off;
-        chunked_transfer_encoding off;
-        
-        # Prevent NGINX from dropping the SSE connection if no data is sent
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-    }
-}
-```
-
-### 6.6 Enable Configuration, Test Syntax & Verify Listening Ports
-```bash
-# Link configuration to sites-enabled
-sudo ln -s /etc/nginx/sites-available/wanos /etc/nginx/sites-enabled/
-
-# Remove default NGINX placeholder site
-sudo rm /etc/nginx/sites-enabled/default
-
-# Verify NGINX syntax
 sudo nginx -t
-
-# Restart NGINX to apply proxy rules
-sudo systemctl restart nginx
-
-# Verify active listening sockets
 sudo ss -tulpn | grep -E '8000|8080|443|80'
 ```
 
-*Expected Port Assignment Output:*
-* **`127.0.0.1:8080`** ➔ `python` (WanOS Uvicorn Backend)
-* **`0.0.0.0:8000`** ➔ `nginx` (Legacy 301 Redirect to HTTPS)
-* **`0.0.0.0:80`** ➔ `nginx` (Standard HTTP 301 Redirect)
-* **`0.0.0.0:443`** ➔ `nginx` (Secure HTTPS Reverse Proxy)
+*Expected:* `127.0.0.1:8080` uvicorn · `80`/`443`/`8000` nginx.
 
 ### Completion
-Navigate to `https://app.wanos.be` and the UI will load securely.
-Any requests to `http://app.wanos.be:8000` (or the Pi's IP on port 8000) will be instantly redirected to the secure portal.
+Navigate to `https://app.wanos.be` (after LE) — UI loads; port **8000** redirects to HTTPS.
 
 ### 6.7 Configure Automated Renewal Cron Job
 Because we use the virtual environment binary instead of the Debian APT package, configure a daily root cron job to automate background certificate renewals and reload NGINX on success:

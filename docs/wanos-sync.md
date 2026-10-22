@@ -257,6 +257,7 @@ helpers\wanos-sync.bat run
 - `[WlwPiSsh]` — WLW on main Pi `.30`; source `C:\data\git\be90webserver`; `LocalLogSubdir=wlw`; no bare `bootstrap` exclude (helpers/bootstrap syncs)
 - `[WlwExtraLogFiles]` — absolute Nginx log paths pulled flat into `logs\wlw\` (+ `.log.1` when present; skip `.gz`)
 - `[WlwSqlitePullFiles]` — listed `/var/lib/wlw` paths (exact + shell globs on Pi) → `logs\wlw\state\` (pull only; never mirror whole dir; never `.env`; never push; not logcopied to git). Locked set: `wlw.sqlite`; top-level `budget*.sql` / `budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json`. Legacy root `budget.sqlite` **removed**. Engine allows `.sqlite` / `.sql` / `.zip` / `.json`.
+- **Z-Wave JS UI store (Ops7):** Pi path **`/opt/zwave-js-ui`**. **Not** pulled by wanos-sync — **operator-manual** backup (`rsync`/`scp`) before flash and **operator restore** before `docker compose up`. See [`ops7-operator-checklist.md`](ops7-operator-checklist.md).
 
 Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine. First LCD deploy: `test lcd` then `run lcd` (install: `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). First WLW deploy: `test wlw` then `run wlw`, then on Pi `sudo bash /home/wannes/be90webserver/helpers/bootstrap/wlw_bootstrap.sh` (creates `/var/lib/wlw` + `/var/log/wlw`). Product locks: be90webserver `docs/wlw-sync.md`.
 

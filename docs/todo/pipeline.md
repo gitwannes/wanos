@@ -171,7 +171,7 @@ Not lettered product phases. Detail stays here (no `phaseX` file) unless re-home
 | Item | Status | Notes |
 |---|---|---|
 | **Ops1 later** | hold | uvicorn `--no-access-log` / no `?jwt=`; ForwardToSyslog; log2ram SIZE; auth/kern no-archive |
-| **Ops7 — Fresh main Pi** | coding · Sequence **#1** | Trixie Lite 64-bit + PHP ≥ **8.4.27** + Python **3.13**; no Samba; folds **Ops2**. Scripts **2026-10-22**; cutover open. [`ops7-fresh-install.md`](ops7-fresh-install.md) · [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md) |
+| **Ops7 — Fresh main Pi** | coding · Sequence **#1** | Trixie Lite 64-bit + PHP ≥ **8.4.27** + Python **3.13**; no Samba; folds **Ops2**. Scripts **2026-10-22**; cutover open. Checklist [`../ops7-operator-checklist.md`](../ops7-operator-checklist.md) · [`ops7-fresh-install.md`](ops7-fresh-install.md) · [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md) |
 | **Ops2 — Pi Python runtime** | superseded | **2026-10-22** → **Ops7** (Trixie locks system Python 3.13; soak in Ops7 DoD) |
 | **PCB / carrier board (KiCad, JLCPCB)** | open | **Not in this pipeline.** Design + fab backlog → [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) (`docs/todo/pipeline.md`). This repo: `config_hardware.yaml` runtime pin map only. |
 | **Pull auto.yaml from Pi** | hold | Prefer non-repo pull dir — see [`wanos-sync.md`](../wanos-sync.md) |

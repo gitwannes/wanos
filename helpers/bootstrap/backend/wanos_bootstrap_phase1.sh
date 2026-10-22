@@ -2,7 +2,7 @@
 # --- file: helpers/bootstrap/backend/wanos_bootstrap_phase1.sh ---
 # ==============================================================================
 # WanOS Phase 1: System Bootstrapping (Debian 13 Trixie Lite 64-bit)
-# Ops7: no Samba; installs nginx + PHP-FPM; gates patched PHP micro-release
+# Ops7: no Samba; nginx + PHP-FPM (version gate) + app.wanos.be site + Mosquitto apt/conf
 # Run as root or with sudo: sudo ./wanos_bootstrap_phase1.sh
 # ==============================================================================
 
@@ -38,6 +38,97 @@ wanos_apt_install_from_list() {
             if (length($0) > 0) print $1
         }
     ' "${src}" | xargs -r apt-get install -y --no-install-recommends
+}
+
+# Locate a bootstrap sibling next to this script (or under ~/wanos/... if SCP'd into tree)
+wanos_find_bootstrap_file() {
+    local name="$1"
+    local cand
+    for cand in \
+        "${SELF_DIR}/${name}" \
+        "${WANNES_HOME}/wanos/helpers/bootstrap/backend/${name}" \
+        "${WANNES_HOME}/${name}" \
+        "./${name}"; do
+        if [ -f "${cand}" ]; then
+            echo "${cand}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Install / refresh sites-available/wanos from template (LE if present, else self-signed)
+wanos_install_nginx_site() {
+    local tmpl pub_cert pub_key ssl_dir
+    tmpl="$(wanos_find_bootstrap_file wanos.nginx.conf)" || {
+        echo "WARN: wanos.nginx.conf not found - skip app.wanos.be site." >&2
+        return 0
+    }
+    ssl_dir="/etc/ssl/wanos"
+    pub_cert="/etc/letsencrypt/live/app.wanos.be/fullchain.pem"
+    pub_key="/etc/letsencrypt/live/app.wanos.be/privkey.pem"
+    if [ ! -f "${pub_cert}" ] || [ ! -f "${pub_key}" ]; then
+        mkdir -p "${ssl_dir}"
+        pub_cert="${ssl_dir}/app.wanos.be.crt"
+        pub_key="${ssl_dir}/app.wanos.be.key"
+        if [ ! -f "${pub_cert}" ] || [ ! -f "${pub_key}" ]; then
+            echo "Generating self-signed TLS for app.wanos.be (replace after ACME-DNS LE)..."
+            openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+                -keyout "${pub_key}" -out "${pub_cert}" \
+                -subj "/CN=app.wanos.be" 2>/dev/null
+            chmod 640 "${pub_key}"
+            chmod 644 "${pub_cert}"
+        fi
+        echo "Nginx app.wanos.be TLS: self-signed ${pub_cert}"
+    else
+        echo "Nginx app.wanos.be TLS: Let's Encrypt ${pub_cert}"
+    fi
+
+    sed \
+        -e "s|__SSL_CERTIFICATE__|${pub_cert}|g" \
+        -e "s|__SSL_CERTIFICATE_KEY__|${pub_key}|g" \
+        "${tmpl}" > /etc/nginx/sites-available/wanos
+    chmod 644 /etc/nginx/sites-available/wanos
+    ln -sfn /etc/nginx/sites-available/wanos /etc/nginx/sites-enabled/wanos
+    rm -f /etc/nginx/sites-enabled/default
+
+    echo "--- nginx -t (wanos site) ---"
+    if nginx -t; then
+        systemctl reload nginx 2>/dev/null || systemctl start nginx
+        echo "OK: app.wanos.be site installed"
+    else
+        echo "ERROR: nginx -t failed after installing wanos site." >&2
+        exit 1
+    fi
+}
+
+# Deploy mosquitto-st.conf; enable broker only when st.pwd exists (operator creates passwd)
+wanos_install_mosquitto() {
+    local conf_src
+    if ! command -v mosquitto >/dev/null 2>&1; then
+        echo "ERROR: mosquitto not found after apt install." >&2
+        exit 1
+    fi
+    conf_src="$(wanos_find_bootstrap_file mosquitto-st.conf)" || {
+        echo "WARN: mosquitto-st.conf not found - packages installed; copy conf later." >&2
+        return 0
+    }
+    install -d -m 755 /etc/mosquitto/conf.d
+    cp "${conf_src}" /etc/mosquitto/conf.d/mosquitto-st.conf
+    chmod 644 /etc/mosquitto/conf.d/mosquitto-st.conf
+    echo "OK: installed /etc/mosquitto/conf.d/mosquitto-st.conf"
+
+    if [ -f /etc/mosquitto/conf.d/st.pwd ]; then
+        systemctl enable --now mosquitto
+        systemctl is-active mosquitto
+        echo "OK: mosquitto enabled (st.pwd present)"
+    else
+        systemctl enable mosquitto
+        echo "NOTE: create password file then start mosquitto:"
+        echo "      sudo mosquitto_passwd -c /etc/mosquitto/conf.d/st.pwd wannes"
+        echo "      sudo systemctl start mosquitto"
+        echo "      (or restore st.pwd from offline backup)"
+    fi
 }
 
 # PHP2Shell gate: Trixie 8.4.x >= 8.4.27; Bookworm fallback 8.2.x >= 8.2.35
@@ -113,14 +204,17 @@ fi
 systemctl enable --now "${FPM_UNIT}"
 wanos_php_version_gate
 
-# nginx present for later app.wanos.be + WLW vhost (site files still manual / overlay)
+# nginx + app.wanos.be site (self-signed until ACME-DNS LE; phase2 refreshes if LE exists)
 if command -v nginx >/dev/null 2>&1; then
     systemctl enable nginx
-    echo "OK: nginx package present (enable only; site config is a later step)."
+    wanos_install_nginx_site
 else
     echo "ERROR: nginx not found after apt install." >&2
     exit 1
 fi
+
+echo "[1c] Mosquitto apt + conf..."
+wanos_install_mosquitto
 
 # Ops7: never install Samba — purge if a prior image left it
 if dpkg -l samba 2>/dev/null | grep -q '^ii'; then
@@ -241,7 +335,7 @@ if systemctl cat wanos.service &>/dev/null; then
         echo "WARN: sudo -n systemctl restart wanos.service failed for wannes — check sudoers"
     fi
 else
-    echo "NOTE: wanos.service not installed yet — after Phase 5, verify as user wannes:"
+    echo "NOTE: wanos.service not installed yet — after phase2, verify as user wannes:"
     echo "      sudo -n systemctl restart wanos.service"
 fi
 
@@ -303,8 +397,9 @@ echo "================================================================"
 echo "NEXT STEPS:"
 echo "1. Reboot:                 sudo reboot"
 echo "2. Sync WanOS tree:        helpers\\wanos-sync.bat run  (from PC)"
-echo "3. Run Phase 2 as wannes:  ./wanos_bootstrap_phase2.sh"
-echo "4. Finish Nginx app.wanos.be + Mosquitto/Z-Wave (install guide)."
-echo "5. Then WLW overlay:       sudo bash ~/be90webserver/helpers/bootstrap/wlw_bootstrap.sh"
-echo "PHP gate OK above - do not expose public :443 until LE + WLW smoke."
+echo "3. Run Phase 2 as wannes:  ./wanos_bootstrap_phase2.sh  (venv + wanos.service)"
+echo "4. Mosquitto st.pwd if not restored; ACME-DNS LE then re-run phase2 or refresh nginx"
+echo "5. Z-Wave: operator restore /opt/zwave-js-ui then docker compose (install guide)"
+echo "6. WLW overlay:            sudo bash ~/be90webserver/helpers/bootstrap/wlw_bootstrap.sh"
+echo "PHP gate OK above - do not expose public PHP :443 until LE + WLW smoke."
 echo "================================================================"

@@ -23,6 +23,10 @@ sqlite3
 certbot
 nginx             # Existing WanOS reverse proxy; apt is a no-op if already installed
 
+# --- MQTT (WanOS backend + browser WS) ---
+mosquitto         # Broker; phase1 also deploys mosquitto-st.conf
+mosquitto-clients # mosquitto_passwd / pub/sub diagnostics
+
 # --- PHP (Trixie default 8.4; gate >= 8.4.27 in phase1 for PHP2Shell) ---
 php-fpm           # FastCGI process manager (php7.4-fpm); Nginx uses the unix socket
 php-cli           # CLI for maintenance scripts and php -v smoke

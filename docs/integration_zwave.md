@@ -79,6 +79,12 @@ To grant the Z-Wave card or USB controller exclusive serial lanes, the Pi's onbo
 3. Execute `sudo reboot` to enforce kernel changes.
 4. Unplug the legacy RaZberry GPIO card or verify the path of the new USB Stick via `ls -l /dev/serial/by-id/`.
 
+### 9.2b Store backup / restore (Ops7)
+
+- **On-disk store:** `/opt/zwave-js-ui` (bind-mounted to container `/usr/src/app/store`).
+- **Backup / restore:** **operator-manual only** (not part of wanos-sync). Before flash: `rsync`/`scp` the tree (stop container first if possible). After Docker on the new card: restore to `/opt/zwave-js-ui` **before** `docker compose up -d`. Confirm nodes in UI `:8091`.
+- Cutover ticks: [`ops7-operator-checklist.md`](ops7-operator-checklist.md).
+
 ### 9.3 Docker & Z-Wave JS UI Deployment
 The middleware runs as a privileged Docker container bound to the host network.
 

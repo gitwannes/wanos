@@ -5,6 +5,7 @@
 **Date:** 2026-10-22 (CET) · **Kickoff:** 2026-10-22 · **Scripts implement:** 2026-10-22  
 **Hardware:** Raspberry Pi 4 Model B Rev 1.5 · role: WanOS **main** + WLW co-host at **`10.32.251.30`**  
 **Product guide (as-is / operator):** [`docs/bootstrap-main-pi.md`](../bootstrap-main-pi.md)  
+**Operator checklist (short):** [`docs/ops7-operator-checklist.md`](../ops7-operator-checklist.md)  
 **WLW follow-on:** sibling repo **be90webserver** — `docs/todo/ops7-fresh-install.md` (overlay only) + `docs/bootstrap-host.md` (mention)
 
 **Absorbs:** former **Ops2** (Pi Python 3.12 vs 3.13 assess) — superseded by OS lock (Trixie → system **Python 3.13**).
@@ -45,6 +46,9 @@
 | 11 | PHP apt ownership | **wanos only.** Strip PHP apt install from WLW `wlw_bootstrap` / `apt-packages.txt` at implement (overlay keeps FPM detect, nginx site, state dirs). |
 | 12 | WLW state | Prefer **restore** from sync-pulled DBs + offline **`.env`** (operator has `.env` backup — Q1b). **A1 re-seed** only if auth restore impossible. |
 | 13 | WLW state pull set | **Pull only** (not mirror): `wlw.sqlite`; `budget*.sql`/`budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json`. Drop legacy `budget.sqlite`. Engine allows `.sqlite`/`.sql`/`.zip`/`.json` (**shipped** in sync tool). |
+| 14 | Z-Wave store | **Operator-manual** backup/restore of **`/opt/zwave-js-ui`** (`rsync`/`scp`) — **not** wanos-sync. Restore before `docker compose up`. |
+| 15 | GoogleAuthenticator | Operator: fetch latest PHP 8.x–safe class from [sethadam1/GoogleAuthenticator](https://github.com/sethadam1/GoogleAuthenticator) into be90 `app/GoogleAuthenticator.php` before WLW smoke. |
+| 16 | Bootstrap automate | phase1: Mosquitto apt+conf + `app.wanos.be` nginx site; phase2: `wanos.service` enable + nginx LE refresh. `st.pwd` / ACME-DNS / Z-Wave Docker remain operator. |
 
 ### PHP2Shell
 
@@ -101,29 +105,25 @@
 
 ## Cutover checklist (host — this repo)
 
+**Canonical tick-list:** [`../ops7-operator-checklist.md`](../ops7-operator-checklist.md) (do not duplicate long form here).
+
 ### A — Backup (old card)
 
 - [ ] Deco 80/443 → `.30`
-- [ ] Offline WanOS state (operator practice)
-- [ ] Offline `/var/lib/wlw/` (for WLW restore) + optional LE files
+- [ ] Offline WanOS state; WLW `.env`; sync state pulls
+- [ ] **Z-Wave:** operator-manual backup `/opt/zwave-js-ui` (`rsync`/`scp`)
 - [ ] Do not rely on old SSH keys
 
-### B — Flash
+### B–C — Flash + host
 
-- [ ] Imager → **Lite 64-bit Trixie**; user `wannes`; SSH; CET; static **`10.32.251.30/24`**
-- [ ] `apt update && full-upgrade`
-- [ ] Verify Trixie + `aarch64`
-
-### C — WanOS + host packages (Ops7 scripts)
-
-- [ ] Phase 1/2 (no Samba); PHP-FPM + extensions; `php -v` ≥ **8.4.27**
-- [ ] `python3 -V` → **3.13.x**; create `wanos_venv`; `wanos.service`; Nginx `app.wanos.be`
-- [ ] Mosquitto / Z-Wave Docker / ACME-DNS as current install guide
+- [ ] Trixie Lite 64-bit · `.30` · phase1/2 · PHP ≥ **8.4.27** · Python **3.13**
+- [ ] phase1/2 automate: nginx site · Mosquitto apt · `wanos.service`; operator: `st.pwd` · Z-Wave restore+Docker · ACME-DNS LE
 - [ ] Smoke WanOS on LAN
 
 ### D–F — WLW
 
-Hand off to be90webserver Ops7 overlay (sync → `wlw_bootstrap.sh` → keys/certs/AIS → smoke).
+- [ ] Overlay + state restore; **GoogleAuthenticator** refresh (operator); keys; LE re-issue; AIS; smoke  
+  Detail: be90webserver Ops7 + shared checklist § D–F.
 
 ---
 
@@ -137,16 +137,17 @@ Hand off to be90webserver Ops7 overlay (sync → `wlw_bootstrap.sh` → keys/cer
 | Ops2 folded | Yes — superseded |
 | Docs triage present | Yes — this file + `bootstrap-main-pi.md` + WLW pointer |
 | Blocked on other letters | No |
-| Code allowed | **No** until operator says `implement` / `ship` / `patch` |
+| Code allowed | Scripts shipped; further code only on `implement` / `ship` / `patch` |
 
-### Verified (repo / locks)
+### Verified (repo / locks) — refreshed 2026-10-22
 
 - Same Pi `.30`; Trixie Lite 64-bit; PHP ≥ 8.4.27; Python 3.13; no Samba; re-image only.
 - Host ownership = wanos; WLW = additive overlay after host green.
-- Phase1 still **installs Samba** + enables `smbd` — must change at implement.
-- `apt-packages.txt` has **no PHP/nginx** yet; WLW `apt-packages.txt` still lists `php-*` / `nginx` for overlay idempotency.
-- Nginx/`app.wanos.be` / Mosquitto / Z-Wave / ACME-DNS are largely **manual** in `wanos-install-backend.md` today (not fully in phase1/2).
-- Path segment `bootstrap` excluded from main `wanos-sync` — first-boot still needs SCP/copy of helpers.
+- **phase1:** no Samba (purge if leftover); PHP-FPM + gate; nginx + **`app.wanos.be` site**; Mosquitto apt + conf.
+- **phase2:** venv; **`wanos.service`**; nginx refresh (prefer LE).
+- **Still operator:** `st.pwd`; ACME-DNS first LE; Z-Wave `/opt/zwave-js-ui` backup/restore + Docker; GA refresh (WLW).
+- WLW overlay: no PHP/nginx apt; requires wanos phase1.
+- Path segment `bootstrap` excluded from main `wanos-sync` — first-boot still needs SCP of helpers (incl. `wanos.nginx.conf`).
 
 ### Implement plan
 
@@ -157,7 +158,9 @@ Hand off to be90webserver Ops7 overlay (sync → `wlw_bootstrap.sh` → keys/cer
 5. [x] Docs: `wanos-install-backend.md` + `bootstrap-main-pi.md` + WLW bootstrap
 6. [x] WLW: strip PHP/nginx apt; require wanos phase1
 7. [x] Sync state pull `.zip`/`.json`/`obio/credentials.json`
-8. [ ] Cutover smoke + 3.13 soak; WLW restore + overlay + smoke; Last DoD docs audit
+8. [x] Automate: Mosquitto apt+conf, `app.wanos.be` nginx site (phase1), `wanos.service` + nginx LE refresh (phase2) — **2026-10-22**
+9. [x] Z-Wave backup = operator-manual only (not sync); docs/checklist aligned
+10. [ ] Cutover smoke + 3.13 soak; WLW restore + overlay + smoke; Last DoD docs audit
 
 ### DoD (kickoff)
 
@@ -191,7 +194,7 @@ Hand off to be90webserver Ops7 overlay (sync → `wlw_bootstrap.sh` → keys/cer
 | **Q3** | Automate as much as possible | wanos phase1: `nginx` + certbot tooling + PHP |
 | **Q4** | Remove SMB | apt + phase1 + **delete `smb.conf`** |
 | **Q5 / Q5b** | Sync **pull** (not mirror) set locked | See table; config + engine updated |
-| **Q6** | wanos does OS-level | Strip PHP apt from WLW overlay (still at full Ops7 implement) |
+| **Q6** | wanos does OS-level | Strip PHP apt from WLW overlay — **Done** |
 | **Q7** | Include `/var/lib/wlw/obio/credentials.json` | **Yes** — in pull list |
 
 ### What is A1?
@@ -215,6 +218,6 @@ Hand off to be90webserver Ops7 overlay (sync → `wlw_bootstrap.sh` → keys/cer
 
 ### Remaining open (kickoff)
 
-**None** for sync/state. Full Ops7 host bootstrap (Samba out / PHP+nginx in / WLW overlay strip) still waits on **`implement Ops7`**.
+**Prep/scripts:** Done. **Open:** physical cutover + smoke + 3.13 soak + Last DoD (see checklist / DoD above).
 
-**Still locked:** Trixie Lite; PHP ≥ 8.4.27; Python 3.13; same IP; renew SSH; no Samba; LCD/kiosk OOS; re-image only; LE re-issue; automate host apt.
+**Still locked:** Trixie Lite; PHP ≥ 8.4.27; Python 3.13; same IP; renew SSH; no Samba; LCD/kiosk OOS; re-image only; LE re-issue; Z-Wave backup = operator-manual.

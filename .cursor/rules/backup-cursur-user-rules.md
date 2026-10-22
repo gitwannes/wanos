@@ -1,8 +1,8 @@
-# Cursor User Rules backup — 2026-08-15 (refreshed 2026-09-18)
+# Cursor User Rules backup — refreshed 2026-10-22
 
 Snapshot of Cursor Settings → User Rules (this Cursor account, cloud-synced). Backup only. This is a `.md` file so Cursor does **not** load it as a project rule.
 
-Mirror of live User Rules (`total: 8`). Keep this file in sync whenever User Rules are added, updated, or removed.
+Mirror of live User Rules (`total: 11`). Keep this file in sync whenever User Rules are added, updated, or removed.
 
 ---
 
@@ -338,3 +338,79 @@ Applies to anything that prints to a terminal/console (`.bat`, `.cmd`, `.ps1`, `
 
 - Bad: `echo Usage — all valid combinations:`
 - Good: `echo Usage - all valid combinations:`
+
+---
+
+## Local PowerShell: keep calls short (Bitdefender)
+
+- Id: `18229077`
+- Created: 2026-09-29T14:29:27.680Z
+
+# Local PowerShell: keep shell calls short (Bitdefender)
+
+On this Windows PC, Bitdefender often blocks longer or complex PowerShell wrappers that Cursor uses for Shell tool commands (heredocs, multi-line scripts, nested quotes, piped Python, etc.). Notification: "Suspicious activity blocked" / PowerShell loading a potentially malicious resource.
+
+## Rule
+
+When running Shell on the **local PC** (including `ssh`/`scp` launched from PowerShell):
+
+- Prefer **short, plain, one-line** commands.
+- Avoid PowerShell here-strings (`@'...'@`), multi-line script blocks, nested quote gymnastics, and piping large inline scripts into `ssh`.
+- Prefer: simple `ssh user@host "single remote command"`, `scp` of a small file then `ssh … python3 /tmp/…`, or a few sequential short calls instead of one fat wrapper.
+- If Bitdefender blocks a call, retry with a simpler command shape — do not keep escalating complexity.
+
+This does not change product PowerShell coding standards for `.ps1` files in repos.
+
+---
+
+## WLW UI language: Flemish budget (BE)
+
+- Id: `18367601`
+- Created: 2026-10-08T11:41:44.223Z
+
+# WLW / be90webserver — UI language
+
+Operator instructions stay in **English**. Agent chat replies stay in **English** (Identity rule).
+
+## Product UI (locked triage 2026-10-08 → B36)
+
+- **WLW logon + portal shell:** stay **English** (do not Flemish-ize).
+- **Budget tile + all `/budget/*` pages:** user-visible strings → **Belgian Dutch (Flemish)** — bulk pass is **B36** (not B35).
+- **New/changed budget UI** from 2026-10-08 onward: write Flemish immediately.
+- **Do not** bulk-rewrite existing English budget copy until **B36** is kickoff-locked and `implement` is commanded. Mixed EN/NL budget pages are OK until then.
+
+## Out of scope for this rule
+
+- Operator docs under `docs/` (English unless a phase says otherwise)
+- Code comments, git commits, pipeline/todo markdown (English unless operator asks)
+- Console/script ASCII rule still applies for terminal output
+
+---
+
+## Git remote: no push/merge without approval
+
+- Id: `18661598`
+- Created: 2026-10-22T08:20:22.879Z
+
+# Git remote / repo publishing — approval required (hard rule)
+
+Never perform remote or publishing git actions unless the operator gives an **explicit order in that turn** (or an earlier turn they have not revoked).
+
+## Never without explicit approval
+
+- `git push` (any remote, any branch)
+- `git pull` / `fetch` + merge/rebase onto a shared branch when that updates remote tracking with intent to publish
+- Create / merge / close pull requests (`gh pr create`, `gh pr merge`, merge commits on GitHub/Origin)
+- Force-push, rewrite published history, or delete remote branches
+- Merge repos, split repos, change remotes, or publish a new GitHub/Origin repo from local work
+- Any other action that publishes, merges, or rewrites **shared/remote** history
+
+## Allowed without that order
+
+- Local commits **only when** the operator already authorized commit (existing commit rules still apply)
+- Local status / diff / log / branch inspection
+- Asking whether to push, open a PR, or merge
+
+## If push/merge/PR would help
+
+Ask first. Do **not** proceed until the operator clearly approves (e.g. `push`, `push it`, `create the PR`, `merge the PR`). Soft language (`ship`, `done`, `looks good`) is **not** approval for remote git actions unless they also name the remote action.

@@ -3,6 +3,7 @@
 
 **Role:** Raspberry Pi 4 Model B · LAN **`10.32.251.30`** · WanOS backend + shared Nginx/PHP host for **WLW** (be90webserver).  
 **Delivery:** [`docs/todo/ops7-fresh-install.md`](todo/ops7-fresh-install.md) (**Ops7**).  
+**Cutover runbook (short):** [`ops7-operator-checklist.md`](ops7-operator-checklist.md).  
 **LCD Pi (`.51`):** separate — [`_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`](../_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md).  
 **WLW app overlay (after this host is green):** be90webserver `helpers/bootstrap/wlw_bootstrap.md` + `docs/todo/ops7-fresh-install.md` (pointer).
 
@@ -27,13 +28,16 @@ This is the **incorporated** operator guide for the shared main Pi. Scripted pie
 ## Order of operations
 
 ```text
-A  Sync pull fresh (wanos + wlw); offline copy /var/lib/wlw/.env (+ obio creds if any)
+A  Sync pull (wanos + wlw); Z-Wave /opt/zwave-js-ui backup = operator rsync; offline .env
 B  Flash Trixie Lite 64-bit → static 10.32.251.30 → full-upgrade
-C  This repo: host bootstrap (OS tune, nginx, PHP-FPM, WanOS venv/service, app.wanos.be) — no Samba
-D  be90webserver: wanos-sync wlw → overlay (no PHP apt); restore DBs + .env
-E  Renew SSH keys; re-issue LE via certbot; AIS sidecar as needed
-F  Smoke WanOS + WLW
+C  phase1 (PHP/nginx site/Mosquitto apt) → sync → phase2 (venv/wanos.service/nginx refresh)
+   then operator: st.pwd, Z-Wave restore+Docker, ACME-DNS LE
+D  wanos-sync wlw → overlay; restore DBs + .env; refresh GoogleAuthenticator (operator)
+E  Renew SSH keys; re-issue LE; AIS sidecar as needed
+F  Smoke WanOS + WLW (+ Z-Wave nodes)
 ```
+
+Tick-list: [`ops7-operator-checklist.md`](ops7-operator-checklist.md).
 
 Re-image only — **no** in-place Bullseye → Trixie upgrade.
 
@@ -49,7 +53,7 @@ Re-image only — **no** in-place Bullseye → Trixie upgrade.
 
 Copy bootstrap helpers onto the Pi (path segment `bootstrap` is **excluded** from main `wanos-sync` mirror — SCP or one-shot copy into `~/` / tree as today). Then run Phase 1/2 scripts from [`helpers/bootstrap/backend/`](../helpers/bootstrap/backend/).
 
-**Long-form walkthrough** (Mosquitto, Docker/Z-Wave, ACME-DNS, `app.wanos.be` site): [`helpers/bootstrap/backend/wanos-install-backend.md`](../helpers/bootstrap/backend/wanos-install-backend.md). Prefer this page for locks + order.
+**Long-form walkthrough** (ACME-DNS LE, Z-Wave Docker, hardware checks): [`helpers/bootstrap/backend/wanos-install-backend.md`](../helpers/bootstrap/backend/wanos-install-backend.md). Cutover ticks: [`ops7-operator-checklist.md`](ops7-operator-checklist.md). Prefer this page for locks + order; checklist for A–F.
 
 ---
 
@@ -57,11 +61,13 @@ Copy bootstrap helpers onto the Pi (path segment `bootstrap` is **excluded** fro
 
 | Script / file | Intent |
 |---|---|
-| `wanos_bootstrap_phase1.sh` | apt (nginx + PHP-FPM), PHP version gate, UART/BT, log2ram, sudoers — **no Samba** |
-| `apt-packages.txt` | Host package list (PHP stack + nginx + certbot; no samba) |
-| `wanos_bootstrap_phase2.sh` | `wanos_venv` from system `python3` (3.13 on Trixie), requirements, RFX udev |
-| `wanos.service` | uvicorn via venv |
-| Nginx site / ACME-DNS | Still in install guide (phase1 installs **packages** only) |
+| `wanos_bootstrap_phase1.sh` | apt (nginx + PHP-FPM + **mosquitto**), PHP gate, **`app.wanos.be` nginx site**, Mosquitto conf, UART/BT, log2ram, sudoers — **no Samba** |
+| `apt-packages.txt` | Host packages (PHP + nginx + certbot + mosquitto; no samba) |
+| `wanos.nginx.conf` | Template → `/etc/nginx/sites-available/wanos` (self-signed until LE) |
+| `mosquitto-st.conf` | Deployed to `/etc/mosquitto/conf.d/`; **`st.pwd` = operator** |
+| `wanos_bootstrap_phase2.sh` | venv + RFX udev + **install/enable `wanos.service`** + nginx site refresh (prefer LE) |
+| `wanos.service` | uvicorn via venv (installed by phase2) |
+| ACME-DNS first LE | Still operator (Nomeo CNAME); then re-run phase2 to swap certs |
 
 **PHP gate (host DoD):** phase1 exits non-zero unless `php -v` ≥ **8.4.27** (or ≥ **8.2.35** on Bookworm fallback).
 
@@ -83,7 +89,9 @@ Host flash and PHP/Python OS packages are **not** owned by the WLW repo — see 
 
 | Topic | Doc |
 |---|---|
+| Ops7 operator checklist | [`ops7-operator-checklist.md`](ops7-operator-checklist.md) |
 | Sync / first deploy | [`wanos-sync.md`](wanos-sync.md) |
+| Z-Wave middleware | [`integration_zwave.md`](integration_zwave.md) § store backup |
 | Architecture | [`architecture.md`](architecture.md) |
 | LCD agent install | [`_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`](../_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md) |
 | Ops7 delivery | [`todo/ops7-fresh-install.md`](todo/ops7-fresh-install.md) |
