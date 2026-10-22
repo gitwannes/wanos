@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
+# --- file: helpers/bootstrap/backend/wanos_bootstrap_phase2.sh ---
 # ==============================================================================
 # WanOS Phase 2: Application Setup (Python VENV & App Scripts)
+# Ops7: system python3 is Trixie 3.13 - sync tree via wanos-sync (no Samba)
 # Run as user wannes: ./wanos_bootstrap_phase2.sh
 # ==============================================================================
 
@@ -26,10 +28,11 @@ cd "$APP_DIR"
 
 if [ ! -f "requirements.txt" ]; then
     echo "ERROR: requirements.txt not found in $APP_DIR."
-    echo "Please copy it via Samba first."
+    echo "Sync the WanOS tree first: helpers\\wanos-sync.bat run"
     exit 1
 fi
 
+echo "System python3: $(python3 -V 2>&1)"
 if [ ! -d "wanos_venv" ]; then
     python3 -m venv wanos_venv
 fi

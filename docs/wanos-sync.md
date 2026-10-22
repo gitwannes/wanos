@@ -32,7 +32,7 @@ Product locks: be90webserver `docs/wlw-sync.md`. When the **WLW mirror** behavio
 |-----|-----------|-----------|
 | Mirror | Local → Pi | `rsync --delete` + excludes: main uses config `[MirrorExclude*]`; `lcd` / `wlw` use hardcoded lists in `.ps1` until **P2** (shared `[MirrorExcludeFiles]` for all three) |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
-| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`); WLW: `/var/log/wlw/wlw*` + Nginx vhost logs → `logs\wlw\`; WLW state pull → `logs\wlw\state\` (`wlw.sqlite`, `budget.sqlite`, `budget-backup-*.sql`, `budget-bak-*.sql`, `budget-csv-*.zip`, `budget-data-*.zip`; never `.env`; never push) |
+| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`); WLW: `/var/log/wlw/wlw*` + Nginx vhost logs → `logs\wlw\`; WLW state **pull** (not mirror) → `logs\wlw\state\` (`wlw.sqlite`; `budget*.sql`/`budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json`; never `.env`; never push; no legacy `budget.sqlite`) |
 | Sessionlog pull | Pi → Local | `{RemoteRoot}/sessionlog/*` → OneDrive `logs\` (flat) — **main WanOS only**; skip if remote dir missing |
 | Logcopy | Local → git | `wanos*` (+ session CSVs/DB on main) → `docs\logs` or `_lcd-agent\docs\logs`; WLW: `wlw*` + `hofmans.synology.me.*` → `be90webserver\docs\logs` — **always** after `run`; also mode `logcopy` alone. Locked/in-use dest files: red warn, skip, continue |
 
@@ -164,7 +164,7 @@ Exit code **1** means the files differ after normalization; the batch wrapper do
 | WLW log pull local | `…\wanos\logs\wlw` | `[WlwPiSsh] LocalLogSubdir` |
 | App logs remote | `/var/log/wanos/wanos*` (main/LCD) or `/var/log/wlw/wlw*` (WLW) | SSH sections |
 | WLW Nginx logs | `/var/log/nginx/hofmans.synology.me.*.log` (+ `.log.1`; skip `.gz`) | `[WlwExtraLogFiles]` |
-| WLW SQLite/SQL pull | `/var/lib/wlw/wlw.sqlite`, `budget.sqlite`, globs `budget-backup-*.sql` + `budget-bak-*.sql` + `budget-csv-*.zip` + `budget-data-*.zip` → `logs\wlw\state\` (pull only; not logcopied to git) | `[WlwSqlitePullFiles]` |
+| WLW state pull | `/var/lib/wlw/wlw.sqlite`; `budget*.sql` / `budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json` → `logs\wlw\state\` (pull only, not mirror; not logcopied to git; no `.env`; no legacy `budget.sqlite`) | `[WlwSqlitePullFiles]` |
 | Session CSVs remote | `{RemoteRoot}/sessionlog/*` (e.g. `sauna_session_YYYYMMDD_HHMMSS.csv`) | main WanOS only; mirror-excluded |
 
 Edit `[PiSsh]` / `[LcdPiSsh]` / `[WlwPiSsh]` Host/User/RemoteRoot if your Pis differ. Secrets never go in the config — only SSH keys. Reuse the same `id_ed25519` for both Pis (install pubkey on `.51` once — see `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). WLW uses the same key as main Pi `.30`.
@@ -256,7 +256,7 @@ helpers\wanos-sync.bat run
 - `[LcdPiSsh]` — LCD Pi (same keys); `LocalLogSubdir=lcd-agent` lands pulls under OneDrive `logs\lcd-agent`
 - `[WlwPiSsh]` — WLW on main Pi `.30`; source `C:\data\git\be90webserver`; `LocalLogSubdir=wlw`; no bare `bootstrap` exclude (helpers/bootstrap syncs)
 - `[WlwExtraLogFiles]` — absolute Nginx log paths pulled flat into `logs\wlw\` (+ `.log.1` when present; skip `.gz`)
-- `[WlwSqlitePullFiles]` — listed `/var/lib/wlw` paths (exact + shell globs expanded on Pi) → `logs\wlw\state\` (pull only; never `.env`; never push; not logcopied to git). Live DBs: `wlw.sqlite`, `budget.sqlite`. Budget home Backup / Restore dumps: `budget-backup-*.sql` and legacy `budget-bak-*.sql` (H7). CSV masters archives: `budget-csv-*.zip` (+ legacy `budget-data-*.zip`).
+- `[WlwSqlitePullFiles]` — listed `/var/lib/wlw` paths (exact + shell globs on Pi) → `logs\wlw\state\` (pull only; never mirror whole dir; never `.env`; never push; not logcopied to git). Locked set: `wlw.sqlite`; top-level `budget*.sql` / `budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json`. Legacy root `budget.sqlite` **removed**. Engine allows `.sqlite` / `.sql` / `.zip` / `.json`.
 
 Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine. First LCD deploy: `test lcd` then `run lcd` (install: `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). First WLW deploy: `test wlw` then `run wlw`, then on Pi `sudo bash /home/wannes/be90webserver/helpers/bootstrap/wlw_bootstrap.sh` (creates `/var/lib/wlw` + `/var/log/wlw`). Product locks: be90webserver `docs/wlw-sync.md`.
 

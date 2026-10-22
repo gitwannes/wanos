@@ -1,6 +1,7 @@
 # ==============================================================================
 # WanOS OS-Level Package Dependencies (Debian 13 Trixie / Raspberry Pi OS)
 # Parsed by wanos_bootstrap_phase1.sh during Phase 1 System Bootstrapping
+# Ops7: no Samba; PHP-FPM + nginx + certbot tooling for shared WLW host
 # ==============================================================================
 
 # --- Core Terminal Utilities & Editors ---
@@ -11,10 +12,25 @@ git               # Version control client required for log2ram installation and
 rsync             # Remote sync over SSH (wanos-sync push/pull from the Windows workstation)
 
 # --- System & Hardware Access Tools ---
-samba             # SMB/CIFS file-sharing server for remote workstation access
 i2c-tools         # Bus diagnostics suite (i2cdetect, i2cget, i2cset) for hardware debugging
 udev              # Dynamic device node manager for handling serial symlinks (e.g., /dev/rfxcom)
 avahi-daemon      # mDNS/DNS-SD service for .local hostname resolution and zero-conf IoT discovery
+openssl           # Self-signed cert generation; also used by PHP OpenSSL
+acl               # setfacl / getfacl for state-dir default ACL
+sqlite3
+
+# --- Web / reverse proxy (shared with WLW overlay) ---
+certbot
+nginx             # Existing WanOS reverse proxy; apt is a no-op if already installed
+
+# --- PHP (Trixie default 8.4; gate >= 8.4.27 in phase1 for PHP2Shell) ---
+php-fpm           # FastCGI process manager (php7.4-fpm); Nginx uses the unix socket
+php-cli           # CLI for maintenance scripts and php -v smoke
+php-sqlite3       # PDO SQLite for users / auth_tokens / actions
+php-mbstring      # Safe string handling (OTP alphabet, cookies, mail)
+php-curl          # HTTP client if SMTP/helpers need it; cheap to have
+php-xml           # DOM / SimpleXML; common PHP lib dependency
+php-zip           # ZipArchive extension for compressed database backups
 
 # --- Python Environment & Hardware Prerequisites ---
 python3-venv      # Module for building isolated Python virtual environments

@@ -4,7 +4,7 @@
 **Ops7 locks + order of operations (canonical):** [`docs/bootstrap-main-pi.md`](../../../docs/bootstrap-main-pi.md) · delivery [`docs/todo/ops7-fresh-install.md`](../../../docs/todo/ops7-fresh-install.md).  
 **WLW host flash:** not here — WLW overlay is be90webserver; see that repo `docs/bootstrap-host.md`.
 
-This document is the long-form operational guide for deploying a fresh WanOS backend on a Raspberry Pi 4 (shared with WLW at `.30`). Scripts: `wanos_bootstrap_phase1.sh` / `wanos_bootstrap_phase2.sh`; helpers: `docker-compose.yml`, `mosquitto-st.conf`, `wanos.service` (**Samba / `smb.conf` retired under Ops7 — do not install**). NGINX + Let's Encrypt via ACME-DNS (Nomeo). **Ops7 also adds PHP-FPM** (patched ≥ 8.4.27) on this host when `implement` rewrites the scripts.
+This document is the long-form operational guide for deploying a fresh WanOS backend on a Raspberry Pi 4 (shared with WLW at `.30`). Canonical locks/order: [`docs/bootstrap-main-pi.md`](../../../docs/bootstrap-main-pi.md). Scripts: `wanos_bootstrap_phase1.sh` / `wanos_bootstrap_phase2.sh`; helpers: `docker-compose.yml`, `mosquitto-st.conf`, `wanos.service`. **No Samba** (Ops7). Phase 1 installs **nginx + PHP-FPM** (patched ≥ **8.4.27**) and gates `php -v`. NGINX `app.wanos.be` site + Let's Encrypt via ACME-DNS (Nomeo) remain in later sections.
 
 ---
 
@@ -44,21 +44,20 @@ The bootstrap pipeline requires a freshly flashed Linux host with SSH access and
    ```
 
 ### 0.3 Pre-Flight File Delivery
-Before executing Phase 1, you must transfer the bootstrap scripts and helper configuration files directly into `/home/wannes/` on the Pi via SCP or SFTP:
-* `wanos_bootstrap_phase1.sh` (System bootstrap script)
-* `wanos_bootstrap_phase2.sh` (Python environment script)
-* `apt-packages.txt` (OS-level package dependency list)
-* `requirements.txt` (Python virtual environment package list)
-* `smb.conf` (Samba network share configuration)
-* `docker-compose.yml` (Z-Wave JS UI container definition)
-* `mosquitto-st.conf` (MQTT broker configuration)
-* `wanos.service` (Systemd core service definition)
+Before executing Phase 1, transfer the bootstrap scripts and helper files into `/home/wannes/` (or keep them beside the scripts) via SCP — path segment `bootstrap` is excluded from main `wanos-sync` mirror:
+* `wanos_bootstrap_phase1.sh` (System bootstrap — nginx, PHP-FPM, no Samba)
+* `wanos_bootstrap_phase2.sh` (Python venv)
+* `apt-packages.txt` (OS-level package list)
+* `requirements.txt` (after first sync, or copy with phase2)
+* `docker-compose.yml` (Z-Wave JS UI)
+* `mosquitto-st.conf` (MQTT broker)
+* `wanos.service` (systemd unit)
 
 ---
 
 ## Phase 1: System Bootstrapping & OS Tuning (Scripted + Manual Post-Actions)
 
-Phase 1 optimizes the operating system, installs core packages from `apt-packages.txt`, disables onboard Bluetooth to free up hardware UART lanes, sets up `log2ram` to reduce SD card wear, applies the **rsyslog logcap** when `helpers/wanos_rsyslog_logcap.sh` is already on the host, and applies Samba network share parameters using `smb.conf`.
+Phase 1 optimizes the OS, installs packages from `apt-packages.txt` (incl. **nginx** + **PHP-FPM**), gates patched PHP (≥ 8.4.27 on Trixie), disables onboard Bluetooth for UART, sets up `log2ram`, applies **rsyslog logcap** when available, and **does not install Samba**.
 
 ### 1.1 Execute Phase 1 Script
 Run `wanos_bootstrap_phase1.sh` with superuser privileges:
@@ -71,45 +70,28 @@ sudo ./wanos_bootstrap_phase1.sh
 ```
 
 > **What `wanos_bootstrap_phase1.sh` performs automatically:**
-> * Updates APT repositories and upgrades system packages.
-> * Installs core packages listed in `apt-packages.txt` (`vim`, `bat`, `samba`, `i2c-tools`, `python3-venv`, `python3-pip`, `python3-libgpiod`, `udev`, `curl`, `git`, `avahi-daemon`).
-> * Modifies `/boot/firmware/config.txt` to add `dtoverlay=disable-bt` and `enable_uart=1`.
-> * Disables and masks the `hciuart` service.
-> * Sets up custom Bash aliases, console monitors, `.vimrc`, and `.config/bat` defaults.
-> * Adds user `wannes` to groups `dialout`, `i2c`, and `gpio`.
-> * Configures passwordless sudo policies for `log2ram write` and `systemctl restart wanos.service` (Admin “Reboot WanOS”).
-> * Creates `/var/log/wanos` owned by `wannes:wannes`.
-> * Downloads, installs, and configures `log2ram` with a 256M RAM buffer.
-> * Applies **rsyslog logcap** when `helpers/wanos_rsyslog_logcap.sh` is already on the host (after code sync): disable `daemon.log`; rsyslog truncates `/var/log/syslog` at 20 MiB (no `.1` / `.gz`); logrotate no longer archives those two files. If the tree is not synced yet, Phase 1 warns; run the script after the first `wanos-sync` (see § **1.3**).
-> * Copies external `smb.conf` to `/etc/samba/smb.conf` and enables `smbd`.
+> * Updates APT and upgrades system packages.
+> * Installs packages from `apt-packages.txt` (tools, **nginx**, **PHP-FPM** + extensions, python3-venv/pip, i2c/udev, …). **No Samba.**
+> * Enables PHP-FPM; **fails** if `php -v` is below patched gate (8.4.27 / 8.2.35).
+> * Purges leftover Samba if present.
+> * Boot overlays: `dtoverlay=disable-bt`, `enable_uart=1`; masks `hciuart`.
+> * Bash aliases, console monitors, `.vimrc`, bat config.
+> * Groups `dialout`/`i2c`/`gpio`; sudoers for log2ram + `wanos.service` restart.
+> * `/var/log/wanos` + `/home/wannes/wanos` stub.
+> * log2ram 256M; rsyslog logcap when script available.
 
 ### 1.2 Manual Post-Phase 1 Actions
-1. **Assign Samba Password for User `wannes`:**
-   ```bash
-   # Set the password used to access the SMB network share from Windows
-   sudo smbpasswd -a wannes
-   ```
-
-2. **Reboot the System:**
-   Rebooting is required to apply kernel overlays, enforce group memberships (`i2c`, `gpio`, `dialout`), and initialize `log2ram`:
+1. **Reboot** (overlays, groups, log2ram):
    ```bash
    sudo reboot
    ```
 
-3. **Mount Samba Network Share on Development Workstation (optional browse):**
-   Samba is useful for Explorer browsing. **Day-to-day code sync does not use `Z:`** — use rsync over SSH instead (see step 4).
-   From your Windows PC command prompt, map the share if you want it:
-   ```cmd
-   net use Z: "\\10.32.251.30\wanos_share" /user:wannes
-   ```
+2. **Sync codebase to the Pi (`/home/wannes/wanos/`):**
+   On the Windows workstation, SSH keys + rsync via `helpers\wanos-sync.bat` (no Samba/`Z:`).
 
-4. **Sync codebase to the Pi (`/home/wannes/wanos/`):**
-   On the Windows workstation, set up SSH keys + rsync, then push/pull with `helpers\wanos-sync.bat`.
-
-   **Full fresh-PC procedure (OpenSSH, Scoop `rsync-msys2`, SSH key, first `test`/`run`):**  
+   **Full fresh-PC procedure:**  
    → [`docs/wanos-sync.md`](../../../docs/wanos-sync.md)
 
-   After workstation setup:
    ```text
    helpers\wanos-sync.bat test
    helpers\wanos-sync.bat run

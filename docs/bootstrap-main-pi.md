@@ -27,11 +27,11 @@ This is the **incorporated** operator guide for the shared main Pi. Scripted pie
 ## Order of operations
 
 ```text
-A  Backup old card (WanOS state + /var/lib/wlw + optional LE)
+A  Sync pull fresh (wanos + wlw); offline copy /var/lib/wlw/.env (+ obio creds if any)
 B  Flash Trixie Lite 64-bit → static 10.32.251.30 → full-upgrade
-C  This repo: host bootstrap (OS tune, packages incl. PHP-FPM, WanOS venv/service, Nginx app.wanos.be)
-D  be90webserver: wanos-sync wlw → additive wlw_bootstrap.sh (site, state dirs, bridge)
-E  Renew SSH keys; certs; AIS sidecar as needed
+C  This repo: host bootstrap (OS tune, nginx, PHP-FPM, WanOS venv/service, app.wanos.be) — no Samba
+D  be90webserver: wanos-sync wlw → overlay (no PHP apt); restore DBs + .env
+E  Renew SSH keys; re-issue LE via certbot; AIS sidecar as needed
 F  Smoke WanOS + WLW
 ```
 
@@ -49,7 +49,7 @@ Re-image only — **no** in-place Bullseye → Trixie upgrade.
 
 Copy bootstrap helpers onto the Pi (path segment `bootstrap` is **excluded** from main `wanos-sync` mirror — SCP or one-shot copy into `~/` / tree as today). Then run Phase 1/2 scripts from [`helpers/bootstrap/backend/`](../helpers/bootstrap/backend/).
 
-**Detailed historical walkthrough** (Mosquitto, Docker/Z-Wave, ACME-DNS, systemd): still in [`helpers/bootstrap/backend/wanos-install-backend.md`](../helpers/bootstrap/backend/wanos-install-backend.md) — **Ops7 will retire Samba steps** and add PHP when `implement` runs. Prefer this page for locks + order; use the backend MD for long-form service steps until that rewrite ships.
+**Long-form walkthrough** (Mosquitto, Docker/Z-Wave, ACME-DNS, `app.wanos.be` site): [`helpers/bootstrap/backend/wanos-install-backend.md`](../helpers/bootstrap/backend/wanos-install-backend.md). Prefer this page for locks + order.
 
 ---
 
@@ -57,13 +57,13 @@ Copy bootstrap helpers onto the Pi (path segment `bootstrap` is **excluded** fro
 
 | Script / file | Intent |
 |---|---|
-| `wanos_bootstrap_phase1.sh` | OS packages, UART/BT, log2ram, groups, sudoers — **no Samba after Ops7** |
-| `apt-packages.txt` | Package list (Ops7: + PHP-FPM stack; − samba) |
+| `wanos_bootstrap_phase1.sh` | apt (nginx + PHP-FPM), PHP version gate, UART/BT, log2ram, sudoers — **no Samba** |
+| `apt-packages.txt` | Host package list (PHP stack + nginx + certbot; no samba) |
 | `wanos_bootstrap_phase2.sh` | `wanos_venv` from system `python3` (3.13 on Trixie), requirements, RFX udev |
 | `wanos.service` | uvicorn via venv |
-| Nginx / certbot | `app.wanos.be` (shared reverse proxy for later WLW vhost) |
+| Nginx site / ACME-DNS | Still in install guide (phase1 installs **packages** only) |
 
-**PHP gate (host DoD):** `php -v` shows **≥ 8.4.27** before any public `:443` that serves PHP.
+**PHP gate (host DoD):** phase1 exits non-zero unless `php -v` ≥ **8.4.27** (or ≥ **8.2.35** on Bookworm fallback).
 
 **Python soak (host DoD):** sauna SHT11 + pulse inputs + critical wheels on 3.13.
 

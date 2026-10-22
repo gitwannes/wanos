@@ -2,6 +2,7 @@
 # --- file: helpers/bootstrap/backend/wanos_bootstrap_phase1.sh ---
 # ==============================================================================
 # WanOS Phase 1: System Bootstrapping (Debian 13 Trixie Lite 64-bit)
+# Ops7: no Samba; installs nginx + PHP-FPM; gates patched PHP micro-release
 # Run as root or with sudo: sudo ./wanos_bootstrap_phase1.sh
 # ==============================================================================
 
@@ -10,6 +11,7 @@ set -euo pipefail
 
 # Directory this script lives in (phase1 + logcap siblings when copied together)
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WANNES_HOME="/home/wannes"
 
 # Ensure script is run with root privileges
 if [ "$(id -u)" -ne 0 ]; then
@@ -17,9 +19,54 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+export DEBIAN_FRONTEND=noninteractive
+
 echo "=========================================="
 echo " Starting WanOS Phase 1 Setup..."
 echo "=========================================="
+
+# --- helpers ---
+# First field only; strip blank/full-line comments and inline "# ..." tails
+wanos_apt_install_from_list() {
+    local src="$1"
+    awk '
+        /^[[:space:]]*#/ { next }
+        /^[[:space:]]*$/ { next }
+        {
+            sub(/#.*/, "")
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+            if (length($0) > 0) print $1
+        }
+    ' "${src}" | xargs -r apt-get install -y --no-install-recommends
+}
+
+# PHP2Shell gate: Trixie 8.4.x >= 8.4.27; Bookworm fallback 8.2.x >= 8.2.35
+wanos_php_version_gate() {
+    if ! command -v php >/dev/null 2>&1; then
+        echo "ERROR: php CLI not found after apt install." >&2
+        exit 1
+    fi
+    local cur major_minor need lowest
+    cur="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION.".".PHP_RELEASE_VERSION;')"
+    major_minor="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+    case "${major_minor}" in
+        8.4) need="8.4.27" ;;
+        8.2) need="8.2.35" ;;
+        *)
+            echo "ERROR: unexpected PHP ${cur} (expected 8.4.x on Trixie, or 8.2.x Bookworm fallback)." >&2
+            echo "       PHP2Shell requires a patched micro-release before public :443." >&2
+            exit 1
+            ;;
+    esac
+    lowest="$(printf '%s\n' "${need}" "${cur}" | sort -V | head -n1)"
+    if [ "${lowest}" != "${need}" ]; then
+        echo "ERROR: PHP ${cur} is below patched minimum ${need} (PHP2Shell)." >&2
+        echo "       apt upgrade php-fpm php-cli (or install patched builds) before exposing :443." >&2
+        exit 1
+    fi
+    echo "OK: PHP ${cur} meets patched gate (>= ${need})"
+    php -v | head -n1
+}
 
 # 1. Update system and install core tools from external apt-packages.txt
 echo "[1/7] Updating system packages & installing dependencies from apt-packages.txt..."
@@ -27,7 +74,9 @@ apt-get update && apt-get upgrade -y
 
 # Locate external apt-packages.txt helper file
 APT_PKG_SRC=""
-if [ -f "$WANNES_HOME/apt-packages.txt" ]; then
+if [ -f "${SELF_DIR}/apt-packages.txt" ]; then
+    APT_PKG_SRC="${SELF_DIR}/apt-packages.txt"
+elif [ -f "$WANNES_HOME/apt-packages.txt" ]; then
     APT_PKG_SRC="$WANNES_HOME/apt-packages.txt"
 elif [ -f "./apt-packages.txt" ]; then
     APT_PKG_SRC="./apt-packages.txt"
@@ -35,17 +84,51 @@ fi
 
 if [ -n "$APT_PKG_SRC" ]; then
     echo "Installing OS dependencies from $APT_PKG_SRC..."
-    # Filter out comments (#) and blank lines, then pass package names to apt-get
-    grep -vE '^\s*#|^\s*$' "$APT_PKG_SRC" | xargs apt-get install -y --no-install-recommends
+    wanos_apt_install_from_list "$APT_PKG_SRC"
 else
-    echo "ERROR: External apt-packages.txt not found in $WANNES_HOME/ or current directory!" >&2
+    echo "ERROR: External apt-packages.txt not found next to this script, in $WANNES_HOME/, or cwd!" >&2
     echo "Please copy apt-packages.txt to the Raspberry Pi before running Phase 1." >&2
     exit 1
 fi
 
 # NOTE: The package is named 'bat', but Debian renames its binary to 'batcat' to avoid conflicts
-# Verify the 'batcat' binary was properly installed by the 'bat' package
 command -v batcat &>/dev/null || echo "WARNING: batcat binary not found after package installation."
+
+# Ensure PHP-FPM is enabled; gate patched micro-release (Ops7 / PHP2Shell)
+echo "[1b] Enabling PHP-FPM + version gate..."
+FPM_UNIT=""
+while IFS= read -r unit; do
+    case "${unit}" in
+        php*-fpm.service)
+            FPM_UNIT="${unit%.service}"
+            break
+            ;;
+    esac
+done < <(systemctl list-unit-files --type=service --no-legend --no-pager | awk '{print $1}')
+
+if [ -z "${FPM_UNIT}" ]; then
+    echo "ERROR: No php*-fpm.service unit found after package install." >&2
+    exit 1
+fi
+systemctl enable --now "${FPM_UNIT}"
+wanos_php_version_gate
+
+# nginx present for later app.wanos.be + WLW vhost (site files still manual / overlay)
+if command -v nginx >/dev/null 2>&1; then
+    systemctl enable nginx
+    echo "OK: nginx package present (enable only; site config is a later step)."
+else
+    echo "ERROR: nginx not found after apt install." >&2
+    exit 1
+fi
+
+# Ops7: never install Samba — purge if a prior image left it
+if dpkg -l samba 2>/dev/null | grep -q '^ii'; then
+    echo "Purging leftover Samba (Ops7: unused)..."
+    systemctl disable --now smbd nmbd 2>/dev/null || true
+    apt-get purge -y samba samba-common samba-common-bin 2>/dev/null || true
+    apt-get autoremove -y || true
+fi
 
 # 2. Hardware Interfaces (/boot/firmware for modern Pi OS)
 echo "[2/7] Configuring Boot Firmware & Hardware Overlays..."
@@ -70,13 +153,11 @@ if [ -f "$CMDLINE" ]; then
 fi
 
 # Disable Bluetooth service — hardware already disabled via dtoverlay=disable-bt above
-# Mask prevents hciuart from logging errors at every boot
-sudo systemctl disable hciuart 2>/dev/null || true
-sudo systemctl mask hciuart
+systemctl disable hciuart 2>/dev/null || true
+systemctl mask hciuart
 
 # 3. Environment & Aliases (.bashrc, .profile, .vimrc)
 echo "[3/7] Configuring user bash profiles..."
-WANNES_HOME="/home/wannes"
 
 if ! grep -q "WanOS Custom Aliases" "$WANNES_HOME/.bashrc"; then
     cat << 'EOF' >> "$WANNES_HOME/.bashrc"
@@ -164,10 +245,12 @@ else
     echo "      sudo -n systemctl restart wanos.service"
 fi
 
-# 5. WanOS Logging Directory
-echo "[5/7] Creating Log Directories..."
+# 5. WanOS Logging Directory + app tree stub
+echo "[5/7] Creating Log Directories and app tree stub..."
 mkdir -p /var/log/wanos
 chown wannes:wannes /var/log/wanos
+mkdir -p "$WANNES_HOME/wanos"
+chown -R wannes:wannes "$WANNES_HOME/wanos"
 
 # 6. Install & Configure Log2Ram
 echo "[6/7] Installing Log2Ram..."
@@ -180,7 +263,7 @@ if ! command -v log2ram &>/dev/null; then
         ./install.sh
     )
     sed -i 's/^SIZE=.*/SIZE=256M/' /etc/log2ram.conf
-    
+
     mkdir -p /etc/systemd/system/log2ram-daily.timer.d
     cat << 'EOF' > /etc/systemd/system/log2ram-daily.timer.d/override.conf
 [Timer]
@@ -193,8 +276,6 @@ else
 fi
 
 # 6b. rsyslog logcap — stop daemon.log; truncate syslog at 20 MiB (no archive).
-# Scripts live in helpers/ (mirrored). Prefer the synced tree; fall back to
-# copies next to this phase1 script on a fresh host before first sync.
 LOGCAP_SCRIPT=""
 for cand in \
     "${WANNES_HOME}/wanos/helpers/wanos_rsyslog_logcap.sh" \
@@ -213,37 +294,17 @@ else
     echo "      After code sync: sudo bash ${WANNES_HOME}/wanos/helpers/wanos_rsyslog_logcap.sh"
 fi
 
-# 7. Configure Samba using external smb.conf
-echo "[7/7] Configuring Samba from external smb.conf..."
-mkdir -p "$WANNES_HOME/wanos"
-chown -R wannes:wannes "$WANNES_HOME/wanos"
-
-# Locate external smb.conf helper file
-SMB_SRC=""
-if [ -f "$WANNES_HOME/smb.conf" ]; then
-    SMB_SRC="$WANNES_HOME/smb.conf"
-elif [ -f "./smb.conf" ]; then
-    SMB_SRC="./smb.conf"
-fi
-
-if [ -n "$SMB_SRC" ]; then
-    echo "Copying $SMB_SRC to /etc/samba/smb.conf..."
-    cp "$SMB_SRC" /etc/samba/smb.conf
-else
-    echo "ERROR: External smb.conf not found in $WANNES_HOME/ or current directory!" >&2
-    echo "Please copy smb.conf to the Raspberry Pi before running Phase 1." >&2
-    exit 1
-fi
-
-systemctl enable --now smbd
+# 7. Summary (no Samba — Ops7)
+echo "[7/7] Phase 1 host baseline complete (no Samba)."
 
 echo "================================================================"
 echo " [PHASE 1 COMPLETE]"
 echo "================================================================"
 echo "NEXT STEPS:"
-echo "1. Set Samba password:   sudo smbpasswd -a wannes"
-echo "2. Reboot the system:    sudo reboot"
-echo "3. Connect from Windows to \\\\<PI_IP>\\wanos_share"
-echo "4. Copy your .env, requirements.txt, and application code."
-echo "5. Run Phase 2 script:   ./wanos_bootstrap_phase2.sh"
+echo "1. Reboot:                 sudo reboot"
+echo "2. Sync WanOS tree:        helpers\\wanos-sync.bat run  (from PC)"
+echo "3. Run Phase 2 as wannes:  ./wanos_bootstrap_phase2.sh"
+echo "4. Finish Nginx app.wanos.be + Mosquitto/Z-Wave (install guide)."
+echo "5. Then WLW overlay:       sudo bash ~/be90webserver/helpers/bootstrap/wlw_bootstrap.sh"
+echo "PHP gate OK above - do not expose public :443 until LE + WLW smoke."
 echo "================================================================"

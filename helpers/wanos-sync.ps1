@@ -559,11 +559,35 @@ function Get-RemoteGlobFiles {
     $remote = "{0}@{1}" -f $Ssh.User, $Ssh.Host
     $pattern = $RemoteGlobPath.Trim()
     # If the glob matches nothing, $1 stays the literal pattern - treat as empty.
-    $script = ('set -- {0}; if [ -e "$1" ]; then for f; do printf "%s\n" "$f"; done; fi' -f $pattern)
+    # Use echo (not printf "%s\n"): Windows OpenSSH + PowerShell often eats the backslash,
+    # so remote output became "...sqln/var/lib/..." (literal n between paths).
+    $script = ('set -- {0}; if [ -e "$1" ]; then for f; do echo "$f"; done; fi' -f $pattern)
     $out = & (Get-RsyncSshExe) -o BatchMode=yes -o ConnectTimeout=10 -o LogLevel=ERROR $remote $script 2>$null
     $files = @()
     if ($null -eq $out) { return $files }
-    foreach ($line in @($out)) {
+    # ssh may return string[] or one multi-line string; also repair legacy "extn/" joins.
+    $lines = @()
+    foreach ($chunk in @($out)) {
+        if ($null -eq $chunk) { continue }
+        $text = [string]$chunk
+        # Repair: .sqln/ .zipn/ .jsonn/ .sqliten/ -> extension + real path boundary
+        $text = [regex]::Replace($text, '\.(sqlite|sql|zip|json)n/', '.$1/')
+        $parts = @()
+        if ($text.Contains("`n") -or $text.Contains("`r")) {
+            $parts = @($text -split "`r?`n")
+        } elseif ($text -match '/var/.+/var/') {
+            # Still concatenated absolute paths - split before each /var/
+            $parts = [regex]::Split($text, '(?=/var/)')
+        } else {
+            $parts = @($text)
+        }
+        foreach ($part in $parts) {
+            if (-not [string]::IsNullOrWhiteSpace($part)) {
+                $lines += $part
+            }
+        }
+    }
+    foreach ($line in $lines) {
         $p = [string]$line
         if ([string]::IsNullOrWhiteSpace($p)) { continue }
         $files += $p.Trim()
@@ -1377,7 +1401,7 @@ function Invoke-WlwSqlitePullJob {
         [switch]$DryRun
     )
 
-    Write-SyncJobHeader "=== WLW STATE PULL (Pi /var/lib/wlw sqlite+sql --> Local state/) ==="
+    Write-SyncJobHeader "=== WLW STATE PULL (Pi /var/lib/wlw --> Local state/) ==="
 
     $subdir = if ($null -eq $Ssh.LocalLogSubdir) { "" } else { [string]$Ssh.LocalLogSubdir }
     $subdir = $subdir.Trim().Trim('\', '/')
@@ -1393,24 +1417,24 @@ function Invoke-WlwSqlitePullJob {
     if (-not $localRsync.EndsWith("/")) { $localRsync = $localRsync + "/" }
 
     if ($null -eq $SqliteFiles -or $SqliteFiles.Count -eq 0) {
-        Write-Host "WLW SQLITE: no [WlwSqlitePullFiles] entries" -ForegroundColor DarkYellow
+        Write-Host "WLW STATE: no [WlwSqlitePullFiles] entries" -ForegroundColor DarkYellow
         return
     }
 
-    # Expand globs (budget-backup-*.sql / budget-bak-*.sql / budget-data-*.zip) to concrete paths.
+    # Expand globs (budget*.sql / budget*.zip / budget/*.sqlite / budget/*.json) to concrete paths.
     $resolved = New-Object System.Collections.Generic.List[string]
     foreach ($remotePath in $SqliteFiles) {
         $path = [string]$remotePath
         if ([string]::IsNullOrWhiteSpace($path)) { continue }
         $path = $path.Trim()
         if ($path -like "*.env*" -or $path.EndsWith("/.env") -or $path.EndsWith("\.env")) {
-            Write-Host ("WLW SQLITE skip (refused .env): {0}" -f $path) -ForegroundColor Red
+            Write-Host ("WLW STATE skip (refused .env): {0}" -f $path) -ForegroundColor Red
             continue
         }
         if ($path.Contains("*") -or $path.Contains("?")) {
             $matches = @(Get-RemoteGlobFiles -Ssh $Ssh -RemoteGlobPath $path)
             if ($matches.Count -eq 0) {
-                Write-Host ("WLW SQLITE skip (no glob matches): {0}" -f $path) -ForegroundColor DarkYellow
+                Write-Host ("WLW STATE skip (no glob matches): {0}" -f $path) -ForegroundColor DarkYellow
                 continue
             }
             foreach ($m in $matches) {
@@ -1426,19 +1450,21 @@ function Invoke-WlwSqlitePullJob {
         if ([string]::IsNullOrWhiteSpace($path)) { continue }
         $path = $path.Trim()
         if ($path -like "*.env*" -or $path.EndsWith("/.env") -or $path.EndsWith("\.env")) {
-            Write-Host ("WLW SQLITE skip (refused .env): {0}" -f $path) -ForegroundColor Red
+            Write-Host ("WLW STATE skip (refused .env): {0}" -f $path) -ForegroundColor Red
             continue
         }
-        # Live DBs (.sqlite) and budget SQL dumps (.sql) only - never .env or other state.
+        # Allowed: live DBs, SQL dumps, budget zip archives, JSON credentials - never .env.
         $isSqlite = $path -like "*.sqlite"
         $isSqlDump = ($path -like "*.sql") -and (-not $isSqlite)
-        if (-not $isSqlite -and -not $isSqlDump) {
-            Write-Host ("WLW SQLITE skip (not .sqlite/.sql): {0}" -f $path) -ForegroundColor DarkYellow
+        $isZip = $path -like "*.zip"
+        $isJson = $path -like "*.json"
+        if (-not $isSqlite -and -not $isSqlDump -and -not $isZip -and -not $isJson) {
+            Write-Host ("WLW STATE skip (not .sqlite/.sql/.zip/.json): {0}" -f $path) -ForegroundColor DarkYellow
             continue
         }
 
         if (-not (Test-RemoteFileExists -Ssh $Ssh -RemoteFilePath $path)) {
-            Write-Host ("WLW SQLITE skip (missing): {0}" -f $path) -ForegroundColor DarkYellow
+            Write-Host ("WLW STATE skip (missing): {0}" -f $path) -ForegroundColor DarkYellow
             continue
         }
 
@@ -1451,11 +1477,11 @@ function Invoke-WlwSqlitePullJob {
         [void]$args.Add($remoteSpec)
         [void]$args.Add($localRsync)
 
-        Write-SyncSection ("** rsync sqlite: {0} --> {1}" -f $remoteSpec, $localDir)
-        Invoke-Rsync -RsyncArgs @($args) -FailMessage ("WLW sqlite pull failed for {0}" -f $path)
+        Write-SyncSection ("** rsync state: {0} --> {1}" -f $remoteSpec, $localDir)
+        Invoke-Rsync -RsyncArgs @($args) -FailMessage ("WLW state pull failed for {0}" -f $path)
     }
 
-    Write-SyncDone ("* WLW SQLITE: done --> {0}" -f $localDir)
+    Write-SyncDone ("* WLW STATE: done --> {0}" -f $localDir)
 }
 
 function Invoke-WlwLogPullJobs {

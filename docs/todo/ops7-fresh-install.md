@@ -1,13 +1,15 @@
 # --- file: docs/todo/ops7-fresh-install.md ---
 # Ops7 — Fresh main Pi install (OS / PHP / Python)
 
-**Status:** open · **Size:** high · **Pipeline:** [`pipeline.md`](pipeline.md) Sequence / Manual § Ops7  
-**Date:** 2026-10-22 (CET)  
+**Status:** coding · **Size:** high · **Pipeline:** [`pipeline.md`](pipeline.md) Sequence **#1** / Manual § Ops7  
+**Date:** 2026-10-22 (CET) · **Kickoff:** 2026-10-22 · **Scripts implement:** 2026-10-22  
 **Hardware:** Raspberry Pi 4 Model B Rev 1.5 · role: WanOS **main** + WLW co-host at **`10.32.251.30`**  
 **Product guide (as-is / operator):** [`docs/bootstrap-main-pi.md`](../bootstrap-main-pi.md)  
 **WLW follow-on:** sibling repo **be90webserver** — `docs/todo/ops7-fresh-install.md` (overlay only) + `docs/bootstrap-host.md` (mention)
 
 **Absorbs:** former **Ops2** (Pi Python 3.12 vs 3.13 assess) — superseded by OS lock (Trixie → system **Python 3.13**).
+
+**Prereqs:** none blocking (same Pi, re-image). WLW overlay + **B30** wait on this host Done. LCD `.51` / kiosk site out of scope.
 
 ---
 
@@ -37,6 +39,12 @@
 | 5 | Samba | **Do not install** (not used). |
 | 6 | Ownership | Host flash / PHP apt / system Python / WanOS baseline = **wanos**. WLW nginx site + `/var/lib/wlw` + bridge unit = **be90webserver** overlay. |
 | 7 | Ops2 | **Folded into Ops7** — no separate 3.12-vs-3.13 assess row. |
+| 8 | LE certs | **Re-issue** with certbot on new OS (do not reuse old-card live files). |
+| 9 | Nginx / host apt | **Automate as much as possible** in wanos phase1 (`nginx`, certbot tooling, PHP stack). |
+| 10 | `smb.conf` | **Remove** from bootstrap tree at implement (not leave unused). |
+| 11 | PHP apt ownership | **wanos only.** Strip PHP apt install from WLW `wlw_bootstrap` / `apt-packages.txt` at implement (overlay keeps FPM detect, nginx site, state dirs). |
+| 12 | WLW state | Prefer **restore** from sync-pulled DBs + offline **`.env`** (operator has `.env` backup — Q1b). **A1 re-seed** only if auth restore impossible. |
+| 13 | WLW state pull set | **Pull only** (not mirror): `wlw.sqlite`; `budget*.sql`/`budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json`. Drop legacy `budget.sqlite`. Engine allows `.sqlite`/`.sql`/`.zip`/`.json` (**shipped** in sync tool). |
 
 ### PHP2Shell
 
@@ -119,20 +127,94 @@ Hand off to be90webserver Ops7 overlay (sync → `wlw_bootstrap.sh` → keys/cer
 
 ---
 
-## DoD (stub — expand at kickoff)
+## Kickoff (2026-10-22)
 
-- [ ] Locks above recorded; Ops2 Sequence/Manual closed as superseded
-- [ ] Product doc [`bootstrap-main-pi.md`](../bootstrap-main-pi.md) matches scripts
-- [ ] be90webserver pointer + mention file accurate
-- [ ] Implement (when commanded): scripts drop Samba; install PHP; gate version
-- [ ] Pi smoke: OS, `php -v`, `python3 -V`, WanOS, then WLW overlay smoke
-- [ ] Soak: sauna SHT11 + pulse inputs + key wheels on 3.13
-- [ ] **Last DoD:** audit all `docs/**/*.md` + root README vs shipped host
+### Prereqs / gates
+
+| Check | Result |
+|---|---|
+| In pipeline Sequence / Manual | Yes — Ops7 open/high |
+| Ops2 folded | Yes — superseded |
+| Docs triage present | Yes — this file + `bootstrap-main-pi.md` + WLW pointer |
+| Blocked on other letters | No |
+| Code allowed | **No** until operator says `implement` / `ship` / `patch` |
+
+### Verified (repo / locks)
+
+- Same Pi `.30`; Trixie Lite 64-bit; PHP ≥ 8.4.27; Python 3.13; no Samba; re-image only.
+- Host ownership = wanos; WLW = additive overlay after host green.
+- Phase1 still **installs Samba** + enables `smbd` — must change at implement.
+- `apt-packages.txt` has **no PHP/nginx** yet; WLW `apt-packages.txt` still lists `php-*` / `nginx` for overlay idempotency.
+- Nginx/`app.wanos.be` / Mosquitto / Z-Wave / ACME-DNS are largely **manual** in `wanos-install-backend.md` today (not fully in phase1/2).
+- Path segment `bootstrap` excluded from main `wanos-sync` — first-boot still needs SCP/copy of helpers.
+
+### Implement plan
+
+1. [x] `apt-packages.txt`: no samba; PHP-FPM + nginx + certbot + extensions
+2. [x] `wanos_bootstrap_phase1.sh`: no Samba; PHP enable + version gate; purge leftover samba
+3. [x] Delete `smb.conf`
+4. [x] Phase2: print `python3 -V`; sync hint (no Samba)
+5. [x] Docs: `wanos-install-backend.md` + `bootstrap-main-pi.md` + WLW bootstrap
+6. [x] WLW: strip PHP/nginx apt; require wanos phase1
+7. [x] Sync state pull `.zip`/`.json`/`obio/credentials.json`
+8. [ ] Cutover smoke + 3.13 soak; WLW restore + overlay + smoke; Last DoD docs audit
+
+### DoD (kickoff)
+
+**Docs (prep — largely Done at triage):**
+
+- [x] Locks recorded; Ops2 superseded in pipeline
+- [x] Product [`bootstrap-main-pi.md`](../bootstrap-main-pi.md) + WLW `bootstrap-host.md` / Ops7 pointer
+- [x] Product docs match scripts (no Samba; PHP gate) — **2026-10-22** (cutover smoke still open)
+
+**Code / host (after `implement`):**
+
+- [x] Phase1/apt scripts: no Samba; PHP-FPM stack + gate in wanos (**2026-10-22** — not yet run on Pi)
+- [ ] Fresh flash smoked end-to-end (phase0 → phase1/2 → WanOS green)
+- [ ] Live `php -v` ≥ **8.4.27** before public PHP `:443`
+- [ ] Live `python3 -V` → **3.13.x**; `wanos_venv` works; `wanos.service` up
+- [ ] WanOS LAN smoke (`app.wanos.be` / operator checks)
+- [ ] Soak: sauna SHT11 + pulse inputs + critical wheels on 3.13
+- [x] Sync: `[WlwSqlitePullFiles]` + engine pull `.zip`/`.json`/`obio/credentials.json`; no legacy `budget.sqlite` (**2026-10-22**)
+- [ ] Hand off: restore state + `.env`; re-issue LE; renew keys; WLW overlay smoke
+- [ ] **Last DoD:** audit all `docs/**/*.md` + root README vs shipped host (both repos as touched)
 
 ---
 
-## Open (do not assume)
+## Kickoff answers (operator 2026-10-22) — locked
 
-1. Restore `/var/lib/wlw` vs A1 re-seed (WLW)?
-2. Reuse LE vs fresh certbot?
-3. Any Trixie package/path breaks vs current Bullseye WanOS install (discover at implement/smoke)?
+| # | Answer | Lock / note |
+|---|---|---|
+| **Q1** | Prefer **restore** when sync/PC state usable | A1 only if auth cannot be restored |
+| **Q1b** | **`.env` is backed up** (operator) | Sync still never pulls `.env` — offline copy is SoT for secrets |
+| **Q2** | **Re-issue** LE after reflash | No old-card `/etc/letsencrypt` reuse |
+| **Q3** | Automate as much as possible | wanos phase1: `nginx` + certbot tooling + PHP |
+| **Q4** | Remove SMB | apt + phase1 + **delete `smb.conf`** |
+| **Q5 / Q5b** | Sync **pull** (not mirror) set locked | See table; config + engine updated |
+| **Q6** | wanos does OS-level | Strip PHP apt from WLW overlay (still at full Ops7 implement) |
+| **Q7** | Include `/var/lib/wlw/obio/credentials.json` | **Yes** — in pull list |
+
+### What is A1?
+
+**A1** (be90webserver phase A, Done) = first-time **auth seed**: `/var/lib/wlw/.env` + `seed_wlw_user.php` + new TOTP. Not a backup. Guide: be90webserver `wlw_bootstrap.md` § A1.
+
+### Sync backup coverage (locked — code shipped)
+
+**Pull only** → OneDrive `logs\wlw\state\` (`[WlwSqlitePullFiles]` + `Invoke-WlwSqlitePullJob`):
+
+| Include | Exclude |
+|---|---|
+| `/var/lib/wlw/wlw.sqlite` | **`.env`** (never sync; operator offline backup) |
+| `/var/lib/wlw/budget*.sql` | Whole-dir mirror of `/var/lib/wlw/` |
+| `/var/lib/wlw/budget*.zip` | Legacy **`/var/lib/wlw/budget.sqlite`** (removed) |
+| `/var/lib/wlw/budget/*.sqlite` | |
+| `/var/lib/wlw/budget/*.json` | |
+| `/var/lib/wlw/obio/credentials.json` | |
+
+**WanOS:** `[StatsRepoPull]` autos; logs/session per sync docs; WanOS `.env` not mirrored.
+
+### Remaining open (kickoff)
+
+**None** for sync/state. Full Ops7 host bootstrap (Samba out / PHP+nginx in / WLW overlay strip) still waits on **`implement Ops7`**.
+
+**Still locked:** Trixie Lite; PHP ≥ 8.4.27; Python 3.13; same IP; renew SSH; no Samba; LCD/kiosk OOS; re-image only; LE re-issue; automate host apt.
