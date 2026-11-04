@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-10-22 (**Ops7** Sequence #1 — scripts coding; folds **Ops2**)
+**Last updated:** 2026-11-03 (**Ops8** Sequence #1 — PHP2Shell bridge; Ops7 → #2)
 
 ---
 
@@ -31,6 +31,7 @@ Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase
 | **P** | Portability | [`phaseP-portability.md`](phaseP-portability.md) |
 | **L** | Local character LCDs | [`phaseL-lcd.md`](phaseL-lcd.md) |
 | **S** | Sauna plant (vent + start gate) | [`_archive/phaseS-sauna.md`](_archive/phaseS-sauna.md) (archived) |
+| **Ops8** | PHP2Shell bridge (current Pi PHP, pre-Ops7) | [`ops8-php2shell-bridge.md`](ops8-php2shell-bridge.md) |
 | **Ops7** | Fresh main Pi (OS / PHP / Python) | [`ops7-fresh-install.md`](ops7-fresh-install.md) · product [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md) |
 
 **DoD (every phase):** Last step = audit & update all `docs/**/*.md` (+ root README) against shipped behavior.
@@ -110,57 +111,58 @@ All open items. **Detail** = phase file section.
 ```text
 #   Status Size Id           What                                               Detail
 ──  ────── ──── ──────────── ────────────────────────────────────────────────── ──────────────────────────
-1   coding high Ops7         fresh main Pi: Trixie + PHP≥8.4.27 + Python 3.13 (scripts) ops7-fresh-install.md
-2   open   low  B12          rule-list folder/tag                               phaseB § B12
-3   open   mid  B26          independent If sequence under Then (all-match)     phaseB § B26
-4   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)      phaseB § B24
-5   hold   high B28          assess: auto-off SoT → singular automation rules   phaseB § B28
-6   hold   mid  B29          H7 Auto/Manual override (entry model undecided)    phaseB § B29
-7   open   high E            Gmail transport / outbox + Blockly Messages        phaseE
-8   open   mid  C3           Force ALL-OFF                                      phaseC § C3
-9   open   mid  C4           Rename HTML entrypoints (commander→wisc, blocky→blockly; login landing)  phaseC § C4
-10  open   mid  C28          LG TV skins (explorer-tv + wisc-tv; gate from login) phaseC § C28
-11  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
-12  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
-13  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
-14  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
-15  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
-16  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
-17  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
-18  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
-19  open   low  G7           Integration log tags                               phaseG § G7
-20  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
-21  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
-22  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
-23  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
-24  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
-25  open   high G9           Honeywell / Evohome                                phaseG § G9
-26  open   high G12          SMA solar                                          phaseG § G12
-27  open   high G13          HomeConnect BSH                                    phaseG § G13
-28  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
-29  open   high F            Security bridge (F1→F7)                            phaseF
-30  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
-31  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-32  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-33  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-34  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-35  hold   high P            Other homes / portability (assess)                 phaseP
-36  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
-37  open   mid  P2           sync: [MirrorExcludeFiles] for main + lcd + wlw      phaseP § P2
-38  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
-39  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
-40  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
-41  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
-42  open   mid  C42          HomeWizard-style power graphs (Explorer History)     phaseC § C42
-43  open   low  C43          Explorer view presets: Control/History + clear on filter drift  phaseC § C43
-44  open   mid  C44          bugfix: UI SSE reconnect after backend reboot                 phaseC § C44
-45  open   mid  G18          bugfix: zwave.vent.badk_1e OFF not sent (unmapped/empty)    phaseG § G18
-46  hold   mid  G19          assess: empty wanos_iwhw.log (Grok: missing self.iwhw_logger)  phaseG § G19
-47  open   low  B30          numeric Compare edge vs level (was B14b row 2)     phaseB § B30
-48  open   low  B31          H6 number helpers (was B14b)                       phaseB § B31
-49  open   low  B32          H9 sun elevation (was B14b)                        phaseB § B32
+1   open   mid  Ops8         PHP2Shell bridge on current Pi PHP (pre-Ops7)      ops8-php2shell-bridge.md
+2   coding high Ops7         fresh main Pi: Trixie + PHP≥8.4.27 + Python 3.13 (scripts) ops7-fresh-install.md
+3   open   low  B12          rule-list folder/tag                               phaseB § B12
+4   open   mid  B26          independent If sequence under Then (all-match)     phaseB § B26
+5   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)      phaseB § B24
+6   hold   high B28          assess: auto-off SoT → singular automation rules   phaseB § B28
+7   hold   mid  B29          H7 Auto/Manual override (entry model undecided)    phaseB § B29
+8   open   high E            Gmail transport / outbox + Blockly Messages        phaseE
+9   open   mid  C3           Force ALL-OFF                                      phaseC § C3
+10  open   mid  C4           Rename HTML entrypoints (commander→wisc, blocky→blockly; login landing)  phaseC § C4
+11  open   mid  C28          LG TV skins (explorer-tv + wisc-tv; gate from login) phaseC § C28
+12  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
+13  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
+14  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
+15  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
+16  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
+17  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
+18  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
+19  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
+20  open   low  G7           Integration log tags                               phaseG § G7
+21  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
+22  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
+23  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
+24  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
+25  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
+26  open   high G9           Honeywell / Evohome                                phaseG § G9
+27  open   high G12          SMA solar                                          phaseG § G12
+28  open   high G13          HomeConnect BSH                                    phaseG § G13
+29  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
+30  open   high F            Security bridge (F1→F7)                            phaseF
+31  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
+32  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+33  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+34  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+35  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+36  hold   high P            Other homes / portability (assess)                 phaseP
+37  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
+38  open   mid  P2           sync: [MirrorExcludeFiles] for main + lcd + wlw      phaseP § P2
+39  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
+40  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
+41  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
+42  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
+43  open   mid  C42          HomeWizard-style power graphs (Explorer History)     phaseC § C42
+44  open   low  C43          Explorer view presets: Control/History + clear on filter drift  phaseC § C43
+45  open   mid  C44          bugfix: UI SSE reconnect after backend reboot                 phaseC § C44
+46  open   mid  G18          bugfix: zwave.vent.badk_1e OFF not sent (unmapped/empty)    phaseG § G18
+47  hold   mid  G19          assess: empty wanos_iwhw.log (Grok: missing self.iwhw_logger)  phaseG § G19
+48  open   low  B30          numeric Compare edge vs level (was B14b row 2)     phaseB § B30
+49  open   low  B31          H6 number helpers (was B14b)                       phaseB § B31
+50  open   low  B32          H9 sun elevation (was B14b)                        phaseB § B32
 ```
-Near-term: **Ops7** first (fresh `.30`; scripts coding; WLW overlay after host green). Then **B26** → **B24**. **B12** may run ∥ after Ops7 host green (or earlier if no Pi cutover conflict). **B30**/**B31**/**B32** low. **B29** hold (H7). **B28** hold assess. Vendor bridges: **G11→G9→G12→G13** then **G17**.
+Near-term: **Ops8** first (PHP2Shell bridge on live PHP). Then **Ops7** (fresh `.30`; scripts coding; WLW overlay after host green). Then **B26** → **B24**. **B12** may run ∥ after Ops7 host green (or earlier if no Pi cutover conflict). **B30**/**B31**/**B32** low. **B29** hold (H7). **B28** hold assess. Vendor bridges: **G11→G9→G12→G13** then **G17**.
 
 ---
 
@@ -171,7 +173,8 @@ Not lettered product phases. Detail stays here (no `phaseX` file) unless re-home
 | Item | Status | Notes |
 |---|---|---|
 | **Ops1 later** | hold | uvicorn `--no-access-log` / no `?jwt=`; ForwardToSyslog; log2ram SIZE; auth/kern no-archive |
-| **Ops7 — Fresh main Pi** | coding · Sequence **#1** | Trixie Lite 64-bit + PHP ≥ **8.4.27** + Python **3.13**; no Samba; folds **Ops2**. Scripts **2026-10-22**; cutover open. Checklist [`../ops7-operator-checklist.md`](../ops7-operator-checklist.md) · [`ops7-fresh-install.md`](ops7-fresh-install.md) · [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md) |
+| **Ops8 — PHP2Shell bridge** | open · Sequence **#1** | Patch/mitigate **current** Pi PHP (CVE-2026-109618 / 109619) until Ops7. Detail [`ops8-php2shell-bridge.md`](ops8-php2shell-bridge.md). Scripts only after `implement`. |
+| **Ops7 — Fresh main Pi** | coding · Sequence **#2** | Trixie Lite 64-bit + PHP ≥ **8.4.27** + Python **3.13**; no Samba; folds **Ops2**. Scripts **2026-10-22**; cutover open. Checklist [`../ops7-operator-checklist.md`](../ops7-operator-checklist.md) · [`ops7-fresh-install.md`](ops7-fresh-install.md) · [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md) |
 | **Ops2 — Pi Python runtime** | superseded | **2026-10-22** → **Ops7** (Trixie locks system Python 3.13; soak in Ops7 DoD) |
 | **PCB / carrier board (KiCad, JLCPCB)** | open | **Not in this pipeline.** Design + fab backlog → [**wanos-pcb**](https://github.com/gitwannes/wanos-pcb) (`docs/todo/pipeline.md`). This repo: `config_hardware.yaml` runtime pin map only. |
 | **Pull auto.yaml from Pi** | hold | Prefer non-repo pull dir — see [`wanos-sync.md`](../wanos-sync.md) |
@@ -205,15 +208,23 @@ Not lettered product phases. Detail stays here (no `phaseX` file) unless re-home
 
 **R1 DoD:** [x] Operator lock recorded · [x] `LICENSE` / `readme.md` / `main.py` shipped · [x] Last DoD: audit `docs/**/*.md` + root README — no GPL drift (**2026-09-01**).
 
+### Ops8 — PHP2Shell bridge — open
+
+**Status:** open · size **mid** · Sequence **#1**  
+**Detail:** [`ops8-php2shell-bridge.md`](ops8-php2shell-bridge.md)  
+**Intent:** Bridge live PHP against PHP2Shell until Ops7 re-image (weeks). Operator checklist + helper script after locks + `implement`.
+
+**DoD / locks:** see detail file. Kickoff open Qs — no helpers until `implement`.
+
 ### Ops7 — Fresh main Pi (OS / PHP / Python) — coding
 
-**Status:** coding · size **high** · Sequence **#1**  
+**Status:** coding · size **high** · Sequence **#2**  
 **Detail:** [`ops7-fresh-install.md`](ops7-fresh-install.md) · product [`../bootstrap-main-pi.md`](../bootstrap-main-pi.md)  
 **WLW overlay after host:** be90webserver Ops7 (pointer).
 
 **Folds Ops2** (2026-08-27 assess verbatim retained in Ops7 detail file). Lock: latest Pi OS → Trixie → system **Python 3.13**; PHP ≥ **8.4.27**; no Samba.
 
-**DoD / locks / cutover:** see detail file — no code until `implement` / `ship` / `patch`.
+**DoD / locks / cutover:** see detail file — cutover after Ops8 bridge or operator override.
 
 ### Ops2 — Pi Python runtime — superseded 2026-10-22
 

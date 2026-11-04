@@ -1,7 +1,8 @@
 # --- file: docs/todo/ops7-fresh-install.md ---
 # Ops7 — Fresh main Pi install (OS / PHP / Python)
 
-**Status:** coding · **Size:** high · **Pipeline:** [`pipeline.md`](pipeline.md) Sequence **#1** / Manual § Ops7  
+**Status:** coding · **Size:** high · **Pipeline:** [`pipeline.md`](pipeline.md) Sequence **#2** / Manual § Ops7  
+**Note (2026-11-03):** **Ops8** (PHP2Shell bridge on current PHP) is Sequence **#1** ahead of this cutover — [`ops8-php2shell-bridge.md`](ops8-php2shell-bridge.md).  
 **Date:** 2026-10-22 (CET) · **Kickoff:** 2026-10-22 · **Scripts implement:** 2026-10-22  
 **Hardware:** Raspberry Pi 4 Model B Rev 1.5 · role: WanOS **main** + WLW co-host at **`10.32.251.30`**  
 **Product guide (as-is / operator):** [`docs/bootstrap-main-pi.md`](../bootstrap-main-pi.md)  
