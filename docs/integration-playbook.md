@@ -326,8 +326,10 @@ New: `[Honeywell]`, `[HomeWizard]`, `[Samsung]`, `[SMA]`, `[HomeConnect]` (or wh
 | **G11 Samsung** | Climate power/setpoint | IDX band **TBD at implement / re-kickoff** (not `810xx`); SmartThings cloud vs local `samsungrac` already locked cloud-only |
 | **G12 SMA** | Live production | `pysma` vs SunSpec Modbus |
 | **G13 HomeConnect** | Cycle state (oven/dishwasher/laundry) | Which appliances; commands vs telemetry |
+| **G23 Water-Link scout** | Portal cumulative m³ (standalone) | **Done 2026-11-04** — [`integration_waterlink.md`](integration_waterlink.md); `waterlink_scout.py` |
+| **G24 Water-Link bridge** | Poll every `poll_interval_hours` → idx **82001** fluid | Kickoff: Admin/health/entity; reuse G23 PKCE client |
 
-Default sequence remains: after **G4**, before **F**; **one ship each**. Stubs: [`phaseG-integrations.md`](todo/phaseG-integrations.md) § G9–G13.
+Default sequence remains: after **G4**, before **F**; **one ship each**. Stubs: [`phaseG-integrations.md`](todo/phaseG-integrations.md) § G9–G13 · § G24.
 
 ---
 

@@ -52,6 +52,7 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 - Siemens HomeConnect
 - Honeywell Home (central heating)
 - SMA (PV inverter)
+- Water-Link digital meter WanOS bridge (**G24**; scout **G23** ✅ — [`docs/integration_waterlink.md`](docs/integration_waterlink.md))
 - HomeWizard Energy Sockets (API v1 on site today)
 - EZVIZ doorbell
 

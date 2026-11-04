@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G22 ✅ Done 2026-10-01** — Onkyo power-ON / SYNC. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G22 ✅ Done 2026-10-01** — Onkyo power-ON / SYNC. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). **G23 ✅ Done 2026-11-04** — Water-Link scout. G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13 / G24** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
@@ -34,13 +34,14 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G22 — Onkyo power-ON volume** | ✅ **Done 2026-10-01** — no SYNC wipe on ON; Onkyo Blocky power vs volume split; product [`integration_onkyo.md`](../integration_onkyo.md) |
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
-| **G23 — Water-Link** | Mijn Water-Link portal meter (scout → bridge) — **hold** until Network capture |
+| **G23 — Water-Link scout** | ✅ **Done 2026-11-04** — standalone scout; product [`integration_waterlink.md`](../integration_waterlink.md) |
+| **G24 — Water-Link WanOS bridge** | Portal meter poll → ingest `82001` / fluid every `poll_interval_hours` |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
 | **G15 — Evening twilight cross-day** | ✅ **Done 2026-08-22** — twilight guards + OWM rollover + sweeper/timer hardening; **C27** + Admin timeline in same ship |
 
 Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** ✅ **Done 2026-08-22** (Pi smoke **2026-08-22**). **G16** ✅ **Done 2026-08-27** (Pi smoke **2026-08-27**). **G4** still owns the automatic hot-sun morning open.
 
-**G11 → G9 → G10 → G12 → G13 → G23:** remaining vendor bridges — **one integration per code run**, **never combined**. Original letter order G11 first (**2026-08-20**); **G10 may implement before G11+G9** (operator override **2026-09-10**). **G16** ✅ shipped **2026-08-27**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 / G23 stubs.
+**G11 → G9 → G10 → G12 → G13 → G24:** remaining vendor bridges — **one integration per code run**, **never combined**. Original letter order G11 first (**2026-08-20**); **G10 may implement before G11+G9** (operator override **2026-09-10**). **G16** ✅ shipped **2026-08-27**. **G23** scout ✅ **2026-11-04**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 / G24 stubs.
 
 ---
 
@@ -1159,98 +1160,77 @@ Power ON deliberately nullled `volume` → Explorer **SYNC...**, then forced `MV
 
 ---
 
-## 📋 G23 — Water-Link portal meter (scout) 🔜 HOLD (locks in progress)
+## ✅ G23 — Water-Link portal scout — **Done 2026-11-04**
 
-**Letter:** **G23**. **Pipeline:** Sequence **#29** · status **hold** · size **high**. Affinity: **G** (vendor scout; full bridge deferred).  
-**Playbook:** [`docs/integration-playbook.md`](../integration-playbook.md) — bridge checklist N/A until a later ship.
+**Letter:** **G23**. **Pipeline:** Done. Size **high**. **Pi smoke:** ✅ **2026-11-04**.  
+**Product:** [`docs/integration_waterlink.md`](../integration_waterlink.md). WanOS bridge → **G24**.
 
 ### Operator request (verbatim, 2026-11-04)
 
-> wannes@wanos:~/wanos $ python ./waterlink_scout.py --debug
-> 16:18:44 [DEBUG] Loaded environment variables from /home/wannes/wanos/.env
-> =================================================================
->  WanOS Water-Link Standalone Integration Scout
-> =================================================================
->  Target Meter ID / Serial : 260202059
->  WanOS Ingest IDX         : 82001 (fluid)
->  Portal Account User      : johan@hofmans.be
->  Poll Interval Configured : 6 hours
-> -----------------------------------------------------------------
-> 16:18:44 [INFO] Initiating authentication with Mijn Water-Link...
-> 16:18:44 [DEBUG] Portal landing response: 200
-> 16:18:45 [INFO] Cookie-based session established successfully.
-> 16:18:45 [INFO] Fetching meter telemetry for meter_id: 260202059...
-> 16:18:45 [ERROR] Scout failed to pull data: Could not retrieve meter telemetry: None
-> 16:18:45 [ERROR] Traceback:
-> Traceback (most recent call last):
->   File "/home/wannes/wanos/./waterlink_scout.py", line 349, in main
->     telemetry = await client.get_meter_reading()
->   File "/home/wannes/wanos/./waterlink_scout.py", line 218, in get_meter_reading
->     raise RuntimeError(f"Could not retrieve meter telemetry: {last_error}")
-> RuntimeError: Could not retrieve meter telemetry: None
+> … Scout failed to pull data: Could not retrieve meter telemetry: None …
 
 > triage + kickoff - tell me how to check in browser
 
-### Verified (kickoff 2026-11-04)
+### Shipped summary
 
-| Fact | Evidence |
+| Piece | Where |
 |---|---|
-| Scout exists at repo root | `waterlink_scout.py` |
-| Config stub present | `config.yaml` `waterlink:` → `meter_id` `260202059`, `idx` `82001`, `poll_interval_hours` `6` |
-| Creds load | `.env` `WATERLINK_USER` / `WATERLINK_PASSWORD` (scout printed user) |
-| Portal host targeted | `https://portaaldigitalemeters.water-link.be` |
-| Login success is false-positive | Guessed POST auth endpoints fail quietly; `GET /water-meter/{id}` HTTP 200 treated as cookie auth |
-| Telemetry fail with `last_error: None` | Soft-fail loop: no exceptions; wrong candidate URLs |
+| Scout | `waterlink_scout.py` — OIDC auth-code+PKCE S256 + SAP `#logOnForm` headless login → `GET /api/meters/{id}` |
+| Config | `config.yaml` `waterlink:` (`meter_id`, `poll_interval_hours`, `idx`) |
+| Secrets | `.env` `WATERLINK_USER` / `WATERLINK_PASSWORD` (`.env.example`) |
+| Parse | `"2,841"` → **2841.0** m³ |
 
-### HAR capture (operator file `portaaldigitalemeters.water-link.be.har`, 2026-11-04)
+**Locks retained:** scout-only this ship; ROPC unsupported; HAR not committed.
 
-**Do not commit the HAR** (contains live auth `code` / tokens). Tokens short-lived; treat file as secret.
+### G23 DoD
 
-| Piece | Verified |
+- [x] Real access_token via auth-code+PKCE headless form; fail clearly otherwise
+- [x] Prints cumulative m³ + `latestMeterReading` (Pi smoke **2841.0** m³ / `2026-11-02T00:00:00`)
+- [x] Config YAML + `.env` secrets; no secrets committed
+- [x] Last DoD: product [`integration_waterlink.md`](../integration_waterlink.md) + playbook row + pipeline Done (**2026-11-04**)
+- [x] Operator close **2026-11-04** — bridge triaged as **G24**
+
+---
+
+## 📋 G24 — Water-Link WanOS bridge 🔜 TODO
+
+**Letter:** **G24**. **Pipeline:** Sequence after **G13**, before **G17** · status **open** · size **high**.  
+**Depends on:** **G23** scout ✅ (reuse client/auth/API). **Playbook:** [`docs/integration-playbook.md`](../integration-playbook.md).  
+**Product (scout today / bridge later):** [`docs/integration_waterlink.md`](../integration_waterlink.md).
+
+### Operator request (verbatim, 2026-11-04)
+
+> worked - can this be used to be incoroprate into wanos? run every 6 hours? (not yet though)
+
+> close phase, triage a new phase for integration into wanos
+
+### Placement
+
+| Field | Value |
 |---|---|
-| Public SPA config | `GET /api/config` → `clientId` `07967700-64cf-4f26-825c-b13042574400`, `authority` `https://a5xhcq3r8.accounts.ondemand.com`, `redirectUri` `https://portaaldigitalemeters.water-link.be` |
-| IdP | SAP CIAM OIDC (`/.well-known/openid-configuration`) |
-| Login | Authorization Code + **PKCE S256**; browser form POST to `/oauth2/authorize`; redirect `/?code=…&state=…` |
-| Token | `POST {authority}/oauth2/token` — `grant_type=authorization_code` + `code` + `code_verifier` + `client_id` + `redirect_uri` (**no** `client_secret`); response `access_token` + `id_token`, `expires_in` **840**, scope `openid`, **no** `refresh_token` in this capture |
-| Meter SoT for cumulative | `GET /api/meters/{meterNumber}` → e.g. `meterReading` `"2,841"`, `latestMeterReading` `2026-11-02T00:00:00`, `isActive`, `divergentConsumption`, `meterReadingAvailable`, `daysOffset` |
-| Installations list | `GET /api/installations?index=0&size=10&…` |
-| Customer | `GET /api/customer` |
-| Charts (not primary cumulative) | `GET /api/measurements/year/range?meterNumber=…`, `GET /api/measurements/day?from=YYYY-MM-DD&meterNumber=…` |
-| WAF | Incapsula (`_Incapsula_Resource`) in front of portal |
-| HAR gap | Exported requests to `/api/*` show **no** `Authorization` / `Cookie` headers — browser HAR redaction; SPA almost certainly sends **Bearer** `access_token` (confirm at implement with live call) |
+| Affinity | **G** (vendor bridge) |
+| Sequence | After **G13**, before **G17** (same vendor cluster as former G23 bridge intent) |
+| Prereq | G23 scout auth + `/api/meters/{id}` proven |
 
-Scout guessed URLs **do not match** (`/api/water-meter/…` etc.). Correct meter path is **`/api/meters/{id}`**.
+### Intent (draft — kickoff later)
 
-### Not verified / open (must lock before `implement`)
+WanOS integration: poll Water-Link every `waterlink.poll_interval_hours` (**6**), ingest cumulative m³ to **`idx` 82001** / fluid. Reuse scout OIDC PKCE form login + meter GET. Admin enable, health/disable, tagged logs — per playbook at kickoff.
 
-1. **Ship scope:** scout-only fix vs full WanOS bridge (`integrations/waterlink.py` + Admin enable + poll → `82001` fluid) — **ask**.
-2. **Headless auth strategy** (browser OIDC+PKCE is interactive; `expires_in` ~14 min; no refresh in capture): password grant (listed on IdP but may be disabled for this client) vs `offline_access` refresh vs device/browser-assisted login once — **ask**.
-3. **Parse `meterReading`:** locale comma → `2.841` vs thousands → `2841` — confirm against UI number / unit — **ask**.
-4. **Sequence:** provisional after **G13**, before **G17**; override OK.
-5. **IDX / entity:** keep `82001` / fluid as drafted, or remap — **ask**.
-6. **Library:** custom OIDC+REST client expected unless operator picks a package.
+### Known constraints (from G23)
 
-### Intent (draft — not locked)
+* Token ~840 s; no refresh → full headless login each poll (OK at 6 h).
+* SAP form + Incapsula brittle.
+* Secrets `.env`; config `config.yaml` `waterlink:`.
 
-Make Mijn Water-Link cumulative meter reading usable by WanOS: first prove scout can auth + pull m³ for `meter_id` via `/api/meters/{id}`; then (if scope says so) poll on `poll_interval_hours` into ingest IDX.
+### Out of scope (until kickoff locks)
 
-### Prereqs / gates
+* Replacing pulse meters `11002`/`11003`; billing/invoices; chart APIs unless needed.
 
-* HAR auth/API shape **captured** (2026-11-04) — hold lifted for *discovery*; still **hold** for *implement* until open locks above.
-* Do **not** code until `implement` after locks.
-* Credentials / tokens stay in `.env` / home pack (**P**); no hardcodes; never commit HAR.
+### G24 DoD (draft)
 
-### Out of scope (draft)
-
-* Leak-alert UX beyond raw `divergentConsumption` (decide at lock).
-* Replacing pulse meters `11002`/`11003`.
-* Water-Link billing / invoices / multi-account UI.
-* Application Insights / telemetry noise.
-
-### G23 DoD (draft — refine after locks)
-
-- [ ] Scout authenticates for real (OIDC as locked) and prints cumulative m³ + reading timestamp from `GET /api/meters/{meter_id}`
-- [ ] If bridge in scope: poll + ingest per playbook; Admin enable; log tag locked; product doc
-- [ ] Last DoD: audit `docs/**/*.md` + root README against shipped behavior
+- [ ] Kickoff locks (entity_id, Admin, history, log tag, G6 scope if any)
+- [ ] Bridge polls + ingests per locks; Pi smoke
+- [ ] Product doc updated for bridge behaviour
+- [ ] Last DoD: audit `docs/**/*.md` + root README
 
 ---

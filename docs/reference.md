@@ -118,6 +118,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `epson.py`: TCP control for Epson projectors.
 * `lg.py`: LG webOS TV (**G16** ✅; **G20** OFF latch) — WOL + SSAP power poll + commanded-OFF latch (poll ON suppressed while SSAP stays open after WanOS OFF) + fixed app catalog launch. Product: [`docs/integration_lg.md`](integration_lg.md).
 * `homewizard.py`: HomeWizard Energy (**G10** ✅; health **G21** ✅) — Local API v2 poll (aiohttp) for P1 / PV → `810xx` (gauges as host history). Shared session + poll-staleness health (`3×poll_secs`) + 3-fail host hysteresis. Product: [`docs/integration_homewizard.md`](integration_homewizard.md). Scout: `helpers/homewizard_discovery.py`. Map UI → **G17**.
+* Water-Link: scout **G23** ✅ (`waterlink_scout.py` at repo root) — portal cumulative m³; WanOS poll bridge → **G24**. Product: [`docs/integration_waterlink.md`](integration_waterlink.md).
 
 ---
 

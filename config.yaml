@@ -189,6 +189,7 @@ native_rfx:
     on_id: "545511"
     off_id: "545514"
 
+# Water-Link digital meter (scout: waterlink_scout.py). Secrets: WATERLINK_USER / WATERLINK_PASSWORD in .env
 waterlink:
   meter_id: "260202059"
   poll_interval_hours: 6

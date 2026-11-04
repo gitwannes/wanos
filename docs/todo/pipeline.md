@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-11-04 (**Ops8** PHP2Shell bridge Done; Ops7 is Sequence #1)
+**Last updated:** 2026-11-04 (**G23** Water-Link scout Done; **G24** bridge triaged; Ops7 Sequence #1)
 
 ---
 
@@ -102,6 +102,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **G22** | bugfix: Onkyo power-ON must not force volume / SYNC — **close-out 2026-10-01** — [`phaseG-integrations.md`](phaseG-integrations.md) § G22 · [`integration_onkyo.md`](../integration_onkyo.md) |
 | **B14b / B25** | Library complexity score + tier (sort/filter) — **close-out 2026-10-05** — [`phaseB-blocky.md`](phaseB-blocky.md) § B14 part 2 · § B25 · [`reference.md`](../reference.md) § automations API |
 | **Ops8** | PHP2Shell bridge on live Bullseye PHP 7.4 (B2 pristine + mitigation) — **close-out 2026-11-04** — [`_archive/ops8-php2shell-bridge.md`](_archive/ops8-php2shell-bridge.md) · [`../ops8-operator-checklist.md`](../ops8-operator-checklist.md) |
+| **G23** | Water-Link portal scout (`waterlink_scout.py`) — **close-out 2026-11-04** — [`phaseG-integrations.md`](phaseG-integrations.md) § G23 · [`../integration_waterlink.md`](../integration_waterlink.md) |
 
 ---
 
@@ -139,7 +140,7 @@ All open items. **Detail** = phase file section.
 25  open   high G9           Honeywell / Evohome                                phaseG § G9
 26  open   high G12          SMA solar                                          phaseG § G12
 27  open   high G13          HomeConnect BSH                                    phaseG § G13
-28  hold   high G23          Water-Link portal meter (HAR captured; locks open)  phaseG § G23
+28  open   high G24          Water-Link WanOS bridge (poll 6h → idx 82001)       phaseG § G24
 29  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
 30  open   high F            Security bridge (F1→F7)                            phaseF
 31  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
@@ -163,7 +164,7 @@ All open items. **Detail** = phase file section.
 49  open   low  B31          H6 number helpers (was B14b)                       phaseB § B31
 50  open   low  B32          H9 sun elevation (was B14b)                        phaseB § B32
 ```
-Near-term: **Ops7** (fresh `.30`; scripts coding; WLW overlay after host green). Then **B26** → **B24**. **B12** may run ∥ after Ops7 host green (or earlier if no Pi cutover conflict). **B30**/**B31**/**B32** low. **B29** hold (H7). **B28** hold assess. Vendor bridges: **G11→G9→G12→G13→G23** then **G17**. **G23** HAR captured; hold for kickoff locks (auth strategy / scope / m³ parse). **Ops8** Done (live PHP bridge until cutover).
+Near-term: **Ops7** (fresh `.30`; scripts coding; WLW overlay after host green). Then **B26** → **B24**. **B12** may run ∥ after Ops7 host green (or earlier if no Pi cutover conflict). **B30**/**B31**/**B32** low. **B29** hold (H7). **B28** hold assess. Vendor bridges: **G11→G9→G12→G13→G24** then **G17**. **G23** scout Done. **Ops8** Done (live PHP bridge until cutover).
 
 ---
 
