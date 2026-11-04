@@ -5,6 +5,8 @@ Telegram-style. Delivery: [`todo/ops7-fresh-install.md`](todo/ops7-fresh-install
 
 **Do not** open public PHP `:443` until `php -v` ≥ **8.4.27**.
 
+**Pre-cutover (old card):** Bullseye PHP 7.4 PHP2Shell bridge = **Ops8** (**Done 2026-11-04**) — [`ops8-operator-checklist.md`](ops8-operator-checklist.md). Discarded with the old SD at flash.
+
 ---
 
 ## A — Before pull card

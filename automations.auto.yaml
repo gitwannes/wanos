@@ -135,11 +135,11 @@ auto_off_devices:
     zwave.berging_2e: 1
     zwave.buro_licht: 120
     zwave.cinema_licht: 120
-    zwave.eetkamer: 30
+    zwave.eetkamer: 120
     zwave.gang_beneden: 15
     zwave.gang_boven: 10
     zwave.licht_garage: 15
-    zwave.sauna_zoutlamp: 120
+    zwave.sauna_zoutlamp: 240
     zwave.slpk_dries: 30
     zwave.slpk_liene: 60
     zwave.slpk_wannes: 30

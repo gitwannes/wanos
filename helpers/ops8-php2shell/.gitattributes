@@ -1,0 +1,6 @@
+# --- file: helpers/ops8-php2shell/.gitattributes ---
+# Pi scripts must stay LF; CRLF breaks shebang (env: 'bash\r').
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.patch text eol=lf

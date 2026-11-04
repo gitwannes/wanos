@@ -190,7 +190,7 @@ native_rfx:
     off_id: "545514"
 
 waterlink:
-  meter_id: "260202659"
+  meter_id: "260202059"
   poll_interval_hours: 6
   idx: 82001          # Ingest IDX for cumulative m³
 

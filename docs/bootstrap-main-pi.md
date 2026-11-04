@@ -4,6 +4,7 @@
 **Role:** Raspberry Pi 4 Model B · LAN **`10.32.251.30`** · WanOS backend + shared Nginx/PHP host for **WLW** (be90webserver).  
 **Delivery:** [`docs/todo/ops7-fresh-install.md`](todo/ops7-fresh-install.md) (**Ops7**).  
 **Cutover runbook (short):** [`ops7-operator-checklist.md`](ops7-operator-checklist.md).  
+**Pre-Ops7 PHP2Shell bridge (live Bullseye 7.4):** **Done 2026-11-04** — [`ops8-operator-checklist.md`](ops8-operator-checklist.md) · archive [`todo/_archive/ops8-php2shell-bridge.md`](todo/_archive/ops8-php2shell-bridge.md) · [`../helpers/ops8-php2shell/`](../helpers/ops8-php2shell/).  
 **LCD Pi (`.51`):** separate — [`_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`](../_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md).  
 **WLW app overlay (after this host is green):** be90webserver `helpers/bootstrap/wlw_bootstrap.md` + `docs/todo/ops7-fresh-install.md` (pointer).
 
@@ -21,7 +22,7 @@ This is the **incorporated** operator guide for the shared main Pi. Scripted pie
 | Samba | **Not installed** (unused; sync is rsync over SSH) |
 | Fallback | Bookworm 64-bit + PHP ≥ 8.2.35 only if Trixie blocks WanOS |
 
-**Until Ops7 cutover**, the live Pi may still be older (e.g. Bullseye). Do not treat this page as “current live inventory” until Ops7 ships.
+**Until Ops7 cutover**, the live Pi remains Bullseye **PHP 7.4** with **Ops8** bridge (mitigation + B2 binary replace; `dpkg` may still show `deb11u12`) — not this page’s Trixie inventory.
 
 ---
 

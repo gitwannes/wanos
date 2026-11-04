@@ -50,10 +50,13 @@ def php_cli_version() -> str:
 
 
 def php_fpm_version() -> str:
-    code, out = _run(["php-fpm7.4", "-v"])
-    if code != 0:
-        return "unavailable"
-    return _first_line(out)
+    """Resolve php-fpm7.4 even when /usr/sbin is not on a non-root PATH."""
+    candidates = ["php-fpm7.4", "/usr/sbin/php-fpm7.4", "/usr/bin/php-fpm7.4"]
+    for cmd in candidates:
+        code, out = _run([cmd, "-v"])
+        if code == 0 and out:
+            return _first_line(out)
+    return "unavailable"
 
 
 def dpkg_php74() -> List[Dict[str, str]]:
@@ -118,8 +121,26 @@ def apt_holds() -> List[str]:
     return [ln.strip() for ln in out.splitlines() if ln.strip().startswith("php7.4")]
 
 
+def _read_local_debian_changelog() -> str:
+    """Installed package changelog (local); not apt-get changelog (remote)."""
+    paths = [
+        "/usr/share/doc/php7.4-fpm/changelog.Debian.gz",
+        "/usr/share/doc/php7.4-common/changelog.Debian.gz",
+    ]
+    for path in paths:
+        if not os.path.isfile(path):
+            continue
+        code, out = _run(["zcat", path])
+        if code == 0 and out:
+            return out
+    return ""
+
+
 def changelog_mentions_cves() -> Optional[bool]:
-    """Best-effort: apt changelog for php7.4-fpm mentions both CVEs."""
+    """Prefer local changelog.Debian.gz; fall back to apt-get changelog."""
+    local = _read_local_debian_changelog()
+    if local:
+        return (CVE_A in local) and (CVE_B in local)
     code, out = _run(["apt-get", "changelog", "php7.4-fpm"])
     if code != 0 or not out:
         return None
@@ -135,11 +156,16 @@ def build_report() -> Dict[str, Any]:
             break
     bridged_pkg = WANTED_SUFFIX in fpm_ver
     marker = read_marker()
+    bridged_marker = marker.get("bridged") == "1"
+    bridged = bridged_pkg or bridged_marker
     report: Dict[str, Any] = {
         "php_cli": php_cli_version(),
         "php_fpm": php_fpm_version(),
         "php7.4-fpm_version": fpm_ver or "unknown",
         "bridged_package": bridged_pkg,
+        "bridged_marker": bridged_marker,
+        "bridged": bridged,
+        "bridge_method": marker.get("method", ""),
         "fpm_service": fpm_active(),
         "mitigation_file": FPM_INI,
         "mitigation_on": mitigation_on(),
@@ -151,9 +177,10 @@ def build_report() -> Dict[str, Any]:
         "changelog_mentions_both_cves": changelog_mentions_cves(),
         "verdict": "",
     }
-    if bridged_pkg and report["mitigation_on"]:
+    # B2 leaves dpkg version at deb11u12; marker bridged=1 is authoritative.
+    if bridged and report["mitigation_on"]:
         report["verdict"] = "OK_bridged_and_mitigated"
-    elif bridged_pkg:
+    elif bridged:
         report["verdict"] = "BRIDGED_mitigation_missing"
     elif report["mitigation_on"]:
         report["verdict"] = "MITIGATED_only_rebuild_pending"
@@ -174,7 +201,12 @@ def main() -> int:
     print("FPM binary:    {}".format(report["php_fpm"]))
     print("php7.4-fpm:    {}".format(report["php7.4-fpm_version"]))
     print("FPM service:   {}".format(report["fpm_service"]))
-    print("bridged pkg:   {}".format(report["bridged_package"]))
+    print("bridged:       {} (pkg={} marker={} method={})".format(
+        report["bridged"],
+        report["bridged_package"],
+        report["bridged_marker"],
+        report["bridge_method"] or "-",
+    ))
     print("mitigation:    {}".format("on" if report["mitigation_on"] else "off"))
     print("marker:        {}".format(report["marker"] or "(absent)"))
     holds = report["holds"]
