@@ -229,6 +229,28 @@ elif _hw_cfg is not None:
 else:
     logger.info("[HomeWizard] no homewizard: block in config - bridge not started")
 
+# 8d. Bind Water-Link portal bridge (G24)
+waterlink_bridge = None
+_wl_cfg = getattr(config, "waterlink", None)
+_wl_meter = str(getattr(_wl_cfg, "meter_id", "") or "").strip() if _wl_cfg is not None else ""
+if _wl_cfg is not None and _wl_meter:
+    try:
+        from integrations.waterlink import WaterLinkBridge
+        waterlink_bridge = WaterLinkBridge(state_manager=state_manager, config=config)
+        state_manager.waterlink_bridge = waterlink_bridge
+        logger.info(
+            f"[WaterLink] Bridge initialized (meter_id={_wl_meter}, "
+            f"idx={getattr(_wl_cfg, 'idx', 82001)})"
+        )
+    except Exception as e:
+        logger.exception(f"CRITICAL: Crash loading WaterLinkBridge: {e}")
+elif _wl_cfg is not None:
+    logger.warning(
+        "[WaterLink] config present but meter_id empty - bridge not started"
+    )
+else:
+    logger.info("[WaterLink] no waterlink: block in config - bridge not started")
+
 # 9. Bind the Physical Hardware Layer
 hw_inputs = HardwareInputs(state_manager=state_manager)
 hw_sensors = HardwareSensors(state_manager=state_manager)
@@ -315,6 +337,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             except Exception as e:
                 logger.exception(f"[HomeWizard] Bridge start failed: {e}")
 
+        if waterlink_bridge:
+            try:
+                await waterlink_bridge.start()
+                state_manager.dispatch(
+                    Event(type=EventType.WATERLINK_TOGGLED, payload={"enabled": True})
+                )
+            except Exception as e:
+                logger.exception(f"[WaterLink] Bridge start failed: {e}")
+
         # Start Physical Hardware Layer
         logger.info("Initializing Raspberry Pi Hardware Layer...")
         await hw_inputs.start()
@@ -345,6 +376,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 state_manager.dispatch(Event(type=EventType.LG_TOGGLED, payload={"enabled": True}))
                 # Phase 3c: HomeWizard Energy (G10)
                 state_manager.dispatch(Event(type=EventType.HOMEWIZARD_TOGGLED, payload={"enabled": True}))
+                # Phase 3d: Water-Link portal meter (G24)
+                state_manager.dispatch(Event(type=EventType.WATERLINK_TOGGLED, payload={"enabled": True}))
                 # Phase 4: Enable Z-Wave (may defer silently until MQTT data plane is alive;
                 # telemetry auto-recovery arms it when ready — no false "frozen" reject alert).
                 state_manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True}))
@@ -400,6 +433,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await lg_bridge.stop()
     if homewizard_bridge:
         await homewizard_bridge.stop()
+    if waterlink_bridge:
+        await waterlink_bridge.stop()
     await zwave_bridge.stop()
 
     await state_manager.stop()

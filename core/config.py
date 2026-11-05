@@ -633,6 +633,14 @@ class HomeWizardConfig(BaseModel):
     device_map: Dict[int, HomeWizardMetricNode] = Field(default_factory=dict)
 
 
+class WaterLinkConfig(BaseModel):
+    """Water-Link portal cumulative meter (G24) — secrets in .env WATERLINK_*."""
+    meter_id: str = ""
+    poll_interval_hours: float = 6.0
+    idx: int = 82001  # home pack; do not hardcode in bridge logic beyond this default
+    name: str = "Water-Link m\u00b3"
+
+
 class SonosDeviceNode(BaseModel):
     ip: str
     name: str
@@ -724,6 +732,7 @@ class AppConfig(BaseModel):
     epson: Optional[EpsonConfig] = None
     lg: Optional[LgConfig] = None
     homewizard: Optional[HomeWizardConfig] = None
+    waterlink: Optional[WaterLinkConfig] = None
     sonos: Optional[SonosConfig] = None
     onkyo: Optional[OnkyoConfig] = None
     zwave: Optional[ZwaveConfig] = None
@@ -863,6 +872,7 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         "epson": runtime_data.get("epson"),
         "lg": runtime_data.get("lg"),
         "homewizard": runtime_data.get("homewizard"),
+        "waterlink": runtime_data.get("waterlink"),
         "sonos": runtime_data.get("sonos"),
         "onkyo": runtime_data.get("onkyo"),
         "zwave": zwave_data,  # ⚡ Injecting modular Z-Wave configuration profile

@@ -34,7 +34,10 @@ class HealthMonitor:
         # Dedicated Strike Counters for Auto-Kill thresholds
         # Network integrations get 3 strikes (6 seconds) to survive minor TCP blips.
         # USB hardware gets 1 strike (2 seconds) because a missing /dev/tty is immediately fatal.
-        self.strikes = {"hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0, "sonos": 0, "lg": 0, "homewizard": 0}
+        self.strikes = {
+            "hue": 0, "epson": 0, "rfxcom": 0, "zwave": 0, "onkyo": 0, "sonos": 0,
+            "lg": 0, "homewizard": 0, "waterlink": 0,
+        }
 
         # ⚡ Stateful Hysteresis Tracker for System Telemetry
         # Debounces alerts so the UI isn't spammed every 60 seconds during a persistent load spike.
@@ -178,6 +181,20 @@ class HealthMonitor:
                         except Exception:
                             pass
 
+                # Water-Link: 2 consecutive poll fails (no portal ping every 2s)
+                wl_bridge = getattr(sm, "waterlink_bridge", None)
+                wl_conn = False
+                if wl_bridge is not None:
+                    try:
+                        wl_conn = bool(await wl_bridge.ping())
+                        wl_bridge.is_connected = wl_conn
+                    except Exception:
+                        wl_conn = False
+                        try:
+                            wl_bridge.is_connected = False
+                        except Exception:
+                            pass
+
                 # Z-Wave health is a multi-tiered verification matrix:
                 # 1. Physical USB stick presence (Tier 1 - Physical)
                 zwave_conf = getattr(config, "zwave", None)
@@ -212,6 +229,9 @@ class HealthMonitor:
                 self.strikes["lg"] = 0 if lg_conn or lg_bridge is None else self.strikes["lg"] + 1
                 self.strikes["homewizard"] = (
                     0 if hw_conn or hw_bridge is None else self.strikes["homewizard"] + 1
+                )
+                self.strikes["waterlink"] = (
+                    0 if wl_conn or wl_bridge is None else self.strikes["waterlink"] + 1
                 )
 
                 # Z-Wave USB drop is fatal immediately (1 strike). Web/Data drops get 3 strikes (network blips).
@@ -248,6 +268,11 @@ class HealthMonitor:
                     sm.dispatch(Event(type=EventType.HOMEWIZARD_TOGGLED, payload={
                         "enabled": False,
                         "error_msg": "🔌 HomeWizard unreachable after 3 retries. Integration disabled."}))
+
+                if self.strikes["waterlink"] >= 3 and sys_state.system.waterlink_integration_enabled:
+                    sm.dispatch(Event(type=EventType.WATERLINK_TOGGLED, payload={
+                        "enabled": False,
+                        "error_msg": "🔌 Water-Link unreachable after 2 consecutive poll fails. Integration disabled."}))
 
                 if self.strikes["rfxcom"] >= 1 and sys_state.system.rfxcom_integration_enabled:
                     sm.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={
@@ -317,6 +342,7 @@ class HealthMonitor:
                     "epson_connected": epson_conn,
                     "lg_connected": lg_conn,
                     "homewizard_connected": hw_conn,
+                    "waterlink_connected": wl_conn,
                     "onkyo_connected": onkyo_conn,
                     "sonos_connected": sonos_conn,
                     "zwave_hardware_connected": zwave_physical,

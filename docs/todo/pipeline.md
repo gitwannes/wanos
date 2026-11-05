@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-11-04 (**G23** Water-Link scout Done; **G24** bridge triaged; Ops7 Sequence #1)
+**Last updated:** 2026-11-05 (**G24** Water-Link bridge Done; Ops7 Sequence #1)
 
 ---
 
@@ -103,6 +103,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **B14b / B25** | Library complexity score + tier (sort/filter) — **close-out 2026-10-05** — [`phaseB-blocky.md`](phaseB-blocky.md) § B14 part 2 · § B25 · [`reference.md`](../reference.md) § automations API |
 | **Ops8** | PHP2Shell bridge on live Bullseye PHP 7.4 (B2 pristine + mitigation) — **close-out 2026-11-04** — [`_archive/ops8-php2shell-bridge.md`](_archive/ops8-php2shell-bridge.md) · [`../ops8-operator-checklist.md`](../ops8-operator-checklist.md) |
 | **G23** | Water-Link portal scout (`waterlink_scout.py`) — **close-out 2026-11-04** — [`phaseG-integrations.md`](phaseG-integrations.md) § G23 · [`../integration_waterlink.md`](../integration_waterlink.md) |
+| **G24** | Water-Link WanOS bridge (poll 6h → idx 82001) — **close-out 2026-11-05** — [`phaseG-integrations.md`](phaseG-integrations.md) § G24 · [`../integration_waterlink.md`](../integration_waterlink.md) |
 
 ---
 
@@ -140,31 +141,30 @@ All open items. **Detail** = phase file section.
 25  open   high G9           Honeywell / Evohome                                phaseG § G9
 26  open   high G12          SMA solar                                          phaseG § G12
 27  open   high G13          HomeConnect BSH                                    phaseG § G13
-28  open   high G24          Water-Link WanOS bridge (poll 6h → idx 82001)       phaseG § G24
-29  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
-30  open   high F            Security bridge (F1→F7)                            phaseF
-31  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
-32  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-33  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-34  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-35  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-36  hold   high P            Other homes / portability (assess)                 phaseP
-37  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
-38  open   mid  P2           sync: [MirrorExcludeFiles] for main + lcd + wlw      phaseP § P2
-39  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
-40  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
-41  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
-42  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
-43  open   mid  C42          HomeWizard-style power graphs (Explorer History)     phaseC § C42
-44  open   low  C43          Explorer view presets: Control/History + clear on filter drift  phaseC § C43
-45  open   mid  C44          bugfix: UI SSE reconnect after backend reboot                 phaseC § C44
-46  open   mid  G18          bugfix: zwave.vent.badk_1e OFF not sent (unmapped/empty)    phaseG § G18
-47  hold   mid  G19          assess: empty wanos_iwhw.log (Grok: missing self.iwhw_logger)  phaseG § G19
-48  open   low  B30          numeric Compare edge vs level (was B14b row 2)     phaseB § B30
-49  open   low  B31          H6 number helpers (was B14b)                       phaseB § B31
-50  open   low  B32          H9 sun elevation (was B14b)                        phaseB § B32
+28  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
+29  open   high F            Security bridge (F1→F7)                            phaseF
+30  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
+31  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+32  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+33  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+34  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+35  hold   high P            Other homes / portability (assess)                 phaseP
+36  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
+37  open   mid  P2           sync: [MirrorExcludeFiles] for main + lcd + wlw      phaseP § P2
+38  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
+39  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
+40  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
+41  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
+42  open   mid  C42          HomeWizard-style power graphs (Explorer History)     phaseC § C42
+43  open   low  C43          Explorer view presets: Control/History + clear on filter drift  phaseC § C43
+44  open   mid  C44          bugfix: UI SSE reconnect after backend reboot                 phaseC § C44
+45  open   mid  G18          bugfix: zwave.vent.badk_1e OFF not sent (unmapped/empty)    phaseG § G18
+46  hold   mid  G19          assess: empty wanos_iwhw.log (Grok: missing self.iwhw_logger)  phaseG § G19
+47  open   low  B30          numeric Compare edge vs level (was B14b row 2)     phaseB § B30
+48  open   low  B31          H6 number helpers (was B14b)                       phaseB § B31
+49  open   low  B32          H9 sun elevation (was B14b)                        phaseB § B32
 ```
-Near-term: **Ops7** (fresh `.30`; scripts coding; WLW overlay after host green). Then **B26** → **B24**. **B12** may run ∥ after Ops7 host green (or earlier if no Pi cutover conflict). **B30**/**B31**/**B32** low. **B29** hold (H7). **B28** hold assess. Vendor bridges: **G11→G9→G12→G13→G24** then **G17**. **G23** scout Done. **Ops8** Done (live PHP bridge until cutover).
+Near-term: **Ops7** (fresh `.30`; scripts coding; WLW overlay after host green). Then **B26** → **B24**. **B12** may run ∥ after Ops7 host green (or earlier if no Pi cutover conflict). **B30**/**B31**/**B32** low. **B29** hold (H7). **B28** hold assess. Vendor bridges: **G11→G9→G12→G13→G17**. **G23**/**G24** Water-Link Done. **Ops8** Done (live PHP bridge until cutover).
 
 ---
 

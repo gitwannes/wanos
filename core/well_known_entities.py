@@ -48,6 +48,9 @@ ENTITY_EPSON = "switch.epson"
 # LG webOS TV (G16)
 ENTITY_LG_TV = "switch.lg_tv"
 
+# Water-Link digital meter (G24) — frozen entity_id (kickoff lock)
+ENTITY_WATERLINK_DIGITAL_METER = "sensor.fluid.waterlink.digital_meter"
+
 # Host gauges / mains
 ENTITY_HOST_CPU_TEMP = "sensor.temp_hum.host_cpu_temperature"
 ENTITY_HOST_CPU_USAGE = "sensor.generic.host_cpu_usage"

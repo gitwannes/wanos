@@ -260,6 +260,10 @@ async def handle_config_reload_requested(event: Event, manager: Any) -> Tuple[bo
             if getattr(manager, "homewizard_bridge", None):
                 manager.homewizard_bridge.apply_reload(new_config)
 
+            # Refresh Water-Link meter / poll settings (G24); keep poll running
+            if getattr(manager, "waterlink_bridge", None):
+                manager.waterlink_bridge.apply_reload(new_config)
+
         state_changed = True
         changed_domains.update({"system", "devices", "device_metadata"})
 

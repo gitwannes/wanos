@@ -59,6 +59,8 @@ class EventType(str, Enum):
     LG_TOGGLED = "LG_TOGGLED"  # Block/allow LG webOS TV bridge (G16)
     HOMEWIZARD_TOGGLED = "HOMEWIZARD_TOGGLED"  # Block/allow HomeWizard Energy (G10)
     HOMEWIZARD_METRIC = "HOMEWIZARD_METRIC"  # Absolute energy/fluid/sensor reading from HW poll
+    WATERLINK_TOGGLED = "WATERLINK_TOGGLED"  # Block/allow Water-Link portal poll (G24)
+    WATERLINK_METRIC = "WATERLINK_METRIC"  # Absolute cumulative m3 from Water-Link poll
     SONOS_TOGGLED = "SONOS_TOGGLED"  # Block/allow local Sonos API control
     ONKYO_TOGGLED = "ONKYO_TOGGLED"  # Block/allow Onkyo TCP streaming
     LCD_TOGGLED = "LCD_TOGGLED"  # Block/allow MQTT LCD screen payloads
@@ -125,6 +127,8 @@ class SystemAdminState(BaseModel):
     lg_integration_enabled: bool = False  # Master UI switch for LG webOS commands (G16)
     homewizard_connected: bool = False  # HomeWizard bridge reachable (G10)
     homewizard_integration_enabled: bool = False  # Master UI switch for HomeWizard poll (G10)
+    waterlink_connected: bool = False  # Water-Link bridge reachable (G24)
+    waterlink_integration_enabled: bool = False  # Master UI switch for Water-Link poll (G24)
     sonos_integration_enabled: bool = False  # Master UI switch to block/allow Sonos commands
     onkyo_connected: bool = False  # Tracks physical TCP availability of Onkyo Receivers
     onkyo_integration_enabled: bool = False  # Master UI switch to block/allow Onkyo Receivers

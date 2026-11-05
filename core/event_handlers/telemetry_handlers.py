@@ -86,6 +86,32 @@ async def handle_homewizard_metric(event: Event, manager: Any) -> Tuple[bool, Se
     return state_changed, changed_domains
 
 
+async def handle_waterlink_metric(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
+    """Absolute Water-Link cumulative fluid m3 (G24)."""
+    payload = event.payload or {}
+    state_changed = False
+    changed_domains = set()
+
+    idx = payload.get("idx")
+    try:
+        raw = float(payload.get("value", 0.0))
+    except (TypeError, ValueError):
+        return False, set()
+
+    prev = manager._state.devices.get(idx) if idx is not None else None
+    if "old_value" not in payload:
+        payload["old_value"] = prev
+    if idx is not None and prev != raw:
+        manager._state.devices[idx] = raw
+        state_changed = True
+        changed_domains.add("devices")
+
+    if hasattr(manager, "sensor_history") and idx is not None:
+        manager.sensor_history.note_absolute_fluid(int(idx), raw)
+
+    return state_changed, changed_domains
+
+
 async def handle_external_weather_updated(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     """Apply sunrise/sunset and recalculate blinds/twilight schedule (sun path only)."""
     payload = event.payload or {}
@@ -163,6 +189,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     epson_conn = payload.get("epson_connected", False)
     lg_conn = payload.get("lg_connected", False)
     homewizard_conn = payload.get("homewizard_connected", False)
+    waterlink_conn = payload.get("waterlink_connected", False)
     onkyo_conn = payload.get("onkyo_connected", False)
     zwave_hardware_conn = payload.get("zwave_hardware_connected", False)
     zwave_web_alive = payload.get("zwave_web_alive", False)
@@ -176,6 +203,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     prev_epson = manager._state.system.epson_connected
     prev_lg = manager._state.system.lg_connected
     prev_homewizard = manager._state.system.homewizard_connected
+    prev_waterlink = manager._state.system.waterlink_connected
     prev_onkyo = manager._state.system.onkyo_connected
     prev_zwave_hw = manager._state.system.zwave_hardware_connected
     prev_zwave_web = manager._state.system.zwave_web_alive
@@ -261,6 +289,22 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
                 payload={"enabled": True, "is_auto_recovery": True},
             ))
 
+    if prev_waterlink and not waterlink_conn:
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Water-Link portal unreachable")
+        state_changed |= ch
+        changed_domains |= dom
+    elif not prev_waterlink and waterlink_conn and manager._state.system.app_boot_unix is not None:
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Water-Link portal online")
+        state_changed |= ch
+        changed_domains |= dom
+        if not manager._state.system.waterlink_integration_enabled:
+            manager.dispatch(Event(
+                type=EventType.WATERLINK_TOGGLED,
+                payload={"enabled": True, "is_auto_recovery": True},
+            ))
+
     if prev_onkyo and not onkyo_conn:
         ch, dom = await _emit_connection_transition(
             manager, down=True, message="Onkyo Receivers unreachable")
@@ -320,6 +364,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             prev_epson != epson_conn or
             prev_lg != lg_conn or
             prev_homewizard != homewizard_conn or
+            prev_waterlink != waterlink_conn or
             prev_onkyo != onkyo_conn or
             prev_zwave_hw != zwave_hardware_conn or
             prev_zwave_web != zwave_web_alive or
@@ -332,6 +377,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         manager._state.system.epson_connected = epson_conn
         manager._state.system.lg_connected = lg_conn
         manager._state.system.homewizard_connected = homewizard_conn
+        manager._state.system.waterlink_connected = waterlink_conn
         manager._state.system.onkyo_connected = onkyo_conn
         manager._state.system.zwave_hardware_connected = zwave_hardware_conn
         manager._state.system.zwave_web_alive = zwave_web_alive

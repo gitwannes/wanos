@@ -64,6 +64,7 @@ Z-Wave power IDXs (`74001`, `74003`) include **integrated kWh** in summary tiles
 |-----|------|------|----------------|
 | `11001` | Sauna kWh meter | Energy pulse (1 pulse = 1 Wh) | Instant W (from Δt at sample points) + Wh consumption buckets |
 | `81001`+ | HomeWizard P1 / PV | Absolute kWh / W / gas m³ + gauges (G10) | Power: 60 s W samples; energy/gas: absolute counter deltas; V/A/Hz/PF/VA/VAR: **host** gauges @ 60 s |
+| `82001` | Water-Link portal | Absolute cumulative m³ (G24) | Absolute counter deltas (`note_absolute_fluid`); poll every `waterlink.poll_interval_hours` |
 | `74001` | PC power | Z-Wave Power (W) | Instant W + daily min/avg/max W |
 | `74003` | PC monitors power | Z-Wave Power (W) | Instant W + daily min/avg/max W |
 | `11002` | Cold water | Fluid pulse (396 pulses = 1 L) | Liter consumption buckets only |

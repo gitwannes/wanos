@@ -44,6 +44,7 @@ SENSOR_META: Dict[int, Dict[str, str]] = {
     81011: {"label": "P1 avg 15m W", "kind": "power", "unit": "W"},
     81012: {"label": "P1 monthly peak W", "kind": "power", "unit": "W"},
     81013: {"label": "P1 gas m3", "kind": "fluid", "unit": "m3"},
+    82001: {"label": "Water-Link m3", "kind": "fluid", "unit": "m3"},  # label ASCII-safe for consoles
     81014: {"label": "P1 voltage L1", "kind": "host", "unit": "V"},
     81015: {"label": "P1 voltage L2", "kind": "host", "unit": "V"},
     81016: {"label": "P1 voltage L3", "kind": "host", "unit": "V"},

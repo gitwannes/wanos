@@ -189,11 +189,12 @@ native_rfx:
     on_id: "545511"
     off_id: "545514"
 
-# Water-Link digital meter (scout: waterlink_scout.py). Secrets: WATERLINK_USER / WATERLINK_PASSWORD in .env
+# Water-Link digital meter (G24 bridge + waterlink_scout.py). Secrets: WATERLINK_USER / WATERLINK_PASSWORD in .env
 waterlink:
   meter_id: "260202059"
   poll_interval_hours: 6
-  idx: 82001          # Ingest IDX for cumulative m³
+  idx: 82001  # Ingest IDX for cumulative m3 (band 820xx)
+  name: "Water-Link m³"
 
 # ==============================================================================
 #
@@ -251,6 +252,7 @@ history:
     - sensor.power.homewizard.p1_avg_15m_w
     - sensor.power.homewizard.p1_monthly_peak_w
     - sensor.fluid.homewizard.p1_gas_m3
+    - sensor.fluid.waterlink.digital_meter
     - sensor.power.homewizard.pv_power
     - sensor.energy.homewizard.pv_export_kwh
     - sensor.energy.homewizard.pv_import_kwh

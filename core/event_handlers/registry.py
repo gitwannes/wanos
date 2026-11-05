@@ -2,7 +2,7 @@
 from .integration_handlers import (
     handle_automations_toggled, handle_rfxcom_toggled,
     handle_owm_toggled, handle_hue_toggled, handle_epson_toggled, handle_lg_toggled,
-    handle_homewizard_toggled,
+    handle_homewizard_toggled, handle_waterlink_toggled,
     handle_zwave_toggled,
     handle_simulations_toggled, handle_sonos_toggled, handle_sonos_command,
     handle_onkyo_toggled, handle_lcd_toggled
@@ -12,7 +12,7 @@ from .hardware_handlers import (
     handle_gpio_output_toggled, handle_sensor_error
 )
 from .telemetry_handlers import (
-    handle_power_updated, handle_homewizard_metric,
+    handle_power_updated, handle_homewizard_metric, handle_waterlink_metric,
     handle_external_weather_updated, handle_owm_climate_snapshot,
     handle_system_metrics_updated,
     handle_temp_updated, handle_humidity_updated, handle_water_pulse, handle_kwh_pulse,
@@ -48,6 +48,7 @@ EVENT_ROUTERS = {
     "EPSON_TOGGLED": handle_epson_toggled,
     "LG_TOGGLED": handle_lg_toggled,
     "HOMEWIZARD_TOGGLED": handle_homewizard_toggled,
+    "WATERLINK_TOGGLED": handle_waterlink_toggled,
     "ZWAVE_TOGGLED": handle_zwave_toggled,
     "SONOS_TOGGLED": handle_sonos_toggled,
     "SONOS_COMMAND": handle_sonos_command,
@@ -64,6 +65,7 @@ EVENT_ROUTERS = {
 
     "POWER_UPDATED": handle_power_updated,
     "HOMEWIZARD_METRIC": handle_homewizard_metric,
+    "WATERLINK_METRIC": handle_waterlink_metric,
     "SUNRISE_SUNSET_UPDATE": handle_external_weather_updated,
     # Legacy alias until all emitters use SUNRISE_SUNSET_UPDATE
     "EXTERNAL_WEATHER_UPDATED": handle_external_weather_updated,

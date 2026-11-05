@@ -143,6 +143,8 @@ def origin_from_idx(idx: int) -> str:
         return "epson"
     if 81000 <= idx <= 81999:
         return "homewizard"
+    if 82000 <= idx <= 82999:
+        return "waterlink"
     return ""
 
 
@@ -249,6 +251,14 @@ def enrich_from_configs(root: Path) -> Tuple[Dict[int, Dict[str, Any]], Set[str]
             if dtype not in ("power", "energy", "fluid", "sensor"):
                 dtype = "sensor"
             put(idx, name=name, dtype=dtype, origin="homewizard")
+    wl = cfg.get("waterlink") or {}
+    if isinstance(wl, dict) and wl.get("idx") is not None:
+        put(
+            wl.get("idx"),
+            name=wl.get("name") or "Water-Link m\u00b3",
+            dtype="fluid",
+            origin="waterlink",
+        )
     if cfg.get("epson"):
         put(80001, name="cinema projector", dtype="switch", origin="epson")
     for eid in auto_cfg.get("deviceexplorer_hide") or cfg.get("deviceexplorer_hide") or []:

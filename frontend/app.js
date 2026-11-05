@@ -141,6 +141,8 @@ function wanosApp() {
                 lg_integration_enabled: false, // ⚡ Master UI switch for LG webOS — G16
                 homewizard_connected: false, // ⚡ HomeWizard poll bridge reachable — G10
                 homewizard_integration_enabled: false, // ⚡ Master UI switch for HomeWizard — G10
+                waterlink_connected: false, // ⚡ Water-Link portal bridge reachable — G24
+                waterlink_integration_enabled: false, // ⚡ Master UI switch for Water-Link — G24
                 sonos_connected: false, // ⚡ Tracks physical availability of Sonos network
                 sonos_integration_enabled: false, // ⚡ Master UI switch to block/allow Sonos commands
                 onkyo_connected: false, // ⚡ Tracks physical TCP availability of Onkyo Receivers
@@ -575,6 +577,7 @@ function wanosApp() {
             if (!this.state.system.epson_integration_enabled) disabled.push("Epson projector");
             if (!this.state.system.lg_integration_enabled) disabled.push("LG TV");
             if (!this.state.system.homewizard_integration_enabled) disabled.push("HomeWizard");
+            if (!this.state.system.waterlink_integration_enabled) disabled.push("Water-Link");
             if (!this.state.system.rfxcom_integration_enabled) disabled.push("RFX");
             if (!this.state.system.zwave_integration_enabled) disabled.push("Z-Wave");
             if (!this.state.system.owm_integration_enabled) disabled.push("OpenWeatherMap");
@@ -609,6 +612,7 @@ function wanosApp() {
                 if (meta.origin === 'epson' && !this.state.system.epson_integration_enabled) continue;
                 if (meta.origin === 'lg' && !this.state.system.lg_integration_enabled) continue;
                 if (meta.origin === 'homewizard' && !this.state.system.homewizard_integration_enabled) continue;
+                if (meta.origin === 'waterlink' && !this.state.system.waterlink_integration_enabled) continue;
 
                 // Native Physical & Cloud Integrations
                 if (meta.origin === 'gpio_input' && !this.state.hardware.gpio_input_enabled) continue;
@@ -744,8 +748,16 @@ function wanosApp() {
                     }
                     else if (meta.type === 'power' || n.includes('power') || n.includes('watt')) displayText = `${rawValue} W`;
                     else if (meta.type === 'fluid' || n.includes('water') || n.includes('liter') || n.includes('gas')) {
-                        if (n.includes('gas') || n.includes('m3')) {
-                            displayText = `${parseFloat(rawValue).toFixed(3)} m3`;
+                        // m3 meters: Water-Link / HomeWizard gas / name hints (m3 or m³).
+                        // Pulse cold/hot water stay liters. Name "Water-Link" contains "water"
+                        // so origin/m3 checks must win before the liter fallback.
+                        const isM3Fluid = meta.origin === 'waterlink'
+                            || meta.origin === 'homewizard'
+                            || n.includes('gas')
+                            || n.includes('m3')
+                            || n.includes('m³');
+                        if (isM3Fluid) {
+                            displayText = this.formatCubicMeters(rawValue);
                         } else {
                             displayText = `${parseFloat(rawValue).toFixed(1)} l`;
                         }
@@ -1208,6 +1220,7 @@ function wanosApp() {
             if (meta.origin === 'epson') return this.state.system.epson_integration_enabled;
             if (meta.origin === 'lg') return this.state.system.lg_integration_enabled;
             if (meta.origin === 'homewizard') return this.state.system.homewizard_integration_enabled;
+            if (meta.origin === 'waterlink') return this.state.system.waterlink_integration_enabled;
             if (meta.origin === 'sonos') return this.state.system.sonos_integration_enabled;
             if (meta.origin === 'onkyo') return this.state.system.onkyo_integration_enabled;
             if (meta.origin === 'gpio_input') return this.state.hardware.gpio_input_enabled;
@@ -3651,11 +3664,22 @@ function wanosApp() {
             }
         },
 
+        /**
+         * Absolute cubic meters (Water-Link / gas): thousands grouping + m³.
+         * nl-BE → 3153 → "3.153 m³".
+         */
+        formatCubicMeters(val) {
+            const n = Number(val);
+            if (val == null || Number.isNaN(n)) return "—";
+            return n.toLocaleString("nl-BE", { maximumFractionDigits: 3 }) + " m³";
+        },
+
         formatHistoryValue(val, unit) {
             if (val == null || Number.isNaN(Number(val))) return "—";
             const n = Number(val);
             if (unit === "kWh") return n.toFixed(2) + " kWh";
             if (unit === "L" || unit === "l") return n.toFixed(1) + " l";
+            if (unit === "m3" || unit === "m³") return this.formatCubicMeters(n);
             return n.toFixed(1) + (unit ? " " + unit : "");
         },
 
@@ -6398,6 +6422,11 @@ function wanosApp() {
         toggleHomeWizard() {
             const nextState = !this.state.system.homewizard_integration_enabled;
             this.publishEvent("HOMEWIZARD_TOGGLED", { enabled: nextState });
+        },
+
+        toggleWaterLink() {
+            const nextState = !this.state.system.waterlink_integration_enabled;
+            this.publishEvent("WATERLINK_TOGGLED", { enabled: nextState });
         },
 
         toggleSonos() {

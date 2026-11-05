@@ -43,6 +43,7 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 | **Sonos & Onkyo** | TCP control (`soco`, eISCP) |
 | **LG webOS TV** | WOL + SSAP (`pywebostv`); power + OFF latch (**G20**) + Blockly app catalog |
 | **HomeWizard Energy** | Local API v2 (aiohttp) — P1 + PV kWh (`810xx`); sockets deferred; health = poll staleness (**G21**) |
+| **Water-Link** | Portal cumulative m³ every 6 h → idx **82001** (**G24**; scout **G23**) — [`docs/integration_waterlink.md`](docs/integration_waterlink.md) |
 | **RFXCOM** | 433 MHz via `serial_asyncio` |
 | **OpenWeatherMap** | Environment / twilight for scheduling |
 | **GPIO** | `lgpio` outputs and interrupt edges |
@@ -52,7 +53,6 @@ It started as a safe controller for a 9 kW three-phase electric sauna and infrar
 - Siemens HomeConnect
 - Honeywell Home (central heating)
 - SMA (PV inverter)
-- Water-Link digital meter WanOS bridge (**G24**; scout **G23** ✅ — [`docs/integration_waterlink.md`](docs/integration_waterlink.md))
 - HomeWizard Energy Sockets (API v1 on site today)
 - EZVIZ doorbell
 

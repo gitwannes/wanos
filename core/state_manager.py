@@ -285,6 +285,22 @@ class StateManager:
                 if idx_i not in self._state.devices:
                     self._state.devices[idx_i] = None
 
+        if getattr(self._config, "waterlink", None):
+            wl = self._config.waterlink
+            try:
+                idx_i = int(getattr(wl, "idx", 82001) or 82001)
+            except (TypeError, ValueError):
+                idx_i = 82001
+            name = str(getattr(wl, "name", None) or "Water-Link m\u00b3").strip() or "Water-Link m\u00b3"
+            self._state.device_metadata[idx_i] = {
+                "name": name,
+                "type": "fluid",
+                "origin": "waterlink",
+            }
+            yaml_idxs.add(idx_i)
+            if idx_i not in self._state.devices:
+                self._state.devices[idx_i] = None
+
         if getattr(self._config, "sonos", None):
             max_vol = getattr(self._config.sonos, "max_volume", 70)
             for idx, node in self._config.sonos.device_map.items():
@@ -1025,6 +1041,7 @@ class StateManager:
                 is_debug_event = event_name in [
                     "POWER_UPDATED",
                     "HOMEWIZARD_METRIC",
+                    "WATERLINK_METRIC",
                     "OWM_CLIMATE_SNAPSHOT",
                     "TEMP_UPDATED",
                     "HUMIDITY_UPDATED",

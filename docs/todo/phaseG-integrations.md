@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G22 ✅ Done 2026-10-01** — Onkyo power-ON / SYNC. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). **G23 ✅ Done 2026-11-04** — Water-Link scout. G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13 / G24** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G22 ✅ Done 2026-10-01** — Onkyo power-ON / SYNC. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). **G23 ✅ Done 2026-11-04** — Water-Link scout. **G24 ✅ Done 2026-11-05** — Water-Link WanOS bridge. G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
@@ -35,13 +35,13 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G12 — SMA** | Solar inverters — **own ship** (4th) |
 | **G13 — HomeConnect** | BSH appliances — **own ship** (5th) |
 | **G23 — Water-Link scout** | ✅ **Done 2026-11-04** — standalone scout; product [`integration_waterlink.md`](../integration_waterlink.md) |
-| **G24 — Water-Link WanOS bridge** | Portal meter poll → ingest `82001` / fluid every `poll_interval_hours` |
+| **G24 — Water-Link WanOS bridge** | ✅ **Done 2026-11-05** — poll → `82001` fluid; product [`integration_waterlink.md`](../integration_waterlink.md) |
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
 | **G15 — Evening twilight cross-day** | ✅ **Done 2026-08-22** — twilight guards + OWM rollover + sweeper/timer hardening; **C27** + Admin timeline in same ship |
 
 Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** ✅ **Done 2026-08-22** (Pi smoke **2026-08-22**). **G16** ✅ **Done 2026-08-27** (Pi smoke **2026-08-27**). **G4** still owns the automatic hot-sun morning open.
 
-**G11 → G9 → G10 → G12 → G13 → G24:** remaining vendor bridges — **one integration per code run**, **never combined**. Original letter order G11 first (**2026-08-20**); **G10 may implement before G11+G9** (operator override **2026-09-10**). **G16** ✅ shipped **2026-08-27**. **G23** scout ✅ **2026-11-04**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 / G24 stubs.
+**G11 → G9 → G12 → G13:** remaining vendor bridges — **one integration per code run**, **never combined**. **G24** ✅ shipped ahead of G11–G13 (**2026-11-05**). Original letter order G11 first (**2026-08-20**); **G10** shipped before G11+G9 (**2026-09-10**). **G16** ✅ shipped **2026-08-27**. **G23** scout ✅ **2026-11-04**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
 ---
 
@@ -1163,7 +1163,7 @@ Power ON deliberately nullled `volume` → Explorer **SYNC...**, then forced `MV
 ## ✅ G23 — Water-Link portal scout — **Done 2026-11-04**
 
 **Letter:** **G23**. **Pipeline:** Done. Size **high**. **Pi smoke:** ✅ **2026-11-04**.  
-**Product:** [`docs/integration_waterlink.md`](../integration_waterlink.md). WanOS bridge → **G24**.
+**Product:** [`docs/integration_waterlink.md`](../integration_waterlink.md). WanOS bridge → **G24** ✅.
 
 ### Operator request (verbatim, 2026-11-04)
 
@@ -1192,11 +1192,11 @@ Power ON deliberately nullled `volume` → Explorer **SYNC...**, then forced `MV
 
 ---
 
-## 📋 G24 — Water-Link WanOS bridge 🔜 TODO
+## ✅ G24 — Water-Link WanOS bridge — **Done 2026-11-05**
 
-**Letter:** **G24**. **Pipeline:** Sequence after **G13**, before **G17** · status **open** · size **high**.  
-**Depends on:** **G23** scout ✅ (reuse client/auth/API). **Playbook:** [`docs/integration-playbook.md`](../integration-playbook.md).  
-**Product (scout today / bridge later):** [`docs/integration_waterlink.md`](../integration_waterlink.md).
+**Letter:** **G24**. **Pipeline:** Done. Size **high**. **Pi smoke:** ✅ **2026-11-05** (operator).  
+**Product (canonical):** [`docs/integration_waterlink.md`](../integration_waterlink.md).  
+**Playbook:** [`docs/integration-playbook.md`](../integration-playbook.md).
 
 ### Operator request (verbatim, 2026-11-04)
 
@@ -1204,33 +1204,34 @@ Power ON deliberately nullled `volume` → Explorer **SYNC...**, then forced `MV
 
 > close phase, triage a new phase for integration into wanos
 
-### Placement
+### Kickoff (verbatim, 2026-11-05)
 
-| Field | Value |
+> using the water-link scout (working!) - kickoff G24 - use all buttons and steps for other integrations and use it for this one as well
+
+> why do you refer to C18?
+> 1: ok
+> 2: health: if 2 conseq. fails,
+> 3: why G13? no, jump ahead
+> 4: full reload only
+
+### Shipped summary
+
+| Piece | Where |
 |---|---|
-| Affinity | **G** (vendor bridge) |
-| Sequence | After **G13**, before **G17** (same vendor cluster as former G23 bridge intent) |
-| Prereq | G23 scout auth + `/api/meters/{id}` proven |
+| Bridge | `integrations/waterlink.py` — poll every `poll_interval_hours` → `WATERLINK_METRIC` → idx **82001** |
+| Client | `integrations/waterlink_client.py` (shared with scout) |
+| Admin / health | LIVE/DISABLED/OFFLINE; **2 consecutive** poll fails → offline / auto-kill |
+| Entity | Frozen `sensor.fluid.waterlink.digital_meter`; Explorer/History display **m³** (`nl-BE`) |
+| Reload | Full reload only (no G6 row) |
 
-### Intent (draft — kickoff later)
+**Locks retained:** telemetry-only (no C18); jump ahead of G11–G13; does not replace pulse `11002`/`11003`.
 
-WanOS integration: poll Water-Link every `waterlink.poll_interval_hours` (**6**), ingest cumulative m³ to **`idx` 82001** / fluid. Reuse scout OIDC PKCE form login + meter GET. Admin enable, health/disable, tagged logs — per playbook at kickoff.
+### G24 DoD
 
-### Known constraints (from G23)
-
-* Token ~840 s; no refresh → full headless login each poll (OK at 6 h).
-* SAP form + Incapsula brittle.
-* Secrets `.env`; config `config.yaml` `waterlink:`.
-
-### Out of scope (until kickoff locks)
-
-* Replacing pulse meters `11002`/`11003`; billing/invoices; chart APIs unless needed.
-
-### G24 DoD (draft)
-
-- [ ] Kickoff locks (entity_id, Admin, history, log tag, G6 scope if any)
-- [ ] Bridge polls + ingests per locks; Pi smoke
-- [ ] Product doc updated for bridge behaviour
-- [ ] Last DoD: audit `docs/**/*.md` + root README
+- [x] Kickoff locks written (**2026-11-05**)
+- [x] Bridge polls + ingests; Admin/health/reload/Explorer/history/logs per playbook
+- [x] Pi smoke — **2026-11-05** (operator); display unit fix m³ (not liters)
+- [x] Last DoD: audit `docs/**/*.md` + root README — **2026-11-05**
+- [x] Operator close **2026-11-05**
 
 ---
