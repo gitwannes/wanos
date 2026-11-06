@@ -114,7 +114,7 @@ All open items. **Detail** = phase file section.
 ```text
 #   Status Size Id           What                                               Detail
 ──  ────── ──── ──────────── ────────────────────────────────────────────────── ──────────────────────────
-1   coding high Ops7         fresh main Pi: Trixie + PHP≥8.4.27 + Python 3.13 (scripts) ops7-fresh-install.md
+1   open   high Ops7         fresh main Pi: Trixie + PHP≥8.4.27 + Python 3.13 (scripts) ops7-fresh-install.md
 2   open   low  B12          rule-list folder/tag                               phaseB § B12
 3   open   mid  B26          independent If sequence under Then (all-match)     phaseB § B26
 4   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)      phaseB § B24

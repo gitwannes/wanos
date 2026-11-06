@@ -1277,6 +1277,11 @@ function wanosApp() {
         doorBathroomLabelText: "Bathroom door —",
         doorBathroomTimerText: "—",
 
+        // W2: Power dashboard machine API key (Admin Site info)
+        powerBridgeKeyConfigured: false,
+        powerBridgeKeyOnce: "",
+        powerBridgeKeyBusy: false,
+
         sunCyclePopoverOpen: false,
 
         init() {
@@ -1387,6 +1392,7 @@ function wanosApp() {
 
             if (this.isAdmin && window.location.pathname.includes("admin.html")) {
                 this.loadElementPower();
+                this.refreshPowerBridgeKeyStatus();
                 // C35: refresh learn counts when a session row lands in metrics (SSE).
                 this.$watch(
                     () => {
@@ -3885,6 +3891,46 @@ function wanosApp() {
         },
 
         /** Admin Site info: Rth as 0.00 °C/kW (stored as °C/W; display x1000). */
+        async refreshPowerBridgeKeyStatus() {
+            try {
+                const res = await fetch("/api/bridge/api-key/status", { headers: this.getAuthHeaders() });
+                if (!res.ok) {
+                    this.powerBridgeKeyConfigured = false;
+                    return;
+                }
+                const data = await res.json();
+                this.powerBridgeKeyConfigured = !!(data && data.configured);
+            } catch (e) {
+                this.powerBridgeKeyConfigured = false;
+            }
+        },
+
+        async generatePowerBridgeApiKey() {
+            if (this.powerBridgeKeyBusy) return;
+            if (!confirm("Generate a new Power bridge API key? The previous key stops working immediately. Copy the new key into the Power Settings page.")) {
+                return;
+            }
+            this.powerBridgeKeyBusy = true;
+            this.powerBridgeKeyOnce = "";
+            try {
+                const res = await fetch("/api/bridge/api-key/generate", {
+                    method: "POST",
+                    headers: this.getAuthHeaders(),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.api_key) {
+                    alert((data && data.error) || "Failed to generate Power bridge API key.");
+                    return;
+                }
+                this.powerBridgeKeyOnce = String(data.api_key);
+                this.powerBridgeKeyConfigured = true;
+            } catch (e) {
+                alert("Failed to generate Power bridge API key.");
+            } finally {
+                this.powerBridgeKeyBusy = false;
+            }
+        },
+
         formatRthInsulation() {
             const raw = this.state && this.state.metrics
                 ? this.state.metrics.r_th_insulation_coefficient

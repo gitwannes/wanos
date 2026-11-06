@@ -120,6 +120,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `lg.py`: LG webOS TV (**G16** ✅; **G20** OFF latch) — WOL + SSAP power poll + commanded-OFF latch (poll ON suppressed while SSAP stays open after WanOS OFF) + fixed app catalog launch. Product: [`docs/integration_lg.md`](integration_lg.md).
 * `homewizard.py`: HomeWizard Energy (**G10** ✅; health **G21** ✅) — Local API v2 poll (aiohttp) for P1 / PV → `810xx` (gauges as host history). Shared session + poll-staleness health (`3×poll_secs`) + 3-fail host hysteresis. Product: [`docs/integration_homewizard.md`](integration_homewizard.md). Scout: `helpers/homewizard_discovery.py`. Map UI → **G17**.
 * `waterlink.py` / `waterlink_client.py`: Water-Link portal meter (**G24** ✅) — poll every `poll_interval_hours` → idx **82001** fluid; health = **2 consecutive** poll fails; Admin enable; Explorer/History display **m³**. Scout **G23** ✅ (`waterlink_scout.py`). Product: [`docs/integration_waterlink.md`](integration_waterlink.md).
+* Power dashboard bridge (**W2**): `core/bridge_api_key.py` + `core/bridge_sensors.py`; `GET/POST /api/bridge/*` (machine Bearer key, role `bridge`); Admin Site info Generate. Product: [`docs/integration_power_bridge.md`](integration_power_bridge.md).
 
 ---
 

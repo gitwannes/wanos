@@ -494,10 +494,23 @@ class RbacASGI:
                 payload = jwt.decode(token, config.auth.secret_key, algorithms=["HS256"])
                 role = payload.get("role")
             except Exception:
-                pass
+                role = None
+            # W2: machine API key for Power dashboard (not a JWT).
+            if not role:
+                from core.bridge_api_key import verify_plain_key
+
+                if verify_plain_key(token):
+                    role = "bridge"
 
         if not role and path.startswith("/api/"):
             await JSONResponse(status_code=401, content={"detail": "Unauthorized. Session expired."})(
+                scope, receive, send
+            )
+            return
+
+        # Bridge machine key: only /api/bridge/* (not full state/SSE/admin).
+        if role == "bridge" and path.startswith("/api/") and not path.startswith("/api/bridge"):
+            await JSONResponse(status_code=403, content={"detail": "Forbidden: bridge scope is /api/bridge only."})(
                 scope, receive, send
             )
             return
@@ -1623,6 +1636,63 @@ async def inject_event(request: GenericEventRequest, req: Request) -> dict[str, 
     event: Event = Event(type=e_type, payload=request.payload)
     state_manager.dispatch(event)
     return {"status": "Event dispatched", "event": event}
+
+
+def _bridge_role_ok(role: Optional[str]) -> bool:
+    return role in ("bridge", "admin")
+
+
+@app.get("/api/bridge/probe")
+async def bridge_probe(req: Request) -> Any:
+    """Power dashboard connectivity check (W2). Role: bridge or admin."""
+    if not _bridge_role_ok(getattr(req.state, "role", None)):
+        return JSONResponse(status_code=403, content={"error": "Forbidden: bridge privileges required."})
+    return {"ok": True, "service": "wanos", "bridge": "power", "role": req.state.role}
+
+
+@app.get("/api/bridge/sensors")
+async def bridge_sensors(req: Request) -> Any:
+    """Allowlisted sensors + live values for Power (W2). Role: bridge or admin."""
+    if not _bridge_role_ok(getattr(req.state, "role", None)):
+        return JSONResponse(status_code=403, content={"error": "Forbidden: bridge privileges required."})
+    from core.bridge_sensors import list_bridge_sensors
+
+    snap = state_manager.get_state_snapshot()
+    last_seen_fn = None
+    hist = getattr(state_manager, "sensor_history", None)
+    if hist is not None and hasattr(hist, "last_seen_unix"):
+        last_seen_fn = hist.last_seen_unix
+    sensors = list_bridge_sensors(
+        device_metadata=snap.device_metadata or {},
+        devices=snap.devices or {},
+        outside_temp=getattr(snap.sensors, "outside_temp", None),
+        owm_last_poll_unix=getattr(snap.sensors, "owm_last_poll_unix", None),
+        resolve_idx=state_manager.resolve_entity_id,
+        last_seen_unix=last_seen_fn,
+    )
+    return {"ok": True, "sensors": sensors}
+
+
+@app.get("/api/bridge/api-key/status")
+async def bridge_api_key_status(req: Request) -> Any:
+    """Admin: whether a Power bridge API key hash is stored."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    from core.bridge_api_key import load_status
+
+    return {"ok": True, **load_status()}
+
+
+@app.post("/api/bridge/api-key/generate")
+async def bridge_api_key_generate(req: Request) -> Any:
+    """Admin: generate a new 32-byte key; plaintext returned once; hash stored on disk."""
+    if req.state.role != "admin":
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Admin privileges required."})
+    from core.bridge_api_key import generate_and_store
+
+    plain, status = generate_and_store()
+    logger.info("[PowerBridge] New machine API key generated (hash stored; plaintext shown once).")
+    return {"ok": True, "api_key": plain, **status}
 
 
 @app.get("/api/state/sse")

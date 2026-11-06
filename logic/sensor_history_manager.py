@@ -672,6 +672,20 @@ class SensorHistoryManager:
         self.sm._state.metrics.water_cold_today_l = float(cold.get("today") or 0.0)
         self.sm._state.metrics.water_hot_today_l = float(hot.get("today") or 0.0)
 
+    def last_seen_unix(self, idx: int) -> Optional[int]:
+        """Last ingest time for a tracked idx (RAM runtime; None until first sample this boot)."""
+        try:
+            key = int(idx)
+        except (TypeError, ValueError):
+            return None
+        rt = self._runtime.get(key)
+        if rt is None:
+            return None
+        ts = float(getattr(rt, "last_seen_ts", 0.0) or 0.0)
+        if ts <= 0:
+            return None
+        return int(ts)
+
     def note_power_watts(self, idx: int, watts: float) -> None:
         if idx not in self.tracked_idxs:
             return

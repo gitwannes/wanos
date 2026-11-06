@@ -647,6 +647,23 @@
                                         <span class="text-base-400 shrink-0" x-text="doorBathroomLabelText"></span>
                                         <span class="font-bold text-right whitespace-nowrap" x-text="doorBathroomTimerText"></span>
                                     </div>
+                                    <div class="border-t border-base-300 pt-2 mt-1 flex flex-col gap-1.5">
+                                        <div class="text-base-400 uppercase text-[10px]">Power bridge API key</div>
+                                        <div class="flex justify-between items-center gap-2">
+                                            <span class="badge badge-xs py-2 px-2"
+                                                  :class="powerBridgeKeyConfigured ? 'badge-success' : 'badge-neutral'"
+                                                  x-text="powerBridgeKeyConfigured ? 'SET' : 'NONE'"></span>
+                                            <button type="button" class="btn btn-xs btn-outline"
+                                                    @click="generatePowerBridgeApiKey()"
+                                                    :disabled="powerBridgeKeyBusy"
+                                                    x-text="powerBridgeKeyBusy ? '…' : 'Generate'"></button>
+                                        </div>
+                                        <template x-if="powerBridgeKeyOnce">
+                                            <div class="text-[9px] break-all bg-base-300/60 p-1.5 rounded text-warning">
+                                                Copy now (shown once): <span class="font-bold" x-text="powerBridgeKeyOnce"></span>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
 
                                 <div class="flex flex-col gap-2 p-3 bg-base-200 border border-base-300 rounded-box min-w-0">
