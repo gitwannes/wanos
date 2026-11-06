@@ -32,9 +32,9 @@
     /** B10G: per-page deploy version (admin-only badge in titleBlock). */
     const PAGE_VERSIONS = {
         admin: 21,
-        explorer: 24,
+        explorer: 25,
         commander: 20,
-        history: 22,
+        history: 23,
         blocky: 29,
         hiddendevices: 12,
         lightingautooff: 12,

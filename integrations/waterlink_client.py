@@ -31,8 +31,13 @@ logger = logging.getLogger("waterlink.client")
 
 def parse_meter_reading_m3(raw: Any) -> Optional[float]:
     """
-    Portal returns meterReading as a locale string with thousands grouping commas.
-    Locked G23: "2,841" -> 2841.0 m3 (comma is not a decimal separator).
+    Portal meterReading uses Belgian/Dutch locale for m3.
+
+    Comma = decimal separator, dot = thousands.
+    Examples: "3,616" -> 3.616; "2.841,5" -> 2841.5; "2841" -> 2841.0
+
+    Operator correction 2026-11-06: earlier G23 thousands-comma parse was wrong
+    (face reading is ~3.6 m3 / ~3600 L, not thousands of m3).
     """
     if raw is None:
         return None
@@ -42,9 +47,12 @@ def parse_meter_reading_m3(raw: Any) -> Optional[float]:
     if not text:
         return None
     if "," in text and "." in text:
+        # 1.234,567 -> 1234.567
         text = text.replace(".", "").replace(",", ".")
     elif "," in text:
-        text = text.replace(",", "")
+        # 3,616 -> 3.616 (decimal comma)
+        text = text.replace(",", ".")
+    # Single '.' (or plain digits): standard float decimal
     return float(text)
 
 

@@ -1178,7 +1178,7 @@ Power ON deliberately nullled `volume` → Explorer **SYNC...**, then forced `MV
 | Scout | `waterlink_scout.py` — OIDC auth-code+PKCE S256 + SAP `#logOnForm` headless login → `GET /api/meters/{id}` |
 | Config | `config.yaml` `waterlink:` (`meter_id`, `poll_interval_hours`, `idx`) |
 | Secrets | `.env` `WATERLINK_USER` / `WATERLINK_PASSWORD` (`.env.example`) |
-| Parse | `"2,841"` → **2841.0** m³ |
+| Parse | Was thousands-comma (wrong). Corrected **2026-11-06**: Belgian decimal `"3,616"` → **3.616** m³ |
 
 **Locks retained:** scout-only this ship; ROPC unsupported; HAR not committed.
 
@@ -1224,14 +1224,16 @@ Power ON deliberately nullled `volume` → Explorer **SYNC...**, then forced `MV
 | Entity | Frozen `sensor.fluid.waterlink.digital_meter`; Explorer/History display **m³** (`nl-BE`) |
 | Reload | Full reload only (no G6 row) |
 
+**Post-close follow-ups (2026-11-06, still G24):** Belgian decimal parse (`"3,616"` → **3.616** m³ ≈ 3616 L); fluid History month/year consumption bars (no day); auto-purge poisoned deltas when period ≫ face total. Product: [`integration_waterlink.md`](../integration_waterlink.md).
+
 **Locks retained:** telemetry-only (no C18); jump ahead of G11–G13; does not replace pulse `11002`/`11003`.
 
 ### G24 DoD
 
 - [x] Kickoff locks written (**2026-11-05**)
 - [x] Bridge polls + ingests; Admin/health/reload/Explorer/history/logs per playbook
-- [x] Pi smoke — **2026-11-05** (operator); display unit fix m³ (not liters)
-- [x] Last DoD: audit `docs/**/*.md` + root README — **2026-11-05**
-- [x] Operator close **2026-11-05**
+- [x] Pi smoke — **2026-11-05** (operator); unit/parse + History bars + scale-heal — **2026-11-06**
+- [x] Last DoD: audit `docs/**/*.md` + root README — **2026-11-05** / refresh **2026-11-06**
+- [x] Operator close **2026-11-05**; reconfirmed **2026-11-06**
 
 ---

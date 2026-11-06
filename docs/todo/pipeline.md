@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-11-05 (**G24** Water-Link bridge Done; Ops7 Sequence #1)
+**Last updated:** 2026-11-06 (**G24** already Done — post-close parse/charts/heal noted; Ops7 Sequence #1)
 
 ---
 
@@ -103,7 +103,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **B14b / B25** | Library complexity score + tier (sort/filter) — **close-out 2026-10-05** — [`phaseB-blocky.md`](phaseB-blocky.md) § B14 part 2 · § B25 · [`reference.md`](../reference.md) § automations API |
 | **Ops8** | PHP2Shell bridge on live Bullseye PHP 7.4 (B2 pristine + mitigation) — **close-out 2026-11-04** — [`_archive/ops8-php2shell-bridge.md`](_archive/ops8-php2shell-bridge.md) · [`../ops8-operator-checklist.md`](../ops8-operator-checklist.md) |
 | **G23** | Water-Link portal scout (`waterlink_scout.py`) — **close-out 2026-11-04** — [`phaseG-integrations.md`](phaseG-integrations.md) § G23 · [`../integration_waterlink.md`](../integration_waterlink.md) |
-| **G24** | Water-Link WanOS bridge (poll 6h → idx 82001) — **close-out 2026-11-05** — [`phaseG-integrations.md`](phaseG-integrations.md) § G24 · [`../integration_waterlink.md`](../integration_waterlink.md) |
+| **G24** | Water-Link WanOS bridge (poll 6h → idx 82001) — **close-out 2026-11-05** (follow-ups 2026-11-06) — [`phaseG-integrations.md`](phaseG-integrations.md) § G24 · [`../integration_waterlink.md`](../integration_waterlink.md) |
 
 ---
 

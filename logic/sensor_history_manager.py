@@ -540,6 +540,74 @@ class SensorHistoryManager:
             rt.window_start_ts = now
             self._clear_boot_gap_flag_if_needed()
 
+    def purge_idx_consumption(self, idx: int, *, reason: str = "") -> None:
+        """
+        Zero consumption history for one idx (hourly + daily + RAM buckets).
+        Used after a unit/scale correction (e.g. Water-Link 3616 -> 3.616 m3).
+        """
+        i = int(idx)
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("UPDATE sensor_hourly SET consumption = 0 WHERE idx = ?", (i,))
+        c.execute(
+            "UPDATE sensor_daily SET consumption = 0, counter_start = NULL, counter_end = NULL "
+            "WHERE idx = ?",
+            (i,),
+        )
+        conn.commit()
+        conn.close()
+        # Drop live RAM day/hour buckets for this idx
+        for key in list(self._day_buckets.keys()):
+            if key[0] == i:
+                self._day_buckets.pop(key, None)
+        for key in list(self._hour_buckets.keys()):
+            if key[0] == i:
+                self._hour_buckets.pop(key, None)
+        rt = self._runtime.get(i)
+        if rt is not None:
+            rt.last_absolute = None
+        tag = f" ({reason})" if reason else ""
+        logger.warning(f"[SensorHistory] purged consumption for idx {i}{tag}")
+
+    def heal_fluid_scale_if_needed(self, idx: int) -> bool:
+        """
+        If stored period consumption is absurd vs face total (e.g. month 463 vs
+        total 3.616 m3 after a parse/scale fix), purge poisoned buckets.
+        Returns True when a purge ran.
+        """
+        meta = SENSOR_META.get(int(idx), {})
+        if meta.get("kind") != "fluid":
+            return False
+        cur = self.sm._state.devices.get(int(idx))
+        if not isinstance(cur, (int, float)) or float(cur) <= 0:
+            return False
+        total = float(cur)
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute(
+            "SELECT COALESCE(MAX(consumption), 0), COALESCE(SUM(consumption), 0) "
+            "FROM sensor_daily WHERE idx = ?",
+            (int(idx),),
+        )
+        row = c.fetchone()
+        conn.close()
+        max_c = float(row[0] or 0) if row else 0.0
+        sum_c = float(row[1] or 0) if row else 0.0
+        # Live RAM may still hold the bad day delta before flush
+        today = self._day_key()
+        day_b = self._day_buckets.get((int(idx), today))
+        if day_b:
+            max_c = max(max_c, float(day_b.consumption or 0))
+            sum_c = max(sum_c, float(day_b.consumption or 0))
+        # Face total 3.616 m3 cannot have day/month consumption of hundreds of m3
+        if max_c <= total * 10 and sum_c <= total * 10:
+            return False
+        self.purge_idx_consumption(
+            int(idx),
+            reason=f"fluid scale heal face={total} max_day={max_c} sum={sum_c}",
+        )
+        return True
+
     def note_absolute_fluid(self, idx: int, value: float) -> None:
         """Absolute cumulative fluid meter (e.g. gas m3). Accrues positive deltas."""
         if idx not in self.tracked_idxs:
@@ -558,6 +626,23 @@ class SensorHistoryManager:
         rt = self._runtime[idx]
         hour = self._get_hour(idx)
         day = self._get_day(idx)
+
+        # Scale correction (3616 -> 3.616): drop poisoned deltas, re-seed.
+        if (
+            rt.last_absolute is not None
+            and abs_val > 0
+            and rt.last_absolute > abs_val * 50
+        ):
+            self.purge_idx_consumption(
+                idx,
+                reason=f"absolute drop {rt.last_absolute} -> {abs_val}",
+            )
+            rt.last_absolute = abs_val
+            day = self._get_day(idx)
+            day.counter_start = abs_val
+            day.counter_end = abs_val
+            rt.last_seen_ts = now
+            return
 
         if rt.last_absolute is None:
             rt.last_absolute = abs_val
@@ -1118,6 +1203,9 @@ class SensorHistoryManager:
             return self._series_climate(idx, range_name, meta)
         if kind == "water" or self._is_water_idx(idx):
             return self._series_water(idx, range_name, meta)
+        if kind == "fluid":
+            self.heal_fluid_scale_if_needed(int(idx))
+            return self._series_fluid(idx, range_name, meta)
         if kind == "host":
             return self._series_host(idx, range_name, meta)
         return self._series_power(idx, range_name, meta)
@@ -1493,6 +1581,32 @@ class SensorHistoryManager:
             out.update(self._day_range_meta())
         return out
 
+    def _series_fluid(self, idx: int, range_name: str, meta: Dict[str, str]) -> Dict[str, Any]:
+        """
+        Absolute fluid meters (Water-Link / P1 gas): consumption bars like cold/hot water.
+        Month = daily bars; year = monthly bars. No day (hourly) chart.
+        """
+        unit = meta.get("unit") or "m3"
+        if range_name == "day":
+            return {
+                "idx": idx,
+                "range": "day",
+                "kind": "fluid",
+                "series": {"consumption": []},
+                **meta,
+                "unit": unit,
+            }
+        bars = self._water_bars_for_idx(idx, range_name)
+        points = [{"t": b["t"], "v": b["v"]} for b in bars]
+        return {
+            "idx": idx,
+            "range": range_name,
+            "kind": "fluid",
+            "series": {"consumption": points},
+            **meta,
+            "unit": unit,
+        }
+
     def _water_period_consumption(self, idx: int) -> Dict[str, Optional[float]]:
         """today / month / year / total(lifetime counter) for one fluid IDX."""
         today = self._day_key()
@@ -1648,6 +1762,9 @@ class SensorHistoryManager:
                 "display_unit": "kWh",
             }
         if kind == "fluid":
+            # Drop poisoned deltas left after a unit/scale fix (e.g. Water-Link).
+            if self.heal_fluid_scale_if_needed(int(idx)):
+                return self.get_summary(idx)
             return {
                 "idx": idx,
                 **meta,

@@ -5105,6 +5105,7 @@ function wanosApp() {
             if (u === "%") return 10;
             if (u === "W") return 10;
             if (u === "L" || u === "l") return range === "day" ? 10 : 50;
+            if (u === "m3" || u === "m³") return range === "year" ? 0.5 : 0.1;
             if (u === "V") return 5;
             if (u === "A") return 1;
             if (u === "Hz") return 1;
@@ -5217,22 +5218,27 @@ function wanosApp() {
         renderHistoryCharts(dayData, monthData, yearData, { soft = false } = {}) {
             const kind = dayData?.kind || monthData?.kind || "power";
             const isWater = kind === "water";
+            const isFluid = kind === "fluid";
             const isClimate = kind === "climate";
             const isHost = kind === "host";
             const hostUnit = dayData?.unit || monthData?.unit || "";
+            const fluidUnit = dayData?.unit || monthData?.unit || yearData?.unit || "m3";
 
             this.historyDayTitle = isClimate
                 ? "Temperature / humidity day window"
                 : (isHost ? `Value day window (${hostUnit})`
-                    : (isWater ? "Cold / hot water day window" : "Usage day window"));
+                    : (isWater ? "Cold / hot water day window"
+                        : (isFluid ? "Fluid day window (unused)" : "Usage day window")));
             this.historyMonthTitle = isClimate
                 ? "Temperature / humidity last month"
                 : (isHost ? `Min / max last month (${hostUnit})`
-                    : (isWater ? "Cold / hot water last month" : "Usage last month"));
+                    : (isWater ? "Cold / hot water last month"
+                        : (isFluid ? "Consumption last month" : "Usage last month")));
             this.historyYearTitle = isClimate
                 ? "Temperature / humidity last year (weekly)"
                 : (isHost ? `Min / max last year (${hostUnit})`
-                    : (isWater ? "Cold / hot water last year" : "Usage last year"));
+                    : (isWater ? "Cold / hot water last year"
+                        : (isFluid ? "Consumption last year" : "Usage last year")));
 
             this.historyDayRetentionDays = this._retentionDaysFromPayload(dayData);
             if (isClimate) {
@@ -5262,9 +5268,12 @@ function wanosApp() {
                 this._disposeHistoryCharts();
             }
 
-            const dayOk = isClimate
-                ? this._climateRangeHasData(dayData, "day")
-                : this._historyPayloadHasData(dayData);
+            // Absolute fluid m3 (Water-Link / P1 gas): month + year bars only (no day chart).
+            const dayOk = isFluid
+                ? false
+                : (isClimate
+                    ? this._climateRangeHasData(dayData, "day")
+                    : this._historyPayloadHasData(dayData));
             const monthOk = isClimate
                 ? this._climateRangeHasData(monthData, "month")
                 : this._historyPayloadHasData(monthData);
@@ -5346,9 +5355,15 @@ function wanosApp() {
                     return;
                 }
 
-                const yLabel = isWater ? "liters" : (isHost ? (hostUnit || "Value") : "Usage (Watt)");
+                const yLabel = isWater
+                    ? "liters"
+                    : (isFluid
+                        ? (fluidUnit === "m3" || fluidUnit === "m³" ? "m³" : fluidUnit)
+                        : (isHost ? (hostUnit || "Value") : "Usage (Watt)"));
                 const seriesName = isHost ? "Value" : "Usage";
-                const snapUnit = isWater ? "L" : (isHost ? hostUnit : "W");
+                const snapUnit = isWater
+                    ? "L"
+                    : (isFluid ? "m3" : (isHost ? hostUnit : "W"));
 
                 if (dayChart && this.historyChartHasData.day) {
                     if (isWater) {
@@ -5380,6 +5395,8 @@ function wanosApp() {
                 if (monthChart && this.historyChartHasData.month) {
                     if (isWater) {
                         this._renderWaterChart(monthChart, monthData, "month", { soft });
+                    } else if (isFluid) {
+                        this._renderFluidChart(monthChart, monthData, "month", { soft });
                     } else {
                         const opt = this._baseChartOption(yLabel);
                         opt.series = [
@@ -5410,6 +5427,8 @@ function wanosApp() {
                 if (yearChart && this.historyChartHasData.year) {
                     if (isWater) {
                         this._renderWaterChart(yearChart, yearData, "year", { soft });
+                    } else if (isFluid) {
+                        this._renderFluidChart(yearChart, yearData, "year", { soft });
                     } else {
                         const opt = this._baseChartOption(yLabel);
                         opt.series = [
@@ -5847,6 +5866,77 @@ function wanosApp() {
                 this._bindWaterDaySubtitle(chart, labels);
                 if (step) this._bindHistoryYSnap(chart, [{ axisIndex: 0, step }]);
             }
+        },
+
+        /**
+         * Absolute fluid m3 (Water-Link / P1 gas): category bars like cold/hot water,
+         * single series. Month = daily; year = monthly. No day chart.
+         */
+        _renderFluidChart(chart, data, range, { soft = false } = {}) {
+            if (!chart) return;
+            const points = data?.series?.consumption || [];
+            const labels = [];
+            const vals = [];
+            for (let i = 0; i < points.length; i++) {
+                const p = points[i];
+                if (!p || p.t == null) continue;
+                labels.push(this._historyBucketLabel(p.t, range));
+                vals.push(p.v != null ? Number(p.v) : 0);
+            }
+            if (!labels.length) return;
+
+            const unitLabel = (data?.unit === "m3" || data?.unit === "m³" || !data?.unit)
+                ? "m³"
+                : String(data.unit);
+            const opt = {
+                backgroundColor: "transparent",
+                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+                legend: {
+                    bottom: 0,
+                    icon: "rect",
+                    itemWidth: 12,
+                    itemHeight: 3,
+                    textStyle: { color: "#9ca3af" }
+                },
+                grid: { left: 48, right: 24, top: 24, bottom: labels.length > 10 ? 72 : 56 },
+                xAxis: {
+                    type: "category",
+                    data: labels,
+                    axisLabel: {
+                        color: "#9ca3af",
+                        hideOverlap: true,
+                        rotate: labels.length > 8 ? 35 : 0,
+                        fontSize: 10
+                    },
+                    axisTick: { alignWithLabel: true },
+                    splitLine: { show: false }
+                },
+                yAxis: {
+                    type: "value",
+                    name: unitLabel,
+                    min: 0,
+                    nameTextStyle: { color: "#9ca3af" },
+                    axisLabel: { color: "#9ca3af", hideOverlap: true },
+                    splitLine: { lineStyle: { color: "#374151" } }
+                },
+                series: [
+                    {
+                        name: data?.label || "Consumption",
+                        type: "bar",
+                        barMaxWidth: 40,
+                        data: vals,
+                        itemStyle: { color: "#38bdf8" }
+                    }
+                ]
+            };
+            const step = this._ySnapStepForUnit("m3", range);
+            if (step) {
+                const peak = Math.max(0, ...vals.map(Number));
+                const bounds = this._snapBounds(0, peak, step);
+                opt.yAxis.max = bounds.max;
+                opt.yAxis.interval = this._yLabelInterval(bounds.min, bounds.max, step, 8);
+            }
+            this._setHistoryChartOption(chart, opt, null, { soft });
         },
 
         /**
