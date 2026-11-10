@@ -1,6 +1,8 @@
 # --- file: docs/integration_power_bridge.md ---
 # Power dashboard bridge (W2)
 
+**Status:** shipped **2026-11-06** (homepower_dashboard **W2** Done).
+
 Machine-to-machine link so **homepower_dashboard** can read selected WanOS sensors (display only). API key design is shared with future **W1** (Power → WanOS).
 
 ## Auth
@@ -29,9 +31,23 @@ Do not use Admin PIN for Power.
 | Method | Path | Role | Purpose |
 |---|---|---|---|
 | GET | `/api/bridge/probe` | bridge, admin | Connectivity |
-| GET | `/api/bridge/sensors` | bridge, admin | Allowlist + live values + `updated_unix` (waters: sensor_history last ingest; ambient: OWM last poll) |
+| GET | `/api/bridge/sensors` | bridge, admin | Allowlist + live values + `updated_unix` |
 | GET | `/api/bridge/api-key/status` | admin | Hash configured? |
 | POST | `/api/bridge/api-key/generate` | admin | New key (plaintext once) |
+
+### `/api/bridge/sensors` row shape
+
+Each allowlisted sensor that is present:
+
+| Field | Meaning |
+|---|---|
+| `entity_id` | Stable FK for Power mappings |
+| `kind` | `water_official` / `water_cold` / `water_hot` / `ambient` |
+| `unit` | `m3` / `L` / `C` |
+| `name` | WanOS display name |
+| `value` | Live numeric (or null) |
+| `available` | true when value is non-null |
+| `updated_unix` | Last update epoch: waters = `sensor_history` last ingest; ambient = `owm_last_poll_unix` (may be null until first sample) |
 
 ## Allowlist (entity_id)
 
@@ -46,5 +62,6 @@ Do not use Admin PIN for Power.
 
 - `core/bridge_api_key.py`
 - `core/bridge_sensors.py`
+- `logic/sensor_history_manager.py` (`last_seen_unix`)
 - `main.py` (middleware + routes)
 - Admin UI: `frontend/admin.html` / `app.js`

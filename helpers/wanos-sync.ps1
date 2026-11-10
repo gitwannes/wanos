@@ -299,7 +299,9 @@ $WlwMirrorExcludeDirs = @(
     "__pycache__",
     ".venv",
     # Google AI Studio
-    "aistudio-preview"
+    "aistudio-preview",
+    # Gitignored local archives (e.g. public/p1/_archive). Sync does not read .gitignore.
+    "_archive"
 )
 $WlwMirrorExcludeFiles = @(
     ".env*",
@@ -327,12 +329,15 @@ $WlwLfNormalizeExtensions = @(
     ".php",
     ".js",
     ".css",
+    ".svg",
     ".csv",
     ".py",
     ".txt",
     ".conf",
     ".inc",
     ".service",
+    ".timer",
+    ".sudoers",
     ".json",
     ".html",
     ".htm"
@@ -1130,7 +1135,9 @@ function Invoke-WanosRsyncMirrorJob {
         [hashtable]$Ssh,
         [string[]]$ExcludeDirs,
         [string[]]$ExcludeFiles,
-        [switch]$DryRun
+        [switch]$DryRun,
+        # WLW pair: match Pi helpers/wlw-sync.sh (-a --checksum --no-times --delete).
+        [switch]$ContentChecksum
     )
 
     Write-SyncJobHeader "=== MIRROR JOB (Local --> Pi via rsync/SSH) ==="
@@ -1146,6 +1153,11 @@ function Invoke-WanosRsyncMirrorJob {
     $rsyncArgs = New-Object System.Collections.Generic.List[string]
     [void]$rsyncArgs.Add("-avz")
     if ($DryRun) { [void]$rsyncArgs.Add("-n") }
+    if ($ContentChecksum) {
+        # Same compare posture as be90 helpers/wlw-sync.sh (not size+mtime).
+        [void]$rsyncArgs.Add("--checksum")
+        [void]$rsyncArgs.Add("--no-times")
+    }
     [void]$rsyncArgs.Add("--delete")
     [void]$rsyncArgs.Add("-e")
     [void]$rsyncArgs.Add((Get-SshRsyncShellArg))
@@ -1829,6 +1841,7 @@ if ($Mode -eq "codeimport") {
         -Ssh $WlwPiSsh `
         -ExcludeDirs $WlwMirrorExcludeDirs `
         -ExcludeFiles $WlwMirrorExcludeFiles `
+        -ContentChecksum `
         -DryRun:$DryRun
 
     Write-Host ""

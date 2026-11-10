@@ -1,0 +1,43 @@
+---
+description: Keep PC wanos-sync wlw and Pi wlw-sync.sh mirror rules matched
+alwaysApply: true
+---
+
+<!-- --- file: .cursor/rules/wlw-sync-pair.mdc --- -->
+
+# WLW sync-tool pair (hard rule)
+
+Two tools must stay **behaviourally matched** for the WLW app-tree mirror:
+
+| Side | Repo | Tool |
+|---|---|---|
+| PC → Pi live | **wanos** (this repo) | `helpers/wanos-sync.ps1` (`$WlwMirrorExcludeDirs` / `$WlwMirrorExcludeFiles`, `… wlw`) |
+| Pi clone → Pi live | **be90webserver** | `helpers/wlw-sync.sh` (`EXCLUDE_DIRS` / `EXCLUDE_FILES`) |
+
+Product locks: be90webserver `docs/wlw-sync.md`. This repo: [`docs/wanos-sync.md`](docs/wanos-sync.md) (WLW pair section).
+
+## Locked match (both tools)
+
+| Topic | Lock |
+|---|---|
+| Compare | `--checksum --no-times` (not size+mtime). PC: `-ContentChecksum` on the wlw mirror job only; main/LCD stay `-avz`. |
+| Dir excludes | `.git`, `.cursor`, `docs`, `__pycache__`, `.venv`, `aistudio-preview`, **`_archive`** |
+| File excludes | `.env*`, `*.md`, `.gitignore`, `.gitattributes`, `db+credentials`, `logs`, `ssh-term-full.js`, `*.lnk`, `_tmp*`, `server.ts`, `tsconfig.json`, `metadata.json`, `package.json` |
+| LF normalize (PC) | Deploy text set incl. **`.svg`**, **`.sudoers`**, **`.timer`**; be90 `.gitattributes` `eol=lf` for the same types |
+| Sync vs gitignore | Sync does **not** read `.gitignore`; `_archive` exclude covers gitignored archive dirs |
+
+## When either side changes
+
+If you change **any** of: mirror excludes, compare rules, modes, path locks, or the WLW LF-normalize extension set — in the **same** authorized code turn:
+
+1. Update **both** tools (PC list here + Pi list in be90webserver), or stop and say the other repo still needs the matching edit.
+2. Update **both** product docs (`docs/wanos-sync.md` here · be90webserver `docs/wlw-sync.md`).
+3. Update **both** `.cursor/rules/wlw-sync-pair.mdc` copies when the locked match table changes.
+4. Do **not** leave one tool ahead of the other.
+
+## Do not
+
+- Add WLW mirror excludes only on PC or only on Pi
+- Reuse bare path segment `bootstrap` (would skip be90 `helpers/bootstrap/`)
+- Treat docs-only updates as enough when the lists in the scripts still differ
+- Drop `--checksum` / `--no-times` on only one side of the WLW pair
