@@ -115,11 +115,11 @@ Every new bridge touches some of these. Skip rows that do not apply (e.g. teleme
 | `requirements.txt` | Chosen library |
 | `main.py` | Construct if config present; `lifespan` start/stop; autostart toggle |
 | `core/models.py` | `*_connected`, `*_integration_enabled`; `EventType.<VENDOR>_TOGGLED` |
-| `core/event_handlers/integration_handlers.py` | Toggle handler (copy Hue/OWM pattern: reject if offline; ON/OFF bell; auto-recovery sweep) |
+| `core/event_handlers/integration_handlers.py` | Toggle handler (copy Hue/OWM pattern: reject if offline; ON/OFF bell via `_emit_integration_toggle_alerts`; tag disable with `integration`/`kind`) |
 | `core/event_handlers/registry.py` | Map the toggle event |
 | `logic/health_monitor.py` | Ping + strike counter + auto-kill dispatch |
-| `core/event_handlers/telemetry_handlers.py` | Apply `*_connected`; disable integration + connection-transition bell/log when link drops |
-| `frontend/admin.html` | Master switch + LIVE / DISABLED / OFFLINE |
+| `core/event_handlers/telemetry_handlers.py` | Apply `*_connected`; connection-transition bell/log when link drops (**G14:** no post-fault auto-enable) |
+| `frontend/admin.html` | Master switch + **OFFLINE** / **READY, DISABLED** / **LIVE** |
 | `frontend/app.js` | Alpine defaults; “integrations disabled” banner; Explorer origin filter; commandable check |
 | `docs/integration_<vendor>.md` | Lifecycle (boot, listen, outbound, reload, health, off) — same job as [`docs/integration_hue.md`](integration_hue.md) |
 | `docs/reference.md`, `docs/architecture.md`, root README | APIs, flags, file list |

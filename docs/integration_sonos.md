@@ -42,6 +42,7 @@ Outside of the `sonos.py` script, the global `HealthMonitor` audits the overall 
 *   **Subnet Ping:** Every 2 seconds, the monitor attempts a fast TCP ping against port `1400` on the mapped Sonos IPs. 
 *   **The Strike System:** If *at least one* speaker answers the ping, the Sonos integration is considered healthy. If *zero* speakers respond, it issues a "strike".
 *   **The Auto-Kill:** If the monitor accumulates **3 strikes (6 seconds total)** of complete network silence across all speakers, it intervenes, fires an emergency payload to disable the integration completely, and logs: *"Sonos connection lost after 3 retries. Integration disabled."*
+*   **G14:** `sonos_connected` is stored from the health ping. Admin status is **OFFLINE** / **READY, DISABLED** / **LIVE**. After auto-kill, re-enable to **LIVE** is **manual**; successful enable emits a success **Sonos Integration turned ON** bell. Disable rows may show a green **READY, DISABLED** chip when speakers are reachable again.
 
 ## 7. Turning the Integration OFF
 If the integration is manually turned **OFF** in the UI (or if the Health Monitor kills it):

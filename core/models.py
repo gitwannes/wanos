@@ -129,6 +129,7 @@ class SystemAdminState(BaseModel):
     homewizard_integration_enabled: bool = False  # Master UI switch for HomeWizard poll (G10)
     waterlink_connected: bool = False  # Water-Link bridge reachable (G24)
     waterlink_integration_enabled: bool = False  # Master UI switch for Water-Link poll (G24)
+    sonos_connected: bool = False  # G14: Sonos LAN reachability (health ping)
     sonos_integration_enabled: bool = False  # Master UI switch to block/allow Sonos commands
     onkyo_connected: bool = False  # Tracks physical TCP availability of Onkyo Receivers
     onkyo_integration_enabled: bool = False  # Master UI switch to block/allow Onkyo Receivers
@@ -138,7 +139,9 @@ class SystemAdminState(BaseModel):
     automations_enabled: bool = False  # Master switch for the logic engine
     owm_integration_enabled: bool = False  # Default OFF, controls OpenWeatherMap polling
     lcd_integration_enabled: bool = False  # Master UI switch to block/allow LCD MQTT publishes
-    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)  # {id, level, message, timestamp, produced_at, count}; level: critical|error|warning|success|info
+    # Alerts: {id, level, message, timestamp, produced_at, count[, integration, kind]};
+    # level: critical|error|warning|success|info. G14: integration + kind=integration_disabled for READY chip.
+    system_alert_msgs: list[dict[str, Any]] = Field(default_factory=list)
     active_timers: list[str] = Field(default_factory=list)  # Glass-box exposure of currently ticking timers
     native_rfx_devices: list[dict] = Field(default_factory=list)  # Pushed dynamically to UI panel
     # B10B: Explorer dashboard buttons from events: catalog

@@ -22,7 +22,7 @@ Telemetry-only portal poll into WanOS. **No C18** (no outbound commands).
 | **Poll** | Every `poll_interval_hours`: full OIDC PKCE + SAP form login → `GET /api/meters/{id}` → cumulative m³ |
 | **Ingest** | `WATERLINK_METRIC` → `devices[82001]` absolute m³; history via `note_absolute_fluid` |
 | **Entity** | Frozen `sensor.fluid.waterlink.digital_meter` (display name from `waterlink.name`) |
-| **Admin** | Water-Link row — LIVE / DISABLED / OFFLINE + master switch (enabled at boot when bridge starts / `WANOS_AUTOSTART`) |
+| **Admin** | Water-Link row — **OFFLINE** / **READY, DISABLED** / **LIVE** + master switch (enabled at boot when bridge starts / `WANOS_AUTOSTART`; post-fault re-enable manual — G14) |
 | **Health** | **No** portal ping every health tick. Offline after **2 consecutive** poll failures; health-monitor auto-kill then disables the integration |
 | **Reload** | Full config reload remaps `waterlink:` (no G6 scoped row) |
 | **Explorer / History** | Read-only fluid row; value as **m³** (`nl-BE`, e.g. portal `"3,616"` → **3,616 m³** ≈ 3616 L). History: **month** (daily bars) + **year** (monthly bars), same shape as cold/hot water — no day chart. If period consumption is absurd vs face total (poisoned deltas after a scale fix), history auto-purges that idx. Hidden when disabled |

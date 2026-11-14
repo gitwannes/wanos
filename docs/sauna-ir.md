@@ -171,7 +171,7 @@ Priority:
    * Line 2 default = temp/hum **left** + **door-closed duration right-aligned** (`doors.sauna_closed_since_unix`).
    * If sauna door is open, line 2 becomes `plz close sdoor` **without** open/closed duration.
 2. **IR active** (when sauna is not active): line 1 `IR {mm:ss}`; append ` - {mod}%` only when `0 < mod < 100`; at 100% mod the timer is right-aligned (`IR` left). Line 2 = temp/hum.
-3. **Sauna Hue ON only** (when sauna+IR inactive): use date/outside-info fallback text (`shue` equivalent = `hue.group.sauna_hue` ON).
+3. **Sauna Hue ON only** (when sauna+IR inactive): line 1 = local date (`%a %d %b %Y`); line 2 = **sauna** calc T/RH **left-aligned** + **outside** temp **right-aligned** as `out {t}°` (variable middle spaces to fill 16 cells). If `out` leaves no separator space (e.g. `100°` sauna + negative outside), shrink the label to `o`. Missing outside → sauna climate centered only. (`shue` equivalent = `hue.group.sauna_hue` ON).
 4. **Blank screen 1** when sauna inactive, IR inactive, and sauna Hue is OFF.
 
 #### 3.7.3 Screen 2 (`0x26`) Display Rules

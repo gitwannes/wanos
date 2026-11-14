@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-11-14 (**C45** Done — outside adaptive setpoint_bias; Ops7 Sequence #1)
+**Last updated:** 2026-11-14 (**P3** triaged + kickoff; **G14** Done; Ops7 Sequence #1)
 
 ---
 
@@ -105,6 +105,7 @@ When a phase finishes: Sequence → **Done**; trim Sequence only.
 | **G23** | Water-Link portal scout (`waterlink_scout.py`) — **close-out 2026-11-04** — [`phaseG-integrations.md`](phaseG-integrations.md) § G23 · [`../integration_waterlink.md`](../integration_waterlink.md) |
 | **G24** | Water-Link WanOS bridge (poll 6h → idx 82001) — **close-out 2026-11-05** (follow-ups 2026-11-06) — [`phaseG-integrations.md`](phaseG-integrations.md) § G24 · [`../integration_waterlink.md`](../integration_waterlink.md) |
 | **C45** | Sauna PID cold-start adaptive `setpoint_bias` from outside — **close-out 2026-11-14** — [`phaseC-shell.md`](phaseC-shell.md) § C45 · [`../sauna-ir.md`](../sauna-ir.md) §3.8 |
+| **G14** | Manual enable UX + disable-bell READY + Z-Wave glyph — **close-out 2026-11-14** — [`phaseG-integrations.md`](phaseG-integrations.md) § G14 · [`../reference.md`](../reference.md) |
 
 ---
 
@@ -135,23 +136,23 @@ All open items. **Detail** = phase file section.
 18  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
 19  open   low  G7           Integration log tags                               phaseG § G7
 20  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
-21  open   mid  G14          bugfix: Manual enable status + ON bell             phaseG § G14
-22  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
-23  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
-24  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
-25  open   high G9           Honeywell / Evohome                                phaseG § G9
-26  open   high G12          SMA solar                                          phaseG § G12
-27  open   high G13          HomeConnect BSH                                    phaseG § G13
-28  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
-29  open   high F            Security bridge (F1→F7)                            phaseF
-30  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
-31  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-32  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-33  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-34  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-35  hold   high P            Other homes / portability (assess)                 phaseP
-36  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
-37  open   mid  P2           sync: [MirrorExcludeFiles] for main + lcd + wlw      phaseP § P2
+21  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
+22  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
+23  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
+24  open   high G9           Honeywell / Evohome                                phaseG § G9
+25  open   high G12          SMA solar                                          phaseG § G12
+26  open   high G13          HomeConnect BSH                                    phaseG § G13
+27  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
+28  open   high F            Security bridge (F1→F7)                            phaseF
+29  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
+30  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+31  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+32  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+33  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+34  hold   high P            Other homes / portability (assess)                 phaseP
+35  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
+36  open   mid  P2           sync: [MirrorExcludeFiles] for main + lcd + wlw      phaseP § P2
+37  open   low  P3           sync: quiet normal (logs/sql/zip/LogCopy → verbose) phaseP § P3
 38  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
 39  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
 40  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33

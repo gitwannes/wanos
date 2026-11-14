@@ -31,7 +31,7 @@
 
     /** B10G: per-page deploy version (admin-only badge in titleBlock). */
     const PAGE_VERSIONS = {
-        admin: 21,
+        admin: 22,
         explorer: 25,
         commander: 20,
         history: 23,
@@ -293,8 +293,11 @@
             '</div>' +
             '<button @click="dismissBellAlert(msg.id)" class="btn btn-ghost btn-xs btn-circle text-base-400 hover:text-white shrink-0 -mt-1 -mr-1">✕</button>' +
             "</div>" +
-            '<div class="flex justify-end items-center text-[10px] text-base-400 font-mono mt-2" x-show="msg.count > 1">' +
-            '<span class="badge badge-neutral badge-xs font-bold" x-text="msg.count + \'x\'"></span>' +
+            '<div class="flex justify-between items-center text-[10px] text-base-400 font-mono mt-2" ' +
+            'x-show="msg.count > 1 || alertShowsReadyChip(msg)">' +
+            '<span class="badge badge-success badge-xs font-bold text-neutral-900" ' +
+            'x-show="alertShowsReadyChip(msg)">READY, DISABLED</span>' +
+            '<span class="badge badge-neutral badge-xs font-bold ml-auto" x-show="msg.count > 1" x-text="msg.count + \'x\'"></span>' +
             "</div></div></template>" +
             '<div x-show="unreadAlertCount === 0" class="text-center text-base-400 py-6 text-xs italic">No recent system events.</div>' +
             "</div></div></div>"

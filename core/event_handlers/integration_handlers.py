@@ -1,9 +1,49 @@
 # --- file: core/event_handlers/integration_handlers.py ---
 import time
-from typing import Any, Set, Tuple
+from typing import Any, Optional, Set, Tuple
 from loguru import logger
 from core.models import Event, EventType
 from logic.alert_manager import AlertManager
+
+
+def _emit_integration_toggle_alerts(
+    manager: Any,
+    *,
+    integration: str,
+    display_name: str,
+    is_enabled: bool,
+    raw_error: Optional[str] = None,
+    turned_phrase: Optional[str] = None,
+) -> Tuple[bool, Set[str]]:
+    """
+    G14: disable rows use ERROR: (bell-only) + integration/kind for READY chip;
+    successful enable always emits a success "turned ON" bell.
+    """
+    state_changed = False
+    domains: Set[str] = set()
+    state_str = "ON" if is_enabled else "OFF"
+    color = "🟢" if is_enabled else "⚪"
+    phrase = turned_phrase or f"{display_name} Integration turned {state_str}"
+
+    if (not is_enabled) and raw_error:
+        ch, dom = AlertManager.process_alert(
+            manager._state,
+            f"ERROR: {raw_error}",
+            integration=integration,
+            kind="integration_disabled",
+        )
+        state_changed |= ch
+        domains |= dom
+
+    ch, dom = AlertManager.process_alert(
+        manager._state,
+        f"{color} {phrase}",
+        integration=integration if is_enabled else None,
+        kind="integration_enabled" if is_enabled else None,
+    )
+    state_changed |= ch
+    domains |= dom
+    return state_changed, domains
 
 
 async def handle_automations_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
@@ -36,22 +76,22 @@ async def handle_rfxcom_toggled(event: Event, manager: Any) -> Tuple[bool, Set[s
         state_changed |= ch
         changed_domains |= dom
     else:
-        state_str = "ON" if is_enabled else "OFF"
         manager._state.system.rfxcom_integration_enabled = is_enabled
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "⚪"
-        raw_error = payload.get("error_msg")
-        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-        ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Native RFXCOM Engine turned {state_str}")
+        ch, dom = _emit_integration_toggle_alerts(
+            manager,
+            integration="rfxcom",
+            display_name="Native RFXCOM Engine",
+            is_enabled=is_enabled,
+            raw_error=payload.get("error_msg"),
+            turned_phrase=(
+                f"Native RFXCOM Engine turned {'ON' if is_enabled else 'OFF'}"
+            ),
+        )
         state_changed |= ch
         changed_domains |= dom
-
-        if is_enabled and payload.get("is_auto_recovery", False):
-            deadline = int(time.time()) + 10
-            manager._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"})
-            logger.info("RFXCOM Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
     return state_changed, changed_domains
 
@@ -68,22 +108,19 @@ async def handle_owm_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
         state_changed |= ch
         changed_domains |= dom
     else:
-        state_str = "ON" if is_enabled else "OFF"
         manager._state.system.owm_integration_enabled = is_enabled
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "⚪"
-        raw_error = payload.get("error_msg")
-        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-        ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} OWM Integration turned {state_str}")
+        ch, dom = _emit_integration_toggle_alerts(
+            manager,
+            integration="owm",
+            display_name="OWM",
+            is_enabled=is_enabled,
+            raw_error=payload.get("error_msg"),
+        )
         state_changed |= ch
         changed_domains |= dom
-
-        if is_enabled and payload.get("is_auto_recovery", False):
-            deadline = int(time.time()) + 10
-            manager._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"})
-            logger.info("OWM Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
     return state_changed, changed_domains
 
@@ -100,22 +137,19 @@ async def handle_hue_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
         state_changed |= ch
         changed_domains |= dom
     else:
-        state_str = "ON" if is_enabled else "OFF"
         manager._state.system.hue_integration_enabled = is_enabled
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "⚪"
-        raw_error = payload.get("error_msg")
-        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-        ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Hue Integration turned {state_str}")
+        ch, dom = _emit_integration_toggle_alerts(
+            manager,
+            integration="hue",
+            display_name="Hue",
+            is_enabled=is_enabled,
+            raw_error=payload.get("error_msg"),
+        )
         state_changed |= ch
         changed_domains |= dom
-
-        if is_enabled and payload.get("is_auto_recovery", False):
-            deadline = int(time.time()) + 10
-            manager._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"})
-            logger.info("Hue Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
     return state_changed, changed_domains
 
@@ -132,22 +166,19 @@ async def handle_epson_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
         state_changed |= ch
         changed_domains |= dom
     else:
-        state_str = "ON" if is_enabled else "OFF"
         manager._state.system.epson_integration_enabled = is_enabled
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "⚪"
-        raw_error = payload.get("error_msg")
-        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-        ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Epson Integration turned {state_str}")
+        ch, dom = _emit_integration_toggle_alerts(
+            manager,
+            integration="epson",
+            display_name="Epson",
+            is_enabled=is_enabled,
+            raw_error=payload.get("error_msg"),
+        )
         state_changed |= ch
         changed_domains |= dom
-
-        if is_enabled and payload.get("is_auto_recovery", False):
-            deadline = int(time.time()) + 10
-            manager._timer_manager.schedule("post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"})
-            logger.info("Epson Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
     return state_changed, changed_domains
 
@@ -165,24 +196,19 @@ async def handle_lg_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]]
         state_changed |= ch
         changed_domains |= dom
     else:
-        state_str = "ON" if is_enabled else "OFF"
         manager._state.system.lg_integration_enabled = is_enabled
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "⚪"
-        raw_error = payload.get("error_msg")
-        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-        ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} LG Integration turned {state_str}")
+        ch, dom = _emit_integration_toggle_alerts(
+            manager,
+            integration="lg",
+            display_name="LG",
+            is_enabled=is_enabled,
+            raw_error=payload.get("error_msg"),
+        )
         state_changed |= ch
         changed_domains |= dom
-
-        if is_enabled and payload.get("is_auto_recovery", False):
-            deadline = int(time.time()) + 10
-            manager._timer_manager.schedule(
-                "post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"}
-            )
-            logger.info("LG Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
     return state_changed, changed_domains
 
@@ -209,7 +235,6 @@ async def handle_homewizard_toggled(event: Event, manager: Any) -> Tuple[bool, S
         changed_domains |= dom
         return state_changed, changed_domains
 
-    state_str = "ON" if is_enabled else "OFF"
     manager._state.system.homewizard_integration_enabled = is_enabled
     if bridge is not None and hasattr(bridge, "set_enabled"):
         bridge.set_enabled(bool(is_enabled))
@@ -221,21 +246,15 @@ async def handle_homewizard_toggled(event: Event, manager: Any) -> Tuple[bool, S
     state_changed = True
     changed_domains.add("system")
 
-    color = "🟢" if is_enabled else "⚪"
-    raw_error = payload.get("error_msg")
-    error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-    ch, dom = AlertManager.process_alert(
-        manager._state, error_alert, f"{color} HomeWizard Integration turned {state_str}"
+    ch, dom = _emit_integration_toggle_alerts(
+        manager,
+        integration="homewizard",
+        display_name="HomeWizard",
+        is_enabled=is_enabled,
+        raw_error=payload.get("error_msg"),
     )
     state_changed |= ch
     changed_domains |= dom
-
-    if is_enabled and payload.get("is_auto_recovery", False):
-        deadline = int(time.time()) + 10
-        manager._timer_manager.schedule(
-            "post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"}
-        )
-        logger.info("HomeWizard Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
     return state_changed, changed_domains
 
@@ -261,7 +280,6 @@ async def handle_waterlink_toggled(event: Event, manager: Any) -> Tuple[bool, Se
         changed_domains |= dom
         return state_changed, changed_domains
 
-    state_str = "ON" if is_enabled else "OFF"
     manager._state.system.waterlink_integration_enabled = is_enabled
     if bridge is not None and hasattr(bridge, "set_enabled"):
         bridge.set_enabled(bool(is_enabled))
@@ -275,21 +293,15 @@ async def handle_waterlink_toggled(event: Event, manager: Any) -> Tuple[bool, Se
     state_changed = True
     changed_domains.add("system")
 
-    color = "🟢" if is_enabled else "⚪"
-    raw_error = payload.get("error_msg")
-    error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-    ch, dom = AlertManager.process_alert(
-        manager._state, error_alert, f"{color} Water-Link Integration turned {state_str}"
+    ch, dom = _emit_integration_toggle_alerts(
+        manager,
+        integration="waterlink",
+        display_name="Water-Link",
+        is_enabled=is_enabled,
+        raw_error=payload.get("error_msg"),
     )
     state_changed |= ch
     changed_domains |= dom
-
-    if is_enabled and payload.get("is_auto_recovery", False):
-        deadline = int(time.time()) + 10
-        manager._timer_manager.schedule(
-            "post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"}
-        )
-        logger.info("Water-Link Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
     return state_changed, changed_domains
 
@@ -309,8 +321,9 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     # Tier 2 Intercept: Control Plane (Web Server) Offline
     elif is_enabled and not manager._state.system.zwave_web_alive:
         if _zwave_enable_is_boot_race(manager):
+            # G14/G8: silent defer; telemetry boot-arm enables when planes are up (<120s).
             await manager.logger.info(
-                "[Z-Wave] Enable deferred until JS Web Panel (8091) is ready (auto-recover when alive)."
+                "[Z-Wave] Enable deferred until JS Web Panel (8091) is ready (boot arm)."
             )
         else:
             await manager.logger.warning("🟡 [Z-Wave] Command rejected: JS Web Panel (8091) is unreachable.")
@@ -321,7 +334,7 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     elif is_enabled and not manager._state.system.zwave_data_alive:
         if _zwave_enable_is_boot_race(manager):
             await manager.logger.info(
-                "[Z-Wave] Enable deferred until MQTT Data stream is ready (auto-recover when alive)."
+                "[Z-Wave] Enable deferred until MQTT Data stream is ready (boot arm)."
             )
         else:
             await manager.logger.warning("🟡 [Z-Wave] Command rejected: MQTT Data stream is frozen.")
@@ -329,24 +342,19 @@ async def handle_zwave_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
             state_changed |= ch
             changed_domains |= dom
     else:
-        state_str = "ON" if is_enabled else "OFF"
         manager._state.system.zwave_integration_enabled = is_enabled
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "⚪"
-        raw_error = payload.get("error_msg")
-        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-        ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Z-Wave Integration turned {state_str}")
+        ch, dom = _emit_integration_toggle_alerts(
+            manager,
+            integration="zwave",
+            display_name="Z-Wave",
+            is_enabled=is_enabled,
+            raw_error=payload.get("error_msg"),
+        )
         state_changed |= ch
         changed_domains |= dom
-
-        if is_enabled and payload.get("is_auto_recovery", False):
-            deadline = int(time.time()) + 10
-            manager._timer_manager.schedule(
-                "post_recovery_sweep", deadline, "SYSTEM_SWEEP_REQUESTED", {"reason": "network_recovery"}
-            )
-            logger.info("Z-Wave Integration AUTO-RECOVERED. Scheduled debounced catch-up sweep in 10s.")
 
     return state_changed, changed_domains
 
@@ -369,17 +377,17 @@ async def handle_sonos_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     changed_domains = set()
     is_enabled = payload.get("enabled", False)
 
-    state_str = "ON" if is_enabled else "OFF"
     manager._state.system.sonos_integration_enabled = is_enabled
     state_changed = True
     changed_domains.add("system")
 
-    color = "🟢" if is_enabled else "⚪"
-    raw_error = payload.get("error_msg")
-    error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-
-    # Notify the dashboard via AlertManager
-    ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Sonos Integration turned {state_str}")
+    ch, dom = _emit_integration_toggle_alerts(
+        manager,
+        integration="sonos",
+        display_name="Sonos",
+        is_enabled=is_enabled,
+        raw_error=payload.get("error_msg"),
+    )
     state_changed |= ch
     changed_domains |= dom
 
@@ -403,16 +411,17 @@ async def handle_onkyo_toggled(event: Event, manager: Any) -> Tuple[bool, Set[st
     changed_domains = set()
     is_enabled = payload.get("enabled", False)
 
-    state_str = "ON" if is_enabled else "OFF"
     manager._state.system.onkyo_integration_enabled = is_enabled
     state_changed = True
     changed_domains.add("system")
 
-    color = "🟢" if is_enabled else "⚪"
-    raw_error = payload.get("error_msg")
-    error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-
-    ch, dom = AlertManager.process_alert(manager._state, error_alert, f"{color} Onkyo Integration turned {state_str}")
+    ch, dom = _emit_integration_toggle_alerts(
+        manager,
+        integration="onkyo",
+        display_name="Onkyo",
+        is_enabled=is_enabled,
+        raw_error=payload.get("error_msg"),
+    )
     state_changed |= ch
     changed_domains |= dom
 
@@ -444,16 +453,16 @@ async def handle_lcd_toggled(event: Event, manager: Any) -> Tuple[bool, Set[str]
         state_changed |= ch
         changed_domains |= dom
     else:
-        state_str = "ON" if is_enabled else "OFF"
         manager._state.system.lcd_integration_enabled = is_enabled
         state_changed = True
         changed_domains.add("system")
 
-        color = "🟢" if is_enabled else "⚪"
-        raw_error = payload.get("error_msg")
-        error_alert = f"🔴 {raw_error}" if (not is_enabled and raw_error) else None
-        ch, dom = AlertManager.process_alert(
-            manager._state, error_alert, f"{color} LCD Integration turned {state_str}"
+        ch, dom = _emit_integration_toggle_alerts(
+            manager,
+            integration="lcd",
+            display_name="LCD",
+            is_enabled=is_enabled,
+            raw_error=payload.get("error_msg"),
         )
         state_changed |= ch
         changed_domains |= dom

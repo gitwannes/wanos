@@ -1,7 +1,7 @@
 # --- file: logic/alert_manager.py ---
 import uuid
 from datetime import datetime
-from typing import Optional, Set, Tuple
+from typing import Any, Optional, Set, Tuple
 from core.models import SystemState
 
 
@@ -13,13 +13,20 @@ class AlertManager:
     """
 
     @staticmethod
-    def process_alert(state: SystemState, *msgs: Optional[str], domain: str = "system") -> Tuple[bool, Set[str]]:
+    def process_alert(
+        state: SystemState,
+        *msgs: Optional[str],
+        domain: str = "system",
+        integration: Optional[str] = None,
+        kind: Optional[str] = None,
+    ) -> Tuple[bool, Set[str]]:
         """
         Safely timestamps, deduplicates, and structures UI alerts into routing dictionaries.
         Auto-classifies severity based on emojis / keywords to maintain backwards compatibility
         with all existing alert strings across the architecture.
 
         UI levels: critical (banner + bell), error / warning / success / info (bell only).
+        Optional integration/kind (G14) tag disable rows for live READY, DISABLED chips.
         Returns (state_changed: bool, changed_domains: Set[str])
         """
         changed = False
@@ -74,6 +81,10 @@ class AlertManager:
                     existing["count"] = existing.get("count", 1) + 1
                     existing["timestamp"] = timestamp  # Refresh UI time on re-occurrence
                     existing["produced_at"] = produced_at
+                    if integration:
+                        existing["integration"] = integration
+                    if kind:
+                        existing["kind"] = kind
                     changed = True
                     domains.add(domain)
                     msg_handled = True
@@ -81,14 +92,19 @@ class AlertManager:
 
             # Brand new message: Append as structured dictionary!
             if not msg_handled:
-                state.system.system_alert_msgs.append({
+                entry: dict[str, Any] = {
                     "id": str(uuid.uuid4())[:8],
                     "level": level,
                     "message": clean_msg,
                     "timestamp": timestamp,
                     "produced_at": produced_at,
-                    "count": 1
-                })
+                    "count": 1,
+                }
+                if integration:
+                    entry["integration"] = integration
+                if kind:
+                    entry["kind"] = kind
+                state.system.system_alert_msgs.append(entry)
                 changed = True
                 domains.add(domain)
 

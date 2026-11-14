@@ -2086,6 +2086,83 @@ function wanosApp() {
             return Boolean(this.state.system && this.state.system.lcd_integration_enabled);
         },
 
+        /**
+         * G14 Admin/bell status: OFFLINE | READY, DISABLED | LIVE
+         * @param {boolean} transportOk
+         * @param {boolean} enabled
+         * @returns {string}
+         */
+        integrationStatusText(transportOk, enabled) {
+            if (!transportOk) return 'OFFLINE';
+            return enabled ? 'LIVE' : 'READY, DISABLED';
+        },
+
+        /**
+         * G14 status colour classes for Admin row badges.
+         * @param {boolean} transportOk
+         * @param {boolean} enabled
+         * @param {{offlineError?: boolean}} [opts]
+         * @returns {string}
+         */
+        integrationStatusClass(transportOk, enabled, opts) {
+            if (!transportOk) {
+                return (opts && opts.offlineError) ? 'text-error' : 'text-gray-500';
+            }
+            return 'text-success';
+        },
+
+        /** G14: Z-Wave transport = stick + web + data plane. */
+        zwaveTransportOk() {
+            const s = this.state.system || {};
+            return Boolean(s.zwave_hardware_connected && s.zwave_web_alive && s.zwave_data_alive);
+        },
+
+        /**
+         * G14: map alert.integration id → current status text.
+         * @param {string|null|undefined} integrationId
+         * @returns {string|null}
+         */
+        integrationStatusForId(integrationId) {
+            const id = String(integrationId || '');
+            const s = this.state.system || {};
+            switch (id) {
+                case 'hue':
+                    return this.integrationStatusText(Boolean(s.hue_connected), Boolean(s.hue_integration_enabled));
+                case 'epson':
+                    return this.integrationStatusText(Boolean(s.epson_connected), Boolean(s.epson_integration_enabled));
+                case 'lg':
+                    return this.integrationStatusText(Boolean(s.lg_connected), Boolean(s.lg_integration_enabled));
+                case 'homewizard':
+                    return this.integrationStatusText(Boolean(s.homewizard_connected), Boolean(s.homewizard_integration_enabled));
+                case 'waterlink':
+                    return this.integrationStatusText(Boolean(s.waterlink_connected), Boolean(s.waterlink_integration_enabled));
+                case 'sonos':
+                    return this.integrationStatusText(Boolean(s.sonos_connected), Boolean(s.sonos_integration_enabled));
+                case 'onkyo':
+                    return this.integrationStatusText(Boolean(s.onkyo_connected), Boolean(s.onkyo_integration_enabled));
+                case 'rfxcom':
+                    return this.integrationStatusText(Boolean(s.rfxcom_connected), Boolean(s.rfxcom_integration_enabled));
+                case 'zwave':
+                    return this.integrationStatusText(this.zwaveTransportOk(), Boolean(s.zwave_integration_enabled));
+                case 'owm':
+                    return this.integrationStatusText(Boolean(s.wanos_mqtt_connected), Boolean(s.owm_integration_enabled));
+                case 'lcd':
+                    return this.integrationStatusText(Boolean(s.wanos_mqtt_connected), Boolean(s.lcd_integration_enabled));
+                default:
+                    return null;
+            }
+        },
+
+        /**
+         * G14: green READY, DISABLED chip on tagged disable-bell rows.
+         * @param {object} msg
+         * @returns {boolean}
+         */
+        alertShowsReadyChip(msg) {
+            if (!msg || msg.kind !== 'integration_disabled' || !msg.integration) return false;
+            return this.integrationStatusForId(msg.integration) === 'READY, DISABLED';
+        },
+
         /** True when MQTT/WISC screen1 has any non-blank line (else show standby). */
         lcdScreen1HasContent() {
             if (!this.lcdIntegrationEnabled()) {

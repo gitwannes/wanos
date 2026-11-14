@@ -50,15 +50,16 @@ Completely outside of the `zwave.py` script, the global `HealthMonitor` audits Z
 *   **Tier 1 (Physical):** Checks if the actual USB stick file path (`/dev/serial/by-id/...`) exists on the host Linux OS.
 *   **Tier 2 (Control Plane):** Attempts a TCP ping against the Z-Wave JS UI Web Server on port `8091`.
 *   **Tier 3 (Data Plane):** Checks if the MQTT engine is alive and verifies that a controller heartbeat was received within the last 90 seconds.
-*   **The Auto-Kill Execution:** USB disconnections are treated as instantly fatal (1 strike). Web UI or Data Stream freezes are granted a minor grace period (3 strikes / 6 seconds). If the threshold is breached, the monitor disables the integration and alerts the UI with the precise failure reason (e.g., *"Z-Wave Data Stream Frozen"*).
+*   **The Auto-Kill Execution:** USB disconnections are treated as instantly fatal (1 strike). Web UI or Data Stream freezes are granted a minor grace period (3 strikes / 6 seconds). If the threshold is breached, the monitor disables the integration and alerts the UI with the precise failure reason (e.g., *"Z-Wave Data Stream Frozen"*). Alert prefix is a viewable `🔌` (G14).
 *   **Connection transitions (not Auto-Kill):** Each tier up/down also emits a **bell-only** alert (`error` disconnect / `success` reconnect) and writes ERROR / INFO to `wanos.log`. These do **not** use the red Admin banner (reserved for `critical`).
+*   **G14 re-enable:** After auto-kill, Admin shows **OFFLINE** then **READY, DISABLED** when all tiers are healthy again; returning to **LIVE** is **manual** (toggle). Automatic enable is boot-only: **G8** autostart, plus a Z-Wave early boot-arm (&lt;120s after `app_boot_unix`) when web+data become ready after a deferred enable.
 
 ## 8. Turning the Integration OFF
 If the integration is manually turned **OFF** in the UI (or if the Health Monitor kills it):
 
 *   The internal `_integration_enabled` flag is flipped to `False`.
 *   The bridge immediately stops parsing inbound MQTT payloads and drops any pending outbound commands.
-*   The core engine retains the UI elements but stops updating their statuses until the connection is restored.
+*   The core engine retains the UI elements but stops updating their statuses until the connection is restored and the operator (or boot arm) enables again.
 
 ## 9. Migration & Middleware Deployment Blueprint
 To decouple hardware polling overhead from the core WanOS execution loop, the Z-Wave controller is driven by a containerized Z-Wave JS UI instance. Below is the architecture for deploying that middleware (including notes useful when migrating from a legacy hub).

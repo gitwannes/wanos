@@ -1,10 +1,19 @@
 # --- file: core/event_handlers/telemetry_handlers.py ---
+import time
 from typing import Any, Set, Tuple
 from core.models import Event, EventType
 from core.well_known_entities import ENTITY_COLD_WATER, ENTITY_OUTSIDE
 from logic.alert_manager import AlertManager
 from logic.environment_scheduler import EnvironmentScheduler
 from logic.sauna_controller import SaunaController
+
+
+def _zwave_in_boot_arm_window(manager: Any) -> bool:
+    """G14: automatic Z-Wave enable only during early boot (not post-fault)."""
+    boot = manager._state.system.app_boot_unix
+    if boot is None:
+        return False
+    return (time.time() - float(boot)) < 120.0
 
 
 async def handle_power_updated(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
@@ -191,6 +200,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     homewizard_conn = payload.get("homewizard_connected", False)
     waterlink_conn = payload.get("waterlink_connected", False)
     onkyo_conn = payload.get("onkyo_connected", False)
+    sonos_conn = payload.get("sonos_connected", False)
     zwave_hardware_conn = payload.get("zwave_hardware_connected", False)
     zwave_web_alive = payload.get("zwave_web_alive", False)
     zwave_data_alive = payload.get("zwave_data_alive", False)
@@ -205,6 +215,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
     prev_homewizard = manager._state.system.homewizard_connected
     prev_waterlink = manager._state.system.waterlink_connected
     prev_onkyo = manager._state.system.onkyo_connected
+    prev_sonos = manager._state.system.sonos_connected
     prev_zwave_hw = manager._state.system.zwave_hardware_connected
     prev_zwave_web = manager._state.system.zwave_web_alive
     prev_zwave_data = manager._state.system.zwave_data_alive
@@ -231,8 +242,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             manager, down=False, message="Native RFXCOM USB Transceiver mounted")
         state_changed |= ch
         changed_domains |= dom
-        if not manager._state.system.rfxcom_integration_enabled:
-            manager.dispatch(Event(type=EventType.RFXCOM_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
+        # G14: post-fault re-enable is manual (no is_auto_recovery enable)
 
     if prev_hue and not hue_conn:
         ch, dom = await _emit_connection_transition(
@@ -244,8 +254,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             manager, down=False, message="Local Hue Bridge connected via API v2")
         state_changed |= ch
         changed_domains |= dom
-        if not manager._state.system.hue_integration_enabled:
-            manager.dispatch(Event(type=EventType.HUE_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_epson and not epson_conn:
         ch, dom = await _emit_connection_transition(
@@ -257,8 +265,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             manager, down=False, message="Epson Projector TCP socket responding")
         state_changed |= ch
         changed_domains |= dom
-        if not manager._state.system.epson_integration_enabled:
-            manager.dispatch(Event(type=EventType.EPSON_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_lg and not lg_conn:
         ch, dom = await _emit_connection_transition(
@@ -270,8 +276,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             manager, down=False, message="LG webOS bridge online")
         state_changed |= ch
         changed_domains |= dom
-        if not manager._state.system.lg_integration_enabled:
-            manager.dispatch(Event(type=EventType.LG_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
 
     if prev_homewizard and not homewizard_conn:
         ch, dom = await _emit_connection_transition(
@@ -283,11 +287,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             manager, down=False, message="HomeWizard Energy devices online")
         state_changed |= ch
         changed_domains |= dom
-        if not manager._state.system.homewizard_integration_enabled:
-            manager.dispatch(Event(
-                type=EventType.HOMEWIZARD_TOGGLED,
-                payload={"enabled": True, "is_auto_recovery": True},
-            ))
 
     if prev_waterlink and not waterlink_conn:
         ch, dom = await _emit_connection_transition(
@@ -299,11 +298,6 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             manager, down=False, message="Water-Link portal online")
         state_changed |= ch
         changed_domains |= dom
-        if not manager._state.system.waterlink_integration_enabled:
-            manager.dispatch(Event(
-                type=EventType.WATERLINK_TOGGLED,
-                payload={"enabled": True, "is_auto_recovery": True},
-            ))
 
     if prev_onkyo and not onkyo_conn:
         ch, dom = await _emit_connection_transition(
@@ -315,8 +309,17 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             manager, down=False, message="Onkyo Receivers online")
         state_changed |= ch
         changed_domains |= dom
-        if not manager._state.system.onkyo_integration_enabled:
-            manager.dispatch(Event(type=EventType.ONKYO_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
+
+    if prev_sonos and not sonos_conn:
+        ch, dom = await _emit_connection_transition(
+            manager, down=True, message="Sonos speakers unreachable")
+        state_changed |= ch
+        changed_domains |= dom
+    elif not prev_sonos and sonos_conn and manager._state.system.app_boot_unix is not None:
+        ch, dom = await _emit_connection_transition(
+            manager, down=False, message="Sonos speakers online")
+        state_changed |= ch
+        changed_domains |= dom
 
     if prev_zwave_hw and not zwave_hardware_conn:
         ch, dom = await _emit_connection_transition(
@@ -351,11 +354,16 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         state_changed |= ch
         changed_domains |= dom
 
-        # Auto-Recovery only fires if ALL tiers are fully restored
+    # G14: post-fault re-enable is always manual. Z-Wave boot defer (G8) still needs
+    # one arm when web+data become alive within the early boot window only.
     if (not prev_zwave_web or not prev_zwave_data) and (
             zwave_web_alive and zwave_data_alive) and manager._state.system.app_boot_unix is not None:
-        if not manager._state.system.zwave_integration_enabled and zwave_hardware_conn:
-            manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True, "is_auto_recovery": True}))
+        if (
+            not manager._state.system.zwave_integration_enabled
+            and zwave_hardware_conn
+            and _zwave_in_boot_arm_window(manager)
+        ):
+            manager.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={"enabled": True}))
 
         # GATEWAY FAILSAFE: Only trigger updates if real mutations occurred or boot variables are blank!
     if (prev_wanos != wanos_conn or
@@ -366,6 +374,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
             prev_homewizard != homewizard_conn or
             prev_waterlink != waterlink_conn or
             prev_onkyo != onkyo_conn or
+            prev_sonos != sonos_conn or
             prev_zwave_hw != zwave_hardware_conn or
             prev_zwave_web != zwave_web_alive or
             prev_zwave_data != zwave_data_alive or
@@ -379,6 +388,7 @@ async def handle_system_metrics_updated(event: Event, manager: Any) -> Tuple[boo
         manager._state.system.homewizard_connected = homewizard_conn
         manager._state.system.waterlink_connected = waterlink_conn
         manager._state.system.onkyo_connected = onkyo_conn
+        manager._state.system.sonos_connected = sonos_conn
         manager._state.system.zwave_hardware_connected = zwave_hardware_conn
         manager._state.system.zwave_web_alive = zwave_web_alive
         manager._state.system.zwave_data_alive = zwave_data_alive

@@ -169,3 +169,51 @@ Kickoff locks config shape + migration of current Borsbeek rows; code reads conf
 ### P2 DoD (stub)
 
 Kickoff locks how shared vs mode-specific excludes merge; all three modes read config; dry-run proves `ssh-term-full.js` excluded on `wlw` via config alone; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+
+---
+
+## 📋 P3 — sync: quiet normal output (logs / sql / zip / LogCopy) 🔜 TODO
+
+**Status:** open · size **low** · Sequence → [`pipeline.md`](pipeline.md)  
+**Affinity:** Portability / deploy tooling (`helpers/wanos-sync.*`). Same wrapper for WanOS main + `wlw` (+ `lcd` for consistent LogCopy). Not Pi `wlw-sync.sh` pair (no exclude/compare change).
+
+### Operator request (verbatim, 2026-11-14)
+
+> normal sync give too much info: I don't want to see a list of all logs or sqls or zips or whatever already copied - leave that for verbose (for both wanos and wlw):
+
+(Paste: `wanos-sync.bat run` LogCopy spam of every `wanos*` / sauna CSV / db; `wanos-sync.bat run wlw` per-file WLW STATE sql/zip headers + LogCopy of `wlw*` / nginx logs.)
+
+### Problem (today)
+
+| Path | Behaviour in **normal** |
+|---|---|
+| `Copy-WanosLogSnapshot` | Prints `LogCopy: <every file>` on every run (Copy-Item always) |
+| `Invoke-Rsync` | Prints non-noise transfer lines (log / stats / state file names) |
+| WLW STATE | One `** rsync state: …` header per remote path even when nothing transferred |
+| Mirror (code) | Lists changed files (may stay useful — open Q) |
+
+`verbose` (`-VerboseSync`) already exists; artifact file lists should sit behind it.
+
+### Intent (delivery — lock at kickoff)
+
+* **Normal:** section headers + done / errors / skips / warns; no per-file spam for logs, sql dumps, zips, LogCopy, and similar bulk pulls.
+* **Verbose:** keep current per-file detail.
+* Scope: **main** + **`wlw`** (operator); apply same quiet rules to **`lcd`** LogCopy for consistency unless kickoff says otherwise.
+* Docs: [`docs/wanos-sync.md`](../wanos-sync.md) — what normal vs `verbose` prints.
+* **No** change to WLW sync-pair excludes / checksum / LF set → be90 `wlw-sync.sh` untouched.
+
+### Out of scope (this triage)
+
+* Changing what is synced (only console noise)
+* P2 MirrorExcludeFiles schema
+* Pi-side `helpers/wlw-sync.sh`
+
+### Kickoff (2026-11-14)
+
+**Prereqs:** none (independent of P2).  
+**Verified:** noise comes from LogCopy always-print + rsync file lines + WLW STATE per-path headers in `helpers/wanos-sync.ps1`.  
+**Open Qs:** see agent reply this turn — not locked until operator answers.
+
+### P3 DoD (stub)
+
+Kickoff locks quiet vs verbose matrix; `run` / `run wlw` (and lcd if in scope) show no artifact file lists in normal; `verbose` restores them; `docs/wanos-sync.md` matches. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**

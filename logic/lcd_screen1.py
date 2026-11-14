@@ -194,6 +194,40 @@ def compose_temp_hum_with_closed_duration(
     return fit_to_16_cells(left + (" " * gap) + dur)
 
 
+def compose_hue_idle_line2(
+    sauna_temp: Optional[float],
+    sauna_hum: Optional[float],
+    outside_temp: Optional[float],
+) -> str:
+    """
+    Hue-idle screen1 line2: sauna T/RH left-aligned, outside temp right-aligned.
+
+    Prefer right label ``out``; if that leaves no separator space within 16 cells,
+    shrink the label to ``o`` (covers 100 C + negative outside).
+    """
+    if sauna_temp is None or sauna_hum is None:
+        left = "--.-§1 --%"
+    else:
+        left = f"{int(sauna_temp)}§1 {int(sauna_hum)}%"
+
+    if outside_temp is None:
+        return center_cells(left)
+
+    out_i = int(outside_temp)
+    right = f"out {out_i}§1"
+    left_cells = visible_cell_len(left)
+    right_cells = visible_cell_len(right)
+    # Keep at least one space between sauna climate and the outside tag.
+    if left_cells + right_cells + 1 > 16:
+        right = f"o {out_i}§1"
+        right_cells = visible_cell_len(right)
+
+    gap = 16 - left_cells - right_cells
+    if gap < 1:
+        gap = max(0, gap)
+    return fit_to_16_cells(left + (" " * gap) + right)
+
+
 def resolve_sauna_hue_on(snapshot: "SystemState", sauna_hue_entity_idx: Optional[int]) -> bool:
     """True when the configured sauna Hue light is physically ON."""
     if sauna_hue_entity_idx is None:
@@ -262,11 +296,10 @@ def compose_lcd_screen1(
     date_str = time.strftime("%a %d %b %Y", dt)
     line1 = fit_to_16_cells(date_str)
 
-    out_t = snapshot.sensors.outside_temp
-    out_h = snapshot.sensors.outside_hum
-    if out_t is None or out_h is None:
-        line2 = fit_to_16_cells("--.-§1 --%")
-    else:
-        line2_raw = f"{int(out_t)}§1 {int(out_h)}%"
-        line2 = center_cells(line2_raw)
+    # Sauna climate left + outside temp right (out / o overflow); see compose_hue_idle_line2.
+    line2 = compose_hue_idle_line2(
+        snapshot.sensors.sauna_calc_temp,
+        snapshot.sensors.sauna_calc_hum,
+        snapshot.sensors.outside_temp,
+    )
     return (line1, line2)

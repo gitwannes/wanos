@@ -2,7 +2,7 @@
 
 Integrations reliability — Hue color/state truth, Epson projector power truth, OWM outside climate / daily forecast (hot-sun cinema blinds), scoped config hot-reload, and integration log tag parity.
 
-**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G22 ✅ Done 2026-10-01** — Onkyo power-ON / SYNC. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). **G23 ✅ Done 2026-11-04** — Water-Link scout. **G24 ✅ Done 2026-11-05** — Water-Link WanOS bridge. G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14** manual enable status + ON bell (**assess**, inbox **2026-08-15**); **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
+**Status:** Spec **LOCKED** (intent). **G3 ✅ Done 2026-08-15** (config **30→10** on cold boot; one code run with **B10K**). **G5 ✅ Done 2026-08-16** — dashboard UE/UR `Cinema rolluik half` (open % > 50 → set 50%; legacy canvas + **B9C**). **G16 ✅ Done 2026-08-27** — LG webOS TV power + Blockly apps. **G20 ✅ Done 2026-09-22** — LG commanded-OFF latch. **G21 ✅ Done 2026-09-22** — HomeWizard health A+B+D (poll-staleness + shared session + 3-fail hysteresis). **G22 ✅ Done 2026-10-01** — Onkyo power-ON / SYNC. **G10 ✅ Done 2026-09-10** — HomeWizard P1 + PV (Pi smoke OK; sockets deferred). **G23 ✅ Done 2026-11-04** — Water-Link scout. **G24 ✅ Done 2026-11-05** — Water-Link WanOS bridge. G2 assess-on-Pi first; G1 analysis-gated; **G4** needs One Call 4.0 (subscribed ✅ 2026-08-10); **G6** scoped reload + Admin modal + Automations deferred Save config (**expanded 2026-08-15**); **G7** log prefixes (**2026-08-11**); **G8** boot autostart timing — **A+B** (**spec locked 2026-08-12**); **G14 ✅ Done 2026-11-14** — READY, DISABLED + manual re-enable + Z-Wave glyph; **G9 / G11–G13** remaining vendor bridges; **G17** HomeWizard map UI; **G18** vent OFF command; **G19** iwhw ledger assess.
 
 **Related:** Sequence → [`pipeline.md`](pipeline.md). **G9–G13 / G16 how-to** → [`docs/integration-playbook.md`](../integration-playbook.md) (code/config/C18/IDX/logging checklist; not a kickoff). **G16 product:** [`docs/integration_lg.md`](../integration_lg.md). Blocky Hue **editor** bugs stay **B10A** ([`phaseB-blocky.md`](phaseB-blocky.md)); soft-hide picker → **B10C** ✅. **G6** scopes what reload recycles **and** defers Automations reload until Save config (B1/B5 auto-dispatch on every rule save does **not** stay). Explorer Hue **COLOR OUTPUT** text remove → **C10** ✅ (not G2). **C28** = LG TV *browser skins* (shell), not power bridge — keep separate. This phase is **runtime** bridge ↔ WanOS state/UI (+ OWM + reload scope + log tags + **G9–G13** new vendor bridges; **G16** ✅).
 
@@ -18,7 +18,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G6 — Scoped reload** | Automations deferred Save config + scoped recycle (hide / auto-off / Admin modal) |
 | **G7 — Log prefixes** | `[Onkyo]` (and peer) tag parity with `[HUE]` |
 | **G8 — Boot autostart** | ~30s “integrations disabled” after restart — shorten enable + honest Admin UX |
-| **G14 — Manual enable UX** | After network-failure disable: enabling status + ON bell; assess all integrations |
+| **G14 — Manual enable UX** | ✅ **Done 2026-11-14** — OFFLINE / READY, DISABLED / LIVE; manual post-fault re-enable; Z-Wave `🔌` |
 | **G1 — Epson boot** | `get_power_state` when safe |
 | **G3 — OWM poll** | ✅ **Done 2026-08-15** — outside temp/hum every **10′** (was 30′) |
 | **G4 — OWM daily + hot sun** | One Call 4.0 once/day; hot+full-sun → cinema opens to **60% open** |
@@ -39,7 +39,7 @@ Integrations reliability — Hue color/state truth, Epson projector power truth,
 | **G16 — LG webOS TV** | ✅ **Done 2026-08-27** — power + Blockly apps; product [`integration_lg.md`](../integration_lg.md) |
 | **G15 — Evening twilight cross-day** | ✅ **Done 2026-08-22** — twilight guards + OWM rollover + sweeper/timer hardening; **C27** + Admin timeline in same ship |
 
-Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** may jump on manual-enable pain (separate from **G8**). **G15** ✅ **Done 2026-08-22** (Pi smoke **2026-08-22**). **G16** ✅ **Done 2026-08-27** (Pi smoke **2026-08-27**). **G4** still owns the automatic hot-sun morning open.
+Pipeline may run **G2 before G1** if daily color lies hurt more than Epson boot lies. **G6** may jump ahead of **G2/G1** if Blocky-save bridge thrash / timer re-arm pain wins. **G7** anytime (low). **G8** may jump on boot UX pain (separate from **B10G** / **B10H**). **G14** ✅ **Done 2026-11-14**. **G15** ✅ **Done 2026-08-22** (Pi smoke **2026-08-22**). **G16** ✅ **Done 2026-08-27** (Pi smoke **2026-08-27**). **G4** still owns the automatic hot-sun morning open.
 
 **G11 → G9 → G12 → G13:** remaining vendor bridges — **one integration per code run**, **never combined**. **G24** ✅ shipped ahead of G11–G13 (**2026-11-05**). Original letter order G11 first (**2026-08-20**); **G10** shipped before G11+G9 (**2026-09-10**). **G16** ✅ shipped **2026-08-27**. **G23** scout ✅ **2026-11-04**. After current G reliability ships (default: after **G4**, before **F**). Credentials / IPs / device maps = home-specific → **P**. **Library assessment and choice** (candidates in operator inbox) = **in-scope of each phase at that phase’s kickoff** — **not now**, not this triage. **How to add any new vendor** (files, C18 success/fail, IDX bands, logging, Admin/reload) → [`docs/integration-playbook.md`](../integration-playbook.md). Do not duplicate that checklist into G9–G13 stubs.
 
@@ -386,10 +386,12 @@ Kickoff: profile `on_state_changed` if gap persists after thread offload.
 | Admin **STARTING** / **ARMING** states | `frontend/admin.html`, `app.js` |
 | Z-Wave “arming” copy | Match defer-until-MQTT behaviour |
 
+**Note (G14 2026-11-14):** steady-state Admin badges are **OFFLINE** / **READY, DISABLED** / **LIVE**. Option B boot verbs (**STARTING** / **ARMING**) must reconcile with that enum at G8 kickoff/implement — do not reintroduce bare **DISABLED** for healthy+off.
+
 **G8 DoD:**
 
 - [ ] Option A: measurable shorter time from HTTP online to all intended `*_integration_enabled` true on Pi (baseline = bootlog **2026-08-12**).
-- [ ] Option B: Admin shows **STARTING** (not **DISABLED**) during autostart; Z-Wave defer shows **ARMING** until auto-recover.
+- [ ] Option B: Admin boot UX honest (not misleading all-disabled); reconcile with G14 **OFFLINE** / **READY, DISABLED** / **LIVE** (Z-Wave early boot-arm already shipped in G14).
 - [ ] Pi smoke: full `wanos` restart with `WANOS_AUTOSTART=true`; Admin opened within first 30s — no misleading “all disabled” without starting indicator.
 - [ ] **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
@@ -755,23 +757,30 @@ Second call reveals capabilities (temperature, humidity, switch, thermostatMode,
 
 ---
 
-## 📋 G14 — Manual integration enable status + ON alert 🔜 TODO (assess)
+## ✅ G14 — Manual enable UX + disable-bell READY + Z-Wave glyph — **Done 2026-11-14**
 
-**Origin:** operator inbox **2026-08-15**. Size **mid**. Admin integration rows — **not** G8 boot autostart (boot STARTING/ARMING stays G8). **Not** G6 reload.
+**Letter:** **G14**. **Pipeline:** Done. Size **mid**. **Close-out:** operator **close phase** **2026-11-14**.
 
-**Operator request (verbatim):**
-> when Sonos (or possibly any other) integration is disabled (because of previous network failure, eg), and I manually enable it, the yellow disabled status stays for a good number of seconds while the switch is green and ON - the status in this case should be "enabling" or something to that effect. Also, I see a bell notification for the disabling of the Sonos ("Sonos connection lost after 3 retries. Integration disabled.") but I don't see the "Sonos Integration turned ON" after it successfully does turn on (only then the status should change from "enabling" to "Live". assess first wether this is only for sonos integration or the case for others as well - propose changes
+**Product reference:** [`reference.md`](../reference.md) (alert_manager / Admin status) · [`integration_zwave.md`](../integration_zwave.md) §7 · [`integration_sonos.md`](../integration_sonos.md) §6 · [`integration-playbook.md`](../integration-playbook.md) checklist · [`integration_waterlink.md`](../integration_waterlink.md) Admin row.
 
-**Locked triage intent:**
+### Shipped summary
 
-* **Assess first (kickoff):** Sonos-only vs **all** integrations that can disable after network failure. Propose one pattern; do not assume Sonos-only.
-* While enabling: status **enabling** (not yellow disabled) even if the switch is already green/ON.
-* After success: status **Live**; bell **turned ON** (parity with the existing disable bell).
-* Reuse G8 **STARTING** copy/states if kickoff says they are the same UX — do not ship a second vocabulary without asking.
+| Piece | What |
+|---|---|
+| **Status** | Admin: **OFFLINE** / **READY, DISABLED** / **LIVE** (all auto-kill integrations + LCD) |
+| **Bell** | Disable alerts tagged `integration` + `kind=integration_disabled`; live green **READY, DISABLED** chip; enable → **turned ON** success bell |
+| **Policy** | Auto-kill disable stays automatic; post-fault re-enable **manual**; Z-Wave early boot-arm (&lt;120s) only |
+| **Glyph** | Z-Wave auto-kill prefix viewable `🔌` |
 
-**Out of scope:** G8 boot delay; G6 Save config; persist enabled flags to NVM.
+**Out of scope (unchanged):** G8 boot STARTING/ARMING (reconcile later); G6; NVM persist of enable flags.
 
-**G14 DoD:** Assess (Sonos vs all) recorded; enabling → Live + ON bell as decided; Pi smoke manual enable after disable. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**G14 DoD:**
+
+- [x] Locked table shipped
+- [x] Pi smoke / operator close **2026-11-14**
+- [x] Last DoD docs audit **2026-11-14**
+
+**Admin cache (ship):** page **v22**; `wanos-shell.js?v=23`, `app.js?v=3.58`.
 
 ---
 

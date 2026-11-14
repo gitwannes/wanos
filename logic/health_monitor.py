@@ -291,7 +291,8 @@ class HealthMonitor:
 
                         sm.dispatch(Event(type=EventType.ZWAVE_TOGGLED, payload={
                             "enabled": False,
-                            "error_msg": f"伯 Z-Wave connection lost ({error_reason}). Integration disabled."}))
+                            # G14: viewable plug emoji (was mojibake PUA+CJK in source)
+                            "error_msg": f"🔌 Z-Wave connection lost ({error_reason}). Integration disabled."}))
 
                 # ⚡ ACTIVE OUT-OF-BAND SAUNA SAFETY WATCHDOG (EN 60335-2-53 Compliance)
                 # Operates completely separate from the core event queue loop to intercept frozen process blocks.
