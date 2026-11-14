@@ -142,7 +142,7 @@ Kickoff locks config shape + migration of current Borsbeek rows; code reads conf
 
 ## 📋 P2 — sync: `[MirrorExcludeFiles]` for all three modes 🔜 TODO
 
-**Status:** open · size **mid** · Sequence → [`pipeline.md`](pipeline.md)  
+**Status:** open · size **mid** · Sequence **#1** → [`pipeline.md`](pipeline.md)  
 **Affinity:** Portability / deploy tooling (`helpers/wanos-sync.*`). Not product UI.
 
 ### Operator request (verbatim, 2026-09-15)
@@ -165,24 +165,55 @@ Kickoff locks config shape + migration of current Borsbeek rows; code reads conf
 
 **Prereqs:** none vs P3 (Done). Pair rule applies when WLW exclude lists change.
 
-### Intent (delivery — lock at kickoff answers)
+### Where excludes live today (inventory 2026-11-14)
 
-* Operators edit excludes in config (not hunt hardcoded PS arrays) for **main** / **lcd** / **wlw**.
-* Mode-specific extras stay explicit — **never** silent copy of main-only rules that break WLW.
-* Docs: [`docs/wanos-sync.md`](../wanos-sync.md); be90 `docs/wlw-sync.md`; both `.cursor/rules/wlw-sync-pair.mdc` if locked match table changes.
+| Mode | Dirs | Files |
+|---|---|---|
+| **main** | Config `[MirrorExcludeDirs]` in `helpers/wanos-sync.config.txt` | Config `[MirrorExcludeFiles]` same file |
+| **lcd** | Hardcoded `$LcdMirrorExcludeDirs` in `helpers/wanos-sync.ps1` | Hardcoded `$LcdMirrorExcludeFiles` same |
+| **wlw** (PC) | Hardcoded `$WlwMirrorExcludeDirs` in `helpers/wanos-sync.ps1` | Hardcoded `$WlwMirrorExcludeFiles` same |
+| **wlw** (Pi pair) | `EXCLUDE_DIRS` in be90 `helpers/wlw-sync.sh` | `EXCLUDE_FILES` same (must match PC WLW) |
 
-### Out of scope (until locks)
+**main dirs (config):** `.git` `.cursor` `.idea` `.venv` `docs` `code-import` `bootstrap` `backup*` `logs` `temp` `_lcd-agent` `wanos_venv` `migration_venv` `billit_venv` `__pycache__` `sessionlog`
+
+**main files (config):** auto.yaml / nvram / `.lgd-nfy0` / `*.db` / sync tooling (`*.bat` `*.ps1` …) / `LICENSE` / `*.md` / `.env*` / gitignore / zip/bak/tmp / `lg_webos_client_keys.json` / `ssh-term-full.js` …
+
+**lcd (hardcoded):** dirs `wanos_venv` `__pycache__` `docs` `.git` · files `.env*` `*.pyc`
+
+**wlw PC + Pi pair (hardcoded, matched):** dirs `.git` `.cursor` `docs` `__pycache__` `.venv` `aistudio-preview` `_archive` · files `.env*` `*.md` `.gitignore` `.gitattributes` `db+credentials` `logs` `ssh-term-full.js` `*.lnk` `_tmp*` `server.ts` `tsconfig.json` `metadata.json` `package.json`
+
+### Kickoff locks (2026-11-14)
+
+| # | Topic | Lock |
+|---|---|---|
+| 1 | Files | **One** `[MirrorExcludeFiles]` in `helpers/wanos-sync.config.txt` — all three PC modes |
+| 2 | Dirs | **One** `[MirrorExcludeDirs]` same file — all three PC modes |
+| 3 | LCD | Same exclusions config (no lcd-only list) |
+| 4 / SSoT | **`wanos-sync.config.txt` = SSoT.** Pi WLW clone→live tool **moves** from be90 → **wanos** `helpers/` (same family as PC sync). `wlw-sync.sh` (new home) **reads that config** for excludes — no hardcoded EXCLUDE_* pair drift. Retire be90 copy (remove or one-line pointer). Docs + `wlw-sync-pair.mdc` both repos. |
+| 5 | Sequence | Bump to **top** (**#1**) |
+| **A** | `bootstrap` | Always mirror `helpers/bootstrap/**`. Not in exclude list. |
+| **B** | Unified list shape (2026-11-14) | **Merge** all current excludes (main + lcd + wlw), **including `*.md`**, then **omit:** `bootstrap`, `aistudio-preview` (gone from git — obsolete exclude), `LICENSE`, `_lcd-agent`. Keep `*.ps1` excluded. |
+
+### Locked unified exclude set (target)
+
+**Dirs:** `.git` `.cursor` `.idea` `.venv` `docs` `code-import` `backup*` `logs` `temp` `wanos_venv` `migration_venv` `billit_venv` `__pycache__` `sessionlog` `_archive`  
+**(not excluded):** `bootstrap`, `_lcd-agent` · **obsolete (do not re-add):** `aistudio-preview`
+
+**Files:** `.env*` `*.md` `.gitignore` `.gitattributes` `ssh-term-full.js` `*.pyc` + main Pi-owned/runtime (`entity_registry.auto.yaml` `automations.auto.yaml` `config_hue_presets.auto.yaml` `wanos-nvram.json` `wanos-nvram.json.tmp` `.lgd-nfy0` `*.db`) + sync tooling (`wanos-sync.bat` `wanos-sync.ps1` `wanos-sync.config.txt` `*.bat` `*.rcj` `*.ps1`) + `entity_id-list.txt` + junk (`* - Copy.py` `*.zip` `dhcpcd.conf` `*.bak` `*.bak-*` `*.tmp`) + `lg_webos_client_keys.json` + wlw (`db+credentials` `logs` `*.lnk` `_tmp*` `server.ts` `tsconfig.json` `metadata.json` `package.json`)  
+**(not excluded):** `LICENSE` (wanted on Pi)
+
+### Still open
+
+None for list shape — ready to implement when commanded.  
+
+### Out of scope
 
 * Changing RemoteRoot / SSH hosts
 * P3 console quiet (Done)
 
-### Open Qs (kickoff — not locked)
-
-See agent reply this turn.
-
 ### P2 DoD (stub)
 
-Kickoff locks merge schema; all three modes read config; dry-run proves `ssh-term-full.js` excluded on `wlw` via config alone (no hardcode required); WLW pair lists stay matched if changed; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+Kickoff locks merge schema (remaining Qs closed); all three modes read the single config sections; dry-run proves `ssh-term-full.js` excluded on `wlw` via config alone; WLW pair lists stay matched; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 

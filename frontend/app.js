@@ -89,6 +89,13 @@ function wanosApp() {
         _SNAPSHOT_REUSE_MS: 30000,
         /** B10H: only show NOT CONNECTED on SSE loss when snapshot is older than this (ms). */
         _SNAPSHOT_STALE_MS: 60000,
+        /**
+         * C44: delay before retrying connect after snapshot fail / SSE drop / watchdog.
+         * Matches pre-C44 EventSource onerror backoff.
+         */
+        _SSE_RETRY_MS: 3000,
+        /** C44: pending connectSSE timer (single-flight; cancelled on alive / force). */
+        _sseReconnectTimer: null,
         /** C37: abort hung /api/state on resume (ms). */
         _SNAPSHOT_FETCH_TIMEOUT_MS: 20000,
         /** C37: ignore duplicate resume events within this window (ms). */
@@ -1461,6 +1468,10 @@ function wanosApp() {
             });
         },
 
+        /**
+         * REST full-state bootstrap for Alpine.
+         * @returns {Promise<true|false|"auth">} true = applied; false = fail/abort; "auth" = redirected to login
+         */
         async fetchFullSnapshot() {
             // C37: abort any prior hung snapshot (common on Android resume before radio is ready).
             if (this._snapshotAbort) {
@@ -1479,7 +1490,8 @@ function wanosApp() {
                 });
                 if (res.status === 401 || res.status === 403) {
                     window.location.href = '/login.html';
-                    return false;
+                    // C44: do not schedule reconnect retries while redirecting to login.
+                    return "auth";
                 }
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const fullState = await res.json();
@@ -1566,6 +1578,7 @@ function wanosApp() {
                 this.sseWatchdog = null;
             }
             this._cancelSseOfflineDebounce();
+            this._cancelSseConnectRetry();
             if (this._snapshotAbort) {
                 try { this._snapshotAbort.abort(); } catch (e) { /* ignore */ }
                 this._snapshotAbort = null;
@@ -1586,9 +1599,11 @@ function wanosApp() {
 
             const run = this._connectSSEOnce(gen).catch((err) => {
                 console.error("[C37] Resume reconnect failed:", err);
+                // C44: unexpected reject — keep retrying (snapshot-fail path schedules itself).
                 if (gen === this._sseGeneration) {
-                    this._sseReconnecting = false;
+                    this._sseReconnecting = this._lastSnapshotAt > 0;
                     this.connected = false;
+                    this._scheduleSseConnectRetry(gen);
                 }
             });
             this._sseConnectInFlight = run;
@@ -1678,8 +1693,38 @@ function wanosApp() {
             }
         },
 
+        /**
+         * C44: cancel a pending connectSSE retry (alive, force-reconnect, or supersede).
+         */
+        _cancelSseConnectRetry() {
+            if (this._sseReconnectTimer) {
+                clearTimeout(this._sseReconnectTimer);
+                this._sseReconnectTimer = null;
+            }
+        },
+
+        /**
+         * C44: single-flight delayed connectSSE. Survives snapshot-fail dead-ends and
+         * backend downtime until the service answers again (no hard reload).
+         * @param {number} [generation] skip if a newer force-reconnect superseded this run
+         * @param {number} [delayMs] defaults to `_SSE_RETRY_MS`
+         */
+        _scheduleSseConnectRetry(generation, delayMs) {
+            const gen = generation != null ? generation : this._sseGeneration;
+            const delay = delayMs != null ? delayMs : this._SSE_RETRY_MS;
+            if (gen !== this._sseGeneration) return;
+            this._cancelSseConnectRetry();
+            this._sseReconnectTimer = setTimeout(() => {
+                this._sseReconnectTimer = null;
+                if (gen !== this._sseGeneration) return;
+                console.info("[C44] Retrying SSE connect after", delay, "ms");
+                this.connectSSE();
+            }, delay);
+        },
+
         _markSseAlive() {
             this._cancelSseOfflineDebounce();
+            this._cancelSseConnectRetry();
             this._sseReconnecting = false;
             this.connected = true;
         },
@@ -1836,7 +1881,8 @@ function wanosApp() {
                         console.warn("⚠️ Watchdog Timeout! No server signal detected for 10s. Forcing reconnect...");
                         this._scheduleSseOfflineDebounce();
                         if (this.eventSource) this.eventSource.close();
-                        setTimeout(() => this.connectSSE(), 3000);
+                        // C44: single-flight retry (same delay as pre-C44 setTimeout).
+                        this._scheduleSseConnectRetry(gen);
                     }, 10000); // 2x the 5-second backend ping interval
                 };
 
@@ -1874,8 +1920,8 @@ function wanosApp() {
                     console.error("❌ SSE stream broke. Re-linking context in 3s...");
                     if (this.eventSource) this.eventSource.close();
                     this._scheduleSseOfflineDebounce();
-                    // On reconnect, reuse recent REST snapshot when possible (B10H).
-                    setTimeout(() => this.connectSSE(), 3000);
+                    // C44: single-flight retry; B10H reuse still applies inside connectSSE.
+                    this._scheduleSseConnectRetry(gen);
                 };
             };
 
@@ -1888,12 +1934,17 @@ function wanosApp() {
                 this._sseReconnecting = true;
             }
 
-            return this.fetchFullSnapshot().then((ok) => {
+            // C44: snapshot fail used to throw with no retry → Waiting for snapshot dead-end
+            // until hard reload. Retry until backend answers (reboot / Android Chrome).
+            return this.fetchFullSnapshot().then((result) => {
                 if (gen !== this._sseGeneration) return;
-                if (!ok) {
-                    this._sseReconnecting = false;
+                if (result === "auth") return;
+                if (result !== true) {
                     this.connected = false;
-                    throw new Error("Full state snapshot failed");
+                    this._sseReconnecting = this._lastSnapshotAt > 0;
+                    console.warn("[C44] Snapshot not ready; scheduling connect retry");
+                    this._scheduleSseConnectRetry(gen);
+                    return;
                 }
                 openEventStream();
             });

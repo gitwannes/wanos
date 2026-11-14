@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). **C41 ✅ DONE** (**close-out 2026-09-09**). **C37 ✅ DONE** (**OnePlus 12 smoke 2026-09-09**). **C40 cancelled 2026-09-09** (PID v2 not open). **C45** ✅ **Done 2026-11-14**. Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36**; **C42** ∥ **C33** / **G17** / **P1**; **C43** ∥ **C33** / **C36** / **C42**; **C44** ∥ reconnect cluster. Pipeline Blockly next: **B14b** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). **C41 ✅ DONE** (**close-out 2026-09-09**). **C37 ✅ DONE** (**OnePlus 12 smoke 2026-09-09**). **C40 cancelled 2026-09-09** (PID v2 not open). **C45** ✅ **Done 2026-11-14**. **C44** ✅ **Done 2026-11-14**. Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36**; **C42** ∥ **C33** / **G17** / **P1**; **C43** ∥ **C33** / **C36** / **C42**. Pipeline Blockly next: **B14b** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -57,10 +57,10 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C36 — Device event history modal** | Right-click device → History → modal table (ON / OFF / set % / …) | Explorer Control · mid |
 | **C37 — Android PWA resume black screen** | ✅ **Done 2026-09-09** — warm resume force-SSE + overlay no x-cloak; OnePlus 12 smoke | Shell / SSE resume · mid |
 | **C40 — Sauna PID v2** | ❌ **Cancelled 2026-09-09** — not open; re-triage when wanted | Sauna PID · mid |
-| **C44 — SSE reconnect after backend reboot** | bugfix: UI stays offline / does not re-link when backend reboots | Shell / SSE · mid |
+| **C44 — UI SSE reconnect / NOT CONNECTED** | ✅ **Done 2026-11-14** — snapshot-fail retry + reboot re-link (`app.js`) | Shell / SSE · mid |
 | **C45 — Sauna PID cold-start bias** | ✅ **Done 2026-11-14** — outside→bias linear schedule; [`sauna-ir.md`](../sauna-ir.md) §3.8 | Sauna PID · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C41** ✅ **close-out 2026-09-09**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **C40** cancelled (PID v2 not open). **C45** ✅ **close-out 2026-11-14**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36**. **C42** may run ∥ **C33** / **G17** / **P1**. **C43** may run ∥ **C33** / **C36** / **C42**. **C44** may run ∥ near-term (distinct from **C37**). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C41** ✅ **close-out 2026-09-09**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **C40** cancelled (PID v2 not open). **C45** ✅ **close-out 2026-11-14**. **C44** ✅ **close-out 2026-11-14**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36**. **C42** may run ∥ **C33** / **G17** / **P1**. **C43** may run ∥ **C33** / **C36** / **C42**. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**); SSE retry **C44 ✅**. **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1508,29 +1508,44 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C36:** triage **2026-09-04** — right-click device → History modal (event table); kickoff before code.
 * **C37:** ✅ **Done 2026-09-09** — OnePlus 12 smoke; resume force-SSE + overlay no x-cloak.
 * **C40:** ❌ **Cancelled 2026-09-09** — PID v2 not open; re-triage when wanted.
-* **C44:** triage **2026-09-15** — UI SSE reconnect after backend reboot; kickoff before code.
+* **C44:** ✅ **Done 2026-11-14** — snapshot-fail / reboot retry; product [`reference.md`](../reference.md) / [`architecture.md`](../architecture.md).
 * **C45:** ✅ **Done 2026-11-14** — outside adaptive bias; product [`sauna-ir.md`](../sauna-ir.md) §3.8.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
 * NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**); overlay copy/milestones → **B10L** ✅ (**2026-09-05**).
 
-## 📋 C44 — bugfix: UI SSE reconnect after backend reboot 🔜 TODO
+## ✅ C44 — bugfix: UI SSE reconnect / NOT CONNECTED loop — **Done 2026-11-14**
 
-**Letter:** **C44**. **Sequence** (see [`pipeline.md`](pipeline.md)). **Affinity:** Operator shell (SSE / offline overlay). Size **mid**.
+**Letter:** **C44**. Affinity: Operator shell (SSE / offline overlay / Explorer). Size **mid**. **bugfix**. **Close-out 2026-11-14** (operator).
 
-**Operator request (verbatim, 2026-09-15):**
+**Product reference (canonical):** [`reference.md`](../reference.md) (`app.js`, `GET /api/state/sse`) · [`architecture.md`](../architecture.md) § Sliding WATCHDOG / C44 retry.
+
+### Operator requests (verbatim)
+
+**2026-09-15:**
 
 > why does Wanos UI not re-connect when backend is rebooted?
 
-### Placement notes (not full kickoff)
+**2026-11-14** (Android fold + kickoff; OnePlus 12 Chrome Explorer; backend was up; hard reload fixed; trigger unknown / occasional):
 
-* **Symptom:** after WanOS backend reboot (process/host), open UI tabs do not recover live SSE / stay offline until manual reload (confirm at kickoff).
-* **Distinct from:** **C37** ✅ (Android PWA warm resume / visibility); **C23** ✅ (dead EventSource pipe); **B10G** / **B10H** / **B10L** (cold-load + reconnect copy/milestones that already exist).
-* **Likely surface:** `frontend` SSE client reconnect / watchdog after long downtime or TCP reset while backend was down; not a new Admin restart API.
+> sometimes, I get this: screenshot: find possible causes
+> … Waiting for snapshot… cycle …
+> fold into C44
+> 1: chrome · 2: untested · 3: include backend reboot re-link · 4: yes (self-heal) · 5: can't replay
 
-**Out of scope (this triage):** PWA resume (**C37**); intentional Admin restart UX polish beyond reconnect; iOS unless reported.
+### Shipped summary
 
-**C44 DoD (stub):** After backend reboot, open Explorer/WISC/Admin (and peers using SSE) re-link without full page reload (or documented reload policy locked at kickoff); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+| Area | Outcome |
+|---|---|
+| Retry | `_scheduleSseConnectRetry` / `_cancelSseConnectRetry` — single-flight **3 s** |
+| Snapshot fail | Schedules retry (no hard-reload dead-end); 401/403 → login, no retry spam |
+| SSE drop / watchdog | Same scheduler; B10H fresh-snapshot quiet reconnect unchanged |
+| Scope | Explorer / `app.js` surfaces; Z-Wave / Automations clients out |
+| Docs | [`reference.md`](../reference.md) · [`architecture.md`](../architecture.md) |
+
+**Out of scope (unchanged):** reopen **C37**; iOS; Admin restart UX; separate Z-Wave/Automations SSE clients; deterministic Android repro.
+
+**Last DoD:** Product docs audited against shipped C44 behaviour (**2026-11-14**). `phaseC-shell.md` stays active (other C items open) — no `_archive/` move for this subphase.
 
 ## ✅ C45 — Sauna PID cold-start adaptive bias — **Done 2026-11-14**
 
