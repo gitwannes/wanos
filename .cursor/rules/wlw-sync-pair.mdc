@@ -7,12 +7,14 @@ alwaysApply: true
 
 # WLW sync-tool pair (hard rule)
 
-Two tools must stay **behaviourally matched** for the WLW app-tree mirror:
+Two tools must stay **behaviourally matched** for the WLW app-tree mirror. Both live under **wanos** and share **`helpers/wanos-sync.config.txt`**:
 
 | Side | Repo | Tool |
 |---|---|---|
-| PC → Pi live | **wanos** (this repo) | `helpers/wanos-sync.ps1` (`$WlwMirrorExcludeDirs` / `$WlwMirrorExcludeFiles`, `… wlw`) |
-| Pi clone → Pi live | **be90webserver** | `helpers/wlw-sync.sh` (`EXCLUDE_DIRS` / `EXCLUDE_FILES`) |
+| PC → Pi live | **wanos** | `helpers/wanos-sync.ps1` (`… wlw`) — `[MirrorExclude*]` from config |
+| Pi clone → Pi live | **wanos** | `helpers/wlw-sync.sh` — same config sections (deploy via main WanOS sync) |
+
+be90webserver has **no** `helpers/wlw-sync.sh` — do not re-add one. Pi operators run `bash ~/wanos/helpers/wlw-sync.sh`.
 
 Product locks: be90webserver `docs/wlw-sync.md`. This repo: [`docs/wanos-sync.md`](docs/wanos-sync.md) (WLW pair section).
 
@@ -21,8 +23,9 @@ Product locks: be90webserver `docs/wlw-sync.md`. This repo: [`docs/wanos-sync.md
 | Topic | Lock |
 |---|---|
 | Compare | `--checksum --no-times` (not size+mtime). PC: `-ContentChecksum` on the wlw mirror job only; main/LCD stay `-avz`. |
-| Dir excludes | `.git`, `.cursor`, `docs`, `__pycache__`, `.venv`, `aistudio-preview`, **`_archive`** |
-| File excludes | `.env*`, `*.md`, `.gitignore`, `.gitattributes`, `db+credentials`, `logs`, `ssh-term-full.js`, `*.lnk`, `_tmp*`, `server.ts`, `tsconfig.json`, `metadata.json`, `package.json` |
+| Excludes SSoT | `helpers/wanos-sync.config.txt` `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — **one list** for main + lcd + wlw + Pi sh |
+| Dir excludes (locked set) | `.git`, `.cursor`, `.idea`, `.venv`, `docs`, `code-import`, `backup*`, `logs`, `temp`, `wanos_venv`, `migration_venv`, `billit_venv`, `__pycache__`, `sessionlog`, **`_archive`** — **not** bare `bootstrap`, **not** `_lcd-agent`, **not** `aistudio-preview` |
+| File excludes (high level) | `.env*`, `*.md`, gitignore/attrs, sync `.bat`/`.ps1`, Pi-owned WanOS YAML/db, `ssh-term-full.js`, WLW symlinks `db+credentials`/`logs`, `*.lnk`, `_tmp*`, `*.pyc`, … — **not** `LICENSE`; **no** AI Studio `server.ts`/`tsconfig.json`/`metadata.json`/`package.json` |
 | LF normalize (PC) | Deploy text set incl. **`.svg`**, **`.sudoers`**, **`.timer`**; be90 `.gitattributes` `eol=lf` for the same types |
 | Sync vs gitignore | Sync does **not** read `.gitignore`; `_archive` exclude covers gitignored archive dirs |
 
@@ -30,14 +33,14 @@ Product locks: be90webserver `docs/wlw-sync.md`. This repo: [`docs/wanos-sync.md
 
 If you change **any** of: mirror excludes, compare rules, modes, path locks, or the WLW LF-normalize extension set — in the **same** authorized code turn:
 
-1. Update **both** tools (PC list here + Pi list in be90webserver), or stop and say the other repo still needs the matching edit.
+1. Update **config** (`wanos-sync.config.txt`) and ensure PC + Pi tools both read it (no hardcoded EXCLUDE_* drift).
 2. Update **both** product docs (`docs/wanos-sync.md` here · be90webserver `docs/wlw-sync.md`).
 3. Update **both** `.cursor/rules/wlw-sync-pair.mdc` copies when the locked match table changes.
 4. Do **not** leave one tool ahead of the other.
 
 ## Do not
 
-- Add WLW mirror excludes only on PC or only on Pi
+- Add WLW mirror excludes only in a script array (use config)
 - Reuse bare path segment `bootstrap` (would skip be90 `helpers/bootstrap/`)
-- Treat docs-only updates as enough when the lists in the scripts still differ
+- Re-add AI Studio exclude names (`aistudio-preview`, `server.ts`, `tsconfig.json`, `metadata.json`, `package.json`)
 - Drop `--checksum` / `--no-times` on only one side of the WLW pair

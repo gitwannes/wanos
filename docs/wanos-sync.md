@@ -16,13 +16,13 @@ Samba is **not used** (Ops7: do not install on fresh main Pi). Sync does not use
 | Side | Tool |
 |------|------|
 | PC → Pi live | This repo: `helpers\wanos-sync.bat … wlw` |
-| Pi clone → Pi live | **be90webserver** `helpers/wlw-sync.sh` (`test` / `run` / `info`) |
+| Pi clone → Pi live | This repo: `helpers/wlw-sync.sh` (`test` / `run` / `info`) — reads **`wanos-sync.config.txt`**. Deploy via main `run` first. |
 
-Product locks: be90webserver `docs/wlw-sync.md`. **Agent pair rule:** `.cursor/rules/wlw-sync-pair.mdc` (this repo + be90webserver) — keep both tools matched; update both tools + both docs together.
+be90webserver has **no** sync script — do not re-add `helpers/wlw-sync.sh` there.
 
-**WLW dir excludes (both tools):** `.git`, `.cursor`, `docs`, `__pycache__`, `.venv`, `aistudio-preview`, **`_archive`** (gitignored local junk e.g. `public/p1/_archive` — not copied, not deleted on live).
+Product locks: be90webserver `docs/wlw-sync.md`. **Agent pair rule:** `.cursor/rules/wlw-sync-pair.mdc` (this repo + be90webserver).
 
-**WLW file excludes (both tools):** `.env*`, `*.md`, `.gitignore`, `.gitattributes`, `db+credentials`, `logs` (Pi-only live symlinks), `ssh-term-full.js`, `*.lnk`, `_tmp*`, `server.ts`, `tsconfig.json`, `metadata.json`, `package.json`. Sync does not read `.gitignore`.
+**Excludes SSoT:** `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` in `helpers/wanos-sync.config.txt` — **one list** for main + lcd + wlw + Pi `wlw-sync.sh`. Sync does **not** read `.gitignore`. No bare `bootstrap`; no AI Studio names. `LICENSE` deploys; `_lcd-agent` is mirrored on main if present.
 
 **WLW compare (both tools):** `--checksum --no-times` (content, not size+mtime). Main WanOS / LCD mirrors stay `-avz` (mtime).
 
@@ -34,7 +34,7 @@ Product locks: be90webserver `docs/wlw-sync.md`. **Agent pair rule:** `.cursor/r
 
 | Job | Direction | Behaviour |
 |-----|-----------|-----------|
-| Mirror | Local → Pi | `rsync --delete` + excludes: main uses config `[MirrorExclude*]`; `lcd` / `wlw` use hardcoded lists in `.ps1` until **P2** (shared `[MirrorExcludeFiles]` for all three) |
+| Mirror | Local → Pi | `rsync --delete` + shared config `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` for **main + lcd + wlw** (P2) |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
 | Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`); WLW: `/var/log/wlw/wlw*` + Nginx vhost logs → `logs\wlw\`; WLW state **pull** (not mirror) → `logs\wlw\state\` (`wlw.sqlite`; `budget*.sql`/`budget*.zip`; `budget/*.sqlite`; `budget/*.json` incl. `obio-credentials-*.json`; never `.env`; never push; no legacy `budget.sqlite`) |
 | Sessionlog pull | Pi → Local | `{RemoteRoot}/sessionlog/*` → OneDrive `logs\` (flat) — **main WanOS only**; skip if remote dir missing |
@@ -127,7 +127,7 @@ helpers\wanos-sync.bat diff <repo-relative-file> wlw verbose
 | `logcopy` | Log pull + sessionlog pull + copy `wanos*` / `sauna_session_*.csv` / `sauna_sessions.db` into git `docs\logs` only (no mirror / stats / normalize) |
 | `diff <path>` | Compare one repo-relative file PC vs Pi (normalized text); binary = sizes only; missing-side info (exit 0) |
 | `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull); logcopy → `_lcd-agent\docs\logs`; diff uses `_lcd-agent` as local root |
-| `… wlw` | Same modes against **WLW**: mirror `C:\data\git\be90webserver` → `10.32.251.30:/home/wannes/be90webserver` (no stats/sessionlog); log pull `/var/log/wlw/wlw*` + Nginx vhost logs; logcopy → `be90webserver\docs\logs`; diff uses be90 tree as local root. LF-normalize deploy text before mirror (`test` dry-run / `run` write). Mutually exclusive with `lcd`. Pair: be90 `helpers/wlw-sync.sh` on the Pi. |
+| `… wlw` | Same modes against **WLW**: mirror `C:\data\git\be90webserver` → `10.32.251.30:/home/wannes/be90webserver` (no stats/sessionlog); log pull `/var/log/wlw/wlw*` + Nginx vhost logs; logcopy → `be90webserver\docs\logs`; diff uses be90 tree as local root. LF-normalize deploy text before mirror (`test` dry-run / `run` write). Mutually exclusive with `lcd`. Pi clone→live: wanos `helpers/wlw-sync.sh` (shared config). |
 | `test … logcopy` | Dry-run also previews the git `docs\logs` copy |
 | `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd` / `wlw` / `logcopy`) |
 
@@ -262,17 +262,17 @@ helpers\wanos-sync.bat run
 
 `helpers/wanos-sync.config.txt`:
 
-- `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — not copied, not deleted on Pi (`docs/` is excluded; this doc lives under `docs/`). Path segment **`bootstrap`** is excluded, so `helpers/bootstrap/**` is not mirrored to the **main** Pi. Path **`_lcd-agent`** is excluded from the main mirror (LCD deploy uses `lcd` mode only). Path **`sessionlog`** is Pi-owned (sauna session CSVs); pulled to OneDrive / `docs\logs`, never mirrored. Rsyslog logcap lives in **`helpers/`** (`wanos_rsyslog_logcap.sh`, `wanos-syslog-truncate.sh`, `logrotate.rsyslog`) so it **does** sync to the main Pi. File excludes include `*.bak` and `*.bak-*` (migrator stamps like `automations.auto.yaml.bak-YYYYMMDD-HHMMSS`). Repo meta not deployed: `readme.md`, `LICENSE`, `entity_id-list.txt`, and any other `*.md` outside excluded dirs (e.g. `core/logger.md`).
-- **`.cursor`** — IDE rules (`.cursor/rules/`) and other Cursor project files; PC-only, not deployed to the Pi
+- `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` — shared for main + lcd + wlw + Pi `wlw-sync.sh`. Not copied / not deleted on dest when matched. **`bootstrap` is not excluded** (`helpers/bootstrap/**` deploys). **`_lcd-agent` is not excluded** (main may carry the LCD tree). **`sessionlog`** excluded (Pi-owned; pull only). `*.md` excluded; **`LICENSE` deploys**. `wanos-sync.config.txt` **deploys** (Pi sh needs it); `.bat`/`.ps1` stay PC-only. File excludes include `*.bak` / `*.bak-*`, WLW `db+credentials` / file `logs`, `_tmp*`, `_archive` (dir).
+- **`.cursor`** — IDE rules; excluded dir segment (PC-only)
 - `[StatsInclude]` / `[StatsRepoPull]` — pull rules (repo YAML always overwrite; missing remote file skipped with warning)
 - `[PiSsh]` — Host, User, RemoteRoot, RemoteLogDir, LocalLogSubdir (empty = flat into StatsDest), RemoteGlob
 - `[LcdPiSsh]` — LCD Pi (same keys); `LocalLogSubdir=lcd-agent` lands pulls under OneDrive `logs\lcd-agent`
-- `[WlwPiSsh]` — WLW on main Pi `.30`; source `C:\data\git\be90webserver`; `LocalLogSubdir=wlw`; no bare `bootstrap` exclude (helpers/bootstrap syncs)
+- `[WlwPiSsh]` — WLW on main Pi `.30`; source `C:\data\git\be90webserver`; `LocalLogSubdir=wlw`
 - `[WlwExtraLogFiles]` — absolute Nginx log paths pulled flat into `logs\wlw\` (+ `.log.1` when present; skip `.gz`)
 - `[WlwSqlitePullFiles]` — listed `/var/lib/wlw` paths (exact + shell globs on Pi) → `logs\wlw\state\` (pull only; never mirror whole dir; never `.env`; never push; not logcopied to git). Locked set: `wlw.sqlite`; top-level `budget*.sql` / `budget*.zip`; `budget/*.sqlite`; `budget/*.json` (per-user `obio-credentials-*.json`). Legacy root `budget.sqlite` **removed**. Engine allows `.sqlite` / `.sql` / `.zip` / `.json`.
 - **Z-Wave JS UI store (Ops7):** Pi path **`/opt/zwave-js-ui`**. **Not** pulled by wanos-sync — **operator-manual** backup (`rsync`/`scp`) before flash and **operator restore** before `docker compose up`. See [`ops7-operator-checklist.md`](ops7-operator-checklist.md).
 
-Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine. First LCD deploy: `test lcd` then `run lcd` (install: `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). First WLW deploy: `test wlw` then `run wlw`, then on Pi `sudo bash /home/wannes/be90webserver/helpers/bootstrap/wlw_bootstrap.sh` (creates `/var/lib/wlw` + `/var/log/wlw`). Product locks: be90webserver `docs/wlw-sync.md`.
+Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine. First LCD deploy: `test lcd` then `run lcd` (install: `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). First WLW deploy: `test wlw` then `run wlw`, then on Pi `sudo bash /home/wannes/be90webserver/helpers/bootstrap/wlw_bootstrap.sh` (creates `/var/lib/wlw` + `/var/log/wlw`). Pi clone→live: `bash ~/wanos/helpers/wlw-sync.sh test|run` (after main WanOS sync). Product locks: be90webserver `docs/wlw-sync.md`.
 
 ---
 

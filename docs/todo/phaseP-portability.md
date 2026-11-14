@@ -140,80 +140,35 @@ Kickoff locks config shape + migration of current Borsbeek rows; code reads conf
 
 ---
 
-## 📋 P2 — sync: `[MirrorExcludeFiles]` for all three modes 🔜 TODO
+## ✅ P2 — sync: shared `[MirrorExclude*]` + Pi `wlw-sync.sh` in wanos — Done 2026-11-14
 
-**Status:** open · size **mid** · Sequence **#1** → [`pipeline.md`](pipeline.md)  
-**Affinity:** Portability / deploy tooling (`helpers/wanos-sync.*`). Not product UI.
+**Status:** Done · size **mid** · Sequence → Done table in [`pipeline.md`](pipeline.md)
 
 ### Operator request (verbatim, 2026-09-15)
 
 > put in triage for the sync-tool (in wanos repo) that the [MirrorExcludeFiles] section should be used for ALL three syncs
 
-(Context from same thread: `ssh-term-full.js` was added under `[MirrorExcludeFiles]` but `wlw` ignored it because WLW/LCD use hardcoded `$WlwMirrorExcludeFiles` / `$LcdMirrorExcludeFiles` in `wanos-sync.ps1`.)
+### Shipped
 
-### Kickoff (2026-11-14) — verified facts
-
-| Mode | Exclude source today |
+| Piece | Outcome |
 |---|---|
-| **main** | Config `[MirrorExcludeDirs]` + `[MirrorExcludeFiles]` |
-| **lcd** | Hardcoded `$LcdMirrorExcludeDirs` / `$LcdMirrorExcludeFiles` in `.ps1` (small: `.git`, `docs`, `wanos_venv`, `__pycache__`, `.env*`, `*.pyc`) |
-| **wlw** | Hardcoded `$WlwMirrorExcludeDirs` / `$WlwMirrorExcludeFiles` in `.ps1` — **must stay matched** to be90 `helpers/wlw-sync.sh` `EXCLUDE_DIRS` / `EXCLUDE_FILES` (pair rule) |
+| SSoT | `helpers/wanos-sync.config.txt` `[MirrorExcludeDirs]` / `[MirrorExcludeFiles]` for main + lcd + wlw |
+| PC engine | `wanos-sync.ps1` — hardcoded lcd/wlw arrays removed |
+| Pi tool | `helpers/wlw-sync.sh` in **wanos** reads same config |
+| be90 | **No** `helpers/wlw-sync.sh` (stub removed on close-out; do not re-add) |
+| bootstrap / LICENSE / `_lcd-agent` | Not excluded (deploy) |
+| AI Studio | Names purged from sync/docs/pair rules; not in exclude list |
+| Docs / rules | `docs/wanos-sync.md`, be90 `docs/wlw-sync.md`, both `wlw-sync-pair.mdc` |
 
-**Danger if naive union:** main config dir `bootstrap` would skip be90 `helpers/bootstrap/` on WLW. Main file excludes (`*.ps1`, `*.bat`, `*.auto.yaml`, `LICENSE`, …) are WanOS-shaped — not a drop-in for WLW.
+**Product reference:** [`docs/wanos-sync.md`](../wanos-sync.md) · be90webserver `docs/wlw-sync.md`.
 
-**Interim (2026-09-15):** `ssh-term-full.js` duplicated in config **and** `$WlwMirrorExcludeFiles`.
+### P2 DoD
 
-**Prereqs:** none vs P3 (Done). Pair rule applies when WLW exclude lists change.
-
-### Where excludes live today (inventory 2026-11-14)
-
-| Mode | Dirs | Files |
-|---|---|---|
-| **main** | Config `[MirrorExcludeDirs]` in `helpers/wanos-sync.config.txt` | Config `[MirrorExcludeFiles]` same file |
-| **lcd** | Hardcoded `$LcdMirrorExcludeDirs` in `helpers/wanos-sync.ps1` | Hardcoded `$LcdMirrorExcludeFiles` same |
-| **wlw** (PC) | Hardcoded `$WlwMirrorExcludeDirs` in `helpers/wanos-sync.ps1` | Hardcoded `$WlwMirrorExcludeFiles` same |
-| **wlw** (Pi pair) | `EXCLUDE_DIRS` in be90 `helpers/wlw-sync.sh` | `EXCLUDE_FILES` same (must match PC WLW) |
-
-**main dirs (config):** `.git` `.cursor` `.idea` `.venv` `docs` `code-import` `bootstrap` `backup*` `logs` `temp` `_lcd-agent` `wanos_venv` `migration_venv` `billit_venv` `__pycache__` `sessionlog`
-
-**main files (config):** auto.yaml / nvram / `.lgd-nfy0` / `*.db` / sync tooling (`*.bat` `*.ps1` …) / `LICENSE` / `*.md` / `.env*` / gitignore / zip/bak/tmp / `lg_webos_client_keys.json` / `ssh-term-full.js` …
-
-**lcd (hardcoded):** dirs `wanos_venv` `__pycache__` `docs` `.git` · files `.env*` `*.pyc`
-
-**wlw PC + Pi pair (hardcoded, matched):** dirs `.git` `.cursor` `docs` `__pycache__` `.venv` `aistudio-preview` `_archive` · files `.env*` `*.md` `.gitignore` `.gitattributes` `db+credentials` `logs` `ssh-term-full.js` `*.lnk` `_tmp*` `server.ts` `tsconfig.json` `metadata.json` `package.json`
-
-### Kickoff locks (2026-11-14)
-
-| # | Topic | Lock |
-|---|---|---|
-| 1 | Files | **One** `[MirrorExcludeFiles]` in `helpers/wanos-sync.config.txt` — all three PC modes |
-| 2 | Dirs | **One** `[MirrorExcludeDirs]` same file — all three PC modes |
-| 3 | LCD | Same exclusions config (no lcd-only list) |
-| 4 / SSoT | **`wanos-sync.config.txt` = SSoT.** Pi WLW clone→live tool **moves** from be90 → **wanos** `helpers/` (same family as PC sync). `wlw-sync.sh` (new home) **reads that config** for excludes — no hardcoded EXCLUDE_* pair drift. Retire be90 copy (remove or one-line pointer). Docs + `wlw-sync-pair.mdc` both repos. |
-| 5 | Sequence | Bump to **top** (**#1**) |
-| **A** | `bootstrap` | Always mirror `helpers/bootstrap/**`. Not in exclude list. |
-| **B** | Unified list shape (2026-11-14) | **Merge** all current excludes (main + lcd + wlw), **including `*.md`**, then **omit:** `bootstrap`, `aistudio-preview` (gone from git — obsolete exclude), `LICENSE`, `_lcd-agent`. Keep `*.ps1` excluded. |
-
-### Locked unified exclude set (target)
-
-**Dirs:** `.git` `.cursor` `.idea` `.venv` `docs` `code-import` `backup*` `logs` `temp` `wanos_venv` `migration_venv` `billit_venv` `__pycache__` `sessionlog` `_archive`  
-**(not excluded):** `bootstrap`, `_lcd-agent` · **obsolete (do not re-add):** `aistudio-preview`
-
-**Files:** `.env*` `*.md` `.gitignore` `.gitattributes` `ssh-term-full.js` `*.pyc` + main Pi-owned/runtime (`entity_registry.auto.yaml` `automations.auto.yaml` `config_hue_presets.auto.yaml` `wanos-nvram.json` `wanos-nvram.json.tmp` `.lgd-nfy0` `*.db`) + sync tooling (`wanos-sync.bat` `wanos-sync.ps1` `wanos-sync.config.txt` `*.bat` `*.rcj` `*.ps1`) + `entity_id-list.txt` + junk (`* - Copy.py` `*.zip` `dhcpcd.conf` `*.bak` `*.bak-*` `*.tmp`) + `lg_webos_client_keys.json` + wlw (`db+credentials` `logs` `*.lnk` `_tmp*` `server.ts` `tsconfig.json` `metadata.json` `package.json`)  
-**(not excluded):** `LICENSE` (wanted on Pi)
-
-### Still open
-
-None for list shape — ready to implement when commanded.  
-
-### Out of scope
-
-* Changing RemoteRoot / SSH hosts
-* P3 console quiet (Done)
-
-### P2 DoD (stub)
-
-Kickoff locks merge schema (remaining Qs closed); all three modes read the single config sections; dry-run proves `ssh-term-full.js` excluded on `wlw` via config alone; WLW pair lists stay matched; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+[x] Shared config for main / lcd / wlw  
+[x] Pi `wlw-sync.sh` in wanos reads config; be90 script removed  
+[x] AI Studio refs purged from sync/docs/rules  
+[x] Pair docs + `wlw-sync-pair.mdc` both repos  
+[x] **Last DoD:** audit docs against shipped behaviour (**2026-11-14**, incl. no-stub follow-up)  
 
 ---
 

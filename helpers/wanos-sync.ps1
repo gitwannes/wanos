@@ -279,49 +279,8 @@ $WlwPiSsh           = $SyncConfig.WlwPiSsh
 $WlwExtraLogFiles   = $SyncConfig.WlwExtraLogFiles
 $WlwSqlitePullFiles = $SyncConfig.WlwSqlitePullFiles
 
-# LCD mirror excludes (do NOT reuse backend bootstrap/docs excludes that would skip helpers/bootstrap).
-$LcdMirrorExcludeDirs = @(
-    "wanos_venv",
-    "__pycache__",
-    "docs",
-    ".git"
-)
-$LcdMirrorExcludeFiles = @(
-    ".env*",
-    "*.pyc"
-)
-
-# WLW mirror excludes (be90webserver). Do NOT use bare segment "bootstrap" (would skip helpers/bootstrap).
-$WlwMirrorExcludeDirs = @(
-    ".git",
-    ".cursor",
-    "docs",
-    "__pycache__",
-    ".venv",
-    # Google AI Studio
-    "aistudio-preview",
-    # Gitignored local archives (e.g. public/p1/_archive). Sync does not read .gitignore.
-    "_archive"
-)
-$WlwMirrorExcludeFiles = @(
-    ".env*",
-    "*.md",
-    ".gitignore",
-    ".gitattributes",
-	# symbolic links
-	"db+credentials",
-	"logs",
-    # Dev source; Pi serves minified public/js/ssh-term.js only (see be90 cursor rule)
-    "ssh-term-full.js",
-    # Local noise. Same patterns as be90 .gitignore. Sync does not read .gitignore.
-    "*.lnk",
-    "_tmp*",
-    # Google AI Studio
-    "server.ts",
-    "tsconfig.json",
-    "metadata.json",
-    "package.json"
-)
+# P2: main / lcd / wlw all use [MirrorExcludeDirs] / [MirrorExcludeFiles] from config.
+# Pi helpers/wlw-sync.sh reads the same file. No bare "bootstrap" exclude.
 
 # WLW text on the Pi must be LF. Normalize these before run/test wlw (not binaries).
 $WlwLfNormalizeExtensions = @(
@@ -1169,7 +1128,7 @@ function Invoke-WanosRsyncMirrorJob {
     [void]$rsyncArgs.Add("-avz")
     if ($DryRun) { [void]$rsyncArgs.Add("-n") }
     if ($ContentChecksum) {
-        # Same compare posture as be90 helpers/wlw-sync.sh (not size+mtime).
+        # Same compare posture as wanos helpers/wlw-sync.sh (not size+mtime).
         [void]$rsyncArgs.Add("--checksum")
         [void]$rsyncArgs.Add("--no-times")
     }
@@ -1864,8 +1823,8 @@ if ($Mode -eq "codeimport") {
     Invoke-WanosRsyncMirrorJob `
         -Source $LcdMirrorSource `
         -Ssh $LcdPiSsh `
-        -ExcludeDirs $LcdMirrorExcludeDirs `
-        -ExcludeFiles $LcdMirrorExcludeFiles `
+        -ExcludeDirs $MirrorExcludeDirs `
+        -ExcludeFiles $MirrorExcludeFiles `
         -DryRun:$DryRun
 
     Write-Host ""
@@ -1890,8 +1849,8 @@ if ($Mode -eq "codeimport") {
     Invoke-WanosRsyncMirrorJob `
         -Source $WlwMirrorSource `
         -Ssh $WlwPiSsh `
-        -ExcludeDirs $WlwMirrorExcludeDirs `
-        -ExcludeFiles $WlwMirrorExcludeFiles `
+        -ExcludeDirs $MirrorExcludeDirs `
+        -ExcludeFiles $MirrorExcludeFiles `
         -ContentChecksum `
         -DryRun:$DryRun
 

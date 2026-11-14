@@ -10,6 +10,9 @@
 # Job 1 MIRROR (Local --> Pi via rsync/SSH): MirrorExcludeDirs + MirrorExcludeFiles
 #   Dir patterns match ANY path segment. File patterns match file NAME only.
 #   Excluded = not copied AND not deleted on dest (rsync --exclude + --delete).
+#   P2: ONE shared list for main + lcd + wlw (PC) and Pi helpers/wlw-sync.sh.
+#   Do NOT exclude bare "bootstrap" (helpers/bootstrap must deploy). No aistudio-*.
+#   wanos-sync.config.txt IS mirrored (Pi sh reads it). .bat/.ps1 stay PC-only.
 #
 # Job 2 PULL (Pi --> Local via rsync/SSH): StatsInclude + StatsRepoPull
 #   StatsInclude  = include-only file NAME patterns from Pi WanOS root
@@ -33,29 +36,25 @@
 config_hue_presets.auto.yaml
 
 [MirrorExcludeDirs]
-# Local-only / never deploy
+# Shared (main + lcd + wlw + Pi wlw-sync.sh). No bare bootstrap. No _lcd-agent.
 .git
 .cursor
 .idea
 .venv
 docs
 code-import
-bootstrap
 backup*
 logs
 temp
-# LCD agent tree — deploy only via "lcd" mode to the LCD Pi
-_lcd-agent
-# Pi-only trees (never delete/touch under mirror delete)
 wanos_venv
 migration_venv
 billit_venv
 __pycache__
-# Sauna session CSV dumps (Pi-owned; pulled to OneDrive/docs\logs, never mirrored)
 sessionlog
+_archive
 
 [MirrorExcludeFiles]
-# Pi-owned runtime (pushing from PC destroys live state / fights StatsRepoPull)
+# Pi-owned runtime (WanOS; no-op on wlw/lcd when absent)
 entity_registry.auto.yaml
 automations.auto.yaml
 config_hue_presets.auto.yaml
@@ -63,18 +62,16 @@ wanos-nvram.json
 wanos-nvram.json.tmp
 .lgd-nfy0
 *.db
-# Sync tooling (PC-only; never deploy to Pi)
+# Windows sync tooling (config.txt deploys - Pi wlw-sync.sh reads it)
 wanos-sync.bat
 wanos-sync.ps1
-wanos-sync.config.txt
 *.bat
 *.rcj
 *.ps1
-# Repo meta / dev-only (Pi runtime does not read these)
-LICENSE
+# Repo meta / docs (LICENSE deploys - wanted on Pi)
 entity_id-list.txt
 *.md
-# Local tooling / secrets / junk
+# Secrets / junk
 .env*
 .gitignore
 .gitattributes
@@ -82,14 +79,16 @@ entity_id-list.txt
 *.zip
 dhcpcd.conf
 *.bak
-# Migrator cutover backups on Pi: <file>.bak-YYYYMMDD-HHMMSS (not covered by *.bak)
 *.bak-*
 *.tmp
-# LG integration registration file/key
+*.pyc
 lg_webos_client_keys.json
-# original JS source (minified ssh-term.js still deploys). WanOS main + LCD: this section.
-# WLW today: also listed in $WlwMirrorExcludeFiles in wanos-sync.ps1 until P2 unifies excludes.
+# WLW: minified ssh-term.js deploys; full source + Pi symlinks stay off mirror
 ssh-term-full.js
+db+credentials
+logs
+*.lnk
+_tmp*
 
 [StatsInclude]
 # Repo pull (also listed under StatsRepoPull) - Pi is source of truth
