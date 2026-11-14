@@ -2,7 +2,7 @@
 
 Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, HTML entrypoint renames, and Explorer History chart polish.
 
-**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). **C41 ✅ DONE** (**close-out 2026-09-09**). **C37 ✅ DONE** (**OnePlus 12 smoke 2026-09-09**). **C40 cancelled 2026-09-09** (PID v2 not open). **C45** coding **2026-11-14** (Pi smoke pending). Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36**; **C42** ∥ **C33** / **G17** / **P1**; **C43** ∥ **C33** / **C36** / **C42**; **C44** ∥ reconnect cluster; **C45** ∥ sauna PID (not **C40**). Pipeline Blockly next: **B14b** (see [`pipeline.md`](pipeline.md)).
+**Status:** Spec **LOCKED**. **C1 / C2 / C5 ✅ DONE** (Pi smoke **2026-08-09**). **C6–C9 ✅ DONE** (combined Pi smoke **2026-08-10**). **C10 ✅ DONE** (Pi smoke **2026-08-11**). **C18** / **C23** / **C22** / **C19** ✅ **DONE** (**2026-08-16**). **C27 ✅ DONE** (Pi smoke **2026-08-22**; shipped with **G15**). **C12 ✅ DONE** (Pi smoke **2026-08-23**). **C16 + C24 ✅ DONE** (**Pi smoke 2026-08-23**). **C29 ✅ DONE** (**Pi smoke 2026-08-27**). **C31 + C32 ✅ DONE** (**Pi smoke 2026-08-30** — combined ship). **C25 ✅ DONE** (**Pi smoke 2026-09-01**). **C34 + L3 ✅ DONE** (**close-out 2026-09-02**). **C35 ✅ DONE** (**Pi smoke 2026-09-03**). **C20 / C21 ✅ DONE** (**Pi smoke 2026-09-05**). **C38 + L4 ✅ DONE** (**close-out 2026-09-08**). **C39 ✅ DONE** (**close-out 2026-09-08**). **C41 ✅ DONE** (**close-out 2026-09-09**). **C37 ✅ DONE** (**OnePlus 12 smoke 2026-09-09**). **C40 cancelled 2026-09-09** (PID v2 not open). **C45** ✅ **Done 2026-11-14**. Queued: **C3 → C4 → C28 → C26 → C11 → C17 → C15 → C13 → C30 → C33 → C36**; **C42** ∥ **C33** / **G17** / **P1**; **C43** ∥ **C33** / **C36** / **C42**; **C44** ∥ reconnect cluster. Pipeline Blockly next: **B14b** (see [`pipeline.md`](pipeline.md)).
 
 **Related:** Blocky → [`phaseB-blocky.md`](phaseB-blocky.md) (**B10A** / **B10C** / **B10B+D+E** / **B10F** ✅). Soft-hide → **B7**; auto-off → **B8** (both done). Device typing → [`phaseD-typing.md`](phaseD-typing.md). Sequence → [`pipeline.md`](pipeline.md).
 
@@ -58,9 +58,9 @@ Explorer / Admin / system UX polish **outside** Blocky, plus Admin force tools, 
 | **C37 — Android PWA resume black screen** | ✅ **Done 2026-09-09** — warm resume force-SSE + overlay no x-cloak; OnePlus 12 smoke | Shell / SSE resume · mid |
 | **C40 — Sauna PID v2** | ❌ **Cancelled 2026-09-09** — not open; re-triage when wanted | Sauna PID · mid |
 | **C44 — SSE reconnect after backend reboot** | bugfix: UI stays offline / does not re-link when backend reboots | Shell / SSE · mid |
-| **C45 — Sauna PID cold-start bias** | Adaptive `setpoint_bias` (v1 heat-up) when start/outside cold so cabin can hit SP in one go | Sauna PID · mid · ∥ most C UI |
+| **C45 — Sauna PID cold-start bias** | ✅ **Done 2026-11-14** — outside→bias linear schedule; [`sauna-ir.md`](../sauna-ir.md) §3.8 | Sauna PID · mid |
 
-**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C41** ✅ **close-out 2026-09-09**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **C40** cancelled (PID v2 not open). **C45** kickoff **locked 2026-11-14**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36**. **C42** may run ∥ **C33** / **G17** / **P1**. **C43** may run ∥ **C33** / **C36** / **C42**. **C44** may run ∥ near-term (distinct from **C37**). **C45** may run ∥ most shell UI. NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
+**C1 → C2 → C5** shipped. **C6–C9** ✅ **2026-08-10**. **C10** ✅ Pi smoke **2026-08-11**. **C18** / **C23** / **C22** / **C19** ✅ **2026-08-16**. **C27** ✅ **2026-08-22** (with **G15** ship). **C12** ✅ Pi smoke **2026-08-23**. **C16+C24** ✅ **Pi smoke 2026-08-23**. **C29** ✅ **Pi smoke 2026-08-27**. **C31+C32** ✅ **Pi smoke 2026-08-30**. **C25** ✅ **Pi smoke 2026-09-01**. **C20/C21** ✅ **Pi smoke 2026-09-05**. **C38+L4** ✅ **close-out 2026-09-08**. **C39** ✅ **close-out 2026-09-08**. **C41** ✅ **close-out 2026-09-09**. **C37** ✅ **OnePlus 12 smoke 2026-09-09**. **C40** cancelled (PID v2 not open). **C45** ✅ **close-out 2026-11-14**. **C28** after **C4** (needs `wisc.html` name). **C26** after **C4**; **C11** after **C26**. **C17** → **C15** → **C13** → **C30** → **C33** → **C36**. **C42** may run ∥ **C33** / **G17** / **P1**. **C43** may run ∥ **C33** / **C36** / **C42**. **C44** may run ∥ near-term (distinct from **C37**). NOT CONNECTED + admin **`vNN`** → **B10G ✅** (**2026-08-12**); overlay copy **B10L ✅** (**2026-09-05**). **C3/C4** later unless needed sooner.
 
 ---
 
@@ -1509,7 +1509,7 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 * **C37:** ✅ **Done 2026-09-09** — OnePlus 12 smoke; resume force-SSE + overlay no x-cloak.
 * **C40:** ❌ **Cancelled 2026-09-09** — PID v2 not open; re-triage when wanted.
 * **C44:** triage **2026-09-15** — UI SSE reconnect after backend reboot; kickoff before code.
-* **C45:** **coding 2026-11-14** — Sequence **#1**; linear outside bias shipped in code/docs; Pi smoke pending.
+* **C45:** ✅ **Done 2026-11-14** — outside adaptive bias; product [`sauna-ir.md`](../sauna-ir.md) §3.8.
 * **C31 + C32:** ✅ **Done 2026-08-30** — combined ship; Pi smoke; product SoT [`sauna-ir.md`](../sauna-ir.md) §4–5.
 * **Ops — cinema rule merge:** confirm pickable state = **`switch.epson`** (or other) before YAML rewrite.
 * NOT CONNECTED + admin **`vNN`** → **B10G** ✅ (**2026-08-12**); overlay copy/milestones → **B10L** ✅ (**2026-09-05**).
@@ -1532,69 +1532,26 @@ Rsyslog cap **Ops1 ✅ Done 2026-08-16** (pipeline Done + Inbox detail): `daemon
 
 **C44 DoD (stub):** After backend reboot, open Explorer/WISC/Admin (and peers using SSE) re-link without full page reload (or documented reload policy locked at kickoff); Pi smoke. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
-## 📋 C45 — Sauna PID cold-start adaptive bias 🔜 TODO
+## ✅ C45 — Sauna PID cold-start adaptive bias — **Done 2026-11-14**
 
-## 📋 C45 — Sauna PID cold-start adaptive bias 🔜 TODO
+**Letter:** **C45**. Affinity: Operator shell (sauna PID). Size **mid**. **Close-out 2026-11-14** (operator). Not a reopen of cancelled **C40** (PID v2).
 
-**Letter:** **C45**. **Sequence #1** (see [`pipeline.md`](pipeline.md)) — operator **first C45** before Ops7. **Affinity:** Operator shell (sauna PID / heat-up). Size **mid**. Status: **coding** (implement **2026-11-14**).
-
-**Not a reopen of C40.** **C40** remains cancelled (PID v2 hold-at-setpoint with I/D). **C45** stays on **v1 P-only** and adapts **`setpoint_bias`** from **outside** temp.
+**Product reference (canonical):** [`sauna-ir.md`](../sauna-ir.md) §3.8 · [`reference.md`](../reference.md) (`sauna_controller.py`, `sauna_handlers.py`) · `config.yaml` `sauna.setpoint_bias*`.
 
 ### Operator request (verbatim, 2026-11-14)
 
 > check the latest sauna sessions: the last one was 1% modulation when the mod rised again: it could not reach the setpoint "in 1 go" -- probably because the starting temp (november) was colder than the starting temp during summer (check sessions) -- is it an idea to rise the P component of the PID when the starting temp is lower, so that it CAN reach the setpoint "in 1 go"?
 
-> triage & kickoff
+### Shipped summary
 
-### Kickoff answers (verbatim, 2026-11-14)
+| Area | Outcome |
+|------|---------|
+| Schedule | At `SAUNA_ON`, freeze PID bias from `outside_temp`: linear **19 °C → −1**, **0 °C → +1**, clamp; missing outside → **0** |
+| Modes | Same frozen bias for **autohold** and **nohold**; hold/pause dump unchanged |
+| Config | `sauna.setpoint_bias` (+ warm/cold outside anchors, cold bias, missing fallback) |
+| State / telemetry | `sauna.session_setpoint_bias`; sample rows keep applied `setpoint_bias` |
+| Docs | [`sauna-ir.md`](../sauna-ir.md) §3.8 + reference catalog |
 
-> 1 ok
-> 2 outside
-> 3 "normal" = bias -1 like now // if outside temp like today: bias 0 // if outside temp 0: bias +1
-> 4 nohold: keep bias as in 3
-> 5: ok
-> 6: first C45
+**Out of scope (unchanged):** **C40** PID v2; global `kp` retune; vent plant.
 
-> linear: bias -1 when outside temp = 19 / bias = +1 when outside temp = 0
-> if outside is missing: fallback = 0
-
-### Verified (sessions + code, 2026-11-14)
-
-* v1: `kp=12` / `ki=0` / `kd=0`, autohold `setpoint_bias=-1.0` → virtual SP = target−1; MOD→0 at ~79 °C for target 80; coast expected to finish last °C ([`sauna-ir.md`](../sauna-ir.md) §3.8).
-* Autohold → hold still fires on **`sauna_calc_temp >= target`** (real SP), not virtual SP. Bias only shapes MOD on the way up; bias **+1** means MOD still ~`kp×1` at target (push into hold).
-* Warm **2026-09-08**: T0≈27.6 / Tout≈19 → blasted through; peak ~82.9.
-* Cooler Sep–Oct sessions: T0≈17–22 → still hit 80, but after MOD&lt;5 a **coast gap of ~3–17 min** (worst **2026-10-15** ~17 min).
-* **2026-11-14** (`sauna_session_20261114_132525.csv`): T0=**15.0**, Tout=**8.5**, peak=**78.9**, never hit 80; MOD dipped to **1%**, temp fell, MOD rose again **1→11%**, then **manual hold** ~78.1.
-* Under the locked 2-point line, Tout **8.5** → bias ≈ **+0.11** (not exactly 0 — earlier “today → 0” mid-anchor superseded by linear 19/−1 … 0/+1).
-
-### Locks (2026-11-14 — confirmed)
-
-| Topic | Lock |
-|---|---|
-| Lever | **`setpoint_bias` only** — no Kp/Ki/Kd schedule |
-| Proxy | **`outside_temp`** at **`SAUNA_ON`** (not cabin T0) |
-| Schedule | **Linear** outside→bias: **19 °C → −1.0**, **0 °C → +1.0** |
-| Formula | `bias = 1 - 2 * (outside / 19)` then **clamp** to **[+1, −1]** (outside &lt; 0 → +1; outside &gt; 19 → −1) |
-| Missing outside | Fallback bias **0.0** |
-| `autohold` / `nohold` | **Same** scheduled bias (nohold no longer forced to 0) |
-| `hold` / pause | Unchanged — MOD dump + PID reset |
-| Config | New keys under `config.yaml` `sauna:` (anchors + fallback; keep legacy `setpoint_bias` as docs alias or warm-end default — decide at implement, prefer explicit outside anchors) |
-| Priority | **C45 before Ops7** (Sequence #1) |
-| kp/ki/kd | Unchanged defaults (12 / 0 / 0) |
-| Session freeze | Bias chosen at **`SAUNA_ON`**, constant for that session |
-
-### Open Qs
-
-* *(none — kickoff locked.)*
-
-### Out of scope
-
-* **C40** PID v2 (Ki/Kd hold-at-setpoint, drop autohold).
-* Changing default summer `kp=12` globally.
-* Manual hold / timer UX; vent plant (**S1** done).
-
-### Prereqs
-
-* None blocking (v1 PID + session telemetry already shipped). Live Pi for post-ship cold-session smoke.
-
-**C45 DoD:** Adaptive bias from outside at `SAUNA_ON` per locks; `autohold`/`nohold` same schedule; missing outside → 0; session telemetry shows applied bias; [`sauna-ir.md`](../sauna-ir.md) §3.8 + config comments match; Pi smoke (cold outside path). **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+**Last DoD:** Product docs audited against shipped C45 behaviour (**2026-11-14**). `phaseC-shell.md` stays active (other C items open) — no `_archive/` move for this subphase.

@@ -74,7 +74,7 @@ Birth is automatic; ids freeze after first assignment. Hardware replace keeps `e
 * `telemetry_handlers.py`: Handles high-frequency data streams, rolling power buffers, weather synchronization, and NVM buffer flushing loops.
 * `timer_handlers.py`: Routes scheduled structural events, expiration boundaries, and time-series automation drops.
 * `hub_handlers.py`: Handles generic device state mutations and advanced Hue color payload dictionaries. **Doors:** `handle_door_changed` updates `devices[idx]` and reconciles `state.doors.*_since_unix` on every `DOOR_CHANGED` (seed missing same-mode stamp; clear opposite).
-* `sauna_handlers.py`: Dedicated routers for sauna heating activation, setpoints, and element modulation tracking.
+* `sauna_handlers.py`: Dedicated routers for sauna heating activation, setpoints, and element modulation tracking. **C45:** on `SAUNA_ON` freezes PID `session_setpoint_bias` from outside schedule (cleared on `SAUNA_OFF`).
 * `system_handlers.py`: Oversees boot lifecycles, configuration hot-reloads, and UI alert routing.
 
 **frontend/** (Dumb Asset Interfaces)
