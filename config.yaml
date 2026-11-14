@@ -276,13 +276,20 @@ history:
 #   automations.auto.yaml
 # ==============================================================================
 sauna:
-  default_sauna_setpoint: 80     # Default sauna temperature setpoint
+  default_sauna_setpoint: 83     # Default sauna temperature setpoint
   min_temp: 50                   # Minimum setpoint that can be set in the UI
   max_temp: 95                   # Maximum setpoint that can be set in the UI
   kp: 12.0                       # PID Proportional (band = 100/kp C)
   ki: 0.0                        # PID Integral (v1 heat-up: off)
   kd: 0.0                        # PID Derivative (v1: off)
-  setpoint_bias: -1.0            # C added to PID setpoint during autohold; -1 coasts last degree
+  # PID setpoint bias from outside at SAUNA_ON (frozen for session).
+  # Linear: outside warm_c -> setpoint_bias; outside cold_c -> setpoint_bias_cold; clamp at ends.
+  # Missing outside -> setpoint_bias_missing. Applied in autohold and nohold (not hold/pause).
+  setpoint_bias: -1.0            # Warm-end bias (C) at outside >= setpoint_bias_outside_warm_c
+  setpoint_bias_outside_warm_c: 19.0
+  setpoint_bias_outside_cold_c: 0.0
+  setpoint_bias_cold: 1.0
+  setpoint_bias_missing: 0.0
   default_timer: 70              # Default sauna duration in minutes
   # Post-OFF extraction fan: Library (Sauna OFF Set after) + Timers & types auto-off — not hub timers.
   # Start gate: door must have been CLOSED within this many minutes (null closed_since blocks).

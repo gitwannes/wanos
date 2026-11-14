@@ -266,6 +266,8 @@ class SaunaState(BaseModel):
     last_heartbeat_unix: Optional[int] = None  # ⚡ Active SHT11 bus reception timestamp marker
     # Mirrored from config.yaml sauna.door_closed_max_mins (WISC start-gate UI).
     door_closed_max_mins: int = 5
+    # C45: PID setpoint bias (C) frozen at SAUNA_ON from outside schedule; None when idle.
+    session_setpoint_bias: Optional[float] = None
 
 
 class IRState(BaseModel):

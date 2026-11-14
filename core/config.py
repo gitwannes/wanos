@@ -60,8 +60,17 @@ class SaunaRuntimeConfig(BaseModel):
     kp: float
     ki: float
     kd: float
-    # Degrees C added to the PID setpoint during autohold heat-up (WISC v1: -1.0).
+    # Warm-end PID setpoint bias (C) when outside >= setpoint_bias_outside_warm_c (C45).
+    # Linear schedule to setpoint_bias_cold at setpoint_bias_outside_cold_c; see sauna-ir.md §3.8.
     setpoint_bias: float
+    # Outside °C at warm end of bias schedule (default 19 -> setpoint_bias).
+    setpoint_bias_outside_warm_c: float = 19.0
+    # Outside °C at cold end of bias schedule (default 0 -> setpoint_bias_cold).
+    setpoint_bias_outside_cold_c: float = 0.0
+    # Bias (C) at cold-end outside temp (default +1.0).
+    setpoint_bias_cold: float = 1.0
+    # Applied when outside_temp is missing at SAUNA_ON (C45 lock: 0.0).
+    setpoint_bias_missing: float = 0.0
     default_timer: int
     # Max age of door CLOSED before SAUNA_ON is blocked (null closed_since also blocks).
     door_closed_max_mins: int = 5

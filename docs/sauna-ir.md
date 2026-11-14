@@ -191,14 +191,19 @@ Secret variant should be retained in WISC-compatible formatting.
 Admin → **Debug Commands** → **Test LCD screens** publishes the same payload to `wanos/lcd/screen1` and `wanos/lcd/screen2`: line 1 = local `YYYY-MM-DD HH:MM` (16 cells); line 2 = `operator debug` (≤16). Used to verify MQTT → LCD Pi path without a sauna session. Empty both-lines MQTT payloads blank the physical screen (`clear` + backlight off). Forced debug text is **held** until live screen1 content exists (sauna / IR / sauna Hue) — idle blank compose must not wipe it on the next door/sensor tick.
 
 ### 3.8 Sauna PID heat-up (v1)
-Heat-up uses a P-only loop with a virtual setpoint, matching the WISC `PID.py` caller (`setpointbias = -1.0`, gains 12 / 0 / 0).
+Heat-up uses a P-only loop with a session-frozen setpoint bias (**C45**), gains 12 / 0 / 0.
 
-* **Gains** (`config.yaml` `sauna.kp` / `ki` / `kd`): **12.0 / 0.0 / 0.0**. Proportional band is `100 / kp` °C (~8.3 °C). With Ki = Kd = 0, MOD stays at 100% until about 8 °C below the *virtual* setpoint, then ramps linearly to 0.
-* **Bias** (`sauna.setpoint_bias`): °C added to the PID setpoint. **−1.0 while `hold_mode` is `autohold`**. Error is `(target + bias) − T`, so at target 80 °C the PID aims at 79 °C and MOD reaches 0 at 79 °C; cabin inertia is expected to finish the last degree (about 1 °C overshoot is acceptable). **`nohold` uses bias 0** (real setpoint). `hold` / pause still dump MOD and reset the PID (unchanged).
-* **Autohold:** when `sauna_calc_temp >= target`, WanOS still switches `autohold → hold` and cuts heaters. With v1 bias, that dump happens when PID output is already ~0.
+* **Gains** (`config.yaml` `sauna.kp` / `ki` / `kd`): **12.0 / 0.0 / 0.0**. Proportional band is `100 / kp` °C (~8.3 °C). With Ki = Kd = 0, MOD stays at 100% until about `100/kp` °C below the *virtual* setpoint, then ramps linearly to 0.
+* **Bias (C45):** °C added to the PID setpoint. At **`SAUNA_ON`**, WanOS reads `sensors.outside_temp` and freezes a session bias via linear schedule (clamped at the ends):
+  * outside **`setpoint_bias_outside_warm_c`** (default **19**) → **`setpoint_bias`** (default **−1.0**)
+  * outside **`setpoint_bias_outside_cold_c`** (default **0**) → **`setpoint_bias_cold`** (default **+1.0**)
+  * missing outside → **`setpoint_bias_missing`** (default **0.0**)
+  * Example: outside 8.5 °C → bias ≈ **+0.11**. Live value: `sauna.session_setpoint_bias` + session sample `setpoint_bias`.
+* **`autohold` and `nohold`** both use that frozen session bias. Error is `(target + bias) − T`. Warm days (bias −1) aim ~1 °C below target so cabin inertia coasts the last degree; cold days (bias near 0 or +1) keep heaters on through the real target so the shell can still finish in one approach. **`hold` / pause** still dump MOD and reset the PID (unchanged).
+* **Autohold:** when `sauna_calc_temp >= target`, WanOS still switches `autohold → hold` and cuts heaters (real setpoint, not virtual).
 * **Fire order:** the U/V/W permutation is calculated at `SAUNA_ON` and frozen for the session (waterfall, live `fireorder`, and the session record). A session that crosses midnight does not rotate phases.
 
-v2 (not this ship): drop autohold and use I (and possibly D / a different bias) to hold temperature.
+v2 (not this ship / **C40** cancelled): drop autohold and use I (and possibly D) to hold temperature.
 
 ---
 
@@ -290,7 +295,7 @@ While `sauna.active`, WanOS buffers time-series samples in RAM (`logic/sauna_ses
 
 **Session constants** (not copied on every sample row): `kp`, `ki`, `kd`, and `fireorder` live on **`sauna_sessions`**. CSV files put the same four values on a commented first line, e.g. `# kp=12.0 ki=0.0 kd=0.0 fireorder=WVU`. On boot, if an older `sauna_session_samples` table still has those columns, WanOS copies the first usable value onto the parent session row, then rebuilds samples without them. Pre-v1 sample rows get `setpoint_bias` = NULL.
 
-**Sample columns:** `ts`, probe + calc T/RH, `mod_u/v/w` + `mod_total`, calc W per phase + total, **Real W total only**, `w_measured_total` (real+leak), PID `p/i/d/error/output_raw/dt`, `integral_reset_reason`, **`setpoint_bias`** (applied that tick: −1.0 in autohold, 0 otherwise), `target_temp`, `hold_mode`, `is_paused`, `door_state`, `outside_temp`, `r_th`, `v_line`, `p_leak`, `trigger`.
+**Sample columns:** `ts`, probe + calc T/RH, `mod_u/v/w` + `mod_total`, calc W per phase + total, **Real W total only**, `w_measured_total` (real+leak), PID `p/i/d/error/output_raw/dt`, `integral_reset_reason`, **`setpoint_bias`** (applied that tick: session-frozen outside schedule for autohold/nohold; hold dumps before PID), `target_temp`, `hold_mode`, `is_paused`, `door_state`, `outside_temp`, `r_th`, `v_line`, `p_leak`, `trigger`.
 
 Mid-session crash loses the RAM buffer (flush-at-end). Folder `sessionlog/` is gitignored. Sync pulls `sessionlog/*` into OneDrive `logs\` and (with logcopy) into git `docs\logs` — see [wanos-sync.md](wanos-sync.md).
 

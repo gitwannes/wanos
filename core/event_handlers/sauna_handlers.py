@@ -55,6 +55,22 @@ async def handle_sauna_on(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     if hasattr(manager, "sauna_logic"):
         order = manager.sauna_logic.lock_fire_order()
         manager._state.sauna.fireorder = order.replace(" -> ", "")
+        # C45: freeze PID setpoint bias from outside for the whole session.
+        sauna_cfg = manager._config.sauna
+        outside = getattr(manager._state.sensors, "outside_temp", None)
+        bias = manager.sauna_logic.freeze_session_bias_from_outside(
+            outside,
+            outside_warm_c=float(getattr(sauna_cfg, "setpoint_bias_outside_warm_c", 19.0)),
+            bias_warm=float(sauna_cfg.setpoint_bias),
+            outside_cold_c=float(getattr(sauna_cfg, "setpoint_bias_outside_cold_c", 0.0)),
+            bias_cold=float(getattr(sauna_cfg, "setpoint_bias_cold", 1.0)),
+            bias_missing=float(getattr(sauna_cfg, "setpoint_bias_missing", 0.0)),
+        )
+        manager._state.sauna.session_setpoint_bias = bias
+        out_txt = "missing" if outside is None else f"{float(outside):.1f}C"
+        await manager.logger.info(
+            f"Sauna PID bias frozen: {bias:+.2f} C (outside={out_txt})"
+        )
 
     # ⚡ Mirror status to the virtual dashboard sensor
     status_idx = manager.resolve_entity_id(ENTITY_SAUNA_STATUS)
@@ -71,10 +87,13 @@ async def handle_sauna_off(event: Event, manager: Any) -> Tuple[bool, Set[str]]:
     manager._state.sauna.active = False
     manager._state.sauna.modulation_pwm = 0
     manager._state.sauna.phases_pwm = dict(ZERO_PHASES_PWM)
+    manager._state.sauna.session_setpoint_bias = None
     manager._timer_manager.cancel("sauna_main")
     manager._sauna_timer_triggered = False
     if hasattr(manager, "sauna_logic"):
         manager.sauna_logic.unlock_fire_order()
+        # Restore idle default to warm-end config bias (next SAUNA_ON freezes again).
+        manager.sauna_logic.setpoint_bias = float(manager._config.sauna.setpoint_bias)
 
     # Post-OFF extraction fan: Library rule (Set after) + Timers & types auto-off — not hub timers.
 

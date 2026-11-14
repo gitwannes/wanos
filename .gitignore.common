@@ -1,0 +1,52 @@
+# === 1. General ===
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+
+# Node
+node_modules/
+
+# Logs / caches
+*.log
+.cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+
+# Windows / Cursor / sync junk
+*.lnk
+_tmp*
+*.bak
+
+
+# === 2. Operator common (all Wannes repos) ===
+
+# Local sync site configs (never commit LAN paths/creds)
+helpers/*-sync.config
+helpers/*-sync.config.json
+
+# Ops log staging (PC pull into git tree)
+/docs/logs
+docs/logs/
+
+# Runtime DBs (tighten in section 3 if a repo tracks a seed DB)
+*.sqlite*
+*.db
+*.db-wal
+*.db-shm

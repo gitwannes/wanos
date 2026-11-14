@@ -5,6 +5,48 @@ from typing import Tuple, Optional, Dict, Any, Set
 from core.models import SystemState, normalize_phases_pwm
 
 
+def compute_setpoint_bias_from_outside(
+        outside_temp: Optional[float],
+        *,
+        outside_warm_c: float,
+        bias_warm: float,
+        outside_cold_c: float,
+        bias_cold: float,
+        bias_missing: float,
+) -> float:
+    """
+    C45: map outside air temp to PID setpoint bias (degrees C).
+
+    Linear between (outside_cold_c, bias_cold) and (outside_warm_c, bias_warm),
+    clamped at the end anchors. Missing outside -> bias_missing.
+    Locked site defaults: 0 C -> +1, 19 C -> -1, missing -> 0.
+    """
+    if outside_temp is None:
+        return float(bias_missing)
+
+    t = float(outside_temp)
+    t_cold = float(outside_cold_c)
+    t_warm = float(outside_warm_c)
+    y_cold = float(bias_cold)
+    y_warm = float(bias_warm)
+
+    # Degenerate config: avoid divide-by-zero; prefer warm-end bias.
+    if abs(t_warm - t_cold) < 1e-9:
+        return y_warm
+
+    # Clamp outside the [cold, warm] outside span (order-independent).
+    t_lo = min(t_cold, t_warm)
+    t_hi = max(t_cold, t_warm)
+    if t <= t_lo:
+        return y_cold if t_cold <= t_warm else y_warm
+    if t >= t_hi:
+        return y_warm if t_cold <= t_warm else y_cold
+
+    # Linear interpolate in outside space.
+    frac = (t - t_cold) / (t_warm - t_cold)
+    return y_cold + frac * (y_warm - y_cold)
+
+
 class PID:
     """Integrated Wisc PID Controller for Sauna Heating."""
 
@@ -48,9 +90,9 @@ class PID:
         Computes the PID output based on an injected system timestamp.
         Allows deterministic calculations across live deployment and simulation environments.
 
-        setpoint_bias is added to the configured setpoint (WISC parity). v1 autohold
-        uses -1.0 so MOD reaches 0 one degree below the real target; inertia covers
-        the last degree. nohold uses 0.0 (real setpoint).
+        setpoint_bias is added to the configured setpoint. C45 freezes a session bias
+        from outside at SAUNA_ON (warm coast typically -1; cold may be 0 or +1).
+        Applied for autohold and nohold; hold/pause dump MOD before compute.
         """
         error = (self.setpoint + setpoint_bias) - current_input
 
@@ -128,7 +170,7 @@ class SaunaController:
             setpoint_bias: float = 0.0,
     ):
         self.pid = PID(kp=kp, ki=ki, kd=kd, setpoint=initial_target_temp, output_limits=(0.0, 100.0))
-        # Configured heat-up bias (applied only while hold_mode is autohold).
+        # Session-frozen heat-up bias (C45: from outside at SAUNA_ON; idle default = warm-end).
         self.setpoint_bias: float = float(setpoint_bias)
         # Frozen U/V/W permutation for the active session (midnight-safe).
         self._locked_fire_order: Optional[Tuple[int, int, int]] = None
@@ -155,6 +197,31 @@ class SaunaController:
         if self._locked_fire_order is not None:
             return self._locked_fire_order
         return self._compute_fire_order()
+
+    def freeze_session_bias_from_outside(
+            self,
+            outside_temp: Optional[float],
+            *,
+            outside_warm_c: float,
+            bias_warm: float,
+            outside_cold_c: float,
+            bias_cold: float,
+            bias_missing: float,
+    ) -> float:
+        """
+        C45: compute and freeze setpoint_bias for this sauna session from outside temp.
+        Call once on SAUNA_ON; do not retune mid-session.
+        """
+        bias = compute_setpoint_bias_from_outside(
+            outside_temp,
+            outside_warm_c=outside_warm_c,
+            bias_warm=bias_warm,
+            outside_cold_c=outside_cold_c,
+            bias_cold=bias_cold,
+            bias_missing=bias_missing,
+        )
+        self.setpoint_bias = float(bias)
+        return self.setpoint_bias
 
     def lock_fire_order(self) -> str:
         """
@@ -262,8 +329,8 @@ class SaunaController:
         now_ts = time.time()
 
         self.pid.setpoint = target_temp
-        # v1: autohold uses configured bias (typically -1 C). nohold tracks the real setpoint.
-        applied_bias = float(self.setpoint_bias) if state.sauna.hold_mode == "autohold" else 0.0
+        # C45: session-frozen bias applies for both autohold and nohold (hold dumps above).
+        applied_bias = float(self.setpoint_bias)
         calculated_pwm = self.pid.compute(
             current_input=current_temp,
             current_time=now_ts,

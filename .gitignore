@@ -1,97 +1,105 @@
-# =========================
-# WanOS backend .gitignore
-# =========================
+# --- file: .gitignore ---
+# Compiled from .gitignore.common (sections 1-2) + section 3 below.
+# Edit .gitignore.common for shared patterns; keep repo-only noise in section 3.
 
-# Ignore all dotfiles...
+# === 1. General ===
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+
+# Node
+node_modules/
+
+# Logs / caches
+*.log
+.cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+
+# Windows / Cursor / sync junk
+*.lnk
+_tmp*
+*.bak
+
+
+# === 2. Operator common (all Wannes repos) ===
+
+# Local sync site configs (never commit LAN paths/creds)
+helpers/*-sync.config
+helpers/*-sync.config.json
+
+# Ops log staging (PC pull into git tree)
+/docs/logs
+docs/logs/
+
+# Runtime DBs (tighten in section 3 if a repo tracks a seed DB)
+*.sqlite*
+*.db
+*.db-wal
+*.db-shm
+
+# === 3. WanOS ===
+
+# Ignore all other dotfiles; re-include tracked repo config.
+# (.* re-applies after section 1, so repeat needed allowlist here.)
 .*
-
-# ...EXCEPT these specific repository config files:
 !.gitignore
+!.gitignore.common
 !.gitattributes
-
-# Keep project Cursor rules in git; ignore other .cursor local state.
-# !.cursor/ is required: leading .* would otherwise ignore the parent dir
-# and block any re-include of files underneath.
+!.env.example
 !.cursor/
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
-# Cloud Agent environment definition (portable, no secrets).
 !.cursor/environment.json
 !.cursor/install.sh
 !.cursor/start.sh
-# ...but never the generated runtime state (broker passwd/conf, dev requirements).
 .cursor/runtime/
 
-# 1. Secrets & Environment Variables
-# (CRITICAL: Never commit the actual .env file containing the MQTT password or PIN)
-.env
+# Device / integration secrets
 helpers/lg_webos_client_keys.json
 
-# 2. Dynamic State & Logs
-# (These change constantly during runtime and shouldn't be version controlled)
+# Runtime state at repo root when backend runs
 recovery_state.json
 status.json
-*.log
-# Runtime databases and NVRAM (created at repo root when the backend runs)
-*.db
 wanos-nvram.json
+*.pid
 *.zip
-/docs/logs
+
+# Extra log / session pulls (beyond common docs/logs)
 /sessionlog/
 /_lcd-agent/docs/logs/
-_backup*
 
-# 3. Virtual Environments
-# (Ignore your active python environments)
-venv/
-env/
+# Local venv name + backups / legacy trees
 wanos_venv/
-.venv/
-
-# 4. Python Artifacts & Cache
-# (Standard Python noise)
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# 5. Testing & Coverage
-# (For when you add tests in later phases)
-.coverage
-.tox/
-.nox/
-coverage.xml
-*.cover
-*.swn
-.pytest_cache/
+_backup*
 backup*/
 _oldwisccode
 
-# 6. OS & IDE Clutter
-# (Prevents your editor settings from bleeding into the repo)
+# Keep docs/todo/_archive/ in git; ignore other _archive dirs
+_archive/
+!docs/todo/_archive/
+!docs/todo/_archive/**
+
+# Editor / test noise not in common
 .vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
-*.pid
+.pytest_cache/
+.coverage
+*.so
