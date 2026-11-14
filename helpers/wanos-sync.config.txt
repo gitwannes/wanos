@@ -148,7 +148,8 @@ RemoteGlob=wlw*
 [WlwSqlitePullFiles]
 # Pi -> PC only (never push / never mirror). Land under StatsDest\wlw\state\ (not logcopied into git).
 # Missing files / empty globs are skipped. Do not list .env here (.env is operator offline backup only).
-# Ops7 lock: wlw.sqlite; budget* (.sql/.zip); budget/*.sqlite; budget/*.json; obio/credentials.json.
+# State pull: wlw.sqlite; budget* (.sql/.zip); budget/*.sqlite; budget/*.json
+# (incl. per-user B32 obio-credentials-*.json).
 # Legacy /var/lib/wlw/budget.sqlite removed (unused post-B29).
 # Engine allows .sqlite / .sql / .zip / .json (wanos-sync.ps1 Invoke-WlwSqlitePullJob).
 /var/lib/wlw/wlw.sqlite
@@ -156,4 +157,3 @@ RemoteGlob=wlw*
 /var/lib/wlw/budget*.zip
 /var/lib/wlw/budget/*.sqlite
 /var/lib/wlw/budget/*.json
-/var/lib/wlw/obio/credentials.json

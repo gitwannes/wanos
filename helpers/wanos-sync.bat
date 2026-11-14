@@ -225,7 +225,8 @@ echo     wanos-sync.bat diff ^<repo-relative-file^> wlw verbose
 echo         Normalized text diff when both sides exist and file is text.
 echo         Binary: sizes only. Missing: info msg ^(exit 0^). Different text: exit 1.
 echo.
-echo     verbose  Show config load, rsync command lines, paths.
+echo     verbose  Config load, rsync command lines, paths; LogCopy per-file;
+echo              WLW STATE every path ^(normal: transfers + counts only^).
 echo     Config:  helpers\wanos-sync.config.txt
 echo     Docs:    docs\wanos-sync.md
 echo.

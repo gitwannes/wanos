@@ -151,69 +151,75 @@ Kickoff locks config shape + migration of current Borsbeek rows; code reads conf
 
 (Context from same thread: `ssh-term-full.js` was added under `[MirrorExcludeFiles]` but `wlw` ignored it because WLW/LCD use hardcoded `$WlwMirrorExcludeFiles` / `$LcdMirrorExcludeFiles` in `wanos-sync.ps1`.)
 
-### Intent (delivery — lock at kickoff)
+### Kickoff (2026-11-14) — verified facts
 
-* **`[MirrorExcludeFiles]`** (and likely dirs, or documented unions) drive excludes for **main**, **`lcd`**, and **`wlw`** — one config place operators edit.
-* Mode-specific extras (e.g. WLW must **not** apply bare segment `bootstrap`) stay explicit — union/overlay, not a silent copy of WanOS-main-only rules that would skip `helpers/bootstrap/`.
-* Docs: [`docs/wanos-sync.md`](../wanos-sync.md); be90 product handoff `C:\data\git\be90webserver\docs\wlw-sync.md`.
+| Mode | Exclude source today |
+|---|---|
+| **main** | Config `[MirrorExcludeDirs]` + `[MirrorExcludeFiles]` |
+| **lcd** | Hardcoded `$LcdMirrorExcludeDirs` / `$LcdMirrorExcludeFiles` in `.ps1` (small: `.git`, `docs`, `wanos_venv`, `__pycache__`, `.env*`, `*.pyc`) |
+| **wlw** | Hardcoded `$WlwMirrorExcludeDirs` / `$WlwMirrorExcludeFiles` in `.ps1` — **must stay matched** to be90 `helpers/wlw-sync.sh` `EXCLUDE_DIRS` / `EXCLUDE_FILES` (pair rule) |
 
-### Interim (already applied 2026-09-15)
+**Danger if naive union:** main config dir `bootstrap` would skip be90 `helpers/bootstrap/` on WLW. Main file excludes (`*.ps1`, `*.bat`, `*.auto.yaml`, `LICENSE`, …) are WanOS-shaped — not a drop-in for WLW.
 
-* `ssh-term-full.js` listed in `[MirrorExcludeFiles]` **and** in `$WlwMirrorExcludeFiles` until this ship.
+**Interim (2026-09-15):** `ssh-term-full.js` duplicated in config **and** `$WlwMirrorExcludeFiles`.
 
-### Out of scope (this triage)
+**Prereqs:** none vs P3 (Done). Pair rule applies when WLW exclude lists change.
 
-* Implement / schema of overlays (needs **kickoff P2**)
+### Intent (delivery — lock at kickoff answers)
+
+* Operators edit excludes in config (not hunt hardcoded PS arrays) for **main** / **lcd** / **wlw**.
+* Mode-specific extras stay explicit — **never** silent copy of main-only rules that break WLW.
+* Docs: [`docs/wanos-sync.md`](../wanos-sync.md); be90 `docs/wlw-sync.md`; both `.cursor/rules/wlw-sync-pair.mdc` if locked match table changes.
+
+### Out of scope (until locks)
+
 * Changing RemoteRoot / SSH hosts
+* P3 console quiet (Done)
+
+### Open Qs (kickoff — not locked)
+
+See agent reply this turn.
 
 ### P2 DoD (stub)
 
-Kickoff locks how shared vs mode-specific excludes merge; all three modes read config; dry-run proves `ssh-term-full.js` excluded on `wlw` via config alone; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+Kickoff locks merge schema; all three modes read config; dry-run proves `ssh-term-full.js` excluded on `wlw` via config alone (no hardcode required); WLW pair lists stay matched if changed; docs match. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
 
 ---
 
-## 📋 P3 — sync: quiet normal output (logs / sql / zip / LogCopy) 🔜 TODO
+## ✅ P3 — sync: quiet normal output (logs / sql / zip / LogCopy) — Done 2026-11-14
 
-**Status:** open · size **low** · Sequence → [`pipeline.md`](pipeline.md)  
-**Affinity:** Portability / deploy tooling (`helpers/wanos-sync.*`). Same wrapper for WanOS main + `wlw` (+ `lcd` for consistent LogCopy). Not Pi `wlw-sync.sh` pair (no exclude/compare change).
+**Status:** Done · size **low** · Sequence → Done table in [`pipeline.md`](pipeline.md)  
+**Affinity:** Portability / deploy tooling (`helpers/wanos-sync.*`).
 
 ### Operator request (verbatim, 2026-11-14)
 
 > normal sync give too much info: I don't want to see a list of all logs or sqls or zips or whatever already copied - leave that for verbose (for both wanos and wlw):
 
-(Paste: `wanos-sync.bat run` LogCopy spam of every `wanos*` / sauna CSV / db; `wanos-sync.bat run wlw` per-file WLW STATE sql/zip headers + LogCopy of `wlw*` / nginx logs.)
+### Kickoff locks (kept)
 
-### Problem (today)
-
-| Path | Behaviour in **normal** |
+| # | Lock |
 |---|---|
-| `Copy-WanosLogSnapshot` | Prints `LogCopy: <every file>` on every run (Copy-Item always) |
-| `Invoke-Rsync` | Prints non-noise transfer lines (log / stats / state file names) |
-| WLW STATE | One `** rsync state: …` header per remote path even when nothing transferred |
-| Mirror (code) | Lists changed files (may stay useful — open Q) |
+| 1–3 | Mirror / stats / log pulls still list in **normal** |
+| 4 | WLW STATE: **normal** only when transferred; **verbose** every path |
+| 5 | LogCopy / STATE **count** on done |
+| 6 | `lcd` same as main / `wlw` |
 
-`verbose` (`-VerboseSync`) already exists; artifact file lists should sit behind it.
+### Shipped
 
-### Intent (delivery — lock at kickoff)
+| Area | Behaviour |
+|---|---|
+| LogCopy | Normal: `LOGCOPY: N files` + done; per-file only with `verbose` |
+| WLW STATE | Normal: header/files only when rsync names the leaf + `(N transferred)`; verbose: every path |
+| Docs | [`docs/wanos-sync.md`](../wanos-sync.md) § Normal vs `verbose` |
 
-* **Normal:** section headers + done / errors / skips / warns; no per-file spam for logs, sql dumps, zips, LogCopy, and similar bulk pulls.
-* **Verbose:** keep current per-file detail.
-* Scope: **main** + **`wlw`** (operator); apply same quiet rules to **`lcd`** LogCopy for consistency unless kickoff says otherwise.
-* Docs: [`docs/wanos-sync.md`](../wanos-sync.md) — what normal vs `verbose` prints.
-* **No** change to WLW sync-pair excludes / checksum / LF set → be90 `wlw-sync.sh` untouched.
+**Follow-up fix (2026-11-14):** duplicate rsync lines — `Invoke-Rsync` was returning the transfer array into the PS pipeline after `Write-SyncFileLine` (echo twice). Return only with `-CaptureOnly`; dedupe stdout/stderr; STATE counts only leaf-named transfers.
 
-### Out of scope (this triage)
+**Product reference:** [`docs/wanos-sync.md`](../wanos-sync.md). Code: `helpers/wanos-sync.ps1` (`Invoke-Rsync -CaptureOnly`, `Copy-WanosLogSnapshot`, `Invoke-WlwSqlitePullJob`).
 
-* Changing what is synced (only console noise)
-* P2 MirrorExcludeFiles schema
-* Pi-side `helpers/wlw-sync.sh`
+### P3 DoD
 
-### Kickoff (2026-11-14)
-
-**Prereqs:** none (independent of P2).  
-**Verified:** noise comes from LogCopy always-print + rsync file lines + WLW STATE per-path headers in `helpers/wanos-sync.ps1`.  
-**Open Qs:** see agent reply this turn — not locked until operator answers.
-
-### P3 DoD (stub)
-
-Kickoff locks quiet vs verbose matrix; `run` / `run wlw` (and lcd if in scope) show no artifact file lists in normal; `verbose` restores them; `docs/wanos-sync.md` matches. **Last DoD: audit & update ALL `docs/**/*.md` (and root README) against shipped behavior.**
+[x] LogCopy quiet in normal (count + done); per-file only with `verbose` — main / lcd / wlw  
+[x] WLW STATE: normal lists only actual transfers; no idle per-path spam  
+[x] Mirror / stats / log pulls still list in normal  
+[x] `docs/wanos-sync.md` matches  
+[x] **Last DoD:** audit & update ALL `docs/**/*.md` (and root README) against shipped behavior (**2026-11-14**)  

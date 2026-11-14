@@ -2,7 +2,7 @@
 # Ops7 — Fresh main Pi install (OS / PHP / Python)
 
 **Status:** coding · **Size:** high · **Pipeline:** [`pipeline.md`](pipeline.md) Sequence **#1** / Manual § Ops7  
-**Note (2026-11-04):** **Ops8** PHP2Shell bridge on current PHP is **Done** — [`_archive/ops8-php2shell-bridge.md`](_archive/ops8-php2shell-bridge.md) · product [`../ops8-operator-checklist.md`](../ops8-operator-checklist.md) · helpers [`../../helpers/ops8-php2shell/`](../../helpers/ops8-php2shell/). This cutover is now Sequence **#1**.  
+**Note (2026-11-04):** **Ops8** PHP2Shell bridge on current PHP is **Done** — [`_archive/ops8-php2shell-bridge.md`](_archive/ops8-php2shell-bridge.md) · product [`../ops8-operator-checklist.md`](../ops8-operator-checklist.md) · helpers [`../../helpers/ops8-php2shell/`](../../helpers/ops8-php2shell/). This cutover is Sequence **#1** (**P3** Done 2026-11-14).
 **Date:** 2026-10-22 (CET) · **Kickoff:** 2026-10-22 · **Scripts implement:** 2026-10-22  
 **Hardware:** Raspberry Pi 4 Model B Rev 1.5 · role: WanOS **main** + WLW co-host at **`10.32.251.30`**  
 **Product guide (as-is / operator):** [`docs/bootstrap-main-pi.md`](../bootstrap-main-pi.md)  
@@ -46,7 +46,7 @@
 | 10 | `smb.conf` | **Remove** from bootstrap tree at implement (not leave unused). |
 | 11 | PHP apt ownership | **wanos only.** Strip PHP apt install from WLW `wlw_bootstrap` / `apt-packages.txt` at implement (overlay keeps FPM detect, nginx site, state dirs). |
 | 12 | WLW state | Prefer **restore** from sync-pulled DBs + offline **`.env`** (operator has `.env` backup — Q1b). **A1 re-seed** only if auth restore impossible. |
-| 13 | WLW state pull set | **Pull only** (not mirror): `wlw.sqlite`; `budget*.sql`/`budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json`. Drop legacy `budget.sqlite`. Engine allows `.sqlite`/`.sql`/`.zip`/`.json` (**shipped** in sync tool). |
+| 13 | WLW state pull set | **Pull only** (not mirror): `wlw.sqlite`; `budget*.sql`/`budget*.zip`; `budget/*.sqlite`; `budget/*.json` (incl. `obio-credentials-*.json`). Drop legacy `budget.sqlite`. Engine allows `.sqlite`/`.sql`/`.zip`/`.json` (**shipped**). **2026-11-14:** removed `obio/credentials.json` from pull (unused; B32 per-user files only). |
 | 14 | Z-Wave store | **Operator-manual** backup/restore of **`/opt/zwave-js-ui`** (`rsync`/`scp`) — **not** wanos-sync. Restore before `docker compose up`. |
 | 15 | GoogleAuthenticator | Operator: fetch latest PHP 8.x–safe class from [sethadam1/GoogleAuthenticator](https://github.com/sethadam1/GoogleAuthenticator) into be90 `app/GoogleAuthenticator.php` before WLW smoke. |
 | 16 | Bootstrap automate | phase1: Mosquitto apt+conf + `app.wanos.be` nginx site; phase2: `wanos.service` enable + nginx LE refresh. `st.pwd` / ACME-DNS / Z-Wave Docker remain operator. |

@@ -27,7 +27,7 @@ Modes:
    test | run | logcopy | codeimport | diff
 
 Switches:
-   -VerboseSync              Extra diagnostics
+   -VerboseSync              Extra diagnostics; LogCopy per-file; WLW STATE every path
    -Lcd                      LCD Pi target (diff / test / run / logcopy)
    -Wlw                      WLW / be90webserver target (diff / test / run / logcopy)
    -LogCopy                  Git log mirror (forced on for run / logcopy)
@@ -886,13 +886,20 @@ function Test-RsyncNoiseLine {
 function Invoke-Rsync {
     param(
         [string[]]$RsyncArgs,
-        [string]$FailMessage
+        [string]$FailMessage,
+        # When set: do not print transfer file lines (caller decides). Noise still goes to verbose.
+        # Returns string[] of non-noise transfer lines (empty if none). Only returns when CaptureOnly
+        # so PS does not echo the array again after Write-SyncFileLine (duplicate lines).
+        [switch]$CaptureOnly
     )
 
     Write-SyncVerbose ("rsync {0}" -f ($RsyncArgs -join " "))
     $raw = & rsync.exe @RsyncArgs 2>&1
     $rc = $LASTEXITCODE
 
+    # Dedupe: MSYS rsync under 2>&1 can yield the same name on stdout and as ErrorRecord.
+    $seen = @{}
+    $transferLines = New-Object System.Collections.Generic.List[string]
     foreach ($item in @($raw)) {
         if ($null -eq $item) { continue }
         $text = if ($item -is [System.Management.Automation.ErrorRecord]) {
@@ -900,19 +907,27 @@ function Invoke-Rsync {
         } else {
             "$item"
         }
-        if ($script:VerboseSync) {
-            if (Test-RsyncNoiseLine -Line $text) {
+        $text = $text.TrimEnd()
+        $isNoise = Test-RsyncNoiseLine -Line $text
+        if ($isNoise) {
+            if ($script:VerboseSync) {
                 Write-Host $text -ForegroundColor DarkGray
-            } else {
-                Write-SyncFileLine -Line $text
             }
-        } elseif (-not (Test-RsyncNoiseLine -Line $text)) {
+            continue
+        }
+        if ($seen.ContainsKey($text)) { continue }
+        $seen[$text] = $true
+        [void]$transferLines.Add($text)
+        if (-not $CaptureOnly) {
             Write-SyncFileLine -Line $text
         }
     }
 
     if ($rc -ne 0) {
         throw ("{0} (rsync exit {1})" -f $FailMessage, $rc)
+    }
+    if ($CaptureOnly) {
+        return ,@($transferLines.ToArray())
     }
 }
 
@@ -1457,6 +1472,8 @@ function Invoke-WlwSqlitePullJob {
         [void]$resolved.Add($path)
     }
 
+    # P3: normal = list only when something actually transferred; verbose = every path header.
+    $transferredCount = 0
     foreach ($remotePath in $resolved) {
         $path = [string]$remotePath
         if ([string]::IsNullOrWhiteSpace($path)) { continue }
@@ -1489,11 +1506,36 @@ function Invoke-WlwSqlitePullJob {
         [void]$args.Add($remoteSpec)
         [void]$args.Add($localRsync)
 
-        Write-SyncSection ("** rsync state: {0} --> {1}" -f $remoteSpec, $localDir)
-        Invoke-Rsync -RsyncArgs @($args) -FailMessage ("WLW state pull failed for {0}" -f $path)
+        $header = ("** rsync state: {0} --> {1}" -f $remoteSpec, $localDir)
+        if ($script:VerboseSync) {
+            Write-SyncSection $header
+        }
+        $lines = @(Invoke-Rsync -RsyncArgs @($args) -FailMessage ("WLW state pull failed for {0}" -f $path) -CaptureOnly)
+        # Real transfer = rsync named this leaf (ignore blank / unrelated stderr crumbs).
+        $leaf = Split-Path -Path $path -Leaf
+        $named = @($lines | Where-Object {
+            $t = ([string]$_).Trim()
+            (-not [string]::IsNullOrWhiteSpace($t)) -and (
+                ($t -eq $leaf) -or $t.EndsWith("/" + $leaf) -or $t.EndsWith("\" + $leaf)
+            )
+        })
+        if ($named.Count -gt 0) {
+            $transferredCount += 1
+            if (-not $script:VerboseSync) {
+                Write-SyncSection $header
+            }
+            foreach ($line in $named) {
+                Write-SyncFileLine -Line $line
+            }
+        } elseif ($script:VerboseSync) {
+            Write-SyncVerbose ("(no transfer): {0}" -f $path)
+            foreach ($line in $lines) {
+                Write-SyncVerbose ("  rsync out: {0}" -f $line)
+            }
+        }
     }
 
-    Write-SyncDone ("* WLW STATE: done --> {0}" -f $localDir)
+    Write-SyncDone ("* WLW STATE: done ({0} transferred) --> {1}" -f $transferredCount, $localDir)
 }
 
 function Invoke-WlwLogPullJobs {
@@ -1616,14 +1658,22 @@ function Copy-WanosLogSnapshot {
         return
     }
 
+    # P3: normal = count + done only; verbose = per-file LogCopy lines (main / lcd / wlw).
+    $copiedCount = 0
     foreach ($f in $files) {
         $destPath = Join-Path $DestDir $f.Name
         if ($DryRun) {
-            Write-SyncFileLine -Line ("[DRY] LogCopy: {0}" -f $f.Name)
+            $copiedCount++
+            if ($script:VerboseSync) {
+                Write-SyncFileLine -Line ("[DRY] LogCopy: {0}" -f $f.Name)
+            }
         } else {
             try {
                 Copy-Item -LiteralPath $f.FullName -Destination $destPath -Force -ErrorAction Stop
-                Write-SyncFileLine -Line ("LogCopy: {0}" -f $f.Name)
+                $copiedCount++
+                if ($script:VerboseSync) {
+                    Write-SyncFileLine -Line ("LogCopy: {0}" -f $f.Name)
+                }
             } catch {
                 # Locked / in-use dest (or other copy failure): warn and continue
                 $reason = $_.Exception.Message
@@ -1634,6 +1684,7 @@ function Copy-WanosLogSnapshot {
             }
         }
     }
+    Write-Host ("LOGCOPY: {0} files" -f $copiedCount) -ForegroundColor Yellow
     Write-SyncDone ("* LOGCOPY: done --> {0}" -f $DestDir)
 }
 

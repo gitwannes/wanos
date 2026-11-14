@@ -36,7 +36,7 @@ Product locks: be90webserver `docs/wlw-sync.md`. **Agent pair rule:** `.cursor/r
 |-----|-----------|-----------|
 | Mirror | Local → Pi | `rsync --delete` + excludes: main uses config `[MirrorExclude*]`; `lcd` / `wlw` use hardcoded lists in `.ps1` until **P2** (shared `[MirrorExcludeFiles]` for all three) |
 | Stats / repo pull | Pi → Local | YAML Pi-wins (`--ignore-times`); DBs/NVRAM → OneDrive (`-u`) — **main Pi only** |
-| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`); WLW: `/var/log/wlw/wlw*` + Nginx vhost logs → `logs\wlw\`; WLW state **pull** (not mirror) → `logs\wlw\state\` (`wlw.sqlite`; `budget*.sql`/`budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json`; never `.env`; never push; no legacy `budget.sqlite`) |
+| Log pull | Pi → Local | `/var/log/wanos/wanos*` → OneDrive `logs\` (main, flat) or `logs\lcd-agent\` (`lcd`); WLW: `/var/log/wlw/wlw*` + Nginx vhost logs → `logs\wlw\`; WLW state **pull** (not mirror) → `logs\wlw\state\` (`wlw.sqlite`; `budget*.sql`/`budget*.zip`; `budget/*.sqlite`; `budget/*.json` incl. `obio-credentials-*.json`; never `.env`; never push; no legacy `budget.sqlite`) |
 | Sessionlog pull | Pi → Local | `{RemoteRoot}/sessionlog/*` → OneDrive `logs\` (flat) — **main WanOS only**; skip if remote dir missing |
 | Logcopy | Local → git | `wanos*` (+ session CSVs/DB on main) → `docs\logs` or `_lcd-agent\docs\logs`; WLW: `wlw*` + `hofmans.synology.me.*` → `be90webserver\docs\logs` — **always** after `run`; also mode `logcopy` alone. Locked/in-use dest files: red warn, skip, continue |
 
@@ -133,7 +133,16 @@ helpers\wanos-sync.bat diff <repo-relative-file> wlw verbose
 
 Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `logcopy` / `codeimport` / `diff`) exits with an error — do not combine them. Do not pass trailing `logcopy` with `run` — it is always included. Mode `diff` allows only trailing `lcd`, `wlw`, and `verbose`.
 
-`verbose` → config counts and full rsync command lines.
+### Normal vs `verbose` (console)
+
+| Output | Normal | `verbose` |
+|--------|--------|-----------|
+| Config load / full rsync command lines / path diagnostics | off | on |
+| Mirror changed files; stats / repo / LOG / SESSIONLOG / WLW EXTRA LOG transfer names | on | on |
+| LogCopy per-file (`LogCopy: …`) | off — print **count** + done only | on |
+| WLW STATE per-path header / file names | only when something **actually transferred** (+ transfer **count** on done) | every path (incl. idle) |
+
+`verbose` also keeps config counts and full rsync command lines.
 
 ### diff mode
 
@@ -168,7 +177,7 @@ Exit code **1** means the files differ after normalization; the batch wrapper do
 | WLW log pull local | `…\wanos\logs\wlw` | `[WlwPiSsh] LocalLogSubdir` |
 | App logs remote | `/var/log/wanos/wanos*` (main/LCD) or `/var/log/wlw/wlw*` (WLW) | SSH sections |
 | WLW Nginx logs | `/var/log/nginx/hofmans.synology.me.*.log` (+ `.log.1`; skip `.gz`) | `[WlwExtraLogFiles]` |
-| WLW state pull | `/var/lib/wlw/wlw.sqlite`; `budget*.sql` / `budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json` → `logs\wlw\state\` (pull only, not mirror; not logcopied to git; no `.env`; no legacy `budget.sqlite`) | `[WlwSqlitePullFiles]` |
+| WLW state pull | `/var/lib/wlw/wlw.sqlite`; `budget*.sql` / `budget*.zip`; `budget/*.sqlite`; `budget/*.json` (incl. `obio-credentials-*.json`) → `logs\wlw\state\` (pull only, not mirror; not logcopied to git; no `.env`; no legacy `budget.sqlite`) | `[WlwSqlitePullFiles]` |
 | Session CSVs remote | `{RemoteRoot}/sessionlog/*` (e.g. `sauna_session_YYYYMMDD_HHMMSS.csv`) | main WanOS only; mirror-excluded |
 
 Edit `[PiSsh]` / `[LcdPiSsh]` / `[WlwPiSsh]` Host/User/RemoteRoot if your Pis differ. Secrets never go in the config — only SSH keys. Reuse the same `id_ed25519` for both Pis (install pubkey on `.51` once — see `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). WLW uses the same key as main Pi `.30`.
@@ -260,7 +269,7 @@ helpers\wanos-sync.bat run
 - `[LcdPiSsh]` — LCD Pi (same keys); `LocalLogSubdir=lcd-agent` lands pulls under OneDrive `logs\lcd-agent`
 - `[WlwPiSsh]` — WLW on main Pi `.30`; source `C:\data\git\be90webserver`; `LocalLogSubdir=wlw`; no bare `bootstrap` exclude (helpers/bootstrap syncs)
 - `[WlwExtraLogFiles]` — absolute Nginx log paths pulled flat into `logs\wlw\` (+ `.log.1` when present; skip `.gz`)
-- `[WlwSqlitePullFiles]` — listed `/var/lib/wlw` paths (exact + shell globs on Pi) → `logs\wlw\state\` (pull only; never mirror whole dir; never `.env`; never push; not logcopied to git). Locked set: `wlw.sqlite`; top-level `budget*.sql` / `budget*.zip`; `budget/*.sqlite`; `budget/*.json`; `obio/credentials.json`. Legacy root `budget.sqlite` **removed**. Engine allows `.sqlite` / `.sql` / `.zip` / `.json`.
+- `[WlwSqlitePullFiles]` — listed `/var/lib/wlw` paths (exact + shell globs on Pi) → `logs\wlw\state\` (pull only; never mirror whole dir; never `.env`; never push; not logcopied to git). Locked set: `wlw.sqlite`; top-level `budget*.sql` / `budget*.zip`; `budget/*.sqlite`; `budget/*.json` (per-user `obio-credentials-*.json`). Legacy root `budget.sqlite` **removed**. Engine allows `.sqlite` / `.sql` / `.zip` / `.json`.
 - **Z-Wave JS UI store (Ops7):** Pi path **`/opt/zwave-js-ui`**. **Not** pulled by wanos-sync — **operator-manual** backup (`rsync`/`scp`) before flash and **operator restore** before `docker compose up`. See [`ops7-operator-checklist.md`](ops7-operator-checklist.md).
 
 Never push Pi-owned YAML/DBs/NVRAM in the same workflow that pulls them. Always `test` before the first `run` on a new machine. First LCD deploy: `test lcd` then `run lcd` (install: `_lcd-agent/helpers/bootstrap/wanos-install-lcd-agent.md`). First WLW deploy: `test wlw` then `run wlw`, then on Pi `sudo bash /home/wannes/be90webserver/helpers/bootstrap/wlw_bootstrap.sh` (creates `/var/lib/wlw` + `/var/log/wlw`). Product locks: be90webserver `docs/wlw-sync.md`.
