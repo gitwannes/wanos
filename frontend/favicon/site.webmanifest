@@ -1,4 +1,5 @@
 {
+  "comment": "--- This file controls the App Install icon ---",
   "name": "WanOS",
   "short_name": "WanOS",
   "start_url": "/deviceexplorer.html",

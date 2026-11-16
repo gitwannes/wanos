@@ -17,42 +17,43 @@ Optional:
    -Lcd       Mirror/pull for LCD Pi only (skip stats/sessionlog; source = \_lcd-agent)
    -Wlw       Mirror/pull for WLW portal on main Pi (skip stats/sessionlog; source = be90webserver)
    -LogCopy   After log pull, copy pulled logs into git docs\logs (main / \_lcd-agent / be90).
-              Always on for mode run and mode logcopy; optional dry-run preview with test
+              Always on for modes run, pull, and logcopy; optional dry-run preview with test.
 
 Includes / excludes: helpers/wanos-sync.config.txt
 Paths (repo, StatsDest, WLW source): in this .ps1.
 Remote host/paths: [PiSsh] / [LcdPiSsh] / [WlwPiSsh] (+ [WlwExtraLogFiles]) in config.
 
 Modes:
-   test | run | logcopy | codeimport | diff
+   test | run | push | pull | logcopy | codeimport | diff
 
 Switches:
+   -Direction <both|push|pull> Only valid with test or run to limit sync scope.
    -VerboseSync              Extra diagnostics; LogCopy per-file; WLW STATE every path
-   -Lcd                      LCD Pi target (diff / test / run / logcopy)
-   -Wlw                      WLW / be90webserver target (diff / test / run / logcopy)
-   -LogCopy                  Git log mirror (forced on for run / logcopy)
+   -Lcd                      LCD Pi target (diff / test / run / push / pull / logcopy)
+   -Wlw                      WLW / be90webserver target (diff / test / run / push / pull / logcopy)
+   -LogCopy                  Git log mirror (forced on for run / pull / logcopy)
    -CodeImportPath <folder>  Required for mode codeimport
    -DiffFile <relpath>       Required for mode diff (repo-relative path)
 
 Usage (prefer helpers\wanos-sync.bat — lists all combinations):
    powershell ... -File helpers\wanos-sync.ps1 -Mode test
+   powershell ... -File helpers\wanos-sync.ps1 -Mode test -Direction push
+   powershell ... -File helpers\wanos-sync.ps1 -Mode push
+   powershell ... -File helpers\wanos-sync.ps1 -Mode pull
    powershell ... -File helpers\wanos-sync.ps1 -Mode run -LogCopy
-   powershell ... -File helpers\wanos-sync.ps1 -Mode run -Lcd -LogCopy
-   powershell ... -File helpers\wanos-sync.ps1 -Mode run -Wlw -LogCopy
    powershell ... -File helpers\wanos-sync.ps1 -Mode logcopy
-   powershell ... -File helpers\wanos-sync.ps1 -Mode logcopy -Lcd
-   powershell ... -File helpers\wanos-sync.ps1 -Mode logcopy -Wlw
    powershell ... -File helpers\wanos-sync.ps1 -Mode codeimport -CodeImportPath C:\data\git\wanos\code-import
    powershell ... -File helpers\wanos-sync.ps1 -Mode diff -DiffFile automations.auto.yaml
-   powershell ... -File helpers\wanos-sync.ps1 -Mode diff -DiffFile lcd_pi_agent.py -Lcd
-   powershell ... -File helpers\wanos-sync.ps1 -Mode diff -DiffFile helpers/bootstrap/wlw_bootstrap.sh -Wlw
 ================================================================================
 #>
 
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("test", "run", "logcopy", "codeimport", "diff")]
+    [ValidateSet("test", "run", "push", "pull", "logcopy", "codeimport", "diff")]
     [string]$Mode,
+
+    [ValidateSet("both", "push", "pull")]
+    [string]$Direction = "both",
 
     [string]$CodeImportPath = "",
 
@@ -68,8 +69,11 @@ param(
     [switch]$LogCopy
 )
 
-# run and logcopy always include the git docs\logs copy after log pull
-if ($Mode -eq "run" -or $Mode -eq "logcopy") {
+$DoPush = ($Mode -eq "push") -or (($Mode -eq "run" -or $Mode -eq "test") -and ($Direction -in @("both", "push")))
+$DoPull = ($Mode -eq "pull") -or (($Mode -eq "run" -or $Mode -eq "test") -and ($Direction -in @("both", "pull")))
+
+# run and pull always include the git docs\logs copy after log pull
+if ($Mode -eq "run" -or $Mode -eq "pull" -or $Mode -eq "logcopy") {
     $LogCopy = $true
 }
 
@@ -1681,8 +1685,13 @@ if (($Lcd -or $Wlw) -and $Mode -eq "codeimport") {
     exit 14
 }
 
-if ($LogCopy -and ($Mode -eq "codeimport" -or $Mode -eq "diff")) {
-    Write-Error "Switch -LogCopy cannot be used with mode $Mode."
+if ($Direction -ne "both" -and $Mode -notin @("test", "run")) {
+    Write-Error "Switch -Direction can only be used with mode test or run."
+    exit 14
+}
+
+if ($LogCopy -and -not $DoPull -and $Mode -ne "logcopy") {
+    Write-Error "Switch -LogCopy cannot be used when pull is disabled (mode $Mode, direction $Direction)."
     exit 14
 }
 
@@ -1732,8 +1741,8 @@ if ($Mode -eq "diff") {
     exit $diffExit
 }
 
-# Normalization sources only needed when we rewrite *.sh (run / codeimport)
-if ($Mode -eq "run" -or $Mode -eq "codeimport") {
+# Normalization sources only needed when pushing text scripts
+if (($DoPush -and ($Mode -in @("run", "push") -or ($Mode -eq "test" -and $Wlw))) -or $Mode -eq "codeimport") {
     foreach ($dir in $SourceDirs) {
         Assert-PathExists -Path $dir -Description "Normalization source directory" -ExitCode 15
     }
@@ -1746,13 +1755,15 @@ $script:LastSessionLogPullDir = $null
 
 if ($Mode -ne "codeimport" -and $Mode -ne "diff") {
     Assert-RsyncAvailable
-    Ensure-Directory -Path $StatsDest -DryRun:$DryRun
+    if ($DoPull -or $Mode -eq "logcopy") {
+        Ensure-Directory -Path $StatsDest -DryRun:$DryRun
+    }
 }
 
 # Normalize CRLF-->LF before mirror writes. logcopy skips normalize.
-# WLW: also on test (dry-run preview). Main/LCD: run + codeimport only; *.sh only.
+# WLW: also on test (dry-run preview). Main/LCD: run/push + codeimport only; *.sh only.
 # WLW run/test: deploy text extensions (PHP/JS/CSS/...) so the Pi gets LF.
-if ($Mode -eq "run" -or $Mode -eq "codeimport" -or ($Mode -eq "test" -and $Wlw)) {
+if (($DoPush -and ($Mode -in @("run", "push") -or ($Mode -eq "test" -and $Wlw))) -or $Mode -eq "codeimport") {
     if ($Lcd) {
         Normalize-ShFiles -Dirs @($LcdMirrorSource) -Recurse
     } elseif ($Wlw) {
@@ -1818,105 +1829,112 @@ if ($Mode -eq "codeimport") {
             -DryRun:$false
     }
 } elseif ($Lcd) {
-    # LCD Pi: mirror _lcd-agent contents + log pull (no stats / no hue bootstrap)
-    Write-Host ""
-    Invoke-WanosRsyncMirrorJob `
-        -Source $LcdMirrorSource `
-        -Ssh $LcdPiSsh `
-        -ExcludeDirs $MirrorExcludeDirs `
-        -ExcludeFiles $MirrorExcludeFiles `
-        -DryRun:$DryRun
-
-    Write-Host ""
-    Invoke-WanosRsyncLogPullJob `
-        -Ssh $LcdPiSsh `
-        -StatsDest $StatsDest `
-        -DryRun:$DryRun
-
-    if ($LogCopy) {
+    if ($DoPush) {
         Write-Host ""
-        $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else {
-            Join-Path $StatsDest ([string]$LcdPiSsh.LocalLogSubdir)
-        }
-        Copy-WanosLogSnapshot `
-            -SourceDir $logSrc `
-            -DestDir $GitLogCopyDestLcd `
+        Invoke-WanosRsyncMirrorJob `
+            -Source $LcdMirrorSource `
+            -Ssh $LcdPiSsh `
+            -ExcludeDirs $MirrorExcludeDirs `
+            -ExcludeFiles $MirrorExcludeFiles `
             -DryRun:$DryRun
+    }
+    if ($DoPull) {
+        Write-Host ""
+        Invoke-WanosRsyncLogPullJob `
+            -Ssh $LcdPiSsh `
+            -StatsDest $StatsDest `
+            -DryRun:$DryRun
+
+        if ($LogCopy) {
+            Write-Host ""
+            $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else {
+                Join-Path $StatsDest ([string]$LcdPiSsh.LocalLogSubdir)
+            }
+            Copy-WanosLogSnapshot `
+                -SourceDir $logSrc `
+                -DestDir $GitLogCopyDestLcd `
+                -DryRun:$DryRun
+        }
     }
 } elseif ($Wlw) {
-    # WLW portal on main Pi: mirror be90webserver + multi-source log pull (no stats / sessionlog)
-    Write-Host ""
-    Invoke-WanosRsyncMirrorJob `
-        -Source $WlwMirrorSource `
-        -Ssh $WlwPiSsh `
-        -ExcludeDirs $MirrorExcludeDirs `
-        -ExcludeFiles $MirrorExcludeFiles `
-        -ContentChecksum `
-        -DryRun:$DryRun
-
-    Write-Host ""
-    Invoke-WlwLogPullJobs `
-        -Ssh $WlwPiSsh `
-        -StatsDest $StatsDest `
-        -ExtraLogFiles $WlwExtraLogFiles `
-        -SqliteFiles $WlwSqlitePullFiles `
-        -DryRun:$DryRun
-
-    if ($LogCopy) {
+    if ($DoPush) {
         Write-Host ""
-        $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else {
-            Join-Path $StatsDest ([string]$WlwPiSsh.LocalLogSubdir)
-        }
-        Copy-WlwLogSnapshots `
-            -SourceDir $logSrc `
-            -DestDir $GitLogCopyDestWlw `
+        Invoke-WanosRsyncMirrorJob `
+            -Source $WlwMirrorSource `
+            -Ssh $WlwPiSsh `
+            -ExcludeDirs $MirrorExcludeDirs `
+            -ExcludeFiles $MirrorExcludeFiles `
+            -ContentChecksum `
             -DryRun:$DryRun
     }
-} else {
-    # WanOS main Pi: bootstrap + mirror + stats + log pull (+ logcopy when -LogCopy / run)
-    Invoke-WanosBootstrapPushJob `
-        -Source $MirrorSource `
-        -Ssh $PiSsh `
-        -BootstrapFiles $MirrorBootstrapFiles `
-        -DryRun:$DryRun
-
-    Write-Host ""
-    Invoke-WanosRsyncMirrorJob `
-        -Source $MirrorSource `
-        -Ssh $PiSsh `
-        -ExcludeDirs $MirrorExcludeDirs `
-        -ExcludeFiles $MirrorExcludeFiles `
-        -DryRun:$DryRun
-
-    Write-Host ""
-    Invoke-WanosRsyncStatsJob `
-        -Ssh $PiSsh `
-        -StatsDest $StatsDest `
-        -RepoDest $MirrorSource `
-        -IncludePatterns $StatsInclude `
-        -RepoPullPatterns $StatsRepoPull `
-        -SkipDirPatterns $MirrorExcludeDirs `
-        -DryRun:$DryRun
-
-    Write-Host ""
-    Invoke-WanosRsyncLogPullJob `
-        -Ssh $PiSsh `
-        -StatsDest $StatsDest `
-        -DryRun:$DryRun
-
-    Write-Host ""
-    Invoke-WanosRsyncSessionLogPullJob `
-        -Ssh $PiSsh `
-        -StatsDest $StatsDest `
-        -DryRun:$DryRun
-
-    if ($LogCopy) {
+    if ($DoPull) {
         Write-Host ""
-        $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else { $StatsDest }
-        Copy-WanosMainLogSnapshots `
-            -SourceDir $logSrc `
-            -DestDir $GitLogCopyDestMain `
+        Invoke-WlwLogPullJobs `
+            -Ssh $WlwPiSsh `
+            -StatsDest $StatsDest `
+            -ExtraLogFiles $WlwExtraLogFiles `
+            -SqliteFiles $WlwSqlitePullFiles `
             -DryRun:$DryRun
+
+        if ($LogCopy) {
+            Write-Host ""
+            $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else {
+                Join-Path $StatsDest ([string]$WlwPiSsh.LocalLogSubdir)
+            }
+            Copy-WlwLogSnapshots `
+                -SourceDir $logSrc `
+                -DestDir $GitLogCopyDestWlw `
+                -DryRun:$DryRun
+        }
+    }
+} else {
+    # WanOS main Pi
+    if ($DoPush) {
+        Invoke-WanosBootstrapPushJob `
+            -Source $MirrorSource `
+            -Ssh $PiSsh `
+            -BootstrapFiles $MirrorBootstrapFiles `
+            -DryRun:$DryRun
+
+        Write-Host ""
+        Invoke-WanosRsyncMirrorJob `
+            -Source $MirrorSource `
+            -Ssh $PiSsh `
+            -ExcludeDirs $MirrorExcludeDirs `
+            -ExcludeFiles $MirrorExcludeFiles `
+            -DryRun:$DryRun
+    }
+    if ($DoPull) {
+        Write-Host ""
+        Invoke-WanosRsyncStatsJob `
+            -Ssh $PiSsh `
+            -StatsDest $StatsDest `
+            -RepoDest $MirrorSource `
+            -IncludePatterns $StatsInclude `
+            -RepoPullPatterns $StatsRepoPull `
+            -SkipDirPatterns $MirrorExcludeDirs `
+            -DryRun:$DryRun
+
+        Write-Host ""
+        Invoke-WanosRsyncLogPullJob `
+            -Ssh $PiSsh `
+            -StatsDest $StatsDest `
+            -DryRun:$DryRun
+
+        Write-Host ""
+        Invoke-WanosRsyncSessionLogPullJob `
+            -Ssh $PiSsh `
+            -StatsDest $StatsDest `
+            -DryRun:$DryRun
+
+        if ($LogCopy) {
+            Write-Host ""
+            $logSrc = if ($script:LastLogPullDir) { $script:LastLogPullDir } else { $StatsDest }
+            Copy-WanosMainLogSnapshots `
+                -SourceDir $logSrc `
+                -DestDir $GitLogCopyDestMain `
+                -DryRun:$DryRun
+        }
     }
 }
 
