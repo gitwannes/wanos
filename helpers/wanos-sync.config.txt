@@ -73,7 +73,7 @@ entity_id-list.txt
 *.md
 # Secrets / junk
 .env*
-.gitignore
+.gitignore*
 .gitattributes
 * - Copy.py
 *.zip

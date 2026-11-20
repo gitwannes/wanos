@@ -213,6 +213,7 @@ Preferred home: `config.yaml` (optional subsection), e.g.:
 
 * `history.timezone`: `Europe/Brussels`
 * `history.retention.hires_days`: `7`
+* `history.retention.actuator_events_days`: `61`
 * `history.retention.hourly_days`: `31`
 * `history.retention.daily_days`: `365`
 * `history.sample.kwh_step_wh`: `100` (0.1 kWh)
@@ -292,9 +293,9 @@ Every state/level change counts toward today / month averages.
 ### Retention (same tiers as utilities)
 | Tier | Retention |
 |------|-----------|
-| Raw `device_events` (+ `level`) | 7 days |
+| Raw `device_events` (+ `level`) | 61 days (`history.retention.actuator_events_days`, default 61) |
 | `device_hourly` | 31 days |
-| `device_daily` | 1 year |
+| `device_daily` | 1 year (stores pre-computed `on_seconds` for duration ON rollups) |
 
 ### UI (Explorer → History on `deviceexplorer.html`)
 - List: Control inventory shared with History mode; **C10:** omit all `type === "scene"` catalog-event rows (logging still writes synthetic idxs; Control dashboard buttons unchanged).

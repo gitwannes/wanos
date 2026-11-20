@@ -223,6 +223,7 @@ history:
   timezone: "Europe/Brussels"
   retention:
     hires_days: 7
+    actuator_events_days: 61  # Raw device_events retention (switches/doors/speakers)
     hourly_days: 31
     daily_days: 365
   sample:

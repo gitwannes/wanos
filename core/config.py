@@ -706,6 +706,7 @@ class HardwareLinksConfig(BaseModel):
 
 class HistoryRetentionConfig(BaseModel):
     hires_days: int = 7
+    actuator_events_days: int = 61
     hourly_days: int = 31
     daily_days: int = 365
 

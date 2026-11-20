@@ -2,7 +2,7 @@
 """
 Actuator / switch / shutter / door / speaker history.
 Retention aligned with utility history (see docs/sensor_history.md):
-  raw events 7d | hourly 31d | daily 1y
+  raw events 61d (history.retention.actuator_events_days) | hourly 31d | daily 1y (pre-computed on_seconds)
 """
 from __future__ import annotations
 
@@ -128,6 +128,7 @@ class DeviceHistoryManager:
 
         retention = getattr(cfg, "retention", None)
         self.hires_days = int(getattr(retention, "hires_days", 7) or 7)
+        self.events_days = int(getattr(retention, "actuator_events_days", 61) or 61)
         self.hourly_days = int(getattr(retention, "hourly_days", 31) or 31)
         self.daily_days = int(getattr(retention, "daily_days", 365) or 365)
 
@@ -188,6 +189,7 @@ class DeviceHistoryManager:
                 level_min REAL,
                 level_max REAL,
                 level_last REAL,
+                on_seconds REAL NOT NULL DEFAULT 0.0,
                 PRIMARY KEY (idx, hour_key)
             )"""
         )
@@ -199,14 +201,35 @@ class DeviceHistoryManager:
                 level_min REAL,
                 level_max REAL,
                 level_last REAL,
+                on_seconds REAL NOT NULL DEFAULT 0.0,
                 PRIMARY KEY (idx, day_key)
             )"""
         )
+        # Migrate older DBs missing on_seconds
+        c.execute("PRAGMA table_info(device_hourly)")
+        cols_hourly = {row[1] for row in c.fetchall()}
+        if "on_seconds" not in cols_hourly:
+            c.execute("ALTER TABLE device_hourly ADD COLUMN on_seconds REAL NOT NULL DEFAULT 0.0")
+
+        c.execute("PRAGMA table_info(device_daily)")
+        cols_daily = {row[1] for row in c.fetchall()}
+        if "on_seconds" not in cols_daily:
+            c.execute("ALTER TABLE device_daily ADD COLUMN on_seconds REAL NOT NULL DEFAULT 0.0")
+
         conn.commit()
         conn.close()
 
     def start(self) -> None:
         self.recalculate_all_insights()
+        try:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            self._sync_all_daily_on_durations(c)
+            conn.commit()
+            conn.close()
+            logger.info("Device history daily on_seconds synced on startup.")
+        except Exception as e:
+            logger.error(f"Failed to sync daily on_seconds on startup: {e}")
         self._task = asyncio.create_task(self._daily_cull_loop())
         self._flush_task = asyncio.create_task(self._batch_flush_loop())
 
@@ -453,12 +476,17 @@ class DeviceHistoryManager:
 
     def _cull_db(self) -> None:
         now = int(time.time())
-        hires_cut = now - self.hires_days * 86400
+        events_cut = now - self.events_days * 86400
         hourly_cut = (self._now_local() - timedelta(days=self.hourly_days)).strftime("%Y-%m-%dT%H")
         daily_cut = (self._now_local() - timedelta(days=self.daily_days)).strftime("%Y-%m-%d")
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        c.execute("DELETE FROM device_events WHERE timestamp < ?", (hires_cut,))
+        try:
+            # Persist completed on_seconds into device_daily before culling raw events
+            self._sync_all_daily_on_durations(c)
+        except Exception as e:
+            logger.error(f"Failed to sync daily on_seconds before cull: {e}")
+        c.execute("DELETE FROM device_events WHERE timestamp < ?", (events_cut,))
         c.execute("DELETE FROM device_hourly WHERE hour_key < ?", (hourly_cut,))
         c.execute("DELETE FROM device_daily WHERE day_key < ?", (daily_cut,))
         conn.commit()
@@ -629,6 +657,98 @@ class DeviceHistoryManager:
             out.append({"t": int(bucket_starts[i]) * 1000, "v": v})
         return out
 
+    def _compute_day_on_seconds(
+        self,
+        c: Any,
+        idx: int,
+        day_start: int,
+        day_end: int,
+        ceiling: float,
+    ) -> float:
+        """Calculate total ON seconds for idx in [day_start, day_end)."""
+        c.execute(
+            """SELECT state, level FROM device_events
+               WHERE idx = ? AND timestamp < ?
+               ORDER BY timestamp DESC LIMIT 1""",
+            (idx, day_start),
+        )
+        prev = c.fetchone()
+        prev_on = False
+        if prev:
+            prev_on = self._level_is_on(prev[1], prev[0], level_max=ceiling)
+
+        c.execute(
+            """SELECT timestamp, state, level FROM device_events
+               WHERE idx = ? AND timestamp >= ? AND timestamp < ?
+               ORDER BY timestamp""",
+            (idx, day_start, day_end),
+        )
+        events = list(c.fetchall())
+        intervals = self._on_intervals_clipped(
+            events, day_start, day_end, prev_on, level_max=ceiling
+        )
+        return float(sum(end - start for start, end in intervals))
+
+    def _sync_daily_on_durations(
+        self,
+        c: Any,
+        idx: int,
+        ceiling: float,
+        days_back: Optional[int] = None,
+    ) -> None:
+        """
+        Calculate and persist on_seconds into device_daily for closed days.
+        Uses raw device_events up to yesterday midnight.
+        """
+        lookback = days_back if days_back is not None else self.events_days
+        now_dt = self._now_local()
+        today_midnight = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_dt = today_midnight - timedelta(days=lookback)
+
+        c.execute(
+            "SELECT MIN(timestamp) FROM device_events WHERE idx = ?",
+            (idx,),
+        )
+        row = c.fetchone()
+        if not row or row[0] is None:
+            return
+        earliest_ts = int(row[0])
+        earliest_dt = datetime.fromtimestamp(earliest_ts, self.tz).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        if earliest_dt > start_dt:
+            start_dt = earliest_dt
+
+        cur = start_dt
+        while cur < today_midnight:
+            day_key = cur.strftime("%Y-%m-%d")
+            b0 = int(cur.timestamp())
+            nxt = cur + timedelta(days=1)
+            b1 = int(nxt.timestamp())
+
+            on_secs = self._compute_day_on_seconds(c, idx, b0, b1, ceiling)
+
+            c.execute(
+                """INSERT INTO device_daily(idx, day_key, event_count, level_min, level_max, level_last, on_seconds)
+                   VALUES (?, ?, 0, NULL, NULL, NULL, ?)
+                   ON CONFLICT(idx, day_key) DO UPDATE SET on_seconds = excluded.on_seconds
+                """,
+                (idx, day_key, on_secs),
+            )
+            cur = nxt
+
+    def _sync_all_daily_on_durations(self, c: Any) -> None:
+        """Sync daily on_seconds for all tracked actuators with events."""
+        c.execute("SELECT DISTINCT idx FROM device_events")
+        idxs = [r[0] for r in c.fetchall()]
+        for idx in idxs:
+            meta = (self.sm._state.device_metadata or {}).get(idx, {}) or {}
+            dtype = meta.get("type", "")
+            if dtype in ("motion", "scene"):
+                continue
+            ceiling = level_max_for_idx(self.sm, idx)
+            self._sync_daily_on_durations(c, idx, ceiling, days_back=self.events_days)
+
     def _on_duration_month_series(
         self,
         c: Any,
@@ -641,6 +761,9 @@ class DeviceHistoryManager:
         window_end = int(now_dt.timestamp())
         start_dt = datetime.strptime(since_day, "%Y-%m-%d").replace(tzinfo=self.tz)
         window_start = int(start_dt.timestamp())
+
+        # Ensure recent closed days are synced into device_daily
+        self._sync_daily_on_durations(c, idx, ceiling, days_back=self.events_days)
 
         c.execute(
             """SELECT state, level FROM device_events
@@ -676,9 +799,27 @@ class DeviceHistoryManager:
             bucket_ends.append(min(b1, window_end) if day.date() == today.date() else b1)
             day = nxt
 
-        return self._accumulate_on_duration_buckets(
+        out = self._accumulate_on_duration_buckets(
             intervals, bucket_starts, bucket_ends, unit="minutes"
         )
+
+        # Fallback to device_daily.on_seconds for any closed day where raw device_events was culled
+        c.execute("SELECT MIN(timestamp) FROM device_events WHERE idx = ?", (idx,))
+        row = c.fetchone()
+        earliest_raw_ts = int(row[0]) if row and row[0] is not None else window_end
+        if earliest_raw_ts > window_start:
+            c.execute(
+                "SELECT day_key, on_seconds FROM device_daily WHERE idx = ? AND day_key >= ? AND on_seconds > 0",
+                (idx, since_day),
+            )
+            daily_fallback = {dk: float(sec) for dk, sec in c.fetchall()}
+            for entry in out:
+                dt_entry = datetime.fromtimestamp(entry["t"] / 1000, self.tz)
+                dk = dt_entry.strftime("%Y-%m-%d")
+                if entry["v"] == 0.0 and entry["t"] / 1000 < earliest_raw_ts and dk in daily_fallback:
+                    entry["v"] = float(int(round(daily_fallback[dk] / 60.0)))
+
+        return out
 
     def _on_duration_year_series(
         self,
@@ -687,54 +828,52 @@ class DeviceHistoryManager:
         ceiling: float,
         since_day: str,
     ) -> List[Dict[str, Any]]:
-        """C12: per-month hours_on (1 decimal) for the year window."""
+        """C12: per-month hours_on (1 decimal) for the year window from device_daily rollups."""
         now_dt = self._now_local()
         window_end = int(now_dt.timestamp())
         start_dt = datetime.strptime(since_day, "%Y-%m-%d").replace(tzinfo=self.tz)
         # Align to first of that month for year buckets
         start_month = start_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        window_start = int(start_month.timestamp())
-
-        c.execute(
-            """SELECT state, level FROM device_events
-               WHERE idx = ? AND timestamp < ?
-               ORDER BY timestamp DESC LIMIT 1""",
-            (idx, window_start),
-        )
-        prev = c.fetchone()
-        prev_on = False
-        if prev:
-            prev_on = self._level_is_on(prev[1], prev[0], level_max=ceiling)
-
-        c.execute(
-            """SELECT timestamp, state, level FROM device_events
-               WHERE idx = ? AND timestamp >= ? AND timestamp <= ?
-               ORDER BY timestamp""",
-            (idx, window_start, window_end),
-        )
-        events = list(c.fetchall())
-        intervals = self._on_intervals_clipped(
-            events, window_start, window_end, prev_on, level_max=ceiling
-        )
-
-        bucket_starts: List[int] = []
-        bucket_ends: List[int] = []
-        cur = start_month
         end_month = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        while cur <= end_month:
-            b0 = int(cur.timestamp())
-            if cur.month == 12:
-                nxt = cur.replace(year=cur.year + 1, month=1)
-            else:
-                nxt = cur.replace(month=cur.month + 1)
-            b1 = int(nxt.timestamp())
-            bucket_starts.append(b0)
-            bucket_ends.append(min(b1, window_end) if cur == end_month else b1)
-            cur = nxt
+        today_midnight = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        return self._accumulate_on_duration_buckets(
-            intervals, bucket_starts, bucket_ends, unit="hours"
+        # Sync recent closed days from raw events into device_daily
+        self._sync_daily_on_durations(c, idx, ceiling, days_back=self.events_days)
+
+        # Aggregate closed day on_seconds per month from device_daily
+        c.execute(
+            """SELECT substr(day_key, 1, 7) AS ym,
+                      COALESCE(SUM(on_seconds), 0.0)
+               FROM device_daily
+               WHERE idx = ? AND day_key >= ?
+               GROUP BY ym ORDER BY ym""",
+            (idx, start_month.strftime("%Y-%m-%d")),
         )
+        month_secs = {ym: float(s) for ym, s in c.fetchall()}
+
+        # Compute today's in-progress on_seconds from device_events
+        today_b0 = int(today_midnight.timestamp())
+        today_secs = 0.0
+        if window_end > today_b0:
+            today_secs = self._compute_day_on_seconds(c, idx, today_b0, window_end, ceiling)
+
+        current_ym = now_dt.strftime("%Y-%m")
+        month_secs[current_ym] = month_secs.get(current_ym, 0.0) + today_secs
+
+        out: List[Dict[str, Any]] = []
+        cur = start_month
+        while cur <= end_month:
+            ym = cur.strftime("%Y-%m")
+            ts_ms = int(cur.timestamp() * 1000)
+            secs = month_secs.get(ym, 0.0)
+            hrs = round(secs / 3600.0, 1)
+            out.append({"t": ts_ms, "v": hrs})
+            if cur.month == 12:
+                cur = cur.replace(year=cur.year + 1, month=1)
+            else:
+                cur = cur.replace(month=cur.month + 1)
+
+        return out
 
     def _step_level_series(
         self,
@@ -787,7 +926,7 @@ class DeviceHistoryManager:
 
         if range_name == "day":
             until_ts = int(time.time())
-            since = until_ts - self.hires_days * 86400
+            since = until_ts - self.events_days * 86400
             c.execute(
                 "SELECT timestamp, state, level FROM device_events WHERE idx = ? AND timestamp >= ? ORDER BY timestamp",
                 (idx, since),
@@ -819,7 +958,7 @@ class DeviceHistoryManager:
                 "type": dtype,
                 "range": "day",
                 "series": {"level": level_pts},
-                "retention_days": self.hires_days,
+                "retention_days": self.events_days,
                 "default_window_hours": 24,
             }
 
@@ -844,7 +983,7 @@ class DeviceHistoryManager:
             # C12: binary month duration ON (minutes, integer) — clip / carry-in / open ON
             if not impulse:
                 minutes_on = self._on_duration_month_series(c, idx, ceiling, since_day)
-                if counts or any(float(p.get("v") or 0) > 0 for p in minutes_on):
+                if counts or any(float(p.get("v") or 0) > 0 for p in minutes_on) or minutes_on:
                     series["minutes_on"] = minutes_on
             conn.close()
             return {
@@ -878,7 +1017,7 @@ class DeviceHistoryManager:
         # C12: binary year duration ON (hours, 1 decimal)
         if not impulse:
             hours_on = self._on_duration_year_series(c, idx, ceiling, since_day)
-            if counts or any(float(p.get("v") or 0) > 0 for p in hours_on):
+            if counts or any(float(p.get("v") or 0) > 0 for p in hours_on) or hours_on:
                 series["hours_on"] = hours_on
         conn.close()
         return {
