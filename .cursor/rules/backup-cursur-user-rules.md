@@ -1,4 +1,4 @@
-# Cursor User Rules backup — refreshed 2026-11-13
+# Cursor User Rules backup — refreshed 2026-11-24
 
 Snapshot of Cursor Settings → User Rules (this Cursor account, cloud-synced). Backup only. This is a `.md` file so Cursor does **not** load it as a project rule.
 
@@ -43,21 +43,29 @@ Required message content:
 
 # Live trees vs git clones (layout lock)
 
-Working directories under Docker `/workspace/<app>` (e.g. `/workspace/wanos`, `/workspace/be90webserver`, `/workspace/wisc`, `/workspace/wlw-obio`) and equivalent live deploy/app trees are **not** git repositories. Missing `.git` there is expected — they are runtime mirrors / live sites, not clones.
+Working directories under Docker `/workspace/<app>` and equivalent live deploy/app trees are **not** git repositories. Missing `.git` there is expected — they are runtime mirrors / live sites, not clones.
 
 ## Where the real repos live
 
 | Environment | Git clones |
 |---|---|
 | Host (PC) | `~/git/` (e.g. `C:\data\git\` on Windows) |
-| Docker | `/workspace/git/` |
+| Pi / Docker agent | `~/git/` |
 
-## Agent behaviour
+## Agent behaviour (all)
 
-- Do **not** treat "not a git repo" under `/workspace/<app>` (or other live trees) as an error or broken checkout.
+- Do **not** treat "not a git repo" under a live app tree as an error or broken checkout.
 - Do **not** run `git init`, invent remotes, or expect commits in live trees.
-- For `git status` / `diff` / `log` / commit / branch work: use the matching clone under `~/git/` or `/workspace/git/`.
-- Live trees may still be edited when the operator authorizes product work; that is deploy/sync territory, not a substitute for the git clone.
+- For `git status` / `diff` / `log` / commit / branch work: use the matching clone under `~/git/` (PC: also `C:\data\git\` as that host's `~/git` equivalent).
+
+## Agent behaviour (Pi CLI / Docker on the Pi only)
+
+Applies **only** when the agent session is running on the Pi.
+
+- Create, edit, and delete files **only** under `~/git/` (any repo below that root).
+- `implement` / `ship` / `patch` / `fix` authorize work **only** under `~/git/` — never the live tree.
+- Do **not** run `wlw-sync.sh`, `wanos-sync`, or any other clone-to-live or live-to-clone sync. The operator syncs manually.
+- Reading a live file is allowed only when the operator explicitly asks to inspect the running tree. That read is **not** permission to change the live tree.
 
 ---
 
