@@ -28,7 +28,7 @@
 # LCD mode: helpers\wanos-sync.bat test|run|logcopy lcd  (source = repo\_lcd-agent\ --> LcdPiSsh)
 # WLW mode: helpers\wanos-sync.bat test|run|logcopy wlw (source = C:\data\git\be90webserver --> WlwPiSsh)
 # logcopy: always after run; also mode "logcopy" alone (pull + copy into git docs\logs)
-#          test logcopy = dry-run preview of that copy
+#          test = mirror dry-run only; test pull logcopy = dry-run preview of that copy
 # =============================================================================
 
 [MirrorBootstrapFiles]

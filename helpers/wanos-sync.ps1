@@ -17,7 +17,7 @@ Optional:
    -Lcd       Mirror/pull for LCD Pi only (skip stats/sessionlog; source = \_lcd-agent)
    -Wlw       Mirror/pull for WLW portal on main Pi (skip stats/sessionlog; source = be90webserver)
    -LogCopy   After log pull, copy pulled logs into git docs\logs (main / \_lcd-agent / be90).
-              Always on for modes run, pull, and logcopy; optional dry-run preview with test.
+              Always on for modes run, pull, and logcopy; dry-run preview with test -Direction pull.
 
 Includes / excludes: helpers/wanos-sync.config.txt
 Paths (repo, StatsDest, WLW source): in this .ps1.
@@ -27,7 +27,8 @@ Modes:
    test | run | push | pull | logcopy | codeimport | diff
 
 Switches:
-   -Direction <both|push|pull> Only valid with test or run to limit sync scope.
+   -Direction <both|push|pull> With run: limit sync scope. With test: both/push = mirror
+                               dry-run only; pull = dry-run stats/log/state (no mirror).
    -VerboseSync              Extra diagnostics; LogCopy per-file; WLW STATE every path
    -Lcd                      LCD Pi target (diff / test / run / push / pull / logcopy)
    -Wlw                      WLW / be90webserver target (diff / test / run / push / pull / logcopy)
@@ -38,6 +39,7 @@ Switches:
 Usage (prefer helpers\wanos-sync.bat — lists all combinations):
    powershell ... -File helpers\wanos-sync.ps1 -Mode test
    powershell ... -File helpers\wanos-sync.ps1 -Mode test -Direction push
+   powershell ... -File helpers\wanos-sync.ps1 -Mode test -Direction pull
    powershell ... -File helpers\wanos-sync.ps1 -Mode push
    powershell ... -File helpers\wanos-sync.ps1 -Mode pull
    powershell ... -File helpers\wanos-sync.ps1 -Mode run -LogCopy
@@ -69,8 +71,14 @@ param(
     [switch]$LogCopy
 )
 
-$DoPush = ($Mode -eq "push") -or (($Mode -eq "run" -or $Mode -eq "test") -and ($Direction -in @("both", "push")))
-$DoPull = ($Mode -eq "pull") -or (($Mode -eq "run" -or $Mode -eq "test") -and ($Direction -in @("both", "pull")))
+# test: mirror dry-run by default (both/push). Pull jobs only when Direction=pull.
+# run: bidirectional unless Direction limits scope. push/pull modes are one-way.
+$DoPush = ($Mode -eq "push") `
+    -or (($Mode -eq "run") -and ($Direction -in @("both", "push"))) `
+    -or (($Mode -eq "test") -and ($Direction -ne "pull"))
+$DoPull = ($Mode -eq "pull") `
+    -or (($Mode -eq "run") -and ($Direction -in @("both", "pull"))) `
+    -or (($Mode -eq "test") -and ($Direction -eq "pull"))
 
 # run and pull always include the git docs\logs copy after log pull
 if ($Mode -eq "run" -or $Mode -eq "pull" -or $Mode -eq "logcopy") {

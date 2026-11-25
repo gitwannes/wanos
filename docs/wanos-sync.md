@@ -60,8 +60,9 @@ Also: LF-normalize on `run` / `codeimport` (`*.sh` for main/LCD; broader text se
 ```text
 helpers\wanos-sync.bat test
 helpers\wanos-sync.bat test verbose
-helpers\wanos-sync.bat test logcopy
-helpers\wanos-sync.bat test logcopy verbose
+helpers\wanos-sync.bat test pull
+helpers\wanos-sync.bat test pull logcopy
+helpers\wanos-sync.bat test pull logcopy verbose
 
 helpers\wanos-sync.bat run
 helpers\wanos-sync.bat run verbose
@@ -75,8 +76,9 @@ helpers\wanos-sync.bat logcopy verbose
 ```text
 helpers\wanos-sync.bat test lcd
 helpers\wanos-sync.bat test lcd verbose
-helpers\wanos-sync.bat test lcd logcopy
-helpers\wanos-sync.bat test lcd logcopy verbose
+helpers\wanos-sync.bat test pull lcd
+helpers\wanos-sync.bat test pull lcd logcopy
+helpers\wanos-sync.bat test pull lcd logcopy verbose
 
 helpers\wanos-sync.bat run lcd
 helpers\wanos-sync.bat run lcd verbose
@@ -92,8 +94,9 @@ Product locks: `C:\data\git\be90webserver\docs\wlw-sync.md`.
 ```text
 helpers\wanos-sync.bat test wlw
 helpers\wanos-sync.bat test wlw verbose
-helpers\wanos-sync.bat test wlw logcopy
-helpers\wanos-sync.bat test wlw logcopy verbose
+helpers\wanos-sync.bat test pull wlw
+helpers\wanos-sync.bat test pull wlw logcopy
+helpers\wanos-sync.bat test pull wlw logcopy verbose
 
 helpers\wanos-sync.bat run wlw
 helpers\wanos-sync.bat run wlw verbose
@@ -122,13 +125,14 @@ helpers\wanos-sync.bat diff <repo-relative-file> wlw verbose
 
 | Mode / flags | Behaviour |
 |--------------|-----------|
-| `test` | Dry-run only (`rsync -n`) against main Pi |
+| `test` | Dry-run **mirror only** (`rsync -n` Local→Pi). No stats / log / state / sessionlog pull. |
+| `test pull` | Dry-run pull jobs only (stats/logs/sessionlog or WLW state/logs). No mirror. |
 | `run` | Normalize + mirror + stats pull + log pull + sessionlog pull + **logcopy** (main WanOS) |
 | `logcopy` | Log pull + sessionlog pull + copy `wanos*` / `sauna_session_*.csv` / `sauna_sessions.db` into git `docs\logs` only (no mirror / stats / normalize) |
 | `diff <path>` | Compare one repo-relative file PC vs Pi (normalized text); binary = sizes only; missing-side info (exit 0) |
 | `… lcd` | Same modes against **LCD Pi**: mirror `_lcd-agent/` → `10.32.251.51:/home/wannes/wanos` (no stats/YAML pull); logcopy → `_lcd-agent\docs\logs`; diff uses `_lcd-agent` as local root |
 | `… wlw` | Same modes against **WLW**: mirror `C:\data\git\be90webserver` → `10.32.251.30:/home/wannes/be90webserver` (no stats/sessionlog); log pull `/var/log/wlw/wlw*` + Nginx vhost logs; logcopy → `be90webserver\docs\logs`; diff uses be90 tree as local root. LF-normalize deploy text before mirror (`test` dry-run / `run` write). Mutually exclusive with `lcd`. Pi clone→live: wanos `helpers/wlw-sync.sh` (shared config). |
-| `test … logcopy` | Dry-run also previews the git `docs\logs` copy |
+| `test pull … logcopy` | Dry-run also previews the git `docs\logs` copy (requires `test pull`; default `test` is mirror-only) |
 | `codeimport <path>` | Local mirror into folder only (path required; no SSH; not with `lcd` / `wlw` / `logcopy`) |
 
 Modes are **mutually exclusive**. `wanos-sync.bat test run` (or any two of `test` / `run` / `logcopy` / `codeimport` / `diff`) exits with an error — do not combine them. Do not pass trailing `logcopy` with `run` — it is always included. Mode `diff` allows only trailing `lcd`, `wlw`, and `verbose`.

@@ -7,7 +7,7 @@ REM ----------------------------------------------------------------------------
 REM Thin launcher for helpers\wanos-sync.ps1
 REM
 REM Modes (must match ValidateSet in the .ps1; pick exactly one):
-REM   test         Dry-run rsync Local<->Pi + log pull preview (SSH, no Z:)
+REM   test         Dry-run MIRROR only (rsync -n Local-->Pi). No stats/log/state pull.
 REM   run          Normalize --> rsync mirror --> stats pull --> log pull --> sessionlog --> logcopy
 REM   push         Code only: Normalize --> rsync mirror
 REM   pull         State only: stats pull --> log pull --> sessionlog --> logcopy
@@ -17,10 +17,11 @@ REM   diff         Compare one repo-relative file PC vs Pi (normalized text diff
 REM Combining two modes (e.g. "push run") is an error.
 REM
 REM Optional trailing modifiers:
-REM   push/pull With test only: dry-run a specific direction (e.g. "test push")
+REM   push/pull With test: push = same as default (mirror dry-run);
+REM             pull = dry-run stats/log/state only (no mirror)
 REM   lcd       Target LCD Pi (\_lcd-agent --> 10.32.251.51:/home/wannes/wanos)
 REM   wlw       Target WLW portal (be90webserver --> 10.32.251.30:/home/wannes/be90webserver)
-REM   logcopy   With test only: also dry-run the git docs\logs copy
+REM   logcopy   With "test pull" only: also dry-run the git docs\logs copy
 REM             (run/pull always logcopies; logcopy-as-mode already does it)
 REM   verbose   Pass -VerboseSync to the .ps1
 REM diff mode: required relpath arg after mode; only lcd, wlw, and verbose allowed.
@@ -183,8 +184,11 @@ goto :show_help
 echo Usage - all valid combinations:
 echo.
 echo   WanOS ^(main Pi .30^)
-echo     wanos-sync.bat test [push^|pull] [logcopy] [verbose]
-echo         Dry-run sync. Bidirectional by default, or limit to push or pull.
+echo     wanos-sync.bat test [push] [verbose]
+echo         Dry-run MIRROR only ^(rsync -n^). No stats/log/state pull.
+echo.
+echo     wanos-sync.bat test pull [logcopy] [verbose]
+echo         Dry-run pull jobs only ^(stats/logs/sessionlog; optional docs\logs^).
 echo.
 echo     wanos-sync.bat push [verbose]
 echo         Code only: normalize, bootstrap, and mirror to Pi. No state/log pull.
@@ -201,7 +205,8 @@ echo         Log + sessionlog pull, then copy logs into git docs\logs only.
 echo         No mirror, no stats, no normalize.
 echo.
 echo   LCD ^(LCD Pi .51; _lcd-agent --^> /home/wannes/wanos^)
-echo     wanos-sync.bat test lcd [push^|pull] [logcopy] [verbose]
+echo     wanos-sync.bat test lcd [push] [verbose]
+echo     wanos-sync.bat test pull lcd [logcopy] [verbose]
 echo     wanos-sync.bat push lcd [verbose]
 echo     wanos-sync.bat pull lcd [verbose]
 echo     wanos-sync.bat run lcd [verbose]
@@ -209,7 +214,8 @@ echo     wanos-sync.bat logcopy lcd [verbose]
 echo         Operate on LCD Pi. run/push = mirror _lcd-agent. pull = logs.
 echo.
 echo   WLW ^(main Pi .30; be90webserver --^> /home/wannes/be90webserver^)
-echo     wanos-sync.bat test wlw [push^|pull] [logcopy] [verbose]
+echo     wanos-sync.bat test wlw [push] [verbose]
+echo     wanos-sync.bat test pull wlw [logcopy] [verbose]
 echo     wanos-sync.bat push wlw [verbose]
 echo     wanos-sync.bat pull wlw [verbose]
 echo     wanos-sync.bat run wlw [verbose]
@@ -249,9 +255,15 @@ if not "!RC!"=="0" (
 exit /b 0
 
 :mode_test
-set "DRY_LBL=dry-run, rsync/SSH"
-if "!DIRECTION!"=="push" set "DRY_LBL=dry-run push only"
+set "DRY_LBL=dry-run mirror only"
+if "!DIRECTION!"=="push" set "DRY_LBL=dry-run mirror only"
 if "!DIRECTION!"=="pull" set "DRY_LBL=dry-run pull only"
+if "!LOGCOPY!"=="1" if /I not "!DIRECTION!"=="pull" (
+    echo ERROR: logcopy with test requires "test pull" ^(pull dry-run^).
+    echo Default test is mirror-only and has no log/state pull to copy.
+    echo.
+    exit /b 1
+)
 if "!LCD!"=="1" (
     echo Mode: test lcd  ^(!DRY_LBL! LCD Pi^)
 ) else if "!WLW!"=="1" (
