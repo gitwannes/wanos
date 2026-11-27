@@ -2,7 +2,7 @@
 
 Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase files — not here.
 
-**Last updated:** 2026-11-14 (**P2** closed — shared MirrorExclude + Pi `wlw-sync.sh` in wanos only, be90 script gone; **P3**/**C44** Done)
+**Last updated:** 2026-11-26 (**O1** Optimization track triaged — co-tenancy; cross-link be90 `phaseO-optimization.md`)
 
 ---
 
@@ -29,6 +29,7 @@ Ordered backlog + closed history. Specs / DoD / locks live in the lettered phase
 | **F** | Security bridge | [`phaseF-security.md`](phaseF-security.md) |
 | **G** | Integrations | [`phaseG-integrations.md`](phaseG-integrations.md) |
 | **P** | Portability | [`phaseP-portability.md`](phaseP-portability.md) |
+| **O** | Optimization (WanOS + WLW co-tenancy) | [`phaseO-optimization.md`](phaseO-optimization.md) · sibling be90 `docs/todo/phaseO-optimization.md` · product [`../wanos-wlw-cotenancy-architecture.md`](../wanos-wlw-cotenancy-architecture.md) |
 | **L** | Local character LCDs | [`phaseL-lcd.md`](phaseL-lcd.md) |
 | **S** | Sauna plant (vent + start gate) | [`_archive/phaseS-sauna.md`](_archive/phaseS-sauna.md) (archived) |
 | **Ops8** | PHP2Shell bridge (current Pi PHP, pre-Ops7) | [`_archive/ops8-php2shell-bridge.md`](_archive/ops8-php2shell-bridge.md) (archived) · product [`../ops8-operator-checklist.md`](../ops8-operator-checklist.md) |
@@ -120,53 +121,54 @@ All open items. **Detail** = phase file section.
 #   Status Size Id           What                                               Detail
 ──  ────── ──── ──────────── ────────────────────────────────────────────────── ──────────────────────────
 1   open   high Ops7         fresh main Pi: Trixie + PHP≥8.4.27 + Python 3.13 (scripts) ops7-fresh-install.md
-2   open   low  B12          rule-list folder/tag                               phaseB § B12
-3   open   mid  B26          independent If sequence under Then (all-match)     phaseB § B26
-4   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)      phaseB § B24
-5   hold   high B28          assess: auto-off SoT → singular automation rules   phaseB § B28
-6   hold   mid  B29          H7 Auto/Manual override (entry model undecided)    phaseB § B29
-7   open   high E            Gmail transport / outbox + Blockly Messages        phaseE
-8   open   mid  C3           Force ALL-OFF                                      phaseC § C3
-9   open   mid  C4           Rename HTML entrypoints (commander→wisc, blocky→blockly; login landing)  phaseC § C4
-10  open   mid  C28          LG TV skins (explorer-tv + wisc-tv; gate from login) phaseC § C28
-11  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
-12  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
-13  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
-14  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
-15  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
-16  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
-17  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
-18  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
-19  open   low  G7           Integration log tags                               phaseG § G7
-20  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
-21  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
-22  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
-23  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
-24  open   high G9           Honeywell / Evohome                                phaseG § G9
-25  open   high G12          SMA solar                                          phaseG § G12
-26  open   high G13          HomeConnect BSH                                    phaseG § G13
-27  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
-28  open   high F            Security bridge (F1→F7)                            phaseF
-29  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
-30  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
-31  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
-32  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
-33  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
-34  hold   high P            Other homes / portability (assess)                 phaseP
-35  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
-36  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
-37  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
-38  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
-39  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
-40  open   mid  C42          HomeWizard-style power graphs (Explorer History)     phaseC § C42
-41  open   low  C43          Explorer view presets: Control/History + clear on filter drift  phaseC § C43
-42  open   mid  G18          bugfix: zwave.vent.badk_1e OFF not sent (unmapped/empty)    phaseG § G18
-43  hold   mid  G19          assess: empty wanos_iwhw.log (Grok: missing self.iwhw_logger)  phaseG § G19
-44  open   low  B30          numeric Compare edge vs level (was B14b row 2)     phaseB § B30
-45  open   low  B31          H6 number helpers (was B14b)                       phaseB § B31
-46  open   low  B32          H9 sun elevation (was B14b)                        phaseB § B32
+2   hold   high O1           WanOS+WLW co-tenancy optimization (after Ops7)     phaseO § O1 · be90 O1
+3   open   low  B12          rule-list folder/tag                               phaseB § B12
+4   open   mid  B26          independent If sequence under Then (all-match)     phaseB § B26
+5   open   mid  B24          per-rule sweep reconcile (level-hold @ sweep)      phaseB § B24
+6   hold   high B28          assess: auto-off SoT → singular automation rules   phaseB § B28
+7   hold   mid  B29          H7 Auto/Manual override (entry model undecided)    phaseB § B29
+8   open   high E            Gmail transport / outbox + Blockly Messages        phaseE
+9   open   mid  C3           Force ALL-OFF                                      phaseC § C3
+10  open   mid  C4           Rename HTML entrypoints (commander→wisc, blocky→blockly; login landing)  phaseC § C4
+11  open   mid  C28          LG TV skins (explorer-tv + wisc-tv; gate from login) phaseC § C28
+12  open   mid  C26          Frontend JS modularization + reference.md JS catalog phaseC § C26
+13  hold   low  C11          Control vs History list membership (assess)        phaseC § C11
+14  hold   low  C17          Alert banner dismiss vs reload (assess)            phaseC § C17
+15  open   low  C15          Admin lab switch → Debug Commands row              phaseC § C15
+16  open   mid  C13          Merge Hidden → Timers & types                      phaseC § C13
+17  open   mid  C30          WISC douche session (live + last summary)           phaseC § C30
+18  open   mid  G2           bugfix: Hue color/bri truth                        phaseG § G2
+19  open   mid  G6           Admin scoped CONFIG_RELOAD modal + API scopes      phaseG § G6
+20  open   low  G7           Integration log tags                               phaseG § G7
+21  open   mid  G8           bugfix: Boot autostart timing (A+B)                phaseG § G8
+22  open   mid  G1           bugfix: Epson get_power_state                      phaseG § G1
+23  open   mid  G4           OWM One Call + hot-sun cinema 60%                  phaseG § G4
+24  open   high G11          Samsung SmartThings / Airco (kickoff locked)       phaseG § G11
+25  open   high G9           Honeywell / Evohome                                phaseG § G9
+26  open   high G12          SMA solar                                          phaseG § G12
+27  open   high G13          HomeConnect BSH                                    phaseG § G13
+28  open   high G17          HomeWizard map UI (Z-Wave-style picker + add devices)  phaseG § G17
+29  open   high F            Security bridge (F1→F7)                            phaseF
+30  hold   mid  B20          Domoticz Time trigger / clock rules (after F)       phaseB § B20
+31  hold   mid  B15          Demote schedule edges → user origin (after F)      phaseB § B15
+32  hold   high B16          Full-bus UUID for internal EventTypes (after F)    phaseB § B16
+33  hold   mid  B17          Sauna/IR hardcoded → automation (assess)           phaseB § B17
+34  open   mid  B18          bugfix: Sauna session_end ≤ absolute_cutoff        phaseB § B18
+35  hold   high P            Other homes / portability (assess)                 phaseP
+36  open   high P1           Configurable sensor-history series (replace SENSOR_META)  phaseP § P1
+37  open   mid  L2           LCDs on WanOS Pi; retire LCD Pi (.env→config_hardware) phaseL § L2
+38  open   low  B27          bugfix: TV ON rule — Sonos OFF not applied / log2 gap phaseB § B27
+39  open   mid  C33          Sauna/IR History + nameplates + sauna kWh (Admin timers→C39)  phaseC § C33
+40  open   mid  C36          Device event history modal (right-click → table)     phaseC § C36
+41  open   mid  C42          HomeWizard-style power graphs (Explorer History)     phaseC § C42
+42  open   low  C43          Explorer view presets: Control/History + clear on filter drift  phaseC § C43
+43  open   mid  G18          bugfix: zwave.vent.badk_1e OFF not sent (unmapped/empty)    phaseG § G18
+44  hold   mid  G19          assess: empty wanos_iwhw.log (Grok: missing self.iwhw_logger)  phaseG § G19
+45  open   low  B30          numeric Compare edge vs level (was B14b row 2)     phaseB § B30
+46  open   low  B31          H6 number helpers (was B14b)                       phaseB § B31
+47  open   low  B32          H9 sun elevation (was B14b)                        phaseB § B32
 ```
-Near-term: **Ops7**. Then **B26** → **B24**. **P2** / **P3** / **C44** Done.
+Near-term: **Ops7**. Then **O1** (hold until Ops7) · **B26** → **B24**. **P2** / **P3** / **C44** Done.
 
 ---
 

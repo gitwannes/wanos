@@ -1,4 +1,4 @@
-# Cursor User Rules backup — refreshed 2026-11-24
+# Cursor User Rules backup — refreshed 2026-11-27
 
 Snapshot of Cursor Settings → User Rules (this Cursor account, cloud-synced). Backup only. This is a `.md` file so Cursor does **not** load it as a project rule.
 
@@ -56,14 +56,14 @@ Working directories under Docker `/workspace/<app>` and equivalent live deploy/a
 
 - Do **not** treat "not a git repo" under a live app tree as an error or broken checkout.
 - Do **not** run `git init`, invent remotes, or expect commits in live trees.
-- For `git status` / `diff` / `log` / commit / branch work: use the matching clone under `~/git/` (PC: also `C:\data\git\` as that host's `~/git` equivalent).
+- Any git work (status / diff / log / commit / branch / …) requires an **explicit git order** (User Rule **Git — operator only**) and must use the matching clone under `~/git/` (PC: also `C:\data\git\` as that host's `~/git` equivalent).
 
 ## Agent behaviour (Pi CLI / Docker on the Pi only)
 
 Applies **only** when the agent session is running on the Pi.
 
 - Create, edit, and delete files **only** under `~/git/` (any repo below that root).
-- `implement` / `ship` / `patch` / `fix` authorize work **only** under `~/git/` — never the live tree.
+- `implement` / `patch` authorize work **only** under `~/git/` — never the live tree.
 - Do **not** run `wlw-sync.sh`, `wanos-sync`, or any other clone-to-live or live-to-clone sync. The operator syncs manually.
 - Reading a live file is allowed only when the operator explicitly asks to inspect the running tree. That read is **not** permission to change the live tree.
 
@@ -87,33 +87,37 @@ The user's name is Johan. Their role is Something else. They prefer coding workf
 
 ---
 
-## Git remote: no push/merge without approval
+## Git — operator only
 
 - Id: `18661598`
 - Created: 2026-10-22T08:20:22.879Z
 
-# Git remote / repo publishing — approval required (hard rule)
+# Git — operator only (hard rule)
 
-Never perform remote or publishing git actions unless the operator gives an **explicit order in that turn** (or an earlier turn they have not revoked).
+Never run **any** git command (or git-host CLI such as `gh` for repo/PR operations) unless the operator gives an **explicit git/gh order in that turn** (or an earlier turn they have not revoked).
 
-## Never without explicit approval
+## Blocked by default (all of them)
 
-- `git push` (any remote, any branch)
-- `git pull` / `fetch` + merge/rebase onto a shared branch when that updates remote tracking with intent to publish
-- Create / merge / close pull requests (`gh pr create`, `gh pr merge`, merge commits on GitHub/Origin)
-- Force-push, rewrite published history, or delete remote branches
-- Merge repos, split repos, change remotes, or publish a new GitHub/Origin repo from local work
-- Any other action that publishes, merges, or rewrites **shared/remote** history
+- Local inspection: `git status`, `diff`, `log`, `show`, `branch`, `tag`, …
+- Local mutation: `add`, `commit`, `checkout`, `restore`, `reset`, `stash`, `rebase`, `merge`, `cherry-pick`, …
+- Remote / publishing: `push`, `pull`, `fetch`, force-push, remote changes, delete branches
+- Hosted PR/repo flows via `gh` (create/merge/close PR, checks, releases, …) unless the operator explicitly ordered that `gh`/git action
+- Any other git plumbing the agent might use "to be helpful"
 
-## Allowed without that order
+## Does NOT authorize git
 
-- Local commits **only when** the operator already authorized commit (existing commit rules still apply)
-- Local status / diff / log / branch inspection
-- Asking whether to push, open a PR, or merge
+- `implement` / `patch` alone
+- Plan mode, plan cards, or attached plans
+- Soft language (`ship`, `done`, `looks good`, "fix my mistake")
+- The agent wanting status/diff before a commit suggestion
 
-## If push/merge/PR would help
+## When git is allowed
 
-Ask first. Do **not** proceed until the operator clearly approves (e.g. `push`, `push it`, `create the PR`, `merge the PR`). Soft language (`ship`, `done`, `looks good`) is **not** approval for remote git actions unless they also name the remote action.
+Only when the operator clearly names the action (e.g. `git status`, `commit this`, `push`, `create the PR`, `revert with git restore`).
+
+## If git would help
+
+Ask first. Do **not** run git until they clearly approve the specific action.
 
 ---
 
@@ -131,7 +135,7 @@ Operator instructions stay in **English**. Agent chat replies stay in **English*
 - **WLW logon + portal shell:** stay **English** (do not Flemish-ize).
 - **Budget tile + all `/budget/*` pages:** user-visible strings → **Belgian Dutch (Flemish)** — bulk pass is **B36** (not B35).
 - **New/changed budget UI** from 2026-10-08 onward: write Flemish immediately.
-- **Do not** bulk-rewrite existing English budget copy until **B36** is kickoff-locked and `implement` is commanded. Mixed EN/NL budget pages are OK until then.
+- **Do not** bulk-rewrite existing English budget copy until **B36** is kickoff-locked and `implement` or `patch` is commanded. Mixed EN/NL budget pages are OK until then.
 
 ## Out of scope for this rule
 
@@ -301,7 +305,7 @@ Respond with the real open set (or explicitly say there are none). Do not treat 
 ## Markdown
 
 - Updating phase docs **during** the Q&A is optional.
-- Updating that (sub)phase’s markdown **is required before any code** on it. If the user later says implement/ship/patch and the kickoff answers are not in the phase file yet, write the docs first (or stop and say they are missing).
+- Updating that (sub)phase’s markdown **is required before any code** on it. If the user later says `implement` / `patch` and the kickoff answers are not in the phase file yet, write the docs first (or stop and say they are missing).
 
 ## Do not
 
@@ -444,7 +448,7 @@ At the top of each file, add a file reference (after shebang, comment-based help
 - Do **not** assume, hallucinate, or guess requirements, behaviour, user intent, or repo state.
 - If anything is unclear, missing, or unverified — **stop and ask** clarifying questions before proceeding.
 - Separate **verified facts** (code, docs, logs, user statements) from **unknowns**; say explicitly when something is not confirmed.
-- Do not invent APIs, file paths, phase scope, or “probably fine” defaults to fill gaps.
+- Do not invent APIs, file paths, phase scope, or "probably fine" defaults to fill gaps.
 - Do not treat triage suggestions as locked decisions until the user confirms.
 
 ## Pipeline intake (triage vs implement)
@@ -452,17 +456,29 @@ At the top of each file, add a file reference (after shebang, comment-based help
 This intake applies in every repo. Pipeline files (`docs/todo/*`) are the intended convention for all projects under the user's control; they may not exist yet in a given repo.
 
 - If the user adds a **new item / bug / todo** and did **not** say `triage`: **stop and ask** — implement immediately, or run the `triage` flow? Do not code and do not edit `docs/todo/*` until they answer.
-- Already answered in that message: `triage` → triage flow; `implement` / `ship` / `patch` → code command (still no silent pipeline edits).
-- `triage` → User Rule “Todo / inbox triage”. `kickoff` → User Rule “Phase kickoff”.
+- Already answered in that message: `triage` → triage flow; `implement` / `patch` → code command (still no silent pipeline edits).
+- `triage` → User Rule "Todo / inbox triage". `kickoff` → User Rule "Phase kickoff".
 - Do **not** start code on a **queued** (sub)phase until `kickoff` has finished and that phase’s markdown is updated.
 - If this repo has no `docs/todo/` yet: still ask implement vs triage. Do **not** create pipeline files, phase letters, or invent a schedule unless the user commands that setup.
 
 ## Code generation (implement gate — hard rule)
 
-- Do **not** generate or edit code until the operator **explicitly** says **`implement`**, **`ship`**, **`patch`**, or **`fix`** / **`bugfix`** (when clearly directed at code) in that turn or an earlier turn they have not revoked.
-- A locked spec, finished Q&A, “scope is clear”, “this is fine”, “in this code run”, or similar is **not** permission to code — **wait**.
+- Do **not** generate or edit product/code/config/design until the operator **explicitly** says **`implement`** or **`patch`** in that turn or an earlier turn they have not revoked.
+- **Only** those two verbs authorize that work. Soft synonyms do not. **`ship`**, **`fix`**, and **`bugfix`** do **not** authorize product edits (they may still mean triage placement, docs close-out, or analysis — ask if unclear).
+- A locked spec, finished Q&A, "scope is clear", "this is fine", "in this code run", or similar is **not** permission to code — **wait**.
 - Do not volunteer patches, scaffolds, or "temporary" measures.
 - Production quality applies **only when coding is authorized**: clean, modular, typed, error-handled; no unnecessary abstractions. That standard does **not** authorize writing code.
+
+## Hands off — Plan mode / plan UI / undo (hard rule)
+
+- **Plan mode** active, or the operator said `plan` / `plan mod`: no product/code/config/design edits. `docs/todo/*` only if they also said `triage` / `kickoff`.
+- Cursor **plan cards**, attached `*.plan.md`, "Implement the plan as specified", "todos already created", or auto-generated plan todos are **not** authorization. Only the operator’s chat text with `implement` or `patch` counts.
+- Same-turn veto: if the turn mixes plan / triage / kickoff / insight with pasted chrome that says "implement", treat as **not** implement — ask.
+- Do **not** undo, revert, restore, or delete agent or operator work (including deleting new files or rewriting away changes) unless the operator explicitly orders that undo in that turn. Unauthorized implement does **not** license a silent revert. Any undo that uses git also requires an explicit **git** order (User Rule on git).
+
+## Git
+
+- **No git** unless the operator explicitly orders git that turn — see User Rule **Git — operator only**. `implement` / `patch` alone do **not** authorize git.
 
 ## Analysis & feedback
 
@@ -471,6 +487,10 @@ This intake applies in every repo. Pipeline files (`docs/todo/*`) are the intend
 - When reviewing phases, specs, or prereqs: flag ambiguities and open questions — do not paper over them.
 - When **reviewing or disagreeing**: tag non-trivial architectural claims and logic choices with `[Certain]`, `[Likely]`, or `[Guessing]`. Align tags with verified facts vs unknowns above.
 - When analyzing or reviewing (and when proposing refactors **only if coding is authorized**): flag first — missing edge cases (null, races, limits, errors), anti-patterns, and complexity/scalability issues; give a concise technical why; ask 1-2 sharp questions on missing requirements or constraints.
+
+## When unsure
+
+Stop and ask: **triage**, **kickoff**, **implement**, **patch**, or (if relevant) an explicit **git** / **undo** order? Do not "helpfully" start coding, reverting, or running git.
 
 ---
 

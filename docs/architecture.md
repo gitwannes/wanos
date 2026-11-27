@@ -1,5 +1,7 @@
 # WanOS Home Control System - Architecture Blueprint
 
+**Co-tenancy (WanOS + WLW on `.30`):** [`wanos-wlw-cotenancy-architecture.md`](wanos-wlw-cotenancy-architecture.md) — cross-repo review + optimization plan (pointer in be90webserver `docs/`).
+
 **Repository Link:** https://bitbucket.org/bitwannes/wanos  
 **Target Environment:**
 
